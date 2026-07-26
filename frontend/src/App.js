@@ -1,0 +1,187 @@
+import React from "react";
+import {
+    BrowserRouter as Router,
+    Routes,
+    Route,
+    Navigate,
+} from "react-router-dom";
+import Header from "./container/header/header";
+import Footer from "./container/footer/Footer";
+import Home from "./container/home/home";
+import JobPage from "./container/JobPage/JobPage";
+import DetailPage from "./container/JobDetail/JobDetail";
+import About from "./container/About/About";
+import Contact from "./container/Contact/Contact";
+import HomeAdmin from "./container/system/HomeAdmin";
+import Login from "./container/login/Login";
+import Register from "./container/login/Register";
+import ForgetPassword from "./container/login/ForgetPassword";
+import HomeCandidate from "./container/Candidate/HomeCandidate";
+import ListCompany from "./container/Company/ListCompany";
+import DetailCompany from "./container/Company/DetailCompany";
+import ChatPage from "./container/Chat/ChatPage";
+
+function App() {
+    const userData = JSON.parse(localStorage.getItem("userData"));
+    const roleCode = userData?.roleCode;
+
+    return (
+        <Router>
+            <Routes>
+                {/* Public Routes */}
+                <Route
+                    path="/"
+                    element={
+                        <>
+                            <Header />
+                            <Home />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/about"
+                    element={
+                        <>
+                            <Header />
+                            <About />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/contact"
+                    element={
+                        <>
+                            <Header />
+                            <Contact />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/job"
+                    element={
+                        <>
+                            <Header />
+                            <JobPage />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/company"
+                    element={
+                        <>
+                            <Header />
+                            <ListCompany />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/detail-company/:id"
+                    element={
+                        <>
+                            <Header />
+                            <DetailCompany />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/detail-job/:id"
+                    element={
+                        <>
+                            <Header />
+                            <DetailPage />
+                            <Footer />
+                        </>
+                    }
+                />
+
+                <Route
+                    path="/chat"
+                    element={
+                        <>
+                            <Header />
+                            <ChatPage />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/chat/:partnerId"
+                    element={
+                        <>
+                            <Header />
+                            <ChatPage />
+                            <Footer />
+                        </>
+                    }
+                />
+
+                {/* Auth Routes */}
+                <Route
+                    path="/login"
+                    element={
+                        <>
+                            <Header />
+                            <Login />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/register"
+                    element={
+                        <>
+                            <Header />
+                            <Register />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/forget-password"
+                    element={
+                        <>
+                            <Header />
+                            <ForgetPassword />
+                            <Footer />
+                        </>
+                    }
+                />
+
+                {/* Protected Routes */}
+                <Route
+                    path="/admin/*"
+                    element={
+                        roleCode &&
+                        ["ADMIN", "EMPLOYER", "COMPANY"].includes(roleCode) ? (
+                            <HomeAdmin />
+                        ) : (
+                            <Navigate to="/login" />
+                        )
+                    }
+                />
+                <Route
+                    path="/candidate/*"
+                    element={
+                        roleCode === "CANDIDATE" ? (
+                            <>
+                                <Header />
+                                <HomeCandidate />
+                                <Footer />
+                            </>
+                        ) : (
+                            <Navigate to="/login" />
+                        )
+                    }
+                />
+            </Routes>
+        </Router>
+    );
+}
+
+export default App;

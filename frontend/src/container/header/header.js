@@ -1,0 +1,212 @@
+import React from 'react'
+import { useEffect, useState } from 'react';
+import { Link, NavLink } from 'react-router-dom'
+import { toast } from 'react-toastify';
+import './header.scss';
+import { getNotificationByUserService, markReadNotificationService, getListChatConversationService } from '../../service/userService';
+
+const Header = () => {
+    const [user, setUser] = useState({})
+    const [listNotification, setListNotification] = useState([])
+    const [unreadCount, setUnreadCount] = useState(0)
+    const [unreadChat, setUnreadChat] = useState(0)
+    const [showNotification, setShowNotification] = useState(false)
+
+    useEffect(() => {
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        // if (userData && userData.roleCode !== 'CANDIDATE')
+        // {
+        //     toast.error("Vai trò của bạn không làm việc ở đây")
+        //     setTimeout(() => {
+        //         window.location.href = "/admin"
+        //     }, 1000);
+        // }
+        setUser(userData)
+    }, [])
+
+    useEffect(() => {
+        if (!user || !user.id) return
+
+        const loadHeaderData = async () => {
+            const [notificationRes, chatRes] = await Promise.all([
+                getNotificationByUserService({ userId: user.id, limit: 10, offset: 0 }),
+                getListChatConversationService({ userId: user.id })
+            ])
+            if (notificationRes && notificationRes.errCode === 0) {
+                setListNotification(notificationRes.data || [])
+                setUnreadCount(notificationRes.unreadCount || 0)
+            }
+            if (chatRes && chatRes.errCode === 0) {
+                setUnreadChat(chatRes.totalUnread || 0)
+            }
+        }
+
+        loadHeaderData()
+        const intervalId = window.setInterval(loadHeaderData, 30000)
+        return () => window.clearInterval(intervalId)
+    }, [user])
+
+    let handleLogout = () => {
+        console.log("hello")
+        localStorage.removeItem("userData");
+        localStorage.removeItem("token_user")
+        window.location.href = "/login"
+    }
+
+    useEffect(() => {
+        const scrollHeader = () => {
+            var header = document.querySelector(".header-area");
+            if (header) {
+                header.classList.toggle("sticky", window.scrollY > 0)
+            }
+        }
+        window.addEventListener("scroll", scrollHeader)
+        return () => window.removeEventListener("scroll", scrollHeader)
+    }, [])
+
+    const handleReadAll = async () => {
+        const res = await markReadNotificationService({ userId: user.id })
+        if (res && res.errCode === 0) {
+            setListNotification(current => current.map(item => ({ ...item, isChecked: 1 })))
+            setUnreadCount(0)
+        }
+    }
+
+    const handleClickNotification = async (notification) => {
+        if (+notification.isChecked === 0) {
+            await markReadNotificationService({ userId: user.id, id: notification.id })
+            setListNotification(current => current.map(item => item.id === notification.id ? { ...item, isChecked: 1 } : item))
+            setUnreadCount(current => Math.max(0, current - 1))
+        }
+        setShowNotification(false)
+        if (notification.link) window.location.href = notification.link
+    }
+
+    return (
+        <>
+            <header>
+                {/* <!-- Header Start --> */}
+                <div className="header-area header-transparrent">
+                    <div className="headder-top header-sticky">
+                        <div className="container">
+                            <div className="row align-items-center">
+                                <div className="col-lg-3 col-md-2">
+                                    {/* <!-- Logo --> */}
+                                    <div className="logo" style={{ zIndex: 1 }}>
+                                        <NavLink to="/"><img src="/assets/img/logo/logo.png" alt="" /></NavLink>
+                                    </div>
+                                </div>
+                                <div className="col-lg-9 col-md-9">
+                                    <div className="menu-wrapper">
+                                        {/* <!-- Main-menu --> */}
+                                        <div className="main-menu">
+                                            <nav className="d-none d-lg-block">
+                                                <ul id="navigation">
+                                                    <li ><NavLink to="/" onClick={() => window.scrollTo(0, 0)}>Trang chủ</NavLink></li>
+                                                    <li ><NavLink to="/job" onClick={() => window.scrollTo(0, 0)}>Việc làm </NavLink></li>
+                                                    <li ><NavLink to="/company" onClick={() => window.scrollTo(0, 0)}>Công ty </NavLink></li>
+                                                    <li ><NavLink to="/about" onClick={() => window.scrollTo(0, 0)}>Giới thiệu</NavLink></li>
+                                                    {/* <li><NavLink to="/contact" >Contact</NavLink></li> */}
+                                                </ul>
+                                            </nav>
+                                        </div>
+                                        {/* <!-- Header-btn --> */}
+                                        <div className="header-btn d-none f-right d-lg-block">
+                                            {user ?
+                                                <ul className="navbar-nav navbar-nav-right" style={{ display: 'flex', alignItems: 'center' }}>
+                                                    <li className="nav-item" style={{ position: 'relative', marginRight: '18px' }}>
+                                                        <Link to="/chat" style={{ color: '#fff', fontSize: '18px', position: 'relative' }}>
+                                                            <i className="far fa-comment-dots"></i>
+                                                            {unreadChat > 0 &&
+                                                                <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: '#fb246a', color: '#fff', borderRadius: '50%', fontSize: '10px', padding: '1px 5px' }}>{unreadChat}</span>
+                                                            }
+                                                        </Link>
+                                                    </li>
+                                                    <li className="nav-item" style={{ position: 'relative', marginRight: '10px' }}>
+                                                        <a style={{ color: '#fff', fontSize: '18px', position: 'relative', cursor: 'pointer' }} onClick={() => setShowNotification(!showNotification)}>
+                                                            <i className="far fa-bell"></i>
+                                                            {unreadCount > 0 &&
+                                                                <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: '#fb246a', color: '#fff', borderRadius: '50%', fontSize: '10px', padding: '1px 5px' }}>{unreadCount}</span>
+                                                            }
+                                                        </a>
+                                                        {showNotification &&
+                                                            <div style={{ position: 'absolute', top: '35px', right: '-50px', width: '330px', background: '#fff', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', zIndex: 999, maxHeight: '400px', overflowY: 'auto' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #f0f0f0' }}>
+                                                                    <b style={{ color: '#333' }}>Thông báo</b>
+                                                                    <a style={{ fontSize: '12px', color: '#fb246a', cursor: 'pointer' }} onClick={() => handleReadAll()}>Đọc tất cả</a>
+                                                                </div>
+                                                                {listNotification && listNotification.length > 0 ? listNotification.map((item, index) => (
+                                                                    <div key={index} onClick={() => handleClickNotification(item)}
+                                                                        style={{ padding: '10px 14px', borderBottom: '1px solid #f7f7f7', cursor: 'pointer', background: +item.isChecked === 0 ? '#fff5f8' : '#fff' }}>
+                                                                        <div style={{ fontSize: '13px', color: '#333' }}>{item.content}</div>
+                                                                    </div>
+                                                                )) :
+                                                                    <div style={{ padding: '18px', textAlign: 'center', color: '#999', fontSize: '13px' }}>Chưa có thông báo nào</div>
+                                                                }
+                                                            </div>
+                                                        }
+                                                    </li>
+                                                    <li className="nav-item nav-profile dropdown">
+                                                        <a className="nav-link dropdown-toggle box-header-profile" href="#" data-toggle="dropdown" id="profileDropdown">
+                                                            <img style={{ objectFit: 'cover', width: '30px', height: '30px', borderRadius: '50%', marginLeft: '15px' }} src={user.image} alt="profile" />
+                                                            <span className='header-name-user'>{user.firstName + " " + user.lastName}</span>
+                                                        </a>
+                                                        <div className="dropdown-menu dropdown-menu-right navbar-dropdown" aria-labelledby="profileDropdown">
+                                                            <Link to='/candidate/info' className="dropdown-item">
+                                                                <i className="far fa-user text-primary" />
+                                                                Thông tin
+                                                            </Link>
+                                                            <Link to='/candidate/usersetting' className="dropdown-item">
+                                                                <i className="far fa-solid fa-bars text-primary" />
+                                                                Cài đặt nâng cao
+                                                            </Link>
+                                                            <Link to="/candidate/cv-post/" className="dropdown-item">
+                                                                <i className="far fa-file-word text-primary"></i>
+                                                                Công việc đã nộp
+                                                            </Link>
+                                                            <Link to="/chat" className="dropdown-item">
+                                                                <i className="far fa-comment-dots text-primary"></i>
+                                                                Tin nhắn
+                                                            </Link>
+                                                            <Link to="/candidate/saved-jobs/" className="dropdown-item">
+                                                                <i className="far fa-heart text-primary"></i>
+                                                                Việc làm đã lưu
+                                                            </Link>
+                                                            <Link to='/candidate/changepassword/' className="dropdown-item">
+                                                                <i className="ti-settings text-primary" />
+                                                                Đổi mật khẩu
+                                                            </Link>
+                                                            <a onClick={() => handleLogout()} className="dropdown-item">
+                                <i className="ti-power-off text-primary" />
+                                Đăng xuất
+                            </a>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                                :
+                                                <>
+                                                    <Link to={'/register'} className="btn head-btn1">Đăng kí</Link>
+                                                    <Link to={'/login'} className="btn head-btn2">Đăng nhập</Link>
+                                                </>
+                                            }
+
+
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* <!-- Mobile Menu --> */}
+                                <div className="col-12">
+                                    <div className="mobile_menu d-block d-lg-none"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {/* <!-- Header End --> */}
+            </header >
+
+        </>
+    )
+}
+
+export default Header
