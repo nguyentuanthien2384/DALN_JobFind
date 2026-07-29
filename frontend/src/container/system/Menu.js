@@ -1,14 +1,34 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react';
+import { getListChatConversationService } from '../../service/userService';
+import { getSocket } from '../../socket';
 const Menu = () => {
 
 
     const [user, setUser] = useState({})
+    const [unreadChat, setUnreadChat] = useState(0)
     useEffect(() => {
         const userData = JSON.parse(localStorage.getItem('userData'));
         setUser(userData)
     }, [])
+
+    // Dem tin nhan chua doc cho muc "Tin nhan" o menu quan tri.
+    useEffect(() => {
+        if (!user || !user.id) return
+        const loadUnread = async () => {
+            const res = await getListChatConversationService({ userId: user.id })
+            if (res && res.errCode === 0) setUnreadChat(res.totalUnread || 0)
+        }
+        loadUnread()
+        const intervalId = window.setInterval(loadUnread, 30000)
+        const socket = getSocket()
+        if (socket) socket.on('chat:new-message', loadUnread)
+        return () => {
+            window.clearInterval(intervalId)
+            if (socket) socket.off('chat:new-message', loadUnread)
+        }
+    }, [user])
 
     return (
         <nav className="sidebar sidebar-offcanvas" id="sidebar">
@@ -17,6 +37,20 @@ const Menu = () => {
                     <Link className="nav-link" to="/admin/">
                         <i className="icon-grid menu-icon" />
                         <span className="menu-title">Trang chủ</span>
+                    </Link>
+                </li>
+                {/* Trang chat nam ngoai khu quan tri, truoc day khu nay khong co link nao
+                    tro toi nen nha tuyen dung dang nhap xong khong biet vao chat bang cach nao. */}
+                <li className="nav-item relative">
+                    <Link className="nav-link" to="/chat">
+                        <i className="icon-paper menu-icon" />
+                        <span className="menu-title">Tin nhắn</span>
+                        {unreadChat > 0 &&
+                            <span style={{
+                                background: '#fb246a', color: '#fff', borderRadius: '10px',
+                                fontSize: '11px', padding: '1px 7px', marginLeft: '8px'
+                            }}>{unreadChat}</span>
+                        }
                     </Link>
                 </li>
                 {user && user.roleCode === "ADMIN" &&
