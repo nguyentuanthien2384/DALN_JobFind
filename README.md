@@ -1,34 +1,113 @@
-# DALN JobFind — Website tìm việc làm
+# 💼 JobFind — Hệ Thống Tuyển Dụng & Tìm Việc Làm Real-Time
 
-## Cấu trúc dự án
+![React](https://img.shields.io/badge/Frontend-React.js-61DAFB?logo=react&logoColor=black)
+![NodeJS](https://img.shields.io/badge/Backend-Node.js-339933?logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Framework-Express.js-000000?logo=express&logoColor=white)
+![MySQL](https://img.shields.io/badge/Database-MySQL-4479A1?logo=mysql&logoColor=white)
+![Socket.io](https://img.shields.io/badge/Realtime-Socket.io-010101?logo=socketdotio&logoColor=white)
+![Sequelize](https://img.shields.io/badge/ORM-Sequelize-52B0E7?logo=sequelize&logoColor=white)
 
-- `backend/` — API Node.js/Express + Sequelize (MySQL), kèm script nạp dữ liệu mẫu.
-- `frontend/` — giao diện React.
-- `database/jobfindtest.sql` — **dữ liệu mẫu đầy đủ**: dữ liệu gốc từ `JobFindResourceV2_1`
-  (tài khoản, công ty, tin tuyển dụng, kỹ năng, CV...) **đã bổ sung** 4 bảng mới của DALN
-  (`chatmessages`, `companyreviews`, `favoriteposts`, `followcompanies`) cùng dữ liệu mẫu
-  cho tính năng chat, đánh giá công ty, lưu tin, theo dõi công ty và thông báo.
+> **JobFind** là nền tảng kết nối tuyển dụng hiện đại giữa **Ứng viên**, **Nhà tuyển dụng** và **Quản trị viên**. Hệ thống được trang bị giao diện UI/UX tối ưu, tương tác nhắn tin Real-time, phân tích độ khớp kỹ năng từ CV PDF và hệ thống quản trị thống kê trực quan.
 
-## Yêu cầu
+---
 
-- Node.js (khuyến nghị bản LTS)
-- MySQL hoặc MariaDB (XAMPP đều dùng được)
+## ✨ Điểm Nổi Bật & Trải Nghiệm UI/UX
 
-## Các bước chạy dự án
+### 🎨 1. Thiết Kế Giao Diện UI/UX Hiện Đại
+- **Giao diện Responsive**: Tương thích hoàn hảo trên các thiết bị Desktop, Tablet và Mobile.
+- **Tối ưu Trải nghiệm Người dùng (UX)**:
+  - Bộ lọc công việc đa tiêu chí (Ngành nghề, Cấp bậc, Mức lương, Hình thức làm việc, Địa điểm).
+  - Thanh tìm kiếm thông minh với gợi ý từ khóa tức thì (Typeahead).
+  - Hiệu ứng cuộn tùy chỉnh (Custom Scrollbars), Modal tương tác mượt mà không load lại trang.
+- **Thẻ việc làm & Công ty nổi bật**: Trình bày thông tin trực quan với logo, mức lương minh bạch, địa điểm và kỹ năng yêu cầu.
 
-### 1. Cấu hình
+### 💬 2. Trò Chuyện Real-time Tức Thì (Socket.IO)
+- **Nhắn tin trực tiếp 1-1**: Giữa Ứng viên và đúng Nhà tuyển dụng đang đăng bài.
+- **Tương tác Real-time sinh động**:
+  - Chấm xanh báo trạng thái **Online / Offline**.
+  - Hiệu ứng hiển thị **"Đang soạn tin nhắn..." (Typing indicator)**.
+  - Badge đếm số tin nhắn chưa đọc cập nhật ngay lập tức trên thanh Header & Menu điều hướng.
+- **Cơ chế Dự phòng (Fallback)**: Tự động chuyển về giao diện REST API nếu kết nối socket gián đoạn.
 
-Mở `backend/.env` và kiểm tra thông tin MySQL (mặc định đã điền sẵn cho XAMPP):
+### 🧠 3. Chấm Điểm Độ Khớp Kỹ Năng CV (Smart CV Matching)
+- **Trích xuất dữ liệu từ PDF**: Tự động đọc và phân tích nội dung file CV dạng PDF thật do ứng viên tải lên.
+- **Chấm điểm phần trăm (%) tương thích**: So sánh danh sách kỹ năng trong CV với yêu cầu kỹ năng của bài đăng tuyển dụng, giúp nhà tuyển dụng duyệt ứng viên nhanh chóng.
+
+### 📊 4. Dashboard Quản Trị Hệ Thống (Admin & Employer Portal)
+- **Biểu đồ thống kê trực quan**: Chart.js hiển thị xu hướng nộp CV, số lượng tin tuyển dụng theo thời gian.
+- **Quản lý gói bài đăng & gói xem CV**: Tích hợp thanh toán trực tuyến qua **PayPal Sandbox**.
+
+---
+
+## 🛠️ Công Nghệ Sử Dụng (Tech Stack)
+
+### **Frontend**
+- **Core**: React.js (Hooks, Context API, Redux)
+- **Styling**: SCSS, Vanilla CSS, Bootstrap 4/5, FontAwesome Icons
+- **Real-time**: `socket.io-client`
+- **Charts & Editor**: Chart.js, TinyMCE Rich Text Editor
+- **HTTP Client**: Axios
+
+### **Backend**
+- **Core**: Node.js, Express.js
+- **Database ORM**: Sequelize ORM (MySQL / MariaDB)
+- **Real-time Server**: Socket.IO
+- **Bảo mật & Xác thực**: JWT (JSON Web Token), bcryptjs
+- **File Parser & Email**: PDF-Parse, Nodemailer (gửi email gợi ý việc làm)
+
+---
+
+## 📱 Phân Hệ Chức Năng & Luồng Người Dùng (User Flows)
+
+```mermaid
+graph TD
+    A[Người dùng truy cập JobFind] --> B{Đăng nhập với vai trò}
+    B -->|CANDIDATE| C[Trang Ứng Viên]
+    B -->|COMPANY| D[Trang Nhà Tuyển Dụng]
+    B -->|ADMIN| E[Trang Quản Trị Hệ Thống]
+
+    C --> C1[Tìm kiếm & Lọc bài đăng]
+    C --> C2[Nộp CV PDF & Chấm điểm khớp skill]
+    C --> C3[Chat Realtime với Nhà tuyển dụng]
+    C --> C4[Lưu việc làm & Đánh giá công ty]
+
+    D --> D1[Mua gói đăng tin qua PayPal]
+    D --> D2[Tạo & Quản lý bài tuyển dụng]
+    D --> D3[Duyệt danh sách CV nộp & Chat với Ứng viên]
+
+    E --> E1[Xem biểu đồ thống kê CV & Post]
+    E --> E2[Quản lý Người dùng & Công ty]
+    E --> E3[Quản lý Danh mục Kỹ năng / Cấp bậc / Ngành nghề]
+```
+
+---
+
+## ⚡ Hướng Dẫn Cài Đặt & Chạy Dự Án
+
+### Yêu Cầu Hệ Thống
+- **Node.js**: Bản LTS (v16 trở lên)
+- **Database**: MySQL hoặc MariaDB (XAMPP / WampServer)
+
+---
+
+### Bước 1: Cấu hình môi trường
+
+Mở file `backend/.env` và kiểm tra thông số kết nối MySQL (Cấu hình mặc định cho XAMPP):
 
 ```env
 DB_HOST=127.0.0.1
-DB_PORT=3333        # đang để 3333 theo XAMPP trên máy này; MySQL mặc định là 3306
+DB_PORT=3333        # Mặc định XAMPP trên máy; nếu dùng MySQL chuẩn hãy đổi thành 3306
 DB_NAME=jobfindtest
 DB_USER=root
 DB_PASSWORD=
+PORT=5000
 ```
 
-### 2. Nạp dữ liệu mẫu (xem chi tiết tại [RESTORE_SAMPLE_DATA.md](RESTORE_SAMPLE_DATA.md))
+---
+
+### Bước 2: Nạp dữ liệu mẫu tự động
+
+Mở Terminal và chạy lệnh sau để tự động tạo database `jobfindtest` cùng dữ liệu demo đầy đủ:
 
 ```powershell
 cd backend
@@ -37,16 +116,24 @@ $env:CONFIRM_RESTORE_SAMPLE_DATA='true'
 npm run restore:sample-data
 ```
 
-Lệnh này tạo database `jobfindtest` với toàn bộ dữ liệu mẫu và tự tạo 3 tài khoản test.
+> [!TIP]
+> Lệnh trên sẽ khởi tạo **38 tài khoản người dùng**, **41 bài đăng tuyển dụng**, **17 công ty**, dữ liệu chat mẫu, đánh giá công ty và các file PDF CV thật.
 
-### 3. Chạy API (backend, cổng 5000)
+---
+
+### Bước 3: Khởi chạy Backend (Port 5000)
 
 ```powershell
 cd backend
 npm start
 ```
+*Server API và Socket.IO sẽ cùng lắng nghe tại port `5000`.*
 
-### 4. Chạy giao diện (frontend, cổng 3000)
+---
+
+### Bước 4: Khởi chạy Frontend (Port 3000)
+
+Mở một Terminal mới:
 
 ```powershell
 cd frontend
@@ -54,94 +141,75 @@ npm install
 npm start
 ```
 
-Mở http://localhost:3000
+TRUY CẬP TRỰC TIẾP: **`http://localhost:3000`**
 
-## Tài khoản đăng nhập
+---
 
-**Toàn bộ tài khoản trong dữ liệu demo đều dùng mật khẩu `123456`.**
+## 🔑 Tài Khoản Đăng Nhập Mẫu (Test Credentials)
 
-### Nhà tuyển dụng (đăng nhập xong vào khu quản trị `/admin`)
+> [!IMPORTANT]
+> Tất cả các tài khoản trong hệ thống đều dùng chung mật khẩu mặc định là: **`123456`**
 
-| Số điện thoại | Họ tên | Công ty | Số tin đang đăng |
-|---------------|--------|---------|------------------|
+### 🏢 1. Nhà Tuyển Dụng (Đăng nhập -> Vào quản trị `/admin`)
+
+| Số Điện Thoại | Họ Và Tên | Tên Công Ty | Số Tin Tuyển Dụng |
+| :--- | :--- | :--- | :---: |
 | `0764188023` | Nguyễn Văn A | Công ty TNHH CMC GLOBAL | 10 |
 | `0785095048` | Nguyễn Lê Tấn | Công ty CP Tập đoàn Hoa Sen | 5 |
 | `0795095042` | Nguyễn Văn Tài | Babilala | 2 |
 | `0795095038` | Nguyễn Lê Tấn Tài | Đất Xanh Miền Trung | 2 |
-| `0795095125` | Nguyễn Văn Lộc | Công ty TNHH Thế Giới | 2 |
-| `0795095222` | Trần Văn Nghĩa | Công ty CP Tấn Tài | 2 |
 
-### Ứng viên
+### 👨‍💻 2. Ứng Viên (Đăng nhập giao diện chính)
 
-| Số điện thoại | Họ tên | Số kỹ năng | CV đã nộp |
-|---------------|--------|------------|-----------|
+| Số Điện Thoại | Họ Và Tên | Số Kỹ Năng | CV Đã Nộp |
+| :--- | :--- | :---: | :---: |
 | `0764188123` | Trần Thị My | 8 | 1 |
 | `0795095768` | Nguyễn Lê Tấn Tài | 6 | 1 |
-| `0795095678` | Trần Văn Nghĩa | 6 | 1 |
 | `0764088023` | Lê Thị Kim Ảnh | 5 | 1 |
-| `0795095789` | Trần Văn Kha | 4 | 1 |
-| `0795095041` | Nguyễn Lê Tấn Tài | 2 | 1 |
 
-### Quản trị viên
+### 🛡️ 3. Quản Trị Viên (Admin Hệ Thống)
 
-| Số điện thoại | Họ tên |
-|---------------|--------|
-| `0795095049` | Nguyễn Lê Tấn Tài |
-| `0795095000` | Nguyễn Văn ADMIN |
+| Số Điện Thoại | Họ Và Tên | Quyền Hạn |
+| :--- | :--- | :--- |
+| `0795095049` | Nguyễn Lê Tấn Tài | Full System Admin |
+| `0795095000` | Nguyễn Văn ADMIN | System Moderator |
 
-### Tài khoản test riêng (không nằm trong dữ liệu gốc)
+---
 
-| Số điện thoại | Vai trò | userId |
-|---------------|---------|--------|
-| `0900000001` | ADMIN | 9001 |
-| `0900000002` | COMPANY (gắn công ty CMC GLOBAL) | 9002 |
-| `0900000003` | CANDIDATE | 9003 |
+## 💬 Kịch Bản Test Tính Năng Chat Real-Time
 
-Ba tài khoản này dùng id riêng 9001–9003 nên không đụng vào bản ghi nào của dữ
-liệu gốc. Tạo lại bằng `npm run seed:demo-data` / `npm run seed:test-accounts`.
+Để kiểm tra trải nghiệm chat real-time tốt nhất:
 
-## Chat realtime (Socket.IO)
+1. **Trình duyệt 1 (Chế độ thường)**: 
+   - Đăng nhập tài khoản **Ứng viên**: `0795095768` (Pass: `123456`).
+   - Vào mục **Việc làm** -> Chọn bài viết *"Lập trình viên Reactjs"* của công ty **Babilala**.
+   - Bấm nút **"Nhắn tin cho nhà tuyển dụng"**.
+2. **Trình duyệt 2 (Chế độ Ẩn danh - Incognito)**:
+   - Đăng nhập tài khoản **Nhà tuyển dụng**: `0795095042` (Pass: `123456`).
+   - Vào mục **Tin nhắn** ở góc trái menu quản trị.
+3. **Thực nghiệm**:
+   - Thử gõ tin nhắn ở một bên -> Bên còn lại sẽ nhận ngay lập tức kèm trạng thái **Typing...** và số tin nhắn chưa đọc được cập nhật real-time!
 
-Nhắn tin giữa ứng viên và nhà tuyển dụng chạy realtime bằng Socket.IO, dùng
-**chung cổng 5000** với API — không cần cấu hình hay mở thêm cổng.
+---
 
-- Kết nối yêu cầu token JWT; `senderId` lấy từ token nên không thể mạo danh.
-- Có báo "đang soạn tin nhắn...", chấm xanh báo đang kết nối trực tiếp, badge tin
-  chưa đọc cập nhật tức thì ở cả header người dùng lẫn menu quản trị.
-- Nếu socket không kết nối được, giao diện **tự động quay về gọi API REST như cũ**
-  nên chat vẫn dùng được bình thường.
+## 📊 Thống Kê Dữ Liệu Có Sẵn (Demo Database)
 
-### Demo đúng luồng thật (khuyến nghị)
+| Thành Phần Dữ Liệu | Số Lượng Bản Ghi | Mô Tả |
+| :--- | :---: | :--- |
+| **Tài khoản người dùng** | `38` | Bao gồm 3 vai trò (Admin, Company, Candidate) |
+| **Công ty** | `17` | Có đầy đủ logo, địa chỉ, mô tả |
+| **Bài đăng tuyển dụng** | `41` | Tin tuyển dụng chi tiết các ngành IT, Kinh tế... |
+| **Hồ sơ CV ứng tuyển** | `6` | Kèm file PDF thật, tự động chấm điểm % khớp skill |
+| **Tin nhắn Chat** | `22` | Hội thoại thực giữa ứng viên & nhà tuyển dụng |
+| **Đánh giá công ty** | `10` | Đánh giá số sao và nhận xét chi tiết |
 
-Mở 2 trình duyệt, một cái để ẩn danh:
+---
 
-1. **Cửa sổ 1 — ứng viên:** đăng nhập `0795095768`, vào **Việc làm**, mở tin
-   *"Lập trình viên Reactjs"* của Babilala, bấm **"Nhắn tin cho nhà tuyển dụng"**.
-   Hội thoại có sẵn 5 tin nhắn mẫu, nhắn tiếp bình thường.
-2. **Cửa sổ 2 — nhà tuyển dụng:** đăng nhập `0795095042` (chính người đăng tin
-   đó), bấm **"Tin nhắn"** ở menu trái. Tin nhắn hiện ngay, không cần tải lại trang.
+## 📝 Ghi Chú Phát Triển
 
-Nhà tuyển dụng này cũng có sẵn **2 CV ứng tuyển** để xem ở mục quản lý CV, kèm
-điểm độ khớp kỹ năng chấm từ nội dung file PDF thật.
+- **Cấu hình API**: Frontend kết nối với Backend thông qua file `frontend/.env` (`REACT_APP_BACKEND_URL=http://localhost:5000`).
+- **Gửi Email tự động**: Nếu muốn bật tính năng gửi mail gợi ý việc làm, điền cấu hình `EMAIL_APP` và `EMAIL_APP_PASSWORD` trong file `backend/.env`.
+- **Thanh toán PayPal**: Đã tích hợp sẵn Client ID PayPal Sandbox trong file môi trường.
 
-## Dữ liệu demo có sẵn
-
-| Bảng | Số dòng | Ghi chú |
-|------|---------|---------|
-| Tài khoản / người dùng | 38 | tất cả đăng nhập được bằng `123456` |
-| Công ty | 17 | |
-| Tin tuyển dụng | 41 | |
-| CV ứng tuyển | 6 | kèm file PDF thật, chấm được độ khớp kỹ năng |
-| Tin nhắn chat | 22 | 6 cuộc trò chuyện ứng viên ↔ đúng người đăng tin |
-| Thông báo | 7 | |
-| Đánh giá công ty | 10 | |
-| Tin đã lưu / theo dõi công ty | 7 / 6 | |
-| Kỹ năng / kỹ năng ứng viên | 41 / 31 | |
-
-## Ghi chú
-
-- Backend chạy mặc định cổng `5000`, frontend gọi API qua `frontend/.env`
-  (`REACT_APP_BACKEND_URL=http://localhost:5000`).
-- Tính năng gửi mail gợi ý việc làm cần điền `EMAIL_APP` / `EMAIL_APP_PASSWORD`
-  (Gmail App Password) trong `backend/.env`; không điền thì các tính năng khác vẫn chạy bình thường.
-- Thanh toán gói tin/CV dùng PayPal Sandbox với key có sẵn trong `backend/.env`.
+---
+*Chúc bạn có trải nghiệm tuyệt vời với **JobFind**!* 🚀
