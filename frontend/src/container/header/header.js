@@ -4,6 +4,7 @@ import { Link, NavLink } from 'react-router-dom'
 import { toast } from 'react-toastify';
 import './header.scss';
 import { getNotificationByUserService, markReadNotificationService, getListChatConversationService } from '../../service/userService';
+import { getSocket, disconnectSocket } from '../../socket';
 
 const Header = () => {
     const [user, setUser] = useState({})
@@ -43,11 +44,27 @@ const Header = () => {
 
         loadHeaderData()
         const intervalId = window.setInterval(loadHeaderData, 30000)
-        return () => window.clearInterval(intervalId)
+
+        // Co tin nhan / thong bao moi thi cap nhat so badge ngay, khong doi
+        // het 30 giay. Van giu interval lam phuong an du phong khi socket hong.
+        const socket = getSocket()
+        const refresh = () => loadHeaderData()
+        if (socket) {
+            socket.on('chat:new-message', refresh)
+            socket.on('notification:new', refresh)
+        }
+
+        return () => {
+            window.clearInterval(intervalId)
+            if (socket) {
+                socket.off('chat:new-message', refresh)
+                socket.off('notification:new', refresh)
+            }
+        }
     }, [user])
 
     let handleLogout = () => {
-        console.log("hello")
+        disconnectSocket()
         localStorage.removeItem("userData");
         localStorage.removeItem("token_user")
         window.location.href = "/login"
@@ -111,11 +128,14 @@ const Header = () => {
                                             </nav>
                                         </div>
                                         {/* <!-- Header-btn --> */}
+                                        {/* Bootstrap dat .navbar-nav { flex-direction: column } nen o ul ben duoi
+                                            phai chi dinh flexDirection: 'row', neu khong 3 muc (chat / thong bao /
+                                            ten user) se xep chong len nhau theo chieu doc. */}
                                         <div className="header-btn d-none f-right d-lg-block">
                                             {user ?
-                                                <ul className="navbar-nav navbar-nav-right" style={{ display: 'flex', alignItems: 'center' }}>
+                                                <ul className="navbar-nav navbar-nav-right" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 0 }}>
                                                     <li className="nav-item" style={{ position: 'relative', marginRight: '18px' }}>
-                                                        <Link to="/chat" style={{ color: '#fff', fontSize: '18px', position: 'relative' }}>
+                                                        <Link to="/chat" style={{ color: '#252b60', fontSize: '18px', position: 'relative' }}>
                                                             <i className="far fa-comment-dots"></i>
                                                             {unreadChat > 0 &&
                                                                 <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: '#fb246a', color: '#fff', borderRadius: '50%', fontSize: '10px', padding: '1px 5px' }}>{unreadChat}</span>
@@ -123,7 +143,7 @@ const Header = () => {
                                                         </Link>
                                                     </li>
                                                     <li className="nav-item" style={{ position: 'relative', marginRight: '10px' }}>
-                                                        <a style={{ color: '#fff', fontSize: '18px', position: 'relative', cursor: 'pointer' }} onClick={() => setShowNotification(!showNotification)}>
+                                                        <a style={{ color: '#252b60', fontSize: '18px', position: 'relative', cursor: 'pointer' }} onClick={() => setShowNotification(!showNotification)}>
                                                             <i className="far fa-bell"></i>
                                                             {unreadCount > 0 &&
                                                                 <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: '#fb246a', color: '#fff', borderRadius: '50%', fontSize: '10px', padding: '1px 5px' }}>{unreadCount}</span>
