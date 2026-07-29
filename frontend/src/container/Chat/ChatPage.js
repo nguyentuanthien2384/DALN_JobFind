@@ -8,6 +8,7 @@ import {
     getChatConversationService,
     sendChatMessageService,
 } from "../../service/userService";
+import { getSocket } from "../../socket";
 
 const ChatPage = () => {
     const navigate = useNavigate();
@@ -16,7 +17,10 @@ const ChatPage = () => {
     const [messages, setMessages] = useState([]);
     const [partnerData, setPartnerData] = useState(null);
     const [content, setContent] = useState("");
+    const [isRealtime, setIsRealtime] = useState(false);
+    const [partnerTyping, setPartnerTyping] = useState(false);
     const messagesEndRef = useRef(null);
+    const typingTimerRef = useRef(null);
     const userData = JSON.parse(localStorage.getItem("userData"));
 
     useEffect(() => {
@@ -27,11 +31,65 @@ const ChatPage = () => {
             return;
         }
         fetchListConversation();
+        // Khi socket dang chay thi chi poll thua ra 20 giay/lan cho chac an;
+        // neu socket hong hoan toan thi quay ve nhip 4 giay nhu truoc.
         const interval = setInterval(() => {
             fetchListConversation();
             if (partnerId) fetchConversation(false);
-        }, 4000);
+        }, isRealtime ? 20000 : 4000);
         return () => clearInterval(interval);
+    }, [partnerId, isRealtime]);
+
+    // ---- Socket.IO: nhan tin nhan tuc thi ----
+    useEffect(() => {
+        if (!userData) return;
+        const socket = getSocket();
+        if (!socket) return;
+
+        const onConnect = () => setIsRealtime(true);
+        const onDisconnect = () => setIsRealtime(false);
+
+        const onNewMessage = (msg) => {
+            const involved =
+                +msg.senderId === +userData.id || +msg.receiverId === +userData.id;
+            if (!involved) return;
+
+            // Tin thuoc cuoc tro chuyen dang mo -> chen thang vao khung chat
+            const inOpenChat =
+                partnerId &&
+                (+msg.senderId === +partnerId || +msg.receiverId === +partnerId);
+            if (inOpenChat) {
+                setMessages((prev) => {
+                    if (prev.some((m) => +m.id === +msg.id)) return prev;
+                    setTimeout(scrollToBottom, 50);
+                    return [...prev, msg];
+                });
+                setPartnerTyping(false);
+            }
+            // Luon lam moi danh sach hoi thoai de cap nhat tin cuoi + so chua doc
+            fetchListConversation();
+        };
+
+        const onTyping = ({ fromUserId }) => {
+            if (!partnerId || +fromUserId !== +partnerId) return;
+            setPartnerTyping(true);
+            clearTimeout(typingTimerRef.current);
+            typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 2500);
+        };
+
+        socket.on("connect", onConnect);
+        socket.on("disconnect", onDisconnect);
+        socket.on("chat:new-message", onNewMessage);
+        socket.on("chat:typing", onTyping);
+        if (socket.connected) setIsRealtime(true);
+
+        return () => {
+            socket.off("connect", onConnect);
+            socket.off("disconnect", onDisconnect);
+            socket.off("chat:new-message", onNewMessage);
+            socket.off("chat:typing", onTyping);
+            clearTimeout(typingTimerRef.current);
+        };
     }, [partnerId]);
 
     useEffect(() => {
@@ -71,10 +129,31 @@ const ChatPage = () => {
 
     const handleSend = async () => {
         if (!content.trim() || !partnerId) return;
+        const text = content.trim();
+        const socket = getSocket();
+
+        // Uu tien gui qua socket cho nhanh; socket hong thi rot ve API REST.
+        if (socket && socket.connected) {
+            setContent("");
+            socket.emit(
+                "chat:send",
+                { receiverId: partnerId, content: text },
+                (res) => {
+                    if (!res || res.errCode !== 0) {
+                        setContent(text); // tra lai chu de nguoi dung gui lai
+                        toast.error(
+                            res && res.errMessage ? res.errMessage : "Gửi tin nhắn thất bại"
+                        );
+                    }
+                }
+            );
+            return;
+        }
+
         let res = await sendChatMessageService({
             senderId: userData.id,
             receiverId: partnerId,
-            content: content.trim(),
+            content: text,
         });
         if (res && res.errCode === 0) {
             setContent("");
@@ -82,6 +161,14 @@ const ChatPage = () => {
             fetchListConversation();
         } else {
             toast.error(res && res.errMessage ? res.errMessage : "Có lỗi xảy ra");
+        }
+    };
+
+    const handleTyping = (value) => {
+        setContent(value);
+        const socket = getSocket();
+        if (socket && socket.connected && partnerId) {
+            socket.emit("chat:typing", { receiverId: partnerId });
         }
     };
 
@@ -103,10 +190,7 @@ const ChatPage = () => {
 
     return (
         <main>
-            <div
-                className="container"
-                style={{ paddingTop: "140px", paddingBottom: "60px" }}
-            >
+            <div className="container chat-page-container">
                 <h4 style={{ marginBottom: "20px" }}>
                     <i
                         className="far fa-comments"
@@ -114,23 +198,12 @@ const ChatPage = () => {
                     ></i>
                     Tin nhắn
                 </h4>
-                <div
-                    style={{
-                        display: "flex",
-                        border: "1px solid #eee",
-                        borderRadius: "10px",
-                        overflow: "hidden",
-                        height: "550px",
-                        background: "#fff",
-                    }}
-                >
-                    {/* Danh sách hội thoại */}
+                <div className="chat-wrapper">
+                    {/* Danh sách hội thoại — tren mobile se an di khi da mo mot cuoc tro chuyen */}
                     <div
-                        style={{
-                            width: "320px",
-                            borderRight: "1px solid #eee",
-                            overflowY: "auto",
-                        }}
+                        className={
+                            "chat-sidebar" + (partnerId ? " chat-sidebar--hidden-mobile" : "")
+                        }
                     >
                         {listConversation && listConversation.length > 0 ? (
                             listConversation.map((item, index) => (
@@ -207,13 +280,7 @@ const ChatPage = () => {
                     </div>
 
                     {/* Khung chat */}
-                    <div
-                        style={{
-                            flex: 1,
-                            display: "flex",
-                            flexDirection: "column",
-                        }}
-                    >
+                    <div className="chat-main">
                         {partnerId ? (
                             <>
                                 <div
@@ -225,6 +292,14 @@ const ChatPage = () => {
                                         gap: "10px",
                                     }}
                                 >
+                                    {/* Nut quay lai danh sach, chi hien tren mobile */}
+                                    <Link
+                                        to="/chat"
+                                        className="chat-back-btn"
+                                        style={{ color: "#333", fontSize: "18px" }}
+                                    >
+                                        <i className="fas fa-arrow-left"></i>
+                                    </Link>
                                     <img
                                         src={getPartnerAvatar(partnerData)}
                                         alt=""
@@ -235,7 +310,26 @@ const ChatPage = () => {
                                             objectFit: "cover",
                                         }}
                                     />
-                                    <b>{getPartnerName(partnerData)}</b>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <b>{getPartnerName(partnerData)}</b>
+                                        <div style={{ fontSize: "11px", color: "#999" }}>
+                                            {partnerTyping ? (
+                                                <span style={{ color: "#fb246a" }}>
+                                                    đang soạn tin nhắn...
+                                                </span>
+                                            ) : isRealtime ? (
+                                                <span>
+                                                    <i
+                                                        className="fas fa-circle"
+                                                        style={{ fontSize: "7px", color: "#28a745", marginRight: "4px" }}
+                                                    ></i>
+                                                    Đang kết nối trực tiếp
+                                                </span>
+                                            ) : (
+                                                "Chế độ tải lại định kỳ"
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                                 <div
                                     style={{
@@ -260,8 +354,8 @@ const ChatPage = () => {
                                                 }}
                                             >
                                                 <div
+                                                    className="chat-bubble"
                                                     style={{
-                                                        maxWidth: "65%",
                                                         padding: "9px 13px",
                                                         borderRadius: "14px",
                                                         background: isMine
@@ -309,7 +403,7 @@ const ChatPage = () => {
                                         placeholder="Nhập tin nhắn..."
                                         value={content}
                                         onChange={(e) =>
-                                            setContent(e.target.value)
+                                            handleTyping(e.target.value)
                                         }
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") handleSend();
