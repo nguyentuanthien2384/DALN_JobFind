@@ -34,3 +34,167 @@
     }
 }
 
+/* Theme cong khai dat .btn { line-height: 0; padding: 27px 44px }. Nhan 1 dong thi
+   vua khung, nhung nhan dai xuong 2 dong thi cac dong chong len nhau va tran han
+   ra ngoai vien nut (vd nut "Nhắn tin cho nhà tuyển dụng").
+   Doi sang line-height that va giam padding doc tuong ung de nut 1 dong van cao
+   y het truoc day: 17*2 + 1.4*14px = 53.6px ~ 27*2 + 0 = 54px.
+   Selector them ten the de chac chan thang rule cua theme du thu tu nap the nao. */
+div.btn, a.btn, button.btn, input.btn, span.btn {
+    line-height: 1.4;
+    padding-top: 17px;
+    padding-bottom: 17px;
+    white-space: normal;
+}
+
+/* Theme admin dat .sidebar .nav .nav-item .nav-link { white-space: nowrap },
+   sidebar lai co chieu rong co dinh 281px nen cac muc menu tieng Viet dai
+   (vd "Đồ thị doanh thu gói xem ứng viên") bi cat cut o mep phai.
+   Dung selector co do uu tien cao hon rule cua theme de cho phep xuong dong. */
+.sidebar ul.nav.sub-menu .nav-item .nav-link {
+    white-space: normal;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+/* ==========================================================================
+   TRANG CHAT (container/Chat/ChatPage.js)
+   ========================================================================== */
+.chat-page-container {
+    padding-top: 140px;
+    padding-bottom: 60px;
+}
+
+.chat-wrapper {
+    display: flex;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    overflow: hidden;
+    height: 550px;
+    background: #fff;
+}
+
+.chat-sidebar {
+    width: 320px;
+    flex-shrink: 0;
+    border-right: 1px solid #eee;
+    overflow-y: auto;
+}
+
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.chat-bubble {
+    max-width: 65%;
+    word-break: break-word;
+}
+
+/* Nut "quay lai" chi can tren mobile, may tinh thi da thay ca 2 cot roi */
+.chat-back-btn {
+    display: none;
+}
+
+/* ==========================================================================
+   RESPONSIVE CHUNG
+   ========================================================================== */
+
+/* Khong bao gio de trang bi keo ngang tren dien thoai */
+html, body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Anh, bang, khung code khong duoc pha vo be ngang cua trang */
+img, video, canvas, svg {
+    max-width: 100%;
+}
+
+/* Bang du lieu dai (danh sach tin, ung vien, lich su giao dich...) cho phep
+   cuon ngang trong khung cua no thay vi lam ca trang bi lech */
+.table-responsive, .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ---- Tablet tro xuong ---- */
+@media screen and (max-width: 991.98px) {
+    .chat-wrapper {
+        height: 70vh;
+    }
+    .chat-sidebar {
+        width: 240px;
+    }
+    /* KHONG dung den chieu rong cua .sidebar khu quan tri: tu <= 991px theme da
+       chuyen no thanh off-canvas (position: fixed; right: -235px) va tinh san vi
+       tri an dua tren chieu rong goc. Sua width se lam lo mot phan sidebar ra
+       ngoai mep phai man hinh. */
+}
+
+/* ---- Dien thoai ---- */
+@media screen and (max-width: 767.98px) {
+    /* Header tren mobile thap hon nhieu nen bot khoang trong phia tren */
+    .chat-page-container {
+        padding-top: 100px;
+    }
+
+    /* Trang chat: hien 1 cot. Dang xem 1 cuoc tro chuyen thi an danh sach di,
+       bam nut mui ten quay lai de hien danh sach. */
+    .chat-wrapper {
+        height: calc(100vh - 220px);
+        min-height: 380px;
+    }
+    .chat-sidebar {
+        width: 100%;
+        border-right: 0;
+    }
+    .chat-sidebar--hidden-mobile {
+        display: none;
+    }
+    .chat-back-btn {
+        display: inline-block;
+    }
+
+    /* Bang trong khu quan tri: cho cuon ngang thay vi tran ra ngoai */
+    .table-responsive, .card-body > table, .content-wrapper table {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Nut to cua theme (padding 44px moi ben) chiem het man hinh nho */
+    div.btn, a.btn, button.btn, input.btn, span.btn {
+        padding-left: 22px;
+        padding-right: 22px;
+        font-size: 13px;
+    }
+
+    /* Menu thong bao o header khong duoc tran ra khoi mep phai man hinh */
+    .navbar-nav-right .nav-item > div[style*="width: 330px"] {
+        width: 86vw !important;
+        right: 0 !important;
+        max-width: 330px;
+    }
+
+    /* Tieu de lon cua theme qua to tren dien thoai */
+    .section-tittle h2, .hero-cap h2 {
+        font-size: 26px;
+        line-height: 1.3;
+    }
+}
+
+/* ---- Dien thoai nho ---- */
+@media screen and (max-width: 575.98px) {
+    .chat-wrapper {
+        height: calc(100vh - 190px);
+    }
+    /* Bong bong tin nhan duoc rong hon vi man hinh hep */
+    .chat-main .chat-bubble {
+        max-width: 85%;
+    }
+}
+
