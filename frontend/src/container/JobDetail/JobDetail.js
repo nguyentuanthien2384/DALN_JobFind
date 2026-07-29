@@ -391,6 +391,7 @@ const JobDetail = () => {
                                                 color: "#1c86ee",
                                                 border: "1px solid #1c86ee",
                                                 display: "block",
+                                                textAlign: "center",
                                             }}
                                             onClick={() => {
                                                 const userData = JSON.parse(
