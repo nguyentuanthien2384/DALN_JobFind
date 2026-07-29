@@ -1,10 +1,11 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { disconnectSocket } from "../../socket";
 const Header = () => {
     const [user, setUser] = useState({});
     let handleLogout = () => {
-        console.log("hello");
+        disconnectSocket();
         localStorage.removeItem("userData");
         localStorage.removeItem("token_user");
         window.location.href = "/login";

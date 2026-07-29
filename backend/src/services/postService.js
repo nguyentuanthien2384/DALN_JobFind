@@ -1017,7 +1017,11 @@ let getRecommendedPost = (data) => {
                     where: { userId: data.userId },
                     raw: true
                 })
-                let listSkillId = listUserSkill.map(item => item.skillId)
+                // Model UserSkill khong khai bao thuoc tinh nao, hai cot khoa ngoai la do
+                // association tu sinh nen ten thuoc tinh Sequelize tra ve la 'UserId'/'SkillId'
+                // (chu hoa) chu khong phai ten cot 'userId'/'skillId' trong DB. Doc sai chu hoa
+                // se ra toan null -> phan goi y viec lam bo qua het ky nang cua ung vien.
+                let listSkillId = listUserSkill.map(item => item.SkillId)
                 let listSkill = listSkillId.length > 0 ? await db.Skill.findAll({
                     where: { id: listSkillId },
                     raw: true

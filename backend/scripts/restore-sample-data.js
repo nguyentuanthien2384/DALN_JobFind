@@ -35,6 +35,9 @@ async function restoreSampleData() {
         await connection.query(`USE \`${databaseName}\``);
         await connection.query(sql);
         console.log(`Đã khôi phục dữ liệu mẫu vào database \`${databaseName}\`.`);
+        console.log('Đang tạo tài khoản test (mật khẩu 123456)...');
+        const createTestAccounts = require('./create-test-accounts');
+        await createTestAccounts(connection);
     } finally {
         await connection.end();
     }

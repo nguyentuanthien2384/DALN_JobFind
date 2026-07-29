@@ -241,8 +241,9 @@ let getListJobTypeAndCountPost = async (data) => {
                 attributes: [[db.sequelize.fn('COUNT', db.sequelize.col('postDetailData.categoryJobCode')), 'amount']],
                 group: ['postDetailData.categoryJobCode'],
                 order: [[db.sequelize.literal('amount'), 'DESC']],
-                limit: +data.limit,
-                offset: +data.offset,
+                // Thiếu limit/offset thì +undefined = NaN, Sequelize sinh ra "LIMIT NaN, NaN" và MySQL báo lỗi.
+                limit: +data.limit || 4,
+                offset: +data.offset || 0,
                 raw: true,
                 nest: true
             })

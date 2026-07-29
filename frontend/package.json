@@ -31,6 +31,7 @@
         "reactstrap": "^9.2.3",
         "recharts": "^2.15.2",
         "sass": "^1.86.2",
+        "socket.io-client": "^4.8.3",
         "victory-pie": "^37.3.6",
         "web-vitals": "^4.2.4",
         "xlsx": "^0.18.5"

@@ -186,5 +186,7 @@ module.exports = {
     getFilterPost: getFilterPost,
     getStatisticalTypePost: getStatisticalTypePost,
     getListNoteByPost: getListNoteByPost,
-    handleReupPost : handleReupPost
+    handleReupPost : handleReupPost,
+    getRelatedPost: getRelatedPost,
+    getRecommendedPost: getRecommendedPost
 }

@@ -176,6 +176,15 @@ let getDetailCvById = (data) => {
                         }
                     ]
                 })
+                // Khong co null-check thi CV da bi xoa / id sai se lam cv = null,
+                // dong cv.isChecked ben duoi nem TypeError -> API tra ve errCode -1.
+                if (!cv) {
+                    resolve({
+                        errCode: 2,
+                        errMessage: 'Không tìm thấy CV'
+                    })
+                    return
+                }
                 if (data.roleCode !== 'CANDIDATE')
                 {
                     cv.isChecked = 1
@@ -481,14 +490,22 @@ let checkSeeCandiate = (data) => {
                     })
                     company = await db.Company.findOne({
                         where : {id: user.companyId},
-                        attributes: ['id','allowCV','allowCvFree'],
+                        // Model Company khai bao thuoc tinh la 'allowCv' (cot DB la 'allowCV').
+                        // Neu liet ke 'allowCV' o day thi Sequelize khong nhan ra la thuoc tinh
+                        // cua model, getter company.allowCV se la undefined -> nhanh kiem tra
+                        // luot xem tra phi ben duoi khong bao gio chay.
+                        attributes: ['id','allowCv','allowCvFree'],
                         raw: false
                     })
                 }
                 else {
                     company = await db.Company.findOne({
                         where: { id: data.companyId },
-                        attributes: ['id','allowCV','allowCvFree'],
+                        // Model Company khai bao thuoc tinh la 'allowCv' (cot DB la 'allowCV').
+                        // Neu liet ke 'allowCV' o day thi Sequelize khong nhan ra la thuoc tinh
+                        // cua model, getter company.allowCV se la undefined -> nhanh kiem tra
+                        // luot xem tra phi ben duoi khong bao gio chay.
+                        attributes: ['id','allowCv','allowCvFree'],
                         raw: false
                     })
                 }
@@ -507,8 +524,8 @@ let checkSeeCandiate = (data) => {
                             errMessage: "Ok"
                         })
                     }
-                    else if (company.allowCV > 0) {
-                        company.allowCV -= 1
+                    else if (company.allowCv > 0) {
+                        company.allowCv -= 1
                         await company.save()
                         resolve({
                             errCode: 0,

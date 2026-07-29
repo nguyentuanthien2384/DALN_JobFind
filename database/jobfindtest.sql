@@ -1116,3 +1116,246 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+
+-- =====================================================================
+-- PHAN MO RONG CHO DU AN DALN (JobFind nang cap)
+-- Bo sung: chat, danh gia cong ty, luu tin, theo doi cong ty, thong bao
+-- Tu dong sinh khi khoi phuc du lieu mau - KHONG can chay db:migrate sau khi import
+-- =====================================================================
+
+/*!40101 SET NAMES utf8mb4 */;
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+
+--
+-- Bo sung cot `content` va `link` cho bang `notifications`
+-- (tuong ung migration-update-notification-addcontent.js)
+--
+ALTER TABLE `notifications`
+  ADD `content` varchar(500) DEFAULT NULL,
+  ADD `link` varchar(255) DEFAULT NULL;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `chatmessages`
+-- (tuong ung migration-create-chatmessage.js)
+--
+
+CREATE TABLE `chatmessages` (
+  `id` int(11) NOT NULL,
+  `senderId` int(11) DEFAULT NULL,
+  `receiverId` int(11) DEFAULT NULL,
+  `content` text DEFAULT NULL,
+  `isRead` tinyint(4) DEFAULT 0,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Du lieu mau: hoi thoai giua ung vien (user 5) va chu cong ty (user 2)
+--
+
+INSERT INTO `chatmessages` (`id`, `senderId`, `receiverId`, `content`, `isRead`, `createdAt`, `updatedAt`) VALUES
+(1, 5, 2, 'Chào anh/chị, em thấy công ty đang tuyển vị trí Nhân viên kinh doanh. Em muốn hỏi thêm về mức lương và chế độ ạ.', 1, '2025-06-01 09:00:00', '2025-06-01 09:00:00'),
+(2, 2, 5, 'Chào em, cảm ơn em đã quan tâm. Mức lương vị trí này từ 10-15 triệu tùy kinh nghiệm, có thưởng doanh số hàng quý nhé.', 1, '2025-06-01 09:15:00', '2025-06-01 09:15:00'),
+(3, 5, 2, 'Dạ vâng. Cho em hỏi công ty có hỗ trợ đào tạo cho người chưa có nhiều kinh nghiệm không ạ?', 1, '2025-06-01 09:20:00', '2025-06-01 09:20:00'),
+(4, 2, 5, 'Có em nhé, công ty có chương trình đào tạo 2 tháng đầu cho nhân viên mới. Em cứ nộp CV qua tin tuyển dụng, bộ phận HR sẽ liên hệ sắp xếp phỏng vấn.', 1, '2025-06-01 09:30:00', '2025-06-01 09:30:00'),
+(5, 5, 2, 'Dạ em cảm ơn, em sẽ nộp CV ngay ạ!', 0, '2025-06-01 09:35:00', '2025-06-01 09:35:00');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `companyreviews`
+-- (tuong ung migration-create-companyreview.js)
+--
+
+CREATE TABLE `companyreviews` (
+  `id` int(11) NOT NULL,
+  `companyId` int(11) DEFAULT NULL,
+  `userId` int(11) DEFAULT NULL,
+  `star` int(11) DEFAULT NULL,
+  `content` text DEFAULT NULL,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Du lieu mau: danh gia cong ty (userId la ung vien 5, 9, 30, 31, 33)
+--
+
+INSERT INTO `companyreviews` (`id`, `companyId`, `userId`, `star`, `content`, `createdAt`, `updatedAt`) VALUES
+(1, 6, 5, 5, 'Môi trường làm việc chuyên nghiệp, đồng nghiệp thân thiện. Chế độ đãi ngộ tốt, lương thưởng rõ ràng.', '2025-06-10 10:00:00', '2025-06-10 10:00:00'),
+(2, 6, 9, 4, 'Công ty ổn, sếp tâm lý. Đôi lúc deadline hơi gấp nhưng nhìn chung phúc lợi đầy đủ.', '2025-06-11 11:00:00', '2025-06-11 11:00:00'),
+(3, 6, 30, 4, 'Quy trình phỏng vấn nhanh gọn, HR phản hồi lịch sự. Văn phòng đẹp, vị trí thuận tiện.', '2025-06-12 12:00:00', '2025-06-12 12:00:00'),
+(4, 7, 5, 4, 'Được đào tạo bài bản khi mới vào, có lộ trình thăng tiến rõ ràng.', '2025-06-13 13:00:00', '2025-06-13 13:00:00'),
+(5, 7, 31, 3, 'Công việc khá áp lực vào mùa cao điểm, bù lại có thưởng dự án xứng đáng.', '2025-06-14 14:00:00', '2025-06-14 14:00:00'),
+(6, 8, 9, 5, 'Một trong những công ty tốt nhất mình từng làm. Team building thường xuyên, sếp lắng nghe nhân viên.', '2025-06-15 15:00:00', '2025-06-15 15:00:00'),
+(7, 11, 30, 4, 'Chế độ OT tính rõ ràng, bảo hiểm đầy đủ. Mong công ty mở thêm chi nhánh gần trung tâm.', '2025-06-16 16:00:00', '2025-06-16 16:00:00'),
+(8, 11, 33, 2, 'Mức lương chưa cạnh tranh so với mặt bằng chung, hy vọng công ty cải thiện.', '2025-06-17 17:00:00', '2025-06-17 17:00:00'),
+(9, 12, 5, 5, 'Ứng tuyển qua JobFind và được nhận sau 1 tuần. Môi trường trẻ trung, năng động.', '2025-06-18 18:00:00', '2025-06-18 18:00:00'),
+(10, 15, 31, 4, 'Công ty hỗ trợ ăn trưa và gửi xe, văn hóa cởi mở, phù hợp với người mới ra trường.', '2025-06-19 19:00:00', '2025-06-19 19:00:00');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `favoriteposts`
+-- (tuong ung migration-create-favoritepost.js)
+--
+
+CREATE TABLE `favoriteposts` (
+  `id` int(11) NOT NULL,
+  `userId` int(11) DEFAULT NULL,
+  `postId` int(11) DEFAULT NULL,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Du lieu mau: tin tuyen dung da luu (postId la tin dang hoat dong PS1)
+--
+
+INSERT INTO `favoriteposts` (`id`, `userId`, `postId`, `createdAt`, `updatedAt`) VALUES
+(1, 5, 1, '2025-06-20 09:00:00', '2025-06-20 09:00:00'),
+(2, 5, 4, '2025-06-20 09:05:00', '2025-06-20 09:05:00'),
+(3, 5, 5, '2025-06-20 09:10:00', '2025-06-20 09:10:00'),
+(4, 9, 4, '2025-06-21 10:00:00', '2025-06-21 10:00:00'),
+(5, 9, 6, '2025-06-21 10:05:00', '2025-06-21 10:05:00'),
+(6, 30, 1, '2025-06-22 11:00:00', '2025-06-22 11:00:00'),
+(7, 31, 7, '2025-06-23 12:00:00', '2025-06-23 12:00:00');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `followcompanies`
+-- (tuong ung migration-create-followcompany.js)
+--
+
+CREATE TABLE `followcompanies` (
+  `id` int(11) NOT NULL,
+  `userId` int(11) DEFAULT NULL,
+  `companyId` int(11) DEFAULT NULL,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Du lieu mau: theo doi cong ty (companyId 6..22 co san trong dump)
+--
+
+INSERT INTO `followcompanies` (`id`, `userId`, `companyId`, `createdAt`, `updatedAt`) VALUES
+(1, 5, 6, '2025-06-20 09:00:00', '2025-06-20 09:00:00'),
+(2, 5, 7, '2025-06-20 09:01:00', '2025-06-20 09:01:00'),
+(3, 5, 11, '2025-06-20 09:02:00', '2025-06-20 09:02:00'),
+(4, 9, 6, '2025-06-21 10:00:00', '2025-06-21 10:00:00'),
+(5, 30, 8, '2025-06-22 11:00:00', '2025-06-22 11:00:00'),
+(6, 31, 6, '2025-06-23 12:00:00', '2025-06-23 12:00:00');
+
+-- --------------------------------------------------------
+
+--
+-- Du lieu mau cho bang `notifications` (thong bao co noi dung + lien ket)
+--
+
+INSERT INTO `notifications` (`id`, `userId`, `typeCode`, `isChecked`, `content`, `link`, `createdAt`, `updatedAt`) VALUES
+(1, 5, 'NEW_POST', 0, 'Công ty bạn theo dõi vừa đăng tin tuyển dụng mới', '/job', '2025-06-25 08:00:00', '2025-06-25 08:00:00'),
+(2, 5, 'NEW_POST', 1, 'Có 2 việc làm mới phù hợp với kỹ năng của bạn', '/job', '2025-06-24 08:00:00', '2025-06-24 08:00:00'),
+(3, 2, 'NEW_CV', 0, 'Có ứng viên mới vừa nộp CV vào tin tuyển dụng của bạn', '/admin/list-cv', '2025-06-25 09:00:00', '2025-06-25 09:00:00');
+
+-- --------------------------------------------------------
+
+--
+-- Indexes cho cac bang moi
+--
+ALTER TABLE `chatmessages`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `chatmessages_sender_receiver_idx` (`senderId`,`receiverId`);
+
+ALTER TABLE `companyreviews`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `companyreviews_companyid_userid_unique` (`companyId`,`userId`);
+
+ALTER TABLE `favoriteposts`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `favoriteposts_userid_postid_unique` (`userId`,`postId`);
+
+ALTER TABLE `followcompanies`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `followcompanies_userid_companyid_unique` (`userId`,`companyId`);
+
+--
+-- AUTO_INCREMENT cho cac bang moi
+--
+ALTER TABLE `chatmessages`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+ALTER TABLE `companyreviews`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+
+ALTER TABLE `favoriteposts`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+ALTER TABLE `followcompanies`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- Danh dau cac migration cua DALN da chay (de `db:migrate` sau khi import khong bi loi
+-- "table already exists")
+--
+INSERT INTO `sequelizemeta` (`name`) VALUES
+('migration-create-chatmessage.js'),
+('migration-create-companyreview.js'),
+('migration-create-favoritepost.js'),
+('migration-create-followcompany.js'),
+('migration-create-orderpackageCv.js'),
+('migration-update-notification-addcontent.js'),
+('migrationlasted-create-constraint.js');
+
+
+--
+-- ==========================================================================
+-- DU LIEU DEMO BO SUNG (sinh boi backend/scripts/setup-demo-data.js)
+-- ==========================================================================
+-- Phan nay KHONG sua/xoa bat ky noi dung nao cua dump goc. No chi bo sung
+-- nhung thu con thieu de demo tron ven:
+--
+--   1. Dat mat khau `123456` cho TAT CA tai khoan. Dump goc luu hash cua mat
+--      khau khong duoc cong bo nen khong ai dang nhap duoc vao dung nha tuyen
+--      dung da dang tin -> khong the demo luong ung vien nhan tin cho ho.
+--   2. Them CV ung tuyen (bang `cvs` trong dump goc rong hoan toan), kem file
+--      PDF that de man hinh cham do khop ky nang cua nha tuyen dung co du lieu.
+--   3. Them hoi thoai chat giua ung vien va DUNG nguoi da dang tin do.
+--   4. Them thong bao "co CV moi" cho nha tuyen dung.
+--
+-- Chay lai duoc bang: cd backend && npm run seed:demo-data
+--
+UPDATE accounts SET password = '$2b$10$hJ.YrpwG5a8qQfwST4TqtO2RViIIi.8zerIUZYqhvC8DQkdu/3HLe';
+INSERT INTO cvs (id, userId, file, postId, isChecked, description, createdAt, updatedAt) VALUES (9100, 30, 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCA1OTUgMzAwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDI2ND4+c3RyZWFtCkJUIC9GMSAxMiBUZiA0MCAyNjAgVGQgMTggVEwKKENWIFVORyBUVVlFTiAtIE5ndXllbiBMZSBUYW4gVGFpKSBUaiBUKgooVmkgdHJpIHVuZyB0dXllbjogTGFwIHRyaW5oIHZpZW4gUmVhY3RqcykgVGogVCoKKEt5IG5hbmc6IFJlYWN0anMsIEphdmEsIEpTLCBNeVNRTCwgQW5ndWxhciwgQmxvY2tjaGFpbikgVGogVCoKKEtpbmggbmdoaWVtOiAyIG5hbSBsYW0gdmllYyB0aHVjIHRlKSBUaiBUKgooSG9jIHZhbjogRGFpIGhvYyAtIGxvYWkgS2hhKSBUaiBUKgpFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU0IDAwMDAwIG4gCjAwMDAwMDAxMDUgMDAwMDAgbiAKMDAwMDAwMDIxNyAwMDAwMCBuIAowMDAwMDAwNTI5IDAwMDAwIG4gCnRyYWlsZXIKPDwvU2l6ZSA2L1Jvb3QgMSAwIFI+PgpzdGFydHhyZWYKNTkyCiUlRU9GCg==', 22, 1, 'Em có 2 năm kinh nghiệm làm Reactjs, mong được ứng tuyển vị trí này ạ.', '2025-06-10 03:00:00', '2025-06-10 03:00:00') ON DUPLICATE KEY UPDATE file = VALUES(file), description = VALUES(description);
+INSERT INTO cvs (id, userId, file, postId, isChecked, description, createdAt, updatedAt) VALUES (9101, 31, 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCA1OTUgMzAwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDI0Mz4+c3RyZWFtCkJUIC9GMSAxMiBUZiA0MCAyNjAgVGQgMTggVEwKKENWIFVORyBUVVlFTiAtIFRyYW4gVmFuIEtoYSkgVGogVCoKKFZpIHRyaSB1bmcgdHV5ZW46IExhcCB0cmluaCB2aWVuIFJlYWN0anMpIFRqIFQqCihLeSBuYW5nOiBSZWFjdGpzLCBOZXh0anMsIEphdmEsIE5vZGVqcykgVGogVCoKKEtpbmggbmdoaWVtOiAyIG5hbSBsYW0gdmllYyB0aHVjIHRlKSBUaiBUKgooSG9jIHZhbjogRGFpIGhvYyAtIGxvYWkgS2hhKSBUaiBUKgpFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU0IDAwMDAwIG4gCjAwMDAwMDAxMDUgMDAwMDAgbiAKMDAwMDAwMDIxNyAwMDAwMCBuIAowMDAwMDAwNTA4IDAwMDAwIG4gCnRyYWlsZXIKPDwvU2l6ZSA2L1Jvb3QgMSAwIFI+PgpzdGFydHhyZWYKNTcxCiUlRU9GCg==', 31, 1, 'Em thành thạo Reactjs và Nextjs, đã làm 3 dự án thực tế.', '2025-06-11 03:00:00', '2025-06-11 03:00:00') ON DUPLICATE KEY UPDATE file = VALUES(file), description = VALUES(description);
+INSERT INTO cvs (id, userId, file, postId, isChecked, description, createdAt, updatedAt) VALUES (9102, 36, 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCA1OTUgMzAwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDI0NT4+c3RyZWFtCkJUIC9GMSAxMiBUZiA0MCAyNjAgVGQgMTggVEwKKENWIFVORyBUVVlFTiAtIFRyYW4gVGhpIE15KSBUaiBUKgooVmkgdHJpIHVuZyB0dXllbjogVHV5ZW4gZHVuZyBEZXZlbG9wZXIpIFRqIFQqCihLeSBuYW5nOiBSZWFjdGpzLCBOZXh0anMsIEphdmEsIEZpZ21hLCBKaXJhKSBUaiBUKgooS2luaCBuZ2hpZW06IDIgbmFtIGxhbSB2aWVjIHRodWMgdGUpIFRqIFQqCihIb2MgdmFuOiBEYWkgaG9jIC0gbG9haSBLaGEpIFRqIFQqCkVUCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PC9UeXBlL0ZvbnQvU3VidHlwZS9UeXBlMS9CYXNlRm9udC9IZWx2ZXRpY2E+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTQgMDAwMDAgbiAKMDAwMDAwMDEwNSAwMDAwMCBuIAowMDAwMDAwMjE3IDAwMDAwIG4gCjAwMDAwMDA1MTAgMDAwMDAgbiAKdHJhaWxlcgo8PC9TaXplIDYvUm9vdCAxIDAgUj4+CnN0YXJ0eHJlZgo1NzMKJSVFT0YK', 46, 0, 'Em quan tâm vị trí Developer, gửi anh/chị CV của em ạ.', '2025-06-12 03:00:00', '2025-06-12 03:00:00') ON DUPLICATE KEY UPDATE file = VALUES(file), description = VALUES(description);
+INSERT INTO cvs (id, userId, file, postId, isChecked, description, createdAt, updatedAt) VALUES (9103, 33, 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCA1OTUgMzAwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDI2MT4+c3RyZWFtCkJUIC9GMSAxMiBUZiA0MCAyNjAgVGQgMTggVEwKKENWIFVORyBUVVlFTiAtIFRyYW4gVmFuIE5naGlhKSBUaiBUKgooVmkgdHJpIHVuZyB0dXllbjogVHV5ZW4gZHVuZyBsYXAgdHJpbmggdmllbikgVGogVCoKKEt5IG5hbmc6IEMjLCBNeVNRTCwgTVNTUUwsIFB5dGhvbiwgTWFjaGluZSBMZWFybmluZykgVGogVCoKKEtpbmggbmdoaWVtOiAyIG5hbSBsYW0gdmllYyB0aHVjIHRlKSBUaiBUKgooSG9jIHZhbjogRGFpIGhvYyAtIGxvYWkgS2hhKSBUaiBUKgpFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU0IDAwMDAwIG4gCjAwMDAwMDAxMDUgMDAwMDAgbiAKMDAwMDAwMDIxNyAwMDAwMCBuIAowMDAwMDAwNTI2IDAwMDAwIG4gCnRyYWlsZXIKPDwvU2l6ZSA2L1Jvb3QgMSAwIFI+PgpzdGFydHhyZWYKNTg5CiUlRU9GCg==', 45, 0, 'Em có kinh nghiệm C# và cơ sở dữ liệu, rất mong được trao đổi thêm.', '2025-06-13 03:00:00', '2025-06-13 03:00:00') ON DUPLICATE KEY UPDATE file = VALUES(file), description = VALUES(description);
+INSERT INTO cvs (id, userId, file, postId, isChecked, description, createdAt, updatedAt) VALUES (9104, 5, 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCA1OTUgMzAwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDI0Nz4+c3RyZWFtCkJUIC9GMSAxMiBUZiA0MCAyNjAgVGQgMTggVEwKKENWIFVORyBUVVlFTiAtIExlIFRoaSBLaW0gQW5oKSBUaiBUKgooVmkgdHJpIHVuZyB0dXllbjogQ2h1eWVuIFZpZW4gVGFpIENoaW5oKSBUaiBUKgooS3kgbmFuZzogSmF2YSwgTm9kZWpzLCBKUywgVnVlanMsIEFuZ3VsYXIpIFRqIFQqCihLaW5oIG5naGllbTogMiBuYW0gbGFtIHZpZWMgdGh1YyB0ZSkgVGogVCoKKEhvYyB2YW46IERhaSBob2MgLSBsb2FpIEtoYSkgVGogVCoKRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8L1R5cGUvRm9udC9TdWJ0eXBlL1R5cGUxL0Jhc2VGb250L0hlbHZldGljYT4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1NCAwMDAwMCBuIAowMDAwMDAwMTA1IDAwMDAwIG4gCjAwMDAwMDAyMTcgMDAwMDAgbiAKMDAwMDAwMDUxMiAwMDAwMCBuIAp0cmFpbGVyCjw8L1NpemUgNi9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjU3NQolJUVPRgo=', 1, 0, 'Em gửi CV ứng tuyển vị trí Chuyên viên tài chính ạ.', '2025-06-14 03:00:00', '2025-06-14 03:00:00') ON DUPLICATE KEY UPDATE file = VALUES(file), description = VALUES(description);
+INSERT INTO cvs (id, userId, file, postId, isChecked, description, createdAt, updatedAt) VALUES (9105, 9, 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCA1OTUgMzAwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDIzND4+c3RyZWFtCkJUIC9GMSAxMiBUZiA0MCAyNjAgVGQgMTggVEwKKENWIFVORyBUVVlFTiAtIE5ndXllbiBMZSBUYW4gVGFpKSBUaiBUKgooVmkgdHJpIHVuZyB0dXllbjogTmhhbiB2aWVuIGtpbmggZG9hbmgpIFRqIFQqCihLeSBuYW5nOiBHaWFpIHF1eWV0IHZhbiBkZSkgVGogVCoKKEtpbmggbmdoaWVtOiAyIG5hbSBsYW0gdmllYyB0aHVjIHRlKSBUaiBUKgooSG9jIHZhbjogRGFpIGhvYyAtIGxvYWkgS2hhKSBUaiBUKgpFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU0IDAwMDAwIG4gCjAwMDAwMDAxMDUgMDAwMDAgbiAKMDAwMDAwMDIxNyAwMDAwMCBuIAowMDAwMDAwNDk5IDAwMDAwIG4gCnRyYWlsZXIKPDwvU2l6ZSA2L1Jvb3QgMSAwIFI+PgpzdGFydHhyZWYKNTYyCiUlRU9GCg==', 32, 0, 'Em muốn ứng tuyển vị trí nhân viên kinh doanh của công ty.', '2025-06-15 03:00:00', '2025-06-15 03:00:00') ON DUPLICATE KEY UPDATE file = VALUES(file), description = VALUES(description);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9100, 30, 18, 'Chào anh/chị, em thấy công ty đang tuyển Lập trình viên Reactjs. Vị trí này có yêu cầu kinh nghiệm tối thiểu bao nhiêu năm ạ?', 1, '2025-06-10 09:00:00', '2025-06-10 09:00:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9101, 18, 30, 'Chào em, vị trí này bên anh cần tối thiểu 1 năm kinh nghiệm Reactjs, có biết thêm Nextjs là một lợi thế.', 1, '2025-06-10 09:12:00', '2025-06-10 09:12:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9102, 30, 18, 'Dạ em có 2 năm làm Reactjs và đã dùng qua Nextjs ở dự án gần nhất ạ.', 1, '2025-06-10 09:15:00', '2025-06-10 09:15:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9103, 18, 30, 'Vậy rất phù hợp. Em nộp CV qua tin tuyển dụng giúp anh nhé, bên anh sẽ xem và hẹn phỏng vấn trong tuần này.', 1, '2025-06-10 09:20:00', '2025-06-10 09:20:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9104, 30, 18, 'Dạ vâng, em vừa nộp CV rồi ạ. Em cảm ơn anh!', 0, '2025-06-10 09:22:00', '2025-06-10 09:22:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9105, 36, 34, 'Chào anh/chị, cho em hỏi vị trí Developer bên mình làm việc onsite hay có hỗ trợ remote ạ?', 1, '2025-06-12 14:05:00', '2025-06-12 14:05:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9106, 34, 36, 'Chào em, bên công ty làm onsite từ thứ 2 đến thứ 6, được remote 1 ngày mỗi tuần em nhé.', 1, '2025-06-12 14:30:00', '2025-06-12 14:30:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9107, 36, 34, 'Dạ em rõ rồi ạ. Mức lương vị trí này khoảng bao nhiêu ạ?', 1, '2025-06-12 14:33:00', '2025-06-12 14:33:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9108, 34, 36, 'Tùy năng lực em nhé, khoảng 15-22 triệu. Em cứ gửi CV để bên anh đánh giá cụ thể hơn.', 1, '2025-06-12 14:40:00', '2025-06-12 14:40:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9109, 33, 34, 'Chào anh, em thấy tin tuyển lập trình viên của công ty. Bên mình có làm mảng dữ liệu không ạ?', 1, '2025-06-14 10:00:00', '2025-06-14 10:00:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9110, 34, 33, 'Chào em, bên anh có một nhóm làm về xử lý dữ liệu và báo cáo. Em có kinh nghiệm mảng này chưa?', 1, '2025-06-14 10:25:00', '2025-06-14 10:25:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9111, 33, 34, 'Dạ em làm C# với MSSQL được 2 năm, có học thêm Python và Machine Learning ạ.', 0, '2025-06-14 10:28:00', '2025-06-14 10:28:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9112, 31, 18, 'Chào anh/chị, em đã nộp CV vị trí Reactjs, không biết bên mình đã xem chưa ạ?', 1, '2025-06-15 16:10:00', '2025-06-15 16:10:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9113, 18, 31, 'Anh vừa xem CV của em, hồ sơ khá phù hợp. Em sắp xếp được lịch phỏng vấn thứ 5 tuần này không?', 1, '2025-06-15 16:45:00', '2025-06-15 16:45:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9114, 31, 18, 'Dạ được ạ, em cảm ơn anh nhiều!', 0, '2025-06-15 16:47:00', '2025-06-15 16:47:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9115, 9, 19, 'Chào anh/chị, vị trí Nhân viên kinh doanh có yêu cầu kinh nghiệm bất động sản không ạ?', 1, '2025-06-18 08:30:00', '2025-06-18 08:30:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9116, 19, 9, 'Chào em, chưa có kinh nghiệm vẫn được nhé, bên anh đào tạo 1 tháng đầu.', 1, '2025-06-18 09:00:00', '2025-06-18 09:00:00') ON DUPLICATE KEY UPDATE content = VALUES(content), isRead = VALUES(isRead);
+INSERT INTO notifications (id, userId, typeCode, isChecked, content, link, createdAt, updatedAt) VALUES (9100, 18, 'NEW_CV', 0, 'Có 2 ứng viên vừa nộp CV vào tin tuyển dụng của bạn', '/admin/manage-cv/', '2025-06-20 03:00:00', '2025-06-20 03:00:00') ON DUPLICATE KEY UPDATE content = VALUES(content);
+INSERT INTO notifications (id, userId, typeCode, isChecked, content, link, createdAt, updatedAt) VALUES (9101, 34, 'NEW_CV', 0, 'Có 2 ứng viên vừa nộp CV vào tin tuyển dụng của bạn', '/admin/manage-cv/', '2025-06-20 03:00:00', '2025-06-20 03:00:00') ON DUPLICATE KEY UPDATE content = VALUES(content);
+INSERT INTO notifications (id, userId, typeCode, isChecked, content, link, createdAt, updatedAt) VALUES (9102, 2, 'NEW_CV', 0, 'Có 1 ứng viên vừa nộp CV vào tin tuyển dụng của bạn', '/admin/manage-cv/', '2025-06-20 03:00:00', '2025-06-20 03:00:00') ON DUPLICATE KEY UPDATE content = VALUES(content);
+INSERT INTO notifications (id, userId, typeCode, isChecked, content, link, createdAt, updatedAt) VALUES (9103, 19, 'NEW_CV', 0, 'Có 1 ứng viên vừa nộp CV vào tin tuyển dụng của bạn', '/admin/manage-cv/', '2025-06-20 03:00:00', '2025-06-20 03:00:00') ON DUPLICATE KEY UPDATE content = VALUES(content);
+
+COMMIT;

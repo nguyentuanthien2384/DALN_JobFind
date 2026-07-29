@@ -51,6 +51,36 @@ instance.interceptors.response.use(
         // Thrown error for request with OK status code
         const { data } = response;
         return response.data
+    },
+    (error) => {
+        // Khong co nhanh xu ly loi thi moi response 4xx/5xx deu tra ve promise bi reject,
+        // trong khi cac component chi lam `let res = await getX(); if (res.errCode === 0)`
+        // -> component vang ra loi va man hinh trang. Chuan hoa loi ve dung dang
+        // { errCode, errMessage } de nhanh else cua component hien thong bao binh thuong.
+        const res = error.response
+
+        if (!res) {
+            return {
+                errCode: -1,
+                errMessage: 'Không kết nối được máy chủ. Vui lòng kiểm tra lại backend.'
+            }
+        }
+
+        const data = res.data || {}
+
+        // Backend gui kem refresh: true khi token het han / khong hop le.
+        // Xoa phien dang nhap va dua ve trang login, tru khi dang o san trang login.
+        if (data.refresh === true && window.location.pathname !== '/login') {
+            localStorage.removeItem('userData')
+            localStorage.removeItem('token_user')
+            localStorage.setItem('lastUrl', window.location.href)
+            window.location.href = '/login'
+        }
+
+        return {
+            errCode: data.errCode !== undefined ? data.errCode : -1,
+            errMessage: data.errMessage || data.message || `Lỗi máy chủ (${res.status})`
+        }
     }
 );
 

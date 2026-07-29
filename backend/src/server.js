@@ -1,9 +1,11 @@
 import express from "express";
+import http from "http";
 import bodyParser from "body-parser";
 import viewEngine from "./config/viewEngine";
 import initwebRoutes from "./routes/web";
 import connectDB from "./config/connectDB";
 import {sendJobMail,updateFreeViewCv} from "./utils/schedule"
+import { initSocket } from "./config/socket";
 require('dotenv').config();
 
 let app = express();
@@ -11,7 +13,7 @@ let app = express();
 app.use(function (req, res, next) {
 
     // Website you wish to allow to connect
-    res.setHeader('Access-Control-Allow-Origin', process.env.URL_REACT);
+    res.setHeader('Access-Control-Allow-Origin', process.env.URL_REACT || 'http://localhost:3000');
 
     // Request methods you wish to allow
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -36,8 +38,12 @@ initwebRoutes(app);
 
 connectDB();
 
-let port = process.env.PORT || 6969;
+let port = process.env.PORT || 5000;
 
-app.listen(port, () => {
+// Boc app Express vao http server de Socket.IO dung chung cong 5000 voi API REST.
+let server = http.createServer(app);
+initSocket(server);
+
+server.listen(port, () => {
     console.log("Backend Nodejs is running on the port : " + port)
 });

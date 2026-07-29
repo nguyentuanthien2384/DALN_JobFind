@@ -20,7 +20,10 @@ module.exports = (sequelize, DataTypes) => {
             Allcode.hasMany(models.DetailPost, { foreignKey: 'addressCode', as: 'provincePostData' })
     
             //post
-            Allcode.hasMany(models.DetailPost, { foreignKey: 'statusCode', as: 'statusPostData' })
+            // statusCode nam o bang posts, khong phai detailposts. Tro nham vao DetailPost
+            // khien Sequelize them thuoc tinh 'statusCode' ao vao model DetailPost, moi truy van
+            // DetailPost khong chi dinh attributes deu loi "Unknown column 'statusCode'".
+            Allcode.hasMany(models.Post, { foreignKey: 'statusCode', as: 'statusPostData' })
 
             //account
             Allcode.hasMany(models.Account, { foreignKey: 'roleCode', as: 'roleData' })
