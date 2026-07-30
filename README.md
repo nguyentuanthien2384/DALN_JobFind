@@ -190,6 +190,42 @@ TRUY CẬP TRỰC TIẾP: **`http://localhost:3000`**
 3. **Thực nghiệm**:
    - Thử gõ tin nhắn ở một bên -> Bên còn lại sẽ nhận ngay lập tức kèm trạng thái **Typing...** và số tin nhắn chưa đọc được cập nhật real-time!
 
+### 🔍 Đang chat với công ty nào thì đăng nhập bằng tài khoản nào?
+
+Khung chat hiển thị **tên công ty**, nhưng đăng nhập lại bằng **số điện thoại của
+người phụ trách**. Có 2 cách tra:
+
+**Cách 1 — đọc trên thanh địa chỉ.** Số cuối URL chính là `userId` của nhà tuyển
+dụng: `localhost:3000/chat/35` → nhà tuyển dụng có `userId = 35`.
+
+**Cách 2 — tra bảng dưới đây.**
+
+| Công Ty | userId | SĐT Đăng Nhập | Người Phụ Trách |
+| :--- | :---: | :--- | :--- |
+| Công ty TNHH CMC GLOBAL | 2 | `0764188023` | Nguyễn Văn A |
+| Công ty CP Tập đoàn Hoa Sen | 3 | `0785095048` | Nguyễn Lê Tấn |
+| FPT Software | 6 | `0764088022` | Lê Thị Kim Ảnh |
+| Unilever | 7 | `0764088020` | Lê Thị Kim Ảnh |
+| Ninja Van 2 | 10 | `0944043559` | Nguyễn Lê Tấn Tài |
+| CÔNG TY CP TẬP ĐOÀN ITP | 16 | `0795095040` | Nguyễn Lê Tấn Tài2 |
+| Babilala | 18 | `0795095042` | Nguyễn Văn Tài |
+| Đất Xanh Miền Trung | 19 | `0795095038` | Nguyễn Lê Tấn Tài |
+| Tập đoàn ABC | 20 | `0795095028` | Nguyễn Lê Tấn D |
+| Công ty ABC | 23 | `0795095148` | Nguyễn Văn Tài |
+| Công ty TNHH XYZ | 25 | `0795095248` | Nguyễn Lê Tấn Tài |
+| Công ty TNHH Thành Công | 27 | `0795095098` | Nguyễn Thị A |
+| Công ty TNHH Thế Giới | 29 | `0795095125` | Nguyễn Văn Lộc |
+| Công ty phần mềm Tấn Tài | 32 | `0795095111` | Trần Văn Chiến |
+| Công ty CP Tấn Tài | 34 | `0795095222` | Trần Văn Nghĩa |
+| Công ty TNHH Văn Minh | 35 | `0795095333` | Nguyễn Văn Nhật |
+| Cong ty TNHH tieu ban 3 | 37 | `0764188024` | Trần Minh Tiến |
+
+> [!WARNING]
+> Hội thoại gắn với **từng người dùng**, không phải với công ty. Một công ty có
+> thể có nhiều tài khoản (ví dụ CMC GLOBAL có `userId` 2, 8 và 9002) — chỉ đúng
+> tài khoản có `userId` khớp với URL mới nhìn thấy cuộc trò chuyện đó. Đăng nhập
+> bằng tài khoản khác cùng công ty sẽ không thấy gì.
+
 ---
 
 ## 📊 Thống Kê Dữ Liệu Có Sẵn (Demo Database)
