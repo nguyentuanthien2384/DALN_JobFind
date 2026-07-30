@@ -129,7 +129,9 @@ const ManageSalaryType = () => {
                                                     <td>{item.value}</td>
                                                     <td>{item.code}</td>
                                                     <td>
-                                                        <Link style={{ color: '#4B49AC' }} to={`/admin/edit-work-type/${item.code}/`}>Sửa</Link>
+                                                        {/* Loi copy-paste cu: bam "Sua" o khoang luong
+                                                            lai mo trang sua HINH THUC LAM VIEC. */}
+                                                        <Link style={{ color: '#4B49AC' }} to={`/admin/edit-salary-type/${item.code}/`}>Sửa</Link>
                                                         &nbsp; &nbsp;
                                                         <a style={{ color: '#4B49AC' }} href="#" onClick={(event) =>  confirmDelete(item.code)} >Xóa</a>
                                                     </td>

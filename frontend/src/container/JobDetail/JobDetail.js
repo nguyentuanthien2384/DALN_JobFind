@@ -102,78 +102,69 @@ const JobDetail = () => {
     <!-- Preloader Start --> */}
             {dataPost.companyData && (
                 <main>
-                    <div className="slider-area ">
-                        <div
-                            className="single-slider slider-height2 d-flex align-items-center"
-                            style={{
-                                backgroundImage: `url(${dataPost.companyData.coverimage})`,
-                            }}
-                        >
-                            <div className="container">
-                                <div className="row">
-                                    <div className="col-xl-12">
-                                        <div className="hero-cap text-center"></div>
+                    {/* Header dung chung kieu voi trang chi tiet cong ty:
+                        anh bia chieu cao co dinh + thanh trang co logo dat de len anh bia. */}
+                    <div className="job-detail-cover">
+                        <div className="container">
+                            <div className="cover-wrapper">
+                                <img
+                                    src={dataPost.companyData.coverimage}
+                                    alt=""
+                                    className="cover-img"
+                                />
+                            </div>
+                            <div className="job-detail-overview">
+                                <div className="job-logo">
+                                    <div className="job-image-logo">
+                                        <img
+                                            src={dataPost.companyData.thumbnail}
+                                            alt={dataPost.companyData.name}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="job-info">
+                                    <h1 className="job-detail-name">
+                                        {dataPost.postDetailData.name}
+                                    </h1>
+                                    <Link
+                                        to={`/detail-company/${dataPost.companyData.id}`}
+                                        className="job-company-name"
+                                    >
+                                        <i className="far fa-building"></i>
+                                        {dataPost.companyData.name}
+                                    </Link>
+                                    <div className="job-meta">
+                                        <span>
+                                            <i className="far fa-clock"></i>
+                                            {
+                                                dataPost.postDetailData
+                                                    .workTypePostData.value
+                                            }
+                                        </span>
+                                        <span>
+                                            <i className="fas fa-map-marker-alt"></i>
+                                            {
+                                                dataPost.postDetailData
+                                                    .provincePostData.value
+                                            }
+                                        </span>
+                                        <span>
+                                            <i className="fas fa-money-bill-wave"></i>
+                                            {
+                                                dataPost.postDetailData
+                                                    .salaryTypePostData.value
+                                            }
+                                        </span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="job-post-company pt-120 pb-120">
+                    <div className="job-post-company pb-120">
                         <div className="container">
                             <div className="row justify-content-between">
                                 <div className="col-xl-7 col-lg-8">
-                                    <div className="single-job-items mb-30">
-                                        <div className="job-items">
-                                            <div className="company-img company-img-details">
-                                                <img
-                                                    src={
-                                                        dataPost.companyData
-                                                            .thumbnail
-                                                    }
-                                                    alt="Ảnh bị lỗi"
-                                                    width={100}
-                                                    height={100}
-                                                />
-                                            </div>
-                                            <div className="job-tittle">
-                                                <h4>
-                                                    {
-                                                        dataPost.postDetailData
-                                                            .name
-                                                    }
-                                                </h4>
-
-                                                <ul>
-                                                    <li>
-                                                        {
-                                                            dataPost
-                                                                .postDetailData
-                                                                .workTypePostData
-                                                                .value
-                                                        }
-                                                    </li>
-                                                    <li>
-                                                        <i className="fas fa-map-marker-alt"></i>
-                                                        {
-                                                            dataPost
-                                                                .postDetailData
-                                                                .provincePostData
-                                                                .value
-                                                        }
-                                                    </li>
-                                                    <li>
-                                                        {
-                                                            dataPost
-                                                                .postDetailData
-                                                                .salaryTypePostData
-                                                                .value
-                                                        }
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    </div>
 
                                     <div className="job-post-details">
                                         <div className="post-details1 mb-50">
@@ -349,89 +340,76 @@ const JobDetail = () => {
                                                 </span>
                                             </li>
                                         </ul>
-                                        <div
-                                            className="btn"
-                                            onClick={() => handleOpenModal()}
-                                        >
-                                            Ứng tuyển ngay
-                                        </div>
-                                        <div
-                                            className="btn"
-                                            style={{
-                                                marginLeft: "10px",
-                                                background: isFavorite
-                                                    ? "#fff"
-                                                    : "",
-                                                color: isFavorite
-                                                    ? "#fb246a"
-                                                    : "",
-                                                border: "1px solid #fb246a",
-                                            }}
-                                            onClick={() =>
-                                                handleToggleFavorite()
-                                            }
-                                        >
-                                            <i
+                                        <div className="job-actions">
+                                            <button
+                                                type="button"
+                                                className="job-action-btn job-action-btn--primary"
+                                                onClick={() => handleOpenModal()}
+                                            >
+                                                <i className="far fa-paper-plane"></i>
+                                                Ứng tuyển ngay
+                                            </button>
+                                            <button
+                                                type="button"
                                                 className={
-                                                    isFavorite
-                                                        ? "fas fa-heart"
-                                                        : "far fa-heart"
+                                                    "job-action-btn job-action-btn--secondary" +
+                                                    (isFavorite ? " is-active" : "")
                                                 }
-                                                style={{ marginRight: "6px" }}
-                                            ></i>
-                                            {isFavorite
-                                                ? "Đã lưu tin"
-                                                : "Lưu tin"}
-                                        </div>
-                                        <div
-                                            className="btn"
-                                            style={{
-                                                marginTop: "10px",
-                                                background: "#fff",
-                                                color: "#1c86ee",
-                                                border: "1px solid #1c86ee",
-                                                display: "block",
-                                                textAlign: "center",
-                                            }}
-                                            onClick={() => {
-                                                const userData = JSON.parse(
-                                                    localStorage.getItem(
-                                                        "userData"
-                                                    )
-                                                );
-                                                if (!userData) {
-                                                    toast.error(
-                                                        "Xin hãy đăng nhập để nhắn tin với nhà tuyển dụng"
+                                                onClick={() =>
+                                                    handleToggleFavorite()
+                                                }
+                                            >
+                                                <i
+                                                    className={
+                                                        isFavorite
+                                                            ? "fas fa-heart"
+                                                            : "far fa-heart"
+                                                    }
+                                                ></i>
+                                                {isFavorite
+                                                    ? "Đã lưu tin"
+                                                    : "Lưu tin"}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="job-action-btn job-action-btn--ghost"
+                                                onClick={() => {
+                                                    const userData = JSON.parse(
+                                                        localStorage.getItem(
+                                                            "userData"
+                                                        )
                                                     );
-                                                    setTimeout(() => {
-                                                        localStorage.setItem(
-                                                            "lastUrl",
-                                                            window.location
-                                                                .href
+                                                    if (!userData) {
+                                                        toast.error(
+                                                            "Xin hãy đăng nhập để nhắn tin với nhà tuyển dụng"
                                                         );
-                                                        navigate("/login");
-                                                    }, 1000);
-                                                    return;
-                                                }
-                                                if (
-                                                    +userData.id ===
-                                                    +dataPost.userId
-                                                ) {
-                                                    toast.error(
-                                                        "Đây là tin đăng của bạn"
+                                                        setTimeout(() => {
+                                                            localStorage.setItem(
+                                                                "lastUrl",
+                                                                window.location
+                                                                    .href
+                                                            );
+                                                            navigate("/login");
+                                                        }, 1000);
+                                                        return;
+                                                    }
+                                                    if (
+                                                        +userData.id ===
+                                                        +dataPost.userId
+                                                    ) {
+                                                        toast.error(
+                                                            "Đây là tin đăng của bạn"
+                                                        );
+                                                        return;
+                                                    }
+                                                    navigate(
+                                                        `/chat/${dataPost.userId}`
                                                     );
-                                                    return;
-                                                }
-                                                navigate(
-                                                    `/chat/${dataPost.userId}`
-                                                );
-                                            }}
-                                        >
-                                            <i
-                                                className="far fa-comment-dots"
-                                                style={{ marginRight: "6px" }}
-                                            ></i>
-                                            Nhắn tin cho nhà tuyển dụng
+                                                }}
+                                            >
+                                                <i className="far fa-comment-dots"></i>
+                                                Nhắn tin cho nhà tuyển dụng
+                                            </button>
                                         </div>
                                     </div>
                                     <div className="post-details4  mb-50">

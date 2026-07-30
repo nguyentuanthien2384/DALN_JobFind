@@ -117,7 +117,9 @@ const ManagePackageCv = () => {
                                                     <td style={{ textAlign: 'right' }}>{item.price} USD</td>
                                                     <td>{item.isActive == 0 ? 'Dừng kinh doanh' : 'Đang kinh doanh'}</td>
                                                     <td>
-                                                        <Link style={{ color: '#4B49AC' }} to={`/admin/edit-package-post/${item.id}/`}>Sửa</Link>
+                                                        {/* Loi copy-paste cu: bam "Sua" o goi XEM UNG VIEN
+                                                            lai mo trang sua goi BAI DANG. */}
+                                                        <Link style={{ color: '#4B49AC' }} to={`/admin/edit-package-cv/${item.id}/`}>Sửa</Link>
                                                         &nbsp; &nbsp;
                                                         {item.isActive == 1 ? (
                                                             <>

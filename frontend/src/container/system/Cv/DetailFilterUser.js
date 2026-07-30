@@ -5,7 +5,11 @@ import {
     UpdateUserSettingService,
     getAllSkillByJobCode,
 } from "../../../service/userService";
-import { checkSeeCandiate } from "../../../service/cvService";
+import {
+    checkSeeCandiate,
+    getAllListCvByUserIdService,
+} from "../../../service/cvService";
+import moment from "moment";
 
 import { useFetchAllcode } from "../../../util/fetch";
 import { toast } from "react-toastify";
@@ -15,6 +19,11 @@ import { useNavigate, useParams } from "react-router-dom";
 
 const DetailFilterUser = () => {
     const [listSkills, setListSkills] = useState([]);
+    // Truoc day trang nay chi hien TIEU CHI TIM VIEC (linh vuc, luong, ky nang...).
+    // Nha tuyen dung khong xem duoc thong tin lien he lan lich su ung tuyen cua
+    // ung vien, phai lan sang trang khac. Gom het ve mot cho.
+    const [hoSo, setHoSo] = useState(null);
+    const [dsCv, setDsCv] = useState([]);
     const [inputValues, setInputValues] = useState({
         jobType: "",
         salary: "",
@@ -63,7 +72,15 @@ const DetailFilterUser = () => {
                     let user = await getDetailUserById(id);
                     if (user && user.errCode === 0) {
                         setStateUser(user.data);
+                        setHoSo(user.data);
                     }
+                    // Lich su ung tuyen cua ung vien nay
+                    let cv = await getAllListCvByUserIdService({
+                        userId: id,
+                        limit: 20,
+                        offset: 0,
+                    });
+                    if (cv && cv.errCode === 0) setDsCv(cv.data || []);
                 } else {
                     toast.error(check.errMessage);
                     setTimeout(() => {
@@ -116,7 +133,116 @@ const DetailFilterUser = () => {
                         <h4 className="card-title">
                             Thông tin chi tiết ứng viên
                         </h4>
-                        <br></br>
+
+                        {/* ---- Thông tin liên hệ ---- */}
+                        {hoSo && hoSo.userAccountData && (
+                            <div className="ho-so-ung-vien">
+                                <img
+                                    className="ho-so-avatar"
+                                    src={hoSo.userAccountData.image}
+                                    alt=""
+                                />
+                                <div className="ho-so-thong-tin">
+                                    <h5 className="ho-so-ten">
+                                        {hoSo.userAccountData.firstName}{" "}
+                                        {hoSo.userAccountData.lastName}
+                                    </h5>
+                                    <div className="ho-so-dong">
+                                        <span>
+                                            <i className="fas fa-phone"></i>
+                                            {hoSo.phonenumber || "Chưa có"}
+                                        </span>
+                                        <span>
+                                            <i className="far fa-envelope"></i>
+                                            {hoSo.userAccountData.email || "Chưa có"}
+                                        </span>
+                                        <span>
+                                            <i className="fas fa-map-marker-alt"></i>
+                                            {hoSo.userAccountData.address || "Chưa có"}
+                                        </span>
+                                        <span>
+                                            <i className="far fa-calendar"></i>
+                                            {hoSo.userAccountData.dob || "Chưa có"}
+                                        </span>
+                                        {hoSo.userAccountData.genderData && (
+                                            <span>
+                                                <i className="fas fa-venus-mars"></i>
+                                                {hoSo.userAccountData.genderData.value}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {hoSo.listSkills && hoSo.listSkills.length > 0 && (
+                                        <div className="ho-so-ky-nang">
+                                            {hoSo.listSkills.map((item, index) => (
+                                                <span className="the-ky-nang" key={index}>
+                                                    {item.Skill ? item.Skill.name : ""}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ---- Lịch sử ứng tuyển ---- */}
+                        <div className="ho-so-muc">
+                            <h5 className="ho-so-muc-tieu-de">
+                                Lịch sử ứng tuyển
+                                <span className="ho-so-dem">{dsCv.length}</span>
+                            </h5>
+                            {dsCv.length > 0 ? (
+                                <div className="table-responsive">
+                                    <table className="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Tin tuyển dụng</th>
+                                                <th>Lời nhắn của ứng viên</th>
+                                                <th>Ngày nộp</th>
+                                                <th>Trạng thái</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {dsCv.map((cv) => (
+                                                <tr key={cv.id}>
+                                                    <td>
+                                                        {cv.postCvData &&
+                                                        cv.postCvData.postDetailData
+                                                            ? cv.postCvData.postDetailData.name
+                                                            : "Tin đã bị xóa"}
+                                                    </td>
+                                                    <td>{cv.description}</td>
+                                                    <td>
+                                                        {moment(cv.createdAt).format(
+                                                            "DD/MM/YYYY"
+                                                        )}
+                                                    </td>
+                                                    <td>
+                                                        <span
+                                                            className={
+                                                                "nhan-trang-thai " +
+                                                                (+cv.isChecked === 1
+                                                                    ? "da-xem"
+                                                                    : "chua-xem")
+                                                            }
+                                                        >
+                                                            {+cv.isChecked === 1
+                                                                ? "Đã xem"
+                                                                : "Chưa xem"}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <p className="ho-so-trong">
+                                    Ứng viên chưa nộp CV cho tin tuyển dụng nào.
+                                </p>
+                            )}
+                        </div>
+
+                        <h5 className="ho-so-muc-tieu-de">Tiêu chí tìm việc</h5>
                         <form className="form-sample">
                             <div className="row">
                                 <div className="col-md-6">

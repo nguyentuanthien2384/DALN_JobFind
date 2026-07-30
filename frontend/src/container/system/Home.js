@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import {
     getStatisticalTypePost,
@@ -13,6 +13,8 @@ import ReactPaginate from "react-paginate";
 import moment from "moment";
 import { DatePicker } from "antd";
 import CommonUtils from "../../util/CommonUtils";
+import useAutoRefresh from "../../util/useAutoRefresh";
+import AutoRefreshInfo from "./AutoRefreshInfo";
 const Home = () => {
     const { RangePicker } = DatePicker;
     const today = new Date();
@@ -31,54 +33,67 @@ const Home = () => {
     );
     const [dataSum, setDataSum] = useState(0);
     const [dataSumCv, setDataSumCv] = useState(0);
-    const [formDatePost, setFormDatePost] = useState(formattedToday);
-    const [formDateCv, setFormDateCv] = useState(formattedToday);
-    const [toDatePost, setToDatePost] = useState(formattedToday);
-    const [toDateCv, setToDateCv] = useState(formattedToday);
 
     const [dataCv, setDataCv] = useState([]);
     const [count, setCount] = useState("");
     const [countCv, setCountCv] = useState("");
 
-    const [numberPage, setnumberPage] = useState("");
-    const [numberPageCv, setnumberPageCv] = useState("");
-
-    let sendParams = {
-        limit: PAGINATION.pagerow,
-        offset: 0,
+    // Bo loc dang ap dung cua tung bang (khoang ngay + trang dang xem).
+    //
+    // Truoc day cac tham so nay nam rai rac trong tung ham, thieu truoc hut sau:
+    // khoang ngay cua bang CV khong duoc luu vao state nen chon xong roi chuyen
+    // trang la mat; toDate cua hai bang doanh thu khong bao gio duoc ghi lai nen
+    // xuat Excel luon lay den hom nay du dang xem khoang khac. Gom lai mot cho
+    // vua sua duoc may loi do, vua de tu dong cap nhat tai lai DUNG nhung gi
+    // nguoi dung dang xem thay vi nhay ve "hom nay, trang 1".
+    const locMacDinh = {
         fromDate: formattedToday,
         toDate: formattedToday,
-        companyId: user.companyId,
+        page: 0,
+    };
+    const [locCv, setLocCv] = useState(locMacDinh); // bang so luong CV (cong ty)
+    const [locPost, setLocPost] = useState(locMacDinh); // doanh thu goi bai dang (admin)
+    const [locPkgCv, setLocPkgCv] = useState(locMacDinh); // doanh thu goi xem UV (admin)
+
+    let taiBangCv = async (loc, companyId) => {
+        let arrData = await getStatisticalCv({
+            limit: PAGINATION.pagerow,
+            offset: loc.page * PAGINATION.pagerow,
+            fromDate: loc.fromDate,
+            toDate: loc.toDate,
+            companyId,
+        });
+        if (arrData && arrData.errCode === 0) {
+            setDataCv(arrData.data);
+            setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
+        }
     };
 
-    let getStatistical = async (fromDate, toDate, type = "packageCv") => {
-        let arrData = [];
-        if (type === "packagePost") {
-            setFormDatePost(fromDate);
-            arrData = await getStatisticalPackagePost({
-                fromDate,
-                toDate,
-                limit: PAGINATION.pagerow,
-                offset: 0,
-            });
-            if (arrData && arrData.errCode === 0) {
-                setDataStatisticalPackagePost(arrData.data);
-                setDataSum(arrData.sum);
-                setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
-            }
-        } else {
-            setFormDateCv(fromDate);
-            arrData = await getStatisticalPackageCv({
-                fromDate,
-                toDate,
-                limit: PAGINATION.pagerow,
-                offset: 0,
-            });
-            if (arrData && arrData.errCode === 0) {
-                setDataStatisticalPackageCv(arrData.data);
-                setDataSumCv(arrData.sum);
-                setCountCv(Math.ceil(arrData.count / PAGINATION.pagerow));
-            }
+    let taiBangGoiBaiDang = async (loc) => {
+        let arrData = await getStatisticalPackagePost({
+            fromDate: loc.fromDate,
+            toDate: loc.toDate,
+            limit: PAGINATION.pagerow,
+            offset: loc.page * PAGINATION.pagerow,
+        });
+        if (arrData && arrData.errCode === 0) {
+            setDataStatisticalPackagePost(arrData.data);
+            setDataSum(arrData.sum);
+            setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
+        }
+    };
+
+    let taiBangGoiXemUngVien = async (loc) => {
+        let arrData = await getStatisticalPackageCv({
+            fromDate: loc.fromDate,
+            toDate: loc.toDate,
+            limit: PAGINATION.pagerow,
+            offset: loc.page * PAGINATION.pagerow,
+        });
+        if (arrData && arrData.errCode === 0) {
+            setDataStatisticalPackageCv(arrData.data);
+            setDataSumCv(arrData.sum);
+            setCountCv(Math.ceil(arrData.count / PAGINATION.pagerow));
         }
     };
 
@@ -89,80 +104,50 @@ const Home = () => {
             fromDate = values[0].format("YYYY-MM-DD");
             toDate = values[1].format("YYYY-MM-DD");
         }
+        // Doi khoang ngay thi ve trang 1: so trang cua khoang moi thuong it hon,
+        // giu nguyen trang cu de dang o trang khong con du lieu.
+        let loc = { fromDate, toDate, page: 0 };
         if (user.roleCode !== "ADMIN") {
-            let arrData = await getStatisticalCv({
-                ...sendParams,
-                fromDate,
-                toDate,
-                offset: 0,
-            });
-            if (arrData && arrData.errCode === 0) {
-                setDataCv(arrData.data);
-                setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
-            }
+            setLocCv(loc);
+            await taiBangCv(loc, user.companyId);
+        } else if (type === "packagePost") {
+            setLocPost(loc);
+            await taiBangGoiBaiDang(loc);
         } else {
-            getStatistical(fromDate, toDate, type);
-        }
-    };
-    let getStatisticalChangePage = async (type, number) => {
-        let arrData = [];
-        if (type === "packagePost") {
-            setnumberPage(number.selected);
-            arrData = await getStatisticalPackagePost({
-                fromDate: formattedToday,
-                toDate: formattedToday,
-                limit: PAGINATION.pagerow,
-                offset: number.selected * PAGINATION.pagerow,
-            });
-            if (arrData && arrData.errCode === 0) {
-                setDataStatisticalPackagePost(arrData.data);
-                setDataSum(arrData.sum);
-
-                setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
-            }
-        } else {
-            setnumberPageCv(number.selected);
-            arrData = await getStatisticalPackageCv({
-                fromDate: formattedToday,
-                toDate: formattedToday,
-                limit: PAGINATION.pagerow,
-                offset: number.selected * PAGINATION.pagerow,
-            });
-            if (arrData && arrData.errCode === 0) {
-                setDataStatisticalPackageCv(arrData.data);
-                setDataSumCv(arrData.sum);
-                setCountCv(Math.ceil(arrData.count / PAGINATION.pagerow));
-            }
+            setLocPkgCv(loc);
+            await taiBangGoiXemUngVien(loc);
         }
     };
     let handleChangePage = async (number, type = "") => {
         if (user.roleCode !== "ADMIN") {
-            setnumberPage(number.selected);
-            let arrData = await getStatisticalCv({
-                ...sendParams,
-                limit: PAGINATION.pagerow,
-                offset: number.selected * PAGINATION.pagerow,
-            });
-            if (arrData && arrData.errCode === 0) {
-                setDataCv(arrData.data);
-            }
+            let loc = { ...locCv, page: number.selected };
+            setLocCv(loc);
+            await taiBangCv(loc, user.companyId);
+        } else if (type === "packagePost") {
+            let loc = { ...locPost, page: number.selected };
+            setLocPost(loc);
+            await taiBangGoiBaiDang(loc);
         } else {
-            getStatisticalChangePage(type, number);
+            let loc = { ...locPkgCv, page: number.selected };
+            setLocPkgCv(loc);
+            await taiBangGoiXemUngVien(loc);
         }
     };
     let handleOnClickExport = async (type) => {
         let res = [];
+        // Xuat theo dung khoang ngay dang xem tren man hinh.
+        let loc = type === "packagePost" ? locPost : locPkgCv;
         if (type === "packagePost") {
             res = await getStatisticalPackagePost({
-                fromDate: formDatePost,
-                toDate: toDatePost,
+                fromDate: loc.fromDate,
+                toDate: loc.toDate,
                 limit: "",
                 offset: "",
             });
         } else {
             res = await getStatisticalPackageCv({
-                fromDate: formDateCv,
-                toDate: toDateCv,
+                fromDate: loc.fromDate,
+                toDate: loc.toDate,
                 limit: "",
                 offset: "",
             });
@@ -196,6 +181,11 @@ const Home = () => {
         }
     };
 
+    // Tu dong cap nhat chay lien tuc nen neu API loi keo dai se do toast lien
+    // tuc 30 giay mot cai. Chi bao MOT lan, tai lai duoc thi mo khoa de lan sau
+    // hong nua van con bao.
+    const daBaoLoiBieuDo = useRef(false);
+
     const getData = async (limit) => {
         let res = await getStatisticalTypePost(limit);
         let other = res.totalPost;
@@ -224,40 +214,41 @@ const Home = () => {
                 });
             }
             setDataStatisticalTypePost(newdata);
-        } else toast.error(res.message);
+            daBaoLoiBieuDo.current = false;
+        } else if (!daBaoLoiBieuDo.current) {
+            daBaoLoiBieuDo.current = true;
+            // API tra ve truong 'errMessage'; truoc doc nham 'message' nen khi loi
+            // chi hien mot toast trong. Van giu 'message' de phong truong hop cu.
+            toast.error(
+                res.errMessage || res.message || "Không tải được biểu đồ thống kê"
+            );
+        }
     };
-    useEffect(() => {
+
+    // Tai lai toan bo so lieu dang hien tren man hinh, giu nguyen bo loc.
+    // Doc vai tro tu localStorage chu khong tu state `user`: lan chay dau tien
+    // xay ra ngay khi mo trang, luc do setUser chua kip co hieu luc.
+    const taiTatCaThongKe = async () => {
         const userData = JSON.parse(localStorage.getItem("userData"));
-        setUser(userData);
-        getData(4);
-    }, []);
+        if (!userData) return;
+        await getData(4);
+        if (userData.roleCode !== "ADMIN") {
+            if (userData.companyId) await taiBangCv(locCv, userData.companyId);
+        } else {
+            await taiBangGoiBaiDang(locPost);
+            await taiBangGoiXemUngVien(locPkgCv);
+        }
+    };
+
+    // Truoc day trang nay chi goi API dung mot lan luc mo, so lieu dung yen cho
+    // toi khi bam F5. Hook nay tai lai khi backend bao co du lieu moi (socket),
+    // dinh ky phong khi socket khong ket noi duoc, va khi quay lai tab.
+    const { capNhatLuc, dangTai, lamMoi } = useAutoRefresh(taiTatCaThongKe);
 
     useEffect(() => {
-        try {
-            let fetchData = async () => {
-                const userData = JSON.parse(localStorage.getItem("userData"));
-                if (userData.roleCode !== "ADMIN") {
-                    let arrData = await getStatisticalCv({
-                        ...sendParams,
-                        companyId: userData.companyId,
-                    });
-                    if (arrData && arrData.errCode === 0) {
-                        setDataCv(arrData.data);
-                        setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
-                    }
-                } else {
-                    getStatistical(
-                        formattedToday,
-                        formattedToday,
-                        "packagePost"
-                    );
-                    getStatistical(formattedToday, formattedToday, "packageCv");
-                }
-            };
-            fetchData();
-        } catch (error) {
-            console.log(error);
-        }
+        setUser(JSON.parse(localStorage.getItem("userData")) || {});
+        lamMoi();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     return (
         <>
@@ -274,6 +265,11 @@ const Home = () => {
                             >
                                 Biểu đồ thống kê top lĩnh vực
                             </h3>
+                            <AutoRefreshInfo
+                                capNhatLuc={capNhatLuc}
+                                dangTai={dangTai}
+                                onLamMoi={lamMoi}
+                            />
                         </div>
                     </div>
                 </div>
@@ -282,7 +278,7 @@ const Home = () => {
                 <div className="col-md-4">
                     {dataStatisticalTypePost.map((item, index) => {
                         return (
-                            <div style={{ marginBottom: "10px" }}>
+                            <div key={index} style={{ marginBottom: "10px" }}>
                                 <div
                                     style={{
                                         width: "50px",
@@ -317,7 +313,6 @@ const Home = () => {
                         )}
                         data={dataStatisticalTypePost}
                     />
-                    ;
                 </div>
             </div>
             {user.companyId && (
@@ -350,7 +345,7 @@ const Home = () => {
                                                         <td>
                                                             {index +
                                                                 1 +
-                                                                numberPage *
+                                                                locCv.page *
                                                                     PAGINATION.pagerow}
                                                         </td>
                                                         <td>
@@ -400,6 +395,7 @@ const Home = () => {
                             breakLinkClassName={"page-link"}
                             breakClassName={"page-item"}
                             activeClassName={"active"}
+                            forcePage={locCv.page}
                             onPageChange={(number) => handleChangePage(number)}
                         />
                     </div>
@@ -452,7 +448,7 @@ const Home = () => {
                                                                 <td>
                                                                     {index +
                                                                         1 +
-                                                                        numberPage *
+                                                                        locPost.page *
                                                                             PAGINATION.pagerow}
                                                                 </td>
                                                                 <td>
@@ -526,6 +522,7 @@ const Home = () => {
                                 breakLinkClassName={"page-link"}
                                 breakClassName={"page-item"}
                                 activeClassName={"active"}
+                                forcePage={locPost.page}
                                 onPageChange={(number) =>
                                     handleChangePage(number, "packagePost")
                                 }
@@ -577,7 +574,7 @@ const Home = () => {
                                                                 <td>
                                                                     {index +
                                                                         1 +
-                                                                        numberPageCv *
+                                                                        locPkgCv.page *
                                                                             PAGINATION.pagerow}
                                                                 </td>
                                                                 <td>
@@ -645,6 +642,7 @@ const Home = () => {
                                 breakLinkClassName={"page-link"}
                                 breakClassName={"page-item"}
                                 activeClassName={"active"}
+                                forcePage={locPkgCv.page}
                                 onPageChange={(number) =>
                                     handleChangePage(number, "packageCv")
                                 }

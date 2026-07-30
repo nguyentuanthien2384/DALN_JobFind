@@ -1,5 +1,5 @@
 import React from 'react'
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom'
 import { toast } from 'react-toastify';
 import './header.scss';
@@ -12,6 +12,10 @@ const Header = () => {
     const [unreadCount, setUnreadCount] = useState(0)
     const [unreadChat, setUnreadChat] = useState(0)
     const [showNotification, setShowNotification] = useState(false)
+    const notificationRef = useRef(null)
+    const isCandidate = user?.roleCode === 'CANDIDATE'
+    const profilePath = isCandidate ? '/candidate/info' : '/admin/user-info/'
+    const passwordPath = isCandidate ? '/candidate/changepassword/' : '/admin/changepassword/'
 
     useEffect(() => {
         const userData = JSON.parse(localStorage.getItem('userData'));
@@ -31,7 +35,7 @@ const Header = () => {
         const loadHeaderData = async () => {
             const [notificationRes, chatRes] = await Promise.all([
                 getNotificationByUserService({ userId: user.id, limit: 10, offset: 0 }),
-                getListChatConversationService({ userId: user.id })
+                getListChatConversationService()
             ])
             if (notificationRes && notificationRes.errCode === 0) {
                 setListNotification(notificationRes.data || [])
@@ -80,6 +84,27 @@ const Header = () => {
         window.addEventListener("scroll", scrollHeader)
         return () => window.removeEventListener("scroll", scrollHeader)
     }, [])
+
+    // Đóng hộp thông báo khi người dùng bấm sang vị trí khác hoặc nhấn Esc.
+    useEffect(() => {
+        if (!showNotification) return
+
+        const closeNotificationWhenClickOutside = (event) => {
+            if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+                setShowNotification(false)
+            }
+        }
+        const closeNotificationWithEscape = (event) => {
+            if (event.key === 'Escape') setShowNotification(false)
+        }
+
+        document.addEventListener('mousedown', closeNotificationWhenClickOutside)
+        document.addEventListener('keydown', closeNotificationWithEscape)
+        return () => {
+            document.removeEventListener('mousedown', closeNotificationWhenClickOutside)
+            document.removeEventListener('keydown', closeNotificationWithEscape)
+        }
+    }, [showNotification])
 
     const handleReadAll = async () => {
         const res = await markReadNotificationService({ userId: user.id })
@@ -142,7 +167,7 @@ const Header = () => {
                                                             }
                                                         </Link>
                                                     </li>
-                                                    <li className="nav-item" style={{ position: 'relative', marginRight: '10px' }}>
+                                                    <li ref={notificationRef} className="nav-item" style={{ position: 'relative', marginRight: '10px' }}>
                                                         <a style={{ color: '#252b60', fontSize: '18px', position: 'relative', cursor: 'pointer' }} onClick={() => setShowNotification(!showNotification)}>
                                                             <i className="far fa-bell"></i>
                                                             {unreadCount > 0 &&
@@ -172,27 +197,27 @@ const Header = () => {
                                                             <span className='header-name-user'>{user.firstName + " " + user.lastName}</span>
                                                         </a>
                                                         <div className="dropdown-menu dropdown-menu-right navbar-dropdown" aria-labelledby="profileDropdown">
-                                                            <Link to='/candidate/info' className="dropdown-item">
+                                                            <Link to={profilePath} className="dropdown-item">
                                                                 <i className="far fa-user text-primary" />
                                                                 Thông tin
                                                             </Link>
-                                                            <Link to='/candidate/usersetting' className="dropdown-item">
+                                                            {isCandidate && <Link to='/candidate/usersetting' className="dropdown-item">
                                                                 <i className="far fa-solid fa-bars text-primary" />
                                                                 Cài đặt nâng cao
-                                                            </Link>
-                                                            <Link to="/candidate/cv-post/" className="dropdown-item">
+                                                            </Link>}
+                                                            {isCandidate && <Link to="/candidate/cv-post/" className="dropdown-item">
                                                                 <i className="far fa-file-word text-primary"></i>
                                                                 Công việc đã nộp
-                                                            </Link>
+                                                            </Link>}
                                                             <Link to="/chat" className="dropdown-item">
                                                                 <i className="far fa-comment-dots text-primary"></i>
                                                                 Tin nhắn
                                                             </Link>
-                                                            <Link to="/candidate/saved-jobs/" className="dropdown-item">
+                                                            {isCandidate && <Link to="/candidate/saved-jobs/" className="dropdown-item">
                                                                 <i className="far fa-heart text-primary"></i>
                                                                 Việc làm đã lưu
-                                                            </Link>
-                                                            <Link to='/candidate/changepassword/' className="dropdown-item">
+                                                            </Link>}
+                                                            <Link to={passwordPath} className="dropdown-item">
                                                                 <i className="ti-settings text-primary" />
                                                                 Đổi mật khẩu
                                                             </Link>

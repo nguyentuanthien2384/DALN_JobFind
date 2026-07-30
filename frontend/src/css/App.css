@@ -51,10 +51,471 @@ div.btn, a.btn, button.btn, input.btn, span.btn {
    sidebar lai co chieu rong co dinh 281px nen cac muc menu tieng Viet dai
    (vd "Đồ thị doanh thu gói xem ứng viên") bi cat cut o mep phai.
    Dung selector co do uu tien cao hon rule cua theme de cho phep xuong dong. */
+/* Menu con: dong/mo dieu khien bang class (xem Menu.js) */
+.sidebar .jf-submenu {
+    display: none;
+}
+
+.sidebar .jf-submenu.jf-submenu--mo {
+    display: block;
+}
+
 .sidebar ul.nav.sub-menu .nav-item .nav-link {
     white-space: normal;
     line-height: 1.4;
+}
+
+/* CHE DO THU GON (bam nut 3 gach -> body.sidebar-icon-only).
+   Sidebar chi con 70px. Theme goc bien menu con thanh flyout dat canh sidebar,
+   nhung co che do gan voi class .collapse ma o day khong dung. Neu khong lam
+   lai, menu con bi nhet trong 70px va chu xuong dong TUNG KY TU. */
+@media (min-width: 992px) {
+    /* Thu gon thi luon an menu con di, ke ca nhom dang mo */
+    .sidebar-icon-only .sidebar .nav .nav-item .jf-submenu,
+    .sidebar-icon-only .sidebar .nav .nav-item .jf-submenu.jf-submenu--mo {
+        display: none;
+    }
+
+    /* Ro chuot vao thi bay ra ben canh. .hover-open do hoverable-collapse.js
+       cua theme gan; them ca :hover de khong phu thuoc hoan toan vao JS do. */
+    .sidebar-icon-only .sidebar .nav .nav-item.hover-open .jf-submenu,
+    .sidebar-icon-only .sidebar .nav .nav-item:hover .jf-submenu {
+        display: block;
+        position: absolute;
+        top: 100%;
+        left: 70px;
+        /* 190px va left 70px la dung thong so theme dung cho nhan tieu de bay ra
+           o ngay tren, de hai khoi thang hang voi nhau */
+        width: 190px;
+        z-index: 999;
+        border-radius: 0 5px 5px 0;
+        box-shadow: 4px 4px 7px 0 rgba(182, 185, 189, 0.25);
+    }
+
+    /* Trong flyout khong con chieu rong thua nen bot thut le cho chu de tho */
+    .sidebar-icon-only .sidebar .nav .nav-item .jf-submenu .nav.sub-menu {
+        padding-left: 1.2rem;
+        padding-right: 0.6rem;
+    }
+}
+
+/* Theme admin dung CUNG mot mau tim #4B49AC cho ca 3 trang thai khac nhau:
+   :hover (dong 28625), aria-expanded="true" tuc nhom dang mo (28634), va
+   .active tuc trang dang xem (28640). Nhin vao tuong nhu 3 muc cung "active".
+
+   Tach ra ro rang: chi nhom DANG MO moi to dam (do la muc vua bam), hover chi
+   sang nhe, nhom dong thi khong to nen ke ca khi no chua trang dang xem.
+   Them tien to `nav.sidebar` de chac chan thang rule cua theme. */
+
+/* Bo mau nen tim mac dinh tren <li>.active cua theme */
+nav.sidebar .nav:not(.sub-menu) > .nav-item.active {
+    background: transparent;
+}
+
+/* Nhom DANG MO — day la chi bao duy nhat, to dam */
+nav.sidebar .nav:not(.sub-menu) > .nav-item > .nav-link[aria-expanded="true"] {
+    background: #4B49AC;
+    color: #fff;
+    border-radius: 8px 8px 0 0;
+}
+
+/* Nhom DONG — khong to nen, du no chua trang dang xem.
+   Phai tra lai mau chu binh thuong: theme co rule (dong 28599-28602) ep chu,
+   icon va mui ten cua .nav-item.active thanh MAU TRANG (vi mac dinh no nam tren
+   nen tim). Bo nen tim ma quen doi mau chu thi thanh chu trang tren nen sang
+   -> nhin nhu bi mo di. */
+nav.sidebar .nav:not(.sub-menu) > .nav-item > .nav-link[aria-expanded="false"] {
+    background: transparent;
+    color: #6C7383;
+}
+
+nav.sidebar .nav:not(.sub-menu) > .nav-item.active > .nav-link[aria-expanded="false"] .menu-title {
+    color: #6C7383;
+}
+
+nav.sidebar .nav:not(.sub-menu) > .nav-item.active > .nav-link[aria-expanded="false"] i.menu-icon {
+    color: #6C7383;
+}
+
+nav.sidebar .nav:not(.sub-menu) > .nav-item.active > .nav-link[aria-expanded="false"] i.menu-arrow {
+    color: #686868;
+}
+
+/* Muc don khong co menu con (Trang chu / Tin nhan) khi dang xem */
+nav.sidebar .nav:not(.sub-menu) > .nav-item.active > .nav-link:not([aria-expanded]) {
+    background: #4B49AC;
+    color: #fff;
+    border-radius: 8px;
+}
+
+/* Hover chi lam sang NEN, giu nguyen mau chu. Doi ca mau chu khi hover se keo
+   theo phai ghi de mau cho ca .menu-title / i.menu-icon / i.menu-arrow ben trong
+   -> chuoi tranh chap do uu tien khong can thiet. */
+nav.sidebar .nav:not(.sub-menu) > .nav-item:hover > .nav-link[aria-expanded="false"],
+nav.sidebar .nav:not(.sub-menu) > .nav-item:hover > .nav-link:not([aria-expanded]) {
+    background: rgba(75, 73, 172, 0.10);
+}
+
+/* ...tru muc dang xem / nhom dang mo thi giu nguyen mau dam khi ro chuot qua */
+nav.sidebar .nav:not(.sub-menu) > .nav-item.active:hover > .nav-link:not([aria-expanded]),
+nav.sidebar .nav:not(.sub-menu) > .nav-item:hover > .nav-link[aria-expanded="true"] {
+    background: #4B49AC;
+    color: #fff;
+}
+
+/* Muc con DANG XEM phai noi bat. Theme goc dat .nav-link.active cua sub-menu
+   thanh color:#fff + background:transparent — trung y het trang thai binh thuong
+   nen nhin vao khong biet dang o trang nao. */
+.sidebar ul.nav.sub-menu .nav-item .nav-link.active {
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.sidebar ul.nav.sub-menu .nav-item .nav-link.active::after {
+    content: '';
+    position: absolute;
+    left: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 16px;
+    border-radius: 2px;
+    background: #fff;
+}
+
+/* Ro rang hon khi ro chuot qua muc con */
+.sidebar ul.nav.sub-menu .nav-item .nav-link:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+}
+
+/* Nhom menu cap 1: chuyen mau muot thay vi nhay giat */
+.sidebar .nav:not(.sub-menu) > .nav-item > .nav-link {
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+/* Con tro tay tren tieu de nhom (the <a> khong co href that) */
+.sidebar .nav:not(.sub-menu) > .nav-item > a.nav-link {
+    cursor: pointer;
+}
+
+/* ==========================================================================
+   HEADER TRANG CHI TIET VIEC LAM (container/JobDetail/JobDetail.js)
+   Dung cung bo cuc voi header trang chi tiet cong ty (DetailCompany.scss):
+   anh bia cao co dinh 236px + thanh trang co logo dat de len anh bia.
+   Truoc day cho nay la banner .slider-height2 cao 450px de trong hoan toan,
+   roi con them pt-120 nen giua anh bia va noi dung ho ra mot khoang rat lon.
+   ========================================================================== */
+.job-detail-cover {
+    margin-bottom: 30px;
+}
+
+.job-detail-cover .cover-wrapper {
+    height: 236px;
+    overflow: hidden;
+    border-radius: 5px 5px 0 0;
+}
+
+.job-detail-cover .cover-wrapper .cover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.job-detail-cover .job-detail-overview {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    padding: 0 24px;
+    position: relative;
+    border: 1px solid #eee;
+    border-top: 0;
+    border-radius: 0 0 5px 5px;
+}
+
+.job-detail-cover .job-logo {
+    width: 140px;
+    height: 110px;
+    margin-right: 24px;
+    flex-shrink: 0;
+}
+
+.job-detail-cover .job-image-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 140px;
+    height: 140px;
+    background: #fff;
+    border: 5px solid #fff;
+    border-radius: 10px;
+    position: relative;
+    top: -65px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+.job-detail-cover .job-image-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border: 1px solid #eee;
+    border-radius: 10px;
+}
+
+.job-detail-cover .job-info {
+    padding-top: 5px;
     word-break: break-word;
+    min-width: 0;
+}
+
+.job-detail-cover .job-detail-name {
+    color: #333;
+    font-size: 24px;
+    line-height: 1.3;
+    margin: 0 0 6px;
+}
+
+.job-detail-cover .job-company-name {
+    color: #506172;
+    font-size: 15px;
+    display: inline-block;
+    margin-bottom: 8px;
+}
+
+.job-detail-cover .job-company-name:hover {
+    color: #fb246a;
+}
+
+.job-detail-cover .job-company-name i {
+    margin-right: 6px;
+}
+
+.job-detail-cover .job-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    margin-bottom: 12px;
+}
+
+.job-detail-cover .job-meta span {
+    color: #506172;
+    font-size: 15px;
+}
+
+.job-detail-cover .job-meta i {
+    margin-right: 6px;
+    color: #fb246a;
+}
+
+/* ==========================================================================
+   CUM NUT HANH DONG O KHUNG "THONG TIN CONG VIEC" (JobDetail.js)
+   Truoc day 3 nut dung chung class .btn cua theme roi chap va inline style:
+   moi nut mot chieu rong, nut "Luu tin" con bi thut vao 10px, nhan dai thi
+   tran ra ngoai khung. Nay tach ra thanh bo nut rieng, khong dung .btn nua.
+   ========================================================================== */
+.job-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.job-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: none;
+}
+
+.job-action-btn i {
+    font-size: 15px;
+    line-height: 1;
+}
+
+/* Nut chinh — ung tuyen */
+.job-action-btn--primary {
+    background: #fb246a;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(251, 36, 106, 0.25);
+}
+
+.job-action-btn--primary:hover {
+    background: #e01458;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(251, 36, 106, 0.35);
+    transform: translateY(-1px);
+}
+
+/* Nut phu — luu tin */
+.job-action-btn--secondary {
+    background: #fff;
+    color: #fb246a;
+    border-color: #fb246a;
+}
+
+.job-action-btn--secondary:hover {
+    background: #fff0f5;
+    color: #fb246a;
+}
+
+/* Trang thai da luu */
+.job-action-btn--secondary.is-active {
+    background: #fff0f5;
+    color: #fb246a;
+    border-color: #fb246a;
+}
+
+/* Nut thu ba — nhan tin */
+.job-action-btn--ghost {
+    background: #fff;
+    color: #506172;
+    border-color: #d9dee5;
+}
+
+.job-action-btn--ghost:hover {
+    background: #f5f9ff;
+    color: #1c86ee;
+    border-color: #1c86ee;
+}
+
+/* ==========================================================================
+   HO SO UNG VIEN — nha tuyen dung xem (system/Cv/DetailFilterUser.js)
+   ========================================================================== */
+.ho-so-ung-vien {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    padding: 20px;
+    margin: 8px 0 24px;
+    background: #f8f9fd;
+    border: 1px solid #eef0f6;
+    border-radius: 8px;
+}
+
+.ho-so-avatar {
+    width: 96px;
+    height: 96px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #fff;
+    border: 1px solid #e6e9f0;
+}
+
+.ho-so-thong-tin {
+    min-width: 0;
+    flex: 1;
+}
+
+.ho-so-ten {
+    margin: 0 0 10px;
+    color: #1f2d3d;
+    font-weight: 600;
+}
+
+.ho-so-dong {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 26px;
+    margin-bottom: 12px;
+}
+
+.ho-so-dong span {
+    color: #566575;
+    font-size: 14px;
+}
+
+.ho-so-dong i {
+    margin-right: 7px;
+    color: #4B49AC;
+    width: 14px;
+}
+
+.ho-so-ky-nang {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.the-ky-nang {
+    background: #ecebf8;
+    color: #4B49AC;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ho-so-muc {
+    margin-bottom: 26px;
+}
+
+.ho-so-muc-tieu-de {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding-left: 10px;
+    border-left: 4px solid #4B49AC;
+    color: #1f2d3d;
+    font-weight: 600;
+}
+
+.ho-so-dem {
+    background: #4B49AC;
+    color: #fff;
+    border-radius: 20px;
+    font-size: 12px;
+    padding: 1px 10px;
+}
+
+.ho-so-trong {
+    color: #98a2b3;
+    font-size: 14px;
+    font-style: italic;
+}
+
+.nhan-trang-thai {
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.nhan-trang-thai.da-xem {
+    background: #e6f7ee;
+    color: #00a854;
+}
+
+.nhan-trang-thai.chua-xem {
+    background: #fff4e5;
+    color: #d48806;
+}
+
+@media screen and (max-width: 575.98px) {
+    .ho-so-ung-vien {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    .ho-so-dong,
+    .ho-so-ky-nang {
+        justify-content: center;
+    }
 }
 
 /* ==========================================================================
@@ -141,6 +602,36 @@ img, video, canvas, svg {
         padding-top: 100px;
     }
 
+    /* Header trang viec lam: xep doc, logo nho lai va khong nho len anh bia nua */
+    .job-detail-cover .cover-wrapper {
+        height: 150px;
+    }
+    .job-detail-cover .job-detail-overview {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0 16px 16px;
+    }
+    .job-detail-cover .job-logo {
+        width: 90px;
+        height: 45px;
+        margin-right: 0;
+    }
+    .job-detail-cover .job-image-logo {
+        width: 90px;
+        height: 90px;
+        top: -35px;
+    }
+    .job-detail-cover .job-detail-name {
+        font-size: 19px;
+    }
+    .job-detail-cover .job-meta {
+        gap: 6px 18px;
+    }
+    .job-detail-cover .job-meta span,
+    .job-detail-cover .job-company-name {
+        font-size: 14px;
+    }
+
     /* Trang chat: hien 1 cot. Dang xem 1 cuoc tro chuyen thi an danh sach di,
        bam nut mui ten quay lai de hien danh sach. */
     .chat-wrapper {
@@ -198,3 +689,83 @@ img, video, canvas, svg {
     }
 }
 
+
+/* =========================================================
+   DAI BANG "TU DONG CAP NHAT" TREN CAC TRANG THONG KE
+   ========================================================= */
+.tu-dong-cap-nhat {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 5px 12px 5px 10px;
+    border: 1px solid #e3e6ef;
+    border-radius: 20px;
+    background: #f8f9fc;
+    font-size: 12.5px;
+    color: #6c7383;
+}
+
+/* Cham nhay de nguoi dung nhan ra trang dang song chu khong phai anh chup */
+.tu-dong-cap-nhat__cham {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #2fbf71;
+    box-shadow: 0 0 0 0 rgba(47, 191, 113, 0.6);
+    animation: tu-dong-cap-nhat-nhay 2s infinite;
+    flex-shrink: 0;
+}
+
+@keyframes tu-dong-cap-nhat-nhay {
+    0%   { box-shadow: 0 0 0 0 rgba(47, 191, 113, 0.6); }
+    70%  { box-shadow: 0 0 0 7px rgba(47, 191, 113, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(47, 191, 113, 0); }
+}
+
+.tu-dong-cap-nhat__chu {
+    white-space: nowrap;
+}
+
+.tu-dong-cap-nhat__nut {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 0;
+    background: transparent;
+    padding: 0 0 0 8px;
+    margin-left: 2px;
+    border-left: 1px solid #dfe3ee;
+    color: #4B49AC;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.tu-dong-cap-nhat__nut:hover:not(:disabled) {
+    color: #37348a;
+    text-decoration: underline;
+}
+
+.tu-dong-cap-nhat__nut:disabled {
+    color: #a3a7b7;
+    cursor: default;
+}
+
+/* Bieu tuong xoay trong luc dang goi API */
+.tu-dong-cap-nhat__nut .dang-quay {
+    animation: tu-dong-cap-nhat-xoay 1s linear infinite;
+}
+
+@keyframes tu-dong-cap-nhat-xoay {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+@media screen and (max-width: 575.98px) {
+    /* Man hinh hep thi cho xuong dong thay vi tran ra ngoai */
+    .tu-dong-cap-nhat {
+        flex-wrap: wrap;
+        border-radius: 12px;
+    }
+}

@@ -19,8 +19,10 @@ const ChatPage = () => {
     const [content, setContent] = useState("");
     const [isRealtime, setIsRealtime] = useState(false);
     const [partnerTyping, setPartnerTyping] = useState(false);
+    const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef(null);
     const typingTimerRef = useRef(null);
+    const typingEmitTimerRef = useRef(null);
     const userData = JSON.parse(localStorage.getItem("userData"));
 
     useEffect(() => {
@@ -65,6 +67,9 @@ const ChatPage = () => {
                     return [...prev, msg];
                 });
                 setPartnerTyping(false);
+                if (+msg.receiverId === +userData.id) {
+                    socket.emit("chat:read", { partnerId });
+                }
             }
             // Luon lam moi danh sach hoi thoai de cap nhat tin cuoi + so chua doc
             fetchListConversation();
@@ -77,10 +82,22 @@ const ChatPage = () => {
             typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 2500);
         };
 
+        const onMessagesRead = ({ byUserId }) => {
+            if (!partnerId || +byUserId !== +partnerId) return;
+            setMessages((prev) =>
+                prev.map((message) =>
+                    +message.senderId === +userData.id
+                        ? { ...message, isRead: 1 }
+                        : message
+                )
+            );
+        };
+
         socket.on("connect", onConnect);
         socket.on("disconnect", onDisconnect);
         socket.on("chat:new-message", onNewMessage);
         socket.on("chat:typing", onTyping);
+        socket.on("chat:read", onMessagesRead);
         if (socket.connected) setIsRealtime(true);
 
         return () => {
@@ -88,7 +105,9 @@ const ChatPage = () => {
             socket.off("disconnect", onDisconnect);
             socket.off("chat:new-message", onNewMessage);
             socket.off("chat:typing", onTyping);
+            socket.off("chat:read", onMessagesRead);
             clearTimeout(typingTimerRef.current);
+            clearTimeout(typingEmitTimerRef.current);
         };
     }, [partnerId]);
 
@@ -105,17 +124,14 @@ const ChatPage = () => {
     };
 
     const fetchListConversation = async () => {
-        let res = await getListChatConversationService({ userId: userData.id });
+        let res = await getListChatConversationService();
         if (res && res.errCode === 0) {
             setListConversation(res.data);
         }
     };
 
     const fetchConversation = async (scroll) => {
-        let res = await getChatConversationService({
-            userId: userData.id,
-            partnerId: partnerId,
-        });
+        let res = await getChatConversationService({ partnerId: partnerId });
         if (res && res.errCode === 0) {
             setMessages((prev) => {
                 if (scroll || prev.length !== res.data.length) {
@@ -124,21 +140,27 @@ const ChatPage = () => {
                 return res.data;
             });
             setPartnerData(res.partnerData);
+            const socket = getSocket();
+            if (socket && socket.connected) {
+                socket.emit("chat:read", { partnerId });
+            }
         }
     };
 
     const handleSend = async () => {
-        if (!content.trim() || !partnerId) return;
+        if (!content.trim() || !partnerId || isSending) return;
         const text = content.trim();
         const socket = getSocket();
 
         // Uu tien gui qua socket cho nhanh; socket hong thi rot ve API REST.
         if (socket && socket.connected) {
             setContent("");
+            setIsSending(true);
             socket.emit(
                 "chat:send",
                 { receiverId: partnerId, content: text },
                 (res) => {
+                    setIsSending(false);
                     if (!res || res.errCode !== 0) {
                         setContent(text); // tra lai chu de nguoi dung gui lai
                         toast.error(
@@ -150,11 +172,9 @@ const ChatPage = () => {
             return;
         }
 
-        let res = await sendChatMessageService({
-            senderId: userData.id,
-            receiverId: partnerId,
-            content: text,
-        });
+        setIsSending(true);
+        let res = await sendChatMessageService({ receiverId: partnerId, content: text });
+        setIsSending(false);
         if (res && res.errCode === 0) {
             setContent("");
             fetchConversation(true);
@@ -166,10 +186,13 @@ const ChatPage = () => {
 
     const handleTyping = (value) => {
         setContent(value);
-        const socket = getSocket();
-        if (socket && socket.connected && partnerId) {
-            socket.emit("chat:typing", { receiverId: partnerId });
-        }
+        clearTimeout(typingEmitTimerRef.current);
+        typingEmitTimerRef.current = setTimeout(() => {
+            const socket = getSocket();
+            if (value.trim() && socket && socket.connected && partnerId) {
+                socket.emit("chat:typing", { receiverId: partnerId });
+            }
+        }, 250);
     };
 
     const getPartnerName = (partner) => {
@@ -383,6 +406,17 @@ const ChatPage = () => {
                                                             item.createdAt
                                                         ).format("HH:mm DD/MM")}
                                                     </div>
+                                                    {isMine && +item.isRead === 1 && index === messages.length - 1 && (
+                                                        <div
+                                                            style={{
+                                                                fontSize: "10px",
+                                                                opacity: 0.7,
+                                                                textAlign: "right",
+                                                            }}
+                                                        >
+                                                            Đã xem
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );
@@ -402,6 +436,8 @@ const ChatPage = () => {
                                         className="form-control"
                                         placeholder="Nhập tin nhắn..."
                                         value={content}
+                                        maxLength={2000}
+                                        disabled={isSending}
                                         onChange={(e) =>
                                             handleTyping(e.target.value)
                                         }
@@ -412,6 +448,7 @@ const ChatPage = () => {
                                     <button
                                         className="btn btn-primary"
                                         onClick={() => handleSend()}
+                                        disabled={isSending || !content.trim()}
                                     >
                                         <i className="far fa-paper-plane"></i>
                                     </button>

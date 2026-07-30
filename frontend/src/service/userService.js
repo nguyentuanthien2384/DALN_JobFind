@@ -377,10 +377,10 @@ const sendChatMessageService = (data) => {
     return axios.post(`/api/send-chat-message`, data)
 }
 const getChatConversationService = (data) => {
-    return axios.get(`/api/get-chat-conversation?userId=${data.userId}&partnerId=${data.partnerId}`)
+    return axios.get(`/api/get-chat-conversation?partnerId=${data.partnerId}`)
 }
-const getListChatConversationService = (data) => {
-    return axios.get(`/api/get-list-chat-conversation?userId=${data.userId}`)
+const getListChatConversationService = () => {
+    return axios.get(`/api/get-list-chat-conversation`)
 }
 
 export {
