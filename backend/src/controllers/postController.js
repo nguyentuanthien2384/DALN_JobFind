@@ -1,8 +1,11 @@
 import postService from '../services/postService';
+import { emitDashboardChanged } from '../config/socket';
 
 let handleCreateNewPost = async (req, res) => {
     try {
         let data = await postService.handleCreateNewPost(req.body);
+        // Bai dang moi lam doi bieu do "top linh vuc" -> bao cho dashboard tu tai lai.
+        if (data.errCode === 0) emitDashboardChanged('post');
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -39,6 +42,9 @@ let handleUpdatePost = async (req, res) => {
 let handleBanPost = async (req, res) => {
     try {
         let data = await postService.handleBanPost(req.body);
+        // Bieu do "top linh vuc" chi dem tin dang hoat dong (statusCode PS1), nen
+        // khoa/duyet/mo lai tin deu lam so lieu doi theo.
+        if (data.errCode === 0) emitDashboardChanged('post');
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -52,6 +58,7 @@ let handleBanPost = async (req, res) => {
 let handleAcceptPost = async (req, res) => {
     try {
         let data = await postService.handleAcceptPost(req.body);
+        if (data.errCode === 0) emitDashboardChanged('post');
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -101,6 +108,7 @@ let getDetailPostById = async (req, res) => {
 let handleActivePost = async (req, res) => {
     try {
         let data = await postService.handleActivePost(req.body);
+        if (data.errCode === 0) emitDashboardChanged('post');
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

@@ -6,10 +6,16 @@ require('dotenv').config();
 let handleSendMessage = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
-            if (!data.senderId || !data.receiverId || !data.content) {
+            const content = typeof data.content === 'string' ? data.content.trim() : ''
+            if (!data.senderId || !data.receiverId || !content) {
                 resolve({
                     errCode: 1,
                     errMessage: 'Missing required parameters !'
+                })
+            } else if (content.length > 2000) {
+                resolve({
+                    errCode: 4,
+                    errMessage: 'Tin nhắn không được vượt quá 2.000 ký tự'
                 })
             } else if (+data.senderId === +data.receiverId) {
                 resolve({
@@ -32,7 +38,7 @@ let handleSendMessage = (data) => {
                     let message = await db.ChatMessage.create({
                         senderId: data.senderId,
                         receiverId: data.receiverId,
-                        content: data.content,
+                        content: content,
                         isRead: 0
                     })
                     resolve({
@@ -49,6 +55,33 @@ let handleSendMessage = (data) => {
 }
 
 // Lấy hội thoại giữa 2 user (đồng thời đánh dấu tin nhận được là đã đọc)
+// Shared by the REST and Socket.IO paths so read state is persisted consistently.
+let markConversationRead = (data) => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            if (!data.userId || !data.partnerId) {
+                return resolve({
+                    errCode: 1,
+                    errMessage: 'Missing required parameters !'
+                })
+            }
+            const [updatedCount] = await db.ChatMessage.update(
+                { isRead: 1 },
+                {
+                    where: {
+                        senderId: data.partnerId,
+                        receiverId: data.userId,
+                        isRead: 0
+                    }
+                }
+            )
+            resolve({ errCode: 0, updatedCount })
+        } catch (error) {
+            reject(error)
+        }
+    })
+}
+
 let getConversation = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
@@ -58,16 +91,7 @@ let getConversation = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             } else {
-                await db.ChatMessage.update(
-                    { isRead: 1 },
-                    {
-                        where: {
-                            senderId: data.partnerId,
-                            receiverId: data.userId,
-                            isRead: 0
-                        }
-                    }
-                )
+                await markConversationRead(data)
                 let messages = await db.ChatMessage.findAll({
                     where: {
                         [Op.or]: [
@@ -75,10 +99,13 @@ let getConversation = (data) => {
                             { senderId: data.partnerId, receiverId: data.userId }
                         ]
                     },
-                    order: [['createdAt', 'ASC']],
-                    limit: data.limit ? +data.limit : 100,
+                    // Query the newest records first; an old conversation must
+                    // not hide new messages after it grows past 100 entries.
+                    order: [['createdAt', 'DESC']],
+                    limit: Math.min(Math.max(Number(data.limit) || 100, 1), 200),
                     raw: true
                 })
+                messages.reverse()
                 let partner = await db.User.findOne({
                     where: { id: data.partnerId },
                     attributes: ['id', 'firstName', 'lastName', 'image'],
@@ -167,5 +194,6 @@ let getListConversation = (data) => {
 module.exports = {
     handleSendMessage: handleSendMessage,
     getConversation: getConversation,
-    getListConversation: getListConversation
+    getListConversation: getListConversation,
+    markConversationRead: markConversationRead
 }

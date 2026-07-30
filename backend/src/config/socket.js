@@ -85,12 +85,25 @@ let initSocket = (server) => {
         });
 
         // Bao da doc de phia gui cap nhat lai so tin chua doc
-        socket.on('chat:read', (payload) => {
+        socket.on('chat:read', async (payload, ack) => {
             const partnerId = payload && payload.partnerId;
             if (!partnerId) return;
-            io.to(roomOf(partnerId)).emit('chat:read', {
-                byUserId: socket.userId
-            });
+            try {
+                const result = await chatService.markConversationRead({
+                    userId: socket.userId,
+                    partnerId
+                });
+                if (result.errCode === 0) {
+                    io.to(roomOf(partnerId)).emit('chat:read', {
+                        byUserId: socket.userId
+                    });
+                }
+                if (typeof ack === 'function') ack(result);
+            } catch (error) {
+                if (typeof ack === 'function') {
+                    ack({ errCode: -1, errMessage: 'Error from server' });
+                }
+            }
         });
     });
 
@@ -115,9 +128,27 @@ let emitNotification = (userId, notification) => {
     io.to(roomOf(userId)).emit('notification:new', notification);
 };
 
+/**
+ * Bao cho cac trang dashboard biet so lieu thong ke vua doi.
+ *
+ * Chi gui MOT tin hieu, KHONG kem so lieu. Ly do: moi vai tro nhin thay mot
+ * pham vi du lieu khac nhau (admin thay toan he thong, cong ty chi thay cua
+ * minh). Neu o day tinh san so lieu roi phat di thi vua phai tinh lai cho
+ * tung vai tro, vua co nguy co gui nham du lieu cong ty nay sang cong ty khac.
+ * Gui tin hieu suong thi moi trinh duyet tu goi lai API cua rieng no, quyen
+ * xem du lieu van do API kiem soat nhu cu.
+ *
+ * @param {string} type - loai thay doi: 'post' | 'cv' | 'payment-post' | 'payment-cv'
+ */
+let emitDashboardChanged = (type) => {
+    if (!io) return;
+    io.emit('dashboard:changed', { type, at: Date.now() });
+};
+
 module.exports = {
     initSocket,
     emitNewMessage,
     emitNotification,
+    emitDashboardChanged,
     getIO: () => io
 };

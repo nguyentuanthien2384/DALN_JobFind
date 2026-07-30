@@ -1,8 +1,11 @@
 import cvService from '../services/cvService';
+import { emitDashboardChanged } from '../config/socket';
 
 let handleCreateNewCV = async (req, res) => {
     try {
         let data = await cvService.handleCreateCv(req.body);
+        // Ung vien vua nop CV -> bang "so luong CV" ben nha tuyen dung phai doi ngay.
+        if (data.errCode === 0) emitDashboardChanged('cv');
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

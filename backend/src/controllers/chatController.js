@@ -3,7 +3,13 @@ import { emitNewMessage } from "../config/socket";
 
 let handleSendMessage = async (req, res) => {
     try {
-        let data = await chatService.handleSendMessage(req.body);
+        // The sender identity must always come from the verified JWT, never
+        // from a value supplied by the browser.
+        let data = await chatService.handleSendMessage({
+            senderId: req.user.id,
+            receiverId: req.body.receiverId,
+            content: req.body.content
+        });
         // Tin gui bang REST cung duoc day qua socket, nho vay nguoi nhan thay ngay
         // ma khong can cho vong poll. Neu socket chua san sang thi ham nay khong lam gi.
         if (data.errCode === 0) {
@@ -21,7 +27,11 @@ let handleSendMessage = async (req, res) => {
 
 let getConversation = async (req, res) => {
     try {
-        let data = await chatService.getConversation(req.query);
+        let data = await chatService.getConversation({
+            userId: req.user.id,
+            partnerId: req.query.partnerId,
+            limit: req.query.limit
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -34,7 +44,7 @@ let getConversation = async (req, res) => {
 
 let getListConversation = async (req, res) => {
     try {
-        let data = await chatService.getListConversation(req.query);
+        let data = await chatService.getListConversation({ userId: req.user.id });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

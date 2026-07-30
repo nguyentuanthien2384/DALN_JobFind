@@ -1,4 +1,5 @@
 import packageService from '../services/packageCvService';
+import { emitDashboardChanged } from '../config/socket';
 
 let getAllPackage = async (req, res) => {
     try {
@@ -56,6 +57,8 @@ let getPaymentLink = async (req, res) => {
 let paymentOrderSuccess = async (req, res) => {
     try {
         let data = await packageService.paymentOrderSuccess(req.body);
+        // Mua goi thanh cong -> bang doanh thu goi xem ung vien cua admin doi ngay.
+        if (data.errCode === 0) emitDashboardChanged('payment-cv');
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
