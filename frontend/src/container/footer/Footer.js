@@ -23,7 +23,7 @@ const Footer = () => {
                 </div>
                 <div className="col-xl-2 col-lg-2">
                   <div className="footer-social f-right">
-                    <a href="https://www.facebook.com/tantai.nguyenle.5">
+                    <a href="https://www.facebook.com/ahitvzed/">
                       <i className="fab fa-facebook-f"></i>
                     </a>
                     <a href="#">
