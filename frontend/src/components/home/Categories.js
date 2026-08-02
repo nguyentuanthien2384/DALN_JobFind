@@ -18,7 +18,7 @@ const Categories = () => {
     }, []);
     return (
         <>
-            <div class="row d-flex justify-contnet-center">
+            <div className="row d-flex justify-contnet-center">
                 {allCategory.map((data, index) => {
                     return <Category data={data} key={index} />;
                 })}
