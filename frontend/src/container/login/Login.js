@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { handleLoginService } from "../../service/userService";
 import { toast } from "react-toastify";
@@ -8,37 +8,48 @@ const Login = () => {
         password: "",
         phonenumber: "",
     });
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const handleOnChange = (event) => {
         const { name, value } = event.target;
         setInputValues({ ...inputValues, [name]: value });
     };
     let handleLogin = async () => {
-        let res = await handleLoginService({
-            phonenumber: inputValues.phonenumber,
-            password: inputValues.password,
-        });
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+        try {
+            let res = await handleLoginService({
+                phonenumber: inputValues.phonenumber,
+                password: inputValues.password,
+            });
 
-        if (res && res.errCode === 0) {
-            localStorage.setItem("userData", JSON.stringify(res.user));
-            localStorage.setItem("token_user", res.token);
-            if (
-                res.user.roleCode === "ADMIN" ||
-                res.user.roleCode === "EMPLOYER" ||
-                res.user.roleCode === "COMPANY"
-            ) {
-                window.location.href = "/admin/";
-            } else {
-                const lastUrl = localStorage.getItem("lastUrl");
-                if (lastUrl) {
-                    localStorage.removeItem("lastUrl");
-                    window.location.href = lastUrl;
+            if (res && res.errCode === 0) {
+                localStorage.setItem("userData", JSON.stringify(res.user));
+                localStorage.setItem("token_user", res.token);
+                if (
+                    res.user.roleCode === "ADMIN" ||
+                    res.user.roleCode === "EMPLOYER" ||
+                    res.user.roleCode === "COMPANY"
+                ) {
+                    window.location.href = "/admin/";
                 } else {
-                    window.location.href = "/";
+                    const lastUrl = localStorage.getItem("lastUrl");
+                    if (lastUrl) {
+                        localStorage.removeItem("lastUrl");
+                        window.location.href = lastUrl;
+                    } else {
+                        window.location.href = "/";
+                    }
                 }
+            } else {
+                toast.error(res?.errMessage || "Dang nhap that bai. Vui long thu lai.");
             }
-        } else {
-            toast.error(res.errMessage);
+        } finally {
+            setIsSubmitting(false);
         }
+    };
+    const handleSubmit = (event) => {
+        event.preventDefault();
+        handleLogin();
     };
     return (
         <>
@@ -58,7 +69,7 @@ const Login = () => {
                                     <h6 className="font-weight-light">
                                         Đăng nhập để tiếp tục.
                                     </h6>
-                                    <form className="pt-3">
+                                    <form className="pt-3" onSubmit={handleSubmit}>
                                         <div className="form-group">
                                             <input
                                                 type="number"
@@ -86,12 +97,13 @@ const Login = () => {
                                             />
                                         </div>
                                         <div className="mt-3">
-                                            <a
-                                                onClick={() => handleLogin()}
+                                            <button
+                                                type="submit"
+                                                disabled={isSubmitting}
                                                 className="btn1 btn1-block btn1-primary1 btn1-lg font-weight-medium auth-form-btn1"
                                             >
                                                 Đăng nhập
-                                            </a>
+                                            </button>
                                         </div>
                                         <div className="my-2 d-flex justify-content-between align-items-center">
                                             {/* <a href="#" className="auth-link text-black">Forgot password?</a> */}

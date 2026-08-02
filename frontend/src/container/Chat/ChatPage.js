@@ -1,6 +1,6 @@
 import React from "react";
 import { useEffect, useState, useRef } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import moment from "moment";
 import {
@@ -12,6 +12,7 @@ import { getSocket } from "../../socket";
 
 const ChatPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { partnerId } = useParams();
     const [listConversation, setListConversation] = useState([]);
     const [messages, setMessages] = useState([]);
@@ -24,6 +25,9 @@ const ChatPage = () => {
     const typingTimerRef = useRef(null);
     const typingEmitTimerRef = useRef(null);
     const userData = JSON.parse(localStorage.getItem("userData"));
+    const chatBasePath = location.pathname.startsWith("/admin/chat")
+        ? "/admin/chat"
+        : "/chat";
 
     useEffect(() => {
         if (!userData) {
@@ -232,7 +236,7 @@ const ChatPage = () => {
                             listConversation.map((item, index) => (
                                 <Link
                                     key={index}
-                                    to={`/chat/${item.partnerId}`}
+                                    to={`${chatBasePath}/${item.partnerId}`}
                                     style={{
                                         display: "flex",
                                         alignItems: "center",
@@ -317,7 +321,7 @@ const ChatPage = () => {
                                 >
                                     {/* Nut quay lai danh sach, chi hien tren mobile */}
                                     <Link
-                                        to="/chat"
+                                        to={chatBasePath}
                                         className="chat-back-btn"
                                         style={{ color: "#333", fontSize: "18px" }}
                                     >

@@ -163,6 +163,20 @@ nav.sidebar .nav:not(.sub-menu) > .nav-item:hover > .nav-link[aria-expanded="tru
     color: #fff;
 }
 
+/* Khac voi trang dang xem, muc chi dang duoc hover khong duoc to mau tim. */
+nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link:not([aria-expanded]),
+nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link[aria-expanded="false"] {
+    background: rgba(75, 73, 172, 0.10) !important;
+    color: #6C7383 !important;
+}
+
+nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link:not([aria-expanded]) .menu-title,
+nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link:not([aria-expanded]) i,
+nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link[aria-expanded="false"] .menu-title,
+nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link[aria-expanded="false"] i {
+    color: #6C7383 !important;
+}
+
 /* Muc con DANG XEM phai noi bat. Theme goc dat .nav-link.active cua sub-menu
    thanh color:#fff + background:transparent — trung y het trang thai binh thuong
    nen nhin vao khong biet dang o trang nao. */

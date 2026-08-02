@@ -193,6 +193,9 @@ const Menu = () => {
         return a === b
     }
 
+    // Khong dung startsWith vi /admin/list-user khong phai la trang chu.
+    const dangOTrangChu = laDuongDanHienTai('/admin')
+
     // Vao thang mot trang con thi tu mo nhom chua trang do ra.
     useEffect(() => {
         const nhomChuaTrang = groups.find(g => g.children.some(c => laDuongDanHienTai(c.to)))
@@ -206,17 +209,15 @@ const Menu = () => {
     return (
         <nav className="sidebar sidebar-offcanvas" id="sidebar">
             <ul className="nav">
-                <li className={'nav-item relative' + (laDuongDanHienTai('/admin') ? ' active' : '')}>
+                <li className={'nav-item relative' + (dangOTrangChu ? ' active' : '')}>
                     <Link className="nav-link" to="/admin/" onClick={() => setOpenKey(null)}>
                         <i className="icon-grid menu-icon" />
                         <span className="menu-title">Trang chủ</span>
                     </Link>
                 </li>
 
-                {/* Trang chat nam ngoai khu quan tri, truoc day khu nay khong co link nao
-                    tro toi nen nha tuyen dung dang nhap xong khong biet vao chat bang cach nao. */}
-                <li className={'nav-item relative' + (location.pathname.startsWith('/chat') ? ' active' : '')}>
-                    <Link className="nav-link" to="/chat" onClick={() => setOpenKey(null)}>
+                <li className={'nav-item relative' + (location.pathname.startsWith('/admin/chat') ? ' active' : '')}>
+                    <Link className="nav-link" to="/admin/chat" onClick={() => setOpenKey(null)}>
                         <i className="icon-paper menu-icon" />
                         <span className="menu-title">Tin nhắn</span>
                         {unreadChat > 0 &&

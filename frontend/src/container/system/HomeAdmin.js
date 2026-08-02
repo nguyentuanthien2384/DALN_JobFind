@@ -43,6 +43,7 @@ import HistoryTradePost from "./HistoryTrade/HistoryTradePost";
 import HistoryTradeCv from "./HistoryTrade/HistoryTradeCv";
 import ChartPost from "./Chart/ChartPost";
 import ChartCv from "./Chart/ChartCv";
+import ChatPage from "../Chat/ChatPage";
 const HomeAdmin = () => {
     return (
         <div className="container-scroller">
@@ -366,6 +367,8 @@ const HomeAdmin = () => {
                     <div className="content-wrapper">
                         <Routes>
                             <Route path="/" element={<Home />} />
+                            <Route path="/chat" element={<ChatPage />} />
+                            <Route path="/chat/:partnerId" element={<ChatPage />} />
                             <Route path="/list-user" element={<ManageUser />} />
                             <Route path="/add-user" element={<AddUser />} />
                             <Route
