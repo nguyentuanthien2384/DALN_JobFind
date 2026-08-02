@@ -20,6 +20,7 @@ import HomeCandidate from "./container/Candidate/HomeCandidate";
 import ListCompany from "./container/Company/ListCompany";
 import DetailCompany from "./container/Company/DetailCompany";
 import ChatPage from "./container/Chat/ChatPage";
+import NotFound from "./container/NotFound/NotFound";
 
 function App() {
     const userData = JSON.parse(localStorage.getItem("userData"));
@@ -179,6 +180,7 @@ function App() {
                         )
                     }
                 />
+                <Route path="*" element={<NotFound />} />
             </Routes>
         </Router>
     );
