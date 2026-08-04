@@ -2,7 +2,10 @@ import favoritePostService from "../services/favoritePostService";
 
 let handleToggleFavoritePost = async (req, res) => {
     try {
-        let data = await favoritePostService.handleToggleFavoritePost(req.body);
+        let data = await favoritePostService.handleToggleFavoritePost({
+            ...req.body,
+            userId: req.user.id
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -28,7 +31,10 @@ let checkFavoriteByUser = async (req, res) => {
 
 let getFavoritePostByUser = async (req, res) => {
     try {
-        let data = await favoritePostService.getFavoritePostByUser(req.query);
+        let data = await favoritePostService.getFavoritePostByUser({
+            ...req.query,
+            userId: req.user.id
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

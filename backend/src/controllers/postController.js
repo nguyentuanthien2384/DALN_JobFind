@@ -1,9 +1,14 @@
 import postService from '../services/postService';
+import { emitJobCreated, emitJobUpdated } from '../utils/eventBus';
 import { emitDashboardChanged } from '../config/socket';
 
 let handleCreateNewPost = async (req, res) => {
     try {
         let data = await postService.handleCreateNewPost(req.body);
+        // Bao cho Search Service biet co tin moi. Neu thieu buoc nay, tin dang
+        // qua man hinh nay se khong bao gio vao Elasticsearch - nguoi dung tim
+        // khong ra. Da tung xay ra that.
+        if (data.errCode === 0 && data.postId) emitJobCreated(data.postId);
         // Bai dang moi lam doi bieu do "top linh vuc" -> bao cho dashboard tu tai lai.
         if (data.errCode === 0) emitDashboardChanged('post');
         return res.status(200).json(data);
@@ -18,6 +23,10 @@ let handleCreateNewPost = async (req, res) => {
 let handleReupPost = async (req, res) => {
     try {
         let data = await postService.handleReupPost(req.body);
+        // Dang lai sinh ra mot tin MOI chu khong sua tin cu, nen phai phat
+        // "tin moi" voi id moi. Neu phat "cap nhat" kem id cu thi tin dang lai
+        // se khong bao gio vao Elasticsearch.
+        if (data.errCode === 0 && data.postId) emitJobCreated(data.postId);
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -30,6 +39,12 @@ let handleReupPost = async (req, res) => {
 let handleUpdatePost = async (req, res) => {
     try {
         let data = await postService.handleUpdatePost(req.body);
+        // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
+        // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
+        if (data.errCode === 0) {
+            const changedId = req.body.id ?? req.body.postId;
+            if (changedId) emitJobUpdated(changedId);
+        }
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -42,6 +57,12 @@ let handleUpdatePost = async (req, res) => {
 let handleBanPost = async (req, res) => {
     try {
         let data = await postService.handleBanPost(req.body);
+        // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
+        // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
+        if (data.errCode === 0) {
+            const changedId = req.body.id ?? req.body.postId;
+            if (changedId) emitJobUpdated(changedId);
+        }
         // Bieu do "top linh vuc" chi dem tin dang hoat dong (statusCode PS1), nen
         // khoa/duyet/mo lai tin deu lam so lieu doi theo.
         if (data.errCode === 0) emitDashboardChanged('post');
@@ -58,6 +79,12 @@ let handleBanPost = async (req, res) => {
 let handleAcceptPost = async (req, res) => {
     try {
         let data = await postService.handleAcceptPost(req.body);
+        // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
+        // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
+        if (data.errCode === 0) {
+            const changedId = req.body.id ?? req.body.postId;
+            if (changedId) emitJobUpdated(changedId);
+        }
         if (data.errCode === 0) emitDashboardChanged('post');
         return res.status(200).json(data);
     } catch (error) {
@@ -70,7 +97,14 @@ let handleAcceptPost = async (req, res) => {
 }
 let getListPostByAdmin = async (req, res) => {
     try {
-        let data = await postService.getListPostByAdmin(req.query);
+        // Nha tuyen dung chi duoc liet ke tin cua chinh cong ty minh; neu nhan
+        // companyId tu query thi ho doc duoc ca tin cua doi thu.
+        const role = req.user?.userAccountData?.roleCode;
+        const companyId = role === 'ADMIN' ? req.query.companyId : req.user?.companyId;
+        let data = await postService.getListPostByAdmin({
+            ...req.query,
+            companyId: companyId
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -108,6 +142,12 @@ let getDetailPostById = async (req, res) => {
 let handleActivePost = async (req, res) => {
     try {
         let data = await postService.handleActivePost(req.body);
+        // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
+        // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
+        if (data.errCode === 0) {
+            const changedId = req.body.id ?? req.body.postId;
+            if (changedId) emitJobUpdated(changedId);
+        }
         if (data.errCode === 0) emitDashboardChanged('post');
         return res.status(200).json(data);
     } catch (error) {
