@@ -2,7 +2,7 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import {
-    checkUserPhoneService,
+    requestResetPasswordOtp,
     changePasswordByphone,
     handleLoginService,
 } from "../../service/userService";
@@ -12,6 +12,7 @@ import handleValidate from "../../util/Validation";
 const ForgetPassword = () => {
     const [inputValidates, setValidates] = useState({
         phonenumber: '',
+        otp: '',
         newPassword: '',
         confirmPassword: '',
     });
@@ -19,9 +20,13 @@ const ForgetPassword = () => {
         phonenumber: "",
         isOpen: false,
         isSuccess: false,
+        otp: "",
         newPassword: "",
         confirmPassword: "",
     });
+    // Email da che bot, hien de nguoi dung biet phai mo hom thu nao lay ma.
+    const [maskedEmail, setMaskedEmail] = useState("");
+    const [isSending, setIsSending] = useState(false);
 
     const handleOnChange = (event) => {
         const { name, value } = event.target;
@@ -37,18 +42,41 @@ const ForgetPassword = () => {
             });
             return;
         }
-        let res = await checkUserPhoneService(inputValues.phonenumber);
-        if (!res) {
-            setValidates({
-                ...inputValidates,
-                phonenumber: true,
-            });
-            toast.error("Số điện thoại không tồn tại!");
-        } else {
+        // Gui ma xac thuc ve email gan voi so dien thoai. Truoc day buoc nay chi
+        // kiem tra so dien thoai co ton tai hay khong, nghia la ai cung doi duoc
+        // mat khau cua nguoi khac chi bang cach biet so dien thoai.
+        setIsSending(true);
+        let res = await requestResetPasswordOtp({
+            phonenumber: inputValues.phonenumber,
+        });
+        setIsSending(false);
+        if (res && res.errCode === 0) {
+            setMaskedEmail(res.email || "");
+            setValidates({ ...inputValidates, phonenumber: '' });
             setInputValues({
                 ...inputValues,
                 isSuccess: true,
             });
+            toast.success("Đã gửi mã xác thực, vui lòng kiểm tra email");
+        } else {
+            setValidates({
+                ...inputValidates,
+                phonenumber: true,
+            });
+            toast.error((res && res.errMessage) || "Không gửi được mã xác thực");
+        }
+    };
+
+    let handleResendOtp = async () => {
+        setIsSending(true);
+        let res = await requestResetPasswordOtp({
+            phonenumber: inputValues.phonenumber,
+        });
+        setIsSending(false);
+        if (res && res.errCode === 0) {
+            toast.success("Đã gửi lại mã xác thực");
+        } else {
+            toast.error((res && res.errMessage) || "Không gửi được mã xác thực");
         }
     };
 
@@ -74,10 +102,18 @@ const ForgetPassword = () => {
         }
     };
     let handleForgetPassword = async () => {
+        if (!/^\d{6}$/.test(inputValues.otp)) {
+            setValidates({
+                ...inputValidates,
+                otp: "Mã xác thực gồm 6 chữ số",
+            });
+            return;
+        }
         let checkNewPass = handleValidate(inputValues.newPassword, "password");
         if (!(checkNewPass === true)) {
             setValidates({
                 ...inputValidates,
+                otp: '',
                 newPassword: checkNewPass,
             });
             return;
@@ -85,6 +121,7 @@ const ForgetPassword = () => {
         if (inputValues.confirmPassword !== inputValues.newPassword) {
             setValidates({
                 ...inputValidates,
+                otp: '',
                 newPassword: '',
                 confirmPassword: "Mật khẩu nhập lại không trùng",
             });
@@ -93,6 +130,7 @@ const ForgetPassword = () => {
         let res = await changePasswordByphone({
             phonenumber: inputValues.phonenumber,
             password: inputValues.newPassword,
+            otp: inputValues.otp,
         });
         if (res && res.errCode === 0) {
             toast.success("Đổi mật khẩu thành công");
@@ -122,6 +160,30 @@ const ForgetPassword = () => {
                                     <form className="pt-3">
                                         {inputValues.isSuccess === true && (
                                             <>
+                                                <p style={{ fontSize: "14px" }}>
+                                                    Mã xác thực gồm 6 chữ số đã được gửi tới
+                                                    {maskedEmail ? ` ${maskedEmail}` : " email của bạn"}.
+                                                    Mã có hiệu lực trong 5 phút.
+                                                </p>
+                                                <div className="form-group">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        maxLength={6}
+                                                        value={inputValues.otp}
+                                                        name="otp"
+                                                        onChange={(event) =>
+                                                            handleOnChange(event)
+                                                        }
+                                                        className="form-control form-control-lg"
+                                                        placeholder="Mã xác thực"
+                                                    />
+                                                    {inputValidates.otp !== '' && inputValidates.otp !== true && (
+                                                        <p style={{ color: "red" }}>
+                                                            {inputValidates.otp}
+                                                        </p>
+                                                    )}
+                                                </div>
                                                 <div className="form-group">
                                                     <input
                                                         type="password"
@@ -188,6 +250,17 @@ const ForgetPassword = () => {
                                                         Xác nhận
                                                     </a>
                                                 </div>
+                                                <div className="text-center mt-3">
+                                                    <a
+                                                        onClick={() => {
+                                                            if (!isSending) handleResendOtp();
+                                                        }}
+                                                        className="text-primary"
+                                                        style={{ cursor: "pointer" }}
+                                                    >
+                                                        {isSending ? "Đang gửi..." : "Gửi lại mã"}
+                                                    </a>
+                                                </div>
                                             </>
                                         )}
                                         {inputValues.isSuccess === false && (
@@ -222,12 +295,12 @@ const ForgetPassword = () => {
                                                 </div>
                                                 <div className="mt-3">
                                                     <a
-                                                        onClick={() =>
-                                                            handleForget()
-                                                        }
+                                                        onClick={() => {
+                                                            if (!isSending) handleForget();
+                                                        }}
                                                         className="btn1 btn1-block btn1-primary1 btn1-lg font-weight-medium auth-form-btn1"
                                                     >
-                                                        Xác nhận
+                                                        {isSending ? "Đang gửi mã..." : "Gửi mã xác thực"}
                                                     </a>
                                                 </div>
                                             </>

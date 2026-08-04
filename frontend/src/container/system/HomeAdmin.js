@@ -4,7 +4,9 @@ import Menu from "./Menu";
 import Home from "./Home";
 import Footer from "./Footer";
 import ManageUser from "./User/ManageUser";
-import { Routes, Route } from "react-router-dom";
+import KanbanBoard from "./Cv/KanbanBoard";
+import ReportDashboard from "./Report/ReportDashboard";
+import { Routes, Route, Navigate } from "react-router-dom";
 import AddUser from "./User/AddUser";
 import AddJobType from "./JobType/AddJobType";
 import ManageJobType from "./JobType/ManageJobType";
@@ -370,6 +372,8 @@ const HomeAdmin = () => {
                             <Route path="/chat" element={<ChatPage />} />
                             <Route path="/chat/:partnerId" element={<ChatPage />} />
                             <Route path="/list-user" element={<ManageUser />} />
+                            <Route path="/pipeline" element={<KanbanBoard />} />
+                            <Route path="/reports" element={<ReportDashboard />} />
                             <Route path="/add-user" element={<AddUser />} />
                             <Route
                                 path="/edit-user/:id"
@@ -551,6 +555,7 @@ const HomeAdmin = () => {
                                 path="/sum-by-year-cv"
                                 element={<ChartCv />}
                             />
+                            <Route path="*" element={<Navigate to="/admin/" replace />} />
                         </Routes>
                     </div>
                     {/* content-wrapper ends */}

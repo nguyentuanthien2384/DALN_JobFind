@@ -24,6 +24,11 @@ import { getSocket } from '../../socket';
 // Dinh nghia menu theo du lieu cho de doc va de them bot, thay vi lap JSX.
 const MENU_ADMIN = [
     {
+        key: 'report', title: 'Báo cáo & Thống kê', icon: 'fas fa-chart-line menu-icon', children: [
+            { to: '/admin/reports/', label: 'Bảng báo cáo' },
+        ]
+    },
+    {
         key: 'chart', title: 'Đồ thị', icon: 'icon-head menu-icon', children: [
             { to: '/admin/sum-by-year-post/', label: 'Đồ thị doanh thu gói bài viết' },
             { to: '/admin/sum-by-year-cv/', label: 'Đồ thị doanh thu gói xem ứng viên' },
@@ -112,8 +117,9 @@ const MENU_COMPANY = [
         ]
     },
     {
-        key: 'company-candidate', title: 'Tìm kiếm ứng viên', icon: 'icon-head menu-icon', children: [
-            { to: '/admin/list-candiate/', label: 'Danh sách ứng viên' },
+        key: 'company-candidate', title: 'Quản lý ứng viên', icon: 'icon-head menu-icon', children: [
+            { to: '/admin/pipeline/', label: 'Quy trình tuyển dụng' },
+            { to: '/admin/list-candiate/', label: 'Tìm kiếm ứng viên' },
             { to: '/admin/buy-cv/', label: 'Mua thêm lượt xem ứng viên' },
         ]
     },
@@ -141,8 +147,9 @@ const MENU_EMPLOYER = [
         ]
     },
     {
-        key: 'employer-candidate', title: 'Tìm kiếm ứng viên', icon: 'icon-head menu-icon', children: [
-            { to: '/admin/list-candiate/', label: 'Danh sách ứng viên' },
+        key: 'employer-candidate', title: 'Quản lý ứng viên', icon: 'icon-head menu-icon', children: [
+            { to: '/admin/pipeline/', label: 'Quy trình tuyển dụng' },
+            { to: '/admin/list-candiate/', label: 'Tìm kiếm ứng viên' },
         ]
     },
 ];
