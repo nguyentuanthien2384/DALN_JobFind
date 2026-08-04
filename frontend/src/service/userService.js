@@ -37,6 +37,10 @@ const checkUserPhoneService = (phonenumber) => {
 const changePasswordByphone = (data) => {
     return axios.post(`/api/changepasswordbyPhone`,data)
 }
+// Buoc 1 cua luong quen mat khau: xin ma OTP gui ve email cua tai khoan.
+const requestResetPasswordOtp = (data) => {
+    return axios.post(`/api/request-reset-password-otp`, data)
+}
 const getDetailUserById = (id) => {
     return axios.get(`/api/get-detail-user-by-id?id=${id}`)
 
@@ -388,7 +392,7 @@ export {
     getAllUsers, createNewUser, UpdateUserService, BanUserService,UnbanUserService, getDetailUserById, handleChangePassword, handleLoginService,
     createCompanyService, getDetailCompanyByUserId, updateCompanyService, RecruitmentService, getAllUserByCompanyIdService, QuitCompanyService,
     createPostService, updatePostService, banPostService,acceptPostService, getAllPostByAdminService,getAllPostByRoleAdminService, getDetailPostByIdService, activePostService, checkUserPhoneService, getListPostService,
-    getListJobTypeAndCountPost, getListCompany, getDetailCompanyById,changePasswordByphone,getStatisticalTypePost , getPackageByType, getPaymentLink , paymentOrderSuccessService , getAllPackage ,
+    getListJobTypeAndCountPost, getListCompany, getDetailCompanyById,changePasswordByphone,requestResetPasswordOtp,getStatisticalTypePost , getPackageByType, getPaymentLink , paymentOrderSuccessService , getAllPackage ,
     setActiveTypePackage , createPackagePost , getPackageById , updatePackagePost , getStatisticalPackagePost,
     getListNoteByPost , getAllCompany , accecptCompanyService, reupPostService, banCompanyService, unbanCompanyService,
     getListSkill, getAllSkillByJobCode, createSkilleService, UpdateSkillService, DeleteSkillService, getDetailSkillById,
