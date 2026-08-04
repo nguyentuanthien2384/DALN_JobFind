@@ -1,0 +1,332 @@
+.kanban-board {
+    padding: 16px;
+
+    .kb-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+
+        h3 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+        .kb-sub { margin: 0; color: #6b7280; font-size: 13px; }
+    }
+
+    .kb-filter {
+        min-width: 240px;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #fff;
+        font-size: 14px;
+    }
+
+    // Dai so lieu tom tat: nhin mot cai la biet ho so dang un o buoc nao.
+    .kb-funnel {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+
+        .kb-funnel-item {
+            flex: 1;
+            min-width: 110px;
+            padding: 10px 12px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            text-align: center;
+
+            .num { display: block; font-size: 22px; font-weight: 700; color: #111827; }
+            .lbl { display: block; font-size: 12px; color: #6b7280; margin-top: 2px; }
+
+            &.rate {
+                background: #ecfdf5;
+                border-color: #a7f3d0;
+                .num { color: #059669; }
+            }
+        }
+    }
+
+    // Cuon ngang: so buoc co the nhieu hon be ngang man hinh.
+    .kb-columns {
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        padding-bottom: 12px;
+        align-items: flex-start;
+    }
+
+    .kb-col {
+        flex: 0 0 260px;
+        background: #f3f4f6;
+        border-radius: 10px;
+        border: 2px dashed transparent;
+        transition: border-color .15s, background .15s;
+
+        // Vien sang len khi keo the vao dung cho tha.
+        &.over {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+    }
+
+    .kb-col-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        font-weight: 600;
+        font-size: 13px;
+        border-bottom: 3px solid #d1d5db;
+        border-radius: 10px 10px 0 0;
+
+        .kb-count {
+            background: #fff;
+            border-radius: 10px;
+            padding: 1px 8px;
+            font-size: 12px;
+            color: #374151;
+        }
+
+        // Moi buoc mot mau de mat nhan ra ngay khong can doc chu.
+        &.stage-moi_ung_tuyen  { border-bottom-color: #3b82f6; }
+        &.stage-dang_xem_xet   { border-bottom-color: #8b5cf6; }
+        &.stage-phong_van      { border-bottom-color: #f59e0b; }
+        &.stage-de_nghi        { border-bottom-color: #06b6d4; }
+        &.stage-nhan_viec      { border-bottom-color: #10b981; }
+        &.stage-tu_choi        { border-bottom-color: #ef4444; }
+    }
+
+    .kb-col-body {
+        padding: 10px;
+        min-height: 120px;
+        max-height: 62vh;
+        overflow-y: auto;
+    }
+
+    .kb-col-empty {
+        text-align: center;
+        color: #9ca3af;
+        font-size: 13px;
+        padding: 20px 0;
+    }
+
+    .kb-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 8px;
+        cursor: grab;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .05);
+        transition: box-shadow .15s, transform .1s;
+
+        &:hover { box-shadow: 0 3px 8px rgba(0, 0, 0, .1); transform: translateY(-1px); }
+        &:active { cursor: grabbing; }
+        &.unread { border-left: 3px solid #2563eb; }
+
+        .kb-card-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: #111827;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .kb-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #2563eb;
+            flex-shrink: 0;
+        }
+
+        .kb-card-job {
+            font-size: 12px;
+            color: #6b7280;
+            margin: 3px 0 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .kb-card-foot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .kb-match {
+            font-size: 11px;
+            background: #ecfdf5;
+            color: #059669;
+            padding: 1px 6px;
+            border-radius: 4px;
+        }
+    }
+
+    .kb-stars {
+        display: inline-flex;
+        gap: 1px;
+        span {
+            color: #d1d5db;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            &.on { color: #f59e0b; }
+            &:hover { color: #fbbf24; }
+        }
+    }
+
+    // ===== Hop chi tiet =====
+    .kb-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, .45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+        padding: 20px;
+    }
+
+    .kb-modal-box {
+        background: #fff;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 640px;
+        max-height: 88vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .kb-modal-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 16px 20px;
+        border-bottom: 1px solid #e5e7eb;
+
+        h4 { margin: 0; font-size: 17px; font-weight: 600; }
+        p { margin: 2px 0 0; color: #6b7280; font-size: 13px; }
+    }
+
+    .kb-close {
+        background: none;
+        border: none;
+        font-size: 26px;
+        line-height: 1;
+        color: #9ca3af;
+        cursor: pointer;
+        &:hover { color: #374151; }
+    }
+
+    .kb-modal-body {
+        padding: 16px 20px;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .kb-info {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 16px;
+        font-size: 13px;
+        color: #374151;
+        margin-bottom: 16px;
+    }
+
+    .kb-section {
+        border-top: 1px solid #f3f4f6;
+        padding-top: 14px;
+        margin-top: 14px;
+
+        h5 { font-size: 14px; font-weight: 600; margin: 0 0 6px; }
+    }
+
+    .kb-hint { font-size: 12px; color: #9ca3af; margin: 0 0 8px; }
+    .kb-cover { font-size: 13px; color: #374151; white-space: pre-wrap; margin: 0; }
+
+    .kb-note-add {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+
+        textarea {
+            flex: 1;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 13px;
+            resize: vertical;
+        }
+        button {
+            align-self: flex-start;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            &:hover { background: #1d4ed8; }
+        }
+    }
+
+    .kb-note {
+        background: #f9fafb;
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+
+        .kb-note-body { font-size: 13px; color: #374151; }
+        .kb-note-time { font-size: 11px; color: #9ca3af; margin-top: 3px; }
+    }
+
+    .kb-time {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #374151;
+        padding: 5px 0;
+
+        .kb-time-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #2563eb;
+            flex-shrink: 0;
+        }
+        .kb-time-at { margin-left: auto; color: #9ca3af; }
+    }
+
+    .kb-modal-foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 12px 20px;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .kb-btn {
+        background: #2563eb;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 16px;
+        font-size: 13px;
+        cursor: pointer;
+        &:hover { background: #1d4ed8; }
+
+        &.ghost {
+            background: #fff;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            &:hover { background: #f9fafb; }
+        }
+    }
+}
