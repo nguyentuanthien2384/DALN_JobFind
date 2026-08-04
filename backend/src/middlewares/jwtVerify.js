@@ -18,9 +18,12 @@ const middlewareControllers = {
                 }
                 const user = await db.User.findOne({ 
                     where: { id: payload.sub } ,
-                    attributes: {
-                        exclude: ['userId']
-                    },
+                    attributes: ['id', 'companyId'],
+                    include: [
+                        { model: db.Account, as: 'userAccountData', attributes: ['roleCode'] }
+                    ],
+                    raw: true,
+                    nest: true
                 })
                 if (!user) {
                     return res.status(404).json({
@@ -40,6 +43,35 @@ const middlewareControllers = {
                 refresh: true,
             })
         }
+    },
+    // Dung cho route vua phuc vu khach vang lai vua phuc vu nguoi da dang nhap
+    // (vi du tu dang ky vs admin tao tai khoan ho). Khong co token, hoac token
+    // hong, thi van cho di tiep nhung req.user de trong.
+    verifyTokenOptional: (req, res, next) => {
+        const token = req.headers.authorization
+        if (!token) return next()
+
+        const accessToken = token.split(' ')[1]
+        if (!accessToken) return next()
+
+        jwt.verify(accessToken, secretString, async (err, payload) => {
+            if (err) return next()
+            try {
+                const user = await db.User.findOne({
+                    where: { id: payload.sub },
+                    attributes: ['id', 'companyId'],
+                    include: [
+                        { model: db.Account, as: 'userAccountData', attributes: ['roleCode'] }
+                    ],
+                    raw: true,
+                    nest: true
+                })
+                if (user) req.user = user
+            } catch (error) {
+                // Token khong doc duoc thi coi nhu khach vang lai, khong chan request.
+            }
+            next()
+        })
     },
     verifyTokenAdmin: (req, res, next) => {
         const token = req.headers.authorization
