@@ -1,0 +1,25 @@
+{
+  "name": "ai-job-portal",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "He thong microservices cho AI Job Portal",
+  "workspaces": [
+    "shared",
+    "api-gateway",
+    "job-core-service",
+    "search-service",
+    "identity-service",
+    "ai-worker",
+    "application-service",
+    "notification-service",
+    "admin-service"
+  ],
+  "scripts": {
+    "up": "docker compose up -d",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f",
+    "ps": "docker compose ps",
+    "test:smoke": "node scripts/smoke-test.js"
+  }
+}

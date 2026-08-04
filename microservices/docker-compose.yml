@@ -1,0 +1,294 @@
+name: ai-job-portal
+
+# Cac cong deu lech so voi mac dinh vi may nay dang chay san mot he thong khac
+# (project tham khao unicode_nodejs) chiem 3000/5672/15672/27018/8500.
+services:
+  # ============ HA TANG ============
+  # MongoDB cho Identity & Profile Service (luu JSON linh hoat: ho so, CV).
+  mongo:
+    image: mongo:7
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Elasticsearch cho Search & Discovery Service (ben Doc cua CQRS).
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9201:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  # PostgreSQL cho Application & Workflow Service.
+  # Luong ung tuyen la chuoi chuyen trang thai co rang buoc chat (moi lan chuyen
+  # phai ghi kem lich su), nen dung CSDL quan he co giao dich thay vi kho tai lieu.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jobportal
+      POSTGRES_PASSWORD: jobportal
+      POSTGRES_DB: application_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobportal -d application_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Redis cho rate limiting o Gateway.
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # RabbitMQ - truc xuong song cua he thong.
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: jobportal
+      RABBITMQ_DEFAULT_PASS: jobportal
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+
+  # ============ CAI DAT THU VIEN ============
+  # Chay MOT LAN truoc moi service. Dung npm workspaces nen mot lan cai la du cho
+  # ca 5 service + thu vien shared, va thu vien duoc gom ve /app/node_modules -
+  # nho vay shared/rabbitmq.js tim thay amqplib. Neu de moi container tu cai, chung
+  # se ghi de len nhau tren cung mot thu muc bind mount.
+  deps-installer:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: sh -c "npm install --no-audit --no-fund"
+
+  # ============ MICROSERVICES ============
+  # Job Core Service - BEN GHI (Command). Dung lai MySQL jobfindtest dang co
+  # tren may that qua host.docker.internal, khong tao DB moi.
+  job-core-service:
+    image: node:22-alpine
+    working_dir: /app/job-core-service
+    volumes:
+      - .:/app
+    command: npm start
+    environment:
+      PORT: 4002
+      MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
+      MYSQL_PORT: ${MYSQL_PORT:-3333}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
+      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-anhtaideptrai}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      deps-installer:
+        condition: service_completed_successfully
+
+  # Search & Discovery Service - BEN DOC (Query).
+  search-service:
+    image: node:22-alpine
+    working_dir: /app/search-service
+    volumes:
+      - .:/app
+    command: npm start
+    environment:
+      PORT: 4003
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      JOB_CORE_URL: http://job-core-service:4002
+      RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      deps-installer:
+        condition: service_completed_successfully
+
+  # Identity & Profile Service.
+  identity-service:
+    image: node:22-alpine
+    working_dir: /app/identity-service
+    volumes:
+      - .:/app
+    command: npm start
+    environment:
+      PORT: 4001
+      MONGO_URL: mongodb://mongo:27017/identity_db
+      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-anhtaideptrai}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      deps-installer:
+        condition: service_completed_successfully
+
+  # AI Worker - chay doc lap, KHONG nhan HTTP, chi lay viec qua RabbitMQ.
+  ai-worker:
+    image: node:22-alpine
+    working_dir: /app/ai-worker
+    volumes:
+      - .:/app
+    command: npm start
+    environment:
+      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5}
+      AI_CONCURRENCY: ${AI_CONCURRENCY:-2}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      deps-installer:
+        condition: service_completed_successfully
+
+  # Application & Workflow Service - luong nop CV va bang Kanban ung vien.
+  application-service:
+    image: node:22-alpine
+    working_dir: /app/application-service
+    volumes:
+      - .:/app
+    command: npm start
+    environment:
+      PORT: 4004
+      POSTGRES_URL: postgres://jobportal:jobportal@postgres:5432/application_db
+      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
+      MYSQL_PORT: ${MYSQL_PORT:-3333}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
+      RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      deps-installer:
+        condition: service_completed_successfully
+
+  # Notification Service - gui email va day thong bao realtime.
+  notification-service:
+    image: node:22-alpine
+    working_dir: /app/notification-service
+    volumes:
+      - .:/app
+    command: npm start
+    environment:
+      PORT: 4005
+      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
+      MYSQL_PORT: ${MYSQL_PORT:-3333}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
+      EMAIL_APP: ${EMAIL_APP:-}
+      EMAIL_APP_PASSWORD: ${EMAIL_APP_PASSWORD:-}
+      LEGACY_URL: ${LEGACY_URL:-http://host.docker.internal:5000}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      deps-installer:
+        condition: service_completed_successfully
+
+  # Admin & Reporting Service - nhat ky hoat dong, bao cao, master data.
+  admin-service:
+    image: node:22-alpine
+    working_dir: /app/admin-service
+    volumes:
+      - .:/app
+    command: npm start
+    environment:
+      PORT: 4006
+      MONGO_URL: mongodb://mongo:27017/admin_db
+      POSTGRES_URL: postgres://jobportal:jobportal@postgres:5432/application_db
+      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
+      MYSQL_PORT: ${MYSQL_PORT:-3333}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      deps-installer:
+        condition: service_completed_successfully
+
+  # API Gateway - cua ngo duy nhat ra ngoai.
+  api-gateway:
+    image: node:22-alpine
+    working_dir: /app/api-gateway
+    volumes:
+      - .:/app
+    command: npm start
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-anhtaideptrai}
+      IDENTITY_URL: http://identity-service:4001
+      JOB_CORE_URL: http://job-core-service:4002
+      RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
+      SEARCH_URL: http://search-service:4003
+      APPLICATION_URL: http://application-service:4004
+      ADMIN_URL: http://admin-service:4006
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      LEGACY_URL: ${LEGACY_URL:-http://host.docker.internal:5000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      deps-installer:
+        condition: service_completed_successfully
+
+volumes:
+  mongo-data:
+  es-data:
+  pg-data:

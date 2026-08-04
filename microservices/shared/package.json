@@ -1,0 +1,10 @@
+{
+  "name": "@jobportal/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Thu vien dung chung: RabbitMQ, logger, danh muc su kien",
+  "dependencies": {
+    "amqplib": "^0.10.4"
+  }
+}

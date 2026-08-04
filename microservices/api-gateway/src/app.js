@@ -1,0 +1,171 @@
+import express from 'express';
+import http from 'node:http';
+import cors from 'cors';
+import crypto from 'node:crypto';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import { createLogger } from '../../shared/logger.js';
+import { listServices, startHealthPolling } from './libs/registry.js';
+import { createProxy, getBreakerStats } from './middlewares/proxy.js';
+import { optionalAuth, requireAuth, requireRole } from './middlewares/auth.js';
+import { createRateLimiter } from './middlewares/rateLimit.js';
+import { auditMiddleware } from './middlewares/audit.js';
+
+const logger = createLogger('api-gateway');
+const app = express();
+const PORT = Number(process.env.PORT || 4000);
+
+app.use(cors({
+    origin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(','),
+    credentials: true
+}));
+// Socket.IO phai duoc chuyen tiep TRUOC express.json().
+//
+// Hai ly do: (1) body parser doc het luong du lieu, sau do khong con gi de chuyen
+// tiep; (2) WebSocket can giao thuc nang cap ket noi (HTTP Upgrade), ma lop proxy
+// dua tren axios o duoi khong lam duoc - no chi biet request/response thong thuong.
+// Neu thieu doan nay, chat va thong bao realtime se chet lang khi frontend tro
+// vao Gateway.
+// Dung pathFilter thay vi app.use('/socket.io', ...): khi mount theo tien to,
+// Express cat bo '/socket.io' khoi req.url, ben duoi nhan duoc '/?EIO=4...' va
+// tra 404. pathFilter giu nguyen duong dan day du.
+const socketProxy = createProxyMiddleware({
+    target: process.env.LEGACY_URL || 'http://host.docker.internal:5000',
+    changeOrigin: true,
+    ws: true,
+    pathFilter: '/socket.io/**'
+});
+app.use(socketProxy);
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Moi request duoc gan mot ma de lan vet xuyen suot cac service. Neu client da
+// gui san thi giu nguyen, nho vay mot chuoi goi qua nhieu service van chung ma.
+app.use((req, res, next) => {
+    req.correlationId = req.headers['x-correlation-id'] || crypto.randomUUID();
+    res.setHeader('x-correlation-id', req.correlationId);
+    next();
+});
+
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+        logger[level]('request', {
+            method: req.method,
+            url: req.originalUrl,
+            status: res.statusCode,
+            durationMs: Date.now() - start,
+            requestId: req.correlationId,
+            userId: req.user?.id ?? null
+        });
+    });
+    next();
+});
+
+app.use(optionalAuth);
+// Ghi nhat ky sau optionalAuth de biet ai thao tac, truoc cac route de bao phu het.
+app.use(auditMiddleware);
+
+// ===================== HAN MUC GOI =====================
+const loginLimiter = createRateLimiter({
+    name: 'login', windowSeconds: 900, max: 10, countOnlyFailures: true
+});
+const publicLimiter = createRateLimiter({ name: 'public', windowSeconds: 60, max: 120 });
+const writeLimiter = createRateLimiter({ name: 'write', windowSeconds: 60, max: 30 });
+// AI ton kem nen siet chat hon han cac API thuong.
+const aiLimiter = createRateLimiter({ name: 'ai', windowSeconds: 3600, max: 30 });
+
+// ===================== GIAM SAT =====================
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', service: 'api-gateway', time: new Date().toISOString() });
+});
+
+// Cho biet service nao dang song va circuit breaker dang o trang thai nao.
+app.get('/status', (req, res) => {
+    res.json({
+        gateway: 'ok',
+        services: listServices(),
+        circuitBreakers: getBreakerStats()
+    });
+});
+
+// ===================== DINH TUYEN =====================
+// Cac duong dan noi bo (/internal/*) khong duoc mo ra ngoai: chung danh cho
+// cac service goi lan nhau trong mang Docker.
+app.use((req, res, next) => {
+    if (req.path.startsWith('/internal')) {
+        return res.status(404).json({ errCode: 404, errMessage: 'Not found' });
+    }
+    next();
+});
+
+// Voi app.use(tien_to), req.path la phan con lai sau tien to.
+const sub = (prefix) => (req) => `${prefix}${req.path === '/' ? '' : req.path}`;
+
+// --- Identity & Profile Service ---
+app.use('/api/profile', requireAuth, createProxy('identity', sub('/profile')));
+
+// --- Search & Discovery (ben Doc) - mo cho khach vang lai ---
+app.use('/api/search', publicLimiter, createProxy('search', sub('/search')));
+
+// --- Job Core (ben Ghi) - phai dang nhap va dung vai tro ---
+// Day la app.post/get chu khong phai app.use, nen req.path la duong dan day du.
+// Dung req.params de dung lai duong dan cua service ben duoi.
+app.post('/api/jobs', writeLimiter, requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+    createProxy('jobs', () => '/jobs'));
+app.put('/api/jobs/:id', writeLimiter, requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+    createProxy('jobs', (req) => `/jobs/${req.params.id}`));
+app.delete('/api/jobs/:id', writeLimiter, requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+    createProxy('jobs', (req) => `/jobs/${req.params.id}`));
+app.get('/api/jobs/:id', publicLimiter, createProxy('jobs', (req) => `/jobs/${req.params.id}`));
+
+// --- Quan ly ho so ung tuyen (Application & Workflow Service) ---
+// Ung vien chi duoc xem lich su ung tuyen cua chinh minh.
+app.get('/api/my-applications', requireAuth, createProxy('applications', () => '/my-applications'));
+// Danh sach cac buoc trong pipeline - giao dien can de ve cot Kanban.
+app.get('/api/applications/stages', requireAuth, createProxy('applications', () => '/applications/stages'));
+// Toan bo phan con lai chi danh cho nha tuyen dung.
+app.use('/api/applications', requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+    createProxy('applications', sub('/applications')));
+app.use('/api/talent-pool', requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+    createProxy('applications', sub('/talent-pool')));
+
+// --- Bao cao & quan tri (Admin & Reporting Service) - chi ADMIN ---
+app.use('/api/admin', requireRole('ADMIN'), createProxy('admin', sub('')));
+
+// --- Cac tinh nang AI ---
+app.use('/api/ai', requireAuth, aiLimiter, createProxy('jobs', sub('/ai')));
+
+// --- Monolith cu: moi thu chua tach ra van chay binh thuong qua Gateway ---
+// Nho nhanh nay, frontend chi can tro vao Gateway mot lan duy nhat; viec tach
+// dan tung tinh nang ve sau khong bat frontend phai sua lai.
+app.use('/api', createProxy('legacy', sub('/api')));
+
+app.use((req, res) => {
+    res.status(404).json({ errCode: 404, errMessage: `Không tìm thấy ${req.method} ${req.originalUrl}` });
+});
+
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+    logger.error('loi khong bat duoc', { error: err.message, url: req.originalUrl });
+    res.status(err.status || 500).json({
+        errCode: err.status || 500,
+        errMessage: err.message || 'Lỗi hệ thống'
+    });
+});
+
+// Tu tao http server thay vi dung app.listen(): can bat su kien 'upgrade' de
+// WebSocket bat tay duoc: Express khong xu ly su kien nay.
+const server = http.createServer(app);
+server.on('upgrade', socketProxy.upgrade);
+
+server.listen(PORT, () => {
+    logger.info(`API Gateway dang chay tren cong ${PORT}`);
+    for (const svc of listServices()) {
+        logger.info(`  dinh tuyen ${svc.key} -> ${svc.baseUrl}`);
+    }
+    logger.info('  chuyen tiep WebSocket /socket.io -> backend cu');
+    // Do suc khoe dinh ky de /status luon phan anh dung thuc te.
+    startHealthPolling();
+});

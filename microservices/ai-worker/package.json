@@ -1,0 +1,15 @@
+{
+  "name": "ai-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
+    "amqplib": "^0.10.4"
+  }
+}

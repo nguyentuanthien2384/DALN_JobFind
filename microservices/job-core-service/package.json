@@ -1,0 +1,16 @@
+{
+  "name": "job-core-service",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.4",
+    "express": "^4.21.1",
+    "mysql2": "^3.11.3"
+  }
+}
