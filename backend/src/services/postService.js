@@ -98,7 +98,7 @@ let handleCreateNewPost = (data) => {
                             experienceJobCode: data.experienceJobCode,
                             genderPostCode: data.genderPostCode,
                         })
-                        await db.Post.create({
+                        let newPost = await db.Post.create({
                             statusCode: 'PS3',
                             timeEnd: data.timeEnd,
                             userId: data.userId,
@@ -107,7 +107,9 @@ let handleCreateNewPost = (data) => {
                         })
                         resolve({
                             errCode: 0,
-                            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt'
+                            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',
+                            // Tra them id de controller phat su kien sang Search Service.
+                            postId: newPost.id
                         })
                     }
                     else {
@@ -188,7 +190,7 @@ let handleReupPost = (data) => {
                                 return
                             }
                         }
-                        await db.Post.create({
+                        let reupPost = await db.Post.create({
                             statusCode: 'PS3',
                             timeEnd: data.timeEnd,
                             userId: data.userId,
@@ -197,7 +199,10 @@ let handleReupPost = (data) => {
                         })
                         resolve({
                             errCode: 0,
-                            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt'
+                            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',
+                            // Dang lai tao ra mot tin MOI (id khac), khong phai sua tin cu.
+                            // Tra id moi de controller phat dung su kien "tin moi".
+                            postId: reupPost.id
                         })
 
                     }

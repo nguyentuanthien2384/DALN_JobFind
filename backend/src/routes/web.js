@@ -13,22 +13,28 @@ import notificationController from '../controllers/notificationController'
 import chatController from '../controllers/chatController'
 
 import middlewareControllers from '../middlewares/jwtVerify'
+import { loginLimiter, otpLimiter, registerLimiter, phoneCheckLimiter } from '../middlewares/rateLimit'
+import { emitNotification } from '../config/socket'
 let router = express.Router();
 
 let initWebRoutes = (app) => {
 
     //=====================API USER==========================//
-    router.post('/api/create-new-user', userController.handleCreateNewUser)
-    router.put('/api/update-user', userController.handleUpdateUser)
+    // Tao tai khoan: co the goi khi chua dang nhap (tu dang ky) hoac boi admin.
+    // verifyTokenOptional gan req.user neu co token hop le de controller biet
+    // nguoi goi co phai admin khong (chi admin moi duoc chon quyen ADMIN).
+    router.post('/api/create-new-user', registerLimiter, middlewareControllers.verifyTokenOptional, userController.handleCreateNewUser)
+    router.put('/api/update-user', middlewareControllers.verifyTokenUser, userController.handleUpdateUser)
     router.post('/api/ban-user', middlewareControllers.verifyTokenAdmin ,userController.handleBanUser)
     router.post('/api/unban-user', middlewareControllers.verifyTokenAdmin ,userController.handleUnbanUser)
-    router.post('/api/login', userController.handleLogin)
+    router.post('/api/login', loginLimiter, userController.handleLogin)
     router.post('/api/changepassword', middlewareControllers.verifyTokenUser,userController.handleChangePassword)
-    router.get('/api/get-all-user', middlewareControllers.verifyTokenUser,userController.getAllUser)
+    router.get('/api/get-all-user', middlewareControllers.verifyTokenAdmin,userController.getAllUser)
     router.get('/api/get-detail-user-by-id', middlewareControllers.verifyTokenUser,userController.getDetailUserById)
-    router.get('/api/check-phonenumber-user', userController.checkUserPhone)
-    router.post('/api/changepasswordbyPhone', userController.changePaswordByPhone)
-    router.put('/api/setDataUserSetting', userController.setDataUserSetting)
+    router.get('/api/check-phonenumber-user', phoneCheckLimiter, userController.checkUserPhone)
+    router.post('/api/request-reset-password-otp', otpLimiter, userController.requestResetPasswordOtp)
+    router.post('/api/changepasswordbyPhone', otpLimiter, userController.changePaswordByPhone)
+    router.put('/api/setDataUserSetting', middlewareControllers.verifyTokenUser, userController.setDataUserSetting)
 
     //===================API ALLCODE========================//
     router.post('/api/create-new-all-code',middlewareControllers.verifyTokenAdmin ,allcodeController.handleCreateNewAllCode)
@@ -61,11 +67,11 @@ let initWebRoutes = (app) => {
     router.put('/api/accecpt-company', middlewareControllers.verifyTokenAdmin ,companyController.handleAccecptCompany)
     //==================API CV==========================//
     router.post('/api/create-new-cv', middlewareControllers.verifyTokenUser,cvController.handleCreateNewCV)
-    router.get('/api/get-all-list-cv-by-post',cvController.getAllListCvByPost)
+    router.get('/api/get-all-list-cv-by-post', middlewareControllers.verifyTokenUser,cvController.getAllListCvByPost)
     router.get('/api/get-detail-cv-by-id', middlewareControllers.verifyTokenUser,cvController.getDetailCvById)
     router.get('/api/get-all-cv-by-userId', middlewareControllers.verifyTokenUser,cvController.getAllCvByUserId)
     router.get('/api/get-statistical-cv', middlewareControllers.verifyTokenUser,cvController.getStatisticalCv)
-    router.get('/api/fillter-cv-by-selection', cvController.fillterCVBySelection)
+    router.get('/api/fillter-cv-by-selection', middlewareControllers.verifyTokenUser, cvController.fillterCVBySelection)
     router.get('/api/check-see-candiate', middlewareControllers.verifyTokenUser,cvController.checkSeeCandiate)    
     //==================API POST==========================//
     router.post('/api/create-new-post', middlewareControllers.verifyTokenUser,postController.handleCreateNewPost)
@@ -75,7 +81,7 @@ let initWebRoutes = (app) => {
     router.put('/api/ban-post', middlewareControllers.verifyTokenAdmin ,postController.handleBanPost)
     router.put('/api/accept-post', middlewareControllers.verifyTokenAdmin ,postController.handleAcceptPost)
     router.get('/api/get-list-post-admin', middlewareControllers.verifyTokenUser,postController.getListPostByAdmin)
-    router.get('/api/get-all-post-admin', middlewareControllers.verifyTokenUser,postController.getAllPostByAdmin)
+    router.get('/api/get-all-post-admin', middlewareControllers.verifyTokenAdmin,postController.getAllPostByAdmin)
     router.get('/api/get-detail-post-by-id', postController.getDetailPostById)
     router.get('/api/get-filter-post', postController.getFilterPost)
     router.get('/api/get-related-post', postController.getRelatedPost)
@@ -133,6 +139,26 @@ let initWebRoutes = (app) => {
     router.post('/api/send-chat-message', middlewareControllers.verifyTokenUser, chatController.handleSendMessage)
     router.get('/api/get-chat-conversation', middlewareControllers.verifyTokenUser, chatController.getConversation)
     router.get('/api/get-list-chat-conversation', middlewareControllers.verifyTokenUser, chatController.getListConversation)
+
+    //==================NOI BO: cho Notification Service goi==================//
+    // Notification Service (chay trong Docker) khong giu ket noi Socket.IO voi
+    // trinh duyet - backend nay moi giu. Nen no nho day ho qua endpoint nay.
+    //
+    // Chan bang mot khoa bi mat dung chung thay vi JWT: day la giao tiep giua hai
+    // may chu, khong co nguoi dung nao dang nhap o giua. Neu chua dat khoa thi tu
+    // dong tu choi, tranh viec quen cau hinh lai thanh mot cua sau mo toang.
+    router.post('/internal/emit-notification', (req, res) => {
+        const secret = process.env.INTERNAL_SECRET
+        if (!secret || req.headers['x-internal-secret'] !== secret) {
+            return res.status(403).json({ errCode: 403, errMessage: 'Forbidden' })
+        }
+        const { userId, notification } = req.body || {}
+        if (!userId || !notification) {
+            return res.status(400).json({ errCode: 1, errMessage: 'Thiếu userId hoặc notification' })
+        }
+        emitNotification(userId, notification)
+        return res.json({ errCode: 0 })
+    })
 
     return app.use("/", router);
 }

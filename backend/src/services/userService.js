@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 const { Op } = require("sequelize");
 import CommonUtils from '../utils/CommonUtils';
 const cloudinary = require('../utils/cloudinary');
+const otpStore = require('../utils/otpStore');
 const salt = bcrypt.genSaltSync(10);
 require('dotenv').config();
 let nodemailer = require('nodemailer');
@@ -77,6 +78,33 @@ let handleCreateNewUser = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             } else {
+                // Quyen cua tai khoan moi phai duoc chan theo nguoi tao, neu khong
+                // bat ky khach vang lai nao cung tu dang ky duoc mot tai khoan ADMIN.
+                // Cac muc nay khop voi danh sach ma man hinh Dang ky / Them nguoi dung
+                // dang cho chon.
+                let allowedRoles
+                if (data.creatorRoleCode === 'ADMIN') {
+                    allowedRoles = ['ADMIN', 'CANDIDATE', 'EMPLOYER', 'COMPANY']
+                } else if (data.creatorRoleCode === 'COMPANY') {
+                    allowedRoles = ['EMPLOYER', 'COMPANY']
+                } else {
+                    // Khach tu dang ky (hoac tai khoan khong co quyen tao ho).
+                    allowedRoles = ['CANDIDATE', 'EMPLOYER']
+                }
+                if (!allowedRoles.includes(data.roleCode)) {
+                    resolve({
+                        errCode: 3,
+                        errMessage: 'Bạn không có quyền tạo tài khoản với vai trò này'
+                    })
+                    return
+                }
+
+                // Tai khoan COMPANY chi duoc them nhan su vao chinh cong ty minh,
+                // khong nhan companyId do client tu dat.
+                if (data.creatorRoleCode === 'COMPANY') {
+                    data.companyId = data.creatorCompanyId
+                }
+
                 let check = await checkUserPhone(data.phonenumber);
                 if (check) {
                     resolve({
@@ -304,28 +332,126 @@ let updateUserData = (data) => {
         }
     })
 }
+// Che bot dia chi mail truoc khi tra ve cho client: du de nguoi dung nhan ra hom
+// thu cua minh, nhung khong tiet lo dia chi day du cho nguoi dang do so dien thoai.
+let maskEmail = (email) => {
+    if (!email || !email.includes('@')) return ''
+    let [name, domain] = email.split('@')
+    let visible = name.slice(0, 2)
+    return `${visible}${'*'.repeat(Math.max(name.length - 2, 1))}@${domain}`
+}
+
+// Buoc 1 cua luong quen mat khau: gui ma OTP toi email gan voi so dien thoai.
+let requestResetPasswordOtp = (data) => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            if (!data.phonenumber) {
+                resolve({
+                    errCode: 1,
+                    errMessage: 'Thiếu số điện thoại'
+                })
+                return
+            }
+            let account = await db.Account.findOne({
+                where: { phonenumber: data.phonenumber },
+                include: [{ model: db.User, as: 'userAccountData', attributes: ['email', 'firstName', 'lastName'] }],
+                raw: true,
+                nest: true
+            })
+            if (!account) {
+                resolve({
+                    errCode: 1,
+                    errMessage: 'SĐT không tồn tại'
+                })
+                return
+            }
+            let email = account.userAccountData && account.userAccountData.email
+            if (!email) {
+                resolve({
+                    errCode: 3,
+                    errMessage: 'Tài khoản chưa có email, vui lòng liên hệ quản trị viên để đặt lại mật khẩu'
+                })
+                return
+            }
+
+            let { code, waitSeconds } = otpStore.issueOtp(data.phonenumber)
+            if (!code) {
+                resolve({
+                    errCode: 4,
+                    errMessage: `Vui lòng đợi ${waitSeconds} giây trước khi yêu cầu mã mới`
+                })
+                return
+            }
+
+            let note = `<h3>Đặt lại mật khẩu Job Finder</h3>
+                        <p>Mã xác thực của bạn là: <b style="font-size:20px;letter-spacing:3px">${code}</b></p>
+                        <p>Mã có hiệu lực trong 5 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>`
+            sendmail(note, email)
+
+            // Khi chua cau hinh EMAIL_APP (moi truong dev) thi mail khong the gui di
+            // duoc, in ma ra console de con chay thu duoc luong nay.
+            if (!process.env.EMAIL_APP || process.env.EMAIL_APP.includes('youremail')) {
+                console.log(`[DEV] Ma OTP dat lai mat khau cho ${data.phonenumber}: ${code}`)
+            }
+
+            resolve({
+                errCode: 0,
+                errMessage: 'Đã gửi mã xác thực',
+                email: maskEmail(email)
+            })
+        } catch (error) {
+            reject(error)
+        }
+    })
+}
+
+// Buoc 2: doi mat khau. Bat buoc phai kem ma OTP hop le, neu khong bat ky ai
+// biet so dien thoai deu doi duoc mat khau cua nguoi khac.
 let changePaswordByPhone = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
+            if (!data.phonenumber || !data.password || !data.otp) {
+                resolve({
+                    errCode: 1,
+                    errMessage: 'Thiếu số điện thoại, mật khẩu mới hoặc mã xác thực'
+                })
+                return
+            }
+            if (String(data.password).length < 6) {
+                resolve({
+                    errCode: 5,
+                    errMessage: 'Mật khẩu phải có ít nhất 6 ký tự'
+                })
+                return
+            }
 
             let account = await db.Account.findOne({
                 where: { phonenumber: data.phonenumber },
                 raw: false
             })
-            if (account) {
-                account.password = await hashUserPasswordFromBcrypt(data.password);
-                await account.save();
+            if (!account) {
                 resolve({
-                    errCode: 0,
-                    errMessage: 'ok'
-                })
-            }
-            else {
-                resolve({
-                    errCode:1,
+                    errCode: 1,
                     errMessage: 'SĐT không tồn tại'
                 })
+                return
             }
+
+            let check = otpStore.verifyOtp(data.phonenumber, data.otp)
+            if (!check.valid) {
+                resolve({
+                    errCode: 2,
+                    errMessage: check.errMessage
+                })
+                return
+            }
+
+            account.password = await hashUserPasswordFromBcrypt(data.password);
+            await account.save();
+            resolve({
+                errCode: 0,
+                errMessage: 'ok'
+            })
         } catch (error) {
             reject(error)
         }
@@ -367,7 +493,9 @@ let handleLogin = (data) => {
                                 userData.errMessage = 'Ok';
                                 userData.errCode = 0;
                                 userData.user= user;
-                                userData.token = CommonUtils.encodeToken(user.id)
+                                userData.token = CommonUtils.encodeToken(
+                                    user.id, account.roleCode, user.companyId ?? null
+                                )
                             }
                             else {
                                 userData.errCode = 1;
@@ -609,5 +737,6 @@ module.exports = {
     getAllUser: getAllUser,
     getDetailUserById: getDetailUserById,
     checkUserPhone: checkUserPhone, changePaswordByPhone,
+    requestResetPasswordOtp,
     setDataUserSetting
 }

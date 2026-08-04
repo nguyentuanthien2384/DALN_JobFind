@@ -66,7 +66,10 @@ let handleCreateCv = (data) => {
                 if (cv) {
                     resolve({
                         errCode: 0,
-                        errMessage: 'Đã gửi CV thành công'
+                        errMessage: 'Đã gửi CV thành công',
+                        // Tra them id de controller phat su kien sang he thong
+                        // microservice. Chi them truong moi nen khong pha gi.
+                        cvId: cv.id
                     })
                 }
                 else {
