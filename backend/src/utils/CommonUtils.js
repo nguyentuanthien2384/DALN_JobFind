@@ -3,10 +3,16 @@ require('dotenv').config();
 const PDFExtract = require('pdf.js-extract').PDFExtract;
 const pdfExtract = new PDFExtract();
 const keywordExtractor = require("keyword-extractor");
-let encodeToken = (userId) =>{
+// roleCode va companyId duoc nhung vao token de API Gateway cua he thong
+// microservice phan quyen ngay tai cua ngo, khong phai truy CSDL moi request.
+// Backend nay chi doc `sub` nen them truong moi khong anh huong gi; token cu
+// van dung binh thuong cho toi khi het han.
+let encodeToken = (userId, roleCode = null, companyId = null) =>{
     return JWT.sign({
         iss: 'Tai Nguyen',
         sub: userId,
+        roleCode: roleCode,
+        companyId: companyId,
         iat: new Date().getTime(),
         exp: new Date().setDate(new Date().getDate() +3)
     },process.env.JWT_SECRET
