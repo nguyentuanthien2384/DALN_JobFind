@@ -1358,4 +1358,101 @@ INSERT INTO notifications (id, userId, typeCode, isChecked, content, link, creat
 INSERT INTO notifications (id, userId, typeCode, isChecked, content, link, createdAt, updatedAt) VALUES (9102, 2, 'NEW_CV', 0, 'Có 1 ứng viên vừa nộp CV vào tin tuyển dụng của bạn', '/admin/manage-cv/', '2025-06-20 03:00:00', '2025-06-20 03:00:00') ON DUPLICATE KEY UPDATE content = VALUES(content);
 INSERT INTO notifications (id, userId, typeCode, isChecked, content, link, createdAt, updatedAt) VALUES (9103, 19, 'NEW_CV', 0, 'Có 1 ứng viên vừa nộp CV vào tin tuyển dụng của bạn', '/admin/manage-cv/', '2025-06-20 03:00:00', '2025-06-20 03:00:00') ON DUPLICATE KEY UPDATE content = VALUES(content);
 
+-- --------------------------------------------------------
+-- PHAN MO RONG CHO HE THONG MICROSERVICES (AI Job Portal)
+-- --------------------------------------------------------
+--
+-- Bang `ai_tasks`: cho hen gap giua nguoi dung va AI Worker.
+--
+-- Cac tinh nang AI (boc tach CV, cham do khop, kiem duyet tin, viet thu ung tuyen)
+-- chay bat dong bo: API tra ve ngay mot taskId, AI Worker xu ly xong moi ghi ket
+-- qua vao day. Khong co bang nay thi nguoi dung khong co cho nao de hoi ket qua.
+--
+-- Bang do `job-core-service` tu tao luc khoi dong (CREATE TABLE IF NOT EXISTS),
+-- nen neu chay he thong microservices thi khong bat buoc phai nap doan nay.
+-- Giu o day de file dump phan anh dung schema thuc te.
+--
+-- Cac bang khac cua he thong microservices KHONG nam trong file nay vi chung o
+-- CSDL rieng: `applications`, `application_events`, `application_notes`,
+-- `talent_pool` o PostgreSQL; ho so/CV Builder, nhat ky hoat dong va master data
+-- o MongoDB. Tat ca deu tu tao khi service khoi dong.
+--
+
+CREATE TABLE IF NOT EXISTS `ai_tasks` (
+  `id` varchar(64) NOT NULL,
+  `type` varchar(64) NOT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `userId` int(11) DEFAULT NULL,
+  `input` longtext DEFAULT NULL,
+  `result` longtext DEFAULT NULL,
+  `error` text DEFAULT NULL,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ai_tasks_user` (`userId`),
+  KEY `idx_ai_tasks_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+-- DONG BO DU LIEU PHAT SINH TRONG QUA TRINH SU DUNG
+-- --------------------------------------------------------
+--
+-- Cac ban ghi duoi day co trong CSDL dang chay nhung chua co trong phan dump goc:
+-- 3 tai khoan kiem thu (0900000001/2/3, mat khau 123456) do
+-- `backend/scripts/create-test-accounts.js` tao, cong voi vai ban ghi phat sinh khi
+-- dung thu (tin nhan, tin da luu, cong ty theo doi).
+--
+-- Tat ca deu dung ON DUPLICATE KEY UPDATE nen nap lai nhieu lan khong bi trung.
+--
+
+-- users (3 bản ghi)
+INSERT INTO users (id, firstName, lastName, email, address, genderCode, image, dob, companyId) VALUES (9001, 'Tài khoản', 'Quản trị', 'test9001@jobfind.local', 'Việt Nam', 'M', NULL, '01/01/2000', NULL) ON DUPLICATE KEY UPDATE firstName = VALUES(firstName);
+INSERT INTO users (id, firstName, lastName, email, address, genderCode, image, dob, companyId) VALUES (9002, 'Tài khoản', 'Nhà tuyển dụng', 'test9002@jobfind.local', 'Việt Nam', 'M', NULL, '01/01/2000', 6) ON DUPLICATE KEY UPDATE firstName = VALUES(firstName);
+INSERT INTO users (id, firstName, lastName, email, address, genderCode, image, dob, companyId) VALUES (9003, 'Tài khoản', 'Ứng viên', 'test9003@jobfind.local', 'Việt Nam', 'M', NULL, '01/01/2000', NULL) ON DUPLICATE KEY UPDATE firstName = VALUES(firstName);
+
+-- accounts (3 bản ghi)
+INSERT INTO accounts (id, phonenumber, password, roleCode, statusCode, userId, createdAt, updatedAt) VALUES (9001, '0900000001', '$2b$10$KrSiH6hINzIuzjqnTh6OYOfR7l872lXqu1tE6isjXJwqm.dYztvfy', 'ADMIN', 'S1', 9001, '2026-07-29 12:29:28', '2026-07-29 12:29:28') ON DUPLICATE KEY UPDATE phonenumber = VALUES(phonenumber);
+INSERT INTO accounts (id, phonenumber, password, roleCode, statusCode, userId, createdAt, updatedAt) VALUES (9002, '0900000002', '$2b$10$KrSiH6hINzIuzjqnTh6OYOfR7l872lXqu1tE6isjXJwqm.dYztvfy', 'COMPANY', 'S1', 9002, '2026-07-29 12:29:28', '2026-07-29 12:29:28') ON DUPLICATE KEY UPDATE phonenumber = VALUES(phonenumber);
+INSERT INTO accounts (id, phonenumber, password, roleCode, statusCode, userId, createdAt, updatedAt) VALUES (9003, '0900000003', '$2b$10$KrSiH6hINzIuzjqnTh6OYOfR7l872lXqu1tE6isjXJwqm.dYztvfy', 'CANDIDATE', 'S1', 9003, '2026-07-29 12:29:28', '2026-07-29 13:16:28') ON DUPLICATE KEY UPDATE phonenumber = VALUES(phonenumber);
+
+-- chatmessages (1 bản ghi)
+INSERT INTO chatmessages (id, senderId, receiverId, content, isRead, createdAt, updatedAt) VALUES (9122, 36, 35, 'hello', 0, '2026-07-29 15:08:05', '2026-07-29 15:08:05') ON DUPLICATE KEY UPDATE content = VALUES(content);
+
+-- favoriteposts (2 bản ghi)
+INSERT INTO favoriteposts (id, userId, postId, createdAt, updatedAt) VALUES (8, 1, 42, '2026-07-26 13:18:12', '2026-07-26 13:18:12') ON DUPLICATE KEY UPDATE postId = VALUES(postId);
+INSERT INTO favoriteposts (id, userId, postId, createdAt, updatedAt) VALUES (11, 1, 46, '2026-07-29 13:25:05', '2026-07-29 13:25:05') ON DUPLICATE KEY UPDATE postId = VALUES(postId);
+
+-- followcompanies (1 bản ghi)
+INSERT INTO followcompanies (id, userId, companyId, createdAt, updatedAt) VALUES (9, 1, 7, '2026-07-29 12:51:03', '2026-07-29 12:51:03') ON DUPLICATE KEY UPDATE companyId = VALUES(companyId);
+
+-- notes (2 bản ghi)
+INSERT INTO notes (id, note, postId, userId, createdAt, updatedAt) VALUES (32, '', 43, 1, '2026-07-29 12:54:18', '2026-07-29 12:54:18') ON DUPLICATE KEY UPDATE note = VALUES(note);
+INSERT INTO notes (id, note, postId, userId, createdAt, updatedAt) VALUES (33, 'Đã duyệt bài thành công', 43, 1, '2026-07-29 12:55:05', '2026-07-29 12:55:05') ON DUPLICATE KEY UPDATE note = VALUES(note);
+
+-- ================================================================
+-- CAP NHAT GIA TRI NGUOI DUNG DA SUA (doi chieu ngay 2026-08-05)
+-- Cac dong duoi day la thay doi that phat sinh khi dung he thong:
+-- doi ten tai khoan, duyet cong ty, dang lai tin, doc tin nhan...
+-- Deu la UPDATE theo khoa chinh nen chay lai nhieu lan van an toan.
+-- ================================================================
+
+-- Nguoi dung #1 tu doi thong tin ca nhan
+UPDATE users SET firstName='Nguyễn Tuấn', lastName='Thiền', address='Xóm 2' WHERE id=1;
+
+-- Doi mat khau qua man hinh quen mat khau (ma bam khong dong bo vi bcrypt sinh muoi ngau nhien)
+UPDATE accounts SET updatedAt='2026-07-29 12:25:48' WHERE id=1;
+UPDATE accounts SET updatedAt='2026-07-29 12:25:48' WHERE id=4;
+UPDATE accounts SET updatedAt='2026-07-29 12:25:48' WHERE id=7;
+
+-- Quan tri vien kiem duyet cong ty
+UPDATE companies SET censorCode='CS1', updatedAt='2026-07-29 13:10:39' WHERE id=6;
+UPDATE companies SET censorCode='CS2', updatedAt='2026-07-29 20:15:29' WHERE id=7;
+
+-- Dang lai tin (reup) va duyet tin
+UPDATE posts SET timePost='1785305501465', updatedAt='2026-07-29 13:11:41' WHERE id=1;
+UPDATE posts SET statusCode='PS1', timePost='1785304505175', updatedAt='2026-07-29 12:55:05' WHERE id=43;
+
+-- Tin nhan da duoc doc
+UPDATE chatmessages SET isRead=1, updatedAt='2026-07-29 19:50:34' WHERE id=9104;
+
 COMMIT;
