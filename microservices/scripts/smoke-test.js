@@ -4,6 +4,8 @@
 // Kiem tra ca luong CQRS (ghi MySQL -> event -> index Elasticsearch), phan quyen
 // tai Gateway, va vong doi cua circuit breaker.
 
+import { snapshot, restore } from './test-fixture.js';
+
 const GW = process.env.GATEWAY_URL || 'http://localhost:4000';
 const ES = process.env.ELASTICSEARCH_PUBLIC_URL || 'http://localhost:9201';
 const EMPLOYER = { phonenumber: process.env.SMOKE_EMPLOYER_PHONE || '0795095042', password: '123456' };
@@ -230,7 +232,13 @@ const run = async () => {
         `${r.body.data?.total} hồ sơ, ${r.body.data?.columns?.length} cột`);
 
     const board = r.body.data;
-    const sample = board?.columns?.find((c) => c.items.length)?.items[0];
+    const allItems = (board?.columns || []).flatMap((c) => c.items);
+    // Uu tien ho so cua chinh tin kiem thu vua tao. Truoc day cho lay dai ho so
+    // dau tien tren bang, tuc la thao tac len ho so THAT cua mot ung vien that:
+    // doi buoc tuyen dung cua ho, cham sao cho ho, va gui cho ho thong bao
+    // "Ban duoc moi phong van" cho mot vi tri ho khong he duoc moi. Nhung thong
+    // bao do cung khong don duoc vi chung mang ten tin that.
+    const sample = allItems.find((i) => i.job_id === legacyPostId) || allItems[0];
 
     if (sample) {
         const originalStage = sample.stage;
@@ -345,7 +353,22 @@ const run = async () => {
     console.log('\nTất cả kiểm tra đều đạt.');
 };
 
-run().catch((error) => {
-    console.error(`Không chạy được kiểm thử: ${error.message}`);
-    process.exitCode = 1;
-});
+// Chup anh CSDL truoc, tra lai nguyen trang sau - ke ca khi kiem thu that bai
+// giua chung, vi do dung la luc de lai nhieu rac nhat.
+(async () => {
+    let before = null;
+    try {
+        before = await snapshot();
+    } catch (error) {
+        console.log(`(khong chup duoc anh CSDL: ${error.message} - se khong don sau khi chay)`);
+    }
+
+    try {
+        await run();
+    } catch (error) {
+        console.error(`Không chạy được kiểm thử: ${error.message}`);
+        process.exitCode = 1;
+    } finally {
+        if (before) await restore(before).catch((e) => console.log(`(don dep loi: ${e.message})`));
+    }
+})();
