@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createLogger } from "../../../../shared/logger.js";
+import { createLogger } from "../../../shared/logger.js";
 
 const logger = createLogger("ai-worker");
 

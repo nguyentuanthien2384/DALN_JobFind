@@ -1,6 +1,6 @@
-import { createLogger } from "../../../shared/logger.js";
-import { consume, publish } from "../../../shared/rabbitmq.js";
-import { EVENTS, QUEUES } from "../../../shared/events.js";
+import { createLogger } from "../../shared/logger.js";
+import { consume, publish } from "../../shared/rabbitmq.js";
+import { EVENTS, QUEUES } from "../../shared/events.js";
 import { isConfigured, logModel } from "./libs/claude.js";
 import { parseResume } from "./jobs/resumeParser.js";
 import { matchCv } from "./jobs/smartMatching.js";
