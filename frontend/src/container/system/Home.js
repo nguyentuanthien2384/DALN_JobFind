@@ -35,8 +35,8 @@ const Home = () => {
     const [dataSumCv, setDataSumCv] = useState(0);
 
     const [dataCv, setDataCv] = useState([]);
-    const [count, setCount] = useState("");
-    const [countCv, setCountCv] = useState("");
+    const [count, setCount] = useState(0);
+    const [countCv, setCountCv] = useState(0);
 
     // Bo loc dang ap dung cua tung bang (khoang ngay + trang dang xem).
     //
@@ -304,8 +304,8 @@ const Home = () => {
                                 y={y}
                                 dx={dx}
                                 dy={dy}
-                                dominant-baseline="central"
-                                text-anchor="center"
+                                dominantBaseline="central"
+                                textAnchor="middle"
                                 style={{ fontSize: "4px" }}
                             >
                                 {`${dataEntry.value}%`}
@@ -381,7 +381,7 @@ const Home = () => {
                             previousLabel={"Quay lại"}
                             nextLabel={"Tiếp"}
                             breakLabel={"..."}
-                            pageCount={count}
+                            pageCount={Math.max(1, Number(count) || 0)}
                             marginPagesDisplayed={3}
                             containerClassName={
                                 "pagination justify-content-center pb-3"
@@ -508,7 +508,7 @@ const Home = () => {
                                 previousLabel={"Quay lại"}
                                 nextLabel={"Tiếp"}
                                 breakLabel={"..."}
-                                pageCount={count}
+                                pageCount={Math.max(1, Number(count) || 0)}
                                 marginPagesDisplayed={3}
                                 containerClassName={
                                     "pagination justify-content-center pb-3"
@@ -628,7 +628,7 @@ const Home = () => {
                                 previousLabel={"Quay lại"}
                                 nextLabel={"Tiếp"}
                                 breakLabel={"..."}
-                                pageCount={countCv}
+                                pageCount={Math.max(1, Number(countCv) || 0)}
                                 marginPagesDisplayed={3}
                                 containerClassName={
                                     "pagination justify-content-center pb-3"

@@ -11,9 +11,18 @@ require('dotenv').config();
 let app = express();
 
 app.use(function (req, res, next) {
+    // URL_REACT co the chua nhieu origin, cach nhau boi dau phay. Dieu nay cho
+    // phep frontend chay o cong 3001 khi cong 3000 dang duoc API Gateway su dung.
+    const allowedOrigins = (process.env.URL_REACT || 'http://localhost:3000,http://localhost:3001')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+    const requestOrigin = req.headers.origin;
 
-    // Website you wish to allow to connect
-    res.setHeader('Access-Control-Allow-Origin', process.env.URL_REACT || 'http://localhost:3000');
+    if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+        res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+        res.setHeader('Vary', 'Origin');
+    }
 
     // Request methods you wish to allow
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -25,7 +34,12 @@ app.use(function (req, res, next) {
     // to the API (e.g. in case you use sessions)
     res.setHeader('Access-Control-Allow-Credentials', true);
 
-    // Pass to next layer of middleware
+    // Tra loi preflight ngay tai day de cac request POST/PUT co JSON khong bi
+    // chan boi trinh duyet.
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+
     next();
 });
 
