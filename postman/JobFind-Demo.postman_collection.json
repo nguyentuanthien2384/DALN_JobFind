@@ -1,0 +1,127 @@
+{
+  "info": {
+    "name": "JobFind - Demo & Microservices",
+    "description": "Collection chi-doc de demo JobFind. Chay 3 request dang nhap truoc de luu token. Cac request ghi du lieu duoc de rieng va khong co trong Collection nay.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - System health",
+      "item": [
+        {
+          "name": "Gateway status - 6 services",
+          "request": { "method": "GET", "url": "{{baseUrl}}/status" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Gateway and services are healthy', () => {", "  const body = pm.response.json();", "  pm.expect(body.gateway).to.eql('ok');", "  pm.expect(body.services.every((service) => service.healthy)).to.eql(true);", "});"] } }]
+        },
+        {
+          "name": "Socket.IO handshake",
+          "request": { "method": "GET", "url": "{{baseUrl}}/socket.io/?EIO=4&transport=polling" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Socket.IO handshake succeeds', () => {", "  pm.expect(pm.response.code).to.eql(200);", "  pm.expect(pm.response.text()).to.include('sid');", "});"] } }]
+        }
+      ]
+    },
+    {
+      "name": "01 - Login and tokens",
+      "item": [
+        {
+          "name": "Login - Admin",
+          "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\n  \"phonenumber\": \"{{adminPhone}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{baseUrl}}/api/login" },
+          "event": [{ "listen": "test", "script": { "exec": ["const body = pm.response.json();", "pm.test('Admin login succeeds', () => pm.expect(body.errCode).to.eql(0));", "pm.environment.set('adminToken', body.token);"] } }]
+        },
+        {
+          "name": "Login - Employer",
+          "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\n  \"phonenumber\": \"{{employerPhone}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{baseUrl}}/api/login" },
+          "event": [{ "listen": "test", "script": { "exec": ["const body = pm.response.json();", "pm.test('Employer login succeeds', () => pm.expect(body.errCode).to.eql(0));", "pm.environment.set('employerToken', body.token);"] } }]
+        },
+        {
+          "name": "Login - Candidate",
+          "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\n  \"phonenumber\": \"{{candidatePhone}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{baseUrl}}/api/login" },
+          "event": [{ "listen": "test", "script": { "exec": ["const body = pm.response.json();", "pm.test('Candidate login succeeds', () => pm.expect(body.errCode).to.eql(0));", "pm.environment.set('candidateToken', body.token);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "02 - Public jobs and Search Service",
+      "item": [
+        { "name": "Legacy jobs through Gateway", "request": { "method": "GET", "url": "{{baseUrl}}/api/get-filter-post?limit=5&offset=0" } },
+        { "name": "Search jobs - Elasticsearch", "request": { "method": "GET", "url": "{{baseUrl}}/api/search/jobs?q=reactjts&limit=5" } },
+        { "name": "Search facets", "request": { "method": "GET", "url": "{{baseUrl}}/api/search/facets" } },
+        { "name": "Job Core detail - React job #22", "request": { "method": "GET", "url": "{{baseUrl}}/api/jobs/{{reactJobId}}" } },
+        { "name": "Legacy job detail - React job #22", "request": { "method": "GET", "url": "{{baseUrl}}/api/get-detail-post-by-id?id={{reactJobId}}" } }
+      ]
+    },
+    {
+      "name": "03 - Employer data",
+      "item": [
+        {
+          "name": "List employer posts",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{employerToken}}"}], "url": "{{baseUrl}}/api/get-list-post-admin?companyId={{employerCompanyId}}&limit=10&offset=0&search=&censorCode=" }
+        },
+        {
+          "name": "Talent pool / CV search",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{employerToken}}"}], "url": "{{baseUrl}}/api/fillter-cv-by-selection?limit=10&offset=0" }
+        },
+        {
+          "name": "Kanban board - Application Service",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{employerToken}}"}], "url": "{{baseUrl}}/api/applications/board" }
+        },
+        {
+          "name": "Recruitment funnel - Application Service",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{employerToken}}"}], "url": "{{baseUrl}}/api/applications/funnel" }
+        },
+        {
+          "name": "Identity profile - MongoDB",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{employerToken}}"}], "url": "{{baseUrl}}/api/profile" }
+        }
+      ]
+    },
+    {
+      "name": "04 - Candidate data",
+      "item": [
+        {
+          "name": "Candidate application history - Application Service",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{candidateToken}}"}], "url": "{{baseUrl}}/api/my-applications" }
+        },
+        {
+          "name": "Candidate CV history - Legacy API",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{candidateToken}}"}], "url": "{{baseUrl}}/api/get-all-cv-by-userId?limit=10&offset=0" }
+        },
+        {
+          "name": "Candidate chat conversations",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{candidateToken}}"}], "url": "{{baseUrl}}/api/get-list-chat-conversation" }
+        },
+        {
+          "name": "Candidate notifications",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{candidateToken}}"}], "url": "{{baseUrl}}/api/get-notification-by-user?limit=10&offset=0" }
+        },
+        {
+          "name": "Authorization proof - candidate cannot open Kanban",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{candidateToken}}"}], "url": "{{baseUrl}}/api/applications/board" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Candidate is denied', () => pm.expect(pm.response.code).to.eql(403));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "05 - Admin data",
+      "item": [
+        {
+          "name": "List companies",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}], "url": "{{baseUrl}}/api/get-all-company?limit=10&offset=0" }
+        },
+        {
+          "name": "Admin overview report - microservice",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}], "url": "{{baseUrl}}/api/admin/reports/overview" }
+        },
+        {
+          "name": "Admin distribution report - microservice",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}], "url": "{{baseUrl}}/api/admin/reports/distribution" }
+        },
+        {
+          "name": "Admin audit log - microservice",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}], "url": "{{baseUrl}}/api/admin/audit?kind=action&limit=10" }
+        }
+      ]
+    }
+  ],
+  "variable": []
+}
