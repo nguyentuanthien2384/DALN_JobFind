@@ -286,6 +286,23 @@
         .kb-note-time { font-size: 11px; color: #9ca3af; margin-top: 3px; }
     }
 
+    .kb-decision {
+        textarea {
+            width: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 13px;
+            resize: vertical;
+        }
+    }
+
+    .kb-decision-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
     .kb-time {
         display: flex;
         align-items: center;
@@ -327,6 +344,21 @@
             color: #374151;
             border: 1px solid #d1d5db;
             &:hover { background: #f9fafb; }
+        }
+
+        &.success {
+            background: #059669;
+            &:hover { background: #047857; }
+        }
+
+        &.danger {
+            background: #dc2626;
+            &:hover { background: #b91c1c; }
+        }
+
+        &:disabled {
+            cursor: not-allowed;
+            opacity: .65;
         }
     }
 }

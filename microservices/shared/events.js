@@ -28,6 +28,11 @@ export const EVENTS = {
     // Notification Service se dung su kien nay de bao cho ung vien.
     APPLICATION_STAGE_CHANGED: 'application.stage_changed',
 
+    // Nha tuyen dung gui ket qua cuoi cung (trung tuyen / tu choi) cho ung vien.
+    // Tach rieng khoi su kien keo tha de co the gui lai email ma khong can doi
+    // trang thai ho so them mot lan nua.
+    APPLICATION_DECISION_EMAIL_REQUESTED: 'application.decision_email_requested',
+
     // Backend cu phat ra khi ung vien nop CV. Frontend van nop qua backend cu nen
     // day la duong duy nhat de Application Service biet co ho so moi.
     APPLICATION_SUBMITTED: 'application.submitted'

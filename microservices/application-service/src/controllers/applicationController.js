@@ -205,6 +205,93 @@ export const moveStage = async (req, res) => {
     }
 };
 
+// ===== GUI KET QUA TUYEN DUNG =====
+// Thao tac nay vua chot trang thai cua ho so, vua phat yeu cau gui email. Nha
+// tuyen dung co the bam lai de gui nhac lai ma khong phai keo the qua lai giua
+// cac cot Kanban.
+export const sendDecisionNotification = async (req, res) => {
+    const { userId, roleCode, companyId } = identity(req);
+    const { decision, message } = req.body || {};
+    const stageByDecision = { accepted: 'nhan_viec', rejected: 'tu_choi' };
+    const stage = stageByDecision[decision];
+    const candidateMessage = String(message || '').trim().slice(0, 3000);
+
+    if (!stage) {
+        return res.status(400).json({
+            errCode: 1,
+            errMessage: 'Kết quả không hợp lệ. Chỉ nhận accepted hoặc rejected'
+        });
+    }
+
+    try {
+        const result = await withTransaction(async (client) => {
+            const { rows } = await client.query(
+                'SELECT * FROM applications WHERE id = $1 FOR UPDATE', [req.params.id]
+            );
+            if (!rows.length) return { notFound: true };
+
+            const app = rows[0];
+            if (roleCode !== 'ADMIN' && app.company_id !== companyId) return { denied: true };
+
+            const changed = app.stage !== stage;
+            let updated = app;
+            if (changed) {
+                const { rows: changedRows } = await client.query(
+                    `UPDATE applications
+                     SET stage = $1, stage_changed_at = NOW(), updated_at = NOW()
+                     WHERE id = $2 RETURNING *`,
+                    [stage, app.id]
+                );
+                updated = changedRows[0];
+            }
+
+            // Luu dau vet ca khi gui lai email, de nha tuyen dung biet lan cuoi
+            // cung da thong bao ket qua vao luc nao.
+            await client.query(
+                `INSERT INTO application_events (application_id, from_stage, to_stage, actor_id, reason)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [
+                    app.id,
+                    changed ? app.stage : null,
+                    stage,
+                    userId,
+                    decision === 'accepted'
+                        ? 'Đã gửi email thông báo trúng tuyển cho ứng viên'
+                        : 'Đã gửi email thông báo không trúng tuyển cho ứng viên'
+                ]
+            );
+
+            return { app: updated, from: changed ? app.stage : null, changed };
+        });
+
+        if (result.notFound) return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy hồ sơ ứng tuyển' });
+        if (result.denied) return forbidden(res, 'Bạn không có quyền gửi kết quả cho hồ sơ này');
+
+        await publish(EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED, {
+            applicationId: result.app.id,
+            candidateId: result.app.candidate_id,
+            // Dung dia chi email tai thoi diem ung tuyen de ket qua den dung ho so.
+            candidateEmail: result.app.candidate_email,
+            candidateName: result.app.candidate_name,
+            jobId: result.app.job_id,
+            jobTitle: result.app.job_title,
+            companyId: result.app.company_id,
+            decision,
+            message: candidateMessage || null,
+            fromStage: result.from,
+            toStage: stage
+        });
+
+        logger.info('da yeu cau gui email ket qua tuyen dung', {
+            applicationId: result.app.id, decision, actor: userId, changed: result.changed
+        });
+        return res.json({ errCode: 0, data: result.app, emailQueued: true });
+    } catch (error) {
+        logger.error('gui ket qua tuyen dung that bai', { error: error.message });
+        return res.status(500).json({ errCode: -1, errMessage: 'Không thể gửi email kết quả' });
+    }
+};
+
 // ===== DANH GIA SAO =====
 export const rateApplication = async (req, res) => {
     const { roleCode, companyId } = identity(req);

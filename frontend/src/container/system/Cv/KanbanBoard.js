@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
     getApplicationBoard,
     moveApplicationStage,
+    sendApplicationDecision,
     rateApplication,
     addApplicationNote,
     getApplicationDetail,
@@ -30,6 +31,8 @@ const KanbanBoard = () => {
     const [dragOverStage, setDragOverStage] = useState(null);
     const [detail, setDetail] = useState(null);
     const [noteText, setNoteText] = useState("");
+    const [decisionMessage, setDecisionMessage] = useState("");
+    const [isSendingDecision, setIsSendingDecision] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
     const user = JSON.parse(localStorage.getItem("userData") || "{}");
@@ -114,6 +117,7 @@ const KanbanBoard = () => {
         if (res && res.errCode === 0) {
             setDetail(res.data);
             setNoteText("");
+            setDecisionMessage("");
         } else {
             toast.error("Không mở được hồ sơ");
         }
@@ -155,6 +159,25 @@ const KanbanBoard = () => {
         });
         if (res && res.errCode === 0) toast.success("Đã lưu vào kho ứng viên");
         else toast.error("Không lưu được");
+    };
+
+    const handleSendDecision = async (decision) => {
+        const label = decision === "accepted" ? "trúng tuyển" : "không trúng tuyển";
+        const destination = detail.candidate_email || "email đã đăng ký của ứng viên";
+        if (!window.confirm(`Gửi email thông báo ${label} đến ${destination}?`)) return;
+
+        setIsSendingDecision(true);
+        const res = await sendApplicationDecision(detail.id, decision, decisionMessage.trim());
+        setIsSendingDecision(false);
+
+        if (res && res.errCode === 0) {
+            toast.success(`Đã gửi email thông báo ${label}`);
+            setDetail((d) => ({ ...d, ...res.data, timeline: d.timeline }));
+            setDecisionMessage("");
+            await loadBoard(jobId);
+        } else {
+            toast.error((res && res.errMessage) || "Không thể gửi email thông báo");
+        }
     };
 
     const renderStars = (id, current) => (
@@ -309,6 +332,36 @@ const KanbanBoard = () => {
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+
+                            <div className="kb-section kb-decision">
+                                <h5>Thông báo kết quả cho ứng viên</h5>
+                                <p className="kb-hint">
+                                    Email sẽ gửi đến: <b>{detail.candidate_email || "email đã đăng ký"}</b>
+                                </p>
+                                <textarea
+                                    rows={3}
+                                    value={decisionMessage}
+                                    placeholder="Lời nhắn thêm cho ứng viên (không bắt buộc)"
+                                    maxLength={3000}
+                                    onChange={(e) => setDecisionMessage(e.target.value)}
+                                />
+                                <div className="kb-decision-actions">
+                                    <button
+                                        className="kb-btn success"
+                                        disabled={isSendingDecision}
+                                        onClick={() => handleSendDecision("accepted")}
+                                    >
+                                        {isSendingDecision ? "Đang gửi…" : "Gửi trúng tuyển"}
+                                    </button>
+                                    <button
+                                        className="kb-btn danger"
+                                        disabled={isSendingDecision}
+                                        onClick={() => handleSendDecision("rejected")}
+                                    >
+                                        {isSendingDecision ? "Đang gửi…" : "Gửi không trúng tuyển"}
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="kb-section">

@@ -69,6 +69,39 @@ export const applicationStageTemplate = ({ toStage, jobTitle, candidateName, com
     };
 };
 
+// Email ket qua chi duoc tao tu thao tac chu dong cua nha tuyen dung. Noi dung
+// bo sung la tuy chon, nhung duoc escape de khong the chen HTML vao email.
+export const applicationDecisionTemplate = ({ decision, jobTitle, candidateName, message }) => {
+    const accepted = decision === 'accepted';
+    const safeName = escapeHtml(candidateName || 'bạn');
+    const safeJob = escapeHtml(jobTitle || 'vị trí bạn đã ứng tuyển');
+    const customMessage = message
+        ? `<p><b>Lời nhắn từ nhà tuyển dụng:</b><br>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`
+        : '';
+
+    return {
+        typeCode: accepted ? 'APPLICATION_ACCEPTED' : 'APPLICATION_REJECTED',
+        content: accepted
+            ? `Chúc mừng! Bạn đã trúng tuyển vị trí "${jobTitle || 'đã ứng tuyển'}"`
+            : `Kết quả ứng tuyển vị trí "${jobTitle || 'đã ứng tuyển'}"`,
+        link: '/candidate/manage-cv',
+        email: {
+            subject: accepted
+                ? `Chúc mừng bạn đã trúng tuyển — ${jobTitle || 'Job Finder'}`
+                : `Kết quả ứng tuyển — ${jobTitle || 'Job Finder'}`,
+            html: wrap(accepted
+                ? `<p>Chào ${safeName},</p>
+                   <p>Chúc mừng! Bạn đã <b>trúng tuyển</b> vị trí <b>${safeJob}</b>.</p>
+                   ${customMessage}
+                   <p>Nhà tuyển dụng sẽ liên hệ với bạn để trao đổi các bước tiếp theo.</p>`
+                : `<p>Chào ${safeName},</p>
+                   <p>Cảm ơn bạn đã quan tâm đến vị trí <b>${safeJob}</b>. Rất tiếc, hồ sơ của bạn chưa phù hợp cho vị trí này ở thời điểm hiện tại.</p>
+                   ${customMessage}
+                   <p>Chúc bạn sớm tìm được cơ hội phù hợp.</p>`)
+        }
+    };
+};
+
 export const jobModeratedTemplate = ({ approved, jobTitle, reason }) => ({
     typeCode: approved ? 'POST_APPROVED' : 'POST_REJECTED',
     content: approved
@@ -130,4 +163,13 @@ function wrap(inner) {
             Email tự động từ hệ thống Job Finder, vui lòng không trả lời thư này.
         </p>
     </div>`;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }

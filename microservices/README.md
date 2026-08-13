@@ -164,6 +164,12 @@ Trước đây toàn bộ "quản lý CV" của nhà tuyển dụng chỉ là m�
 | Kho ứng viên | Lưu người hay nhưng chưa hợp vị trí, gắn nhãn để tìm lại |
 | Phễu tuyển dụng | Số hồ sơ mỗi bước + tỷ lệ tuyển thành công |
 
+**Gửi kết quả qua email.** Mở chi tiết hồ sơ tại `/admin/pipeline`, nhập lời nhắn
+(nếu cần) rồi chọn **Gửi trúng tuyển** hoặc **Gửi không trúng tuyển**. Thao tác
+này chuyển hồ sơ vào cột kết quả tương ứng, gửi email tới địa chỉ đã lưu khi ứng
+viên nộp hồ sơ, tạo thông báo trong ứng dụng và lưu lịch sử gửi. Nhà tuyển dụng
+có thể gửi lại email mà không cần thay đổi trạng thái hồ sơ.
+
 **Snapshot khi nộp.** Bảng `applications` giữ bản sao hồ sơ tại thời điểm ứng viên
 bấm nộp (`cv_snapshot` kiểu JSONB). Nếu chỉ lưu khóa ngoại rồi đọc ngược về hồ sơ
 gốc, ứng viên sửa CV một tháng sau sẽ làm thay đổi cả những hồ sơ đã nộp từ trước —
@@ -187,6 +193,7 @@ thông báo trong chuông mà không có email, còn hơn không nhận được
 Sự kiện đang nghe:
 
 - `application.stage_changed` → báo ứng viên khi hồ sơ chuyển bước
+- `application.decision_email_requested` → gửi kết quả trúng tuyển hoặc không trúng tuyển do nhà tuyển dụng chọn
 - `job.moderated` → báo người đăng tin khi AI duyệt xong
 - `job.created` → báo những người đang theo dõi công ty đó
 
@@ -195,6 +202,9 @@ WebSocket với trình duyệt. Dựng thêm một máy chủ nữa sẽ bắt f
 song song. Thay vào đó Notification Service gọi endpoint nội bộ
 `/internal/emit-notification`, được bảo vệ bằng khóa dùng chung `INTERNAL_SECRET`
 (không dùng JWT vì đây là giao tiếp giữa hai máy chủ, không có người dùng nào ở giữa).
+
+Để gửi email thật, thêm `EMAIL_APP` và `EMAIL_APP_PASSWORD` (Gmail App Password)
+vào `microservices/.env`, sau đó khởi động lại Notification Service.
 
 > ⚠️ **Gateway phải chuyển tiếp được WebSocket.** Lớp proxy dựa trên axios chỉ xử lý
 > được request/response thường, không làm được HTTP Upgrade. Nếu thiếu đoạn

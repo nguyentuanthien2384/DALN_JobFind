@@ -3,7 +3,7 @@ import { createLogger } from '../../shared/logger.js';
 import { testConnection, initSchema, pool, STAGES, STAGE_LABELS } from './libs/db.js';
 import {
     getBoard, listApplications, getApplication, moveStage,
-    rateApplication, addNote, getFunnel, myApplications
+    sendDecisionNotification, rateApplication, addNote, getFunnel, myApplications
 } from './controllers/applicationController.js';
 import { savedCandidates, saveCandidate, removeCandidate } from './controllers/talentPoolController.js';
 import { syncFromLegacy, syncEndpoint } from './controllers/syncController.js';
@@ -38,6 +38,7 @@ app.get('/applications/funnel', getFunnel);
 app.get('/applications', listApplications);
 app.get('/applications/:id', getApplication);
 app.patch('/applications/:id/stage', moveStage);
+app.post('/applications/:id/decision-notification', sendDecisionNotification);
 app.patch('/applications/:id/rating', rateApplication);
 app.post('/applications/:id/notes', addNote);
 

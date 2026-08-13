@@ -7,7 +7,7 @@ import {
     sendEmail, pushRealtime, testMysql, isEmailConfigured
 } from './libs/channels.js';
 import {
-    applicationStageTemplate, jobModeratedTemplate,
+    applicationStageTemplate, applicationDecisionTemplate, jobModeratedTemplate,
     newJobFromFollowedCompanyTemplate, newApplicationTemplate
 } from './templates.js';
 
@@ -30,7 +30,7 @@ app.get('/health', (req, res) => res.json({
 
 // Gui mot thong bao qua ca ba kenh. Ba kenh chay doc lap: kenh nao hong thi ghi
 // log roi di tiep, khong chan cac kenh con lai.
-const deliver = async ({ userId, template }) => {
+const deliver = async ({ userId, template, recipientEmail }) => {
     if (!userId || !template) return;
 
     let saved;
@@ -45,18 +45,32 @@ const deliver = async ({ userId, template }) => {
     } catch (error) {
         logger.error('luu thong bao that bai', { userId, error: error.message });
         stats.failed += 1;
-        return;
     }
 
-    // Day realtime truoc: nguoi dung dang mo trang thi thay ngay lap tuc.
-    const pushed = await pushRealtime({ userId, notification: saved });
-    if (pushed.sent) stats.pushed += 1;
+    // Day realtime truoc: nguoi dung dang mo trang thi thay ngay lap tuc. Khong
+    // day neu chua luu duoc, vi giao dien can mot notification co id de danh dau
+    // da doc sau nay.
+    if (saved) {
+        const pushed = await pushRealtime({ userId, notification: saved });
+        if (pushed.sent) stats.pushed += 1;
+    }
 
     if (template.email) {
-        const user = await getUserEmail(userId);
-        if (user?.email) {
+        // Ket qua tuyen dung uu tien email duoc luu trong ho so luc ung tuyen.
+        // Cac loai thong bao khac van dung email hien tai cua tai khoan. Loi CSDL
+        // o buoc tim email khong duoc chan mot email da co san trong su kien.
+        let email = recipientEmail;
+        if (!email) {
+            try {
+                email = (await getUserEmail(userId))?.email;
+            } catch (error) {
+                logger.warn('khong tim duoc email nguoi dung', { userId, error: error.message });
+                stats.failed += 1;
+            }
+        }
+        if (email) {
             const sent = await sendEmail({
-                to: user.email,
+                to: email,
                 subject: template.email.subject,
                 html: template.email.html
             });
@@ -79,6 +93,26 @@ const handlers = {
         await deliver({ userId: payload.candidateId, template });
         logger.info('da bao chuyen buoc cho ung vien', {
             candidateId: payload.candidateId, toStage: payload.toStage
+        });
+    },
+
+    // Nha tuyen dung chu dong chot ket qua va gui email cho ung vien.
+    [EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED]: async (payload) => {
+        const template = applicationDecisionTemplate({
+            decision: payload.decision,
+            jobTitle: payload.jobTitle,
+            candidateName: payload.candidateName,
+            message: payload.message
+        });
+        await deliver({
+            userId: payload.candidateId,
+            recipientEmail: payload.candidateEmail,
+            template
+        });
+        logger.info('da gui email ket qua tuyen dung', {
+            applicationId: payload.applicationId,
+            candidateId: payload.candidateId,
+            decision: payload.decision
         });
     },
 
@@ -138,7 +172,16 @@ const handlers = {
 };
 
 const start = async () => {
-    await testMysql();
+    try {
+        await testMysql();
+    } catch (error) {
+        // SMTP va RabbitMQ van co the hoat dong khi MySQL tam thoi khong san
+        // sang. Dac biet, email ket qua tuyen dung da mang san dia chi nguoi
+        // nhan nen khong can phai doc nguoc CSDL de gui duoc.
+        logger.warn('chua ket noi duoc MySQL: se thu lai khi xu ly thong bao', {
+            error: error.message
+        });
+    }
 
     if (!isEmailConfigured()) {
         logger.warn(
