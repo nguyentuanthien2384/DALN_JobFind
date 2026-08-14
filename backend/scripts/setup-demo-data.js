@@ -82,7 +82,7 @@ function khongDau(s) {
  */
 const HO_SO = [
     {
-        candidateId: 30, hoTen: 'Nguyễn Lê Tấn Tài', postId: 22, recruiterId: 18,
+        candidateId: 30, hoTen: 'Nguyễn Tuấn Thiền', postId: 22, recruiterId: 18,
         viTri: 'Lập trình viên Reactjs', kyNang: ['Reactjs', 'Java', 'JS', 'MySQL', 'Angular', 'Blockchain'],
         moTa: 'Em có 2 năm kinh nghiệm làm Reactjs, mong được ứng tuyển vị trí này ạ.'
     },
@@ -107,7 +107,7 @@ const HO_SO = [
         moTa: 'Em gửi CV ứng tuyển vị trí Chuyên viên tài chính ạ.'
     },
     {
-        candidateId: 9, hoTen: 'Nguyễn Lê Tấn Tài', postId: 32, recruiterId: 19,
+        candidateId: 9, hoTen: 'Nguyễn Tuấn Thiền', postId: 32, recruiterId: 19,
         viTri: 'Nhân viên kinh doanh', kyNang: ['Giải quyết vấn đề'],
         moTa: 'Em muốn ứng tuyển vị trí nhân viên kinh doanh của công ty.'
     },

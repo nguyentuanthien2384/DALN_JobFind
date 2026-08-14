@@ -75,9 +75,6 @@ export const applicationDecisionTemplate = ({ decision, jobTitle, candidateName,
     const accepted = decision === 'accepted';
     const safeName = escapeHtml(candidateName || 'bạn');
     const safeJob = escapeHtml(jobTitle || 'vị trí bạn đã ứng tuyển');
-    const customMessage = message
-        ? `<p><b>Lời nhắn từ nhà tuyển dụng:</b><br>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`
-        : '';
 
     return {
         typeCode: accepted ? 'APPLICATION_ACCEPTED' : 'APPLICATION_REJECTED',
@@ -89,15 +86,9 @@ export const applicationDecisionTemplate = ({ decision, jobTitle, candidateName,
             subject: accepted
                 ? `Chúc mừng bạn đã trúng tuyển — ${jobTitle || 'Job Finder'}`
                 : `Kết quả ứng tuyển — ${jobTitle || 'Job Finder'}`,
-            html: wrap(accepted
-                ? `<p>Chào ${safeName},</p>
-                   <p>Chúc mừng! Bạn đã <b>trúng tuyển</b> vị trí <b>${safeJob}</b>.</p>
-                   ${customMessage}
-                   <p>Nhà tuyển dụng sẽ liên hệ với bạn để trao đổi các bước tiếp theo.</p>`
-                : `<p>Chào ${safeName},</p>
-                   <p>Cảm ơn bạn đã quan tâm đến vị trí <b>${safeJob}</b>. Rất tiếc, hồ sơ của bạn chưa phù hợp cho vị trí này ở thời điểm hiện tại.</p>
-                   ${customMessage}
-                   <p>Chúc bạn sớm tìm được cơ hội phù hợp.</p>`)
+            // Mẫu dùng bảng và CSS inline để hiển thị đồng đều trên Gmail,
+            // Outlook và ứng dụng mail điện thoại.
+            html: decisionEmailLayout({ accepted, safeName, safeJob, message })
         }
     };
 };
@@ -172,4 +163,71 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+// Email kết quả dùng bố cục "card" gọn, nền sáng và nhãn trạng thái rõ ràng.
+// Lấy cảm hứng từ các mẫu notification hiện đại nhưng không dùng ảnh ngoài,
+// nhờ vậy thư vẫn đẹp khi ứng dụng email chặn tải hình ảnh.
+function decisionEmailLayout({ accepted, safeName, safeJob, message }) {
+    const accent = accepted ? '#16a34a' : '#e11d48';
+    const softAccent = accepted ? '#ecfdf3' : '#fff1f2';
+    const status = accepted ? 'Bạn đã trúng tuyển' : 'Kết quả ứng tuyển';
+    const headline = accepted ? 'Chúc mừng bạn!' : 'Cảm ơn bạn đã ứng tuyển';
+    const body = accepted
+        ? `Bạn đã được chọn cho vị trí <strong>${safeJob}</strong>. Nhà tuyển dụng sẽ sớm liên hệ để trao đổi các bước tiếp theo.`
+        : `Hồ sơ của bạn cho vị trí <strong>${safeJob}</strong> chưa phù hợp ở thời điểm hiện tại. Chúng tôi trân trọng thời gian và sự quan tâm của bạn.`;
+    const customMessage = message
+        ? `<tr>
+                <td style="padding:0 32px 24px">
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px">
+                        <p style="margin:0 0 8px;color:#64748b;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Lời nhắn từ nhà tuyển dụng</p>
+                        <p style="margin:0;color:#334155;font-size:15px;line-height:1.65">${escapeHtml(message).replace(/\n/g, '<br>')}</p>
+                    </div>
+                </td>
+            </tr>`
+        : '';
+
+    return `<!doctype html>
+<html lang="vi">
+<body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#0f172a">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f7fb">
+        <tr>
+            <td align="center" style="padding:36px 16px">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,.10)">
+                    <tr>
+                        <td style="padding:26px 32px;background:#111827">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-.02em">Job Finder</td>
+                                    <td align="right"><span style="display:inline-block;background:${softAccent};color:${accent};border-radius:999px;padding:7px 11px;font-size:12px;font-weight:700">${status}</span></td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:34px 32px 24px">
+                            <div style="width:42px;height:42px;line-height:42px;text-align:center;border-radius:12px;background:${softAccent};color:${accent};font-size:23px;font-weight:700">${accepted ? '✓' : 'i'}</div>
+                            <h1 style="margin:18px 0 10px;font-size:26px;line-height:1.25;letter-spacing:-.03em;color:#0f172a">${headline}</h1>
+                            <p style="margin:0;color:#475569;font-size:15px;line-height:1.65">Chào ${safeName},</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0 32px 24px">
+                            <div style="border-left:4px solid ${accent};background:#f8fafc;border-radius:0 12px 12px 0;padding:18px 20px">
+                                <p style="margin:0;color:#334155;font-size:15px;line-height:1.7">${body}</p>
+                            </div>
+                        </td>
+                    </tr>
+                    ${customMessage}
+                    <tr>
+                        <td style="padding:22px 32px 28px;border-top:1px solid #e2e8f0">
+                            <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6">Đây là email tự động từ Job Finder. Vui lòng không trả lời trực tiếp email này.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
 }

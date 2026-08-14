@@ -1,189 +1,216 @@
-# 💼 JobFind — Nền Tảng Tuyển Dụng & Tìm Việc Làm Real-Time (Microservices & AI-Powered)
+# JobFind
 
-![React](https://img.shields.io/badge/Frontend-React.js-61DAFB?logo=react&logoColor=black)
-![NodeJS](https://img.shields.io/badge/Backend-Node.js-339933?logo=nodedotjs&logoColor=white)
-![Express](https://img.shields.io/badge/Framework-Express.js-000000?logo=express&logoColor=white)
-![MySQL](https://img.shields.io/badge/Database-MySQL-4479A1?logo=mysql&logoColor=white)
-![Elasticsearch](https://img.shields.io/badge/Search-Elasticsearch-005571?logo=elasticsearch&logoColor=white)
-![RabbitMQ](https://img.shields.io/badge/MessageQueue-RabbitMQ-FF6600?logo=rabbitmq&logoColor=white)
-![Socket.io](https://img.shields.io/badge/Realtime-Socket.io-010101?logo=socketdotio&logoColor=white)
-![Sequelize](https://img.shields.io/badge/ORM-Sequelize-52B0E7?logo=sequelize&logoColor=white)
+Nền tảng tuyển dụng kết nối **ứng viên**, **nhà tuyển dụng** và **quản trị viên**. JobFind kết hợp trải nghiệm tìm việc trên web, quản lý quy trình tuyển dụng bằng Kanban, thông báo thời gian thực và kiến trúc microservices có thể mở rộng.
 
-> **JobFind** là nền tảng kết nối tuyển dụng toàn diện giữa **Ứng viên**, **Nhà tuyển dụng** và **Quản trị viên**. Dự án được tích hợp giao diện UI/UX hiện đại với **Bảng Kanban kéo-thả quản lý CV**, **Hệ thống tìm kiếm AI & Microservices (Elasticsearch + RabbitMQ)**, **Chat Real-time**, **Phân tích độ khớp CV PDF** và **Báo cáo thống kê chuyên sâu (Analytics Dashboard)**.
+![React](https://img.shields.io/badge/Frontend-React-61DAFB?logo=react&logoColor=111827)
+![Node.js](https://img.shields.io/badge/Backend-Node.js-339933?logo=nodedotjs&logoColor=white)
+![Docker](https://img.shields.io/badge/Runtime-Docker-2496ED?logo=docker&logoColor=white)
+![MySQL](https://img.shields.io/badge/Data-MySQL-4479A1?logo=mysql&logoColor=white)
+![RabbitMQ](https://img.shields.io/badge/Events-RabbitMQ-FF6600?logo=rabbitmq&logoColor=white)
 
----
+## Trải nghiệm sản phẩm
 
-## ✨ Điểm Nổi Bật & Trải Nghiệm UI/UX Toàn Diện
+### Ứng viên
 
-### 🎨 1. Giao Diện Modern UI/UX & Kanban Board Kéo-Thả
-- **Bảng Kanban Quản lý Trạng Thái CV (Drag & Drop UX)**:
-  - Cho phép Nhà tuyển dụng quản lý hồ sơ ứng viên theo quy trình 5 bước: *Mới nộp ➔ Sơ tuyển ➔ Phỏng vấn ➔ Trúng tuyển ➔ Từ chối*.
-  - Thao tác kéo-thả (Drag & Drop) siêu mượt, tự động cập nhật trạng thái CV và gửi thông báo real-time tới ứng viên.
-- **Giao diện Responsive Tối Ưu**: Đạt chuẩn UX cho mọi kích thước màn hình (Desktop, Tablet, Mobile).
-- **Trải nghiệm Tìm kiếm & Lọc Thông Minh**: Bộ lọc đa tiêu chí (Ngành nghề, Cấp bậc, Mức lương, Hình thức, Địa điểm) kết hợp thanh tìm kiếm Typeahead gợi ý tức thì.
+- Khám phá việc làm, tìm kiếm và lọc theo từ khóa, ngành nghề, địa điểm, mức lương và hình thức làm việc.
+- Xem trang chi tiết việc làm, thông tin công ty, lưu việc làm và theo dõi công ty quan tâm.
+- Tạo/cập nhật hồ sơ, quản lý CV, nộp CV và theo dõi lịch sử ứng tuyển.
+- Nhắn tin trực tiếp với nhà tuyển dụng; chuông thông báo cập nhật theo thời gian thực.
+- Nhận email kết quả trúng tuyển hoặc không trúng tuyển với bố cục thẻ hiện đại, tối ưu cho Gmail và thiết bị di động.
 
-### 💬 2. Trò Chuyện Real-Time Tức Thì (Socket.IO)
-- **Nhắn tin trực tiếp 1-1**: Kết nối ứng viên và đúng người phụ trách tuyển dụng của doanh nghiệp.
-- **Tương tác sinh động**:
-  - Chấm xanh báo trạng thái **Online / Offline**.
-  - Hiệu ứng **"Đang soạn tin nhắn..." (Typing indicator)**.
-  - Thông báo số tin nhắn chưa đọc (Unread badge) tự động cập nhật trên Header & Navigation Menu.
-- **Cơ chế Fallback thông minh**: Tự động chuyển qua REST API nếu kết nối socket bị gián đoạn.
+### Nhà tuyển dụng
 
-### 🧠 3. Chấm Điểm Khớp Skill CV & Tìm Kiếm Thông Minh bằng AI
-- **Smart PDF CV Parsing**: Tự động đọc và bóc tách dữ liệu kỹ năng từ file CV dạng PDF do ứng viên tải lên.
-- **Tính toán điểm số tương thích (%)**: So sánh danh sách kỹ năng trên CV với yêu cầu bài đăng để xếp hạng ứng viên phù hợp nhất.
-- **AI Search Service**: Tìm kiếm công việc theo ngữ nghĩa nhu cầu thay vì chỉ khớp từ khóa đơn thuần.
+- Quản lý công ty, nhân sự tuyển dụng, tin đăng, gói đăng tin và lượt xem CV.
+- Xem hồ sơ ứng viên theo bảng Kanban gồm sáu trạng thái: **Mới ứng tuyển → Đang xem xét → Phỏng vấn → Đề nghị → Đã nhận việc / Từ chối**.
+- Kéo thả hồ sơ giữa các cột, chấm sao, ghi chú nội bộ, xem lịch sử xử lý và lưu ứng viên vào talent pool.
+- Trong chi tiết hồ sơ, gửi **trúng tuyển** hoặc **không trúng tuyển**, kèm lời nhắn tùy chọn. Hệ thống cập nhật trạng thái, ghi lịch sử và gửi email đến địa chỉ ứng viên đã dùng khi nộp hồ sơ.
+- Xem số lượng hồ sơ theo từng giai đoạn và tỷ lệ tuyển thành công ngay trên pipeline.
 
-### 📊 4. Phân Hệ Báo Cáo Analytics & Dashboard Admin
-- **Phễu Chuyển Đổi Tuyển Dụng (Funnel Analytics)**: Thống kê tỷ lệ nộp CV, tỷ lệ đạt phỏng vấn, số lượng bài đăng active theo mốc thời gian.
-- **Thống kê Doanh thu & Gói Dịch vụ**: Quản lý gói đăng tin/xem CV tích hợp thanh toán qua **PayPal Sandbox**.
-- **Xuất Báo Cáo**: Hỗ trợ xuất dữ liệu thống kê ra file CSV / PDF cho quản trị viên.
+### Quản trị viên
 
-### 🛡️ 5. Kiến Trúc Microservices & Bảo Mật Hệ Thống
-- **Microservices Search Service**: Dịch vụ tìm kiếm độc lập chạy trên **Elasticsearch** kết hợp **RabbitMQ Event Consumer** giúp index dữ liệu việc làm tốc độ cao mà không làm chậm hệ thống chính.
-- **Bảo mật Đa Lớp**: 
-  - Middleware **Rate Limiting** bảo vệ API khỏi tần suất request bất thường.
-  - Phân quyền người dùng dựa trên vai trò **RBAC (Role-Based Access Control)**.
-  - Lưu trữ xác minh OTP (`otpStore.js`) và kiểm thử tự động với `smoke-test.js`.
+- Quản lý người dùng, công ty, tin đăng, danh mục công việc, kỹ năng, cấp bậc, mức lương và hình thức làm việc.
+- Duyệt tin tuyển dụng, quản lý gói dịch vụ và lịch sử giao dịch.
+- Xem dashboard tổng quan, phân bố dữ liệu, phễu tuyển dụng, chuỗi số liệu theo thời gian và nhật ký hoạt động.
 
----
+## UI/UX
 
-## 🛠️ Công Nghệ Sử Dụng (Tech Stack)
+Giao diện ưu tiên thao tác nhanh và trạng thái rõ ràng:
 
-### **Frontend**
-- **Core**: React.js (Hooks, Context API, Redux)
-- **Styling**: SCSS, Vanilla CSS, Bootstrap 4/5, FontAwesome
-- **Components & UX**: Interactive Kanban Board, Custom Scrollbars, Modals
-- **Real-time**: `socket.io-client`
-- **Charts & Editor**: Chart.js, TinyMCE Rich Text Editor
-- **Services**: `aiSearchService.js`, `applicationService.js`, `adminReportService.js`
+| Khu vực | Quyết định UX |
+| --- | --- |
+| Tìm việc | Bộ lọc dễ quét, thẻ việc làm ngắn gọn, dẫn thẳng tới trang chi tiết và hành động ứng tuyển. |
+| Header | Hiển thị thông báo và tin nhắn chưa đọc; cập nhật lại bằng Socket.IO khi có sự kiện mới. |
+| Khu quản trị | Sidebar theo vai trò, chỉ mở một nhóm menu tại một thời điểm và đánh dấu trang hiện hành. |
+| Pipeline | Màu riêng cho từng giai đoạn, phản hồi cập nhật ngay khi kéo thả, modal chi tiết không làm mất ngữ cảnh bảng Kanban. |
+| Kết quả tuyển dụng | Hai nút hành động phân biệt rõ bằng xanh/đỏ, có xác nhận trước khi gửi và ô lời nhắn tùy chọn. |
+| Email | Bố cục card, nhãn trạng thái, màu ngữ cảnh và CSS inline để tương thích Gmail/Outlook/mobile. |
 
-### **Backend & Microservices**
-- **Monolith Core**: Node.js, Express.js, Sequelize ORM (MySQL / MariaDB)
-- **Search Microservice**: Node.js, Elasticsearch Client, RabbitMQ Consumer (`microservices/search-service`)
-- **Real-time Engine**: Socket.IO (Chạy chung cổng 5000)
-- **Bảo mật**: JWT (JSON Web Token), bcryptjs, Rate-Limiter, RBAC Authorization
-- **File Parser & Mail**: PDF-Parse, Nodemailer
-
----
-
-## 📁 Cấu Trúc Thư Mục Dự Án
-
-```
-DALN_JobFind/
-├── backend/                        # REST API Node.js/Express + Sequelize ORM
-│   ├── scripts/                    # Scripts khôi phục DB mẫu, create-test-accounts, smoke-test
-│   ├── src/
-│   │   ├── config/                 # Cấu hình Database & Socket.io
-│   │   ├── controllers/            # Xử lý logic CV, Post, Chat, User, Package, Report
-│   │   ├── middlewares/            # JWT Verification, Rate Limiter
-│   │   ├── routes/                 # Khai báo các Route API
-│   │   ├── services/               # Logic nghiệp vụ dữ liệu
-│   │   └── utils/                  # Authorization, EventBus, OTP Store, Mail Template
-├── frontend/                       # Giao diện React.js
-│   ├── public/                     # Static assets (fonts, images, TinyMCE vendors)
-│   └── src/
-│       ├── components/             # React Components (Categories, FeatureJob, Modals...)
-│       ├── container/              # Các trang chính (Candidate, Company, Admin System, Chat, JobPage)
-│       │   └── system/Cv/          # Giao diện Kanban Board quản lý CV
-│       │   └── system/Report/      # Dashboard báo cáo thống kê Analytics
-│       ├── css/                    # SCSS / CSS Stylesheet dùng chung
-│       ├── service/                # Gợi ý AI, Báo cáo Admin, Application Service, CV Service
-│       └── socket.js               # Kết nối Socket.IO phía Client
-├── microservices/                  # Kiến trúc Microservices mở rộng
-│   ├── search-service/             # Tìm kiếm Elasticsearch + RabbitMQ Worker
-│   └── shared/                     # Mã nguồn dùng chung (RabbitMQ Client, Event Definitions, Logger)
-└── database/                       # File cơ sở dữ liệu mẫu MySQL (jobfindtest.sql)
-```
-
----
-
-## 📱 Luồng Kiến Trúc Hệ Thống (System Architecture)
+## Kiến trúc
 
 ```mermaid
-graph TD
-    User([Người dùng / Trình duyệt]) <--> ReactFE[React Frontend - Port 3000]
-    
-    subgraph Frontend Subsystems
-        ReactFE --> KanbanUI[Kanban Board CV Manager]
-        ReactFE --> AnalyticsUI[Admin Report Dashboard]
-        ReactFE --> AISearchFE[AI Search & Smart Matching]
-    end
+flowchart LR
+    UI["React UI\n:3000"] -->|"REST / JWT / Socket.IO"| GW["API Gateway\n:4000"]
+    GW --> Legacy["Backend legacy\n:5000"]
+    GW --> Identity["Identity\n:4001"]
+    GW --> Job["Job Core\n:4002"]
+    GW --> Search["Search\n:4003"]
+    GW --> Apps["Application\n:4004"]
+    GW --> Admin["Admin & Reporting\n:4006"]
 
-    ReactFE <-->|REST API / JWT| ExpressBE[Backend Express Monolith - Port 5000]
-    ReactFE <-->|WebSocket| SocketServer[Socket.IO Server - Port 5000]
+    Legacy --> MySQL[("MySQL / XAMPP")]
+    Job --> MySQL
+    Apps --> Postgres[("PostgreSQL")]
+    Identity --> Mongo[("MongoDB")]
+    Admin --> Mongo
+    Search --> ES[("Elasticsearch")]
 
-    subgraph Backend Core Services
-        ExpressBE --> MySQLDB[(MySQL Database)]
-        ExpressBE --> PDFParser[PDF CV Skill Parser]
-        ExpressBE --> Mailer[Nodemailer Notification]
-        ExpressBE --> Security[RateLimiter & RBAC Auth]
-    end
-
-    ExpressBE -->|Publish Events| RabbitMQ{RabbitMQ Message Broker}
-    
-    subgraph Microservices Architecture
-        RabbitMQ -->|Event Consumer| SearchService[Search Microservice]
-        SearchService <--> ElasticDB[(Elasticsearch Engine)]
-    end
+    Legacy --> MQ{"RabbitMQ"}
+    Job --> MQ
+    Apps --> MQ
+    MQ --> Search
+    MQ --> AI["AI Worker"]
+    MQ --> Notify["Notification\nEmail + Realtime\n:4005"]
+    MQ --> Admin
+    Notify --> MySQL
 ```
 
----
+### Các service
 
-## ⚡ Hướng Dẫn Cài Đặt & Chạy Dự Án
+| Service | Trách nhiệm |
+| --- | --- |
+| `api-gateway` | Cổng API duy nhất, xác thực JWT, RBAC, rate limit Redis, circuit breaker và proxy Socket.IO. |
+| `identity-service` | Hồ sơ và CV dạng dữ liệu ứng dụng. |
+| `job-core-service` | Ghi/cập nhật tin tuyển dụng, tác vụ AI và phát sự kiện. |
+| `search-service` | Đánh chỉ mục Elasticsearch, tìm kiếm và bộ lọc. |
+| `application-service` | Pipeline ứng tuyển, ghi chú, chấm điểm, talent pool và funnel. |
+| `notification-service` | Lưu thông báo, gửi email và đẩy sự kiện realtime qua backend legacy. |
+| `admin-service` | Báo cáo, master data và audit log. |
+| `ai-worker` | Xử lý tác vụ parse CV, matching, moderation và cover letter qua hàng đợi. |
 
-### Yêu Cầu Hệ Thống
-- **Node.js**: Bản LTS (v16 trở lên)
-- **Database**: MySQL / MariaDB (XAMPP / WampServer)
-- **Cổng mặc định**: Backend (`5000`), Frontend (`3000`)
+### Luồng thông báo kết quả tuyển dụng
 
----
+1. Nhà tuyển dụng mở hồ sơ tại `/admin/pipeline`.
+2. Chọn **Gửi trúng tuyển** hoặc **Gửi không trúng tuyển**, có thể thêm lời nhắn.
+3. `application-service` kiểm tra quyền theo công ty, cập nhật trạng thái và ghi lịch sử.
+4. Service phát sự kiện `application.decision_email_requested` qua RabbitMQ.
+5. `notification-service` lưu thông báo trong ứng dụng, gửi realtime nếu có thể và gửi email kết quả tới ứng viên.
 
-### Bước 1: Cấu hình môi trường (`.env`)
+> Email dùng địa chỉ được lưu trong hồ sơ tại thời điểm ứng tuyển; vì vậy việc ứng viên thay đổi hồ sơ sau đó không làm sai dữ liệu tuyển dụng lịch sử.
 
-Kiểm tra file `backend/.env` (Cấu hình mặc định thích hợp với XAMPP):
+## Công nghệ
+
+| Lớp | Công nghệ |
+| --- | --- |
+| Frontend | React 18, React Router, Axios, SCSS, React Toastify, Socket.IO Client, Chart.js/Recharts |
+| Backend legacy | Node.js, Express, Sequelize, MySQL, Socket.IO, JWT, Nodemailer |
+| Microservices | Node.js, Express, Docker Compose, RabbitMQ, Redis |
+| Data | MySQL, PostgreSQL, MongoDB, Elasticsearch |
+| Tích hợp | Gmail App Password, Cloudinary, PayPal Sandbox, Anthropic API (tùy chọn) |
+
+## Cấu trúc thư mục
+
+```text
+job_find/
+├── backend/                  # API legacy, Socket.IO, Sequelize/MySQL và nghiệp vụ cũ
+│   ├── src/
+│   └── scripts/              # Khôi phục và tạo dữ liệu mẫu
+├── frontend/                 # React UI
+│   └── src/
+│       ├── container/        # Trang public, candidate, employer và admin
+│       ├── components/       # Thành phần tái sử dụng và modal
+│       └── service/          # Lớp gọi API
+├── microservices/            # Docker Compose và các service tách riêng
+│   ├── api-gateway/
+│   ├── application-service/
+│   ├── notification-service/
+│   ├── search-service/
+│   └── shared/               # RabbitMQ, events và logger dùng chung
+└── database/                 # Dữ liệu MySQL mẫu
+```
+
+## Điều kiện chạy
+
+- Node.js 20+ (khuyến nghị Node.js 22)
+- Docker Desktop
+- XAMPP/MySQL với database `jobfindtest`
+- MySQL legacy chạy ở cổng `3333` theo cấu hình mặc định; nếu máy dùng cổng khác, cập nhật đồng thời `backend/.env` và `microservices/.env`.
+
+## Cài đặt và khởi chạy
+
+### 1. Cấu hình backend legacy
+
+Tạo/cập nhật `backend/.env`:
 
 ```env
+PORT=5000
 DB_HOST=127.0.0.1
-DB_PORT=3333        # Nếu dùng MySQL chuẩn đổi thành 3306
+DB_PORT=3333
 DB_NAME=jobfindtest
 DB_USER=root
 DB_PASSWORD=
-PORT=5000
+JWT_SECRET=thay-bang-khoa-rieng
+URL_REACT=http://localhost:3000
+RABBITMQ_URL=amqp://jobportal:jobportal@localhost:5673
+INTERNAL_SECRET=thay-bang-khoa-rieng
 ```
 
----
-
-### Bước 2: Nạp dữ liệu mẫu tự động đầy đủ
-
-Mở Terminal tại thư mục `backend` và chạy lệnh khôi phục dữ liệu mẫu:
+Khởi chạy XAMPP/MySQL, nạp database mẫu nếu cần, rồi chạy backend:
 
 ```powershell
 cd backend
 npm install
-$env:CONFIRM_RESTORE_SAMPLE_DATA='true'
-npm run restore:sample-data
-```
-
-> [!TIP]
-> Lệnh này sẽ tạo tự động DB `jobfindtest` gồm **38 tài khoản người dùng**, **41 bài đăng tuyển dụng**, **17 công ty**, lịch sử chat mẫu, đánh giá công ty và các file CV PDF thật.
-
----
-
-### Bước 3: Khởi chạy Backend API & Socket Server
-
-```powershell
-cd backend
 npm start
 ```
-*Server API và Socket.IO sẽ lắng nghe tại **`http://localhost:5000`**.*
 
----
+Backend và Socket.IO lắng nghe tại `http://localhost:5000`.
 
-### Bước 4: Khởi chạy Frontend Interface
+### 2. Cấu hình microservices
 
-Mở một cửa sổ Terminal mới:
+Sao chép `microservices/.env.example` thành `microservices/.env`, sau đó điền các giá trị phù hợp:
+
+```env
+MYSQL_HOST=host.docker.internal
+MYSQL_PORT=3333
+MYSQL_USER=root
+MYSQL_PASSWORD=
+MYSQL_DATABASE=jobfindtest
+JWT_SECRET=phai-trung-voi-backend
+LEGACY_URL=http://host.docker.internal:5000
+INTERNAL_SECRET=phai-trung-voi-backend
+CORS_ORIGIN=http://localhost:3000
+
+# Bắt buộc nếu muốn gửi email kết quả thật
+EMAIL_APP=your-address@gmail.com
+EMAIL_APP_PASSWORD=gmail-app-password-16-characters
+
+# Tùy chọn cho các tính năng AI
+ANTHROPIC_API_KEY=
+```
+
+Khởi chạy toàn bộ service:
+
+```powershell
+cd microservices
+npm install
+npm run up
+```
+
+Theo dõi trạng thái:
+
+```powershell
+npm run ps
+Invoke-RestMethod http://localhost:4000/status
+```
+
+### 3. Chạy frontend
+
+`frontend/.env` đã trỏ frontend qua Gateway:
+
+```env
+REACT_APP_BACKEND_URL=http://localhost:4000
+```
+
+Khởi chạy môi trường phát triển:
 
 ```powershell
 cd frontend
@@ -191,91 +218,64 @@ npm install
 npm start
 ```
 
-👉 TRUY CẬP ỨNG DỤNG TẠI: **`http://localhost:3000`**
+Mở `http://localhost:3000`.
 
----
-
-### Bước 5: (Tùy chọn) Chạy Microservice Tìm kiếm Elasticsearch
-
-Nếu bạn muốn chạy mô-đun Microservice Search:
+Tạo bản build production:
 
 ```powershell
-cd microservices/search-service
-npm install
-npm start
+npm run build
 ```
 
----
+## Các cổng sử dụng
 
-## 🔑 Bảng Tài Khoản Đăng Nhập Mẫu (Test Credentials)
+| Thành phần | Cổng |
+| --- | ---: |
+| Frontend React | 3000 |
+| Backend legacy + Socket.IO | 5000 |
+| API Gateway | 4000 |
+| MySQL/XAMPP | 3333 |
+| PostgreSQL | 5435 |
+| MongoDB | 27019 |
+| Elasticsearch | 9201 |
+| RabbitMQ AMQP / Management | 5673 / 15673 |
+| Redis | 6380 |
 
-> [!IMPORTANT]
-> **Tất cả các tài khoản trong dữ liệu mẫu đều dùng mật khẩu mặc định là: `123456`**
+## Kiểm tra nhanh
 
-### 🏢 1. Nhà Tuyển Dụng (Vào khu quản trị `/admin`)
+```powershell
+# Gateway và tình trạng mọi service
+Invoke-RestMethod http://localhost:4000/health
+Invoke-RestMethod http://localhost:4000/status
 
-| Số Điện Thoại | Họ Và Tên | Tên Công Ty | Số Tin Tuyển Dụng |
-| :--- | :--- | :--- | :---: |
-| `0764188023` | Nguyễn Văn A | Công ty TNHH CMC GLOBAL | 10 |
-| `0785095048` | Nguyễn Lê Tấn | Công ty CP Tập đoàn Hoa Sen | 5 |
-| `0795095042` | Nguyễn Văn Tài | Babilala | 2 |
-| `0795095038` | Nguyễn Lê Tấn Tài | Đất Xanh Miền Trung | 2 |
-| `0795095125` | Nguyễn Văn Lộc | Công ty TNHH Thế Giới | 2 |
-| `0795095222` | Trần Văn Nghĩa | Công ty CP Tấn Tài | 2 |
+# Kiểm tra frontend build
+cd frontend
+npm run build
 
-### 👨‍💻 2. Ứng Viên (Đăng nhập giao diện chính)
+# Smoke test microservices (dùng dữ liệu demo; có thể tạo rồi dọn bản ghi kiểm thử)
+cd ..\microservices
+npm run test:smoke
+```
 
-| Số Điện Thoại | Họ Và Tên | Số Kỹ Năng | CV Đã Nộp |
-| :--- | :--- | :---: | :---: |
-| `0764188123` | Trần Thị My | 8 | 1 |
-| `0795095768` | Nguyễn Lê Tấn Tài | 6 | 1 |
-| `0764088023` | Lê Thị Kim Ảnh | 5 | 1 |
-| `0795095789` | Trần Văn Kha | 4 | 1 |
+## Tài khoản demo
 
-### 🛡️ 3. Quản Trị Viên (Admin Hệ Thống)
+Mật khẩu dữ liệu demo: `123456`.
 
-| Số Điện Thoại | Họ Và Tên | Quyền Hạn |
-| :--- | :--- | :--- |
-| `0795095049` | Nguyễn Lê Tấn Tài | Full System Admin |
-| `0795095000` | Nguyễn Văn ADMIN | System Moderator |
+| Vai trò | Số điện thoại | Tên |
+| --- | --- | --- |
+| Nhà tuyển dụng | `0795095042` | Nguyễn Văn Tài |
+| Ứng viên | `0764188123` | Trần Thị My |
+| Quản trị viên | `0795095049` | Nguyễn Tuấn Thiền |
 
----
+## Bảo mật và vận hành
 
-## 💬 Hướng Dẫn Kiểm Thứ Tính Năng Chat Real-Time
+- Không commit `.env`, App Password Gmail, JWT secret, Cloudinary secret hoặc khóa AI.
+- API Gateway xóa các header định danh từ client trước khi gắn identity đã xác thực.
+- Các route ghi dữ liệu có rate limit; quyền truy cập pipeline được giới hạn theo công ty sở hữu hồ sơ.
+- Notification Service tách ba kênh: lưu CSDL, realtime và email. Lỗi một kênh không chặn các kênh còn lại.
+- Khi triển khai production, thay toàn bộ secret, đặt `CORS_ORIGIN` đúng domain và dùng tài khoản email chuyên dụng.
 
-1. **Trình duyệt 1 (Chế độ thường)**: 
-   - Đăng nhập **Ứng viên**: `0795095768` (Pass: `123456`).
-   - Vào mục **Việc làm** ➔ Chọn bài viết *"Lập trình viên Reactjs"* của **Babilala**.
-   - Bấm **"Nhắn tin cho nhà tuyển dụng"**.
-2. **Trình duyệt 2 (Chế độ Ẩn danh)**:
-   - Đăng nhập **Nhà tuyển dụng**: `0795095042` (Pass: `123456`).
-   - Vào mục **Tin nhắn** ở góc trái menu quản trị.
-3. **Trải nghiệm**: Tin nhắn, trạng thái **Online/Typing** và số tin nhắn chưa đọc sẽ được đồng bộ tức thì trên cả 2 màn hình!
+## Tài liệu chuyên sâu
 
----
-
-## 📊 Thống Kê Cơ Sở Dữ Liệu Demo
-
-| Thành Phần | Bản Ghi | Chi Tiết |
-| :--- | :---: | :--- |
-| **Người dùng** | `38` | Phân quyền 3 role: ADMIN, COMPANY, CANDIDATE |
-| **Công ty** | `17` | Đầy đủ thông tin thương hiệu & địa chỉ |
-| **Tin tuyển dụng** | `41` | Tin tuyển dụng chi tiết đa dạng ngành nghề |
-| **Hồ sơ CV** | `6` | File PDF thật, tự động chấm % khớp kỹ năng |
-| **Tin nhắn Chat** | `22` | Hội thoại thực tế giữa ứng viên & nhà tuyển dụng |
-| **Đánh giá Công ty** | `10` | Đánh giá số sao và nhận xét chi tiết |
-
----
-
-## 📝 Ghi Chú Phát Triển & Kiểm Thử
-
-- **Chạy Kiểm Thử Tự Động (Smoke Test)**:
-  ```powershell
-  cd backend
-  node scripts/smoke-test.js
-  ```
-- **Thanh toán PayPal Sandbox**: Tích hợp sẵn Client ID PayPal Sandbox trong file cấu hình.
-- **Gửi Email gợi ý việc làm**: Điền cấu hình `EMAIL_APP` / `EMAIL_APP_PASSWORD` trong `backend/.env` nếu muốn kích hoạt gửi mail thật.
-
----
-*Chúc bạn có trải nghiệm tuyệt vời với nền tảng **JobFind**!* 🚀
+- [Chi tiết kiến trúc microservices](microservices/README.md)
+- [Mã nguồn template email kết quả](microservices/notification-service/src/templates.js)
+- [Giao diện pipeline Kanban](frontend/src/container/system/Cv/KanbanBoard.js)
