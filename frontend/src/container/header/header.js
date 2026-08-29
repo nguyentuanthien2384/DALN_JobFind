@@ -128,7 +128,7 @@ const Header = () => {
         <>
             <header>
                 {/* <!-- Header Start --> */}
-                <div className="header-area header-transparrent">
+                <div className="header-area header-transparrent" data-testid="public-header-area">
                     <div className="headder-top header-sticky">
                         <div className="container">
                             <div className="row align-items-center">
@@ -168,7 +168,7 @@ const Header = () => {
                                                         </Link>
                                                     </li>
                                                     <li ref={notificationRef} className="nav-item" style={{ position: 'relative', marginRight: '10px' }}>
-                                                        <a style={{ color: '#252b60', fontSize: '18px', position: 'relative', cursor: 'pointer' }} onClick={() => setShowNotification(!showNotification)}>
+                                                        <a role="button" aria-label="Thông báo" style={{ color: '#252b60', fontSize: '18px', position: 'relative', cursor: 'pointer' }} onClick={() => setShowNotification(!showNotification)}>
                                                             <i className="far fa-bell"></i>
                                                             {unreadCount > 0 &&
                                                                 <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: '#fb246a', color: '#fff', borderRadius: '50%', fontSize: '10px', padding: '1px 5px' }}>{unreadCount}</span>

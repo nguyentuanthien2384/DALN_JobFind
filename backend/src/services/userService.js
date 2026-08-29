@@ -208,6 +208,11 @@ let banUser = (userId) => {
                             errCode: 0,
                             message: `Người dùng đã ngừng kích hoạt`
                         })
+                    } else {
+                        resolve({
+                            errCode: 2,
+                            errMessage: `Tài khoản người dùng không tồn tại`
+                        })
                     }
                 }
             }
@@ -252,6 +257,11 @@ let unbanUser = (userId) => {
                         resolve({
                             errCode: 0,
                             message: `Người dùng đã kích hoạt`
+                        })
+                    } else {
+                        resolve({
+                            errCode: 2,
+                            errMessage: `Tài khoản người dùng không tồn tại`
                         })
                     }
                 }
@@ -536,11 +546,15 @@ let handleChangePassword = (data) => {
                     where: { userId: data.id },
                     raw: false
                 })
-                if (await bcrypt.compareSync(data.oldpassword, account.password)) {
-                    if (account) {
-                        account.password = await hashUserPasswordFromBcrypt(data.password);
-                        await account.save();
-                    }
+                if (!account) {
+                    resolve({
+                        errCode: 3,
+                        errMessage: 'Tài khoản không tồn tại'
+                    })
+                }
+                else if (await bcrypt.compareSync(data.oldpassword, account.password)) {
+                    account.password = await hashUserPasswordFromBcrypt(data.password);
+                    await account.save();
                     resolve({
                         errCode: 0,
                         errMessage: 'ok'
@@ -632,7 +646,14 @@ let getDetailUserById = (userid) => {
                     raw: true,
                     nest: true
                 })
-                if (res.userAccountData.userSettingData.file) {
+                if (!res || !res.userAccountData) {
+                    resolve({
+                        errCode: 2,
+                        errMessage: 'Không tìm thấy người dùng'
+                    })
+                    return
+                }
+                if (res.userAccountData.userSettingData && res.userAccountData.userSettingData.file) {
                     res.userAccountData.userSettingData.file = new Buffer.from(res.userAccountData.userSettingData.file, 'base64').toString('binary');
                 }
                 let listSkills = await db.UserSkill.findAll({

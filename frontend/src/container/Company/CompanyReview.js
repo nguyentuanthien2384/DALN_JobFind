@@ -137,6 +137,8 @@ const CompanyReview = (props) => {
                         {[1, 2, 3, 4, 5].map((i) => (
                             <i
                                 key={i}
+                                role="button"
+                                aria-label={`${i} sao`}
                                 className={
                                     i <= star ? "fas fa-star" : "far fa-star"
                                 }

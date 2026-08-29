@@ -99,7 +99,7 @@ const DetailCompany = () => {
                             </div>
                         </div>
                         <div className="box-follow">
-                            <a className="btn btn-follow btn-primary-hover" style={{ marginRight: '8px', background: isFollow ? '#fff' : '#fb246a', color: isFollow ? '#fb246a' : '#fff', border: '1px solid #fb246a', cursor: 'pointer' }} onClick={() => handleToggleFollow()}>
+                            <a role="button" className="btn btn-follow btn-primary-hover" style={{ marginRight: '8px', background: isFollow ? '#fff' : '#fb246a', color: isFollow ? '#fb246a' : '#fff', border: '1px solid #fb246a', cursor: 'pointer' }} onClick={() => handleToggleFollow()}>
                                 <i className={isFollow ? "fas fa-bell" : "far fa-bell"} style={{ marginRight: '5px' }}></i>
                                 {isFollow ? 'Đang theo dõi' : 'Theo dõi'} ({countFollower})
                             </a>
@@ -211,7 +211,7 @@ const DetailCompany = () => {
                                     <div className="box-copy">
                                         <input id='mylink' type="text" defaultValue={window.location.href} className="url-copy" readOnly />
                                         <div className="btn-copy">
-                                            <button onClick={copyLink} className="btn-copy-url"><i className="fa-regular fa-copy" /></button>
+                                            <button aria-label="Sao chép đường dẫn" onClick={copyLink} className="btn-copy-url"><i className="fa-regular fa-copy" /></button>
                                         </div>
                                     </div>
                                     <p>Chia sẻ qua mạng xã hội</p>

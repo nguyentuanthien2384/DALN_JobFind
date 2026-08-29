@@ -6,12 +6,12 @@ const RightContent = (props) => {
     return (
         <>
                 {/* <!-- Featured_job_start --> */}
-                <section class="featured-job-area">
-                    <div class="container">
+                <section className="featured-job-area">
+                    <div className="container">
                         {/* <!-- Count of Job list Start --> */}
-                        <div class="row">
-                            <div class="col-lg-12">
-                                <div class="count-job mb-35">
+                        <div className="row">
+                            <div className="col-lg-12">
+                                <div className="count-job mb-35">
                                     <span>{props.count} công việc được tìm thấy</span>
                                     <Input.Search onSearch={props.handleSearch} className='mt-5' placeholder="Nhập tên bài đăng" allowClear enterButton="Tìm kiếm">
                                     
@@ -31,11 +31,11 @@ const RightContent = (props) => {
                                 </div>
                             </div>
                         </div>
-                        {props.post.map((data, index) => {
+                        {props.post.map((data) => {
                             return (
-                                <Link to={`/detail-job/${data.id}`}>
-                                    <div class="single-job-items mb-30">
-                                        <Job key={data.id} data={data} />
+                                <Link key={data.id} to={`/detail-job/${data.id}`}>
+                                    <div className="single-job-items mb-30">
+                                        <Job data={data} />
                                     </div>
                                 </Link>
                             )

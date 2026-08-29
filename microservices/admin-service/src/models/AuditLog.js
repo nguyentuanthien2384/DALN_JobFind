@@ -36,7 +36,10 @@ const auditLogSchema = new mongoose.Schema({
 
     payload: mongoose.Schema.Types.Mixed,
 
-    createdAt: { type: Date, default: Date.now, index: true }
+    // Index duoc khai bao ben duoi: mot index sap xep moi nhat va mot TTL.
+    // Khong dat `index: true` o day vi se tao trung index { createdAt: 1 }
+    // voi TTL index va Mongoose phat canh bao moi lan khoi dong.
+    createdAt: { type: Date, default: Date.now }
 });
 
 // Truy van hay dung nhat: "cho toi xem hoat dong gan day cua nguoi nay/cong ty nay".

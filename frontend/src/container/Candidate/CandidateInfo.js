@@ -294,6 +294,7 @@ const CandidateInfo = () => {
                                         </label>
                                         <div className="col-sm-9">
                                             <input
+                                                aria-label="Tải hình ảnh"
                                                 accept="image/*"
                                                 onChange={(event) =>
                                                     handleOnChangeImage(event)
@@ -311,6 +312,8 @@ const CandidateInfo = () => {
                                         </label>
                                         <div className="col-sm-9">
                                             <div
+                                                role="button"
+                                                aria-label="Xem ảnh đại diện"
                                                 style={{
                                                     backgroundImage: `url(${inputValues.imageReview})`,
                                                 }}

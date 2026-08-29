@@ -241,6 +241,8 @@ const KanbanBoard = () => {
                     {columns.map((col) => (
                         <div
                             key={col.stage}
+                            role="region"
+                            aria-label={col.label}
                             className={`kb-col ${dragOverStage === col.stage ? "over" : ""}`}
                             onDragOver={(e) => {
                                 e.preventDefault();
@@ -261,11 +263,20 @@ const KanbanBoard = () => {
                                 {col.items.map((item) => (
                                     <div
                                         key={item.id}
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-label={`Hồ sơ ${item.candidate_name || `Ứng viên #${item.candidate_id}`}`}
                                         className={`kb-card ${item.is_read ? "" : "unread"}`}
                                         draggable
                                         onDragStart={() => setDragging(item)}
                                         onDragEnd={() => setDragging(null)}
                                         onClick={() => openDetail(item.id)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === "Enter" || event.key === " ") {
+                                                event.preventDefault();
+                                                openDetail(item.id);
+                                            }
+                                        }}
                                     >
                                         <div className="kb-card-name">
                                             {item.candidate_name || `Ứng viên #${item.candidate_id}`}
@@ -287,7 +298,13 @@ const KanbanBoard = () => {
             )}
 
             {detail && (
-                <div className="kb-modal" onClick={() => setDetail(null)}>
+                <div
+                    className="kb-modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={`Chi tiết hồ sơ ${detail.candidate_name || `Ứng viên #${detail.candidate_id}`}`}
+                    onClick={() => setDetail(null)}
+                >
                     <div className="kb-modal-box" onClick={(e) => e.stopPropagation()}>
                         <div className="kb-modal-head">
                             <div>

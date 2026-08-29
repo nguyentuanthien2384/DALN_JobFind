@@ -26,6 +26,7 @@ const AutoRefreshInfo = ({ capNhatLuc, dangTai, onLamMoi }) => {
                 disabled={dangTai}
             >
                 <i
+                    title={dangTai ? "Đang tải" : "Sẵn sàng"}
                     className={
                         "fas fa-sync-alt" + (dangTai ? " dang-quay" : "")
                     }

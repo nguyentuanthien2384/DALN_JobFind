@@ -4,7 +4,8 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage",
     "start": "nodemon --exec ./node_modules/.bin/babel-node src/server.js",
     "test:smoke": "node scripts/smoke-test.js",
     "restore:sample-data": "node scripts/restore-sample-data.js",
@@ -13,7 +14,30 @@
   },
   "author": "bingo2706",
   "license": "ISC",
+  "jest": {
+    "testEnvironment": "node",
+    "clearMocks": true,
+    "collectCoverageFrom": [
+      "src/controllers/**/*.js",
+      "src/services/**/*.js",
+      "src/middlewares/**/*.js",
+      "src/utils/**/*.js",
+      "src/config/socket.js",
+      "src/routes/web.js",
+      "!src/utils/cloudinary.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageThreshold": {
+      "global": {
+        "statements": 90,
+        "branches": 85,
+        "functions": 90,
+        "lines": 90
+      }
+    }
+  },
   "dependencies": {
+    "amqplib": "^0.10.4",
     "body-parser": "^2.2.0",
     "dotenv": "^16.4.7",
     "ejs": "^3.1.10",
@@ -26,16 +50,17 @@
     "pdf.js-extract": "^0.2.1",
     "pdfjs-dist": "^5.1.91",
     "socket.io": "^4.8.3",
-    "xlsx": "^0.18.5",
-    "amqplib": "^0.10.4"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@babel/core": "^7.26.10",
     "@babel/node": "^7.26.0",
     "@babel/preset-env": "^7.26.9",
+    "babel-jest": "^30.5.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^2.6.0",
     "cors": "^2.8.5",
+    "jest": "^30.5.0",
     "mysql2": "^3.14.0",
     "nodemon": "^3.1.9",
     "sequelize": "^6.37.7",

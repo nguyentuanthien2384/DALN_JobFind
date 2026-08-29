@@ -11,8 +11,7 @@ const JobPage = () => {
     const [post, setPost] = useState([])
     const [count, setCount] = useState(0)
     const [numberPage, setNumberPage] = useState('')
-    const [offset, setOffset] = useState(0)
-    const [limit, setLimit] = useState(PAGINATION.pagerow)
+    const limit = PAGINATION.pagerow
 
     const [workType, setWorkType] = useState([])
     const [jobType, setJobType] = useState('')
@@ -47,27 +46,27 @@ const JobPage = () => {
     }
     const recieveWorkType = (data) => {
         setWorkType(prev => {
-            let isCheck = workType.includes(data)
+            let isCheck = prev.includes(data)
             if (isCheck)
-                return workType.filter(item => item !== data)
+                return prev.filter(item => item !== data)
             else
                 return [...prev, data]
         })
     }
     const recieveSalary = (data) => {
         setSalary(prev => {
-            let isCheck = salary.includes(data)
+            let isCheck = prev.includes(data)
             if (isCheck)
-                return salary.filter(item => item !== data)
+                return prev.filter(item => item !== data)
             else
                 return [...prev, data]
         })
     }
     const recieveExp = (data) => {
         setExp(prev => {
-            let isCheck = exp.includes(data)
+            let isCheck = prev.includes(data)
             if (isCheck)
-                return exp.filter(item => item !== data)
+                return prev.filter(item => item !== data)
             else
                 return [...prev, data]
         })
@@ -77,9 +76,9 @@ const JobPage = () => {
     }
     const recieveJobLevel = (data) => {
         setJobLevel(prev => {
-            let isCheck = jobLevel.includes(data)
+            let isCheck = prev.includes(data)
             if (isCheck)
-                return jobLevel.filter(item => item !== data)
+                return prev.filter(item => item !== data)
             else
                 return [...prev, data]
         })
@@ -103,18 +102,16 @@ const JobPage = () => {
             let arrData = await getListPostService(params)
             if (arrData && arrData.errCode === 0) {
                 setNumberPage(0)
-                setOffset(0)
                 setPost(arrData.data)
                 setCountPage(Math.ceil(arrData.count / limit))
                 setCount(arrData.count)
             }
         }
         filterdata()
-    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search])
+    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit])
     const handleChangePage = (number) => {
         setNumberPage(number.selected)
         loadPost(limit, number.selected * limit)
-        setOffset(number.selected * limit)
     }
     return (
         <>
@@ -122,14 +119,14 @@ const JobPage = () => {
             <main>
 
                 {/* <!-- Hero Area Start--> */}
-                <div class="slider-area ">
-                    <div class="single-slider section-overly slider-height2 d-flex align-items-center" style={{
+                <div className="slider-area ">
+                    <div className="single-slider section-overly slider-height2 d-flex align-items-center" style={{
                         backgroundImage: `url("assets/img/hero/about.jpg")`
                     }}>
-                        <div class="container">
-                            <div class="row">
-                                <div class="col-xl-12">
-                                    <div class="hero-cap text-center">
+                        <div className="container">
+                            <div className="row">
+                                <div className="col-xl-12">
+                                    <div className="hero-cap text-center">
                                         <h2>Tìm việc</h2>
                                     </div>
                                 </div>
@@ -139,19 +136,19 @@ const JobPage = () => {
                 </div>
                 {/* <!-- Hero Area End -->
         <!-- Job List Area Start --> */}
-                <div class="job-listing-area pt-120 pb-120">
-                    <div class="container">
-                        <div class="row">
+                <div className="job-listing-area pt-120 pb-120">
+                    <div className="container">
+                        <div className="row">
                             {/* <!-- Left content --> */}
-                            <div class="col-xl-3 col-lg-3 col-md-4">
-                                <div class="row">
-                                    <div class="col-12">
-                                        <div class="small-section-tittle2 mb-45">
-                                            <div class="ion"> <svg
+                            <div className="col-xl-3 col-lg-3 col-md-4">
+                                <div className="row">
+                                    <div className="col-12">
+                                        <div className="small-section-tittle2 mb-45">
+                                            <div className="ion"> <svg
                                                 xmlns="http://www.w3.org/2000/svg"
                                                 xmlnsXlink="http://www.w3.org/1999/xlink"
                                                 width="20px" height="12px">
-                                                <path fill-rule="evenodd" fill="rgb(27, 207, 107)"
+                                                <path fillRule="evenodd" fill="rgb(27, 207, 107)"
                                                     d="M7.778,12.000 L12.222,12.000 L12.222,10.000 L7.778,10.000 L7.778,12.000 ZM-0.000,-0.000 L-0.000,2.000 L20.000,2.000 L20.000,-0.000 L-0.000,-0.000 ZM3.333,7.000 L16.667,7.000 L16.667,5.000 L3.333,5.000 L3.333,7.000 Z" />
                                             </svg>
                                             </div>
@@ -166,7 +163,7 @@ const JobPage = () => {
                                 {/* <!-- Job Category Listing End --> */}
                             </div>
                             {/* <!-- Right content --> */}
-                            <div class="col-xl-9 col-lg-9 col-md-8">
+                            <div className="col-xl-9 col-lg-9 col-md-8">
                             <RightContent handleSearch={handleSearch} count={count} post={post} />
                             <ReactPaginate
                             forcePage={numberPage}

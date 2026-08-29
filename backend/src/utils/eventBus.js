@@ -105,9 +105,13 @@ const loadJob = async (postId) => {
 
 /** Tin tuyen dung vua duoc tao. */
 export const emitJobCreated = async (postId) => {
-    const job = await loadJob(postId);
-    if (!job) return;
-    await publish('job.created', { job });
+    try {
+        const job = await loadJob(postId);
+        if (!job) return;
+        await publish('job.created', { job });
+    } catch (error) {
+        log('khong tai duoc tin de phat job.created', error.message);
+    }
 };
 
 /**
@@ -116,15 +120,20 @@ export const emitJobCreated = async (postId) => {
  * bi tu choi phai bien khoi ket qua tim kiem ngay lap tuc.
  */
 export const emitJobUpdated = async (postId) => {
-    const job = await loadJob(postId);
-    if (!job) return;
-    await publish('job.updated', { job });
+    try {
+        const job = await loadJob(postId);
+        if (!job) return;
+        await publish('job.updated', { job });
+    } catch (error) {
+        log('khong tai duoc tin de phat job.updated', error.message);
+    }
 };
 
 /** Ung vien vua nop CV. */
 export const emitApplicationSubmitted = async (cvId) => {
-    const [rows] = await db.sequelize.query(
-        `SELECT cv.id AS cvId, cv.userId AS candidateId, cv.postId AS jobId,
+    try {
+        const [rows] = await db.sequelize.query(
+            `SELECT cv.id AS cvId, cv.userId AS candidateId, cv.postId AS jobId,
                 cv.description, cv.createdAt,
                 u.firstName, u.lastName, u.email,
                 a.phonenumber,
@@ -139,24 +148,27 @@ export const emitApplicationSubmitted = async (cvId) => {
          LEFT JOIN detailposts d ON d.id = p.detailPostId
          LEFT JOIN users owner ON owner.id = p.userId
          WHERE cv.id = :cvId`,
-        { replacements: { cvId }, type: db.sequelize.QueryTypes.SELECT }
-    );
-    const row = Array.isArray(rows) ? rows[0] : rows;
-    if (!row || row.companyId === null || row.companyId === undefined) return;
+            { replacements: { cvId }, type: db.sequelize.QueryTypes.SELECT }
+        );
+        const row = Array.isArray(rows) ? rows[0] : rows;
+        if (!row || row.companyId === null || row.companyId === undefined) return;
 
-    await publish('application.submitted', {
-        cvId: row.cvId,
-        jobId: row.jobId,
-        jobTitle: row.jobTitle,
-        candidateId: row.candidateId,
-        candidateName: [row.firstName, row.lastName].filter(Boolean).join(' ') || null,
-        candidateEmail: row.email,
-        candidatePhone: row.phonenumber,
-        companyId: row.companyId,
-        posterId: row.posterId,
-        coverLetter: row.description,
-        appliedAt: row.createdAt
-    });
+        await publish('application.submitted', {
+            cvId: row.cvId,
+            jobId: row.jobId,
+            jobTitle: row.jobTitle,
+            candidateId: row.candidateId,
+            candidateName: [row.firstName, row.lastName].filter(Boolean).join(' ') || null,
+            candidateEmail: row.email,
+            candidatePhone: row.phonenumber,
+            companyId: row.companyId,
+            posterId: row.posterId,
+            coverLetter: row.description,
+            appliedAt: row.createdAt
+        });
+    } catch (error) {
+        log('khong tai duoc CV de phat application.submitted', error.message);
+    }
 };
 
 export default { emitJobCreated, emitJobUpdated, emitApplicationSubmitted };

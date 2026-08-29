@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { useFetchAllcode } from '../../../util/fetch'
 const LeftBar = (props) => {
     const { data: dataJobType } = useFetchAllcode('JOBTYPE')
@@ -8,7 +8,6 @@ const LeftBar = (props) => {
     const { data: dataWorkType } = useFetchAllcode('WORKTYPE')
     const { data: dataJobLocation } = useFetchAllcode('PROVINCE')
 
-    const [check, setCheck] = useState()
     return (
         <>
             <div className="job-category-listing mb-50">
@@ -131,4 +130,3 @@ const LeftBar = (props) => {
 }
 
 export default LeftBar
-

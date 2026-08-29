@@ -282,13 +282,14 @@ let handleBanCompany = (companyId) => {
                         errCode: 2,
                         errMessage: `Công ty không tồn tại`
                     })
+                } else {
+                    foundCompany.statusCode = 'S2'
+                    await foundCompany.save()
+                    resolve({
+                        errCode: 0,
+                        message: `Đã dừng hoạt động công ty`
+                    })
                 }
-                foundCompany.statusCode = 'S2'
-                await foundCompany.save()
-                resolve({
-                    errCode: 0,
-                    message: `Đã dừng hoạt động công ty`
-                })
             }
 
         } catch (error) {

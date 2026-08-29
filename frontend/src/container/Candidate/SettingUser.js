@@ -297,7 +297,7 @@ const SettingUser = () => {
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">Bật tìm việc</label>
                                         <div className="col-sm-9 mt-3">
-                                            <input name="isFindJob" onChange={handleOnChangeCheckBox} checked={inputValues.isFindJob} type="checkbox"></input>
+                                            <input aria-label="Bật tìm việc" name="isFindJob" onChange={handleOnChangeCheckBox} checked={inputValues.isFindJob} type="checkbox"></input>
                                         </div>
                                     </div>
                                 </div>
@@ -307,7 +307,7 @@ const SettingUser = () => {
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">Nhận mail công việc</label>
                                         <div className="col-sm-9 mt-3">
-                                            <input name="isTakeMail" onChange={handleOnChangeCheckBox} checked={inputValues.isTakeMail} type="checkbox"></input>
+                                            <input aria-label="Nhận mail công việc" name="isTakeMail" onChange={handleOnChangeCheckBox} checked={inputValues.isTakeMail} type="checkbox"></input>
                                         </div>
                                     </div>
                                 </div>
@@ -317,7 +317,7 @@ const SettingUser = () => {
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">CV gửi lên</label>
                                         <div className="col-sm-9">
-                                        <input  onChange={(event) => handleOnChangeFile(event)} accept='.pdf' type="file" className="form-control form-file" />
+                                        <input aria-label="Tải CV" onChange={(event) => handleOnChangeFile(event)} accept='.pdf' type="file" className="form-control form-file" />
                                         </div>
                                     </div>
                                 </div>
@@ -327,7 +327,7 @@ const SettingUser = () => {
                                 <div className="col-md-12">
                                     <div className="form-group row">
                                         
-                                        <iframe width={'100%'} height={'700px'} src={inputValues.file}></iframe>
+                                        <iframe title="CV đã tải" width={'100%'} height={'700px'} src={inputValues.file}></iframe>
                                     </div>
                                 </div>
                             }

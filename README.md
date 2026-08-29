@@ -242,6 +242,26 @@ npm run build
 
 ## Kiểm tra nhanh
 
+### Unit test
+
+Từ thư mục gốc, chạy toàn bộ unit test backend, frontend và microservices:
+
+```powershell
+npm test
+```
+
+Chạy kèm báo cáo coverage:
+
+```powershell
+npm run test:coverage
+```
+
+Có thể chạy riêng từng phần bằng `npm run test:backend`, `npm run test:frontend`
+hoặc `npm run test:microservices`. Các unit test mock toàn bộ dịch vụ ngoài như cơ sở
+dữ liệu, RabbitMQ, Redis, Elasticsearch, SMTP và AI nên không cần khởi động Docker/XAMPP.
+
+### Smoke test và build
+
 ```powershell
 # Gateway và tình trạng mọi service
 Invoke-RestMethod http://localhost:4000/health

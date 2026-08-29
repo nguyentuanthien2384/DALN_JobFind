@@ -265,6 +265,7 @@ let getStatisticalCv = (data) => {
                     errCode: 1,
                     errMessage: 'Missing required parameters !'
                 })
+                return
             }
             let company = await db.Company.findOne({
                 where: { id: data.companyId }

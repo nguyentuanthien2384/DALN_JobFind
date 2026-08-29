@@ -1,0 +1,181 @@
+import React from "react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { disconnectSocket, getSocket } from "../../socket";
+import {
+    getListChatConversationService,
+    getNotificationByUserService,
+    markReadNotificationService,
+} from "../../service/userService";
+import Header from "./Header";
+import Menu from "./Menu";
+
+let mockPathname = "/admin/";
+const socket = { on: jest.fn(), off: jest.fn() };
+
+jest.mock("react-router-dom", () => {
+    const React = require("react");
+    return {
+        Link: ({ to, children, onClick, ...props }) => (
+            <a
+                href={typeof to === "string" ? to : "#"}
+                onClick={(event) => { event.preventDefault(); if (onClick) onClick(event); }}
+                {...props}
+            >{children}</a>
+        ),
+        useLocation: () => ({ pathname: mockPathname }),
+    };
+});
+jest.mock("../../socket", () => ({
+    disconnectSocket: jest.fn(),
+    getSocket: jest.fn(),
+}));
+jest.mock("../../service/userService", () => ({
+    getListChatConversationService: jest.fn(),
+    getNotificationByUserService: jest.fn(),
+    markReadNotificationService: jest.fn(),
+}));
+
+describe("system Menu", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        localStorage.clear();
+        mockPathname = "/admin/";
+        getSocket.mockReturnValue(socket);
+        getListChatConversationService.mockResolvedValue({ errCode: 0, totalUnread: 3 });
+    });
+
+    it("shows only the admin groups, opens the current group and refreshes unread chat", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
+        mockPathname = "/admin/list-user/";
+        const { unmount } = render(<Menu />);
+
+        expect(await screen.findByText("3")).toBeInTheDocument();
+        expect(screen.getByText("Quản lý người dùng").closest("a")).toHaveAttribute("aria-expanded", "true");
+        expect(screen.getByRole("link", { name: "Danh sách người dùng" })).toHaveClass("active");
+        expect(screen.getByText("Quản lý gói bài đăng")).toBeInTheDocument();
+        expect(screen.queryByText("Tạo mới công ty")).not.toBeInTheDocument();
+        expect(getListChatConversationService).toHaveBeenCalledTimes(1);
+        expect(socket.on).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+
+        await act(async () => socket.on.mock.calls[0][1]());
+        expect(getListChatConversationService).toHaveBeenCalledTimes(2);
+        unmount();
+        expect(socket.off).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+    });
+
+    it("applies employer permissions based on company membership", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 2, roleCode: "EMPLOYER" }));
+        const { unmount } = render(<Menu />);
+        expect(await screen.findByText("Tạo mới công ty")).toBeInTheDocument();
+        expect(screen.queryByText("Tạo mới bài đăng")).not.toBeInTheDocument();
+        unmount();
+
+        localStorage.setItem("userData", JSON.stringify({ id: 2, roleCode: "EMPLOYER", companyId: 9 }));
+        render(<Menu />);
+        expect(await screen.findByText("Tạo mới bài đăng")).toBeInTheDocument();
+        expect(screen.getByText("Quy trình tuyển dụng")).toBeInTheDocument();
+        expect(screen.queryByText("Mua thêm lượt đăng bài")).not.toBeInTheDocument();
+    });
+
+    it("keeps exactly one accordion group open and closes it from the home/chat links", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 3, roleCode: "COMPANY", companyId: 5 }));
+        render(<Menu />);
+        const company = await screen.findByText("Quản lý công ty");
+        const post = screen.getByText("Quản lý bài đăng");
+
+        fireEvent.click(company);
+        expect(company.closest("a")).toHaveAttribute("aria-expanded", "true");
+        fireEvent.click(post);
+        expect(company.closest("a")).toHaveAttribute("aria-expanded", "false");
+        expect(post.closest("a")).toHaveAttribute("aria-expanded", "true");
+        fireEvent.click(screen.getByRole("link", { name: "Trang chủ" }));
+        expect(post.closest("a")).toHaveAttribute("aria-expanded", "false");
+    });
+});
+
+describe("system Header", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        localStorage.clear();
+        document.body.className = "";
+        localStorage.setItem("userData", JSON.stringify({ id: 7, image: "/avatar.png" }));
+        getSocket.mockReturnValue(socket);
+        getNotificationByUserService.mockResolvedValue({
+            errCode: 0,
+            unreadCount: 2,
+            data: [
+                { id: 11, content: "Có CV mới", isChecked: 0 },
+                { id: 12, content: "Tin đã đọc", isChecked: 1 },
+            ],
+        });
+        markReadNotificationService.mockResolvedValue({ errCode: 0 });
+        window.matchMedia.mockImplementation((query) => ({
+            matches: false,
+            media: query,
+            addListener: jest.fn(),
+            removeListener: jest.fn(),
+            addEventListener: jest.fn(),
+            removeEventListener: jest.fn(),
+            dispatchEvent: jest.fn(),
+        }));
+    });
+
+    it("loads notifications, handles realtime refresh and marks all as read", async () => {
+        const { unmount } = render(<Header />);
+        expect(await screen.findByText("2")).toBeInTheDocument();
+        expect(getNotificationByUserService).toHaveBeenCalledWith({ userId: 7, limit: 10, offset: 0 });
+        expect(socket.on).toHaveBeenCalledWith("notification:new", expect.any(Function));
+
+        await act(async () => socket.on.mock.calls[0][1]());
+        expect(getNotificationByUserService).toHaveBeenCalledTimes(2);
+        fireEvent.click(screen.getByRole("button", { name: "Thông báo" }));
+        expect(screen.getByText("Có CV mới")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Đọc tất cả" }));
+        await waitFor(() => expect(markReadNotificationService).toHaveBeenCalledWith({ userId: 7 }));
+        await waitFor(() => expect(screen.queryByRole("button", { name: "Đọc tất cả" })).not.toBeInTheDocument());
+
+        unmount();
+        expect(socket.off).toHaveBeenCalledWith("notification:new", expect.any(Function));
+    });
+
+    it("marks one notification, decrements safely and closes the popup", async () => {
+        render(<Header />);
+        await screen.findByText("2");
+        fireEvent.click(screen.getByRole("button", { name: "Thông báo" }));
+        fireEvent.click(screen.getByText("Có CV mới"));
+        await waitFor(() => expect(markReadNotificationService).toHaveBeenCalledWith({ userId: 7, id: 11 }));
+        await waitFor(() => expect(screen.queryByText("Có CV mới")).not.toBeInTheDocument());
+        expect(screen.getByText("1")).toBeInTheDocument();
+    });
+
+    it("closes notifications on outside click and toggles desktop/mobile sidebar state", async () => {
+        render(<Header />);
+        await screen.findByText("2");
+        fireEvent.click(screen.getByRole("button", { name: "Thông báo" }));
+        expect(screen.getByText("Có CV mới")).toBeInTheDocument();
+        fireEvent.mouseDown(document.body);
+        expect(screen.queryByText("Có CV mới")).not.toBeInTheDocument();
+
+        const sidebarButton = screen.getByRole("button", { name: "Thu gọn thanh menu" });
+        fireEvent.click(sidebarButton);
+        expect(document.body).toHaveClass("sidebar-icon-only");
+        expect(screen.getByRole("button", { name: "Mở thanh menu" })).toHaveAttribute("aria-expanded", "false");
+
+        window.matchMedia.mockImplementationOnce(() => ({ matches: true }));
+        fireEvent.click(screen.getByRole("button", { name: "Mở thanh menu" }));
+        expect(document.body).not.toHaveClass("sidebar-icon-only");
+        expect(document.body).toHaveClass("sidebar-hidden");
+    });
+
+    it("disconnects and clears both authentication values on logout", async () => {
+        localStorage.setItem("token_user", "token");
+        const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+        render(<Header />);
+        await screen.findByAltText("profile");
+        fireEvent.click(screen.getByText("Đăng xuất"));
+        expect(disconnectSocket).toHaveBeenCalledTimes(1);
+        expect(localStorage.getItem("userData")).toBeNull();
+        expect(localStorage.getItem("token_user")).toBeNull();
+        consoleError.mockRestore();
+    });
+});

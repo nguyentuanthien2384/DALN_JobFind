@@ -1,37 +1,59 @@
-    import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { Modal, ModalHeader, ModalFooter, ModalBody, Button, Spinner } from 'reactstrap';
+import { Modal, ModalFooter, ModalBody, Button, Spinner } from 'reactstrap';
 import { createNewCv } from '../../service/cvService';
 import { getDetailUserById } from '../../service/userService';
 import CommonUtils from '../../util/CommonUtils';
 import './modal.css'
+
+const dataURLtoFile = (dataurl, filename) => {
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const bytes = new Uint8Array(n);
+
+    while (n--) {
+        bytes[n] = bstr.charCodeAt(n);
+    }
+
+    return new File([bytes], filename, { type: mime });
+};
+
 function SendCvModal(props) {
-    const userData = JSON.parse(localStorage.getItem('userData'));
     const [isLoading, setIsLoading] = useState(false)
     const [inputValue, setInputValue] = useState({
         userId: '', postId: '', file: '', description: '', linkFile: '', linkFileUser: '', fileUser: ''
     })
     const [typeCv,setTypeCv] = useState('pcCv')
-    let getFileCv= async(id) => {
-        let res = await getDetailUserById(id)
-        setInputValue({
-            ...inputValue,
-            ["userId"]: id,
-            ["postId"]: props.postId,
-            ['linkFileUser']: res.data.userAccountData.userSettingData.file ? URL.createObjectURL(dataURLtoFile(res.data.userAccountData.userSettingData.file,'yourCV')) : '',
-            ['fileUser'] : res.data.userAccountData.userSettingData.file ? res.data.userAccountData.userSettingData.file : ''
-        })
-    }
     useEffect(() => {
-        if (userData)
-        getFileCv(userData.id)
-    }, [])
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (!userData) return undefined;
+
+        let isMounted = true;
+        const getFileCv = async () => {
+            const res = await getDetailUserById(userData.id);
+            if (!isMounted) return;
+            const savedFile = res?.data?.userAccountData?.userSettingData?.file || '';
+            setInputValue((current) => ({
+                ...current,
+                userId: userData.id,
+                postId: props.postId,
+                linkFileUser: savedFile ? URL.createObjectURL(dataURLtoFile(savedFile, 'yourCV')) : '',
+                fileUser: savedFile,
+            }));
+        };
+        getFileCv();
+        return () => {
+            isMounted = false;
+        };
+    }, [props.postId])
     const handleChange = (event) => {
         const { name, value } = event.target
-        setInputValue({
-            ...inputValue,
+        setInputValue((current) => ({
+            ...current,
             [name]: value
-        })
+        }))
     }
 
     const radioOnChange = (e) => {
@@ -44,21 +66,6 @@ function SendCvModal(props) {
         }
     }
 
-    let dataURLtoFile = (dataurl, filename) => {
- 
-        var arr = dataurl.split(','),
-            mime = arr[0].match(/:(.*?);/)[1],
-            bstr = atob(arr[1]), 
-            n = bstr.length, 
-            u8arr = new Uint8Array(n);
-            
-        while(n--){
-            u8arr[n] = bstr.charCodeAt(n);
-        }
-        
-        return new File([u8arr], filename, {type:mime});
-    }
-
     const handleOnChangeFile = async (event) => {
         let data = event.target.files;
         let file = data[0];
@@ -69,11 +76,11 @@ function SendCvModal(props) {
                 return
             }
             let base64 = await CommonUtils.getBase64(file);
-            setInputValue({
-                ...inputValue,
-                ["file"]: base64,
-                ["linkFile"]: URL.createObjectURL(file)
-            })
+            setInputValue((current) => ({
+                ...current,
+                file: base64,
+                linkFile: URL.createObjectURL(file)
+            }))
         }
     }
     const handleSendCV = async () => {
@@ -94,10 +101,10 @@ function SendCvModal(props) {
         setTimeout(function () {
             setIsLoading(false)
             if (kq.errCode === 0) {
-                setInputValue({
-                    ...inputValue,
-                    ["file"]: '', ["description"]: '', ["linkFile"]: ''
-                })
+                setInputValue((current) => ({
+                    ...current,
+                    file: '', description: '', linkFile: ''
+                }))
                 toast.success("Đã gửi thành công")
                 props.onHide()
             }
@@ -118,25 +125,25 @@ function SendCvModal(props) {
                     name='description' className='mt-2' style={{ width: "100%" }} rows='5' onChange={(event) => handleChange(event)}></textarea>
                     <div className='d-flex' style={{justifyContent:'space-between'}}>
                         <div>
-                        <input onChange={radioOnChange} type="radio" checked={typeCv === 'pcCv'} value="pcCv" name="typeCV"></input>
-                        <label className='ml-2'>Tự chọn CV</label>
+                        <input id="cv-from-device" onChange={radioOnChange} type="radio" checked={typeCv === 'pcCv'} value="pcCv" name="typeCV"></input>
+                        <label htmlFor="cv-from-device" className='ml-2'>Tự chọn CV</label>
                         </div>
                         <div>
-                        <input onChange={radioOnChange} type="radio" checked={typeCv === 'userCv'} value="userCv" name="typeCV"></input>
-                        <label className='ml-2'>CV online</label>
+                        <input id="cv-online" onChange={radioOnChange} type="radio" checked={typeCv === 'userCv'} value="userCv" name="typeCV"></input>
+                        <label htmlFor="cv-online" className='ml-2'>CV online</label>
                         </div>
                     </div>
                     {
                         typeCv === 'pcCv' &&
-                        <input type="file" className='mt-2' accept='.pdf'
+                        <input type="file" aria-label="Chọn tệp CV" className='mt-2' accept='.pdf'
                         onChange={(event) => handleOnChangeFile(event)}></input>
 
                     }
                     {
-                        typeCv === 'pcCv' && inputValue.linkFile && <div><a href={inputValue.linkFile} style={{ color: 'blue' }} target='_blank'>Nhấn vào đây để xem lại CV của bạn </a></div>
+                        typeCv === 'pcCv' && inputValue.linkFile && <div><a href={inputValue.linkFile} style={{ color: 'blue' }} target='_blank' rel='noreferrer'>Nhấn vào đây để xem lại CV của bạn </a></div>
                     }
                                         {
-                        typeCv === 'userCv' && inputValue.linkFileUser && <div><a href={inputValue.linkFileUser} style={{ color: 'blue' }} target='_blank'>Nhấn vào đây để xem lại CV của bạn </a></div>
+                        typeCv === 'userCv' && inputValue.linkFileUser && <div><a href={inputValue.linkFileUser} style={{ color: 'blue' }} target='_blank' rel='noreferrer'>Nhấn vào đây để xem lại CV của bạn </a></div>
                     }
                     </div>
                 </ModalBody>
@@ -146,10 +153,10 @@ function SendCvModal(props) {
                     </Button>
 
                     <Button onClick={() => {
-                        setInputValue({
-                            ...inputValue,
-                            ["file"]: '', ["description"]: '', ["linkFile"] : ''
-                        })
+                        setInputValue((current) => ({
+                            ...current,
+                            file: '', description: '', linkFile: ''
+                        }))
                         props.onHide()
                     }}>
                         Hủy
@@ -157,7 +164,7 @@ function SendCvModal(props) {
                 </ModalFooter>
 
                 {isLoading &&
-                    <Modal isOpen='true' centered contentClassName='closeBorder' >
+                    <Modal isOpen centered contentClassName='closeBorder' >
 
                         <div style={{
                             position: 'absolute', right: '50%',
