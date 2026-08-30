@@ -207,6 +207,7 @@ describe("CompanyReview", () => {
     it("requires login and records the current URL before redirecting", async () => {
         jest.useFakeTimers();
         render(<CompanyReview companyId="42" />);
+        await screen.findByText("Đồng nghiệp thân thiện");
         fireEvent.change(screen.getByPlaceholderText(/Chia sẻ cảm nhận/), {
             target: { value: "Rất tốt" },
         });

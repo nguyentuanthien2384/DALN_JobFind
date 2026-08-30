@@ -548,7 +548,7 @@ let getDetailCompanyById = (id) => {
                     })
                     if (company.file)
                     {
-                        company.file = new Buffer(company.file, 'base64').toString('binary')
+                        company.file = Buffer.from(company.file, 'base64').toString('binary')
                     }
                     resolve({
                         errCode: 0,
@@ -595,7 +595,7 @@ let getDetailCompanyByUserId = (data) => {
                 }
                 else {
                     if (company.file) {
-                        company.file = new Buffer(company.file,'base64').toString('binary')
+                        company.file = Buffer.from(company.file, 'base64').toString('binary')
                     }
                     resolve({
                         errCode: 0,

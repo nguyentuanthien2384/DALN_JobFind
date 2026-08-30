@@ -22,8 +22,11 @@
       "src/services/**/*.js",
       "src/middlewares/**/*.js",
       "src/utils/**/*.js",
+      "src/config/connectDB.js",
       "src/config/socket.js",
+      "src/config/viewEngine.js",
       "src/routes/web.js",
+      "src/server.js",
       "!src/utils/cloudinary.js"
     ],
     "coverageDirectory": "coverage",

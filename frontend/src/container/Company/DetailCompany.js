@@ -118,7 +118,7 @@ const DetailCompany = () => {
                             <div className="company-info box-white">
                                 <h4 className="title">Giới thiệu công ty</h4>
                                 <div className="box-body">
-                                    <p dangerouslySetInnerHTML={{ __html: dataCompany.descriptionHTML }}></p>
+                                    <div dangerouslySetInnerHTML={{ __html: dataCompany.descriptionHTML }}></div>
                                 </div>
                             </div>
                             <div className="job-listing box-white">
@@ -127,8 +127,8 @@ const DetailCompany = () => {
                                     {dataCompany && dataCompany.postData && dataCompany.postData.length > 0 &&
                                         dataCompany.postData.map((item, index) => {
                                             return (
-                                                <Link to={`/detail-job/${item.id}`} className="company-logo">
-                                                <div key={index} className="job-item  job-ta result-job-hover">
+                                                <Link key={item.id || index} to={`/detail-job/${item.id}`} className="company-logo">
+                                                <div className="job-item  job-ta result-job-hover">
                                                     <div className="avatar">
                                                             <img src={dataCompany.thumbnail} className="w-100" alt="Công ty Cổ phần Tập đoàn Hoa Sen" title="Nhân Viên Tuyển Dụng - Đào Tạo" />
                                                     </div>
@@ -136,17 +136,17 @@ const DetailCompany = () => {
                                                         <div className="content">
                                                             <div className="ml-auto">
                                                                 <h4 className="title-job">
-                                                                    <Link className="underline-box-job" to={`/detail-job/${item.id}`}>
-                                                                        <span className="bold transform-job-title" data-toggle="tooltip" title data-placement="top" data-container="body" data-original-title="Nhân Viên Tuyển Dụng - Đào Tạo">{item.postDetailData.name}</span>
-                                                                        <i className="fa-solid fa-circle-check" data-toggle="tooltip" title data-placement="top" data-container="body" data-original-title="Tin từ nhà tuyển dụng đã xác thực" />
-                                                                    </Link>
+                                                                    <span className="underline-box-job">
+                                                                        <span className="bold transform-job-title" data-toggle="tooltip" title={item.postDetailData.name} data-placement="top" data-container="body" data-original-title="Nhân Viên Tuyển Dụng - Đào Tạo">{item.postDetailData.name}</span>
+                                                                        <i className="fa-solid fa-circle-check" data-toggle="tooltip" title="Tin từ nhà tuyển dụng đã xác thực" data-placement="top" data-container="body" data-original-title="Tin từ nhà tuyển dụng đã xác thực" />
+                                                                    </span>
                                                                 </h4>
                                                             </div>
                                                             <div style={{minWidth:'100px'}} className="mr-auto text-right">
                                                                 <p className="deadline">
 
                                                                     {CommonUtils.formatDate(item.timeEnd) <= 0 ?
-                                                                        <div>Hết hạn ứng tuyển</div> : <div>Còn <strong>{CommonUtils.formatDate(item.timeEnd)}</strong> ngày</div>
+                                                                        <span>Hết hạn ứng tuyển</span> : <span>Còn <strong>{CommonUtils.formatDate(item.timeEnd)}</strong> ngày</span>
                                                                     }
                                                                 </p>
                                                             </div>
@@ -154,7 +154,7 @@ const DetailCompany = () => {
                                                         <div style={{margin:"10px 0"}} className="d-flex">
                                                             <div className="label-content ml-auto">
                                                                 <label className="salary">{item.postDetailData.salaryTypePostData.value}</label>
-                                                                <label style={{margin:"0px 10px"}} className="address" data-toggle="tooltip" title data-placement="top" data-container="body" data-original-title="Hà Nam">{item.postDetailData.provincePostData.value}</label>
+                                                                <label style={{margin:"0px 10px"}} className="address" data-toggle="tooltip" title={item.postDetailData.provincePostData.value} data-placement="top" data-container="body" data-original-title="Hà Nam">{item.postDetailData.provincePostData.value}</label>
                                                                 <label className="time">{moment(item.createdAt).fromNow()}</label>
                                                             </div>
                                                             {/* <div className="icon mr-auto">

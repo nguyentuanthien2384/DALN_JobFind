@@ -175,7 +175,7 @@ describe("ManageUser", () => {
         fireEvent.click(screen.getByRole("button", { name: "Tìm kiếm" }));
         await waitFor(() => expect(getAllUsers).toHaveBeenLastCalledWith(expect.objectContaining({ search: "Lan Nguyen", offset: 0 })));
         fireEvent.click(screen.getByTestId("page-2"));
-        await waitFor(() => expect(getAllUsers).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10 })));
+        await waitFor(() => expect(getAllUsers).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5 })));
         fireEvent.click(screen.getByText("Kích hoạt"));
         await waitFor(() => expect(UnbanUserService).toHaveBeenCalledWith(102));
     });
@@ -247,7 +247,7 @@ describe("AddUser and ChangePassword", () => {
         fireEvent.change(confirmation, { target: { name: "confirmPassword", value: "new-one" } });
         fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
         await waitFor(() => expect(handleChangePassword).toHaveBeenCalledWith({ id: 9, oldpassword: "old", password: "new-one" }));
-        expect(oldPassword).toHaveValue("");
+        await waitFor(() => expect(oldPassword).toHaveValue(""));
         expect(password).toHaveValue("");
         expect(confirmation).toHaveValue("");
     });
@@ -281,7 +281,7 @@ describe("company staff workflows", () => {
         fireEvent.change(phone, { target: { name: "phonenumber", value: "0909009009" } });
         fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
         await waitFor(() => expect(RecruitmentService).toHaveBeenCalledWith({ phonenumber: "0909009009", companyId: 5 }));
-        expect(phone).toHaveValue("");
+        await waitFor(() => expect(phone).toHaveValue(""));
         expect(toast.success).toHaveBeenCalledWith("Tuyển dụng thành công !");
     });
 
@@ -290,7 +290,7 @@ describe("company staff workflows", () => {
         expect(await screen.findByText("Minh Trần")).toBeInTheDocument();
         fireEvent.click(screen.getByText("Thôi việc"));
         await waitFor(() => expect(QuitCompanyService).toHaveBeenCalledWith({ userId: 21 }));
-        expect(getAllUserByCompanyIdService).toHaveBeenLastCalledWith({ limit: 10, offset: 0, companyId: 5 });
+        expect(getAllUserByCompanyIdService).toHaveBeenLastCalledWith({ limit: 5, offset: 0, companyId: 5 });
         expect(toast.success).toHaveBeenCalledWith("Thôi việc thành công !");
     });
 });

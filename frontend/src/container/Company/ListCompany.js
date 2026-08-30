@@ -70,15 +70,15 @@ const ListCompany = () => {
                                         </Link>
                                         <div className='company-logo'>
                                             <Link to={`/detail-company/${item.id}`}>
-                                                <img class="img-fluid" src={item.thumbnail} alt="Công ty Cổ phần Tập đoàn Hoa Sen" />
+                                                <img className="img-fluid" src={item.thumbnail} alt="Công ty Cổ phần Tập đoàn Hoa Sen" />
                                             </Link>
                                         </div>
                                     </div>
-                                    <div class="company-info">
+                                    <div className="company-info">
                                         <h3>
-                                            <Link to={`/detail-company/${item.id}`} class="company-name" >{item.name}</Link>
+                                            <Link to={`/detail-company/${item.id}`} className="company-name" >{item.name}</Link>
                                         </h3>
-                                        <div class="company-description">
+                                        <div className="company-description">
                                             <p dangerouslySetInnerHTML={{ __html: item.descriptionHTML }}></p>
                                         </div>
                                     </div>
