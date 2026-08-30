@@ -50,7 +50,7 @@ const reset = () => {
 
 describe.each(configs)('$label service', (config) => {
   const { service, packageModel, orderModel } = config;
-  const validPackage = () => ({ id: 3, name: 'Gold', price: 10, value: 4, isHot: 0 });
+  const validPackage = () => ({ id: 3, name: 'Gold', price: 10, value: 4, isHot: 0, isActive: 1 });
 
   beforeEach(reset);
 
@@ -88,10 +88,10 @@ describe.each(configs)('$label service', (config) => {
     packageModel.findAll.mockResolvedValue(['p']);
     if (config.isPost) {
       expect(await service.getPackageByType({ isHot: 0 })).toEqual({ errCode: 0, data: ['p'] });
-      expect(packageModel.findAll).toHaveBeenCalledWith({ where: { isHot: 0 } });
+      expect(packageModel.findAll).toHaveBeenCalledWith({ where: { isHot: 0, isActive: 1 } });
     } else {
       expect(await service.getAllToSelect({})).toEqual({ errCode: 0, data: ['p'] });
-      expect(packageModel.findAll).toHaveBeenCalledWith();
+      expect(packageModel.findAll).toHaveBeenCalledWith({ where: { isActive: 1 } });
     }
   });
 
@@ -102,11 +102,21 @@ describe.each(configs)('$label service', (config) => {
     }));
     expect(await service.getPaymentLink({ id: 3, amount: '2' })).toEqual({ errCode: 0, link: 'https://approve' });
     expect(mockPaypal.payment.create).toHaveBeenCalledWith(expect.objectContaining({
-      intent: 'sale', transactions: [expect.objectContaining({ amount: { currency: 'USD', total: 20 } })]
+      intent: 'sale',
+      redirect_urls: expect.objectContaining({
+        return_url: expect.stringMatching(/^[^,]+\/admin\/payment(?:Cv)?\/success$/),
+        cancel_url: expect.stringMatching(/^[^,]+\/admin\/payment(?:Cv)?\/cancel$/)
+      }),
+      transactions: [expect.objectContaining({ amount: { currency: 'USD', total: 20 } })]
     }), expect.any(Function));
 
     mockPaypal.payment.create.mockImplementationOnce((payload, callback) => callback(new Error('paypal')));
     expect((await service.getPaymentLink({ id: 3, amount: 2 })).errCode).toBe(-1);
+
+    packageModel.findOne.mockResolvedValueOnce(null);
+    expect((await service.getPaymentLink({ id: 99, amount: 1 })).errCode).toBe(2);
+    packageModel.findOne.mockResolvedValueOnce({ ...validPackage(), isActive: 0 });
+    expect((await service.getPaymentLink({ id: 3, amount: 1 })).errCode).toBe(2);
   });
 
   test('records a successful payment and grants the purchased company allowance', async () => {
@@ -144,11 +154,24 @@ describe.each(configs)('$label service', (config) => {
 
   test('returns provider execution errors without writing purchase history', async () => {
     packageModel.findOne.mockResolvedValue(validPackage());
+    mockDb.User.findOne.mockResolvedValue({ id: 8, companyId: 9 });
+    mockDb.Company.findOne.mockResolvedValue({ id: 9 });
     mockPaypal.payment.execute.mockImplementation((id, payload, callback) => callback(new Error('declined')));
     const args = { PayerID: 'p', paymentId: 'id', token: 't', amount: 1, userId: 8, [config.packageIdKey]: 3 };
     const result = await service.paymentOrderSuccess(args);
-    expect(result.errCode).toBe(0);
+    expect(result.errCode).toBe(-1);
     expect(orderModel.create).not.toHaveBeenCalled();
+  });
+
+  test('rejects a missing package or purchaser company before executing payment', async () => {
+    packageModel.findOne.mockResolvedValueOnce(null);
+    const args = { PayerID: 'p', paymentId: 'id', token: 't', amount: 1, userId: 8, [config.packageIdKey]: 3 };
+    expect((await service.paymentOrderSuccess(args)).errCode).toBe(2);
+
+    packageModel.findOne.mockResolvedValueOnce(validPackage());
+    mockDb.User.findOne.mockResolvedValueOnce({ id: 8, companyId: null });
+    expect((await service.paymentOrderSuccess(args)).errCode).toBe(2);
+    expect(mockPaypal.payment.execute).not.toHaveBeenCalled();
   });
 
   test('activates/deactivates existing packages and reports missing packages', async () => {

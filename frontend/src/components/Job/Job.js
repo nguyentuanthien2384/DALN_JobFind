@@ -22,7 +22,7 @@ const Job = (props) => {
                 </div>
             </div>
             <div className="items-link items-link2 f-right">
-                <a className='my-font' href="job_details.html">{props.data.postDetailData.workTypePostData.value}</a>
+                <span className='my-font'>{props.data.postDetailData.workTypePostData.value}</span>
                 <span style={{ position: 'absolute', right: '70px' }}>{handleSplitTime(props.data.timePost)}</span>
             </div>
 

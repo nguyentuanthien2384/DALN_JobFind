@@ -2,7 +2,12 @@ import companyReviewService from "../services/companyReviewService";
 
 let handleCreateReview = async (req, res) => {
     try {
-        let data = await companyReviewService.handleCreateReview(req.body);
+        // The authenticated account is always the author. Trusting body.userId
+        // allowed a caller to create or overwrite another user's review.
+        let data = await companyReviewService.handleCreateReview({
+            ...req.body,
+            userId: req.user.id
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -28,7 +33,12 @@ let getReviewByCompany = async (req, res) => {
 
 let handleDeleteReview = async (req, res) => {
     try {
-        let data = await companyReviewService.handleDeleteReview(req.body);
+        // The service still checks owner/admin permissions, but the identity it
+        // checks must come from the verified token rather than the request body.
+        let data = await companyReviewService.handleDeleteReview({
+            ...req.body,
+            userId: req.user.id
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

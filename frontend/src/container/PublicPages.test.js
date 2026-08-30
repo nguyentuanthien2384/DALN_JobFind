@@ -1,8 +1,9 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import About from "./About/About";
 import HomeCandidate from "./Candidate/HomeCandidate";
-import Contact from "./Contact/Contact";
+import Contact, { createSupportDraftUrl } from "./Contact/Contact";
 import Footer from "./footer/Footer";
 import NotFound from "./NotFound/NotFound";
 
@@ -41,35 +42,111 @@ const renderInRouter = (ui, initialEntry = "/") => {
 };
 
 describe("public static pages", () => {
-    it("renders the about content and login call to action", () => {
-        // This legacy template still uses HTML `class` attributes. Suppress React's known
-        // development-only diagnostic while verifying the rendered public content.
-        const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
-        renderInRouter(<About />);
+    const originalContactEmail = process.env.REACT_APP_CONTACT_EMAIL;
 
-        expect(screen.getByRole("heading", { name: "Thông tin về tôi" })).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "Tham gia ngay" })).toHaveAttribute(
-            "href",
-            "/login"
-        );
-        expect(screen.getByRole("heading", { name: "1. Search a job" })).toBeInTheDocument();
-        expect(screen.getByRole("heading", { name: "2. Apply for job" })).toBeInTheDocument();
-        expect(screen.getByRole("heading", { name: "3. Get your job" })).toBeInTheDocument();
-        consoleError.mockRestore();
+    beforeEach(() => {
+        delete process.env.REACT_APP_CONTACT_EMAIL;
     });
 
-    it("renders every contact field and published contact details", () => {
-        const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+    afterAll(() => {
+        if (originalContactEmail === undefined) {
+            delete process.env.REACT_APP_CONTACT_EMAIL;
+        } else {
+            process.env.REACT_APP_CONTACT_EMAIL = originalContactEmail;
+        }
+    });
+
+    it("renders JobFind's real about content and working calls to action", () => {
+        renderInRouter(<About />);
+
+        expect(screen.getByRole("heading", { name: "Về JobFind" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Tạo tài khoản" })).toHaveAttribute(
+            "href",
+            "/register"
+        );
+        expect(screen.getByRole("heading", { name: "1. Tìm công việc" })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "2. Hoàn thiện hồ sơ" })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "3. Theo dõi ứng tuyển" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Hoàn thiện hồ sơ" })).toHaveAttribute(
+            "href",
+            "/candidate/info"
+        );
+        expect(screen.queryByText(/Mollit|Margaret Lawson|FEATURED TOURS/i)).not.toBeInTheDocument();
+    });
+
+    it("renders an honest support form and existing support channel", () => {
         render(<Contact />);
 
-        expect(screen.getByRole("heading", { name: "Contact us" })).toBeInTheDocument();
-        expect(screen.getByPlaceholderText("Enter Message")).toHaveAttribute("name", "message");
-        expect(screen.getByPlaceholderText("Enter your name")).toHaveAttribute("name", "name");
-        expect(screen.getByPlaceholderText("Email")).toHaveAttribute("type", "email");
-        expect(screen.getByPlaceholderText("Enter Subject")).toHaveAttribute("name", "subject");
-        expect(screen.getByRole("button", { name: "Send" })).toHaveAttribute("type", "submit");
-        expect(screen.getByText("support@colorlib.com")).toBeInTheDocument();
-        consoleError.mockRestore();
+        expect(screen.getByRole("heading", { name: "Liên hệ JobFind" })).toBeInTheDocument();
+        expect(screen.getByLabelText("Nội dung")).toHaveAttribute("name", "message");
+        expect(screen.getByLabelText("Chủ đề")).toHaveAttribute("name", "subject");
+        expect(screen.getByRole("button", { name: "Chuẩn bị yêu cầu" })).toHaveAttribute(
+            "type",
+            "submit"
+        );
+        expect(screen.getByRole("link", { name: "Kho mã JobFind" })).toHaveAttribute(
+            "href",
+            "https://github.com/nguyentuanthien2384/DALN_JobFind"
+        );
+        expect(screen.queryByText("support@colorlib.com")).not.toBeInTheDocument();
+        expect(screen.queryByLabelText("Email phản hồi")).not.toBeInTheDocument();
+    });
+
+    it("validates every required contact field before creating a draft", async () => {
+        const user = userEvent.setup();
+        render(<Contact />);
+
+        await user.click(screen.getByRole("button", { name: "Chuẩn bị yêu cầu" }));
+
+        expect(screen.getAllByRole("alert")).toHaveLength(2);
+        expect(screen.queryByRole("link", { name: /Mở yêu cầu hỗ trợ/ })).not.toBeInTheDocument();
+    });
+
+    it("creates an encoded GitHub support draft when contact email is not configured", async () => {
+        const user = userEvent.setup();
+        render(<Contact />);
+
+        await user.type(screen.getByLabelText("Chủ đề"), "Không đăng nhập được");
+        await user.type(screen.getByLabelText("Nội dung"), "Tôi nhận được thông báo không hợp lệ.");
+        await user.click(screen.getByRole("button", { name: "Chuẩn bị yêu cầu" }));
+
+        const supportLink = screen.getByRole("link", {
+            name: "Mở yêu cầu hỗ trợ trên GitHub",
+        });
+        expect(supportLink.href).toContain(
+            "github.com/nguyentuanthien2384/DALN_JobFind/issues/new"
+        );
+        expect(decodeURIComponent(supportLink.href)).toContain(
+            "[JobFind] Không đăng nhập được"
+        );
+        expect(decodeURIComponent(supportLink.href)).not.toContain("Email phản hồi:");
+    });
+
+    it("collects reply details when a deployment configures its support email", () => {
+        process.env.REACT_APP_CONTACT_EMAIL = "help@example.com";
+        render(<Contact />);
+
+        expect(screen.getByLabelText("Họ tên")).toBeRequired();
+        expect(screen.getByLabelText("Email phản hồi")).toBeRequired();
+        expect(screen.getByRole("link", { name: "help@example.com" })).toHaveAttribute(
+            "href",
+            "mailto:help@example.com"
+        );
+    });
+
+    it("builds a mail draft when a deployment configures its support email", () => {
+        const draftUrl = createSupportDraftUrl(
+            {
+                name: "Nguyễn Văn A",
+                email: "user@example.com",
+                subject: "Cần hỗ trợ",
+                message: "Nội dung yêu cầu",
+            },
+            "help@example.com"
+        );
+
+        expect(draftUrl).toMatch(/^mailto:help@example\.com\?/);
+        expect(decodeURIComponent(draftUrl)).toContain("subject=[JobFind] Cần hỗ trợ");
     });
 
     it("renders the footer attribution and external social destination", () => {
@@ -77,6 +154,7 @@ describe("public static pages", () => {
 
         expect(screen.getByText(/Thiền NT/)).toBeInTheDocument();
         expect(document.querySelector('a[href="https://www.facebook.com/ahitvzed/"]')).toBeTruthy();
+        expect(document.querySelector('a[href="#"]')).toBeNull();
     });
 
     it("offers a working home link from the not-found page", () => {

@@ -56,7 +56,11 @@ let getPaymentLink = async (req, res) => {
 
 let paymentOrderSuccess = async (req, res) => {
     try {
-        let data = await packageService.paymentOrderSuccess(req.body);
+        // Never let a PayPal callback credit a user selected by the client.
+        let data = await packageService.paymentOrderSuccess({
+            ...req.body,
+            userId: req.user.id
+        });
         // Mua goi thanh cong -> bang doanh thu goi xem ung vien cua admin doi ngay.
         if (data.errCode === 0) emitDashboardChanged('payment-cv');
         return res.status(200).json(data);
@@ -123,7 +127,11 @@ let getStatisticalPackageCv = async (req, res) => {
 
 let getHistoryTrade = async (req, res) => {
     try {
-        let data = await packageService.getHistoryTrade(req.query);
+        const isAdmin = req.user?.userAccountData?.roleCode === 'ADMIN';
+        let data = await packageService.getHistoryTrade({
+            ...req.query,
+            companyId: isAdmin ? req.query.companyId : req.user.companyId
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

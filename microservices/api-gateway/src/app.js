@@ -9,13 +9,25 @@ import { createProxy, getBreakerStats } from './middlewares/proxy.js';
 import { optionalAuth, requireAuth, requireRole } from './middlewares/auth.js';
 import { createRateLimiter } from './middlewares/rateLimit.js';
 import { auditMiddleware } from './middlewares/audit.js';
+import {
+    applySocketCorsHeaders,
+    createSocketUpgradeHandler,
+    mountLoginRateLimit,
+    parseAllowedOrigins,
+    parseTrustedProxies
+} from './libs/security.js';
 
 const logger = createLogger('api-gateway');
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
+const allowedOrigins = parseAllowedOrigins(process.env.CORS_ORIGIN);
+
+// Mac dinh false: bo qua hoan toan X-Forwarded-For do client tu gui. Neu co
+// reverse proxy, TRUST_PROXY phai la IP/CIDR cu the cua proxy do.
+app.set('trust proxy', parseTrustedProxies(process.env.TRUST_PROXY));
 
 app.use(cors({
-    origin: (process.env.CORS_ORIGIN || 'http://localhost:3000').split(','),
+    origin: allowedOrigins,
     credentials: true
 }));
 // Socket.IO phai duoc chuyen tiep TRUOC express.json().
@@ -32,7 +44,10 @@ const socketProxy = createProxyMiddleware({
     target: process.env.LEGACY_URL || 'http://host.docker.internal:5000',
     changeOrigin: true,
     ws: true,
-    pathFilter: '/socket.io/**'
+    pathFilter: '/socket.io/**',
+    on: {
+        proxyRes: (proxyRes, req) => applySocketCorsHeaders(proxyRes, req, allowedOrigins)
+    }
 });
 app.use(socketProxy);
 
@@ -75,6 +90,10 @@ const publicLimiter = createRateLimiter({ name: 'public', windowSeconds: 60, max
 const writeLimiter = createRateLimiter({ name: 'write', windowSeconds: 60, max: 30 });
 // AI ton kem nen siet chat hon han cac API thuong.
 const aiLimiter = createRateLimiter({ name: 'ai', windowSeconds: 3600, max: 30 });
+
+// Route nay tiep tuc roi xuong proxy legacy o cuoi file sau khi vuot qua limiter.
+// Dat rieng tai day de moi IP co toi da 10 lan dang nhap that bai / 15 phut.
+mountLoginRateLimit(app, loginLimiter);
 
 // ===================== GIAM SAT =====================
 app.get('/health', (req, res) => {
@@ -158,7 +177,11 @@ app.use((err, req, res, next) => {
 // Tu tao http server thay vi dung app.listen(): can bat su kien 'upgrade' de
 // WebSocket bat tay duoc: Express khong xu ly su kien nay.
 const server = http.createServer(app);
-server.on('upgrade', socketProxy.upgrade);
+server.on('upgrade', createSocketUpgradeHandler({
+    allowedOrigins,
+    upgrade: socketProxy.upgrade,
+    logger
+}));
 
 server.listen(PORT, () => {
     logger.info(`API Gateway dang chay tren cong ${PORT}`);

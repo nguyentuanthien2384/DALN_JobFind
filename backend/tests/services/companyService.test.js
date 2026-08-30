@@ -185,18 +185,47 @@ describe('companyService', () => {
     });
   });
 
-  test('quitting transfers posts to the company owner and demotes the company owner role', async () => {
+  test('a company owner can dismiss only an employee of their own company', async () => {
+    const request = {
+      requesterUserId: 8, requesterCompanyId: 4, requesterRoleCode: 'COMPANY', targetUserId: 7
+    };
     mockDb.User.findOne.mockResolvedValueOnce(null);
-    expect((await service.handleQuitCompany({ userId: 7 })).errCode).toBe(2);
+    expect((await service.handleQuitCompany(request)).errCode).toBe(2);
     const user = { id: 7, companyId: 4, save: jest.fn() };
-    const account = { roleCode: 'COMPANY', save: jest.fn() };
     mockDb.User.findOne.mockResolvedValueOnce(user);
-    mockDb.Account.findOne.mockResolvedValueOnce(account);
     mockDb.Company.findOne.mockResolvedValueOnce({ id: 4, userId: 8 });
-    expect((await service.handleQuitCompany({ userId: 7 })).errCode).toBe(0);
+    expect((await service.handleQuitCompany(request)).errCode).toBe(0);
     expect(mockDb.Post.update).toHaveBeenCalledWith({ userId: 8 }, { where: { userId: 7 } });
     expect(user.companyId).toBeNull();
-    expect(account.roleCode).toBe('EMPLOYER');
+  });
+
+  test('company exit cannot target another company or orphan its owner', async () => {
+    const ownerRequest = {
+      requesterUserId: 8, requesterCompanyId: 4, requesterRoleCode: 'COMPANY', targetUserId: 7
+    };
+    mockDb.User.findOne.mockResolvedValueOnce({ id: 7, companyId: 9, save: jest.fn() });
+    expect((await service.handleQuitCompany(ownerRequest)).errCode).toBe(3);
+
+    expect((await service.handleQuitCompany({ ...ownerRequest, targetUserId: 8 })).errCode).toBe(3);
+
+    mockDb.User.findOne.mockResolvedValueOnce({ id: 7, companyId: 4, save: jest.fn() });
+    mockDb.Company.findOne.mockResolvedValueOnce({ id: 4, userId: 7 });
+    expect((await service.handleQuitCompany(ownerRequest)).errCode).toBe(3);
+    expect(mockDb.Post.update).not.toHaveBeenCalled();
+  });
+
+  test('an employee may leave only as their authenticated self', async () => {
+    const user = { id: 7, companyId: 4, save: jest.fn() };
+    mockDb.User.findOne.mockResolvedValueOnce(user);
+    mockDb.Company.findOne.mockResolvedValueOnce({ id: 4, userId: 8 });
+    const result = await service.handleQuitCompany({
+      requesterUserId: 7,
+      requesterCompanyId: 4,
+      requesterRoleCode: 'EMPLOYER',
+      targetUserId: 999
+    });
+    expect(result.errCode).toBe(0);
+    expect(mockDb.User.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 7 } }));
   });
 
   test('public functions propagate unexpected database failures', async () => {
@@ -210,7 +239,9 @@ describe('companyService', () => {
       ['getDetailCompanyById', 4, mockDb.Company, 'findOne'],
       ['getDetailCompanyByUserId', { userId: 'null', companyId: 4 }, mockDb.Company, 'findOne'],
       ['getAllUserByCompanyId', { companyId: 4, limit: 1, offset: 0 }, mockDb.User, 'findAndCountAll'],
-      ['handleQuitCompany', { userId: 7 }, mockDb.User, 'findOne'],
+      ['handleQuitCompany', {
+        requesterUserId: 8, requesterCompanyId: 4, requesterRoleCode: 'COMPANY', targetUserId: 7
+      }, mockDb.User, 'findOne'],
       ['getAllCompanyByAdmin', { limit: 1, offset: 0 }, mockDb.Company, 'findAndCountAll'],
       ['handleAccecptCompany', { companyId: 4 }, mockDb.Company, 'findOne']
     ];

@@ -218,6 +218,24 @@ describe('Redis rate limiter', () => {
         expect(next).toHaveBeenCalledOnce();
     });
 
+    it('isolates anonymous clients by the trusted req.ip and ignores spoofed headers', async () => {
+        redis.handlers.ready();
+        redis.incr.mockResolvedValue(1);
+        const limiter = createRateLimiter({ name: 'login', windowSeconds: 900, max: 10 });
+
+        await limiter(makeReq({
+            ip: '203.0.113.10',
+            headers: { 'x-forwarded-for': '198.51.100.99' }
+        }), makeRes(), vi.fn());
+        await limiter(makeReq({
+            ip: '203.0.113.11',
+            headers: { 'x-forwarded-for': '198.51.100.99' }
+        }), makeRes(), vi.fn());
+
+        expect(redis.incr).toHaveBeenNthCalledWith(1, 'ratelimit:login:ip:203.0.113.10');
+        expect(redis.incr).toHaveBeenNthCalledWith(2, 'ratelimit:login:ip:203.0.113.11');
+    });
+
     it('returns 429 with a retry delay after the limit', async () => {
         redis.handlers.ready();
         redis.incr.mockResolvedValue(4);
@@ -250,6 +268,94 @@ describe('Redis rate limiter', () => {
         redis.quit.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('closed'));
         await expect(closeRedis()).resolves.toBeUndefined();
         await expect(closeRedis()).resolves.toBeUndefined();
+    });
+});
+
+describe('gateway HTTP and WebSocket security configuration', () => {
+    it('normalizes and deduplicates a comma-separated CORS origin list', async () => {
+        const { isOriginAllowed, parseAllowedOrigins } = await import('../api-gateway/src/libs/security.js');
+        expect(parseAllowedOrigins(' http://localhost:3000/, https://jobs.example.com ,http://localhost:3000 '))
+            .toEqual(['http://localhost:3000', 'https://jobs.example.com']);
+        expect(() => parseAllowedOrigins('*')).toThrow(/khong duoc dung/);
+        expect(() => parseAllowedOrigins('file:///tmp/app')).toThrow(/khong hop le/);
+        expect(isOriginAllowed('not a URL', ['http://localhost:3000'])).toBe(false);
+    });
+
+    it('keeps forwarded IP headers disabled unless exact trusted proxies are configured', async () => {
+        const { parseTrustedProxies } = await import('../api-gateway/src/libs/security.js');
+        expect(parseTrustedProxies()).toBe(false);
+        expect(parseTrustedProxies(' loopback, 172.18.0.10/32 '))
+            .toEqual(['loopback', '172.18.0.10/32']);
+        for (const unsafe of ['true', '*', 'all', '1', '0.0.0.0/0', '::/0']) {
+            expect(() => parseTrustedProxies(unsafe)).toThrow(/khong an toan/);
+        }
+    });
+
+    it('mounts the login limiter on POST /api/login', async () => {
+        const { mountLoginRateLimit } = await import('../api-gateway/src/libs/security.js');
+        const app = { post: vi.fn() };
+        const limiter = vi.fn();
+        mountLoginRateLimit(app, limiter);
+        expect(app.post).toHaveBeenCalledWith('/api/login', limiter);
+    });
+
+    it('allows configured/missing Socket origins and rejects foreign websites', async () => {
+        const { createSocketUpgradeHandler } = await import('../api-gateway/src/libs/security.js');
+        const upgrade = vi.fn();
+        const logger = { warn: vi.fn() };
+        const handler = createSocketUpgradeHandler({
+            allowedOrigins: ['http://localhost:3000', 'https://jobs.example.com'],
+            upgrade,
+            logger
+        });
+        const allowedSocket = { write: vi.fn(), destroy: vi.fn() };
+        handler({ headers: { origin: 'https://jobs.example.com/' } }, allowedSocket, 'head-a');
+        handler({ headers: {} }, allowedSocket, 'head-b');
+        expect(upgrade).toHaveBeenCalledTimes(2);
+        expect(allowedSocket.destroy).not.toHaveBeenCalled();
+
+        const deniedSocket = { write: vi.fn(), destroy: vi.fn() };
+        handler({ headers: { origin: 'https://evil.example' } }, deniedSocket, 'head-c');
+        expect(deniedSocket.write).toHaveBeenCalledWith(expect.stringContaining('403 Forbidden'));
+        expect(deniedSocket.destroy).toHaveBeenCalledOnce();
+        expect(logger.warn).toHaveBeenCalledWith(expect.any(String), { origin: 'https://evil.example' });
+        expect(upgrade).toHaveBeenCalledTimes(2);
+
+        const alreadyClosed = {
+            write: vi.fn(() => { throw new Error('closed'); }),
+            destroy: vi.fn()
+        };
+        expect(() => handler({ headers: { origin: 'https://evil.example' } }, alreadyClosed, 'head-d'))
+            .not.toThrow();
+        expect(alreadyClosed.destroy).toHaveBeenCalledOnce();
+    });
+
+    it('returns one valid CORS origin for proxied Socket polling responses', async () => {
+        const { applySocketCorsHeaders } = await import('../api-gateway/src/libs/security.js');
+        const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001'];
+        const response = { headers: {
+            'access-control-allow-origin': 'http://localhost:3000,http://localhost:3001',
+            'access-control-allow-credentials': 'true',
+            vary: 'Accept-Encoding'
+        } };
+        applySocketCorsHeaders(response, {
+            headers: { origin: 'http://localhost:3001/' }
+        }, allowedOrigins);
+        expect(response.headers).toMatchObject({
+            'access-control-allow-origin': 'http://localhost:3001',
+            'access-control-allow-credentials': 'true',
+            vary: 'Accept-Encoding, Origin'
+        });
+
+        const denied = { headers: {
+            'access-control-allow-origin': 'http://localhost:3000,http://localhost:3001',
+            'access-control-allow-credentials': 'true'
+        } };
+        applySocketCorsHeaders(denied, {
+            headers: { origin: 'https://evil.example' }
+        }, allowedOrigins);
+        expect(denied.headers['access-control-allow-origin']).toBeUndefined();
+        expect(denied.headers['access-control-allow-credentials']).toBeUndefined();
     });
 });
 

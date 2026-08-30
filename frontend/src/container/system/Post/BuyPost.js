@@ -2,13 +2,12 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { getPackageByType, getPaymentLink } from "../../../service/userService";
 import { toast } from "react-toastify";
-import { useNavigate, useParams } from "react-router-dom";
 import { Spinner, Modal } from "reactstrap";
 const BuyPost = () => {
-    const history = useNavigate();
     const [inputValues, setInputValues] = useState({
         amount: 1,
         packageId: "",
+        isHot: 0,
     });
     const [isLoading, setIsLoading] = useState(false);
     const [dataPackage, setDataPackage] = useState([]);
@@ -16,7 +15,8 @@ const BuyPost = () => {
     const [total, setTotal] = useState(0);
     const handleOnChangePackage = (event) => {
         const { value } = event.target;
-        let item = dataPackage.find((item) => item.id == value);
+        let item = dataPackage.find((item) => String(item.id) === value);
+        if (!item) return;
         setPrice(item.price);
         setTotal(item.price * inputValues.amount);
         setInputValues({
@@ -38,6 +38,10 @@ const BuyPost = () => {
     };
 
     const handleBuy = async () => {
+        if (!inputValues.packageId) {
+            toast.error("Hiện chưa có gói đăng bài phù hợp");
+            return;
+        }
         setIsLoading(true);
         let res = await getPaymentLink(
             inputValues.packageId,
@@ -58,14 +62,16 @@ const BuyPost = () => {
     };
     const fetchPackagePost = async (isHot) => {
         let res = await getPackageByType(isHot);
-        setDataPackage(res.data);
-        setInputValues({
-            ...inputValues,
-            isHot: isHot,
-            packageId: res.data[0].id,
-        });
-        setPrice(res.data[0].price);
-        setTotal(res.data[0].price * inputValues.amount);
+        const packages = Array.isArray(res?.data) ? res.data : [];
+        const firstPackage = packages[0];
+        setDataPackage(packages);
+        setInputValues((current) => ({
+            ...current,
+            isHot: Number(isHot),
+            packageId: firstPackage?.id || "",
+        }));
+        setPrice(firstPackage?.price || 0);
+        setTotal((firstPackage?.price || 0) * inputValues.amount);
     };
     useEffect(() => {
         fetchPackagePost(0);
@@ -119,6 +125,7 @@ const BuyPost = () => {
                                                 onChange={(event) =>
                                                     handleOnChangePackage(event)
                                                 }
+                                                disabled={dataPackage.length === 0}
                                             >
                                                 {dataPackage &&
                                                     dataPackage.length > 0 &&
@@ -137,6 +144,11 @@ const BuyPost = () => {
                                                         }
                                                     )}
                                             </select>
+                                            {dataPackage.length === 0 && (
+                                                <p className="mt-2 text-muted" role="status">
+                                                    Hiện chưa có gói đăng bài phù hợp.
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -186,6 +198,7 @@ const BuyPost = () => {
                                 type="button"
                                 className="btn1 btn1-primary1 btn1-icon-text"
                                 onClick={() => handleBuy()}
+                                disabled={dataPackage.length === 0 || isLoading}
                             >
                                 <i className="ti-file btn1-icon-prepend"></i>
                                 Mua

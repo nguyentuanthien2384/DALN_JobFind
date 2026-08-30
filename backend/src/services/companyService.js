@@ -654,15 +654,45 @@ let getAllUserByCompanyId = (data) => {
 let handleQuitCompany = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
-            if (!data.userId) {
+            if (!data.requesterUserId || !data.requesterCompanyId || !data.requesterRoleCode) {
                 resolve({
                     errCode: 1,
                     errMessage: 'Missing required parameters !'
                 })
             } else {
+                const requesterIsOwner = data.requesterRoleCode === 'COMPANY'
+                const requesterIsEmployee = data.requesterRoleCode === 'EMPLOYER'
+                if (!requesterIsOwner && !requesterIsEmployee) {
+                    resolve({
+                        errCode: 3,
+                        errMessage: 'Bạn không có quyền thay đổi nhân sự công ty'
+                    })
+                    return
+                }
+
+                const targetUserId = requesterIsOwner
+                    ? data.targetUserId
+                    : data.requesterUserId
+                if (!targetUserId) {
+                    resolve({
+                        errCode: 1,
+                        errMessage: 'Missing required parameters !'
+                    })
+                    return
+                }
+                // The company owner cannot dismiss themselves through the
+                // employee endpoint because that would orphan the company.
+                if (requesterIsOwner && Number(targetUserId) === Number(data.requesterUserId)) {
+                    resolve({
+                        errCode: 3,
+                        errMessage: 'Chủ công ty không thể tự rời công ty'
+                    })
+                    return
+                }
+
                 let user = await db.User.findOne({
                     where: {
-                        id: data.userId,
+                        id: targetUserId,
                     },
                     attributes: {
                         exclude: ['userId']
@@ -670,17 +700,30 @@ let handleQuitCompany = (data) => {
                     raw: false
                 })
                 if (user) {
-                    let account = await db.Account.findOne({
-                        where: { userId: user.id },
-                        raw: false
-                    })
-                    if (account.roleCode == 'COMPANY') {
-                        account.roleCode = 'EMPLOYER'
-                        await account.save()
+                    if (Number(user.companyId) !== Number(data.requesterCompanyId)) {
+                        resolve({
+                            errCode: 3,
+                            errMessage: 'Người dùng không thuộc công ty của bạn'
+                        })
+                        return
                     }
                     let company = await db.Company.findOne({
-                        where: { id: user.companyId }
+                        where: { id: data.requesterCompanyId }
                     })
+                    if (!company) {
+                        resolve({
+                            errCode: 2,
+                            errMessage: 'Công ty không tồn tại'
+                        })
+                        return
+                    }
+                    if (Number(company.userId) === Number(user.id)) {
+                        resolve({
+                            errCode: 3,
+                            errMessage: 'Không thể loại chủ sở hữu khỏi công ty'
+                        })
+                        return
+                    }
                     await db.Post.update(
                         {
                             userId: company.userId,

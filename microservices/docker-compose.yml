@@ -280,6 +280,9 @@ services:
       INTERNAL_SECRET: ${INTERNAL_SECRET:-}
       LEGACY_URL: ${LEGACY_URL:-http://host.docker.internal:5000}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      # De trong neu Gateway duoc truy cap truc tiep. Neu co reverse proxy, chi
+      # dien IP/CIDR cu the cua proxy (vi du 172.18.0.10), khong dung "true".
+      TRUST_PROXY: ${TRUST_PROXY:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

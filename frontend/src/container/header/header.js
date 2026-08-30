@@ -148,7 +148,7 @@ const Header = () => {
                                                     <li ><NavLink to="/job" onClick={() => window.scrollTo(0, 0)}>Việc làm </NavLink></li>
                                                     <li ><NavLink to="/company" onClick={() => window.scrollTo(0, 0)}>Công ty </NavLink></li>
                                                     <li ><NavLink to="/about" onClick={() => window.scrollTo(0, 0)}>Giới thiệu</NavLink></li>
-                                                    {/* <li><NavLink to="/contact" >Contact</NavLink></li> */}
+                                                    <li><NavLink to="/contact" onClick={() => window.scrollTo(0, 0)}>Liên hệ</NavLink></li>
                                                 </ul>
                                             </nav>
                                         </div>

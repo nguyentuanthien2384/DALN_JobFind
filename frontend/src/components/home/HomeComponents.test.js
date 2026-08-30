@@ -85,6 +85,7 @@ describe("home job components", () => {
         expect(screen.getByText("QA Engineer")).toBeInTheDocument();
         expect(screen.getByText("Senior")).toBeInTheDocument();
         expect(screen.getByText("20 triệu")).toBeInTheDocument();
+        expect(screen.getByText("Toàn thời gian").tagName).toBe("SPAN");
     });
 
     it("does not request recommendations for anonymous or non-candidate users", () => {

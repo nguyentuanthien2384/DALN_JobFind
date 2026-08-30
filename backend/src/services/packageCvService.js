@@ -40,7 +40,9 @@ let getAllPackage = (data) => {
 let getAllToSelect = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
-                let packageCvs = await db.PackageCv.findAll()
+                let packageCvs = await db.PackageCv.findAll({
+                    where: { isActive: 1 }
+                })
                 resolve({
                     errCode: 0,
                     data: packageCvs
@@ -86,7 +88,8 @@ let getPackageById = (data) => {
 let getPaymentLink = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
-            if (!data.id || !data.amount) {
+            const amount = Number(data.amount)
+            if (!data.id || !Number.isFinite(amount) || amount <= 0) {
                 resolve({
                     errCode: 1,
                     errMessage: `Missing required parameters !`
@@ -97,13 +100,22 @@ let getPaymentLink = (data) => {
                 let infoItem = await db.PackageCv.findOne({
                     where: { id: data.id }
                 })
+                if (!infoItem || Number(infoItem.isActive) === 0) {
+                    resolve({
+                        errCode: 2,
+                        errMessage: 'Gói xem ứng viên không tồn tại hoặc đã ngừng kinh doanh'
+                    })
+                    return
+                }
                 let item = [{
                     "name": `${infoItem.name}`,
                     "sku": infoItem.id,
                     "price": infoItem.price,
                     "currency": "USD",
-                    "quantity": data.amount
+                    "quantity": amount
                 }]
+                const frontendUrl = (process.env.URL_REACT || 'http://localhost:3000')
+                    .split(',')[0].trim().replace(/\/$/, '')
 
                 let create_payment_json = {
                     "intent": "sale",
@@ -111,8 +123,8 @@ let getPaymentLink = (data) => {
                         "payment_method": "paypal"
                     },
                     "redirect_urls": {
-                        "return_url": `${process.env.URL_REACT}/admin/paymentCv/success`,
-                        "cancel_url": `${process.env.URL_REACT}/admin/paymentCv/cancel`
+                        "return_url": `${frontendUrl}/admin/paymentCv/success`,
+                        "cancel_url": `${frontendUrl}/admin/paymentCv/cancel`
                     },
                     "transactions": [{
                         "item_list": {
@@ -120,7 +132,7 @@ let getPaymentLink = (data) => {
                         },
                         "amount": {
                             "currency": "USD",
-                            "total": +data.amount * infoItem.price
+                            "total": amount * infoItem.price
                         },
                         "description": "This is the payment description."
                     }]
@@ -130,7 +142,7 @@ let getPaymentLink = (data) => {
                     if (error) {
                         resolve({
                             errCode: -1,
-                            errMessage: error,
+                            errMessage: error.message || 'Không thể tạo giao dịch PayPal',
                         })
 
                     } else {
@@ -151,7 +163,9 @@ let getPaymentLink = (data) => {
 let paymentOrderSuccess = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
-            if (!data.PayerID || !data.paymentId || !data.token || !data.packageCvId) {
+            const amount = Number(data.amount)
+            if (!data.PayerID || !data.paymentId || !data.token || !data.packageCvId
+                || !data.userId || !Number.isFinite(amount) || amount <= 0) {
                 resolve({
                     errCode: 1,
                     errMessage: 'Missing required parameter !'
@@ -160,12 +174,44 @@ let paymentOrderSuccess = (data) => {
                 let infoItem = await db.PackageCv.findOne({
                     where: { id: data.packageCvId }
                 })
+                if (!infoItem || Number(infoItem.isActive) === 0) {
+                    resolve({
+                        errCode: 2,
+                        errMessage: 'Gói xem ứng viên không tồn tại hoặc đã ngừng kinh doanh'
+                    })
+                    return
+                }
+
+                let user = await db.User.findOne({
+                    where: { id: data.userId },
+                    attributes: {
+                        exclude: ['userId']
+                    }
+                })
+                if (!user || !user.companyId) {
+                    resolve({
+                        errCode: 2,
+                        errMessage: 'Người dùng không thuộc công ty'
+                    })
+                    return
+                }
+                let company = await db.Company.findOne({
+                    where: { id: user.companyId },
+                    raw: false
+                })
+                if (!company) {
+                    resolve({
+                        errCode: 2,
+                        errMessage: 'Không tìm thấy công ty'
+                    })
+                    return
+                }
                 let execute_payment_json = {
                     "payer_id": data.PayerID,
                     "transactions": [{
                         "amount": {
                             "currency": "USD",
-                            "total": +data.amount * infoItem.price
+                            "total": amount * infoItem.price
                         }
                     }]
                 };
@@ -175,36 +221,33 @@ let paymentOrderSuccess = (data) => {
                 paypal.payment.execute(paymentId, execute_payment_json, async function (error, payment) {
                     if (error) {
                         resolve({
-                            errCode: 0,
-                            errMessage: error
+                            errCode: -1,
+                            errMessage: error.message || 'PayPal từ chối giao dịch'
                         })
                     } else {
-                        let OrderPackageCV = await db.OrderPackageCV.create({
-                            packageCvId: data.packageCvId,
-                            userId: data.userId,
-                            currentPrice: infoItem.price,
-                            amount: +data.amount
-                        })
-                        if (OrderPackageCV) {
-                            let user = await db.User.findOne({
-                                where: { id: data.userId },
-                                attributes: {
-                                    exclude: ['userId']
-                                }
+                        try {
+                            let OrderPackageCV = await db.OrderPackageCV.create({
+                                packageCvId: data.packageCvId,
+                                userId: data.userId,
+                                currentPrice: infoItem.price,
+                                amount: amount
                             })
-                            let company = await db.Company.findOne({
-                                where: { id: user.companyId },
-                                raw: false
-                            })
-                            if (company) {
-                                company.allowCv += +infoItem.value * +data.amount
-                                company.save({silent: true})
+                            if (!OrderPackageCV) {
+                                resolve({
+                                    errCode: 2,
+                                    errMessage: 'Không thể ghi nhận lịch sử mua gói'
+                                })
+                                return
                             }
+                            company.allowCv += +infoItem.value * amount
+                            await company.save({silent: true})
+                            resolve({
+                                errCode: 0,
+                                errMessage: 'Hệ thống đã ghi nhận lịch sử mua của bạn'
+                            })
+                        } catch (callbackError) {
+                            reject(callbackError)
                         }
-                        resolve({
-                            errCode: 0,
-                            errMessage: 'Hệ thống đã ghi nhận lịch sử mua của bạn'
-                        })
                     }
                 });
             }

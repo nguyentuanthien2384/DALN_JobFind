@@ -2,7 +2,10 @@ import companyService from '../services/companyService';
 
 let handleCreateNewCompany = async (req, res) => {
     try {
-        let data = await companyService.handleCreateNewCompany(req.body);
+        let data = await companyService.handleCreateNewCompany({
+            ...req.body,
+            userId: req.user.id
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -14,7 +17,12 @@ let handleCreateNewCompany = async (req, res) => {
 }
 let handleUpdateCompany = async (req, res) => {
     try {
-        let data = await companyService.handleUpdateCompany(req.body);
+        // A company member may only update the company recorded on their
+        // authenticated user. body.id used to make cross-company edits possible.
+        let data = await companyService.handleUpdateCompany({
+            ...req.body,
+            id: req.user.companyId
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -50,7 +58,10 @@ let handleUnBanCompany = async (req, res) => {
 }
 let handleAddUserCompany = async (req, res) => {
     try {
-        let data = await companyService.handleAddUserCompany(req.body);
+        let data = await companyService.handleAddUserCompany({
+            ...req.body,
+            companyId: req.user.companyId
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -98,7 +109,10 @@ let getDetailCompanyByUserId = async (req, res) => {
 }
 let getAllUserByCompanyId = async (req, res) => {
     try {
-        let data = await companyService.getAllUserByCompanyId(req.query);
+        let data = await companyService.getAllUserByCompanyId({
+            ...req.query,
+            companyId: req.user.companyId
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -110,7 +124,21 @@ let getAllUserByCompanyId = async (req, res) => {
 }
 let handleQuitCompany = async (req, res) => {
     try {
-        let data = await companyService.handleQuitCompany(req.body);
+        const requesterRoleCode = req.user.userAccountData?.roleCode;
+        // COMPANY accounts use this endpoint to dismiss an employee; EMPLOYER
+        // accounts may only remove themselves. Keep actor and target explicit so
+        // a client-supplied userId is never mistaken for the authenticated actor.
+        const targetUserId = requesterRoleCode === 'COMPANY'
+            ? req.body.userId
+            : req.user.id;
+        let data = await companyService.handleQuitCompany({
+            ...req.body,
+            userId: req.user.id,
+            targetUserId,
+            requesterUserId: req.user.id,
+            requesterCompanyId: req.user.companyId,
+            requesterRoleCode
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

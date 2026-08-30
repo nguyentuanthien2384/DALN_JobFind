@@ -64,6 +64,7 @@ describe('web routes', () => {
     expect(latest('/api/login').handlers[0]).toBe(mockLoginLimiter);
     expect(latest('/api/ban-user').handlers[0]).toBe(mockVerifyAdmin);
     expect(latest('/api/create-new-post').handlers[0]).toBe(mockVerifyUser);
+    expect(latest('/api/get-recommended-post').handlers[0]).toBe(mockVerifyUser);
     expect(latest('/api/request-reset-password-otp').handlers[0]).toBe(mockOtpLimiter);
     expect(latest('/api/check-phonenumber-user').handlers[0]).toBe(mockPhoneLimiter);
   });

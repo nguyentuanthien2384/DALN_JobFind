@@ -34,7 +34,7 @@
         "socket.io-client": "^4.8.3",
         "victory-pie": "^37.3.6",
         "web-vitals": "^4.2.4",
-        "xlsx": "^0.18.5"
+        "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
     },
     "scripts": {
         "start": "react-scripts start",
@@ -58,6 +58,20 @@
                 "functions": 80,
                 "lines": 85
             }
+        }
+    },
+    "overrides": {
+        "@tootallnate/once": "2.0.1",
+        "nanoid": "5.1.16",
+        "underscore": "1.13.8",
+        "svgo": {
+            "nth-check": "2.1.1"
+        },
+        "css-minimizer-webpack-plugin": {
+            "serialize-javascript": "7.1.1"
+        },
+        "sockjs": {
+            "uuid": "11.1.1"
         }
     },
     "browserslist": {

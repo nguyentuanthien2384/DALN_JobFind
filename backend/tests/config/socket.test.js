@@ -12,6 +12,7 @@ jest.mock('socket.io', () => ({ Server: mockServerConstructor }));
 const socketModule = require('../../src/config/socket');
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
+const originalFrontendOrigins = process.env.URL_REACT;
 
 describe('socket realtime layer', () => {
   let authMiddleware;
@@ -21,7 +22,11 @@ describe('socket realtime layer', () => {
   let roomEmitter;
 
   beforeAll(() => jest.spyOn(console, 'log').mockImplementation(() => {}));
-  afterAll(() => console.log.mockRestore());
+  afterAll(() => {
+    console.log.mockRestore();
+    if (originalFrontendOrigins === undefined) delete process.env.URL_REACT;
+    else process.env.URL_REACT = originalFrontendOrigins;
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -44,9 +49,15 @@ describe('socket realtime layer', () => {
   });
 
   test('initialises CORS, authenticates handshake tokens and joins the private room', () => {
+    process.env.URL_REACT = ' http://frontend-one.test, http://frontend-two.test, ';
     const server = {};
     expect(socketModule.initSocket(server)).toBe(mockIo);
-    expect(mockServerConstructor).toHaveBeenCalledWith(server, expect.objectContaining({ cors: expect.objectContaining({ credentials: true }) }));
+    expect(mockServerConstructor).toHaveBeenCalledWith(server, expect.objectContaining({
+      cors: expect.objectContaining({
+        origin: ['http://frontend-one.test', 'http://frontend-two.test'],
+        credentials: true
+      })
+    }));
     authMiddleware = mockIo.use.mock.calls[0][0];
     connectionHandler = mockIo.on.mock.calls.find(([event]) => event === 'connection')[1];
 

@@ -227,6 +227,16 @@ describe("package purchases", () => {
         expect(toast.error).toHaveBeenCalledWith("Thanh toán lỗi");
         await waitFor(() => expect(screen.queryByTestId("loading")).not.toBeInTheDocument());
     });
+
+    it.each(buyers)("shows a safe empty state when no active $label package exists", async (config) => {
+        config.list.mockResolvedValue({ errCode: 0, data: [] });
+        const { container } = render(<config.Component />);
+
+        expect(await screen.findByRole("status")).toHaveTextContent("Hiện chưa có gói");
+        expect(container.querySelector('select[name="addressCode"]')).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Mua" })).toBeDisabled();
+        expect(config.payment).not.toHaveBeenCalled();
+    });
 });
 
 const successPages = [

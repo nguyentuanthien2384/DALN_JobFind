@@ -33,10 +33,20 @@ const getUserIdFromHandshake = (socket) => {
 
 const roomOf = (userId) => `user:${userId}`;
 
+// Socket.IO accepts an origin array, not a comma-separated HTTP header value.
+// Keeping the parsing here in sync with server.js avoids emitting an invalid
+// `Access-Control-Allow-Origin: origin-a,origin-b` response in production.
+const getAllowedOrigins = () => (
+    process.env.URL_REACT || 'http://localhost:3000,http://localhost:3001'
+)
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
 let initSocket = (server) => {
     io = new Server(server, {
         cors: {
-            origin: process.env.URL_REACT || 'http://localhost:3000',
+            origin: getAllowedOrigins(),
             methods: ['GET', 'POST'],
             credentials: true
         }

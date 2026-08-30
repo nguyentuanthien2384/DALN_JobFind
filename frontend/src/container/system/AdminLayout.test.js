@@ -46,6 +46,9 @@ describe("admin layout shell", () => {
         expect(screen.getByText("ADMIN MENU")).toBeInTheDocument();
         expect(screen.getByText("ADMIN HOME")).toBeInTheDocument();
         expect(screen.getByText(/Bản quyền/)).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Quy trình ứng viên" })).toHaveAttribute("href", "/admin/pipeline");
+        expect(screen.queryByText("TO DO LIST")).not.toBeInTheDocument();
+        expect(screen.queryByText("Feb 11 2018")).not.toBeInTheDocument();
     });
 
     it("selects the requested nested administration route", () => {

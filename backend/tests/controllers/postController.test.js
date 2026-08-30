@@ -8,6 +8,7 @@ const mockService = {
 const mockEmitJobCreated = jest.fn();
 const mockEmitJobUpdated = jest.fn();
 const mockEmitDashboardChanged = jest.fn();
+const mockCanAccessPostApplicants = jest.fn();
 
 jest.mock('../../src/services/postService', () => mockService);
 jest.mock('../../src/utils/eventBus', () => ({
@@ -15,6 +16,9 @@ jest.mock('../../src/utils/eventBus', () => ({
   emitJobUpdated: mockEmitJobUpdated
 }));
 jest.mock('../../src/config/socket', () => ({ emitDashboardChanged: mockEmitDashboardChanged }));
+jest.mock('../../src/utils/authorization', () => ({
+  canAccessPostApplicants: mockCanAccessPostApplicants
+}));
 
 const controller = require('../../src/controllers/postController');
 const { createRequest, createResponse } = require('../helpers/http');
@@ -26,25 +30,28 @@ const request = (roleCode = 'EMPLOYER') => createRequest({
 });
 
 const cases = [
-  ['handleCreateNewPost', 'handleCreateNewPost', (r) => r.body],
-  ['handleReupPost', 'handleReupPost', (r) => r.body],
-  ['handleUpdatePost', 'handleUpdatePost', (r) => r.body],
-  ['handleBanPost', 'handleBanPost', (r) => r.body],
-  ['handleAcceptPost', 'handleAcceptPost', (r) => r.body],
+  ['handleCreateNewPost', 'handleCreateNewPost', (r) => ({ ...r.body, userId: r.user.id })],
+  ['handleReupPost', 'handleReupPost', (r) => ({ ...r.body, userId: r.user.id })],
+  ['handleUpdatePost', 'handleUpdatePost', (r) => ({ ...r.body, userId: r.user.id })],
+  ['handleBanPost', 'handleBanPost', (r) => ({ ...r.body, userId: r.user.id })],
+  ['handleAcceptPost', 'handleAcceptPost', (r) => ({ ...r.body, userId: r.user.id })],
   ['getListPostByAdmin', 'getListPostByAdmin', (r) => ({ ...r.query, companyId: 11 })],
   ['getAllPostByAdmin', 'getAllPostByAdmin', (r) => r.query],
   ['getDetailPostById', 'getDetailPostById', (r) => r.query.id],
-  ['handleActivePost', 'handleActivePost', (r) => r.body],
+  ['handleActivePost', 'handleActivePost', (r) => ({ ...r.body, userId: r.user.id })],
   ['getFilterPost', 'getFilterPost', (r) => r.query],
   ['getStatisticalTypePost', 'getStatisticalTypePost', (r) => r.query],
   ['getListNoteByPost', 'getListNoteByPost', (r) => r.query],
   ['getRelatedPost', 'getRelatedPost', (r) => r.query],
-  ['getRecommendedPost', 'getRecommendedPost', (r) => r.query]
+  ['getRecommendedPost', 'getRecommendedPost', (r) => ({ ...r.query, userId: r.user.id })]
 ];
 
 describe('postController', () => {
   beforeAll(() => jest.spyOn(console, 'log').mockImplementation(() => {}));
   afterAll(() => console.log.mockRestore());
+  beforeEach(() => {
+    mockCanAccessPostApplicants.mockReset().mockResolvedValue(true);
+  });
 
   test.each(cases)('%s forwards input and returns a stable response', async (method, serviceMethod, expectedArg) => {
     const req = request();
@@ -70,6 +77,22 @@ describe('postController', () => {
     expect(mockService.getListPostByAdmin).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: 11 }));
     await controller.getListPostByAdmin(request('ADMIN'), createResponse());
     expect(mockService.getListPostByAdmin).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: '999' }));
+  });
+
+  test.each([
+    ['handleReupPost', 'handleReupPost'],
+    ['handleUpdatePost', 'handleUpdatePost'],
+    ['getListNoteByPost', 'getListNoteByPost']
+  ])('%s rejects access to a post owned by another company', async (method, serviceMethod) => {
+    mockCanAccessPostApplicants.mockResolvedValueOnce(false);
+    mockService[serviceMethod].mockClear();
+    const res = createResponse();
+
+    await controller[method](request(), res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errCode: 3 }));
+    expect(mockService[serviceMethod]).not.toHaveBeenCalled();
   });
 
   test('create and re-up emit job-created only when a new post id exists', async () => {
