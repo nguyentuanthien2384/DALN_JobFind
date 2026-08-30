@@ -257,6 +257,7 @@ describe("post editor", () => {
     it("creates a post with all default classification fields, content, expiry and featured flag", async () => {
         const { container } = render(<AddPost />);
         expect(await screen.findByText("3 bài bình thường")).toBeInTheDocument();
+        expect(getDetailCompanyByUserId).toHaveBeenCalledWith(8, 9);
         fireEvent.change(container.querySelector('input[name="name"]'), { target: { name: "name", value: "Backend Engineer" } });
         fireEvent.change(container.querySelector('input[name="amount"]'), { target: { name: "amount", value: "2" } });
         fireEvent.change(screen.getByLabelText("Ngày kết thúc"), { target: { value: "2030-01-02" } });
@@ -280,7 +281,10 @@ describe("post editor", () => {
             userId: 8,
             isHot: 1,
         });
-        act(() => jest.advanceTimersByTime(1000));
+        await act(async () => {
+            jest.advanceTimersByTime(1000);
+            await Promise.resolve();
+        });
         expect(toast.success).toHaveBeenCalledWith("Đã tạo bài");
     });
 
@@ -321,6 +325,7 @@ describe("post editor", () => {
         getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: detailPost });
         const { container } = render(<AddPost />);
         expect(await screen.findByText("Xem thông tin bài đăng")).toBeInTheDocument();
+        expect(getDetailCompanyByUserId).not.toHaveBeenCalled();
         expect(container.querySelector('input[name="name"]')).toBeDisabled();
         expect(screen.queryByRole("button", { name: "Lưu" })).not.toBeInTheDocument();
     });

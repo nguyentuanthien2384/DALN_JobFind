@@ -65,7 +65,7 @@ const ManageCv = () => {
                             className="mb-2 hover-pointer"
                             style={{ color: "red" }}
                         >
-                            <i class="fa-solid fa-arrow-left mr-2"></i>Quay lại
+                            <i className="fa-solid fa-arrow-left mr-2"></i>Quay lại
                         </div>
                         <div className="text-center">
                             <h3>{post && post.postDetailData.name}</h3>

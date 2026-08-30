@@ -127,7 +127,7 @@ const DetailFilterUser = () => {
                             className="mb-2 hover-pointer"
                             style={{ color: "red" }}
                         >
-                            <i class="fa-solid fa-arrow-left mr-2"></i>Quay lại
+                            <i className="fa-solid fa-arrow-left mr-2"></i>Quay lại
                         </div>
 
                         <h4 className="card-title">

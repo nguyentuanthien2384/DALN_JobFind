@@ -194,7 +194,7 @@ let getDetailCvById = (data) => {
                     await cv.save()
                 }
                 if (cv.file) {
-                    cv.file = new Buffer.from(cv.file, 'base64').toString('binary');
+                    cv.file = Buffer.from(cv.file, 'base64').toString('binary');
                 }
                 resolve({
                     errCode: 0,

@@ -33,17 +33,18 @@ const AddUser = () => {
         image: "",
     });
     let setStateUser = (data) => {
-        setInputValues({
-            ...inputValues,
-            ["firstName"]: data.userAccountData.firstName,
-            ["lastName"]: data.userAccountData.lastName,
-            ["address"]: data.userAccountData.address,
-            ["phonenumber"]: data.phonenumber,
-            ["genderCode"]: data.userAccountData.genderCode,
-            ["roleCode"]: data.roleData.code,
-            ["id"]: data.userAccountData.id,
-            ["dob"]: data.userAccountData.dob,
-        });
+        setInputValues((currentValues) => ({
+            ...currentValues,
+            firstName: data.userAccountData.firstName || "",
+            lastName: data.userAccountData.lastName || "",
+            address: data.userAccountData.address || "",
+            phonenumber: data.phonenumber || "",
+            genderCode: data.userAccountData.genderCode || "",
+            roleCode: data.roleData.code || "",
+            id: data.userAccountData.id || "",
+            dob: data.userAccountData.dob || "",
+            email: data.userAccountData.email || "",
+        }));
         document.querySelector('[name="genderCode"]').value =
             data.userAccountData.genderCode;
         document.querySelector('[name="roleCode"]').value = data.roleData.code;
@@ -177,7 +178,7 @@ const AddUser = () => {
                             className="mb-2 hover-pointer"
                             style={{ color: "red" }}
                         >
-                            <i class="fa-solid fa-arrow-left mr-2"></i>Quay lại
+                            <i className="fa-solid fa-arrow-left mr-2"></i>Quay lại
                         </div>
 
                         <h4 className="card-title">
@@ -387,7 +388,7 @@ const AddUser = () => {
                                 onClick={() => handleSaveUser()}
                                 className="btn1 btn1-primary1 btn1-icon-text"
                             >
-                                <i class="ti-file btn1-icon-prepend"></i>
+                                <i className="ti-file btn1-icon-prepend"></i>
                                 Lưu
                             </button>
                         </form>

@@ -93,7 +93,7 @@ const AddpackageCv = () => {
                             className="mb-2 hover-pointer"
                             style={{ color: "red" }}
                         >
-                            <i class="fa-solid fa-arrow-left mr-2"></i>Quay lại
+                            <i className="fa-solid fa-arrow-left mr-2"></i>Quay lại
                         </div>
 
                         <h4 className="card-title">
@@ -168,7 +168,7 @@ const AddpackageCv = () => {
                                 className="btn1 btn1-primary1 btn1-icon-text"
                                 onClick={() => handleSavePackageCv()}
                             >
-                                <i class="ti-file btn1-icon-prepend"></i>
+                                <i className="ti-file btn1-icon-prepend"></i>
                                 Lưu
                             </button>
                         </form>

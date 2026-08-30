@@ -654,7 +654,7 @@ let getDetailUserById = (userid) => {
                     return
                 }
                 if (res.userAccountData.userSettingData && res.userAccountData.userSettingData.file) {
-                    res.userAccountData.userSettingData.file = new Buffer.from(res.userAccountData.userSettingData.file, 'base64').toString('binary');
+                    res.userAccountData.userSettingData.file = Buffer.from(res.userAccountData.userSettingData.file, 'base64').toString('binary');
                 }
                 let listSkills = await db.UserSkill.findAll({
                     where: {userId: res.userAccountData.id},

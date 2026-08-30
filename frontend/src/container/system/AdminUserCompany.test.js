@@ -221,6 +221,7 @@ describe("AddUser and ChangePassword", () => {
         await screen.findByText("Cập nhật người dùng");
         await waitFor(() => expect(container.querySelector('input[name="firstName"]')).toHaveValue("Lan"));
         expect(container.querySelector('input[name="email"]')).toBeDisabled();
+        expect(container.querySelector('input[name="email"]')).toHaveValue("");
         fireEvent.change(screen.getByLabelText("Ngày sinh"), { target: { value: "2001-02-03" } });
         fireEvent.change(container.querySelector('input[name="firstName"]'), { target: { name: "firstName", value: "Linh" } });
         fireEvent.click(screen.getByRole("button", { name: "Lưu" }));

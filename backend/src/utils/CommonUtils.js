@@ -20,8 +20,8 @@ let encodeToken = (userId, roleCode = null, companyId = null) =>{
 }
 
 let pdfToString = async(file) => {
-    file = file = new Buffer.from(file, 'base64').toString('binary');
-    let buffer = new Buffer.from(file.split(",")[1], 'base64');
+    file = Buffer.from(file, 'base64').toString('binary');
+    let buffer = Buffer.from(file.split(",")[1], 'base64');
     const options = {}
     let pdfData = null
     await pdfExtract.extractBuffer(buffer, options)

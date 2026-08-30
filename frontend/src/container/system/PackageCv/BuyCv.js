@@ -155,7 +155,7 @@ const BuyCv = () => {
                                 className="btn1 btn1-primary1 btn1-icon-text"
                                 onClick={() => handleBuy()}
                             >
-                                <i class="ti-file btn1-icon-prepend"></i>
+                                <i className="ti-file btn1-icon-prepend"></i>
                                 Mua
                             </button>
                         </form>

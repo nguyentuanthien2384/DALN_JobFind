@@ -416,7 +416,7 @@ const Home = () => {
                                     }
                                 >
                                     Xuất excel{" "}
-                                    <i class="fa-solid fa-file-excel"></i>
+                                    <i className="fa-solid fa-file-excel"></i>
                                 </button>
                                 <RangePicker
                                     onChange={(values) =>
@@ -495,7 +495,7 @@ const Home = () => {
                             {dataStatisticalPackagePost &&
                                 dataStatisticalPackagePost.length > 0 && (
                                     <div
-                                        class="mr-4"
+                                        className="mr-4"
                                         style={{
                                             display: "flex",
                                             justifyContent: "end",
@@ -543,7 +543,7 @@ const Home = () => {
                                     }
                                 >
                                     Xuất excel{" "}
-                                    <i class="fa-solid fa-file-excel"></i>
+                                    <i className="fa-solid fa-file-excel"></i>
                                 </button>
                                 <RangePicker
                                     onChange={(values) =>
@@ -615,7 +615,7 @@ const Home = () => {
                             {dataStatisticalPackageCv &&
                                 dataStatisticalPackageCv.length > 0 && (
                                     <div
-                                        class="mr-4"
+                                        className="mr-4"
                                         style={{
                                             display: "flex",
                                             justifyContent: "end",

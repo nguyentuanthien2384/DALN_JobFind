@@ -110,7 +110,7 @@ const HistoryTradeCv = () => {
                         style={{ float: "right" }}
                         onClick={() => handleOnClickExport()}
                     >
-                        Xuất excel <i class="fa-solid fa-file-excel"></i>
+                        Xuất excel <i className="fa-solid fa-file-excel"></i>
                     </button>
                     <RangePicker
                         onChange={onDatePicker}
