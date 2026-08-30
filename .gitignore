@@ -27,6 +27,7 @@ coverage/
 .env.sample
 **/ .env
 **/.env.*
+!**/.env.example
 
 # Logs và file debug
 npm-debug.log*

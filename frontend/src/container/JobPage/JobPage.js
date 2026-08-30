@@ -14,7 +14,9 @@ const JobPage = () => {
     const limit = PAGINATION.pagerow
 
     const [workType, setWorkType] = useState([])
-    const [jobType, setJobType] = useState('')
+    const [jobType, setJobType] = useState(() => (
+        new URLSearchParams(window.location.search).get('categoryJobCode') || ''
+    ))
     const [salary, setSalary] = useState([])
     const [exp, setExp] = useState([])
     const [jobLevel, setJobLevel] = useState([])

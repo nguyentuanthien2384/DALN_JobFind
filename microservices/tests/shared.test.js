@@ -85,7 +85,8 @@ describe('RabbitMQ wrapper', () => {
         expect(a).toBe(channel);
         expect(b).toBe(channel);
         expect(mq.connect).toHaveBeenCalledOnce();
-        expect(channel.assertExchange).toHaveBeenCalledWith('jobportal.events', 'topic', { durable: true });
+        expect(channel.assertExchange).toHaveBeenNthCalledWith(1, 'jobportal.events', 'topic', { durable: true });
+        expect(channel.assertExchange).toHaveBeenNthCalledWith(2, 'jobportal.events.dead-letter', 'direct', { durable: true });
         expect(await getChannel()).toBe(channel);
     });
 
@@ -104,9 +105,11 @@ describe('RabbitMQ wrapper', () => {
         const handler = vi.fn().mockResolvedValue(undefined);
         const { consume } = await import('../shared/rabbitmq.js');
         await consume('queue', ['job.*', 'ai.result'], handler, { prefetch: 9 });
+        expect(channel.assertQueue).toHaveBeenNthCalledWith(1, 'queue.dead-letter', { durable: true });
+        expect(channel.bindQueue).toHaveBeenNthCalledWith(1, 'queue.dead-letter', 'jobportal.events.dead-letter', 'queue');
         expect(channel.assertQueue).toHaveBeenCalledWith('queue', { durable: true });
         expect(channel.prefetch).toHaveBeenCalledWith(9);
-        expect(channel.bindQueue).toHaveBeenCalledTimes(2);
+        expect(channel.bindQueue).toHaveBeenCalledTimes(3);
         const callback = channel.consume.mock.calls[0][1];
         const msg = { content: Buffer.from('{"id":2}'), fields: { routingKey: 'job.created' } };
         await callback(msg);
@@ -116,17 +119,44 @@ describe('RabbitMQ wrapper', () => {
         expect(channel.ack).toHaveBeenCalledOnce();
     });
 
-    it('dead-letters malformed messages and handler failures', async () => {
+    it('dead-letters malformed messages and handler failures with diagnostics', async () => {
         const handler = vi.fn().mockRejectedValue(new Error('boom'));
         const { consume } = await import('../shared/rabbitmq.js');
         await consume('queue', ['#'], handler);
         const callback = channel.consume.mock.calls[0][1];
-        const malformed = { content: Buffer.from('{'), fields: { routingKey: 'x' } };
-        const failed = { content: Buffer.from('{}'), fields: { routingKey: 'x' } };
+        const malformed = { content: Buffer.from('{'), fields: { routingKey: 'bad.json' }, properties: { headers: { trace: 't' } } };
+        const failed = { content: Buffer.from('{}'), fields: { routingKey: 'job.created' }, properties: { contentType: 'application/custom' } };
         await callback(malformed);
         await callback(failed);
-        expect(channel.nack).toHaveBeenNthCalledWith(1, malformed, false, false);
-        expect(channel.nack).toHaveBeenNthCalledWith(2, failed, false, false);
+        expect(channel.publish).toHaveBeenNthCalledWith(
+            1, 'jobportal.events.dead-letter', 'queue', malformed.content,
+            expect.objectContaining({
+                persistent: true,
+                contentType: 'application/json',
+                headers: expect.objectContaining({ trace: 't', 'x-original-routing-key': 'bad.json' })
+            })
+        );
+        expect(channel.publish).toHaveBeenNthCalledWith(
+            2, 'jobportal.events.dead-letter', 'queue', failed.content,
+            expect.objectContaining({
+                contentType: 'application/custom',
+                headers: expect.objectContaining({ 'x-original-routing-key': 'job.created', 'x-error': 'boom' })
+            })
+        );
+        expect(channel.ack).toHaveBeenNthCalledWith(1, malformed);
+        expect(channel.ack).toHaveBeenNthCalledWith(2, failed);
+        expect(channel.nack).not.toHaveBeenCalled();
+    });
+
+    it('requeues the original only when publishing to the DLQ fails', async () => {
+        const handler = vi.fn();
+        const { consume } = await import('../shared/rabbitmq.js');
+        await consume('queue', ['#'], handler);
+        channel.publish.mockImplementationOnce(() => { throw new Error('channel closed'); });
+        const callback = channel.consume.mock.calls[0][1];
+        const malformed = { content: Buffer.from('{'), fields: { routingKey: 'bad.json' }, properties: {} };
+        await callback(malformed);
+        expect(channel.nack).toHaveBeenCalledWith(malformed, false, true);
         expect(channel.ack).not.toHaveBeenCalled();
     });
 

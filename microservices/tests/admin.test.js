@@ -35,22 +35,29 @@ describe('admin audit controller', () => {
         }));
     });
 
-    it('trims oversized/nested payloads and removes file contents', async () => {
+    it('redacts secrets before truncation and sanitizes nested arrays', async () => {
         mocks.AuditLog.create.mockResolvedValue({});
         const { recordEvent } = await import('../admin-service/src/controllers/auditController.js');
         await recordEvent('ai.result', {
             userId: 7,
             long: 'x'.repeat(600),
-            fileBase64: 'secret',
-            nested: { cv_snapshot: { private: true }, short: 'ok' },
-            array: [{ untouched: true }]
+            fileBase64: 'base64-secret'.repeat(100),
+            password: 'password-secret'.repeat(100),
+            nested: { cv_snapshot: { private: true }, short: 'ok', accessToken: 'nested-token' },
+            array: [{ untouched: true, api_key: 'array-secret' }]
         });
         const saved = mocks.AuditLog.create.mock.calls[0][0];
         expect(saved.actorId).toBe(7);
         expect(saved.payload.long).toContain('đã cắt bớt 600 ký tự');
         expect(saved.payload.fileBase64).toBe('[đã lược bỏ]');
+        expect(saved.payload.password).toBe('[đã lược bỏ]');
         expect(saved.payload.nested.cv_snapshot).toBe('[đã lược bỏ]');
-        expect(saved.payload.array).toEqual([{ untouched: true }]);
+        expect(saved.payload.nested.accessToken).toBe('[đã lược bỏ]');
+        expect(saved.payload.array).toEqual([{ untouched: true, api_key: '[đã lược bỏ]' }]);
+        expect(JSON.stringify(saved.payload)).not.toContain('base64-secret');
+        expect(JSON.stringify(saved.payload)).not.toContain('password-secret');
+        expect(JSON.stringify(saved.payload)).not.toContain('nested-token');
+        expect(JSON.stringify(saved.payload)).not.toContain('array-secret');
     });
 
     it('records gateway actions with all audit metadata', async () => {

@@ -12,11 +12,8 @@ let encodeToken = (userId, roleCode = null, companyId = null) =>{
         iss: 'Tai Nguyen',
         sub: userId,
         roleCode: roleCode,
-        companyId: companyId,
-        iat: new Date().getTime(),
-        exp: new Date().setDate(new Date().getDate() +3)
-    },process.env.JWT_SECRET
-)
+        companyId: companyId
+    }, process.env.JWT_SECRET, { expiresIn: '3d' })
 }
 
 let pdfToString = async(file) => {

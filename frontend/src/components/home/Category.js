@@ -1,6 +1,12 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 
 const Category = (props) => {
+    const jobType = props.data.postDetailData.jobTypePostData
+    const categoryUrl = jobType.code
+        ? `/job?categoryJobCode=${encodeURIComponent(jobType.code)}`
+        : '/job'
+
     return (
         <>
             <div className="col-xl-3 col-lg-3 col-md-4 col-sm-6">
@@ -8,12 +14,12 @@ const Category = (props) => {
                             <div className="services-ion">
                                 <img
                                     style={{width: '70%' , height: '70%'}}
-                                    src={props.data.postDetailData.jobTypePostData.image}
-                                    alt={props.data.postDetailData.jobTypePostData.value}
+                                    src={jobType.image}
+                                    alt={jobType.value}
                                 />
                             </div>
                             <div className="services-cap">
-                               <h5><a href="job_listing.html">{props.data.postDetailData.jobTypePostData.value}</a></h5>
+                               <h5><Link to={categoryUrl}>{jobType.value}</Link></h5>
                                 <span>{props.data.amount}</span>
                             </div>
                         </div>

@@ -47,7 +47,7 @@ describe("configured axios client", () => {
 
     it("falls back to localhost", () => {
         const client = loadClient(undefined);
-        expect(client.create).toHaveBeenCalledWith({ baseURL: "http://localhost:5000" });
+        expect(client.create).toHaveBeenCalledWith({ baseURL: "http://localhost:4000" });
     });
 
     it("adds the bearer token when one is available", () => {

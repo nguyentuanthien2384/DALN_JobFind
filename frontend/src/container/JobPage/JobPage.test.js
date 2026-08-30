@@ -50,7 +50,18 @@ const expectLatestQuery = async (expected) => {
 describe("JobPage", () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        window.history.replaceState({}, "", "/job");
         getListPostService.mockResolvedValue(success);
+    });
+
+    it("applies a category filter supplied by a home-page deep link", async () => {
+        window.history.replaceState({}, "", "/job?categoryJobCode=IT%20%26%20Data");
+        render(<JobPage />);
+
+        await expectLatestQuery({
+            categoryJobCode: "IT & Data",
+            offset: 0,
+        });
     });
 
     it("loads the first page and displays returned jobs and pagination", async () => {

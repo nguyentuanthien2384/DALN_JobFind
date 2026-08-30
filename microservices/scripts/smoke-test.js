@@ -19,6 +19,8 @@ const check = (name, ok, extra = '') => {
 };
 const section = (t) => console.log(`\n--- ${t} ---`);
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const req = async (path, opts = {}) => {
     const r = await fetch(GW + path, opts);
     let b;
@@ -36,13 +38,38 @@ const login = async (creds) => {
     return r.body.token;
 };
 
+// Gateway cap nhat health theo chu ky 15 giay. Khi backend hoac Docker vua duoc
+// khoi dong, /health cua Gateway co the da san sang trong khi /status van giu
+// ket qua probe cu. Cho health registry hoi tu de smoke test khong bao loi gia.
+const waitForHealthyServices = async ({ attempts = 12, delayMs = 2000 } = {}) => {
+    let status = await req('/status');
+    for (let attempt = 1; attempt < attempts; attempt += 1) {
+        if (status.body.services?.length && status.body.services.every((service) => service.healthy)) {
+            return status;
+        }
+        await sleep(delayMs);
+        status = await req('/status');
+    }
+    return status;
+};
+
+const waitForAiTask = async (taskId, headers, { attempts = 20, delayMs = 500 } = {}) => {
+    let task = await req(`/api/ai/tasks/${taskId}`, { headers });
+    for (let attempt = 1; attempt < attempts; attempt += 1) {
+        if (['done', 'failed'].includes(task.body.data?.status)) return task;
+        await sleep(delayMs);
+        task = await req(`/api/ai/tasks/${taskId}`, { headers });
+    }
+    return task;
+};
+
 const run = async () => {
     console.log(`Kiểm tra hệ thống microservices tại ${GW}`);
 
     const health = await req('/health');
     check('Gateway phản hồi', health.body.status === 'ok');
 
-    const status = await req('/status');
+    const status = await waitForHealthyServices();
     check('Tất cả service đang sống',
         status.body.services?.every((s) => s.healthy),
         `${status.body.services?.length ?? 0} service`);
@@ -126,7 +153,16 @@ const run = async () => {
             method: 'POST', headers: auth,
             body: JSON.stringify({ resumeText: '3 năm kinh nghiệm Golang', jobId: newId })
         });
-        check('AI Worker nhận việc qua RabbitMQ', r.status === 202 && Boolean(r.body.taskId));
+        const aiAccepted = r.status === 202 && Boolean(r.body.taskId);
+        check('AI Worker nhận việc qua RabbitMQ', aiAccepted);
+        if (aiAccepted) {
+            const aiTask = await waitForAiTask(r.body.taskId, auth);
+            const terminalStatus = ['done', 'failed'].includes(aiTask.body.data?.status);
+            check('AI Worker phản hồi kết quả qua RabbitMQ', terminalStatus,
+                aiTask.body.data?.status === 'failed'
+                    ? `failed có kiểm soát: ${aiTask.body.data?.error}`
+                    : aiTask.body.data?.status);
+        }
 
         await req(`/api/jobs/${newId}`, { method: 'DELETE', headers: auth });
     }

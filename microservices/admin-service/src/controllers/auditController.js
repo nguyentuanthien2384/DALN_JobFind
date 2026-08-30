@@ -44,14 +44,32 @@ export const recordAction = async (body) => {
     });
 };
 
-// Bo cac truong qua lon truoc khi luu.
+const REDACTED = '[đã lược bỏ]';
+const SENSITIVE_KEYS = new Set([
+    'authorization', 'cookie', 'setcookie',
+    'file', 'filebase64', 'cvsnapshot', 'resumetext', 'cvtext'
+]);
+
+const isSensitiveKey = (key) => {
+    const normalized = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+    return SENSITIVE_KEYS.has(normalized)
+        || /(password|passwd|secret|token|apikey)$/.test(normalized);
+};
+
+// Bo du lieu nhay cam truoc, sau do moi cat cac truong qua lon. Thu tu nay rat
+// quan trong: neu fileBase64/password dai hon 500 ky tu ma cat truoc, 200 ky tu
+// dau cua bi mat se bi ghi vao audit log.
 const trim = (obj) => {
     const clone = {};
     for (const [key, value] of Object.entries(obj || {})) {
-        if (typeof value === 'string' && value.length > 500) {
+        if (isSensitiveKey(key)) {
+            clone[key] = REDACTED;
+        } else if (typeof value === 'string' && value.length > 500) {
             clone[key] = `${value.slice(0, 200)}… (đã cắt bớt ${value.length} ký tự)`;
-        } else if (key === 'fileBase64' || key === 'file' || key === 'cv_snapshot') {
-            clone[key] = '[đã lược bỏ]';
+        } else if (Array.isArray(value)) {
+            clone[key] = value.map((item) =>
+                item && typeof item === 'object' ? trim(item) : item
+            );
         } else if (value && typeof value === 'object' && !Array.isArray(value)) {
             clone[key] = trim(value);
         } else {

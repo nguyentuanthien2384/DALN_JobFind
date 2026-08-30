@@ -36,7 +36,7 @@ describe("shared Socket.IO client", () => {
         localStorage.setItem("token_user", "token-a");
 
         expect(getSocket()).toBe(socket);
-        expect(io).toHaveBeenCalledWith(process.env.REACT_APP_BACKEND_URL || "http://localhost:5000", {
+        expect(io).toHaveBeenCalledWith(process.env.REACT_APP_BACKEND_URL || "http://localhost:4000", {
             auth: { token: "token-a" },
             transports: ["websocket", "polling"],
             reconnectionAttempts: 5,

@@ -9,7 +9,7 @@ import { io } from "socket.io-client";
  * Token duoc gui trong handshake de backend xac thuc; backend lay userId tu
  * token chu khong tin userId do client gui len.
  */
-const URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
+const URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:4000";
 
 let socket = null;
 

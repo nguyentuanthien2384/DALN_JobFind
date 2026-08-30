@@ -43,9 +43,13 @@ describe("home job components", () => {
     it("renders a category", () => {
         render(<Category data={{
             amount: 12,
-            postDetailData: { jobTypePostData: { image: "/it.png", value: "Công nghệ" } },
+            postDetailData: { jobTypePostData: { code: "IT & Data", image: "/it.png", value: "Công nghệ" } },
         }} />);
         expect(screen.getByRole("img", { name: "Công nghệ" })).toHaveAttribute("src", "/it.png");
+        expect(screen.getByRole("link", { name: "Công nghệ" })).toHaveAttribute(
+            "href",
+            "/job?categoryJobCode=IT%20%26%20Data"
+        );
         expect(screen.getByText("12")).toBeInTheDocument();
     });
 

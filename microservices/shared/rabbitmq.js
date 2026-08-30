@@ -1,6 +1,8 @@
 import amqplib from 'amqplib';
 import { EXCHANGE } from './events.js';
 
+const DEAD_LETTER_EXCHANGE = `${EXCHANGE}.dead-letter`;
+
 // Lop bao quanh amqplib de moi service khong phai lap lai phan ket noi, khai bao
 // exchange va logic ket noi lai. Dung topic exchange: ben gui chi quan tam
 // routing key, ben nhan tu chon pattern minh muon nghe.
@@ -81,6 +83,7 @@ export const getChannel = async () => {
 
         channel = await connection.createChannel();
         await channel.assertExchange(EXCHANGE, 'topic', { durable: true });
+        await channel.assertExchange(DEAD_LETTER_EXCHANGE, 'direct', { durable: true });
         connecting = null;
         return channel;
     })();
@@ -100,10 +103,40 @@ export const publish = async (routingKey, payload) => {
     log(`gui su kien ${routingKey}`);
 };
 
+const deadLetter = (ch, queueName, msg, error) => {
+    const originalRoutingKey = msg.fields?.routingKey || 'unknown';
+    try {
+        // Khong them x-dead-letter-exchange vao hang doi chinh: cac queue dang ton
+        // tai da duoc tao khong co argument nay va RabbitMQ se dong channel bang
+        // PRECONDITION_FAILED neu doi cau hinh tai cho. Republish ro rang giu duoc
+        // queue hien co va tao duong nang cap khong mat du lieu.
+        ch.publish(DEAD_LETTER_EXCHANGE, queueName, msg.content, {
+            persistent: true,
+            contentType: msg.properties?.contentType || 'application/json',
+            timestamp: Date.now(),
+            headers: {
+                ...(msg.properties?.headers || {}),
+                'x-original-routing-key': originalRoutingKey,
+                'x-error': String(error?.message || error || 'unknown').slice(0, 500),
+                'x-failed-at': new Date().toISOString()
+            }
+        });
+        ch.ack(msg);
+    } catch (publishError) {
+        // Chi requeue khi chinh ha tang DLQ khong nhan duoc tin. Khong tu retry
+        // loi nghiep vu: gui email/ghi DB lai co the tao tac dung phu trung lap.
+        log('khong dua duoc tin vao dead letter, se thu lai', publishError.message);
+        ch.nack(msg, false, true);
+    }
+};
+
 // Dang ky mot hang doi len ket noi hien tai. Tach rieng de goi lai duoc sau khi
 // ket noi lai, khong phai khoi dong lai ca service.
 const attachConsumer = async ({ queueName, patterns, handler, prefetch }) => {
     const ch = await getChannel();
+    const deadLetterQueue = `${queueName}.dead-letter`;
+    await ch.assertQueue(deadLetterQueue, { durable: true });
+    await ch.bindQueue(deadLetterQueue, DEAD_LETTER_EXCHANGE, queueName);
     await ch.assertQueue(queueName, { durable: true });
     await ch.prefetch(prefetch);
 
@@ -119,9 +152,10 @@ const attachConsumer = async ({ queueName, patterns, handler, prefetch }) => {
         try {
             payload = JSON.parse(msg.content.toString());
         } catch (error) {
-            // Tin hong thi khong bao gio parse duoc, requeue chi lam no quay vong mai.
-            log('tin khong doc duoc, bo qua', error.message);
-            ch.nack(msg, false, false);
+            // Tin hong thi khong bao gio parse duoc, requeue chi lam no quay vong
+            // mai. Giu ban raw trong DLQ de dieu tra/replay thu cong.
+            log('tin khong doc duoc, dua vao dead letter', error.message);
+            deadLetter(ch, queueName, msg, error);
             return;
         }
 
@@ -130,9 +164,7 @@ const attachConsumer = async ({ queueName, patterns, handler, prefetch }) => {
             ch.ack(msg);
         } catch (error) {
             log(`xu ly ${msg.fields.routingKey} that bai: ${error.message}`);
-            // requeue = false: day sang dead letter thay vi lap vo han. Neu can
-            // thu lai thi nen dung hang doi retry co do tre tang dan.
-            ch.nack(msg, false, false);
+            deadLetter(ch, queueName, msg, error);
         }
     });
 };

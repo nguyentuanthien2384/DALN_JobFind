@@ -22,9 +22,24 @@ describe('CommonUtils', () => {
     expect(encodeToken(12, 'ADMIN', 9)).toBe('signed-token');
     expect(mockSign).toHaveBeenCalledWith(expect.objectContaining({
       iss: 'Tai Nguyen', sub: 12, roleCode: 'ADMIN', companyId: 9
-    }), 'unit-secret');
+    }), 'unit-secret', { expiresIn: '3d' });
     const claims = mockSign.mock.calls[0][0];
-    expect(claims.exp).toBeGreaterThan(claims.iat);
+    expect(claims).not.toHaveProperty('iat');
+    expect(claims).not.toHaveProperty('exp');
+  });
+
+  test('creates NumericDate claims in seconds with an exact three-day lifetime', () => {
+    const realJwt = jest.requireActual('jsonwebtoken');
+    mockSign.mockImplementation((...args) => realJwt.sign(...args));
+    const before = Math.floor(Date.now() / 1000);
+    const { encodeToken } = require('../../src/utils/CommonUtils');
+    const token = encodeToken(12, 'ADMIN', 9);
+    const after = Math.floor(Date.now() / 1000);
+    const claims = realJwt.verify(token, 'unit-secret');
+
+    expect(claims.iat).toBeGreaterThanOrEqual(before);
+    expect(claims.iat).toBeLessThanOrEqual(after);
+    expect(claims.exp - claims.iat).toBe(3 * 24 * 60 * 60);
   });
 
   test('extracts PDF data from a base64 data URI', async () => {
