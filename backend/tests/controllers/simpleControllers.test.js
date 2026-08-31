@@ -117,7 +117,7 @@ const cases = [
   [packageCvController, 'getAllPackage', packageCvService, 'getAllPackage', query],
   [packageCvController, 'getAllToSelect', packageCvService, 'getAllToSelect', query],
   [packageCvController, 'getPackageById', packageCvService, 'getPackageById', query],
-  [packageCvController, 'getPaymentLink', packageCvService, 'getPaymentLink', query],
+  [packageCvController, 'getPaymentLink', packageCvService, 'getPaymentLink', (r) => ({ ...r.query, userId: r.user.id })],
   [packageCvController, 'paymentOrderSuccess', packageCvService, 'paymentOrderSuccess', (r) => ({ ...r.body, userId: r.user.id })],
   [packageCvController, 'setActiveTypePackage', packageCvService, 'setActiveTypePackage', body],
   [packageCvController, 'creatNewPackageCv', packageCvService, 'creatNewPackageCv', body],
@@ -129,7 +129,7 @@ const cases = [
   [packagePostController, 'getAllPackage', packagePostService, 'getAllPackage', query],
   [packagePostController, 'getPackageById', packagePostService, 'getPackageById', query],
   [packagePostController, 'getPackageByType', packagePostService, 'getPackageByType', query],
-  [packagePostController, 'getPaymentLink', packagePostService, 'getPaymentLink', query],
+  [packagePostController, 'getPaymentLink', packagePostService, 'getPaymentLink', (r) => ({ ...r.query, userId: r.user.id })],
   [packagePostController, 'paymentOrderSuccess', packagePostService, 'paymentOrderSuccess', (r) => ({ ...r.body, userId: r.user.id })],
   [packagePostController, 'setActiveTypePackage', packagePostService, 'setActiveTypePackage', body],
   [packagePostController, 'creatNewPackagePost', packagePostService, 'creatNewPackagePost', body],
@@ -180,6 +180,10 @@ describe('simple controller contracts', () => {
     socket.emitDashboardChanged.mockClear();
     packageCvService.paymentOrderSuccess.mockResolvedValueOnce({ errCode: 2 });
     await packageCvController.paymentOrderSuccess(baseRequest(), createResponse());
+    expect(socket.emitDashboardChanged).not.toHaveBeenCalled();
+
+    packagePostService.paymentOrderSuccess.mockResolvedValueOnce({ errCode: 0, alreadyProcessed: true });
+    await packagePostController.paymentOrderSuccess(baseRequest(), createResponse());
     expect(socket.emitDashboardChanged).not.toHaveBeenCalled();
   });
 });

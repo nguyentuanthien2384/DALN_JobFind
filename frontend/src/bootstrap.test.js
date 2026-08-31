@@ -55,8 +55,11 @@ describe("system footer", () => {
         document.body.innerHTML = renderToStaticMarkup(<SystemFooter />);
 
         expect(document.body.textContent).toContain("Bản quyền");
-        expect(document.body.textContent).toContain("Thiền NT");
-        expect(document.querySelector('a[href="https://www.facebook.com/ahitvzed/"]')).toBeTruthy();
-        expect(document.querySelectorAll(".footer-social a")).toHaveLength(4);
+        expect(document.body.textContent).toContain("JobFind");
+        const facebook = document.querySelector('a[href="https://www.facebook.com/ahitvzed/"]');
+        expect(facebook).toHaveAttribute("target", "_blank");
+        expect(facebook).toHaveAttribute("rel", "noreferrer");
+        expect(document.querySelectorAll(".footer-social a")).toHaveLength(1);
+        expect(document.querySelector('.footer-social a[href="#"]')).toBeNull();
     });
 });

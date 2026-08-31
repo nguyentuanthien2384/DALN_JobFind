@@ -24,7 +24,7 @@ const getFilterCv = (data) => {
 }
 
 const checkSeeCandiate = (data)=> {
-    return axios.get(`/api/check-see-candiate?userId=${data.userId}&companyId=${data.companyId}`)
+    return axios.get(`/api/check-see-candiate?candidateId=${data.candidateId}`)
 }
 export {
     createNewCv, getAllListCvByPostService, getDetailCvService, getAllListCvByUserIdService, getStatisticalCv,

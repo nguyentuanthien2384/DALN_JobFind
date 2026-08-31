@@ -3,6 +3,21 @@ import db from "../models/index";
 require('dotenv').config();
 const secretString = process.env.JWT_SECRET
 
+const isActiveAccount = (user) => (
+    user && user.userAccountData && user.userAccountData.statusCode === 'S1'
+)
+
+const sendInactiveAccount = (res) => res.status(403).json({
+    status: false,
+    errMessage: 'Account is not active',
+    refresh: true,
+})
+
+const sendAuthenticationFailure = (res) => res.status(500).json({
+    status: false,
+    errMessage: 'Unable to verify account',
+})
+
 const middlewareControllers = {
     verifyTokenUser: (req, res, next) => {
         const token = req.headers.authorization
@@ -16,25 +31,30 @@ const middlewareControllers = {
                         refresh: true,
                     })
                 }
-                const user = await db.User.findOne({ 
-                    where: { id: payload.sub } ,
-                    attributes: ['id', 'companyId'],
-                    include: [
-                        { model: db.Account, as: 'userAccountData', attributes: ['roleCode'] }
-                    ],
-                    raw: true,
-                    nest: true
-                })
-                if (!user) {
-                    return res.status(404).json({
-                        status: false,
-                        errMessage: 'User is not exits',
-                        refresh: true,
+                try {
+                    const user = await db.User.findOne({
+                        where: { id: payload.sub } ,
+                        attributes: ['id', 'companyId'],
+                        include: [
+                            { model: db.Account, as: 'userAccountData', attributes: ['roleCode', 'statusCode'] }
+                        ],
+                        raw: true,
+                        nest: true
                     })
-                }
+                    if (!user) {
+                        return res.status(404).json({
+                            status: false,
+                            errMessage: 'User is not exits',
+                            refresh: true,
+                        })
+                    }
+                    if (!isActiveAccount(user)) return sendInactiveAccount(res)
 
-                req.user = user
-                next()
+                    req.user = user
+                    next()
+                } catch (error) {
+                    return sendAuthenticationFailure(res)
+                }
             })
         } else {
             return res.status(401).json({
@@ -61,12 +81,12 @@ const middlewareControllers = {
                     where: { id: payload.sub },
                     attributes: ['id', 'companyId'],
                     include: [
-                        { model: db.Account, as: 'userAccountData', attributes: ['roleCode'] }
+                        { model: db.Account, as: 'userAccountData', attributes: ['roleCode', 'statusCode'] }
                     ],
                     raw: true,
                     nest: true
                 })
-                if (user) req.user = user
+                if (isActiveAccount(user)) req.user = user
             } catch (error) {
                 // Token khong doc duoc thi coi nhu khach vang lai, khong chan request.
             }
@@ -85,35 +105,40 @@ const middlewareControllers = {
                         refresh: true,
                     })
                 }
-                const user = await db.User.findOne(
-                    {
-                        where: { id: payload.sub },
-                        attributes: {
-                            exclude: ['userId']
-                        },
-                        include: [
-                            { model: db.Account, as: 'userAccountData' }
-                        ],
-                        raw: true,
-                        nest: true
+                try {
+                    const user = await db.User.findOne(
+                        {
+                            where: { id: payload.sub },
+                            attributes: {
+                                exclude: ['userId']
+                            },
+                            include: [
+                                { model: db.Account, as: 'userAccountData' }
+                            ],
+                            raw: true,
+                            nest: true
+                        }
+                    )
+                    if (!user) {
+                        return res.status(404).json({
+                            status: false,
+                            errMessage: 'User is not exits',
+                            refresh: true,
+                        })
                     }
-                )
-                if (!user) {
-                    return res.status(404).json({
-                        status: false,
-                        errMessage: 'User is not exits',
-                        refresh: true,
-                    })
+                    if (!isActiveAccount(user)) return sendInactiveAccount(res)
+                    if (user.userAccountData.roleCode !== 'ADMIN') {
+                        return res.status(403).json({
+                            status: false,
+                            errMessage: 'Permission denied',
+                            refresh: true,
+                        })
+                    }
+                    req.user = user
+                    next()
+                } catch (error) {
+                    return sendAuthenticationFailure(res)
                 }
-                if (user && user.userAccountData.roleCode !== 'ADMIN') {
-                    return res.status(404).json({
-                        status: false,
-                        errMessage: 'Permission denied',
-                        refresh: true,
-                    })
-                }
-                req.user = user
-                next()
             })
         } else {
             return res.status(401).json({

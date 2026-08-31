@@ -178,4 +178,15 @@ describe("system Header", () => {
         expect(localStorage.getItem("token_user")).toBeNull();
         consoleError.mockRestore();
     });
+
+    it("keeps navigation usable when notifications are temporarily unavailable", async () => {
+        getNotificationByUserService.mockRejectedValue(new Error("offline"));
+        render(<Header />);
+
+        expect(await screen.findByAltText("profile")).toBeInTheDocument();
+        expect(screen.getAllByRole("link", { name: "logo" })).toHaveLength(2);
+        screen.getAllByRole("link", { name: "logo" }).forEach((link) => {
+            expect(link).toHaveAttribute("href", "/admin/");
+        });
+    });
 });

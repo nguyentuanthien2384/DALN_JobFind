@@ -4,8 +4,12 @@ const mockService = {
   getDetailUserById: jest.fn(), checkUserPhone: jest.fn(), requestResetPasswordOtp: jest.fn(),
   changePaswordByPhone: jest.fn(), setDataUserSetting: jest.fn()
 };
+const mockCanAccessCandidateProfile = jest.fn();
 
 jest.mock('../../src/services/userService', () => mockService);
+jest.mock('../../src/utils/authorization', () => ({
+  canAccessCandidateProfile: mockCanAccessCandidateProfile
+}));
 
 const controller = require('../../src/controllers/userController');
 const { createRequest, createResponse } = require('../helpers/http');
@@ -34,6 +38,7 @@ const cases = [
 describe('userController', () => {
   beforeAll(() => jest.spyOn(console, 'log').mockImplementation(() => {}));
   afterAll(() => console.log.mockRestore());
+  beforeEach(() => mockCanAccessCandidateProfile.mockResolvedValue(true));
 
   test('registration annotates the payload with the authenticated creator context', async () => {
     mockService.handleCreateNewUser.mockResolvedValueOnce({ errCode: 0 });
@@ -80,20 +85,21 @@ describe('userController', () => {
     expect(mockService.setDataUserSetting).toHaveBeenCalledTimes(1);
   });
 
-  test('candidate profile reads are private while recruiter/admin may inspect another user', async () => {
+  test('candidate profile reads require self/admin/company entitlement authorization', async () => {
     mockService.getDetailUserById.mockResolvedValue({ errCode: 0 });
     const denied = request('CANDIDATE');
     denied.query.id = '99';
+    mockCanAccessCandidateProfile.mockResolvedValueOnce(false);
     const deniedRes = createResponse();
     await controller.getDetailUserById(denied, deniedRes);
     expect(deniedRes.status).toHaveBeenCalledWith(403);
+    expect(mockService.getDetailUserById).not.toHaveBeenCalled();
 
-    for (const role of ['EMPLOYER', 'COMPANY', 'ADMIN']) {
-      const allowed = request(role);
-      allowed.query.id = '99';
-      await controller.getDetailUserById(allowed, createResponse());
-    }
-    expect(mockService.getDetailUserById).toHaveBeenCalledTimes(3);
+    const allowed = request('EMPLOYER');
+    allowed.query.id = '99';
+    await controller.getDetailUserById(allowed, createResponse());
+    expect(mockCanAccessCandidateProfile).toHaveBeenLastCalledWith(allowed, '99');
+    expect(mockService.getDetailUserById).toHaveBeenCalledWith('99');
   });
 
   test('sensitive mutations derive ids from the expected trusted location', async () => {

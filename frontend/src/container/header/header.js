@@ -1,13 +1,13 @@
 import React from 'react'
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom'
-import { toast } from 'react-toastify';
 import './header.scss';
 import { getNotificationByUserService, markReadNotificationService, getListChatConversationService } from '../../service/userService';
 import { getSocket, disconnectSocket } from '../../socket';
+import { readJsonStorage } from '../../util/storage';
 
 const Header = () => {
-    const [user, setUser] = useState({})
+    const [user] = useState(() => readJsonStorage('userData'))
     const [listNotification, setListNotification] = useState([])
     const [unreadCount, setUnreadCount] = useState(0)
     const [unreadChat, setUnreadChat] = useState(0)
@@ -18,25 +18,15 @@ const Header = () => {
     const passwordPath = isCandidate ? '/candidate/changepassword/' : '/admin/changepassword/'
 
     useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem('userData'));
-        // if (userData && userData.roleCode !== 'CANDIDATE')
-        // {
-        //     toast.error("Vai trò của bạn không làm việc ở đây")
-        //     setTimeout(() => {
-        //         window.location.href = "/admin"
-        //     }, 1000);
-        // }
-        setUser(userData)
-    }, [])
-
-    useEffect(() => {
         if (!user || !user.id) return
 
         const loadHeaderData = async () => {
-            const [notificationRes, chatRes] = await Promise.all([
+            const [notificationResult, chatResult] = await Promise.allSettled([
                 getNotificationByUserService({ userId: user.id, limit: 10, offset: 0 }),
                 getListChatConversationService()
             ])
+            const notificationRes = notificationResult.status === 'fulfilled' ? notificationResult.value : null
+            const chatRes = chatResult.status === 'fulfilled' ? chatResult.value : null
             if (notificationRes && notificationRes.errCode === 0) {
                 setListNotification(notificationRes.data || [])
                 setUnreadCount(notificationRes.unreadCount || 0)
@@ -168,17 +158,17 @@ const Header = () => {
                                                         </Link>
                                                     </li>
                                                     <li ref={notificationRef} className="nav-item" style={{ position: 'relative', marginRight: '10px' }}>
-                                                        <a role="button" aria-label="Thông báo" style={{ color: '#252b60', fontSize: '18px', position: 'relative', cursor: 'pointer' }} onClick={() => setShowNotification(!showNotification)}>
+                                                        <button type="button" aria-label="Thông báo" style={{ color: '#252b60', fontSize: '18px', position: 'relative', cursor: 'pointer', border: 0, background: 'none', padding: 0 }} onClick={() => setShowNotification(!showNotification)}>
                                                             <i className="far fa-bell"></i>
                                                             {unreadCount > 0 &&
                                                                 <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: '#fb246a', color: '#fff', borderRadius: '50%', fontSize: '10px', padding: '1px 5px' }}>{unreadCount}</span>
                                                             }
-                                                        </a>
+                                                        </button>
                                                         {showNotification &&
                                                             <div style={{ position: 'absolute', top: '35px', right: '-50px', width: '330px', background: '#fff', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', zIndex: 999, maxHeight: '400px', overflowY: 'auto' }}>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #f0f0f0' }}>
                                                                     <b style={{ color: '#333' }}>Thông báo</b>
-                                                                    <a style={{ fontSize: '12px', color: '#fb246a', cursor: 'pointer' }} onClick={() => handleReadAll()}>Đọc tất cả</a>
+                                                                    <button type="button" style={{ fontSize: '12px', color: '#fb246a', cursor: 'pointer', border: 0, background: 'none', padding: 0 }} onClick={() => handleReadAll()}>Đọc tất cả</button>
                                                                 </div>
                                                                 {listNotification && listNotification.length > 0 ? listNotification.map((item, index) => (
                                                                     <div key={index} onClick={() => handleClickNotification(item)}
@@ -192,10 +182,10 @@ const Header = () => {
                                                         }
                                                     </li>
                                                     <li className="nav-item nav-profile dropdown">
-                                                        <a className="nav-link dropdown-toggle box-header-profile" href="#" data-toggle="dropdown" id="profileDropdown">
+                                                        <button type="button" className="nav-link dropdown-toggle box-header-profile" data-toggle="dropdown" id="profileDropdown" style={{ border: 0, background: 'none' }}>
                                                             <img style={{ objectFit: 'cover', width: '30px', height: '30px', borderRadius: '50%', marginLeft: '15px' }} src={user.image} alt="profile" />
                                                             <span className='header-name-user'>{user.firstName + " " + user.lastName}</span>
-                                                        </a>
+                                                        </button>
                                                         <div className="dropdown-menu dropdown-menu-right navbar-dropdown" aria-labelledby="profileDropdown">
                                                             <Link to={profilePath} className="dropdown-item">
                                                                 <i className="far fa-user text-primary" />
@@ -221,10 +211,10 @@ const Header = () => {
                                                                 <i className="ti-settings text-primary" />
                                                                 Đổi mật khẩu
                                                             </Link>
-                                                            <a onClick={() => handleLogout()} className="dropdown-item">
-                                <i className="ti-power-off text-primary" />
-                                Đăng xuất
-                            </a>
+                                                            <button type="button" onClick={() => handleLogout()} className="dropdown-item">
+                                                                <i className="ti-power-off text-primary" />
+                                                                Đăng xuất
+                                                            </button>
                                                         </div>
                                                     </li>
                                                 </ul>

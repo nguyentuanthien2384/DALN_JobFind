@@ -1,7 +1,9 @@
 const mockFindPost = jest.fn();
+const mockFindCandidateView = jest.fn();
 
 jest.mock('../../src/models/index', () => ({
   Post: { findOne: mockFindPost },
+  CandidateView: { findOne: mockFindCandidateView },
   User: {}
 }));
 
@@ -12,7 +14,10 @@ const reqFor = (roleCode, companyId = null) => ({
 });
 
 describe('authorization helpers', () => {
-  beforeEach(() => mockFindPost.mockReset());
+  beforeEach(() => {
+    mockFindPost.mockReset();
+    mockFindCandidateView.mockReset();
+  });
 
   test('extracts roles and recognises admin/recruiter roles', () => {
     expect(authorization.getRole({})).toBeNull();
@@ -51,5 +56,23 @@ describe('authorization helpers', () => {
     expect(await authorization.canAccessPostApplicants(reqFor('EMPLOYER', 8), 4)).toBe(true);
     mockFindPost.mockResolvedValueOnce({ userPostData: { companyId: 9 } });
     expect(await authorization.canAccessPostApplicants(reqFor('EMPLOYER', 8), 4)).toBe(false);
+  });
+
+  test('protects candidate profiles with self/admin access or a company entitlement', async () => {
+    expect(await authorization.canAccessCandidateProfile({}, 4)).toBe(false);
+    expect(await authorization.canAccessCandidateProfile(reqFor('CANDIDATE'), 0)).toBe(false);
+    expect(await authorization.canAccessCandidateProfile(reqFor('CANDIDATE'), 1)).toBe(true);
+    expect(await authorization.canAccessCandidateProfile(reqFor('ADMIN'), 9)).toBe(true);
+    expect(await authorization.canAccessCandidateProfile(reqFor('CANDIDATE'), 9)).toBe(false);
+    expect(await authorization.canAccessCandidateProfile(reqFor('EMPLOYER'), 9)).toBe(false);
+
+    mockFindCandidateView.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 3 });
+    expect(await authorization.canAccessCandidateProfile(reqFor('EMPLOYER', 8), 9)).toBe(false);
+    expect(await authorization.canAccessCandidateProfile(reqFor('COMPANY', 8), '9')).toBe(true);
+    expect(mockFindCandidateView).toHaveBeenLastCalledWith({
+      where: { companyId: 8, candidateId: 9 },
+      attributes: ['id'],
+      raw: true
+    });
   });
 });

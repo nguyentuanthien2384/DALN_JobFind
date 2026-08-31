@@ -6,7 +6,8 @@ const mockService = {
 const mockFindCv = jest.fn();
 const mockAuth = {
   isAdmin: jest.fn(), isRecruiter: jest.fn(), getRole: jest.fn(), getCompanyId: jest.fn(),
-  canAccessCompany: jest.fn(), canAccessPostApplicants: jest.fn()
+  canAccessCompany: jest.fn(), canAccessPostApplicants: jest.fn(),
+  canAccessCandidateProfile: jest.fn()
 };
 const mockEmitDashboardChanged = jest.fn();
 const mockEmitApplicationSubmitted = jest.fn();
@@ -22,7 +23,7 @@ const { createRequest, createResponse } = require('../helpers/http');
 
 const request = () => createRequest({
   body: { userId: 999, postId: 5, file: 'cv' },
-  query: { cvId: '2', postId: '5', userId: '999', companyId: '11', value: 'query' }
+  query: { cvId: '2', postId: '5', userId: '999', candidateId: '999', companyId: '11', value: 'query' }
 });
 
 describe('cvController', () => {
@@ -36,6 +37,7 @@ describe('cvController', () => {
     mockAuth.getCompanyId.mockReturnValue(11);
     mockAuth.canAccessCompany.mockReturnValue(true);
     mockAuth.canAccessPostApplicants.mockResolvedValue(true);
+    mockAuth.canAccessCandidateProfile.mockResolvedValue(true);
     mockFindCv.mockResolvedValue({ id: 2, userId: 7, postId: 5 });
   });
 
@@ -95,15 +97,22 @@ describe('cvController', () => {
     expect(denied.status).toHaveBeenCalledWith(403);
   });
 
-  test('candidate history is self-scoped while recruiter/admin can query a target user', async () => {
+  test('candidate history requires self/admin/company entitlement authorization', async () => {
     mockService.getAllCvByUserId.mockResolvedValue({ errCode: 0 });
-    mockAuth.isRecruiter.mockReturnValueOnce(false);
-    await controller.getAllCvByUserId(request(), createResponse());
-    expect(mockService.getAllCvByUserId).toHaveBeenLastCalledWith(expect.objectContaining({ userId: 7 }));
-
-    mockAuth.isAdmin.mockReturnValueOnce(true);
     await controller.getAllCvByUserId(request(), createResponse());
     expect(mockService.getAllCvByUserId).toHaveBeenLastCalledWith(expect.objectContaining({ userId: '999' }));
+
+    mockAuth.canAccessCandidateProfile.mockResolvedValueOnce(false);
+    const denied = createResponse();
+    await controller.getAllCvByUserId(request(), denied);
+    expect(denied.status).toHaveBeenCalledWith(403);
+    expect(mockService.getAllCvByUserId).toHaveBeenCalledTimes(1);
+
+    const self = request();
+    delete self.query.userId;
+    await controller.getAllCvByUserId(self, createResponse());
+    expect(mockAuth.canAccessCandidateProfile).toHaveBeenLastCalledWith(self, 7);
+    expect(mockService.getAllCvByUserId).toHaveBeenLastCalledWith(expect.objectContaining({ userId: 7 }));
   });
 
   test('company statistics require access to the requested company', async () => {
@@ -128,6 +137,14 @@ describe('cvController', () => {
   });
 
   test('candidate-view quota is charged only to the authenticated company', async () => {
+    mockAuth.isAdmin.mockReturnValueOnce(true);
+    const admin = createResponse();
+    await controller.checkSeeCandiate(request(), admin);
+    expect(admin.json).toHaveBeenCalledWith(expect.objectContaining({
+      errCode: 0, alreadyGranted: true, chargedAllowance: null
+    }));
+    expect(mockService.checkSeeCandiate).not.toHaveBeenCalled();
+
     mockAuth.isRecruiter.mockReturnValueOnce(false);
     mockAuth.isAdmin.mockReturnValueOnce(false);
     const roleDenied = createResponse();
@@ -141,7 +158,7 @@ describe('cvController', () => {
 
     mockService.checkSeeCandiate.mockResolvedValueOnce({ errCode: 0 });
     await controller.checkSeeCandiate(request(), createResponse());
-    expect(mockService.checkSeeCandiate).toHaveBeenCalledWith({ userId: 'null', companyId: 11 });
+    expect(mockService.checkSeeCandiate).toHaveBeenCalledWith({ companyId: 11, candidateId: '999' });
   });
 
   test.each([

@@ -1,7 +1,15 @@
 const render = require('../../src/utils/mailTemplate');
 
 describe('mailTemplate', () => {
+  const originalUrl = process.env.URL_REACT;
+
+  afterEach(() => {
+    if (originalUrl === undefined) delete process.env.URL_REACT;
+    else process.env.URL_REACT = originalUrl;
+  });
+
   test('renders user greeting, every job, escaped-in-source data fields and closing markup', () => {
+    process.env.URL_REACT = 'https://jobfind.example.com, http://localhost:3000';
     const html = render([
       {
         id: 10,
@@ -37,6 +45,9 @@ describe('mailTemplate', () => {
     expect(html).toContain('Backend Engineer');
     expect(html).toContain('Frontend Engineer');
     expect(html).toContain('https://img/logo.png');
+    expect(html).toContain('href="https://jobfind.example.com/detail-job/10"');
+    expect(html).toContain('href="https://jobfind.example.com/job"');
+    expect(html).not.toContain('example.com, http');
     expect(html).toContain('</html>');
   });
 

@@ -9,6 +9,7 @@
     "start": "babel-node src/server.js",
     "dev": "nodemon --exec babel-node src/server.js",
     "test:smoke": "node scripts/smoke-test.js",
+    "test:smoke:entitlement": "babel-node scripts/smoke-entitlement.js",
     "restore:sample-data": "node scripts/restore-sample-data.js",
     "seed:test-accounts": "node scripts/create-test-accounts.js",
     "seed:demo-data": "node scripts/setup-demo-data.js"

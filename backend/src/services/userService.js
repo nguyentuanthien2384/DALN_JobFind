@@ -4,6 +4,7 @@ const { Op } = require("sequelize");
 import CommonUtils from '../utils/CommonUtils';
 const cloudinary = require('../utils/cloudinary');
 const otpStore = require('../utils/otpStore');
+const { getFrontendLink } = require('../utils/frontendUrl');
 const salt = bcrypt.genSaltSync(10);
 require('dotenv').config();
 let nodemailer = require('nodemailer');
@@ -24,7 +25,7 @@ let sendmail = (note, userMail, link = null) => {
     };
     if (link)
     {
-        mailOptions.html = note + ` xem thông tin <a href='${process.env.URL_REACT}/${link}'>Tại đây</a> `
+        mailOptions.html = note + ` xem thông tin <a href='${getFrontendLink(link)}'>Tại đây</a> `
     }
 
     transporter.sendMail(mailOptions, function (error, info) {

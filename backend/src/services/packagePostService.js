@@ -1,12 +1,6 @@
 import db from "../models/index";
 const { Op, and } = require("sequelize");
-import paypal, { order } from 'paypal-rest-sdk'
-require('dotenv').config();
-paypal.configure({
-    'mode': 'sandbox',
-    'client_id': process.env.CLIENT_ID,
-    'client_secret': process.env.CLIENT_SECRET
-});
+import paymentIntegrityService from './paymentIntegrityService';
 
 let getAllPackage = (data) => {
     return new Promise(async (resolve, reject) => {
@@ -93,185 +87,20 @@ let getPackageById = (data) => {
     })
 }
 
-let getPaymentLink = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const amount = Number(data.amount)
-            if (!data.id || !Number.isFinite(amount) || amount <= 0) {
-                resolve({
-                    errCode: 1,
-                    errMessage: `Missing required parameters !`
+let getPaymentLink = (data) => paymentIntegrityService.createPaymentLink({
+    type: 'POST',
+    userId: data.userId,
+    packageId: data.id,
+    amount: data.amount
+})
 
-                })
-            }
-            else {
-                let infoItem = await db.PackagePost.findOne({
-                    where: { id: data.id }
-                })
-                if (!infoItem || Number(infoItem.isActive) === 0) {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Gói bài đăng không tồn tại hoặc đã ngừng kinh doanh'
-                    })
-                    return
-                }
-                let item = [{
-                    "name": `${infoItem.name}`,
-                    "sku": infoItem.id,
-                    "price": infoItem.price,
-                    "currency": "USD",
-                    "quantity": amount
-                }]
-                const frontendUrl = (process.env.URL_REACT || 'http://localhost:3000')
-                    .split(',')[0].trim().replace(/\/$/, '')
-
-                let create_payment_json = {
-                    "intent": "sale",
-                    "payer": {
-                        "payment_method": "paypal"
-                    },
-                    "redirect_urls": {
-                        "return_url": `${frontendUrl}/admin/payment/success`,
-                        "cancel_url": `${frontendUrl}/admin/payment/cancel`
-                    },
-                    "transactions": [{
-                        "item_list": {
-                            "items": item
-                        },
-                        "amount": {
-                            "currency": "USD",
-                            "total": amount * infoItem.price
-                        },
-                        "description": "This is the payment description."
-                    }]
-                };
-
-                paypal.payment.create(create_payment_json, function (error, payment) {
-                    if (error) {
-                        resolve({
-                            errCode: -1,
-                            errMessage: error.message || 'Không thể tạo giao dịch PayPal',
-                        })
-
-                    } else {
-                        resolve({
-                            errCode: 0,
-                            link: payment.links[1].href
-                        })
-
-                    }
-                });
-            }
-        } catch (error) {
-            reject(error)
-        }
-    })
-}
-
-let paymentOrderSuccess = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const amount = Number(data.amount)
-            if (!data.PayerID || !data.paymentId || !data.token || !data.packageId
-                || !data.userId || !Number.isFinite(amount) || amount <= 0) {
-                resolve({
-                    errCode: 1,
-                    errMessage: 'Missing required parameter !'
-                })
-            } else {
-                let infoItem = await db.PackagePost.findOne({
-                    where: { id: data.packageId }
-                })
-                if (!infoItem || Number(infoItem.isActive) === 0) {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Gói bài đăng không tồn tại hoặc đã ngừng kinh doanh'
-                    })
-                    return
-                }
-
-                // Validate the authenticated purchaser and target company before
-                // asking PayPal to execute the charge. This prevents recording an
-                // order for a missing/spoofed account after money was captured.
-                let user = await db.User.findOne({
-                    where: { id: data.userId },
-                    attributes: {
-                        exclude: ['userId']
-                    }
-                })
-                if (!user || !user.companyId) {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Người dùng không thuộc công ty'
-                    })
-                    return
-                }
-                let company = await db.Company.findOne({
-                    where: { id: user.companyId },
-                    raw: false
-                })
-                if (!company) {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Không tìm thấy công ty'
-                    })
-                    return
-                }
-                let execute_payment_json = {
-                    "payer_id": data.PayerID,
-                    "transactions": [{
-                        "amount": {
-                            "currency": "USD",
-                            "total": amount * infoItem.price
-                        }
-                    }]
-                };
-
-                let paymentId = data.paymentId;
-
-                paypal.payment.execute(paymentId, execute_payment_json, async function (error, payment) {
-                    if (error) {
-                        resolve({
-                            errCode: -1,
-                            errMessage: error.message || 'PayPal từ chối giao dịch'
-                        })
-                    } else {
-                        try {
-                            let orderPackage = await db.OrderPackage.create({
-                                packagePostId: data.packageId,
-                                userId: data.userId,
-                                currentPrice: infoItem.price,
-                                amount: amount
-                            })
-                            if (!orderPackage) {
-                                resolve({
-                                    errCode: 2,
-                                    errMessage: 'Không thể ghi nhận lịch sử mua gói'
-                                })
-                                return
-                            }
-                            if (infoItem.isHot == 0) {
-                                company.allowPost += +infoItem.value * amount
-                            }
-                            else {
-                                company.allowHotPost += +infoItem.value * amount
-                            }
-                            await company.save({silent: true})
-                            resolve({
-                                errCode: 0,
-                                errMessage: 'Hệ thống đã ghi nhận lịch sử mua của bạn'
-                            })
-                        } catch (callbackError) {
-                            reject(callbackError)
-                        }
-                    }
-                });
-            }
-        } catch (error) {
-            reject(error)
-        }
-    })
-}
+let paymentOrderSuccess = (data) => paymentIntegrityService.completePayment({
+    type: 'POST',
+    userId: data.userId,
+    PayerID: data.PayerID,
+    paymentId: data.paymentId,
+    token: data.token
+})
 
 let setActiveTypePackage = (data) => {
     return new Promise(async (resolve, reject) => {

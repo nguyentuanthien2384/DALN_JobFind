@@ -27,6 +27,7 @@ import BuyPost from "./Post/BuyPost";
 import BuyCv from "./PackageCv/BuyCv";
 import BuySuccess from "./Post/BuySucces";
 import BuySuccessCv from "./PackageCv/BuySuccesCv";
+import PaymentCancelled from "./PaymentCancelled";
 
 let mockParams = {};
 let mockSearch = "";
@@ -223,7 +224,7 @@ describe("package purchases", () => {
         fireEvent.change(container.querySelector('input[type="number"]'), { target: { value: "3" } });
         expect(screen.getByText("21 USD")).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "Mua" }));
-        await waitFor(() => expect(config.payment).toHaveBeenCalledWith(2, "3"));
+        await waitFor(() => expect(config.payment).toHaveBeenCalledWith(2, 3));
         expect(toast.error).toHaveBeenCalledWith("Thanh toán lỗi");
         await waitFor(() => expect(screen.queryByTestId("loading")).not.toBeInTheDocument());
     });
@@ -232,10 +233,53 @@ describe("package purchases", () => {
         config.list.mockResolvedValue({ errCode: 0, data: [] });
         const { container } = render(<config.Component />);
 
-        expect(await screen.findByRole("status")).toHaveTextContent("Hiện chưa có gói");
+        expect(await screen.findByText(/Hiện chưa có gói/)).toBeInTheDocument();
         expect(container.querySelector('select[name="addressCode"]')).toBeDisabled();
         expect(screen.getByRole("button", { name: "Mua" })).toBeDisabled();
         expect(config.payment).not.toHaveBeenCalled();
+    });
+
+    it.each(buyers)("recovers when loading the $label package list fails", async (config) => {
+        config.list.mockRejectedValue(new Error("offline"));
+        const { container } = render(<config.Component />);
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("Không thể tải danh sách gói");
+        expect(container.querySelector('select[name="addressCode"]')).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Mua" })).toBeDisabled();
+    });
+
+    it.each(buyers)("validates the $label quantity before opening payment", async (config) => {
+        config.list.mockResolvedValue({ errCode: 0, data: [{ id: 2, name: "Plus", price: 7 }] });
+        const { container } = render(<config.Component />);
+        await screen.findByText("Plus");
+        fireEvent.change(container.querySelector('input[type="number"]'), { target: { value: "0" } });
+        fireEvent.click(screen.getByRole("button", { name: "Mua" }));
+
+        expect(toast.error).toHaveBeenCalledWith("Số lượng phải là số nguyên lớn hơn 0");
+        expect(config.payment).not.toHaveBeenCalled();
+    });
+
+    it.each(buyers)("does not crash or call payment for a malformed $label login session", async (config) => {
+        config.list.mockResolvedValue({ errCode: 0, data: [{ id: 2, name: "Plus", price: 7 }] });
+        localStorage.setItem("userData", "{broken-json");
+        render(<config.Component />);
+        await screen.findByText("Plus");
+        fireEvent.click(screen.getByRole("button", { name: "Mua" }));
+
+        expect(toast.error).toHaveBeenCalledWith("Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại");
+        expect(config.payment).not.toHaveBeenCalled();
+        expect(localStorage.getItem("userData")).toBeNull();
+    });
+
+    it.each(buyers)("stops the $label loading overlay after a payment network failure", async (config) => {
+        config.list.mockResolvedValue({ errCode: 0, data: [{ id: 2, name: "Plus", price: 7 }] });
+        config.payment.mockRejectedValue(new Error("offline"));
+        render(<config.Component />);
+        await screen.findByText("Plus");
+        fireEvent.click(screen.getByRole("button", { name: "Mua" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không thể kết nối cổng thanh toán. Vui lòng thử lại"));
+        expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
     });
 });
 
@@ -244,19 +288,25 @@ const successPages = [
         label: "post",
         Component: BuySuccess,
         storageKey: "orderData",
+        packageKey: "packageId",
         service: paymentOrderSuccessService,
         message: "Chúc mừng bạn đã mua lượt đăng bài thành công",
         action: "Đăng bài ngay",
         destination: "/admin/add-post",
+        errorDestination: "/admin/history-post",
+        buyDestination: "/admin/buy-post",
     },
     {
         label: "CV",
         Component: BuySuccessCv,
         storageKey: "orderCvData",
+        packageKey: "packageCvId",
         service: paymentOrderSuccessServiceCv,
         message: "Chúc mừng bạn đã mua lượt tìm ứng viên thành công",
         action: "Tìm ứng viên ngay",
         destination: "/admin/list-candiate",
+        errorDestination: "/admin/history-cv",
+        buyDestination: "/admin/buy-cv",
     },
 ];
 
@@ -268,12 +318,14 @@ describe("payment callbacks", () => {
     });
 
     it.each(successPages)("finalizes a $label order, clears it and navigates to the next action", async (config) => {
-        localStorage.setItem(config.storageKey, JSON.stringify({ amount: 2, userId: 77 }));
+        localStorage.setItem(config.storageKey, JSON.stringify({
+            [config.packageKey]: 5,
+            amount: 2,
+            userId: 77,
+        }));
         config.service.mockResolvedValue({ errCode: 0, errMessage: "Thành công" });
         render(<config.Component />);
         await waitFor(() => expect(config.service).toHaveBeenCalledWith({
-            amount: 2,
-            userId: 77,
             paymentId: "PAY-1",
             token: "TOKEN-2",
             PayerID: "PAYER-3",
@@ -284,9 +336,90 @@ describe("payment callbacks", () => {
         expect(mockNavigate).toHaveBeenCalledWith(config.destination);
     });
 
-    it.each(successPages)("rejects a $label callback without a stored order", async (config) => {
+    it.each(successPages)("finalizes a $label callback without relying on a stored order", async (config) => {
+        config.service.mockResolvedValue({ errCode: 0, errMessage: "Thành công" });
         render(<config.Component />);
-        expect(await screen.findByText("Thông tin đơn hàng không hợp lệ")).toBeInTheDocument();
+
+        await waitFor(() => expect(config.service).toHaveBeenCalledWith({
+            paymentId: "PAY-1",
+            token: "TOKEN-2",
+            PayerID: "PAYER-3",
+        }));
+        expect(await screen.findByText(config.message)).toBeInTheDocument();
+    });
+
+    it.each(successPages)("submits a $label callback only once under React StrictMode", async (config) => {
+        config.service.mockResolvedValue({ errCode: 0, errMessage: "Thành công" });
+        render(
+            <React.StrictMode>
+                <config.Component />
+            </React.StrictMode>
+        );
+
+        await screen.findByText(config.message);
+        expect(config.service).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(successPages)("finalizes a $label callback even when optional local data is malformed", async (config) => {
+        localStorage.setItem(config.storageKey, "{broken-json");
+        config.service.mockResolvedValue({ errCode: 0, errMessage: "Thành công" });
+        render(<config.Component />);
+
+        expect(await screen.findByText(config.message)).toBeInTheDocument();
+        expect(config.service).toHaveBeenCalledWith({
+            paymentId: "PAY-1",
+            token: "TOKEN-2",
+            PayerID: "PAYER-3",
+        });
+        expect(localStorage.getItem(config.storageKey)).toBeNull();
+    });
+
+    it.each(successPages)("does not finalize a $label order when callback parameters are incomplete", async (config) => {
+        mockSearch = "?paymentId=PAY-1";
+        localStorage.setItem(config.storageKey, JSON.stringify({
+            [config.packageKey]: 5,
+            amount: 2,
+            userId: 77,
+        }));
+        render(<config.Component />);
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("Phản hồi thanh toán không đầy đủ");
         expect(config.service).not.toHaveBeenCalled();
+        expect(localStorage.getItem(config.storageKey)).not.toBeNull();
+    });
+
+    it.each(successPages)("shows a recoverable $label state when confirmation fails", async (config) => {
+        localStorage.setItem(config.storageKey, JSON.stringify({
+            [config.packageKey]: 5,
+            amount: 2,
+            userId: 77,
+        }));
+        config.service.mockRejectedValue(new Error("offline"));
+        render(<config.Component />);
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("Không thể kết nối để xác nhận thanh toán");
+        expect(localStorage.getItem(config.storageKey)).not.toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Xem lịch sử giao dịch" }));
+        expect(mockNavigate).toHaveBeenCalledWith(config.errorDestination);
+    });
+});
+
+describe("payment cancellation", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        localStorage.clear();
+    });
+
+    it.each([
+        ["orderData", "/admin/buy-post", "gói đăng bài"],
+        ["orderCvData", "/admin/buy-cv", "gói tìm ứng viên"],
+    ])("clears %s and offers a safe way back to package selection", (storageKey, buyPath, packageLabel) => {
+        localStorage.setItem(storageKey, JSON.stringify({ amount: 2 }));
+        render(<PaymentCancelled storageKey={storageKey} buyPath={buyPath} packageLabel={packageLabel} />);
+
+        expect(screen.getByText("Thanh toán đã được hủy")).toBeInTheDocument();
+        expect(localStorage.getItem(storageKey)).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: "Quay lại mua gói" }));
+        expect(mockNavigate).toHaveBeenCalledWith(buyPath);
     });
 });

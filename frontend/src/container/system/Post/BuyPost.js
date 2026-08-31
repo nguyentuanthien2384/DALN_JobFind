@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getPackageByType, getPaymentLink } from "../../../service/userService";
 import { toast } from "react-toastify";
 import { Spinner, Modal } from "reactstrap";
+import { readJsonStorage } from "../../../util/storage";
 const BuyPost = () => {
     const [inputValues, setInputValues] = useState({
         amount: 1,
@@ -11,14 +12,16 @@ const BuyPost = () => {
     });
     const [isLoading, setIsLoading] = useState(false);
     const [dataPackage, setDataPackage] = useState([]);
+    const [isPackageLoading, setIsPackageLoading] = useState(true);
+    const [packageError, setPackageError] = useState("");
     const [price, setPrice] = useState(0);
-    const [total, setTotal] = useState(0);
+    const amountValue = Number(inputValues.amount);
+    const total = Number.isFinite(amountValue) && amountValue > 0 ? amountValue * price : 0;
     const handleOnChangePackage = (event) => {
         const { value } = event.target;
         let item = dataPackage.find((item) => String(item.id) === value);
         if (!item) return;
         setPrice(item.price);
-        setTotal(item.price * inputValues.amount);
         setInputValues({
             ...inputValues,
             packageId: item.id,
@@ -30,7 +33,6 @@ const BuyPost = () => {
             ...inputValues,
             amount: value,
         });
-        setTotal(value * price);
     };
     const handleOnChangeType = (event) => {
         const { value } = event.target;
@@ -42,36 +44,64 @@ const BuyPost = () => {
             toast.error("Hiện chưa có gói đăng bài phù hợp");
             return;
         }
+        const amount = Number(inputValues.amount);
+        if (!Number.isInteger(amount) || amount < 1) {
+            toast.error("Số lượng phải là số nguyên lớn hơn 0");
+            return;
+        }
+        const userData = readJsonStorage("userData");
+        if (!userData?.id) {
+            toast.error("Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại");
+            return;
+        }
         setIsLoading(true);
-        let res = await getPaymentLink(
-            inputValues.packageId,
-            inputValues.amount
-        );
-        if (res.errCode == 0) {
-            let data = {
-                packageId: inputValues.packageId,
-                amount: inputValues.amount,
-                userId: JSON.parse(localStorage.getItem("userData")).id,
-            };
-            localStorage.setItem("orderData", JSON.stringify(data));
-            window.location.href = res.link;
-        } else {
-            toast.error(res.errMessage);
+        try {
+            const res = await getPaymentLink(inputValues.packageId, amount);
+            if (res?.errCode === 0 && res.link) {
+                const data = {
+                    packageId: inputValues.packageId,
+                    amount,
+                    userId: userData.id,
+                };
+                localStorage.setItem("orderData", JSON.stringify(data));
+                window.location.href = res.link;
+                return;
+            }
+            toast.error(res?.errMessage || "Không thể tạo liên kết thanh toán");
+        } catch (error) {
+            toast.error(
+                error?.response?.data?.errMessage ||
+                    "Không thể kết nối cổng thanh toán. Vui lòng thử lại"
+            );
+        } finally {
             setIsLoading(false);
         }
     };
     const fetchPackagePost = async (isHot) => {
-        let res = await getPackageByType(isHot);
-        const packages = Array.isArray(res?.data) ? res.data : [];
-        const firstPackage = packages[0];
-        setDataPackage(packages);
-        setInputValues((current) => ({
-            ...current,
-            isHot: Number(isHot),
-            packageId: firstPackage?.id || "",
-        }));
-        setPrice(firstPackage?.price || 0);
-        setTotal((firstPackage?.price || 0) * inputValues.amount);
+        setIsPackageLoading(true);
+        setPackageError("");
+        setDataPackage([]);
+        setInputValues((current) => ({ ...current, isHot: Number(isHot), packageId: "" }));
+        setPrice(0);
+        try {
+            const res = await getPackageByType(isHot);
+            if (!res || res.errCode !== 0) {
+                setPackageError(res?.errMessage || "Không thể tải danh sách gói đăng bài");
+                return;
+            }
+            const packages = Array.isArray(res.data) ? res.data : [];
+            const firstPackage = packages[0];
+            setDataPackage(packages);
+            setInputValues((current) => ({
+                ...current,
+                packageId: firstPackage?.id || "",
+            }));
+            setPrice(firstPackage?.price || 0);
+        } catch (error) {
+            setPackageError("Không thể tải danh sách gói đăng bài. Vui lòng thử lại");
+        } finally {
+            setIsPackageLoading(false);
+        }
     };
     useEffect(() => {
         fetchPackagePost(0);
@@ -122,10 +152,11 @@ const BuyPost = () => {
                                                 style={{ color: "black" }}
                                                 className="form-control"
                                                 name="addressCode"
+                                                value={inputValues.packageId}
                                                 onChange={(event) =>
                                                     handleOnChangePackage(event)
                                                 }
-                                                disabled={dataPackage.length === 0}
+                                                disabled={isPackageLoading || !!packageError || dataPackage.length === 0}
                                             >
                                                 {dataPackage &&
                                                     dataPackage.length > 0 &&
@@ -144,7 +175,17 @@ const BuyPost = () => {
                                                         }
                                                     )}
                                             </select>
-                                            {dataPackage.length === 0 && (
+                                            {isPackageLoading && (
+                                                <p className="mt-2 text-muted" role="status">
+                                                    Đang tải danh sách gói...
+                                                </p>
+                                            )}
+                                            {!isPackageLoading && packageError && (
+                                                <p className="mt-2 text-danger" role="alert">
+                                                    {packageError}
+                                                </p>
+                                            )}
+                                            {!isPackageLoading && !packageError && dataPackage.length === 0 && (
                                                 <p className="mt-2 text-muted" role="status">
                                                     Hiện chưa có gói đăng bài phù hợp.
                                                 </p>
@@ -177,6 +218,8 @@ const BuyPost = () => {
                                                 value={inputValues.amount}
                                                 className="mt-2"
                                                 type={"number"}
+                                                min="1"
+                                                step="1"
                                             ></input>
                                         </div>
                                     </div>
@@ -198,7 +241,7 @@ const BuyPost = () => {
                                 type="button"
                                 className="btn1 btn1-primary1 btn1-icon-text"
                                 onClick={() => handleBuy()}
-                                disabled={dataPackage.length === 0 || isLoading}
+                                disabled={isPackageLoading || !!packageError || dataPackage.length === 0 || isLoading}
                             >
                                 <i className="ti-file btn1-icon-prepend"></i>
                                 Mua
@@ -208,7 +251,7 @@ const BuyPost = () => {
                 </div>
             </div>
             {isLoading && (
-                <Modal isOpen="true" centered contentClassName="closeBorder">
+                <Modal isOpen centered contentClassName="closeBorder">
                     <div
                         style={{
                             position: "absolute",

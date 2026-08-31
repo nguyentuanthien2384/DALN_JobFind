@@ -22,6 +22,7 @@ module.exports = (sequelize, DataTypes) => {
 
             // //Cv
             User.hasMany(models.Cv, { foreignKey: 'userId', as: 'userCvData' })
+            User.hasMany(models.CandidateView, { foreignKey: 'candidateId', as: 'candidateViewCandidateData' })
 
             // //Notification
             // User.hasMany(models.Notification, { foreignKey: 'userId', as: 'userData' })

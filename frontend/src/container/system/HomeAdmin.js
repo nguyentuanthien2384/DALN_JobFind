@@ -46,6 +46,7 @@ import HistoryTradeCv from "./HistoryTrade/HistoryTradeCv";
 import ChartPost from "./Chart/ChartPost";
 import ChartCv from "./Chart/ChartCv";
 import ChatPage from "../Chat/ChatPage";
+import PaymentCancelled from "./PaymentCancelled";
 const HomeAdmin = () => {
     return (
         <div className="container-scroller">
@@ -255,10 +256,30 @@ const HomeAdmin = () => {
                                 path="/payment/success"
                                 element={<PaymentSuccess />}
                             />
+                            <Route
+                                path="/payment/cancel"
+                                element={
+                                    <PaymentCancelled
+                                        storageKey="orderData"
+                                        buyPath="/admin/buy-post"
+                                        packageLabel="gói đăng bài"
+                                    />
+                                }
+                            />
                             <Route path="/buy-cv" element={<BuyCv />} />
                             <Route
                                 path="/paymentCv/success"
                                 element={<PaymentSuccessCv />}
+                            />
+                            <Route
+                                path="/paymentCv/cancel"
+                                element={
+                                    <PaymentCancelled
+                                        storageKey="orderCvData"
+                                        buyPath="/admin/buy-cv"
+                                        packageLabel="gói tìm ứng viên"
+                                    />
+                                }
                             />
                             <Route
                                 path="/list-post-admin"

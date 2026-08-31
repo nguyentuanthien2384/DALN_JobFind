@@ -309,6 +309,15 @@ describe("DetailCompany", () => {
         expect(screen.getByText("Frontend Engineer")).toBeInTheDocument();
         expect(screen.getByText(/Còn/)).toHaveTextContent("Còn 4 ngày");
         expect(screen.getByText("Đã xác thực")).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Chia sẻ qua Facebook" })).toHaveAttribute(
+            "href",
+            `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`
+        );
+        expect(screen.getByTitle("Bản đồ địa chỉ công ty")).toHaveAttribute(
+            "src",
+            expect.not.stringContaining("key=")
+        );
+        expect(document.body.innerHTML).not.toContain("topcv.vn");
     });
 
     it("redirects anonymous visitors who try to follow", async () => {
@@ -316,6 +325,16 @@ describe("DetailCompany", () => {
         fireEvent.click(await screen.findByText("Theo dõi (9)"));
         expect(toast.info).toHaveBeenCalledWith("Vui lòng đăng nhập để theo dõi công ty");
         expect(mockNavigate).toHaveBeenCalledWith("/login");
+        expect(toggleFollowCompanyService).not.toHaveBeenCalled();
+    });
+
+    it("recovers malformed login data as an anonymous visitor", async () => {
+        localStorage.setItem("userData", "{broken-json");
+        render(<DetailCompany />);
+        fireEvent.click(await screen.findByText("Theo dõi (9)"));
+
+        expect(mockNavigate).toHaveBeenCalledWith("/login");
+        expect(localStorage.getItem("userData")).toBeNull();
         expect(toggleFollowCompanyService).not.toHaveBeenCalled();
     });
 
@@ -342,6 +361,7 @@ describe("DetailCompany", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Sao chép đường dẫn" }));
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith(window.location.href);
+        await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã sao chép đường dẫn"));
     });
 
     it("renders explicit empty and expired vacancy states", async () => {
@@ -360,5 +380,26 @@ describe("DetailCompany", () => {
         });
         render(<DetailCompany />);
         expect(await screen.findByText("Không có bài đăng nào")).toBeInTheDocument();
+    });
+
+    it("shows a stable error state when company loading fails", async () => {
+        getDetailCompanyById.mockRejectedValue(new Error("offline"));
+        checkFollowCompanyService.mockRejectedValue(new Error("offline"));
+        render(<DetailCompany />);
+
+        expect(await screen.findByRole("alert")).toHaveTextContent(
+            "Không thể tải thông tin công ty. Vui lòng thử lại"
+        );
+    });
+
+    it("does not render an unsafe company website protocol", async () => {
+        getDetailCompanyById.mockResolvedValue({
+            errCode: 0,
+            data: { ...company, website: "javascript:alert(1)" },
+        });
+        render(<DetailCompany />);
+
+        expect(await screen.findByText("Chưa cập nhật website")).toBeInTheDocument();
+        expect(document.querySelector('a[href^="javascript:"]')).toBeNull();
     });
 });

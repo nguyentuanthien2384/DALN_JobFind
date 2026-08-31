@@ -3,9 +3,10 @@ const model = () => ({
 });
 const mockDb = {
   Cv: model(), User: model(), Account: model(), Post: model(), DetailPost: model(), Skill: model(),
-  UserSkill: model(), Company: model(), UserSetting: model(), Allcode: {},
-  sequelize: { fn: jest.fn(() => 'fn'), col: jest.fn(() => 'col') }
+  UserSkill: model(), Company: model(), CandidateView: model(), UserSetting: model(), Allcode: {},
+  sequelize: { fn: jest.fn(() => 'fn'), col: jest.fn(() => 'col'), transaction: jest.fn() }
 };
+const mockTransaction = { LOCK: { UPDATE: 'UPDATE' } };
 const mockPdfToString = jest.fn();
 const mockFlat = jest.fn((value) => String(value || '').toLowerCase().replace(/[^a-z]/g, ''));
 
@@ -20,6 +21,7 @@ const reset = () => {
   }
   mockDb.sequelize.fn.mockReturnValue('fn');
   mockDb.sequelize.col.mockReturnValue('col');
+  mockDb.sequelize.transaction.mockImplementation(async (callback) => callback(mockTransaction));
   mockPdfToString.mockReset();
   mockFlat.mockClear();
 };
@@ -102,6 +104,41 @@ describe('cvService', () => {
     expect(result).toEqual({ errCode: 0, data: [{ userId: 1 }], count: 1, isHiddenPercent: true });
   });
 
+  test('candidate filtering selects and returns only public identity fields before unlock', async () => {
+    mockDb.UserSetting.findAndCountAll.mockResolvedValue({
+      rows: [{
+        userId: 9,
+        file: 'pdf',
+        userSettingData: {
+          id: 9,
+          firstName: 'An',
+          lastName: 'Nguyen',
+          image: '/avatar.png',
+          email: 'private@example.com',
+          address: 'Private address',
+          dob: '2000-01-01',
+          companyId: 44
+        }
+      }],
+      count: 1
+    });
+
+    const result = await service.fillterCVBySelection({ limit: 5, offset: 0 });
+    expect(result.data[0].userSettingData).toEqual({
+      id: 9,
+      firstName: 'An',
+      lastName: 'Nguyen',
+      image: '/avatar.png'
+    });
+    expect(result.data[0].userSettingData).not.toHaveProperty('email');
+    expect(result.data[0].userSettingData).not.toHaveProperty('address');
+    const query = mockDb.UserSetting.findAndCountAll.mock.calls[0][0];
+    expect(query.include[0]).toEqual(expect.objectContaining({
+      as: 'userSettingData',
+      attributes: ['id', 'firstName', 'lastName', 'image']
+    }));
+  });
+
   test('candidate filtering scores DB skills, free-text CV skills and preference bonuses', async () => {
     mockDb.UserSetting.findAndCountAll.mockResolvedValue({
       rows: [{
@@ -122,26 +159,64 @@ describe('cvService', () => {
     expect(result.data[0].file).toBe('83%');
   });
 
-  test('candidate view quota uses free allowance first, then paid allowance', async () => {
+  test('candidate view grant validates company and active candidate inside a locked transaction', async () => {
     mockDb.Company.findOne.mockResolvedValueOnce(null);
-    expect((await service.checkSeeCandiate({ userId: 'null', companyId: 4 })).errCode).toBe(2);
-    const free = { allowCvFree: 1, allowCv: 3, save: jest.fn() };
-    mockDb.Company.findOne.mockResolvedValueOnce(free);
-    expect((await service.checkSeeCandiate({ userId: 'null', companyId: 4 })).errCode).toBe(0);
-    expect(free).toEqual(expect.objectContaining({ allowCvFree: 0, allowCv: 3 }));
-    const paid = { allowCvFree: 0, allowCv: 2, save: jest.fn() };
-    mockDb.Company.findOne.mockResolvedValueOnce(paid);
-    expect((await service.checkSeeCandiate({ userId: 'null', companyId: 4 })).errCode).toBe(0);
-    expect(paid.allowCv).toBe(1);
-    mockDb.Company.findOne.mockResolvedValueOnce({ allowCvFree: 0, allowCv: 0 });
-    expect((await service.checkSeeCandiate({ userId: 'null', companyId: 4 })).errCode).toBe(1);
+    expect((await service.checkSeeCandiate({ companyId: 4, candidateId: 9 })).errCode).toBe(2);
+
+    mockDb.Company.findOne.mockResolvedValueOnce({ id: 4 });
+    mockDb.Account.findOne.mockResolvedValueOnce(null);
+    expect((await service.checkSeeCandiate({ companyId: 4, candidateId: 9 })).errCode).toBe(3);
+    expect(mockDb.Company.findOne).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { id: 4 }, transaction: mockTransaction, lock: 'UPDATE'
+    }));
+    expect(mockDb.Account.findOne).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { userId: 9, roleCode: 'CANDIDATE', statusCode: 'S1' },
+      transaction: mockTransaction
+    }));
   });
 
-  test('candidate view lookup also accepts a user id and resolves its company', async () => {
-    mockDb.User.findOne.mockResolvedValue({ companyId: 4 });
-    mockDb.Company.findOne.mockResolvedValue({ allowCvFree: 1, allowCv: 0, save: jest.fn() });
-    expect((await service.checkSeeCandiate({ userId: 7 })).errCode).toBe(0);
-    expect(mockDb.Company.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 4 } }));
+  test('candidate view grant is idempotent and never charges an existing company-candidate pair', async () => {
+    const company = { id: 4, allowCvFree: 2, allowCv: 3, save: jest.fn() };
+    mockDb.Company.findOne.mockResolvedValue(company);
+    mockDb.Account.findOne.mockResolvedValue({ userId: 9 });
+    mockDb.CandidateView.findOne.mockResolvedValue({ id: 7, allowanceType: 'FREE' });
+
+    expect(await service.checkSeeCandiate({ companyId: 4, candidateId: 9 })).toEqual({
+      errCode: 0,
+      errMessage: 'Ok',
+      alreadyGranted: true,
+      chargedAllowance: null
+    });
+    expect(company.save).not.toHaveBeenCalled();
+    expect(mockDb.CandidateView.create).not.toHaveBeenCalled();
+  });
+
+  test('candidate view quota uses free allowance first and records the entitlement atomically', async () => {
+    const free = { allowCvFree: 1, allowCv: 3, save: jest.fn() };
+    mockDb.Company.findOne.mockResolvedValue(free);
+    mockDb.Account.findOne.mockResolvedValue({ userId: 9 });
+    mockDb.CandidateView.findOne.mockResolvedValue(null);
+
+    expect(await service.checkSeeCandiate({ companyId: 4, candidateId: 9 })).toEqual(expect.objectContaining({
+      errCode: 0, alreadyGranted: false, chargedAllowance: 'FREE'
+    }));
+    expect(free).toEqual(expect.objectContaining({ allowCvFree: 0, allowCv: 3 }));
+    expect(free.save).toHaveBeenCalledWith({ fields: ['allowCvFree'], transaction: mockTransaction });
+    expect(mockDb.CandidateView.create).toHaveBeenCalledWith({
+      companyId: 4, candidateId: 9, allowanceType: 'FREE'
+    }, { transaction: mockTransaction });
+  });
+
+  test('candidate view quota falls back to paid allowance and rejects an empty balance', async () => {
+    const paid = { allowCvFree: 0, allowCv: 2, save: jest.fn() };
+    mockDb.Company.findOne.mockResolvedValueOnce(paid);
+    mockDb.Account.findOne.mockResolvedValue({ userId: 9 });
+    mockDb.CandidateView.findOne.mockResolvedValue(null);
+    expect((await service.checkSeeCandiate({ companyId: 4, candidateId: 9 })).chargedAllowance).toBe('PAID');
+    expect(paid.allowCv).toBe(1);
+    mockDb.Company.findOne.mockResolvedValueOnce({ allowCvFree: 0, allowCv: 0 });
+    expect((await service.checkSeeCandiate({ companyId: 4, candidateId: 9 })).errCode).toBe(1);
+    expect(mockDb.CandidateView.create).toHaveBeenCalledTimes(1);
   });
 
   test('all workflows propagate unexpected database/PDF failures', async () => {
@@ -152,7 +227,7 @@ describe('cvService', () => {
       ['getAllCvByUserId', { userId: 1, limit: 1, offset: 0 }, mockDb.Cv, 'findAndCountAll'],
       ['getStatisticalCv', { companyId: 1, fromDate: 'a', toDate: 'b' }, mockDb.Company, 'findOne'],
       ['fillterCVBySelection', { limit: 1, offset: 0 }, mockDb.UserSetting, 'findAndCountAll'],
-      ['checkSeeCandiate', { userId: 'null', companyId: 1 }, mockDb.Company, 'findOne']
+      ['checkSeeCandiate', { companyId: 1, candidateId: 2 }, mockDb.Company, 'findOne']
     ];
     for (const [method, arg, target, dbMethod] of failures) {
       target[dbMethod].mockRejectedValueOnce(new Error('db'));

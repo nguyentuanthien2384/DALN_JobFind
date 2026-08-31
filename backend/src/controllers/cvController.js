@@ -8,7 +8,8 @@ import {
     getRole,
     getCompanyId,
     canAccessCompany,
-    canAccessPostApplicants
+    canAccessPostApplicants,
+    canAccessCandidateProfile
 } from '../utils/authorization';
 
 const forbidden = (res, errMessage) => res.status(403).json({
@@ -94,11 +95,13 @@ let getDetailCvById = async (req, res) => {
 }
 let getAllCvByUserId = async (req, res) => {
     try {
-        // Ung vien chi xem duoc lich su ung tuyen cua chinh minh. Nha tuyen dung va
-        // admin duoc xem cua ung vien khac vi day la phan cua tinh nang tim ung vien
-        // (man hinh DetailFilterUser goi sau khi checkSeeCandiate tru luot xem).
-        const canQueryOthers = isAdmin(req) || isRecruiter(req);
-        const targetUserId = canQueryOthers && req.query.userId ? req.query.userId : req.user.id;
+        const targetUserId = req.query.userId || req.user.id;
+        // Khong chi dua vao role: nha tuyen dung phai co ban ghi mo khoa cho dung
+        // cong ty + ung vien. CandidateView duoc tao boi endpoint tru luot atomic.
+        const allowed = await canAccessCandidateProfile(req, targetUserId);
+        if (!allowed) {
+            return forbidden(res, 'Bạn chưa mở quyền xem hồ sơ ứng viên này');
+        }
         let data = await cvService.getAllCvByUserId({
             ...req.query,
             userId: targetUserId
@@ -147,8 +150,15 @@ let fillterCVBySelection= async (req, res) => {
 }
 let checkSeeCandiate= async (req, res) => {
     try {
-        // Truoc day userId/companyId lay tu query nen co the tru het luot xem da
-        // mua cua cong ty khac. Luon dung cong ty cua chinh nguoi dang dang nhap.
+        // Admin kiem tra du lieu he thong ma khong tieu hao goi cua bat ky cong ty.
+        if (isAdmin(req)) {
+            return res.status(200).json({
+                errCode: 0,
+                errMessage: 'Ok',
+                alreadyGranted: true,
+                chargedAllowance: null
+            });
+        }
         if (!isRecruiter(req) && !isAdmin(req)) {
             return forbidden(res, 'Chỉ nhà tuyển dụng mới được xem hồ sơ ứng viên');
         }
@@ -160,8 +170,8 @@ let checkSeeCandiate= async (req, res) => {
             });
         }
         let data = await cvService.checkSeeCandiate({
-            userId: 'null',
-            companyId: companyId
+            companyId: companyId,
+            candidateId: req.query.candidateId
         });
         return res.status(200).json(data);
     } catch (error) {

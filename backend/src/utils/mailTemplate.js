@@ -1,3 +1,5 @@
+const { getFrontendLink } = require('./frontendUrl');
+
 const getHead = () => {
   return `<!doctype html>
   <html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -232,7 +234,7 @@ const getHeadMailTemplate = (userInfo) => {
 
 const getPostTemplate = (postInfo) => {
   return `<!--[if mso | IE]></td></tr></table></td></tr><tr><td class="" width="600px" ><table align="center" border="0" cellpadding="0" cellspacing="0" class="" style="width:550px;" width="550" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-  <a href=${process.env.URL_REACT + `/detail-job/` + postInfo.id}/>
+  <a href="${getFrontendLink(`/detail-job/${postInfo.id}`)}">
   <div style="background:#ffffff;background-color:#ffffff;margin:0px auto;max-width:550px;">
     <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;background-color:#ffffff;width:100%;">
       <tbody>
@@ -302,7 +304,7 @@ const getTailMailTemplate = () => {
                       <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:separate;line-height:100%;">
                         <tr>
                           <td align="center" bgcolor="red" role="presentation" style="border:none;border-radius:3px;cursor:auto;mso-padding-alt:10px 25px;background:red;" valign="middle">
-                            <a href=${process.env.URL_REACT + "/job"} style="display:inline-block;background:red;color:white;font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:13px;font-weight:normal;line-height:120%;margin:0;text-decoration:none;text-transform:none;padding:10px 25px;mso-padding-alt:0px;border-radius:3px;" target="_blank"> Xem thêm công việc </a>
+                            <a href="${getFrontendLink('/job')}" style="display:inline-block;background:red;color:white;font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:13px;font-weight:normal;line-height:120%;margin:0;text-decoration:none;text-transform:none;padding:10px 25px;mso-padding-alt:0px;border-radius:3px;" target="_blank" rel="noopener noreferrer"> Xem thêm công việc </a>
                           </td>
                         </tr>
                       </table>

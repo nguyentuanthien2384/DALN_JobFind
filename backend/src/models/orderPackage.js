@@ -16,13 +16,19 @@ module.exports = (sequelize, DataTypes) => {
            //PackagePost
            OrderPackage.belongsTo(models.PackagePost, {foreignKey: 'packagePostId',targetKey:'id',as:'packageOrderData'})
 
+           OrderPackage.belongsTo(models.PaymentIntent, {foreignKey: 'paymentIntentId',targetKey:'id',as:'paymentIntentData'})
+
         }
     };
     OrderPackage.init({
         packagePostId: DataTypes.INTEGER,
         userId: DataTypes.INTEGER,
         currentPrice: DataTypes.DOUBLE,
-        amount: DataTypes.INTEGER
+        amount: DataTypes.INTEGER,
+        paymentIntentId: {
+            type: DataTypes.INTEGER,
+            unique: true
+        }
     }, 
     {
         sequelize,

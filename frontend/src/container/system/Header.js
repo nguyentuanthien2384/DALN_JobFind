@@ -6,9 +6,10 @@ import {
     getNotificationByUserService,
     markReadNotificationService,
 } from "../../service/userService";
+import { readJsonStorage } from "../../util/storage";
 
 const Header = () => {
-    const [user, setUser] = useState({});
+    const [user] = useState(() => readJsonStorage("userData", {}));
     const [listNotification, setListNotification] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [showNotification, setShowNotification] = useState(false);
@@ -40,24 +41,23 @@ const Header = () => {
         localStorage.removeItem("token_user");
         window.location.href = "/login";
     };
-    useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem("userData"));
-        setUser(userData);
-    }, []);
-
     // Khu quan tri truoc day khong co chuong thong bao (chi giao dien ngoai moi co),
     // nen nha tuyen dung khong biet co CV moi hay tin duoc duyet.
     useEffect(() => {
         if (!user || !user.id) return;
         const loadNotification = async () => {
-            const res = await getNotificationByUserService({
-                userId: user.id,
-                limit: 10,
-                offset: 0,
-            });
-            if (res && res.errCode === 0) {
-                setListNotification(res.data || []);
-                setUnreadCount(res.unreadCount || 0);
+            try {
+                const res = await getNotificationByUserService({
+                    userId: user.id,
+                    limit: 10,
+                    offset: 0,
+                });
+                if (res && res.errCode === 0) {
+                    setListNotification(res.data || []);
+                    setUnreadCount(res.unreadCount || 0);
+                }
+            } catch (error) {
+                // Thong bao la thong tin phu; loi mang khong duoc lam hong thanh dieu huong.
             }
         };
         loadNotification();
@@ -120,9 +120,9 @@ const Header = () => {
                         alt="logo"
                     />
                 </Link>
-                <a className="navbar-brand brand-logo-mini" href="index.html">
+                <Link className="navbar-brand brand-logo-mini" to="/admin/">
                     <img src="/assetsAdmin/images/logo-mini.svg" alt="logo" />
-                </a>
+                </Link>
             </div>
             <div className="navbar-menu-wrapper d-flex align-items-center justify-content-end">
                 <button
@@ -223,18 +223,19 @@ const Header = () => {
                         )}
                     </li>
                     <li className="nav-item nav-profile dropdown">
-                        <a
+                        <button
+                            type="button"
                             className="nav-link dropdown-toggle"
-                            href="#"
                             data-toggle="dropdown"
                             id="profileDropdown"
+                            style={{ border: 0, background: "none" }}
                         >
                             <img
                                 style={{ objectFit: "cover" }}
                                 src={user.image}
                                 alt="profile"
                             />
-                        </a>
+                        </button>
                         <div
                             className="dropdown-menu dropdown-menu-right navbar-dropdown"
                             aria-labelledby="profileDropdown"
@@ -253,13 +254,14 @@ const Header = () => {
                                 <i className="ti-settings text-primary" />
                                 Đổi mật khẩu
                             </Link>
-                            <a
+                            <button
+                                type="button"
                                 onClick={() => handleLogout()}
                                 className="dropdown-item"
                             >
                                 <i className="ti-power-off text-primary" />
                                 Đăng xuất
-                            </a>
+                            </button>
                         </div>
                     </li>
                 </ul>

@@ -47,7 +47,7 @@ describe('JWT middleware', () => {
 
   test('verifyTokenUser loads the current user and continues', async () => {
     mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 42 }));
-    const user = { id: 42, companyId: 8, userAccountData: { roleCode: 'CANDIDATE' } };
+    const user = { id: 42, companyId: 8, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } };
     mockFindUser.mockResolvedValue(user);
     const req = createRequest({ headers: { authorization: 'Bearer valid' } });
     const res = createResponse();
@@ -70,10 +70,46 @@ describe('JWT middleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  test.each([
+    ['verifyTokenUser', 'CANDIDATE'],
+    ['verifyTokenAdmin', 'ADMIN']
+  ])('%s rejects a token after the account is disabled', async (method, roleCode) => {
+    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 42 }));
+    mockFindUser.mockResolvedValue({
+      id: 42,
+      userAccountData: { roleCode, statusCode: 'S2' }
+    });
+    const res = createResponse();
+    const next = jest.fn();
+    middleware[method](createRequest({ headers: { authorization: 'Bearer valid' } }), res, next);
+    await flush();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      errMessage: 'Account is not active',
+      refresh: true
+    }));
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['verifyTokenUser'],
+    ['verifyTokenAdmin']
+  ])('%s returns a controlled error when account lookup fails', async (method) => {
+    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 42 }));
+    mockFindUser.mockRejectedValue(new Error('db down'));
+    const res = createResponse();
+    const next = jest.fn();
+    middleware[method](createRequest({ headers: { authorization: 'Bearer valid' } }), res, next);
+    await flush();
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errMessage: 'Unable to verify account' }));
+    expect(next).not.toHaveBeenCalled();
+  });
+
   test('verifyTokenAdmin permits admins and rejects non-admin users', async () => {
     mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 1 }));
     const req = createRequest({ headers: { authorization: 'Bearer valid' } });
-    const admin = { id: 1, userAccountData: { roleCode: 'ADMIN' } };
+    const admin = { id: 1, userAccountData: { roleCode: 'ADMIN', statusCode: 'S1' } };
     mockFindUser.mockResolvedValueOnce(admin);
     const res = createResponse();
     const next = jest.fn();
@@ -82,12 +118,12 @@ describe('JWT middleware', () => {
     expect(req.user).toBe(admin);
     expect(next).toHaveBeenCalled();
 
-    mockFindUser.mockResolvedValueOnce({ id: 1, userAccountData: { roleCode: 'EMPLOYER' } });
+    mockFindUser.mockResolvedValueOnce({ id: 1, userAccountData: { roleCode: 'EMPLOYER', statusCode: 'S1' } });
     const deniedRes = createResponse();
     const deniedNext = jest.fn();
     middleware.verifyTokenAdmin(createRequest({ headers: { authorization: 'Bearer valid' } }), deniedRes, deniedNext);
     await flush();
-    expect(deniedRes.status).toHaveBeenCalledWith(404);
+    expect(deniedRes.status).toHaveBeenCalledWith(403);
     expect(deniedRes.json).toHaveBeenCalledWith(expect.objectContaining({ errMessage: 'Permission denied' }));
   });
 
@@ -125,9 +161,9 @@ describe('JWT middleware', () => {
 
   test('verifyTokenOptional attaches a valid user and tolerates database errors', async () => {
     mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 3 }));
-    const user = { id: 3 };
+    const user = { id: 3, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } };
     mockFindUser.mockResolvedValueOnce(user);
-    const req = createRequest({ headers: { authorization: 'Bearer ok' } });
+    const req = createRequest({ headers: { authorization: 'Bearer ok' }, user: undefined });
     const next = jest.fn();
     middleware.verifyTokenOptional(req, createResponse(), next);
     await flush();
@@ -139,5 +175,19 @@ describe('JWT middleware', () => {
     middleware.verifyTokenOptional(createRequest({ headers: { authorization: 'Bearer ok' } }), createResponse(), fallbackNext);
     await flush();
     expect(fallbackNext).toHaveBeenCalled();
+  });
+
+  test('verifyTokenOptional treats a disabled account as an anonymous visitor', async () => {
+    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 3 }));
+    mockFindUser.mockResolvedValue({
+      id: 3,
+      userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S2' }
+    });
+    const req = createRequest({ headers: { authorization: 'Bearer ok' }, user: undefined });
+    const next = jest.fn();
+    middleware.verifyTokenOptional(req, createResponse(), next);
+    await flush();
+    expect(req.user).toBeUndefined();
+    expect(next).toHaveBeenCalledTimes(1);
   });
 });

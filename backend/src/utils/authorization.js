@@ -53,6 +53,26 @@ const canAccessPostApplicants = async (req, postId) => {
     return getCompanyId(req) === companyIdOfPost;
 };
 
+// Ho so trong kho ung vien chua du lieu lien he va CV. Ung vien duoc xem chinh
+// minh, admin duoc kiem tra he thong; nha tuyen dung chi duoc xem sau khi cong ty
+// da mo khoa ung vien do. Ban ghi CandidateView la quyen truy cap lau dai va cung
+// la khoa chong tru trung luot xem.
+const canAccessCandidateProfile = async (req, candidateId) => {
+    const targetId = Number(candidateId);
+    if (!Number.isInteger(targetId) || targetId <= 0 || !req.user) return false;
+    if (Number(req.user.id) === targetId || isAdmin(req)) return true;
+    if (!isRecruiter(req)) return false;
+
+    const companyId = getCompanyId(req);
+    if (companyId === null) return false;
+    const candidateView = await db.CandidateView.findOne({
+        where: { companyId, candidateId: targetId },
+        attributes: ['id'],
+        raw: true
+    });
+    return Boolean(candidateView);
+};
+
 module.exports = {
     ROLE_ADMIN,
     RECRUITER_ROLES,
@@ -62,5 +82,6 @@ module.exports = {
     getCompanyId,
     canAccessCompany,
     getCompanyIdOfPost,
-    canAccessPostApplicants
+    canAccessPostApplicants,
+    canAccessCandidateProfile
 };

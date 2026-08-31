@@ -106,4 +106,14 @@ describe("application routes", () => {
         renderAt("/does-not-exist");
         expect(screen.getByText("not-found-page")).toBeInTheDocument();
     });
+
+    it("recovers from malformed persisted login data instead of crashing public routes", () => {
+        localStorage.clear();
+        localStorage.setItem("userData", "{broken-json");
+        window.history.replaceState({}, "", "/");
+
+        expect(() => render(<App />)).not.toThrow();
+        expect(screen.getByText("home-page")).toBeInTheDocument();
+        expect(localStorage.getItem("userData")).toBeNull();
+    });
 });

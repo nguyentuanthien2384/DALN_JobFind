@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
 import chatService from "../services/chatService";
+import db from "../models/index";
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
@@ -53,11 +54,21 @@ let initSocket = (server) => {
     });
 
     // Chi cho phep ket noi khi co token hop le -> khong the gia mao nguoi khac.
-    io.use((socket, next) => {
+    io.use(async (socket, next) => {
         const userId = getUserIdFromHandshake(socket);
         if (!userId) return next(new Error('UNAUTHORIZED'));
-        socket.userId = userId;
-        next();
+        try {
+            const account = await db.Account.findOne({
+                where: { userId, statusCode: 'S1' },
+                attributes: ['userId'],
+                raw: true
+            });
+            if (!account) return next(new Error('UNAUTHORIZED'));
+            socket.userId = userId;
+            next();
+        } catch (error) {
+            next(new Error('UNAUTHORIZED'));
+        }
     });
 
     io.on('connection', (socket) => {

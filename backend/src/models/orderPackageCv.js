@@ -16,13 +16,19 @@ module.exports = (sequelize, DataTypes) => {
            //PackageCv
            OrderPackageCV.belongsTo(models.PackageCv, {foreignKey: 'packageCvId',targetKey:'id',as:'packageOrderCvData'})
 
+           OrderPackageCV.belongsTo(models.PaymentIntent, {foreignKey: 'paymentIntentId',targetKey:'id',as:'paymentIntentData'})
+
         }
     };
     OrderPackageCV.init({
         packageCvId: DataTypes.INTEGER,
         userId: DataTypes.INTEGER,
         currentPrice: DataTypes.DOUBLE,
-        amount: DataTypes.INTEGER
+        amount: DataTypes.INTEGER,
+        paymentIntentId: {
+            type: DataTypes.INTEGER,
+            unique: true
+        }
     }, 
     {
         sequelize,

@@ -380,9 +380,9 @@ let fillterCVBySelection = (data) => {
                         },
                     },
                     include: [
-                        {model: db.User, as: 'userSettingData' , attributes: {
-                            exclude: ['userId']
-                        }},
+                        // Danh sach tim kiem chi duoc hien thi danh tinh toi thieu.
+                        // Email, dia chi, ngay sinh... chi tra sau khi cong ty mo khoa.
+                        { model: db.User, as: 'userSettingData', attributes: ['id', 'firstName', 'lastName', 'image'] },
                         {model: db.Allcode, as:'jobTypeSettingData', attributes: ['value','code']},
                         {model: db.Allcode, as:'expTypeSettingData', attributes: ['value','code']},
                         {model: db.Allcode, as:'salaryTypeSettingData', attributes: ['value','code']},
@@ -461,6 +461,19 @@ let fillterCVBySelection = (data) => {
                         return item
                     })
                 }
+                // Phong ve chieu sau: ke ca khi include bi sua nham hoac adapter DB
+                // tra them cot, response tim kiem van khong lam lo PII.
+                listUserSetting.rows = listUserSetting.rows.map(item => {
+                    if (!item.userSettingData) return item
+                    const user = item.userSettingData
+                    item.userSettingData = {
+                        id: user.id,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        image: user.image
+                    }
+                    return item
+                })
                 resolve({
                     errCode: 0,
                     data: listUserSetting.rows,
@@ -475,78 +488,97 @@ let fillterCVBySelection = (data) => {
     })
 }
 
-let checkSeeCandiate = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            if (!data.userId && !data.companyId) {
-                resolve({
-                    errCode: 1,
-                    errMessage: 'Missing required parameters !'
-                })
-            } else {
-                let company
-                if (data.userId !== 'null') {
-                    let user = await db.User.findOne({
-                        where: {id: data.userId},
-                        attributes: {
-                            exclude: ['userId']
-                        }
-                    })
-                    company = await db.Company.findOne({
-                        where : {id: user.companyId},
-                        // Model Company khai bao thuoc tinh la 'allowCv' (cot DB la 'allowCV').
-                        // Neu liet ke 'allowCV' o day thi Sequelize khong nhan ra la thuoc tinh
-                        // cua model, getter company.allowCV se la undefined -> nhanh kiem tra
-                        // luot xem tra phi ben duoi khong bao gio chay.
-                        attributes: ['id','allowCv','allowCvFree'],
-                        raw: false
-                    })
-                }
-                else {
-                    company = await db.Company.findOne({
-                        where: { id: data.companyId },
-                        // Model Company khai bao thuoc tinh la 'allowCv' (cot DB la 'allowCV').
-                        // Neu liet ke 'allowCV' o day thi Sequelize khong nhan ra la thuoc tinh
-                        // cua model, getter company.allowCV se la undefined -> nhanh kiem tra
-                        // luot xem tra phi ben duoi khong bao gio chay.
-                        attributes: ['id','allowCv','allowCvFree'],
-                        raw: false
-                    })
-                }
-                if (!company) {
-                    resolve({
-                        errCode: 2,
-                        errMessage: "Không tìm thấy công ty người dùng sở hữu"
-                    })
-                }
-                else {
-                    if (company.allowCvFree > 0) {
-                        company.allowCvFree -= 1
-                        await company.save()
-                        resolve({
-                            errCode: 0,
-                            errMessage: "Ok"
-                        })
-                    }
-                    else if (company.allowCv > 0) {
-                        company.allowCv -= 1
-                        await company.save()
-                        resolve({
-                            errCode: 0,
-                            errMessage: "Ok"
-                        })
-                    }
-                    else {
-                        resolve({
-                            errCode: 1,
-                            errMessage: "Công ty bạn đã hết lượt xem"
-                        })
-                    }
-                    
-                }
+let checkSeeCandiate = async (data) => {
+    const companyId = Number(data && data.companyId)
+    const candidateId = Number(data && data.candidateId)
+    if (!Number.isInteger(companyId) || companyId <= 0 ||
+        !Number.isInteger(candidateId) || candidateId <= 0) {
+        return {
+            errCode: 1,
+            errMessage: 'Missing required parameters !'
+        }
+    }
+
+    // Khoa dong Company trong transaction de hai request dong thoi khong the
+    // cung doc mot so du roi cung tru. Sau khi khoa, ban ghi CandidateView duoc
+    // kiem tra lai; unique(companyId, candidateId) la lop bao ve cuoi cung.
+    return db.sequelize.transaction(async (transaction) => {
+        const company = await db.Company.findOne({
+            where: { id: companyId },
+            attributes: ['id', 'allowCv', 'allowCvFree'],
+            transaction,
+            lock: transaction.LOCK.UPDATE,
+            raw: false
+        })
+        if (!company) {
+            return {
+                errCode: 2,
+                errMessage: 'Không tìm thấy công ty người dùng sở hữu'
             }
-        } catch (error) {
-            reject(error)
+        }
+
+        const candidate = await db.Account.findOne({
+            where: {
+                userId: candidateId,
+                roleCode: 'CANDIDATE',
+                statusCode: 'S1'
+            },
+            attributes: ['userId'],
+            transaction,
+            raw: true
+        })
+        if (!candidate) {
+            return {
+                errCode: 3,
+                errMessage: 'Không tìm thấy ứng viên đang hoạt động'
+            }
+        }
+
+        const existingView = await db.CandidateView.findOne({
+            where: { companyId, candidateId },
+            attributes: ['id', 'allowanceType'],
+            transaction,
+            lock: transaction.LOCK.UPDATE,
+            raw: true
+        })
+        if (existingView) {
+            return {
+                errCode: 0,
+                errMessage: 'Ok',
+                alreadyGranted: true,
+                chargedAllowance: null
+            }
+        }
+
+        let allowanceType
+        if (Number(company.allowCvFree || 0) > 0) {
+            company.allowCvFree -= 1
+            allowanceType = 'FREE'
+            await company.save({ fields: ['allowCvFree'], transaction })
+        }
+        else if (Number(company.allowCv || 0) > 0) {
+            company.allowCv -= 1
+            allowanceType = 'PAID'
+            await company.save({ fields: ['allowCv'], transaction })
+        }
+        else {
+            return {
+                errCode: 1,
+                errMessage: 'Công ty bạn đã hết lượt xem'
+            }
+        }
+
+        await db.CandidateView.create({
+            companyId,
+            candidateId,
+            allowanceType
+        }, { transaction })
+
+        return {
+            errCode: 0,
+            errMessage: 'Ok',
+            alreadyGranted: false,
+            chargedAllowance: allowanceType
         }
     })
 }

@@ -1,5 +1,6 @@
 const mockJwtVerify = jest.fn();
 const mockChatService = { handleSendMessage: jest.fn(), markConversationRead: jest.fn() };
+const mockFindAccount = jest.fn();
 const mockIo = {
   use: jest.fn(), on: jest.fn(), to: jest.fn(), emit: jest.fn()
 };
@@ -7,6 +8,9 @@ const mockServerConstructor = jest.fn(() => mockIo);
 
 jest.mock('jsonwebtoken', () => ({ verify: mockJwtVerify }));
 jest.mock('../../src/services/chatService', () => mockChatService);
+jest.mock('../../src/models/index', () => ({
+  Account: { findOne: mockFindAccount }
+}));
 jest.mock('socket.io', () => ({ Server: mockServerConstructor }));
 
 const socketModule = require('../../src/config/socket');
@@ -30,6 +34,7 @@ describe('socket realtime layer', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFindAccount.mockResolvedValue({ userId: 7 });
     handlers = {};
     roomEmitter = { emit: jest.fn() };
     mockIo.to.mockReturnValue(roomEmitter);
@@ -48,7 +53,7 @@ describe('socket realtime layer', () => {
     expect(() => socketModule.emitDashboardChanged('post')).not.toThrow();
   });
 
-  test('initialises CORS, authenticates handshake tokens and joins the private room', () => {
+  test('initialises CORS, authenticates active-account handshake tokens and joins the private room', async () => {
     process.env.URL_REACT = ' http://frontend-one.test, http://frontend-two.test, ';
     const server = {};
     expect(socketModule.initSocket(server)).toBe(mockIo);
@@ -62,14 +67,18 @@ describe('socket realtime layer', () => {
     connectionHandler = mockIo.on.mock.calls.find(([event]) => event === 'connection')[1];
 
     let next = jest.fn();
-    authMiddleware(socket, next);
+    await authMiddleware(socket, next);
     expect(next.mock.calls[0][0]).toEqual(new Error('UNAUTHORIZED'));
 
     socket.handshake.auth.token = 'Bearer valid';
     mockJwtVerify.mockReturnValueOnce({ sub: 7 });
     next = jest.fn();
-    authMiddleware(socket, next);
+    await authMiddleware(socket, next);
     expect(mockJwtVerify).toHaveBeenCalledWith('valid', expect.anything());
+    expect(mockFindAccount).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 7, statusCode: 'S1' },
+      raw: true
+    }));
     expect(socket.userId).toBe(7);
     expect(next).toHaveBeenCalledWith();
 
@@ -77,12 +86,29 @@ describe('socket realtime layer', () => {
     socket.handshake.query.token = 'query-token';
     mockJwtVerify.mockImplementationOnce(() => { throw new Error('bad'); });
     next = jest.fn();
-    authMiddleware(socket, next);
+    await authMiddleware(socket, next);
     expect(next.mock.calls[0][0]).toEqual(new Error('UNAUTHORIZED'));
 
     connectionHandler(socket);
     expect(socket.join).toHaveBeenCalledWith('user:7');
     expect(Object.keys(handlers)).toEqual(expect.arrayContaining(['chat:send', 'chat:typing', 'chat:read']));
+  });
+
+  test('rejects disabled, deleted and database-unavailable accounts during the handshake', async () => {
+    socketModule.initSocket({});
+    authMiddleware = mockIo.use.mock.calls[0][0];
+    socket.handshake.auth.token = 'valid';
+    mockJwtVerify.mockReturnValue({ sub: 7 });
+
+    mockFindAccount.mockResolvedValueOnce(null);
+    let next = jest.fn();
+    await authMiddleware(socket, next);
+    expect(next.mock.calls[0][0]).toEqual(new Error('UNAUTHORIZED'));
+
+    mockFindAccount.mockRejectedValueOnce(new Error('db down'));
+    next = jest.fn();
+    await authMiddleware(socket, next);
+    expect(next.mock.calls[0][0]).toEqual(new Error('UNAUTHORIZED'));
   });
 
   test('stores a socket message under authenticated sender and broadcasts/acks success', async () => {

@@ -1,4 +1,5 @@
 import userService from '../services/userService';
+import { canAccessCandidateProfile } from '../utils/authorization';
 
 const canUpdateUser = (req, targetUserId) => {
     const roleCode = req.user?.userAccountData?.roleCode;
@@ -108,15 +109,13 @@ let getAllUser = async (req, res) => {
 }
 let getDetailUserById = async (req, res) => {
     try {
-        // Ho so ca nhan chua email, dia chi, ngay sinh va file CV. Ung vien chi
-        // duoc xem ho so cua chinh minh; nha tuyen dung va admin duoc xem ho so
-        // ung vien khac (phuc vu man hinh tim ung vien).
-        const role = req.user?.userAccountData?.roleCode;
-        const canViewOthers = role === 'ADMIN' || role === 'EMPLOYER' || role === 'COMPANY';
-        if (!canViewOthers && Number(req.query.id) !== Number(req.user.id)) {
+        // Ho so chua thong tin lien he va file CV. Role nha tuyen dung khong du:
+        // cong ty phai mo khoa dung ung vien; candidate tu xem va admin duoc mien.
+        const allowed = await canAccessCandidateProfile(req, req.query.id);
+        if (!allowed) {
             return res.status(403).json({
                 errCode: 3,
-                errMessage: 'Bạn không có quyền xem hồ sơ của người dùng khác'
+                errMessage: 'Bạn chưa mở quyền xem hồ sơ ứng viên này'
             });
         }
         let data = await userService.getDetailUserById(req.query.id);

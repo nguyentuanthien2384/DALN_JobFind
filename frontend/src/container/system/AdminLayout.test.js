@@ -49,11 +49,23 @@ describe("admin layout shell", () => {
         expect(screen.getByRole("link", { name: "Quy trình ứng viên" })).toHaveAttribute("href", "/admin/pipeline");
         expect(screen.queryByText("TO DO LIST")).not.toBeInTheDocument();
         expect(screen.queryByText("Feb 11 2018")).not.toBeInTheDocument();
+        expect(document.querySelector('footer a[href="#"]')).toBeNull();
     });
 
     it("selects the requested nested administration route", () => {
         renderAdmin("/reports");
         expect(screen.getByText("ADMIN REPORT")).toBeInTheDocument();
         expect(screen.queryByText("ADMIN HOME")).not.toBeInTheDocument();
+    });
+
+    it.each([
+        ["/payment/cancel", "orderData"],
+        ["/paymentCv/cancel", "orderCvData"],
+    ])("renders the PayPal cancellation route %s", (route, storageKey) => {
+        localStorage.setItem(storageKey, JSON.stringify({ amount: 1 }));
+        renderAdmin(route);
+
+        expect(screen.getByText("Thanh toán đã được hủy")).toBeInTheDocument();
+        expect(localStorage.getItem(storageKey)).toBeNull();
     });
 });

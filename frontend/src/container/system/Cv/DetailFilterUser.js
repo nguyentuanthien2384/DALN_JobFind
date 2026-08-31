@@ -63,10 +63,8 @@ const DetailFilterUser = () => {
     useEffect(() => {
         if (id) {
             let fetchUser = async () => {
-                let userData = JSON.parse(localStorage.getItem("userData"));
                 let check = await checkSeeCandiate({
-                    userId: userData.id,
-                    companyId: userData.companyId,
+                    candidateId: id,
                 });
                 if (check.errCode === 0) {
                     let user = await getDetailUserById(id);

@@ -17,6 +17,7 @@ module.exports = (sequelize, DataTypes) => {
             //User
             Company.hasMany(models.User,{foreignKey:'companyId',as: 'userCompanyData'})
             Company.belongsTo(models.User,{foreignKey:'userId',targetKey:'id',as:'companyUserData'})
+            Company.hasMany(models.CandidateView, { foreignKey: 'companyId', as: 'candidateViewCompanyData' })
             
         }
     };

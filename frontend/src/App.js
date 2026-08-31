@@ -21,9 +21,10 @@ import ListCompany from "./container/Company/ListCompany";
 import DetailCompany from "./container/Company/DetailCompany";
 import ChatPage from "./container/Chat/ChatPage";
 import NotFound from "./container/NotFound/NotFound";
+import { readJsonStorage } from "./util/storage";
 
 function App() {
-    const userData = JSON.parse(localStorage.getItem("userData"));
+    const userData = readJsonStorage("userData");
     const roleCode = userData?.roleCode;
 
     return (

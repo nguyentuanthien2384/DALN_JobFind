@@ -225,6 +225,7 @@ describe("candidate access detail", () => {
         expect(screen.getAllByText("React").length).toBeGreaterThan(0);
         const historyRow = screen.getByText("Frontend Engineer").closest("tr");
         expect(within(historyRow).getByText("Đã xem")).toBeInTheDocument();
+        expect(checkSeeCandiate).toHaveBeenCalledWith({ candidateId: "99" });
         expect(getAllListCvByUserIdService).toHaveBeenCalledWith({ userId: "99", limit: 20, offset: 0 });
         expect(container.querySelector("iframe")).toHaveAttribute("src", "/files/profile.pdf");
     });

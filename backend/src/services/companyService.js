@@ -4,6 +4,7 @@ import db from "../models/index";
 const cloudinary = require('../utils/cloudinary');
 require('dotenv').config();
 var nodemailer = require('nodemailer');
+const { getFrontendLink } = require('../utils/frontendUrl');
 let sendmail = (note, userMail, link = null) => {
     var transporter = nodemailer.createTransport({
         service: 'gmail',
@@ -22,7 +23,7 @@ let sendmail = (note, userMail, link = null) => {
     if (link)
     {
         mailOptions.html = note + ` <br>
-        xem thông tin công ty <a href='${process.env.URL_REACT}/${link}'>Tại đây</a> `
+        xem thông tin công ty <a href='${getFrontendLink(link)}'>Tại đây</a> `
     }
 
     transporter.sendMail(mailOptions, function (error, info) {

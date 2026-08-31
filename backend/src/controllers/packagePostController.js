@@ -42,7 +42,10 @@ let getPackageByType = async (req, res) => {
 
 let getPaymentLink = async (req, res) => {
     try {
-        let data = await packageService.getPaymentLink(req.query);
+        let data = await packageService.getPaymentLink({
+            ...req.query,
+            userId: req.user.id
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -61,7 +64,7 @@ let paymentOrderSuccess = async (req, res) => {
             userId: req.user.id
         });
         // Mua goi thanh cong -> bang doanh thu goi bai dang cua admin doi ngay.
-        if (data.errCode === 0) emitDashboardChanged('payment-post');
+        if (data.errCode === 0 && !data.alreadyProcessed) emitDashboardChanged('payment-post');
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

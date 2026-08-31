@@ -38,7 +38,7 @@ describe("cvService", () => {
         ["getAllListCvByUserIdService", "get", [{ limit: 10, offset: 1, userId: 3 }], "/api/get-all-cv-by-userId?limit=10&offset=1&userId=3"],
         ["getStatisticalCv", "get", [{ limit: 5, offset: 0, fromDate: "a", toDate: "b", companyId: 4 }], "/api/get-statistical-cv?limit=5&offset=0&fromDate=a&toDate=b&companyId=4"],
         ["getFilterCv", "get", [{ limit: 5, offset: 0, experienceJobCode: "E", categoryJobCode: "IT", listSkills: "JS,TS", otherSkills: "Go", salaryCode: "S", provinceCode: "HN" }], "/api/fillter-cv-by-selection?limit=5&offset=0&experienceJobCode=E&categoryJobCode=IT&listSkills=JS,TS&otherSkills=Go&salaryCode=S&provinceCode=HN"],
-        ["checkSeeCandiate", "get", [{ userId: 3, companyId: 4 }], "/api/check-see-candiate?userId=3&companyId=4"],
+        ["checkSeeCandiate", "get", [{ candidateId: 3 }], "/api/check-see-candiate?candidateId=3"],
     ]);
 });
 

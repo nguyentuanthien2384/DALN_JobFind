@@ -68,6 +68,15 @@ describe("public Header", () => {
         expect(getNotificationByUserService).not.toHaveBeenCalled();
     });
 
+    it("treats malformed persisted user data as an anonymous session", async () => {
+        localStorage.setItem("userData", "{broken-json");
+        render(<Header />);
+
+        expect(await screen.findByRole("link", { name: "Đăng nhập" })).toBeInTheDocument();
+        expect(localStorage.getItem("userData")).toBeNull();
+        expect(getNotificationByUserService).not.toHaveBeenCalled();
+    });
+
     it("loads candidate badges and exposes candidate-only menu links", async () => {
         localStorage.setItem(
             "userData",
@@ -175,6 +184,19 @@ describe("public Header", () => {
         unmount();
         expect(socket.off).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
         expect(socket.off).toHaveBeenCalledWith("notification:new", expect.any(Function));
+    });
+
+    it("keeps the chat badge available when notification loading fails", async () => {
+        localStorage.setItem(
+            "userData",
+            JSON.stringify({ id: 9, roleCode: "CANDIDATE", firstName: "Mạng", lastName: "Chậm" })
+        );
+        getNotificationByUserService.mockRejectedValue(new Error("offline"));
+        getListChatConversationService.mockResolvedValue({ errCode: 0, totalUnread: 4 });
+        render(<Header />);
+
+        expect(await screen.findByText("Mạng Chậm")).toBeInTheDocument();
+        expect(await screen.findByText("4")).toBeInTheDocument();
     });
 
     it("makes the header sticky after scrolling", async () => {
