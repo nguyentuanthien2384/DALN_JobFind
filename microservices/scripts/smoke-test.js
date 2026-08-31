@@ -77,6 +77,14 @@ const waitForAiTask = async (taskId, headers, { attempts = 20, delayMs = 500 } =
 const run = async () => {
     console.log(`Kiểm tra hệ thống microservices tại ${GW}`);
 
+    const root = await req('/');
+    check('Đường dẫn gốc Gateway phản hồi',
+        root.status === 200
+        && root.body.status === 'ok'
+        && root.body.service === 'api-gateway'
+        && root.body.endpoints?.health === '/health'
+        && root.body.endpoints?.status === '/status');
+
     const health = await req('/health');
     check('Gateway phản hồi', health.body.status === 'ok');
 

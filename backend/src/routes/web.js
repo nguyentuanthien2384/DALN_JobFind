@@ -28,6 +28,24 @@ const protectedBy = (permission) => [
 
 let initWebRoutes = (app) => {
 
+    // Cac dia chi dich vu mo truc tiep trong trinh duyet phai tra loi ro rang,
+    // thay vi de Express roi xuong trang 404 "Cannot GET /".
+    router.get('/', (req, res) => res.json({
+        status: 'ok',
+        service: 'legacy-monolith',
+        message: 'Job Finder legacy backend is running',
+        endpoints: {
+            health: '/health',
+            api: '/api',
+            socket: '/socket.io'
+        }
+    }))
+    router.get('/health', (req, res) => res.json({
+        status: 'ok',
+        service: 'legacy-monolith',
+        time: new Date().toISOString()
+    }))
+
     //=====================API USER==========================//
     // Tao tai khoan: co the goi khi chua dang nhap (tu dang ky) hoac boi admin.
     // verifyTokenOptional gan req.user neu co token hop le de controller biet

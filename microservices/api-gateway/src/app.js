@@ -103,6 +103,19 @@ const aiLimiter = createRateLimiter({ name: 'ai', windowSeconds: 3600, max: 30 }
 mountLoginRateLimit(app, loginLimiter);
 
 // ===================== GIAM SAT =====================
+app.get('/', (req, res) => {
+    res.json({
+        status: 'ok',
+        service: 'api-gateway',
+        message: 'Job Finder API Gateway is running',
+        endpoints: {
+            health: '/health',
+            status: '/status',
+            api: '/api'
+        }
+    });
+});
+
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'api-gateway', time: new Date().toISOString() });
 });

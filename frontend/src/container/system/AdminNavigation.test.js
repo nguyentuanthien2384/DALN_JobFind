@@ -201,7 +201,12 @@ describe("system Header", () => {
     });
 
     it("closes notifications on outside click and toggles desktop/mobile sidebar state", async () => {
-        render(<Header />);
+        render(
+            <>
+                <Header />
+                <nav className="sidebar-offcanvas" aria-label="Thanh menu kiểm thử" />
+            </>
+        );
         await screen.findByText("2");
         fireEvent.click(screen.getByRole("button", { name: "Thông báo" }));
         expect(screen.getByText("Có CV mới")).toBeInTheDocument();
@@ -213,10 +218,22 @@ describe("system Header", () => {
         expect(document.body).toHaveClass("sidebar-icon-only");
         expect(screen.getByRole("button", { name: "Mở thanh menu" })).toHaveAttribute("aria-expanded", "false");
 
-        window.matchMedia.mockImplementationOnce(() => ({ matches: true }));
-        fireEvent.click(screen.getByRole("button", { name: "Mở thanh menu" }));
-        expect(document.body).not.toHaveClass("sidebar-icon-only");
-        expect(document.body).toHaveClass("sidebar-hidden");
+        const mobileSidebarButton = screen.getByRole("button", { name: "Mở menu trên điện thoại" });
+        fireEvent.click(mobileSidebarButton);
+        expect(screen.getByLabelText("Thanh menu kiểm thử")).toHaveClass("active");
+        expect(screen.getByRole("button", { name: "Đóng menu trên điện thoại" })).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("opens the account menu and closes it with Escape", async () => {
+        render(<Header />);
+        const profileButton = await screen.findByRole("button", { name: "Tài khoản" });
+
+        expect(profileButton).toHaveAttribute("aria-expanded", "false");
+        fireEvent.click(profileButton);
+        expect(profileButton).toHaveAttribute("aria-expanded", "true");
+        expect(document.getElementById("system-profile-menu")).toHaveClass("show");
+        fireEvent.keyDown(document, { key: "Escape" });
+        expect(profileButton).toHaveAttribute("aria-expanded", "false");
     });
 
     it("disconnects and clears both authentication values on logout", async () => {
@@ -224,6 +241,7 @@ describe("system Header", () => {
         const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
         render(<Header />);
         await screen.findByAltText("profile");
+        fireEvent.click(screen.getByRole("button", { name: "Tài khoản" }));
         fireEvent.click(screen.getByText("Đăng xuất"));
         expect(disconnectSocket).toHaveBeenCalledTimes(1);
         expect(localStorage.getItem("userData")).toBeNull();

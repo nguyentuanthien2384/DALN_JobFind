@@ -322,6 +322,29 @@ nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link[aria-
     color: #fb246a;
 }
 
+/* Khung "Thong tin cong ty" dung cung bo cuc voi "Thong tin cong viec".
+   Gia tri dai van can phai va tu xuong dong trong pham vi cua sidebar. */
+.company-details-card .company-details-list li {
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.company-details-card .company-details-list li:last-child {
+    margin-bottom: 0;
+}
+
+.company-details-card .company-details-label {
+    flex: 0 0 auto;
+}
+
+.company-details-card .company-details-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: #506172;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
 /* ==========================================================================
    CUM NUT HANH DONG O KHUNG "THONG TIN CONG VIEC" (JobDetail.js)
    Truoc day 3 nut dung chung class .btn cua theme roi chap va inline style:

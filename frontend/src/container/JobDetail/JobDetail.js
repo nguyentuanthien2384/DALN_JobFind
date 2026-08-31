@@ -427,18 +427,24 @@ const JobDetail = () => {
                                             </button>}
                                         </div>
                                     </div>
-                                    <div className="post-details4  mb-50">
+                                    <div className="post-details3 company-details-card mb-50">
                                         <div className="small-section-tittle">
                                             <h4>Thông tin công ty</h4>
                                         </div>
-                                        <span>
-                                            Tên công ty :{" "}
-                                            {dataPost.companyData.name}
-                                        </span>
-                                        <ul>
+                                        <ul className="company-details-list">
                                             <li>
-                                                Website :{" "}
-                                                <span>
+                                                <span className="company-details-label">
+                                                    Tên công ty :
+                                                </span>
+                                                <span className="company-details-value">
+                                                    {dataPost.companyData.name}
+                                                </span>
+                                            </li>
+                                            <li>
+                                                <span className="company-details-label">
+                                                    Website :
+                                                </span>
+                                                <span className="company-details-value">
                                                     {
                                                         dataPost.companyData
                                                             .website
@@ -446,8 +452,10 @@ const JobDetail = () => {
                                                 </span>
                                             </li>
                                             <li>
-                                                Địa chỉ :{" "}
-                                                <span>
+                                                <span className="company-details-label">
+                                                    Địa chỉ :
+                                                </span>
+                                                <span className="company-details-value">
                                                     {
                                                         dataPost.companyData
                                                             .address
@@ -455,8 +463,10 @@ const JobDetail = () => {
                                                 </span>
                                             </li>
                                             <li>
-                                                Điện thoại :{" "}
-                                                <span>
+                                                <span className="company-details-label">
+                                                    Điện thoại :
+                                                </span>
+                                                <span className="company-details-value">
                                                     {
                                                         dataPost.companyData
                                                             .phonenumber
@@ -464,8 +474,10 @@ const JobDetail = () => {
                                                 </span>
                                             </li>
                                             <li>
-                                                Mã số thuế :{" "}
-                                                <span>
+                                                <span className="company-details-label">
+                                                    Mã số thuế :
+                                                </span>
+                                                <span className="company-details-value">
                                                     {
                                                         dataPost.companyData
                                                             .taxnumber
@@ -473,8 +485,10 @@ const JobDetail = () => {
                                                 </span>
                                             </li>
                                             <li>
-                                                Số nhân viên:{" "}
-                                                <span>
+                                                <span className="company-details-label">
+                                                    Số nhân viên :
+                                                </span>
+                                                <span className="company-details-value">
                                                     {
                                                         dataPost.companyData
                                                             .amountEmployer

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { disconnectSocket, getSocket } from "../../socket";
 import {
     getNotificationByUserService,
@@ -17,27 +17,27 @@ const Header = ({ user: suppliedUser }) => {
     const [listNotification, setListNotification] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [showNotification, setShowNotification] = useState(false);
+    const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [isSidebarMinimized, setIsSidebarMinimized] = useState(() =>
-        document.body.classList.contains("sidebar-icon-only") ||
-        document.body.classList.contains("sidebar-hidden")
+        document.body.classList.contains("sidebar-icon-only")
     );
+    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const boxRef = useRef(null);
+    const profileRef = useRef(null);
     const homePath = getDefaultRouteForUser(user);
 
     const handleSidebarToggle = () => {
-        const isMobile = window.matchMedia("(max-width: 991.98px)").matches;
-        const sidebarStateClass = isMobile
-            ? "sidebar-hidden"
-            : "sidebar-icon-only";
-        const willBeMinimized = !document.body.classList.contains(sidebarStateClass);
-
-        // Xóa trạng thái của chế độ còn lại để việc đổi kích thước màn hình
-        // không làm sidebar bị kẹt ở trạng thái cũ.
-        document.body.classList.remove(
-            isMobile ? "sidebar-icon-only" : "sidebar-hidden"
-        );
-        document.body.classList.toggle(sidebarStateClass, willBeMinimized);
+        const willBeMinimized = !document.body.classList.contains("sidebar-icon-only");
+        document.body.classList.toggle("sidebar-icon-only", willBeMinimized);
         setIsSidebarMinimized(willBeMinimized);
+    };
+
+    const handleMobileSidebarToggle = () => {
+        const sidebar = document.querySelector(".sidebar-offcanvas");
+        if (!sidebar) return;
+        const willOpen = !sidebar.classList.contains("active");
+        sidebar.classList.toggle("active", willOpen);
+        setIsMobileSidebarOpen(willOpen);
     };
 
     let handleLogout = () => {
@@ -78,17 +78,39 @@ const Header = ({ user: suppliedUser }) => {
         };
     }, [user]);
 
-    // Bam ra ngoai thi dong hop thong bao lai
+    const closeHeaderMenus = useCallback(() => {
+        setShowNotification(false);
+        setShowProfileMenu(false);
+    }, []);
+
+    // Các menu dùng trạng thái React để hoạt động ổn định sau khi component render.
     useEffect(() => {
-        if (!showNotification) return;
+        if (!showNotification && !showProfileMenu) return;
         const onClickOutside = (e) => {
-            if (boxRef.current && !boxRef.current.contains(e.target)) {
-                setShowNotification(false);
-            }
+            const clickedInsideMenu = [boxRef, profileRef]
+                .some(ref => ref.current && ref.current.contains(e.target));
+            if (!clickedInsideMenu) closeHeaderMenus();
+        };
+        const onEscape = (e) => {
+            if (e.key === "Escape") closeHeaderMenus();
         };
         document.addEventListener("mousedown", onClickOutside);
-        return () => document.removeEventListener("mousedown", onClickOutside);
-    }, [showNotification]);
+        document.addEventListener("keydown", onEscape);
+        return () => {
+            document.removeEventListener("mousedown", onClickOutside);
+            document.removeEventListener("keydown", onEscape);
+        };
+    }, [showNotification, showProfileMenu, closeHeaderMenus]);
+
+    const toggleNotificationMenu = () => {
+        setShowNotification(current => !current);
+        setShowProfileMenu(false);
+    };
+
+    const toggleProfileMenu = () => {
+        setShowProfileMenu(current => !current);
+        setShowNotification(false);
+    };
 
     const handleReadAll = async () => {
         const res = await markReadNotificationService({ userId: user.id });
@@ -111,7 +133,7 @@ const Header = ({ user: suppliedUser }) => {
             );
             setUnreadCount((cur) => Math.max(0, cur - 1));
         }
-        setShowNotification(false);
+        closeHeaderMenus();
         if (notification.link) window.location.href = notification.link;
     };
 
@@ -149,11 +171,13 @@ const Header = ({ user: suppliedUser }) => {
                         <button
                             type="button"
                             aria-label="Thông báo"
+                            aria-expanded={showNotification}
+                            aria-controls="system-notification-menu"
                             style={{
                                 color: "#252b60", fontSize: "18px", cursor: "pointer",
                                 background: "none", border: 0, padding: 0, lineHeight: 1,
                             }}
-                            onClick={() => setShowNotification(!showNotification)}
+                            onClick={toggleNotificationMenu}
                         >
                             <i className="far fa-bell"></i>
                             {unreadCount > 0 && (
@@ -170,6 +194,7 @@ const Header = ({ user: suppliedUser }) => {
                         </button>
                         {showNotification && (
                             <div
+                                id="system-notification-menu"
                                 style={{
                                     position: "absolute", top: "34px", right: "-10px", width: "330px",
                                     background: "#fff", borderRadius: "8px",
@@ -227,13 +252,17 @@ const Header = ({ user: suppliedUser }) => {
                             </div>
                         )}
                     </li>
-                    <li className="nav-item nav-profile dropdown">
+                    <li className="nav-item nav-profile dropdown" ref={profileRef}>
                         <button
                             type="button"
                             className="nav-link dropdown-toggle"
-                            data-toggle="dropdown"
                             id="profileDropdown"
-                            style={{ border: 0, background: "none" }}
+                            aria-label="Tài khoản"
+                            aria-haspopup="menu"
+                            aria-expanded={showProfileMenu}
+                            aria-controls="system-profile-menu"
+                            onClick={toggleProfileMenu}
+                            style={{ border: 0, background: "none", cursor: "pointer" }}
                         >
                             <img
                                 style={{ objectFit: "cover" }}
@@ -242,12 +271,14 @@ const Header = ({ user: suppliedUser }) => {
                             />
                         </button>
                         <div
-                            className="dropdown-menu dropdown-menu-right navbar-dropdown"
+                            id="system-profile-menu"
+                            className={`dropdown-menu dropdown-menu-right navbar-dropdown${showProfileMenu ? " show" : ""}`}
                             aria-labelledby="profileDropdown"
                         >
                             <Link
                                 to={"/admin/user-info/"}
                                 className="dropdown-item"
+                                onClick={closeHeaderMenus}
                             >
                                 <i className="far fa-user text-primary"></i>
                                 Thông tin
@@ -255,6 +286,7 @@ const Header = ({ user: suppliedUser }) => {
                             <Link
                                 to={"/admin/changepassword/"}
                                 className="dropdown-item"
+                                onClick={closeHeaderMenus}
                             >
                                 <i className="ti-settings text-primary" />
                                 Đổi mật khẩu
@@ -273,7 +305,9 @@ const Header = ({ user: suppliedUser }) => {
                 <button
                     className="navbar-toggler navbar-toggler-right d-lg-none align-self-center"
                     type="button"
-                    data-toggle="offcanvas"
+                    aria-label={isMobileSidebarOpen ? "Đóng menu trên điện thoại" : "Mở menu trên điện thoại"}
+                    aria-expanded={isMobileSidebarOpen}
+                    onClick={handleMobileSidebarToggle}
                 >
                     <span className="icon-menu" />
                 </button>

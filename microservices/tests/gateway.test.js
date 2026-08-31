@@ -265,6 +265,7 @@ describe('service registry', () => {
         expect(states[0].healthy).toBe(true);
         expect(states[1].healthy).toBe(false);
         expect(states[2]).toMatchObject({ healthy: false, lastError: 'dns' });
+        expect(states[3]).toMatchObject({ healthy: false, lastError: 'HTTP 404' });
         clearInterval(timer);
     });
 });

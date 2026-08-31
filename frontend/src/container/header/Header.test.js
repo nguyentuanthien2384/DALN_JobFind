@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
     getListChatConversationService,
     getNotificationByUserService,
@@ -99,6 +99,11 @@ describe("public Header", () => {
         expect(getListChatConversationService).toHaveBeenCalledTimes(1);
         expect(await screen.findByText("2")).toBeInTheDocument();
         expect(await screen.findByText("3")).toBeInTheDocument();
+        const profileButton = screen.getByRole("button", { name: /An Nguyễn/ });
+        expect(profileButton).toHaveAttribute("aria-expanded", "false");
+        fireEvent.click(profileButton);
+        expect(profileButton).toHaveAttribute("aria-expanded", "true");
+        expect(document.getElementById("public-profile-menu")).toHaveClass("show");
         expect(screen.getByRole("link", { name: /Thông tin/ })).toHaveAttribute(
             "href",
             "/candidate/info"
@@ -124,6 +129,7 @@ describe("public Header", () => {
         render(<Header />);
 
         expect(await screen.findByText("Nhà Tuyển dụng")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: /Nhà Tuyển dụng/ }));
         expect(screen.getByRole("link", { name: /Thông tin/ })).toHaveAttribute(
             "href",
             "/admin/user-info/"
@@ -171,6 +177,7 @@ describe("public Header", () => {
 
             expect(await screen.findByText(`${roleCode} User`)).toBeInTheDocument();
             expect(await screen.findByText("3")).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: new RegExp(`${roleCode} User`) }));
             expect(screen.getAllByRole("link", { name: /Tin nhắn/ })).toHaveLength(2);
             expect(getListChatConversationService).toHaveBeenCalledTimes(1);
             expect(socket.on).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
@@ -204,6 +211,50 @@ describe("public Header", () => {
 
         fireEvent.keyDown(document, { key: "Escape" });
         expect(screen.queryByText("Đọc tất cả")).not.toBeInTheDocument();
+    });
+
+    it("opens the account menu with React and closes it outside or with Escape", async () => {
+        localStorage.setItem(
+            "userData",
+            JSON.stringify({ id: 7, roleCode: "CANDIDATE", firstName: "Menu", lastName: "User" })
+        );
+        render(<Header />);
+        const profileButton = await screen.findByRole("button", { name: /Menu User/ });
+        const initialScrollY = window.scrollY;
+
+        fireEvent.click(profileButton);
+        expect(profileButton).toHaveAttribute("aria-expanded", "true");
+        const profileMenu = document.getElementById("public-profile-menu");
+        expect(profileMenu).toHaveClass("show");
+        expect(profileMenu).toHaveStyle({
+            position: "absolute",
+            top: "100%",
+            right: "0px",
+            left: "auto",
+        });
+        expect(window.scrollY).toBe(initialScrollY);
+        fireEvent.mouseDown(document.body);
+        expect(profileButton).toHaveAttribute("aria-expanded", "false");
+
+        fireEvent.click(profileButton);
+        fireEvent.keyDown(document, { key: "Escape" });
+        expect(profileButton).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("provides a working React navigation menu on mobile", async () => {
+        render(<Header />);
+        const menuButton = screen.getByRole("button", { name: "Menu" });
+
+        expect(menuButton).toHaveAttribute("aria-expanded", "false");
+        fireEvent.click(menuButton);
+        expect(menuButton).toHaveAttribute("aria-expanded", "true");
+        const mobileNavigation = screen.getByRole("navigation", { name: "Điều hướng di động" });
+        expect(mobileNavigation).toBeInTheDocument();
+        expect(screen.getAllByRole("link", { name: "Việc làm" })).toHaveLength(2);
+        const mobileLoginLink = within(mobileNavigation).getByRole("link", { name: "Đăng nhập" });
+        mobileLoginLink.addEventListener("click", event => event.preventDefault(), { once: true });
+        fireEvent.click(mobileLoginLink);
+        expect(menuButton).toHaveAttribute("aria-expanded", "false");
     });
 
     it("refreshes immediately for socket events and removes listeners on unmount", async () => {
@@ -258,6 +309,7 @@ describe("public Header", () => {
         render(<Header />);
         await screen.findByText("Log Out");
 
+        fireEvent.click(screen.getByRole("button", { name: /Log Out/ }));
         fireEvent.click(screen.getByText("Đăng xuất"));
         expect(disconnectSocket).toHaveBeenCalledTimes(1);
         expect(localStorage.getItem("userData")).toBeNull();

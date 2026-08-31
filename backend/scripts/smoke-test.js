@@ -48,6 +48,11 @@ function section(title) {
 
 async function run() {
     console.log(`Kiểm tra API tại ${baseUrl}`);
+    const root = await request("/");
+    check("Đường dẫn gốc backend phản hồi", root.response.ok && root.body.service === "legacy-monolith");
+    const health = await request("/health");
+    check("Backend báo trạng thái khỏe", health.response.ok && health.body.status === "ok");
+
     const candidate = await login(candidatePhone, "Ứng viên");
     const admin = await login(adminPhone, "Quản trị viên");
     const employer = await login(employerPhone, "Nhà tuyển dụng");

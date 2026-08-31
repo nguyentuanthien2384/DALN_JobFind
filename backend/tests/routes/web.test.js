@@ -61,11 +61,31 @@ describe('web routes', () => {
     const uniquePaths = new Set(mockRoutes.map((route) => `${route.method}:${route.path}`));
     expect(uniquePaths.size).toBeGreaterThanOrEqual(80);
     for (const endpoint of [
+      'get:/', 'get:/health',
       'post:/api/create-new-user', 'post:/api/login', 'put:/api/ban-company',
       'post:/api/create-new-cv', 'put:/api/accept-post', 'post:/api/payment-success',
       'post:/api/toggle-favorite-post', 'post:/api/send-chat-message',
       'post:/internal/emit-notification'
     ]) expect(uniquePaths).toContain(endpoint);
+  });
+
+  test('exposes useful root and health responses for direct browser checks', () => {
+    const latest = (path) => [...mockRoutes].reverse().find((route) => route.path === path);
+    const rootResponse = createResponse();
+    latest('/').handlers[0]({}, rootResponse);
+    expect(rootResponse.json).toHaveBeenCalledWith({
+      status: 'ok',
+      service: 'legacy-monolith',
+      message: 'Job Finder legacy backend is running',
+      endpoints: { health: '/health', api: '/api', socket: '/socket.io' }
+    });
+
+    const healthResponse = createResponse();
+    latest('/health').handlers[0]({}, healthResponse);
+    expect(healthResponse.json).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'ok', service: 'legacy-monolith', time: expect.any(String)
+    }));
+    expect(Number.isNaN(Date.parse(healthResponse.json.mock.calls[0][0].time))).toBe(false);
   });
 
   test('security-sensitive endpoints have their expected middleware', () => {

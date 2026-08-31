@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toast } from "react-toastify";
 import {
     checkFavoritePostService,
@@ -121,6 +121,15 @@ describe("JobDetail", () => {
         );
         expect(screen.getByText(/TAX-01/)).toBeInTheDocument();
         expect(screen.getByText(/120/)).toBeInTheDocument();
+
+        const companyCard = screen
+            .getByRole("heading", { name: "Thông tin công ty" })
+            .closest(".company-details-card");
+        expect(companyCard).toHaveClass("post-details3");
+        expect(within(companyCard).getAllByRole("listitem")).toHaveLength(6);
+        expect(within(companyCard).getByText("Công ty Sao Việt")).toHaveClass(
+            "company-details-value"
+        );
     });
 
     it("does not check favorites for an anonymous visitor", async () => {

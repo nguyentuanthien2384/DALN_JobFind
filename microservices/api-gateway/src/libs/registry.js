@@ -79,8 +79,8 @@ export const startHealthPolling = (intervalMs = 15000) => {
                 const timer = setTimeout(() => controller.abort(), 4000);
                 const res = await fetch(`${svc.baseUrl}/health`, { signal: controller.signal });
                 clearTimeout(timer);
-                // Backend cu khong co /health; 404 van chung to no dang song va tra loi.
-                markHealth(key, res.status < 500);
+                const healthy = res.status >= 200 && res.status < 400;
+                markHealth(key, healthy, healthy ? null : `HTTP ${res.status}`);
             } catch (error) {
                 markHealth(key, false, error.message);
             }
