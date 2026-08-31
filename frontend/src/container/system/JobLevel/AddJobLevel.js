@@ -27,23 +27,23 @@ const AddJobLevel = () => {
                 setisActionADD(false);
                 let allcode = await getDetailAllcodeByCode(id);
                 if (allcode && allcode.errCode === 0) {
-                    setInputValues({
-                        ...inputValues,
-                        ["value"]: allcode.data.value,
-                        ["code"]: allcode.data.code,
-                    });
+                    setInputValues((currentValues) => ({
+                        ...currentValues,
+                        "value": allcode.data.value,
+                        "code": allcode.data.code,
+                    }));
                 }
             };
             fetchDetailJobLevel();
         }
-    }, []);
+    }, [id]);
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
-            setInputValues({
-                ...inputValues,
-                value: CommonUtils.removeSpace(inputValues.value),
-            });
+            setInputValues((currentValues) => ({
+                ...currentValues,
+                value: CommonUtils.removeSpace(currentValues.value),
+            }));
         }, 50);
 
         return () => clearTimeout(delayDebounceFn);
@@ -78,8 +78,8 @@ const AddJobLevel = () => {
                     toast.success("Thêm cấp bậc thành công");
                     setInputValues({
                         ...inputValues,
-                        ["value"]: "",
-                        ["code"]: "",
+                        "value": "",
+                        "code": "",
                     });
                 } else if (res && res.errCode === 2) {
                     toast.error(res.errMessage);

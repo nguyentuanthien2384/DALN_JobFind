@@ -1,6 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
+import { useEffect, useMemo, useState } from "react";
 import { PAGINATION } from "../../../util/constant";
 import ReactPaginate from "react-paginate";
 import moment from "moment";
@@ -9,8 +8,7 @@ import CommonUtils from "../../../util/CommonUtils";
 import { getHistoryTradePost } from "../../../service/userService";
 const HistoryTradePost = () => {
     const { RangePicker } = DatePicker;
-    const [user, setUser] = useState({});
-    const [dataSum, setDataSum] = useState(0);
+    const [user] = useState(() => JSON.parse(localStorage.getItem("userData")) || {});
     const [fromDatePost, setFromDatePost] = useState("");
     const [toDatePost, setToDatePost] = useState("");
 
@@ -19,13 +17,13 @@ const HistoryTradePost = () => {
 
     const [numberPage, setnumberPage] = useState("");
 
-    let sendParams = {
+    const sendParams = useMemo(() => ({
         limit: PAGINATION.pagerow,
         offset: 0,
         fromDate: "",
         toDate: "",
         companyId: user.companyId,
-    };
+    }), [user.companyId]);
 
     let getData = async (params) => {
         let arrData = await getHistoryTradePost(params);
@@ -73,7 +71,7 @@ const HistoryTradePost = () => {
                     "Tên gói": item.packageOrderData.name,
                     "Mã giao dịch": item.id,
                     "Loại gói":
-                        item.packageOrderData.isHot == 0
+                        item.packageOrderData.isHot === 0
                             ? "Loại bình thường"
                             : "Loại nổi bật",
                     "Số lượng mua": item.amount,
@@ -97,11 +95,8 @@ const HistoryTradePost = () => {
     };
 
     useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem("userData"));
-        setUser(userData);
-
-        getData({ ...sendParams, companyId: userData.companyId });
-    }, []);
+        getData(sendParams);
+    }, [sendParams]);
 
     return (
         <div className="col-12 grid-margin">
@@ -153,7 +148,7 @@ const HistoryTradePost = () => {
                                                 <td>{item.id}</td>
                                                 <td>
                                                     {item.packageOrderData
-                                                        .isHot == 0
+                                                        .isHot === 0
                                                         ? "Loại bình thường"
                                                         : "Loại nổi bật"}
                                                 </td>
@@ -188,7 +183,7 @@ const HistoryTradePost = () => {
                                     })}
                             </tbody>
                         </table>
-                        {data && data.length == 0 && (
+                            {data && data.length === 0 && (
                             <div style={{ textAlign: "center" }}>
                                 Không có dữ liệu
                             </div>

@@ -54,34 +54,34 @@ const SettingUser = () => {
             }
         }
     };
-    let getListSkill = async(jobType) => {
-        let res = await getAllSkillByJobCode(jobType)
-        let listSkills =  res.data.map(item=>({
-            value: item.id,
-            label: item.name
-        }))
-        setListSkills(listSkills)
-    }
-
-    let setStateUser = (data) => {
-        getListSkill(data.userAccountData.userSettingData.categoryJobCode)
-        let listSkills = []
-        if (Array.isArray(data.listSkills) && data.listSkills.length > 0) {
-            listSkills = data.listSkills.map(item=>item.SkillId)
-        }
-        setInputValues({
-            ...inputValues,
-            jobType: data.userAccountData.userSettingData.categoryJobCode ?? '',
-            salary: data.userAccountData.userSettingData.salaryJobCode ?? '',
-            skills: listSkills,
-            jobProvince: data.userAccountData.userSettingData.addressCode ?? '',
-            exp: data.userAccountData.userSettingData.experienceJobCode ?? '',
-            isFindJob: data.userAccountData.userSettingData.isFindJob ?? 0,
-            isTakeMail: data.userAccountData.userSettingData.isTakeMail ?? 0,
-            file: data.userAccountData.userSettingData.file ?? ''
-        })
-    }
     useEffect(() => {
+        const getListSkill = async(jobType) => {
+            const res = await getAllSkillByJobCode(jobType)
+            const skills = (res?.data || []).map(item=>({
+                value: item.id,
+                label: item.name
+            }))
+            setListSkills(skills)
+        }
+
+        const setStateUser = (data) => {
+            getListSkill(data.userAccountData.userSettingData.categoryJobCode)
+            const skills = Array.isArray(data.listSkills)
+                ? data.listSkills.map(item=>item.SkillId)
+                : []
+            setInputValues((currentValues) => ({
+                ...currentValues,
+                jobType: data.userAccountData.userSettingData.categoryJobCode ?? '',
+                salary: data.userAccountData.userSettingData.salaryJobCode ?? '',
+                skills,
+                jobProvince: data.userAccountData.userSettingData.addressCode ?? '',
+                exp: data.userAccountData.userSettingData.experienceJobCode ?? '',
+                isFindJob: data.userAccountData.userSettingData.isFindJob ?? 0,
+                isTakeMail: data.userAccountData.userSettingData.isTakeMail ?? 0,
+                file: data.userAccountData.userSettingData.file ?? ''
+            }))
+        }
+
         const userData = JSON.parse(localStorage.getItem('userData'));
         if (userData) {
             let fetchUser = async () => {
@@ -161,9 +161,6 @@ const SettingUser = () => {
         } else {
             toast.error(res.errMessage)
         }
-    }
-    let handleSearchMulti = (input,option) => {
-        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
     }
     return (
         <div className=''>

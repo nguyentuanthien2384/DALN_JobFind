@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "react-toastify";
 import {
     requestResetPasswordOtp,
@@ -241,17 +241,19 @@ const ForgetPassword = () => {
                                                     )}
                                                 </div>
                                                 <div className="mt-3">
-                                                    <a
+                                                    <button
+                                                        type="button"
                                                         onClick={() =>
                                                             handleForgetPassword()
                                                         }
                                                         className="btn1 btn1-block btn1-primary1 btn1-lg font-weight-medium auth-form-btn1"
                                                     >
                                                         Xác nhận
-                                                    </a>
+                                                    </button>
                                                 </div>
                                                 <div className="text-center mt-3">
-                                                    <a
+                                                    <button
+                                                        type="button"
                                                         onClick={() => {
                                                             if (!isSending) handleResendOtp();
                                                         }}
@@ -259,7 +261,7 @@ const ForgetPassword = () => {
                                                         style={{ cursor: "pointer" }}
                                                     >
                                                         {isSending ? "Đang gửi..." : "Gửi lại mã"}
-                                                    </a>
+                                                    </button>
                                                 </div>
                                             </>
                                         )}
@@ -294,14 +296,15 @@ const ForgetPassword = () => {
                                                     )}
                                                 </div>
                                                 <div className="mt-3">
-                                                    <a
+                                                    <button
+                                                        type="button"
                                                         onClick={() => {
                                                             if (!isSending) handleForget();
                                                         }}
                                                         className="btn1 btn1-block btn1-primary1 btn1-lg font-weight-medium auth-form-btn1"
                                                     >
                                                         {isSending ? "Đang gửi mã..." : "Gửi mã xác thực"}
-                                                    </a>
+                                                    </button>
                                                 </div>
                                             </>
                                         )}

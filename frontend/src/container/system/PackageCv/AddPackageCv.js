@@ -26,18 +26,18 @@ const AddpackageCv = () => {
                 setisActionADD(false);
                 let res = await getPackageByIdCv(id);
                 if (res && res.errCode === 0) {
-                    setInputValues({
-                        ...inputValues,
-                        ["value"]: res.data.value,
-                        ["id"]: res.data.id,
-                        ["price"]: res.data.price,
-                        ["name"]: res.data.name,
-                    });
+                    setInputValues((currentValues) => ({
+                        ...currentValues,
+                        "value": res.data.value,
+                        "id": res.data.id,
+                        "price": res.data.price,
+                        "name": res.data.name,
+                    }));
                 }
             };
             fetchDetailPackagePost();
         }
-    }, []);
+    }, [id]);
 
     const handleOnChange = (event) => {
         const { name, value } = event.target;
@@ -57,7 +57,7 @@ const AddpackageCv = () => {
                     toast.success(res.errMessage);
                     setInputValues({
                         ...inputValues,
-                        ["value"]: "",
+                        "value": "",
                         price: "",
                         name: "",
                     });

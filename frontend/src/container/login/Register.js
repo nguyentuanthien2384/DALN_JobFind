@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "react-toastify";
 import {
     checkUserPhoneService,
@@ -46,8 +46,8 @@ const Register = () => {
     ) {
         setInputValues({
             ...inputValues,
-            ["genderCode"]: dataGender[0].code,
-            ["roleCode"]: dataRole[0].code,
+            "genderCode": dataGender[0].code,
+            "roleCode": dataRole[0].code,
         });
     }
 
@@ -291,6 +291,7 @@ const Register = () => {
                                                                     </option>
                                                                 );
                                                             }
+                                                            return null;
                                                         }
                                                     )}
                                             </select>
@@ -324,12 +325,13 @@ const Register = () => {
                                             </select>
                                         </div>
                                         <div className="mt-3">
-                                            <a
+                                            <button
+                                                type="button"
                                                 onClick={() => handleRegister()}
                                                 className="btn1 btn1-block btn1-primary1 btn1-lg font-weight-medium auth-form-btn1"
                                             >
                                                 Đăng ký
-                                            </a>
+                                            </button>
                                         </div>
                                         <div className="text-center mt-4 font-weight-light">
                                             Bạn đã có tài khoản rồi?{" "}

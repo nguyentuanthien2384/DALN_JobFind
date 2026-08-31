@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import Lightbox from "react-image-lightbox";
 import "react-image-lightbox/style.css";
@@ -40,38 +40,39 @@ const AddCompany = () => {
         imageClick: "",
         isFileChange: false,
     });
+    const fetchCompany = useCallback(async (userId, companyId = null) => {
+        let res = await getDetailCompanyByUserId(userId, companyId);
+        if (res && res.errCode === 0) {
+            setInputValues((currentValues) => ({
+                ...currentValues,
+                "name": res.data.name,
+                "phonenumber": res.data.phonenumber,
+                "address": res.data.address,
+                "image": res.data.thumbnail,
+                "coverImage": res.data.coverimage,
+                "descriptionHTML": res.data.descriptionHTML,
+                "descriptionMarkdown": res.data.descriptionMarkdown,
+                "amountEmployer": res.data.amountEmployer,
+                "taxnumber": res.data.taxnumber,
+                "website": res.data.website,
+                "imageReview": res.data.thumbnail,
+                "coverImageReview": res.data.coverimage,
+                "isActionADD": false,
+                "id": res.data.id,
+                "file": res.data.file,
+            }));
+        }
+    }, []);
+
     useEffect(() => {
         const userData = JSON.parse(localStorage.getItem("userData"));
         if (userData && userData.roleCode !== "ADMIN") {
             fetchCompany(userData.id);
-        } else if (id && userData.roleCode === "ADMIN") {
+        } else if (id && userData?.roleCode === "ADMIN") {
             fetchCompany(null, id);
         }
         setUser(userData);
-    }, []);
-    let fetchCompany = async (userId, companyId = null) => {
-        let res = await getDetailCompanyByUserId(userId, companyId);
-        if (res && res.errCode === 0) {
-            setInputValues({
-                ...inputValues,
-                ["name"]: res.data.name,
-                ["phonenumber"]: res.data.phonenumber,
-                ["address"]: res.data.address,
-                ["image"]: res.data.thumbnail,
-                ["coverImage"]: res.data.coverimage,
-                ["descriptionHTML"]: res.data.descriptionHTML,
-                ["descriptionMarkdown"]: res.data.descriptionMarkdown,
-                ["amountEmployer"]: res.data.amountEmployer,
-                ["taxnumber"]: res.data.taxnumber,
-                ["website"]: res.data.website,
-                ["imageReview"]: res.data.thumbnail,
-                ["coverImageReview"]: res.data.coverimage,
-                ["isActionADD"]: false,
-                ["id"]: res.data.id,
-                ["file"]: res.data.file,
-            });
-        }
-    };
+    }, [fetchCompany, id]);
     const handleOnChange = (event) => {
         const { name, value } = event.target;
         setInputValues({ ...inputValues, [name]: value });
@@ -117,7 +118,7 @@ const AddCompany = () => {
                 name === "cover"
                     ? inputValues.coverImage
                     : inputValues.imageReview,
-            ["isOpen"]: true,
+            "isOpen": true,
         });
     };
     let handleSaveCompany = async () => {
@@ -188,8 +189,8 @@ const AddCompany = () => {
     let handleEditorChange = ({ html, text }) => {
         setInputValues({
             ...inputValues,
-            ["descriptionMarkdown"]: text,
-            ["descriptionHTML"]: html,
+            "descriptionMarkdown": text,
+            "descriptionHTML": html,
         });
     };
     const navigate = useNavigate();
@@ -500,6 +501,7 @@ const AddCompany = () => {
                                                     Hiển thị
                                                 </label>
                                                 <iframe
+                                                    title="Tệp giới thiệu công ty"
                                                     width={"100%"}
                                                     height={"700px"}
                                                     src={inputValues.file}
@@ -547,7 +549,7 @@ const AddCompany = () => {
                         onCloseRequest={() =>
                             setInputValues({
                                 ...inputValues,
-                                ["isOpen"]: false,
+                                "isOpen": false,
                             })
                         }
                     />

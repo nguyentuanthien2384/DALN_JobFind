@@ -1,7 +1,6 @@
 import React from 'react'
 import { useEffect, useState } from 'react';
 import { handleChangePassword } from '../../../service/userService';
-import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 const ChangePassword = (props) => {
     const [inputValues, setInputValues] = useState({
@@ -31,9 +30,9 @@ const ChangePassword = (props) => {
             toast.success("Đổi mật khẩu thành công")
             setInputValues({
                 ...inputValues,
-                ["oldPassword"]: '',
-                ["password"]: '',
-                ["confirmPassword"]: ''
+                "oldPassword": '',
+                "password": '',
+                "confirmPassword": ''
             })
         } else {
             toast.error(res.errMessage)

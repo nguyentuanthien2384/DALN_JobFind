@@ -1,7 +1,6 @@
 import React from 'react'
 import { useEffect, useState } from 'react';
 import { DeleteAllcodeService, getListAllCodeService } from '../../../service/userService';
-import moment from 'moment';
 import { PAGINATION } from '../../../util/constant';
 import ReactPaginate from 'react-paginate';
 import { Link } from 'react-router-dom';
@@ -131,7 +130,7 @@ const ManageWorkType = () => {
                                                     <td>
                                                         <Link style={{ color: '#4B49AC' }} to={`/admin/edit-work-type/${item.code}/`}>Sửa</Link>
                                                         &nbsp; &nbsp;
-                                                        <a style={{ color: '#4B49AC' }} href="#" onClick={(event) => confirmDelete(item.code)} >Xóa</a>
+                                                        <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => confirmDelete(item.code)} >Xóa</button>
                                                     </td>
                                                 </tr>
                                             )
@@ -141,7 +140,7 @@ const ManageWorkType = () => {
                                 </tbody>
                             </table>
                             {
-                                            dataWorkType && dataWorkType.length == 0 && (
+                                dataWorkType && dataWorkType.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
                                                     Không có dữ liệu

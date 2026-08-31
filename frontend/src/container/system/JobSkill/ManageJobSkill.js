@@ -149,7 +149,7 @@ const ManageJobSkill = () => {
                                                     <td>
                                                         <Link style={{ color: '#4B49AC' }} to={`/admin/edit-job-skill/${item.id}/`}>Sửa</Link>
                                                         &nbsp; &nbsp;
-                                                        <a style={{ color: '#4B49AC' }} href="#" onClick={(event) => confirmDelete(item.id)} >Xóa</a>
+                                                        <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => confirmDelete(item.id)} >Xóa</button>
                                                     </td>
                                                 </tr>
                                             )
@@ -159,7 +159,7 @@ const ManageJobSkill = () => {
                                 </tbody>
                             </table>
                             {
-                                            dataJobSkill && dataJobSkill.length == 0 && (
+                                dataJobSkill && dataJobSkill.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
                                                     Không có dữ liệu

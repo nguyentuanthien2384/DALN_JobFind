@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { getSumByYearPost } from '../../../service/userService';
-import Chart from 'chart.js/auto';
+import 'chart.js/auto';
 import { Col, Row, Select } from 'antd';
 import useAutoRefresh from '../../../util/useAutoRefresh';
 import AutoRefreshInfo from '../AutoRefreshInfo';

@@ -14,15 +14,15 @@ const ManageCv = () => {
     const [numberPage, setnumberPage] = useState("");
     const { id } = useParams();
     const [post, setPost] = useState("");
-    let fetchPost = async (id) => {
-        let res = await getDetailPostByIdService(id);
-        if (res && res.errCode === 0) {
-            setPost(res.data);
-        }
-    };
     useEffect(() => {
         if (id) {
             try {
+                const fetchPost = async () => {
+                    const res = await getDetailPostByIdService(id);
+                    if (res && res.errCode === 0) {
+                        setPost(res.data);
+                    }
+                };
                 let fetchData = async () => {
                     let arrData = await getAllListCvByPostService({
                         limit: PAGINATION.pagerow,
@@ -35,12 +35,12 @@ const ManageCv = () => {
                     }
                 };
                 fetchData();
-                fetchPost(id);
+                fetchPost();
             } catch (error) {
                 console.log(error);
             }
         }
-    }, []);
+    }, [id]);
 
     let handleChangePage = async (number) => {
         setnumberPage(number.selected);
@@ -157,7 +157,7 @@ const ManageCv = () => {
                                         })}
                                 </tbody>
                             </table>
-                            {dataCv && dataCv.length == 0 && (
+                                            {dataCv && dataCv.length === 0 && (
                                 <div style={{ textAlign: "center" }}>
                                     Không có dữ liệu
                                 </div>

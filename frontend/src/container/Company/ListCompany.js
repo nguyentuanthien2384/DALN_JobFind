@@ -1,7 +1,7 @@
 import React from 'react'
 import { getListCompany } from '../../service/userService';
 import './ListCompany.scss';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {Input} from 'antd'
 import ReactPaginate from 'react-paginate';
 import { Link } from 'react-router-dom';
@@ -15,7 +15,7 @@ const ListCompany = () => {
     const handleSearch = (value) => {
         setSearch(value)
     }
-    let fetchData = async () => {
+    const fetchData = useCallback(async () => {
         let arrData = await getListCompany({
             limit: 6,
             offset: 0,
@@ -26,7 +26,7 @@ const ListCompany = () => {
             setCount(Math.ceil(arrData.count / 6))
             setCountData(arrData.count)
         }
-    }
+    }, [search])
     useEffect(() => {
         try {
             fetchData();
@@ -35,7 +35,7 @@ const ListCompany = () => {
             console.log(error)
         }
 
-    }, [search])
+    }, [fetchData])
     let handleChangePage = async (number) => {
         setnumberPage(number.selected)
         let arrData = await getListCompany({
@@ -65,7 +65,7 @@ const ListCompany = () => {
                                     <div className='company-banner'>
                                         <Link to={`/detail-company/${item.id}`}>
                                             <div className='cover-wrapper'>
-                                                <img src={item.coverimage}></img>
+                                                <img src={item.coverimage} alt={item.name || "Ảnh bìa công ty"}></img>
                                             </div>
                                         </Link>
                                         <div className='company-logo'>

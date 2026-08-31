@@ -27,18 +27,18 @@ const AddpackagePost = () => {
                 setisActionADD(false);
                 let res = await getPackageById(id);
                 if (res && res.errCode === 0) {
-                    setInputValues({
-                        ...inputValues,
-                        ["value"]: res.data.value,
-                        ["id"]: res.data.id,
-                        ["price"]: res.data.price,
-                        ["name"]: res.data.name,
-                    });
+                    setInputValues((currentValues) => ({
+                        ...currentValues,
+                        "value": res.data.value,
+                        "id": res.data.id,
+                        "price": res.data.price,
+                        "name": res.data.name,
+                    }));
                 }
             };
             fetchDetailPackagePost();
         }
-    }, []);
+    }, [id]);
 
     const handleOnChange = (event) => {
         const { name, value } = event.target;
@@ -59,8 +59,8 @@ const AddpackagePost = () => {
                     toast.success(res.errMessage);
                     setInputValues({
                         ...inputValues,
-                        ["value"]: "",
-                        ["code"]: "",
+                        "value": "",
+                        "code": "",
                         price: "",
                         name: "",
                     });

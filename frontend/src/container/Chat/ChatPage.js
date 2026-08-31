@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useNavigate, useParams, Link, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import moment from "moment";
@@ -24,10 +24,40 @@ const ChatPage = () => {
     const messagesEndRef = useRef(null);
     const typingTimerRef = useRef(null);
     const typingEmitTimerRef = useRef(null);
-    const userData = JSON.parse(localStorage.getItem("userData"));
+    const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
     const chatBasePath = location.pathname.startsWith("/admin/chat")
         ? "/admin/chat"
         : "/chat";
+
+    const scrollToBottom = useCallback(() => {
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+    }, []);
+
+    const fetchListConversation = useCallback(async () => {
+        const res = await getListChatConversationService();
+        if (res && res.errCode === 0) {
+            setListConversation(res.data);
+        }
+    }, []);
+
+    const fetchConversation = useCallback(async (scroll) => {
+        const res = await getChatConversationService({ partnerId });
+        if (res && res.errCode === 0) {
+            setMessages((prev) => {
+                if (scroll || prev.length !== res.data.length) {
+                    setTimeout(scrollToBottom, 100);
+                }
+                return res.data;
+            });
+            setPartnerData(res.partnerData);
+            const socket = getSocket();
+            if (socket && socket.connected) {
+                socket.emit("chat:read", { partnerId });
+            }
+        }
+    }, [partnerId, scrollToBottom]);
 
     useEffect(() => {
         if (!userData) {
@@ -44,7 +74,7 @@ const ChatPage = () => {
             if (partnerId) fetchConversation(false);
         }, isRealtime ? 20000 : 4000);
         return () => clearInterval(interval);
-    }, [partnerId, isRealtime]);
+    }, [fetchConversation, fetchListConversation, isRealtime, navigate, partnerId, userData]);
 
     // ---- Socket.IO: nhan tin nhan tuc thi ----
     useEffect(() => {
@@ -113,43 +143,13 @@ const ChatPage = () => {
             clearTimeout(typingTimerRef.current);
             clearTimeout(typingEmitTimerRef.current);
         };
-    }, [partnerId]);
+    }, [fetchListConversation, partnerId, scrollToBottom, userData]);
 
     useEffect(() => {
         if (partnerId && userData) {
             fetchConversation(true);
         }
-    }, [partnerId]);
-
-    const scrollToBottom = () => {
-        if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-        }
-    };
-
-    const fetchListConversation = async () => {
-        let res = await getListChatConversationService();
-        if (res && res.errCode === 0) {
-            setListConversation(res.data);
-        }
-    };
-
-    const fetchConversation = async (scroll) => {
-        let res = await getChatConversationService({ partnerId: partnerId });
-        if (res && res.errCode === 0) {
-            setMessages((prev) => {
-                if (scroll || prev.length !== res.data.length) {
-                    setTimeout(scrollToBottom, 100);
-                }
-                return res.data;
-            });
-            setPartnerData(res.partnerData);
-            const socket = getSocket();
-            if (socket && socket.connected) {
-                socket.emit("chat:read", { partnerId });
-            }
-        }
-    };
+    }, [fetchConversation, partnerId, userData]);
 
     const handleSend = async () => {
         if (!content.trim() || !partnerId || isSending) return;

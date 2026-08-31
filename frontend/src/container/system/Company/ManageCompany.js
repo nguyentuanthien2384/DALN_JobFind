@@ -252,17 +252,17 @@ const ManageCompany = () => {
                                                     <td>{item.name}</td>
                                                     <td>{item.phonenumber}</td>
                                                     <td>{item.taxnumber}</td>
-                                                    <td><label className={item.statusCompanyData.code == 'S1' ? 'badge badge-success' : 'badge badge-danger'}>{item.statusCompanyData.value}</label></td>
-                                                    <td><label className={item.censorData.code == 'CS1' ? 'badge badge-success' : (item.censorData.code == 'CS3'? 'badge badge-warning'  : 'badge badge-danger')}>{item.censorData.value}</label></td>
+                                                    <td><label className={item.statusCompanyData.code === 'S1' ? 'badge badge-success' : 'badge badge-danger'}>{item.statusCompanyData.value}</label></td>
+                                                    <td><label className={item.censorData.code === 'CS1' ? 'badge badge-success' : (item.censorData.code === 'CS3'? 'badge badge-warning'  : 'badge badge-danger')}>{item.censorData.value}</label></td>
                                                     <td>{moment(item.createdAt).format('DD-MM-YYYY')}</td>
                                                     <td>
                                                         {
                                                             item.statusCompanyData.code === 'S1' ? (
                                                             <>
-                                                            <a style={{ color: '#4B49AC', cursor: 'pointer' }} onClick={() => confirmPost(item.id,'ban')} >Dừng kích hoạt</a>
+                                                            <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => confirmPost(item.id,'ban')} >Dừng kích hoạt</button>
                                                                     &nbsp; &nbsp;                           
                                                             </>) : (<>
-                                                                <a style={{ color: '#4B49AC', cursor: 'pointer' }} onClick={() => confirmPost(item.id,'unban')} >Kích hoạt</a>
+                                                                <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => confirmPost(item.id,'unban')} >Kích hoạt</button>
                                                                 &nbsp; &nbsp;
                                                             </>)
                                                         }
@@ -270,24 +270,24 @@ const ManageCompany = () => {
                                                         &nbsp; &nbsp;
                                                         {item.censorData.code === 'CS3' &&
                                                             <>
-                                                                <a style={{ color: '#4B49AC', cursor: 'pointer' }} onClick={() => confirmPost(item.id,'accept')} >Duyệt</a>
+                                                                <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => confirmPost(item.id,'accept')} >Duyệt</button>
                                                                 &nbsp; &nbsp;
-                                                                <a style={{ color: '#4B49AC', cursor: 'pointer' }} onClick={() => setPropsModal({
+                                                                <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => setPropsModal({
                                                                     isActive: true,
                                                                     handleCompany: handleAccecptCompany,
                                                                     id: item.id
-                                                                })} >Từ chối</a>
+                                                                })} >Từ chối</button>
                                                                 &nbsp; &nbsp;
                                                             </>
                                                         }
                                                         {
                                                             item.censorData.code === 'CS1' &&
                                                             <>
-                                                                <a style={{ color: '#4B49AC', cursor: 'pointer' }} onClick={() => setPropsModal({
+                                                                <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => setPropsModal({
                                                                     isActive: true,
                                                                     handleCompany: handleAccecptCompany,
                                                                     id: item.id
-                                                                })}  >Quay lại trạng thái chờ</a>
+                                                                })}  >Quay lại trạng thái chờ</button>
                                                                 &nbsp; &nbsp;
                                                             </>
                                                         }
@@ -300,7 +300,7 @@ const ManageCompany = () => {
                                 </tbody>
                             </table>
                             {
-                                dataCompany && dataCompany.length == 0 && (
+                                dataCompany && dataCompany.length === 0 && (
                                     <div style={{ textAlign: 'center' }}>
 
                                         Không có dữ liệu

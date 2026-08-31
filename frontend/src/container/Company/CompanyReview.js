@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import moment from "moment";
@@ -19,13 +19,7 @@ const CompanyReview = (props) => {
     const [content, setContent] = useState("");
     const userData = JSON.parse(localStorage.getItem("userData"));
 
-    useEffect(() => {
-        if (companyId) {
-            fetchReview();
-        }
-    }, [companyId]);
-
-    const fetchReview = async () => {
+    const fetchReview = useCallback(async () => {
         let res = await getReviewByCompanyService({
             companyId: companyId,
             limit: 20,
@@ -36,7 +30,13 @@ const CompanyReview = (props) => {
             setCount(res.count);
             setAverageStar(res.averageStar);
         }
-    };
+    }, [companyId]);
+
+    useEffect(() => {
+        if (companyId) {
+            fetchReview();
+        }
+    }, [companyId, fetchReview]);
 
     const handleSubmitReview = async () => {
         if (!userData) {

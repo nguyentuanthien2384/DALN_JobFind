@@ -5,7 +5,6 @@ import { getAllListCvByUserIdService } from '../../service/cvService';
 import { PAGINATION } from '../../util/constant';
 import ReactPaginate from 'react-paginate';
 import { Link } from 'react-router-dom';
-import { useParams } from "react-router-dom";
 import moment from 'moment';
 
 

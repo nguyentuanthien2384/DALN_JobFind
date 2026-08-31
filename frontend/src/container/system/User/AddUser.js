@@ -9,9 +9,8 @@ import { useFetchAllcode } from "../../../util/fetch";
 import DatePicker from "react-datepicker";
 import { toast } from "react-toastify";
 import { useNavigate, useParams } from "react-router-dom";
-import localization from "moment/locale/vi";
 import moment from "moment";
-import { Spinner, Modal, ListGroupItemHeading } from "reactstrap";
+import { Spinner, Modal } from "reactstrap";
 import "../../../components/modal/modal.css";
 const AddUser = () => {
     const user = JSON.parse(localStorage.getItem("userData"));
@@ -68,7 +67,7 @@ const AddUser = () => {
             };
             fetchUser();
         }
-    }, []);
+    }, [id]);
 
     let { data: dataGender } = useFetchAllcode("GENDER");
     let { data: dataRole } = useFetchAllcode("ROLE");
@@ -92,8 +91,8 @@ const AddUser = () => {
     ) {
         setInputValues({
             ...inputValues,
-            ["genderCode"]: dataGender[0].code,
-            ["roleCode"]: dataRole[0].code,
+            "genderCode": dataGender[0].code,
+            "roleCode": dataRole[0].code,
         });
     }
 
@@ -130,14 +129,14 @@ const AddUser = () => {
                     toast.success("Thêm mới user thành công");
                     setInputValues({
                         ...inputValues,
-                        ["firstName"]: "",
-                        ["lastName"]: "",
-                        ["address"]: "",
-                        ["phonenumber"]: "",
-                        ["genderCode"]: "",
-                        ["roleCode"]: "",
-                        ["image"]: "",
-                        ["password"]: "",
+                        "firstName": "",
+                        "lastName": "",
+                        "address": "",
+                        "phonenumber": "",
+                        "genderCode": "",
+                        "roleCode": "",
+                        "image": "",
+                        "password": "",
                     });
                     setbirthday(new Date());
                 } else {

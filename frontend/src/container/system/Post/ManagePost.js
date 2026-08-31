@@ -76,7 +76,7 @@ const ManagePost = () => {
                 if (userData) {
                     let fetchData = async () => {
                         let arrData = []
-                        if (userData.roleCode == 'ADMIN') {
+            if (userData.roleCode === 'ADMIN') {
                             arrData = await getAllPostByRoleAdminService({
                                 limit: PAGINATION.pagerow,
                                 offset: 0,
@@ -109,12 +109,12 @@ const ManagePost = () => {
             console.log(error)
         }
 
-    }, [search,censorCode])
+    }, [search, censorCode, id, isSearchBy])
 
     let handleChangePage = async (number) => {
         setnumberPage(number.selected)
         let arrData = []
-        if (user.roleCode == 'ADMIN') {
+        if (user.roleCode === 'ADMIN') {
             arrData = await getAllPostByRoleAdminService({
                 limit: PAGINATION.pagerow,
                 offset: number.selected * PAGINATION.pagerow,
@@ -149,7 +149,7 @@ const ManagePost = () => {
         })
         if (res && res.errCode === 0) {
             let arrData = []
-            if (user.roleCode == 'ADMIN') {
+        if (user.roleCode === 'ADMIN') {
                 arrData = await getAllPostByRoleAdminService({
                     limit: PAGINATION.pagerow,
                     offset: numberPage * PAGINATION.pagerow,
@@ -185,7 +185,7 @@ const ManagePost = () => {
         })
         if (res && res.errCode === 0) {
             let arrData = []
-            if (user.roleCode == 'ADMIN') {
+        if (user.roleCode === 'ADMIN') {
                 arrData = await getAllPostByRoleAdminService({
                     limit: PAGINATION.pagerow,
                     offset: numberPage * PAGINATION.pagerow,
@@ -222,7 +222,7 @@ const ManagePost = () => {
         })
         if (res && res.errCode === 0) {
             let arrData = []
-            if (user.roleCode == 'ADMIN') {
+        if (user.roleCode === 'ADMIN') {
                 arrData = await getAllPostByRoleAdminService({
                     limit: PAGINATION.pagerow,
                     offset: numberPage * PAGINATION.pagerow,
@@ -333,45 +333,45 @@ const ManagePost = () => {
                                                     }
                                                     <td>{`${item.userPostData.firstName} ${item.userPostData.lastName}`}</td>
                                                     <td>{date}</td>
-                                                    <td><label className={item.statusPostData.code == 'PS1' ? 'badge badge-success' : (item.statusPostData.code == 'PS3' ? 'badge badge-warning'  : 'badge badge-danger')}>{item.statusPostData.value}</label></td>
+                                                    <td><label className={item.statusPostData.code === 'PS1' ? 'badge badge-success' : (item.statusPostData.code === 'PS3' ? 'badge badge-warning'  : 'badge badge-danger')}>{item.statusPostData.value}</label></td>
 
                                                     <td>
                                                         <Link style={{color:'#4B49AC'}} to={`/admin/note/${item.id}`}>Chú thích</Link>
                                                         &nbsp; &nbsp;
-                                                        {(user.roleCode == 'COMPANY' || user.roleCode == 'EMPLOYER') &&
+                                                        {(user.roleCode === 'COMPANY' || user.roleCode === 'EMPLOYER') &&
                                                             <>
                                                                 <Link style={{ color: '#4B49AC' }} to={`/admin/list-cv/${item.id}/`}>Xem CV nộp</Link>
                                                                 &nbsp; &nbsp;
                                                             </>
                                                         }
                                                         { 
-                                                        item.statusCode.code !== 'PS4' &&
+                                                        item.statusCode !== 'PS4' &&
                                                         <Link style={{ color: '#4B49AC' }} to={`/admin/edit-post/${item.id}/`}>{user?.roleCode === "ADMIN" ? 'Xem chi tiết' : 'Sửa'}</Link>
                                                         }
                                                         &nbsp; &nbsp;
-                                                        {user.roleCode == 'ADMIN' ? (item.statusCode == 'PS1' ? <>
-                                                            <a style={{ color: '#4B49AC', cursor: 'pointer' }} onClick={() => setPropsModal({
+                                                        {user.roleCode === 'ADMIN' ? (item.statusCode === 'PS1' ? <>
+                                                            <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => setPropsModal({
                                                                 isActive: true,
                                                                 handlePost: handleBanPost,
                                                                 postId: item.id
-                                                            })}  >Chặn</a>
+                                                            })}  >Chặn</button>
                                                             &nbsp; &nbsp;
                                                         </>
-                                                            : item.statusCode == 'PS4' ? <>
-                                                                <a style={{ color: '#4B49AC', cursor: 'pointer' }} onClick={() => setPropsModal({
+                                                            : item.statusCode === 'PS4' ? <>
+                                                                <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => setPropsModal({
                                                                     isActive: true,
                                                                     handlePost: handleActivePost,
                                                                     postId: item.id
-                                                                })}  >Mở lại</a>
+                                                                })}  >Mở lại</button>
                                                             </> : <>
-                                                                <a style={{ color: '#4B49AC', cursor: 'pointer' }} onClick={() => confirmPost(item.id)}  >Duyệt</a>
+                                                                <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={() => confirmPost(item.id)}  >Duyệt</button>
                                                                 {
                                                                     item.statusCode !== 'PS2' &&
-                                                                    <a style={{ color: '#4B49AC', cursor: 'pointer', marginLeft: '10px' }} onClick={() => setPropsModal({
+                                                                    <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC', marginLeft: '10px' }} onClick={() => setPropsModal({
                                                                         isActive: true,
                                                                         handlePost: handleAccecptPost,
                                                                         postId: item.id
-                                                                    })}  >Từ chối</a>
+                                                                    })}  >Từ chối</button>
                                                                 }
                                                             </>) : <></>
                                                         }
@@ -384,7 +384,7 @@ const ManagePost = () => {
                                 </tbody>
                             </table>
                             {
-                                            dataPost && dataPost.length == 0 && (
+                                            dataPost && dataPost.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
                                                     Không có dữ liệu

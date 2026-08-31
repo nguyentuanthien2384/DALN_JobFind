@@ -149,10 +149,10 @@ describe("public static pages", () => {
         expect(decodeURIComponent(draftUrl)).toContain("subject=[JobFind] Cần hỗ trợ");
     });
 
-    it("renders the footer attribution and external social destination", () => {
+    it("renders the JobFind copyright and external social destination", () => {
         render(<Footer />);
 
-        expect(screen.getByText(/Thiền NT/)).toBeInTheDocument();
+        expect(screen.getByText(/Bản quyền.*JobFind/)).toBeInTheDocument();
         expect(document.querySelector('a[href="https://www.facebook.com/ahitvzed/"]')).toBeTruthy();
         expect(document.querySelector('a[href="#"]')).toBeNull();
     });

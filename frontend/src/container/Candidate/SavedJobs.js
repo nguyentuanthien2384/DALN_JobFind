@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import moment from "moment";
@@ -14,15 +14,9 @@ const SavedJobs = () => {
     const [dataFavorite, setDataFavorite] = useState([]);
     const [count, setCount] = useState(0);
     const [numberPage, setNumberPage] = useState(0);
-    const userData = JSON.parse(localStorage.getItem("userData"));
+    const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
 
-    useEffect(() => {
-        if (userData) {
-            fetchData(0);
-        }
-    }, []);
-
-    const fetchData = async (page) => {
+    const fetchData = useCallback(async (page) => {
         let res = await getFavoritePostByUserService({
             userId: userData.id,
             limit: 10,
@@ -32,7 +26,13 @@ const SavedJobs = () => {
             setDataFavorite(res.data);
             setCount(Math.ceil(res.count / 10));
         }
-    };
+    }, [userData]);
+
+    useEffect(() => {
+        if (userData) {
+            fetchData(0);
+        }
+    }, [fetchData, userData]);
 
     const handleChangePage = (number) => {
         setNumberPage(number.selected);

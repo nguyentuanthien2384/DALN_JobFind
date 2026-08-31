@@ -1,6 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
-import { toast } from "react-toastify";
+import { useEffect, useMemo, useState } from "react";
 import { PAGINATION } from "../../../util/constant";
 import ReactPaginate from "react-paginate";
 import moment from "moment";
@@ -9,8 +8,7 @@ import CommonUtils from "../../../util/CommonUtils";
 import { getHistoryTradeCv } from "../../../service/userService";
 const HistoryTradeCv = () => {
     const { RangePicker } = DatePicker;
-    const [user, setUser] = useState({});
-    const [dataSum, setDataSum] = useState(0);
+    const [user] = useState(() => JSON.parse(localStorage.getItem("userData")) || {});
     const [fromDatePost, setFromDatePost] = useState("");
     const [toDatePost, setToDatePost] = useState("");
 
@@ -19,13 +17,13 @@ const HistoryTradeCv = () => {
 
     const [numberPage, setnumberPage] = useState("");
 
-    let sendParams = {
+    const sendParams = useMemo(() => ({
         limit: PAGINATION.pagerow,
         offset: 0,
         fromDate: "",
         toDate: "",
         companyId: user.companyId,
-    };
+    }), [user.companyId]);
 
     let getData = async (params) => {
         let arrData = await getHistoryTradeCv(params);
@@ -93,11 +91,8 @@ const HistoryTradeCv = () => {
     };
 
     useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem("userData"));
-        setUser(userData);
-
-        getData({ ...sendParams, companyId: userData.companyId });
-    }, []);
+        getData(sendParams);
+    }, [sendParams]);
 
     return (
         <div className="col-12 grid-margin">
@@ -180,7 +175,7 @@ const HistoryTradeCv = () => {
                                     })}
                             </tbody>
                         </table>
-                        {data && data.length == 0 && (
+                            {data && data.length === 0 && (
                             <div style={{ textAlign: "center" }}>
                                 Không có dữ liệu
                             </div>

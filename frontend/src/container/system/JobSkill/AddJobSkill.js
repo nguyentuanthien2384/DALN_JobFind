@@ -8,9 +8,7 @@ import {
 import { useFetchAllcode } from "../../../util/fetch";
 import { toast } from "react-toastify";
 import { useNavigate, useParams } from "react-router-dom";
-import Lightbox from "react-image-lightbox";
 import "react-image-lightbox/style.css";
-import CommonUtils from "../../../util/CommonUtils";
 import { Spinner, Modal } from "reactstrap";
 import "../../../components/modal/modal.css";
 import "./AddJobSkill.scss";
@@ -28,19 +26,6 @@ const AddJobSkill = () => {
         id: "",
     });
 
-    let fetchDetailJobType = async (code) => {
-        setisActionADD(false);
-        let skill = await getDetailSkillById(code);
-        if (skill && skill.errCode === 0) {
-            setInputValues({
-                ...inputValues,
-                ["name"]: skill.data.name,
-                ["id"]: skill.data.id,
-                ["categoryJobCode"]: skill.data.categoryJobCode,
-            });
-        }
-    };
-
     let { data: listCategoryJobCode } = useFetchAllcode("JOBTYPE");
     listCategoryJobCode = listCategoryJobCode.map((item) => ({
         value: item.code,
@@ -48,10 +33,23 @@ const AddJobSkill = () => {
     }));
 
     useEffect(() => {
+        const fetchDetailJobType = async (skillCode) => {
+            setisActionADD(false);
+            const skill = await getDetailSkillById(skillCode);
+            if (skill && skill.errCode === 0) {
+                setInputValues((currentValues) => ({
+                    ...currentValues,
+                    name: skill.data.name,
+                    id: skill.data.id,
+                    categoryJobCode: skill.data.categoryJobCode,
+                }));
+            }
+        };
+
         if (code) {
             fetchDetailJobType(code);
         }
-    }, []);
+    }, [code]);
 
     const handleOnChange = (event) => {
         const { name, value } = event.target;
@@ -78,8 +76,8 @@ const AddJobSkill = () => {
                     toast.success("Thêm kĩ năng thành công");
                     setInputValues({
                         ...inputValues,
-                        ["name"]: "",
-                        ["categoryJobCode"]: "",
+                        "name": "",
+                        "categoryJobCode": "",
                     });
                 } else if (res && res.errCode === 2) {
                     toast.error(res.errMessage);

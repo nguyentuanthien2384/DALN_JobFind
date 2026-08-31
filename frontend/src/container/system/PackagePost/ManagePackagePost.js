@@ -1,7 +1,6 @@
 import React from 'react'
 import { useEffect, useState } from 'react';
 import { getAllPackage, setActiveTypePackage } from '../../../service/userService';
-import moment from 'moment';
 import { PAGINATION } from '../../../util/constant';
 import ReactPaginate from 'react-paginate';
 import { Link } from 'react-router-dom';
@@ -118,16 +117,16 @@ const ManagePackagePost = () => {
                                                     <td>{item.name}</td>
                                                     <td style={{ textAlign: 'right' }}>{item.value}</td>
                                                     <td style={{ textAlign: 'right' }}>{item.price} USD</td>
-                                                    <td>{item.isHot == 0 ? 'Gói bình thường' : 'Gói nổi bật'}</td>
-                                                    <td>{item.isActive == 0 ? 'Dừng kinh doanh' : 'Đang kinh doanh'}</td>
+                                                    <td>{item.isHot === 0 ? 'Gói bình thường' : 'Gói nổi bật'}</td>
+                                                    <td>{item.isActive === 0 ? 'Dừng kinh doanh' : 'Đang kinh doanh'}</td>
                                                     <td>
                                                         <Link style={{ color: '#4B49AC' }} to={`/admin/edit-package-post/${item.id}/`}>Sửa</Link>
                                                         &nbsp; &nbsp;
-                                                        {item.isActive == 1 ? (
+                                                            {item.isActive === 1 ? (
                                                             <>
-                                                                <a style={{ color: '#4B49AC' }} href="#" onClick={(event) => hanndleSetActivePackage(event,item.id,0)} >Dừng kinh doanh</a>
+                                                                <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={(event) => hanndleSetActivePackage(event,item.id,0)} >Dừng kinh doanh</button>
                                                             </>) : (<>
-                                                                <a style={{ color: '#4B49AC' }} href="#" onClick={(event) => hanndleSetActivePackage(event,item.id,1)} >Mở kinh doanh</a>
+                                                                <button type="button" className="btn btn-link p-0" style={{ color: '#4B49AC' }} onClick={(event) => hanndleSetActivePackage(event,item.id,1)} >Mở kinh doanh</button>
                                                             </>)
                                                         }
                                                     </td>
@@ -139,7 +138,7 @@ const ManagePackagePost = () => {
                                 </tbody>
                             </table>
                             {
-                                            dataPackagePost && dataPackagePost.length == 0 && (
+                                dataPackagePost && dataPackagePost.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
                                                     Không có dữ liệu

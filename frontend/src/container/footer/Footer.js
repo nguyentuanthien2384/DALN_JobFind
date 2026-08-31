@@ -14,10 +14,7 @@ const Footer = () => {
                 <div className="col-xl-10 col-lg-10 ">
                   <div className="footer-copy-right">
                     <p>
-                      Bản quyền &copy;
-                      <script>document.write(new Date().getFullYear());</script>
-                      <i className="fa fa-heart" aria-hidden="true"></i> từ{" "}
-                      Thiền NT
+                      Bản quyền &copy; {new Date().getFullYear()} JobFind
                     </p>
                   </div>
                 </div>

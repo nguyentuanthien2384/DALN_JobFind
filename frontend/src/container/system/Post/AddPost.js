@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import DatePicker from "react-datepicker";
 import {
@@ -15,12 +15,10 @@ import "react-markdown-editor-lite/lib/index.css";
 import { useFetchAllcode } from "../../../util/fetch";
 import { useNavigate, useParams } from "react-router-dom";
 import { Spinner, Modal } from "reactstrap";
-import localization from "moment/locale/vi";
 import moment from "moment";
 import "../../../components/modal/modal.css";
 import ReupPostModal from "../../../components/modal/ReupPostModal";
 const AddPost = () => {
-    const today = new Date();
     const mdParser = new MarkdownIt();
     const [user, setUser] = useState({});
     const [timeEnd, settimeEnd] = useState(new Date());
@@ -52,50 +50,34 @@ const AddPost = () => {
         isActive: false,
         handlePost: () => {},
     });
-    let fetchCompany = async (userId, companyId = null) => {
+    const fetchCompany = useCallback(async (userId, companyId = null) => {
         let res = await getDetailCompanyByUserId(userId, companyId);
         if (res && res.errCode === 0) {
             setCompanyPostAllow({
-                ...companyPostAllow,
                 hot: res.data.allowHotPost,
                 nonHot: res.data.allowPost,
             });
         }
-    };
-    useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem("userData"));
-        if (userData && userData.roleCode !== "ADMIN" && !id) {
-            fetchCompany(userData.id, userData.companyId);
-        }
-        if (id) {
-            fetchPost(id);
-        }
-        setUser(userData);
     }, []);
-    let fetchPost = async (id) => {
-        let res = await getDetailPostByIdService(id);
-        if (res && res.errCode === 0) {
-            setStatePost(res.data);
-        }
-    };
-    let setStatePost = (data) => {
-        setInputValues({
-            ...inputValues,
-            ["name"]: data.postDetailData.name,
-            ["categoryJobCode"]: data.postDetailData.jobTypePostData.code,
-            ["addressCode"]: data.postDetailData.provincePostData.code,
-            ["salaryJobCode"]: data.postDetailData.salaryTypePostData.code,
-            ["amount"]: data.postDetailData.amount,
-            ["timeEnd"]: data.timeEnd,
-            ["categoryJoblevelCode"]: data.postDetailData.jobLevelPostData.code,
-            ["categoryWorktypeCode"]: data.postDetailData.workTypePostData.code,
-            ["experienceJobCode"]: data.postDetailData.expTypePostData.code,
-            ["genderCode"]: data.postDetailData.genderPostData.code,
-            ["descriptionHTML"]: data.postDetailData.descriptionHTML,
-            ["descriptionMarkdown"]: data.postDetailData.descriptionMarkdown,
-            ["isActionADD"]: false,
-            ["id"]: data.id,
-        });
+
+    const setStatePost = useCallback((data) => {
+        setInputValues((currentValues) => ({
+            ...currentValues,
+            "name": data.postDetailData.name,
+            "categoryJobCode": data.postDetailData.jobTypePostData.code,
+            "addressCode": data.postDetailData.provincePostData.code,
+            "salaryJobCode": data.postDetailData.salaryTypePostData.code,
+            "amount": data.postDetailData.amount,
+            "timeEnd": data.timeEnd,
+            "categoryJoblevelCode": data.postDetailData.jobLevelPostData.code,
+            "categoryWorktypeCode": data.postDetailData.workTypePostData.code,
+            "experienceJobCode": data.postDetailData.expTypePostData.code,
+            "genderCode": data.postDetailData.genderPostData.code,
+            "descriptionHTML": data.postDetailData.descriptionHTML,
+            "descriptionMarkdown": data.postDetailData.descriptionMarkdown,
+            "isActionADD": false,
+            "id": data.id,
+        }));
         document.querySelector('[name="categoryJobCode"]').value =
             data.postDetailData.jobTypePostData.code;
         document.querySelector('[name="addressCode"]').value =
@@ -116,7 +98,25 @@ const AddPost = () => {
                 .locale("vi")
                 .toDate()
         );
-    };
+    }, []);
+
+    const fetchPost = useCallback(async (postId) => {
+        const res = await getDetailPostByIdService(postId);
+        if (res && res.errCode === 0) {
+            setStatePost(res.data);
+        }
+    }, [setStatePost]);
+
+    useEffect(() => {
+        const userData = JSON.parse(localStorage.getItem("userData"));
+        if (userData && userData.roleCode !== "ADMIN" && !id) {
+            fetchCompany(userData.id, userData.companyId);
+        }
+        if (id) {
+            fetchPost(id);
+        }
+        setUser(userData);
+    }, [fetchCompany, fetchPost, id]);
 
     const { data: dataGenderPost } = useFetchAllcode("GENDERPOST");
     const { data: dataJobType } = useFetchAllcode("JOBTYPE");
@@ -151,13 +151,13 @@ const AddPost = () => {
     ) {
         setInputValues({
             ...inputValues,
-            ["genderCode"]: dataGenderPost[0].code,
-            ["categoryJobCode"]: dataJobType[0].code,
-            ["categoryJoblevelCode"]: dataJobLevel[0].code,
-            ["salaryJobCode"]: dataSalaryType[0].code,
-            ["experienceJobCode"]: dataExpType[0].code,
-            ["categoryWorktypeCode"]: dataWorkType[0].code,
-            ["addressCode"]: dataProvince[0].code,
+            "genderCode": dataGenderPost[0].code,
+            "categoryJobCode": dataJobType[0].code,
+            "categoryJoblevelCode": dataJobLevel[0].code,
+            "salaryJobCode": dataSalaryType[0].code,
+            "experienceJobCode": dataExpType[0].code,
+            "categoryWorktypeCode": dataWorkType[0].code,
+            "addressCode": dataProvince[0].code,
         });
     }
     const handleOnChange = (event) => {
@@ -173,8 +173,8 @@ const AddPost = () => {
     let handleEditorChange = ({ html, text }) => {
         setInputValues({
             ...inputValues,
-            ["descriptionMarkdown"]: text,
-            ["descriptionHTML"]: html,
+            "descriptionMarkdown": text,
+            "descriptionHTML": html,
         });
     };
     let handleOnChangeDatePicker = (date) => {
@@ -210,19 +210,19 @@ const AddPost = () => {
                         toast.success(res.errMessage);
                         setInputValues({
                             ...inputValues,
-                            ["name"]: "",
-                            ["descriptionHTML"]: "",
-                            ["descriptionMarkdown"]: "",
-                            ["categoryJobCode"]: "",
-                            ["addressCode"]: "",
-                            ["salaryJobCode"]: "",
-                            ["amount"]: "",
-                            ["timeEnd"]: "",
-                            ["categoryJoblevelCode"]: "",
-                            ["categoryWorktypeCode"]: "",
-                            ["experienceJobCode"]: "",
-                            ["genderCode"]: "",
-                            ["isHot"]: 0,
+                            "name": "",
+                            "descriptionHTML": "",
+                            "descriptionMarkdown": "",
+                            "categoryJobCode": "",
+                            "addressCode": "",
+                            "salaryJobCode": "",
+                            "amount": "",
+                            "timeEnd": "",
+                            "categoryJoblevelCode": "",
+                            "categoryWorktypeCode": "",
+                            "experienceJobCode": "",
+                            "genderCode": "",
+                            "isHot": 0,
                         });
                         settimeEnd(new Date());
                     } else {

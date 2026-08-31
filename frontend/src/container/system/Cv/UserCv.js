@@ -2,7 +2,7 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { getDetailCvService } from "../../../service/cvService";
 
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useParams } from "react-router-dom";
 
 const UserCv = () => {
@@ -27,7 +27,7 @@ const UserCv = () => {
             };
             fetchCV();
         }
-    }, []);
+    }, [id, user.roleCode]);
 
     const navigate = useNavigate();
 
@@ -58,6 +58,7 @@ const UserCv = () => {
                     <div className="card-body">
                         <h4 className="card-title">FILE CV</h4>
                         <iframe
+                            title="CV của ứng viên"
                             width={"100%"}
                             height={"700px"}
                             src={dataCV.file}

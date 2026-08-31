@@ -1,15 +1,9 @@
 import React from "react";
-import { useEffect, useState } from "react";
-import {
-    createNewUser,
-    getDetailUserById,
-    UpdateUserService,
-} from "../../../service/userService";
+import { useCallback, useEffect, useState } from "react";
+import { getDetailUserById, UpdateUserService } from "../../../service/userService";
 import { useFetchAllcode } from "../../../util/fetch";
 import DatePicker from "react-datepicker";
 import { toast } from "react-toastify";
-import { useParams } from "react-router-dom";
-import localization from "moment/locale/vi";
 import moment from "moment";
 import Lightbox from "react-image-lightbox";
 import "react-image-lightbox/style.css";
@@ -20,7 +14,6 @@ const UserInfo = () => {
     const [isChangeDate, setisChangeDate] = useState(false);
     const [isChangeImg, setisChangeImg] = useState(false);
     const [isActionADD, setisActionADD] = useState(true);
-    const { id } = useParams();
     const [inputValues, setInputValues] = useState({
         password: "",
         firstName: "",
@@ -37,28 +30,28 @@ const UserInfo = () => {
         email: "",
     });
 
-    let setStateUser = (data) => {
-        setInputValues({
-            ...inputValues,
-            ["firstName"]: data.userAccountData.firstName,
-            ["lastName"]: data.userAccountData.lastName,
-            ["address"]: data.userAccountData.address,
-            ["phonenumber"]: data.phonenumber,
-            ["genderCode"]: data.userAccountData.genderCode,
-            ["roleCode"]: data.userAccountData.roleCode,
-            ["id"]: data.userAccountData.id,
-            ["dob"]: data.userAccountData.dob,
-            ["image"]: data.userAccountData.image,
-            ["imageReview"]: data.userAccountData.image,
-            ["email"]: data.userAccountData.email,
-        });
+    const setStateUser = useCallback((data) => {
+        setInputValues((currentValues) => ({
+            ...currentValues,
+            "firstName": data.userAccountData.firstName,
+            "lastName": data.userAccountData.lastName,
+            "address": data.userAccountData.address,
+            "phonenumber": data.phonenumber,
+            "genderCode": data.userAccountData.genderCode,
+            "roleCode": data.userAccountData.roleCode,
+            "id": data.userAccountData.id,
+            "dob": data.userAccountData.dob,
+            "image": data.userAccountData.image,
+            "imageReview": data.userAccountData.image,
+            "email": data.userAccountData.email,
+        }));
         setbirthday(
             moment
                 .unix(+data.userAccountData.dob / 1000)
                 .locale("vi")
                 .toDate()
         );
-    };
+    }, []);
     useEffect(() => {
         const userData = JSON.parse(localStorage.getItem("userData"));
         if (userData) {
@@ -71,7 +64,7 @@ const UserInfo = () => {
             };
             fetchUser();
         }
-    }, []);
+    }, [setStateUser]);
 
     const { data: dataGender } = useFetchAllcode("GENDER");
     const { data: dataRole } = useFetchAllcode("ROLE");
@@ -86,8 +79,8 @@ const UserInfo = () => {
     ) {
         setInputValues({
             ...inputValues,
-            ["genderCode"]: dataGender[0].code,
-            ["roleCode"]: dataRole[0].code,
+            "genderCode": dataGender[0].code,
+            "roleCode": dataRole[0].code,
         });
     }
 
@@ -109,15 +102,15 @@ const UserInfo = () => {
             setisChangeImg(true);
             setInputValues({
                 ...inputValues,
-                ["image"]: base64,
-                ["imageReview"]: objectUrl,
+                "image": base64,
+                "imageReview": objectUrl,
             });
         }
     };
     let openPreviewImage = () => {
         if (!inputValues.imageReview) return;
 
-        setInputValues({ ...inputValues, ["isOpen"]: true });
+        setInputValues({ ...inputValues, "isOpen": true });
     };
     let handleSaveUser = async () => {
         let res = await UpdateUserService({
@@ -359,7 +352,7 @@ const UserInfo = () => {
                 <Lightbox
                     mainSrc={inputValues.imageReview}
                     onCloseRequest={() =>
-                        setInputValues({ ...inputValues, ["isOpen"]: false })
+                        setInputValues({ ...inputValues, "isOpen": false })
                     }
                 />
             )}

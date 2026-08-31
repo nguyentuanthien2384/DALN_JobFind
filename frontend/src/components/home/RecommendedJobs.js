@@ -5,23 +5,23 @@ import { getRecommendedPostService } from "../../service/userService";
 
 const RecommendedJobs = () => {
     const [dataRecommend, setDataRecommend] = useState([]);
-    const userData = JSON.parse(localStorage.getItem("userData"));
+    const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
 
     useEffect(() => {
+        const fetchRecommend = async () => {
+            const res = await getRecommendedPostService({
+                userId: userData.id,
+                limit: 5,
+            });
+            if (res && res.errCode === 0) {
+                setDataRecommend(res.data);
+            }
+        };
+
         if (userData && userData.roleCode === "CANDIDATE") {
             fetchRecommend();
         }
-    }, []);
-
-    const fetchRecommend = async () => {
-        let res = await getRecommendedPostService({
-            userId: userData.id,
-            limit: 5,
-        });
-        if (res && res.errCode === 0) {
-            setDataRecommend(res.data);
-        }
-    };
+    }, [userData]);
 
     if (!userData || userData.roleCode !== "CANDIDATE") return <></>;
     if (!dataRecommend || dataRecommend.length === 0) return <></>;

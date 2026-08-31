@@ -173,6 +173,19 @@ describe("post administration", () => {
         expect(getAllPostByRoleAdminService).toHaveBeenCalledTimes(2);
     });
 
+    it("does not expose the edit action for a blocked post", async () => {
+        getAllPostByRoleAdminService.mockResolvedValue({
+            errCode: 0,
+            count: 1,
+            data: [post("PS4")],
+        });
+
+        render(<ManagePost />);
+
+        expect(await screen.findByText("Mở lại")).toBeInTheDocument();
+        expect(screen.queryByText("Xem chi tiết")).not.toBeInTheDocument();
+    });
+
     it("shows a moderation API error without pretending to refresh the list", async () => {
         acceptPostService.mockResolvedValue({ errCode: 1, errMessage: "Không thể duyệt bài" });
         render(<ManagePost />);

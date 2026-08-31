@@ -2,7 +2,6 @@ import React from "react";
 import { useEffect, useState } from "react";
 import {
     getDetailUserById,
-    UpdateUserSettingService,
     getAllSkillByJobCode,
 } from "../../../service/userService";
 import {
@@ -33,34 +32,36 @@ const DetailFilterUser = () => {
         file: "",
     });
     const { id } = useParams();
-    let getListSkill = async (jobType) => {
-        let res = await getAllSkillByJobCode(jobType);
-        let listSkills = res.data.map((item) => ({
-            value: item.id,
-            label: item.name,
-        }));
-        setListSkills(listSkills);
-    };
+    const navigate = useNavigate();
 
-    let setStateUser = (data) => {
-        getListSkill(data.userAccountData.userSettingData.categoryJobCode);
-        let listSkills = [];
-        if (Array.isArray(data.listSkills) && data.listSkills.length > 0) {
-            listSkills = data.listSkills.map((item) => item.SkillId);
-        }
-        setInputValues({
-            ...inputValues,
-            jobType: data.userAccountData.userSettingData.categoryJobCode,
-            salary: data.userAccountData.userSettingData.salaryJobCode,
-            skills: listSkills,
-            jobProvince: data.userAccountData.userSettingData.addressCode,
-            exp: data.userAccountData.userSettingData.experienceJobCode,
-            isFindJob: data.userAccountData.userSettingData.isFindJob,
-            isTakeMail: data.userAccountData.userSettingData.isTakeMail,
-            file: data.userAccountData.userSettingData.file,
-        });
-    };
     useEffect(() => {
+        const getListSkill = async (jobType) => {
+            const res = await getAllSkillByJobCode(jobType);
+            const skills = (res?.data || []).map((item) => ({
+                value: item.id,
+                label: item.name,
+            }));
+            setListSkills(skills);
+        };
+
+        const setStateUser = (data) => {
+            getListSkill(data.userAccountData.userSettingData.categoryJobCode);
+            const skills = Array.isArray(data.listSkills)
+                ? data.listSkills.map((item) => item.SkillId)
+                : [];
+            setInputValues((currentValues) => ({
+                ...currentValues,
+                jobType: data.userAccountData.userSettingData.categoryJobCode,
+                salary: data.userAccountData.userSettingData.salaryJobCode,
+                skills,
+                jobProvince: data.userAccountData.userSettingData.addressCode,
+                exp: data.userAccountData.userSettingData.experienceJobCode,
+                isFindJob: data.userAccountData.userSettingData.isFindJob,
+                isTakeMail: data.userAccountData.userSettingData.isTakeMail,
+                file: data.userAccountData.userSettingData.file,
+            }));
+        };
+
         if (id) {
             let fetchUser = async () => {
                 let check = await checkSeeCandiate({
@@ -88,7 +89,7 @@ const DetailFilterUser = () => {
             };
             fetchUser();
         }
-    }, []);
+    }, [id, navigate]);
 
     let { data: dataProvince } = useFetchAllcode("PROVINCE");
     let { data: dataExp } = useFetchAllcode("EXPTYPE");
@@ -114,7 +115,6 @@ const DetailFilterUser = () => {
         value: item.code,
         label: item.value,
     }));
-    const navigate = useNavigate();
     return (
         <div className="">
             <div className="col-12 grid-margin">
@@ -351,6 +351,7 @@ const DetailFilterUser = () => {
                                 <div className="col-md-12">
                                     <div className="form-group row">
                                         <iframe
+                                            title="Hồ sơ CV của ứng viên"
                                             width={"100%"}
                                             height={"700px"}
                                             src={inputValues.file}

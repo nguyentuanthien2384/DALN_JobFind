@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getFilterCv } from "../../../service/cvService";
 import {
     getAllSkillByJobCode,
@@ -17,7 +17,6 @@ const FilterCv = () => {
     const [dataCv, setdataCv] = useState([]);
     const [count, setCount] = useState("");
     const [numberPage, setnumberPage] = useState("");
-    const [isFirstTime, setIsFirstTime] = useState(true);
     const [inputValue, setInputValue] = useState({
         categoryJobCode: "",
         experienceJobCode: "",
@@ -32,7 +31,7 @@ const FilterCv = () => {
         notFree: 0,
     });
     const navigate = useNavigate();
-    let fetchCompany = async (userId, companyId = null) => {
+    const fetchCompany = useCallback(async (userId, companyId = null) => {
         let res = await getDetailCompanyByUserId(userId, companyId);
         if (res && res.errCode === 0) {
             setCompanySeeAllow({
@@ -40,7 +39,7 @@ const FilterCv = () => {
                 notFree: res.data.allowCv,
             });
         }
-    };
+    }, []);
 
     const confirmSeeCandiate = (id) => {
         confirm({
@@ -53,7 +52,7 @@ const FilterCv = () => {
             onCancel() {},
         });
     };
-    let fetchData = async () => {
+    const fetchData = useCallback(async () => {
         let listSkills = [];
         let otherSkills = [];
         inputValue.listSkills.forEach((item) => {
@@ -78,19 +77,17 @@ const FilterCv = () => {
             setIsHiddenPercent(arrData.isHiddenPercent);
             setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
         }
-    };
-    useEffect(() => {
-        try {
-            let userData = JSON.parse(localStorage.getItem("userData"));
-            fetchData();
-            if (isFirstTime) {
-                fetchCompany(userData.id, userData.companyId);
-                setIsFirstTime(false);
-            }
-        } catch (error) {
-            console.log(error);
-        }
     }, [inputValue]);
+    useEffect(() => {
+        fetchData().catch((error) => console.log(error));
+    }, [fetchData]);
+
+    useEffect(() => {
+        const userData = JSON.parse(localStorage.getItem("userData"));
+        if (userData) {
+            fetchCompany(userData.id, userData.companyId);
+        }
+    }, [fetchCompany]);
 
     let { data: dataProvince } = useFetchAllcode("PROVINCE");
     let { data: dataExp } = useFetchAllcode("EXPTYPE");
@@ -413,7 +410,7 @@ const FilterCv = () => {
                                         })}
                                 </tbody>
                             </table>
-                            {dataCv && dataCv.length == 0 && (
+                                            {dataCv && dataCv.length === 0 && (
                                 <div style={{ textAlign: "center" }}>
                                     Không có dữ liệu
                                 </div>

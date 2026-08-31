@@ -1,8 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { toast } from "react-toastify";
+import React, { useState } from "react";
 import {
     Modal,
-    ModalHeader,
     ModalFooter,
     ModalBody,
     Button,

@@ -34,25 +34,25 @@ const AddJobType = () => {
                 setisActionADD(false);
                 let allcode = await getDetailAllcodeByCode(code);
                 if (allcode && allcode.errCode === 0) {
-                    setInputValues({
-                        ...inputValues,
-                        ["value"]: allcode.data.value,
-                        ["code"]: allcode.data.code,
-                        ["image"]: allcode.data.image,
-                        ["imageReview"]: allcode.data.image,
-                    });
+                    setInputValues((currentValues) => ({
+                        ...currentValues,
+                        "value": allcode.data.value,
+                        "code": allcode.data.code,
+                        "image": allcode.data.image,
+                        "imageReview": allcode.data.image,
+                    }));
                 }
             };
             fetchDetailJobType();
         }
-    }, []);
+    }, [code]);
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
-            setInputValues({
-                ...inputValues,
-                value: CommonUtils.removeSpace(inputValues.value),
-            });
+            setInputValues((currentValues) => ({
+                ...currentValues,
+                value: CommonUtils.removeSpace(currentValues.value),
+            }));
         }, 50);
 
         return () => clearTimeout(delayDebounceFn);
@@ -81,15 +81,15 @@ const AddJobType = () => {
 
             setInputValues({
                 ...inputValues,
-                ["image"]: base64,
-                ["imageReview"]: objectUrl,
+                "image": base64,
+                "imageReview": objectUrl,
             });
         }
     };
     let openPreviewImage = () => {
         if (!inputValues.imageReview) return;
 
-        setInputValues({ ...inputValues, ["isOpen"]: true });
+        setInputValues({ ...inputValues, "isOpen": true });
     };
     let handleSaveJobType = async () => {
         setIsLoading(true);
@@ -106,10 +106,10 @@ const AddJobType = () => {
                     toast.success("Thêm loại công việc thành công");
                     setInputValues({
                         ...inputValues,
-                        ["value"]: "",
-                        ["code"]: "",
-                        ["image"]: "",
-                        ["imageReview"]: "",
+                        "value": "",
+                        "code": "",
+                        "image": "",
+                        "imageReview": "",
                     });
                 } else if (res && res.errCode === 2) {
                     toast.error(res.errMessage);
@@ -248,7 +248,7 @@ const AddJobType = () => {
                 <Lightbox
                     mainSrc={inputValues.imageReview}
                     onCloseRequest={() =>
-                        setInputValues({ ...inputValues, ["isOpen"]: false })
+                        setInputValues({ ...inputValues, "isOpen": false })
                     }
                 />
             )}

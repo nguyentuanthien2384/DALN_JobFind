@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     getAllUsers,
     BanUserService,
@@ -21,7 +21,7 @@ const ManageUser = () => {
     const [search, setSearch] = useState("");
     const [total, setTotal] = useState(0);
 
-    let fetchAllUser = async () => {
+    const fetchAllUser = useCallback(async () => {
         const userData = JSON.parse(localStorage.getItem("userData"));
         setUser(userData);
 
@@ -36,10 +36,10 @@ const ManageUser = () => {
             setCount(Math.ceil(res.count / PAGINATION.pagerow));
             setTotal(res.count);
         }
-    };
+    }, [search]);
     useEffect(() => {
         fetchAllUser();
-    }, [search]);
+    }, [fetchAllUser]);
     let handleChangePage = async (number) => {
         setnumberPage(number.selected);
         let arrData = await getAllUsers({
@@ -55,7 +55,7 @@ const ManageUser = () => {
     let handlebanUser = async (event, item) => {
         event.preventDefault();
         let res = {};
-        if (item.statusCode == "S1") {
+            if (item.statusCode === "S1") {
             res = await BanUserService(item.userAccountData.id);
         } else {
             res = await UnbanUserService(item.userAccountData.id);
@@ -166,12 +166,13 @@ const ManageUser = () => {
                                                             Sửa
                                                         </Link>
                                                         &nbsp; &nbsp;
-                                                        {user.id != item.id && (
-                                                            <a
+                                                            {String(user.id) !== String(item.id) && (
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-link p-0"
                                                                 style={{
                                                                     color: "#4B49AC",
                                                                 }}
-                                                                href="#"
                                                                 onClick={(
                                                                     event
                                                                 ) =>
@@ -185,7 +186,7 @@ const ManageUser = () => {
                                                                 "S1"
                                                                     ? "Chặn"
                                                                     : "Kích hoạt"}
-                                                            </a>
+                                                            </button>
                                                         )}
                                                     </td>
                                                 </tr>
@@ -193,7 +194,7 @@ const ManageUser = () => {
                                         })}
                                 </tbody>
                             </table>
-                            {dataUser && dataUser.length == 0 && (
+                            {dataUser && dataUser.length === 0 && (
                                 <div style={{ textAlign: "center" }}>
                                     Không có dữ liệu
                                 </div>

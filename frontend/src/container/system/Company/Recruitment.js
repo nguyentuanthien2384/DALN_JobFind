@@ -28,7 +28,7 @@ const Recruitment = () => {
             toast.success("Tuyển dụng thành công !");
             setInputValues({
                 ...inputValues,
-                ["phonenumber"]: ''
+                "phonenumber": ''
             })
         } else {
             toast.error(res.errMessage)

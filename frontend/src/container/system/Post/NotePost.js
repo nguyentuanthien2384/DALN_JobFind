@@ -4,11 +4,10 @@ import { getListNoteByPost } from "../../../service/userService";
 import moment from "moment";
 import { PAGINATION } from "../../../util/constant";
 import ReactPaginate from "react-paginate";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useParams } from "react-router-dom";
 
 const NotePost = () => {
-    const user = JSON.parse(localStorage.getItem("userData"));
     const [dataNotePost, setdataNotePost] = useState([]);
     const [count, setCount] = useState("");
     const [numberPage, setnumberPage] = useState("");
@@ -32,7 +31,7 @@ const NotePost = () => {
                 console.log(error);
             }
         }
-    }, []);
+    }, [id]);
 
     let handleChangePage = async (number) => {
         setnumberPage(number.selected);
@@ -109,7 +108,7 @@ const NotePost = () => {
                                         })}
                                 </tbody>
                             </table>
-                            {dataNotePost && dataNotePost.length == 0 && (
+                            {dataNotePost && dataNotePost.length === 0 && (
                                 <div style={{ textAlign: "center" }}>
                                     Không có dữ liệu
                                 </div>

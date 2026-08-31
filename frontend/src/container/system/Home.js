@@ -10,7 +10,6 @@ import { getStatisticalCv } from "../../service/cvService";
 import { PAGINATION } from "../../util/constant";
 import { PieChart } from "react-minimal-pie-chart";
 import ReactPaginate from "react-paginate";
-import moment from "moment";
 import { DatePicker } from "antd";
 import CommonUtils from "../../util/CommonUtils";
 import useAutoRefresh from "../../util/useAutoRefresh";
@@ -370,7 +369,7 @@ const Home = () => {
                                             })}
                                     </tbody>
                                 </table>
-                                {dataCv && dataCv.length == 0 && (
+                            {dataCv && dataCv.length === 0 && (
                                     <div style={{ textAlign: "center" }}>
                                         Không có dữ liệu
                                     </div>
@@ -458,7 +457,7 @@ const Home = () => {
                                                                     {item.id}
                                                                 </td>
                                                                 <td>
-                                                                    {item.isHot ==
+                                                                    {item.isHot ===
                                                                     0
                                                                         ? "Loại bình thường"
                                                                         : "Loại nổi bật"}
@@ -482,7 +481,7 @@ const Home = () => {
                                         </tbody>
                                     </table>
                                     {dataStatisticalPackagePost &&
-                                        dataStatisticalPackagePost.length ==
+                                        dataStatisticalPackagePost.length ===
                                             0 && (
                                             <div
                                                 style={{ textAlign: "center" }}
@@ -602,7 +601,7 @@ const Home = () => {
                                         </tbody>
                                     </table>
                                     {dataStatisticalPackageCv &&
-                                        dataStatisticalPackageCv.length ==
+                                        dataStatisticalPackageCv.length ===
                                             0 && (
                                             <div
                                                 style={{ textAlign: "center" }}

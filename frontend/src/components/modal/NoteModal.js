@@ -1,10 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { toast } from 'react-toastify';
-import { Modal, ModalHeader, ModalFooter, ModalBody, Button, Spinner } from 'reactstrap';
-import {banPostService} from '../../service/userService'
+import React, { useState } from 'react';
+import { Modal, ModalFooter, ModalBody, Button, Spinner } from 'reactstrap';
 import './modal.css'
 function NoteModal(props) {
-    const userData = JSON.parse(localStorage.getItem('userData'));
     const [isLoading, setIsLoading] = useState(false)
     const [inputValue, setInputValue] = useState({
         note: '',
