@@ -48,11 +48,16 @@ import ChartCv from "./Chart/ChartCv";
 import ChatPage from "../Chat/ChatPage";
 import PaymentCancelled from "./PaymentCancelled";
 import RouteGuard from "../../auth/RouteGuard";
-import { hasPermission, PERMISSIONS } from "../../auth/accessControl";
+import {
+    getDefaultRouteForUser,
+    hasPermission,
+    PERMISSIONS,
+} from "../../auth/accessControl";
 import { readJsonStorage } from "../../util/storage";
 
 const HomeAdmin = ({ user: suppliedUser }) => {
     const user = suppliedUser || readJsonStorage("userData");
+    const defaultRoute = getDefaultRouteForUser(user);
     const guard = (element, ...permissions) => (
         <RouteGuard user={user} anyPermissions={permissions}>
             {element}
@@ -62,7 +67,7 @@ const HomeAdmin = ({ user: suppliedUser }) => {
     return (
         <div className="container-scroller">
             {/* partial:partials/_navbar.html */}
-            <Header />
+            <Header user={user} />
             {/* partial */}
             <div className="container-fluid page-body-wrapper">
                 {/* partial:partials/_settings-panel.html */}
@@ -103,9 +108,11 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                     <div className="px-4 py-4">
                         <h4 className="mb-4">Truy cập nhanh</h4>
                         <div className="list-group">
-                            <Link className="list-group-item list-group-item-action" to="/admin/chat">
-                                Tin nhắn tuyển dụng
-                            </Link>
+                            {hasPermission(user, PERMISSIONS.USE_CHAT) && (
+                                <Link className="list-group-item list-group-item-action" to="/admin/chat">
+                                    Tin nhắn tuyển dụng
+                                </Link>
+                            )}
                             {hasPermission(user, PERMISSIONS.MANAGE_CANDIDATES) && (
                                 <Link className="list-group-item list-group-item-action" to="/admin/pipeline">
                                     Quy trình ứng viên
@@ -129,7 +136,14 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                 <div className="main-panel">
                     <div className="content-wrapper">
                         <Routes>
-                            <Route path="/" element={guard(<Home />, PERMISSIONS.VIEW_ADMIN_HOME)} />
+                            <Route
+                                path="/"
+                                element={
+                                    hasPermission(user, PERMISSIONS.VIEW_ADMIN_HOME)
+                                        ? guard(<Home />, PERMISSIONS.VIEW_ADMIN_HOME)
+                                        : <Navigate to={defaultRoute} replace />
+                                }
+                            />
                             <Route path="/chat" element={guard(<ChatPage />, PERMISSIONS.USE_CHAT)} />
                             <Route path="/chat/:partnerId" element={guard(<ChatPage />, PERMISSIONS.USE_CHAT)} />
                             <Route path="/list-user" element={guard(<ManageUser />, PERMISSIONS.MANAGE_USERS)} />
@@ -354,7 +368,7 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                                 path="/sum-by-year-cv"
                                 element={guard(<ChartCv />, PERMISSIONS.VIEW_PLATFORM_REPORTS)}
                             />
-                            <Route path="*" element={<Navigate to="/admin/" replace />} />
+                            <Route path="*" element={<Navigate to={defaultRoute} replace />} />
                         </Routes>
                     </div>
                     {/* content-wrapper ends */}

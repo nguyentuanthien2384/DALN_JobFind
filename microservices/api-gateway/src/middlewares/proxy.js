@@ -2,6 +2,7 @@ import axios from 'axios';
 import CircuitBreaker from 'opossum';
 import { getService, markHealth } from '../libs/registry.js';
 import { createLogger } from '../../../shared/logger.js';
+import { isSafeProxyPath } from '../libs/security.js';
 
 const logger = createLogger('api-gateway');
 
@@ -83,7 +84,7 @@ const getBreaker = (serviceKey) => {
 };
 
 // Bo cac header khong duoc phep chuyen tiep nguyen si.
-const buildForwardHeaders = (req) => {
+const buildForwardHeaders = (req, { includeInternalSecret = true } = {}) => {
     const headers = { ...req.headers };
     delete headers.host;
     delete headers['content-length'];
@@ -106,7 +107,7 @@ const buildForwardHeaders = (req) => {
             headers['x-company-id'] = String(req.user.companyId);
         }
     }
-    if (process.env.INTERNAL_SECRET) {
+    if (includeInternalSecret && process.env.INTERNAL_SECRET) {
         headers['x-internal-secret'] = process.env.INTERNAL_SECRET;
     }
     headers['x-correlation-id'] = req.correlationId;
@@ -124,12 +125,25 @@ export const createProxy = (serviceKey, buildPath = (req) => req.path) => {
         const breaker = getBreaker(serviceKey);
         const targetPath = buildPath(req);
 
+        // Defense in depth: ke ca khi mot route moi quen gan middleware tong,
+        // proxy van khong bao gio chuan hoa `..`/slash ma hoa sang API noi bo.
+        if (!isSafeProxyPath(targetPath)) {
+            return res.status(400).json({
+                errCode: 400,
+                errMessage: 'Đường dẫn yêu cầu không hợp lệ'
+            });
+        }
+
         try {
             const result = await breaker.fire({
                 baseUrl: service.baseUrl,
                 method: req.method,
                 path: targetPath,
-                headers: buildForwardHeaders(req),
+                // Legacy `/api/*` khong can khoa noi bo. Khong gan khoa o nhanh
+                // nay de mot URL la khong the muon quyen server-to-server.
+                headers: buildForwardHeaders(req, {
+                    includeInternalSecret: serviceKey !== 'legacy'
+                }),
                 body: req.body,
                 query: req.query
             });

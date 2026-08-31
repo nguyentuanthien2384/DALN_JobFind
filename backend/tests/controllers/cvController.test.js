@@ -122,7 +122,10 @@ describe('cvController', () => {
     expect(denied.status).toHaveBeenCalledWith(403);
     mockService.getStatisticalCv.mockResolvedValueOnce({ errCode: 0 });
     await controller.getStatisticalCv(request(), createResponse());
-    expect(mockService.getStatisticalCv).toHaveBeenCalledWith(request().query);
+    expect(mockService.getStatisticalCv).toHaveBeenCalledWith({
+      ...request().query,
+      companyId: 11
+    });
   });
 
   test('candidate search is limited to recruiter/admin roles', async () => {

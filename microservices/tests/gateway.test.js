@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => {
     const axios = vi.fn();
     axios.post = vi.fn();
     const verify = vi.fn();
+    const resolveCurrentIdentity = vi.fn();
     const breakerInstances = [];
     class Breaker {
         constructor(action, options) {
@@ -35,11 +36,14 @@ const mocks = vi.hoisted(() => {
         }
         on(name, callback) { this.handlers[name] = callback; return this; }
     }
-    return { axios, verify, Breaker, breakerInstances, Redis, redisInstances };
+    return { axios, verify, resolveCurrentIdentity, Breaker, breakerInstances, Redis, redisInstances };
 });
 
 vi.mock('axios', () => ({ default: mocks.axios }));
 vi.mock('jsonwebtoken', () => ({ default: { verify: mocks.verify } }));
+vi.mock('../api-gateway/src/libs/accountStore.js', () => ({
+    resolveCurrentIdentity: mocks.resolveCurrentIdentity
+}));
 vi.mock('opossum', () => ({ default: mocks.Breaker }));
 vi.mock('ioredis', () => ({ default: mocks.Redis }));
 
@@ -53,6 +57,9 @@ afterEach(() => {
 describe('gateway authentication', () => {
     beforeEach(() => {
         mocks.verify.mockReset();
+        mocks.resolveCurrentIdentity.mockReset().mockResolvedValue({
+            id: 9, roleCode: 'ADMIN', companyId: 4, statusCode: 'S1'
+        });
     });
 
     it('optionally attaches a normalized JWT identity', async () => {
@@ -60,7 +67,7 @@ describe('gateway authentication', () => {
         const { optionalAuth } = await import('../api-gateway/src/middlewares/auth.js');
         const req = makeReq({ headers: { authorization: 'Bearer token' } });
         const next = vi.fn();
-        optionalAuth(req, makeRes(), next);
+        await optionalAuth(req, makeRes(), next);
         expect(mocks.verify.mock.calls[0][0]).toBe('token');
         expect(req.user).toEqual({ id: 9, roleCode: 'ADMIN', companyId: 4 });
         expect(next).toHaveBeenCalledOnce();
@@ -72,7 +79,7 @@ describe('gateway authentication', () => {
         for (const authorization of [undefined, 'Bearer ', 'bad']) {
             const req = makeReq({ headers: authorization ? { authorization } : {} });
             const next = vi.fn();
-            optionalAuth(req, makeRes(), next);
+            await optionalAuth(req, makeRes(), next);
             expect(req.user).toBeNull();
             expect(next).toHaveBeenCalledOnce();
         }
@@ -81,15 +88,54 @@ describe('gateway authentication', () => {
     it('requires login and supports tokens using id', async () => {
         const { requireAuth } = await import('../api-gateway/src/middlewares/auth.js');
         const denied = makeRes();
-        requireAuth(makeReq(), denied, vi.fn());
+        await requireAuth(makeReq(), denied, vi.fn());
         expect(denied.statusCode).toBe(401);
 
         mocks.verify.mockReturnValue({ id: 12 });
+        mocks.resolveCurrentIdentity.mockResolvedValue({
+            id: 12, roleCode: 'CANDIDATE', companyId: null, statusCode: 'S1'
+        });
         const req = makeReq({ headers: { authorization: 'plain-token' } });
         const next = vi.fn();
-        requireAuth(req, makeRes(), next);
-        expect(req.user).toEqual({ id: 12, roleCode: null, companyId: null });
+        await requireAuth(req, makeRes(), next);
+        expect(req.user).toEqual({ id: 12, roleCode: 'CANDIDATE', companyId: null });
         expect(next).toHaveBeenCalledOnce();
+    });
+
+    it('uses current DB role/company instead of stale JWT claims', async () => {
+        mocks.verify.mockReturnValue({
+            sub: 9, roleCode: 'ADMIN', companyId: 999
+        });
+        mocks.resolveCurrentIdentity.mockResolvedValue({
+            id: 9, roleCode: 'EMPLOYER', companyId: 7, statusCode: 'S1'
+        });
+        const { optionalAuth } = await import('../api-gateway/src/middlewares/auth.js');
+        const req = makeReq({ headers: { authorization: 'Bearer stale-token' } });
+        await optionalAuth(req, makeRes(), vi.fn());
+        expect(req.user).toEqual({ id: 9, roleCode: 'EMPLOYER', companyId: 7 });
+        expect(mocks.resolveCurrentIdentity).toHaveBeenCalledWith(9);
+    });
+
+    it('rejects inactive/unknown accounts and fails closed when identity DB is unavailable', async () => {
+        mocks.verify.mockReturnValue({ sub: 9 });
+        const { requireAuth } = await import('../api-gateway/src/middlewares/auth.js');
+
+        mocks.resolveCurrentIdentity.mockResolvedValueOnce({
+            id: 9, roleCode: 'COMPANY', companyId: 2, statusCode: 'S2'
+        });
+        const inactive = makeRes();
+        await requireAuth(makeReq({ headers: { authorization: 'Bearer token' } }), inactive, vi.fn());
+        expect(inactive.statusCode).toBe(403);
+
+        mocks.resolveCurrentIdentity.mockResolvedValueOnce(null);
+        const deleted = makeRes();
+        await requireAuth(makeReq({ headers: { authorization: 'Bearer token' } }), deleted, vi.fn());
+        expect(deleted.statusCode).toBe(401);
+
+        mocks.resolveCurrentIdentity.mockRejectedValueOnce(new Error('db down'));
+        const unavailable = makeRes();
+        await requireAuth(makeReq({ headers: { authorization: 'Bearer token' } }), unavailable, vi.fn());
+        expect(unavailable.statusCode).toBe(503);
     });
 
     it('enforces roles after authentication', async () => {
@@ -103,6 +149,24 @@ describe('gateway authentication', () => {
         expect(wrong.statusCode).toBe(403);
         const next = vi.fn();
         middleware(makeReq({ user: { roleCode: 'ADMIN' } }), makeRes(), next);
+        expect(next).toHaveBeenCalledOnce();
+    });
+
+    it('enforces the centralized permission matrix and company scope', async () => {
+        const { requirePermission } = await import('../api-gateway/src/middlewares/auth.js');
+        const { PERMISSIONS } = await import('../shared/accessControl.js');
+        const middleware = requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true });
+
+        const candidate = makeRes();
+        middleware(makeReq({ user: { id: 1, roleCode: 'CANDIDATE' } }), candidate, vi.fn());
+        expect(candidate.statusCode).toBe(403);
+
+        const companyless = makeRes();
+        middleware(makeReq({ user: { id: 2, roleCode: 'EMPLOYER', companyId: null } }), companyless, vi.fn());
+        expect(companyless.statusCode).toBe(403);
+
+        const next = vi.fn();
+        middleware(makeReq({ user: { id: 2, roleCode: 'EMPLOYER', companyId: 7 } }), makeRes(), next);
         expect(next).toHaveBeenCalledOnce();
     });
 });
@@ -272,6 +336,34 @@ describe('Redis rate limiter', () => {
 });
 
 describe('gateway HTTP and WebSocket security configuration', () => {
+    it('rejects encoded path traversal before any route or downstream proxy', async () => {
+        const { isSafeProxyPath, rejectUnsafeProxyPath } = await import('../api-gateway/src/libs/security.js');
+        expect(isSafeProxyPath('/api/search/jobs')).toBe(true);
+        expect(isSafeProxyPath('/api/search/caf%C3%A9')).toBe(true);
+        for (const unsafe of [
+            '/api/%2e%2e/internal/emit-notification',
+            '/api/search/%2e%2e/internal/reindex',
+            '/api/jobs/..%2Finternal%2Fjobs',
+            '/api/ai/.%2e/internal/jobs',
+            '/api/applications/%252e%252e/internal/sync',
+            '/api/admin/%2e./internal/audit-action',
+            '/api/jobs/%5c..%5cinternal',
+            '/api/jobs/%3finternal'
+        ]) expect(isSafeProxyPath(unsafe)).toBe(false);
+
+        const denied = makeRes();
+        const next = vi.fn();
+        rejectUnsafeProxyPath(makeReq({
+            originalUrl: '/api/%2e%2e/internal/emit-notification?x=1'
+        }), denied, next);
+        expect(denied.statusCode).toBe(400);
+        expect(next).not.toHaveBeenCalled();
+
+        const allowedNext = vi.fn();
+        rejectUnsafeProxyPath(makeReq({ originalUrl: '/api/search/jobs?q=node' }), makeRes(), allowedNext);
+        expect(allowedNext).toHaveBeenCalledOnce();
+    });
+
     it('normalizes and deduplicates a comma-separated CORS origin list', async () => {
         const { isOriginAllowed, parseAllowedOrigins } = await import('../api-gateway/src/libs/security.js');
         expect(parseAllowedOrigins(' http://localhost:3000/, https://jobs.example.com ,http://localhost:3000 '))
@@ -309,23 +401,25 @@ describe('gateway HTTP and WebSocket security configuration', () => {
             logger
         });
         const allowedSocket = { write: vi.fn(), destroy: vi.fn() };
-        handler({ headers: { origin: 'https://jobs.example.com/' } }, allowedSocket, 'head-a');
-        handler({ headers: {} }, allowedSocket, 'head-b');
+        handler({ url: '/socket.io/?EIO=4', headers: { origin: 'https://jobs.example.com/' } }, allowedSocket, 'head-a');
+        handler({ url: '/socket.io/?EIO=4', headers: {} }, allowedSocket, 'head-b');
         expect(upgrade).toHaveBeenCalledTimes(2);
         expect(allowedSocket.destroy).not.toHaveBeenCalled();
 
         const deniedSocket = { write: vi.fn(), destroy: vi.fn() };
-        handler({ headers: { origin: 'https://evil.example' } }, deniedSocket, 'head-c');
+        handler({ url: '/socket.io/?EIO=4', headers: { origin: 'https://evil.example' } }, deniedSocket, 'head-c');
         expect(deniedSocket.write).toHaveBeenCalledWith(expect.stringContaining('403 Forbidden'));
         expect(deniedSocket.destroy).toHaveBeenCalledOnce();
-        expect(logger.warn).toHaveBeenCalledWith(expect.any(String), { origin: 'https://evil.example' });
+        expect(logger.warn).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+            origin: 'https://evil.example', path: '/socket.io/'
+        }));
         expect(upgrade).toHaveBeenCalledTimes(2);
 
         const alreadyClosed = {
             write: vi.fn(() => { throw new Error('closed'); }),
             destroy: vi.fn()
         };
-        expect(() => handler({ headers: { origin: 'https://evil.example' } }, alreadyClosed, 'head-d'))
+        expect(() => handler({ url: '/internal/jobs', headers: { origin: 'https://jobs.example.com' } }, alreadyClosed, 'head-d'))
             .not.toThrow();
         expect(alreadyClosed.destroy).toHaveBeenCalledOnce();
     });
@@ -366,11 +460,16 @@ describe('circuit-breaker proxy', () => {
     });
 
     it('forwards trusted identity while removing spoofable and hop-by-hop headers', async () => {
+        vi.stubEnv('INTERNAL_SECRET', 'gateway-secret');
         mocks.axios.mockResolvedValue({ status: 201, headers: {}, data: { errCode: 0 } });
         const { createProxy } = await import('../api-gateway/src/middlewares/proxy.js');
         const req = makeReq({
             method: 'POST', path: '/jobs', query: { q: 'x' }, body: { name: 'A' },
-            headers: { host: 'evil', connection: 'keep', 'content-length': '99', 'x-user-id': '999', custom: 'ok' },
+            headers: {
+                host: 'evil', connection: 'keep', 'content-length': '99',
+                'x-user-id': '999', 'x-user-role': 'ADMIN',
+                'x-company-id': '999', 'x-internal-secret': 'attacker-secret', custom: 'ok'
+            },
             user: { id: 7, roleCode: 'COMPANY', companyId: 8 }
         });
         const res = makeRes();
@@ -378,10 +477,31 @@ describe('circuit-breaker proxy', () => {
         expect(res.statusCode).toBe(201);
         const request = mocks.axios.mock.calls[0][0];
         expect(request.url).toContain('job-core-service:4002/jobs');
-        expect(request.headers).toMatchObject({ custom: 'ok', 'x-user-id': '7', 'x-user-role': 'COMPANY', 'x-company-id': '8', 'x-correlation-id': 'corr-test' });
+        expect(request.headers).toMatchObject({
+            custom: 'ok', 'x-user-id': '7', 'x-user-role': 'COMPANY',
+            'x-company-id': '8', 'x-correlation-id': 'corr-test',
+            'x-internal-secret': 'gateway-secret'
+        });
         expect(request.headers.host).toBeUndefined();
         expect(request.validateStatus(499)).toBe(true);
         expect(request.validateStatus(500)).toBe(false);
+    });
+
+    it('fails closed on unsafe downstream paths and never lends the internal secret to legacy APIs', async () => {
+        vi.stubEnv('INTERNAL_SECRET', 'gateway-secret');
+        const { createProxy } = await import('../api-gateway/src/middlewares/proxy.js');
+
+        const denied = makeRes();
+        await createProxy('jobs', () => '/jobs/../internal/jobs')(makeReq(), denied, vi.fn());
+        expect(denied.statusCode).toBe(400);
+        expect(mocks.axios).not.toHaveBeenCalled();
+
+        mocks.axios.mockResolvedValueOnce({ status: 200, headers: {}, data: { errCode: 0 } });
+        await createProxy('legacy', () => '/api/public')(makeReq({
+            headers: { 'x-internal-secret': 'attacker-value' }
+        }), makeRes(), vi.fn());
+        const request = mocks.axios.mock.calls[0][0];
+        expect(request.headers['x-internal-secret']).toBeUndefined();
     });
 
     it('delegates unknown services to error middleware', async () => {

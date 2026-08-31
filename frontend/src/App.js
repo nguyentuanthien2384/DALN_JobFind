@@ -176,7 +176,7 @@ function App() {
                         <RouteGuard
                             user={userData}
                             hasToken={hasToken}
-                            anyPermissions={[PERMISSIONS.VIEW_ADMIN_HOME]}
+                            anyPermissions={[PERMISSIONS.ACCESS_ADMIN_AREA]}
                         >
                             <HomeAdmin user={userData} />
                         </RouteGuard>

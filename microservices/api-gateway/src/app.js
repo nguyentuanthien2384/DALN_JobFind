@@ -15,7 +15,8 @@ import {
     createSocketUpgradeHandler,
     mountLoginRateLimit,
     parseAllowedOrigins,
-    parseTrustedProxies
+    parseTrustedProxies,
+    rejectUnsafeProxyPath
 } from './libs/security.js';
 
 const logger = createLogger('api-gateway');
@@ -31,6 +32,8 @@ app.use(cors({
     origin: allowedOrigins,
     credentials: true
 }));
+// Chan path traversal truoc moi route/proxy va truoc ca body parser.
+app.use(rejectUnsafeProxyPath);
 // Socket.IO phai duoc chuyen tiep TRUOC express.json().
 //
 // Hai ly do: (1) body parser doc het luong du lieu, sau do khong con gi de chuyen

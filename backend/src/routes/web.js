@@ -92,7 +92,9 @@ let initWebRoutes = (app) => {
     router.put('/api/accept-post', ...protectedBy(PERMISSIONS.ADMINISTRATION), postController.handleAcceptPost)
     router.get('/api/get-list-post-admin', ...protectedBy(PERMISSIONS.RECRUITMENT_READ), postController.getListPostByAdmin)
     router.get('/api/get-all-post-admin', ...protectedBy(PERMISSIONS.ADMINISTRATION), postController.getAllPostByAdmin)
-    router.get('/api/get-detail-post-by-id', postController.getDetailPostById)
+    // Khach chi xem duoc tin da duyet; admin/nha tuyen dung cung cong ty co the
+    // xem tin dang cho duyet. Controller quyet dinh scope tu danh tinh optional.
+    router.get('/api/get-detail-post-by-id', middlewareControllers.verifyTokenOptional, postController.getDetailPostById)
     router.get('/api/get-filter-post', postController.getFilterPost)
     router.get('/api/get-related-post', postController.getRelatedPost)
     router.get('/api/get-recommended-post', ...protectedBy(PERMISSIONS.RECOMMENDATION_READ), postController.getRecommendedPost)

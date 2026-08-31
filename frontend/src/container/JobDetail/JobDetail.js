@@ -12,6 +12,8 @@ import {
 import { Link } from "react-router-dom";
 import moment from "moment";
 import CommonUtils from "../../util/CommonUtils";
+import { hasPermission, PERMISSIONS } from "../../auth/accessControl";
+import { readJsonStorage } from "../../util/storage";
 const JobDetail = () => {
     const navigate = useNavigate();
     const { id } = useParams();
@@ -19,6 +21,8 @@ const JobDetail = () => {
     const [dataPost, setDataPost] = useState({});
     const [isFavorite, setIsFavorite] = useState(false);
     const [relatedPost, setRelatedPost] = useState([]);
+    const currentUser = readJsonStorage("userData");
+    const canStartChat = !currentUser || hasPermission(currentUser, PERMISSIONS.USE_CHAT);
     useEffect(() => {
         if (id) {
             fetchPost(id);
@@ -370,7 +374,7 @@ const JobDetail = () => {
                                                     ? "Đã lưu tin"
                                                     : "Lưu tin"}
                                             </button>
-                                            <button
+                                            {canStartChat && <button
                                                 type="button"
                                                 className="job-action-btn job-action-btn--ghost"
                                                 onClick={() => {
@@ -409,7 +413,7 @@ const JobDetail = () => {
                                             >
                                                 <i className="far fa-comment-dots"></i>
                                                 Nhắn tin cho nhà tuyển dụng
-                                            </button>
+                                            </button>}
                                         </div>
                                     </div>
                                     <div className="post-details4  mb-50">

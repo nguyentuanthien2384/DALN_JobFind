@@ -44,37 +44,67 @@ describe("system Menu", () => {
         getListChatConversationService.mockResolvedValue({ errCode: 0, totalUnread: 3 });
     });
 
-    it("shows only the admin groups, opens the current group and refreshes unread chat", async () => {
+    it("shows only platform groups for ADMIN and never loads or exposes chat", async () => {
         localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
         mockPathname = "/admin/list-user/";
         const { unmount } = render(<Menu />);
 
-        expect(await screen.findByText("3")).toBeInTheDocument();
         expect(screen.getByText("Quản lý người dùng").closest("a")).toHaveAttribute("aria-expanded", "true");
         expect(screen.getByRole("link", { name: "Danh sách người dùng" })).toHaveClass("active");
         expect(screen.getByText("Quản lý gói bài đăng")).toBeInTheDocument();
         expect(screen.queryByText("Tạo mới công ty")).not.toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: "Tin nhắn" })).not.toBeInTheDocument();
+        expect(getListChatConversationService).not.toHaveBeenCalled();
+        expect(socket.on).not.toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+
+        unmount();
+        expect(socket.off).not.toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+    });
+
+    it("limits an unattached employer menu to company creation and skips chat/dashboard work", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 2, roleCode: "EMPLOYER" }));
+        render(<Menu />);
+
+        expect(screen.getByText("Tạo mới công ty")).toBeInTheDocument();
+        expect(screen.queryByText("Tạo mới bài đăng")).not.toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: "Trang chủ" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: "Tin nhắn" })).not.toBeInTheDocument();
+        expect(getListChatConversationService).not.toHaveBeenCalled();
+        expect(socket.on).not.toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+    });
+
+    it("shows recruiting and chat, but not owner-only actions, for an attached employer", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 2, roleCode: "EMPLOYER", companyId: 9 }));
+        const { unmount } = render(<Menu />);
+
+        expect(screen.getByText("Tạo mới bài đăng")).toBeInTheDocument();
+        expect(screen.getByText("Quy trình tuyển dụng")).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Trang chủ" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: /Tin nhắn/ })).toBeInTheDocument();
+        expect(screen.queryByText("Mua thêm lượt đăng bài")).not.toBeInTheDocument();
+        expect(screen.queryByText("Danh sách nhân viên")).not.toBeInTheDocument();
+        expect(await screen.findByText("3")).toBeInTheDocument();
         expect(getListChatConversationService).toHaveBeenCalledTimes(1);
         expect(socket.on).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
 
-        await act(async () => socket.on.mock.calls[0][1]());
+        const chatHandler = socket.on.mock.calls.find(([event]) => event === "chat:new-message")[1];
+        await act(async () => chatHandler());
         expect(getListChatConversationService).toHaveBeenCalledTimes(2);
         unmount();
-        expect(socket.off).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+        expect(socket.off).toHaveBeenCalledWith("chat:new-message", chatHandler);
     });
 
-    it("applies employer permissions based on company membership", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 2, roleCode: "EMPLOYER" }));
-        const { unmount } = render(<Menu />);
-        expect(await screen.findByText("Tạo mới công ty")).toBeInTheDocument();
-        expect(screen.queryByText("Tạo mới bài đăng")).not.toBeInTheDocument();
-        unmount();
-
-        localStorage.setItem("userData", JSON.stringify({ id: 2, roleCode: "EMPLOYER", companyId: 9 }));
+    it("shows owner-only company, purchase and transaction actions to attached COMPANY", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 3, roleCode: "COMPANY", companyId: 5 }));
         render(<Menu />);
-        expect(await screen.findByText("Tạo mới bài đăng")).toBeInTheDocument();
-        expect(screen.getByText("Quy trình tuyển dụng")).toBeInTheDocument();
-        expect(screen.queryByText("Mua thêm lượt đăng bài")).not.toBeInTheDocument();
+
+        expect(screen.getByText("Thông tin công ty")).toBeInTheDocument();
+        expect(screen.getByText("Danh sách nhân viên")).toBeInTheDocument();
+        expect(screen.getByText("Mua thêm lượt đăng bài")).toBeInTheDocument();
+        expect(screen.getByText("Mua thêm lượt xem ứng viên")).toBeInTheDocument();
+        expect(screen.getByText("Lịch sử gói bài đăng")).toBeInTheDocument();
+        expect(screen.queryByText("Danh sách người dùng")).not.toBeInTheDocument();
+        expect(await screen.findByText("3")).toBeInTheDocument();
     });
 
     it("keeps exactly one accordion group open and closes it from the home/chat links", async () => {
@@ -98,7 +128,7 @@ describe("system Header", () => {
         jest.clearAllMocks();
         localStorage.clear();
         document.body.className = "";
-        localStorage.setItem("userData", JSON.stringify({ id: 7, image: "/avatar.png" }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "ADMIN", image: "/avatar.png" }));
         getSocket.mockReturnValue(socket);
         getNotificationByUserService.mockResolvedValue({
             errCode: 0,
@@ -187,6 +217,20 @@ describe("system Header", () => {
         expect(screen.getAllByRole("link", { name: "logo" })).toHaveLength(2);
         screen.getAllByRole("link", { name: "logo" }).forEach((link) => {
             expect(link).toHaveAttribute("href", "/admin/");
+        });
+    });
+
+    it("sends an employer without companyId from the logo to company creation", async () => {
+        localStorage.setItem("userData", JSON.stringify({
+            id: 8,
+            roleCode: "EMPLOYER",
+            image: "/avatar.png",
+        }));
+        render(<Header />);
+
+        expect(await screen.findByAltText("profile")).toBeInTheDocument();
+        screen.getAllByRole("link", { name: "logo" }).forEach((link) => {
+            expect(link).toHaveAttribute("href", "/admin/add-company/");
         });
     });
 });

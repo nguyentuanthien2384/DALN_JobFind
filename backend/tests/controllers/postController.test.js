@@ -37,10 +37,10 @@ const cases = [
   ['handleAcceptPost', 'handleAcceptPost', (r) => ({ ...r.body, userId: r.user.id })],
   ['getListPostByAdmin', 'getListPostByAdmin', (r) => ({ ...r.query, companyId: 11 })],
   ['getAllPostByAdmin', 'getAllPostByAdmin', (r) => r.query],
-  ['getDetailPostById', 'getDetailPostById', (r) => r.query.id],
+  ['getDetailPostById', 'getDetailPostById', (r) => [r.query.id, { includeNonPublic: true }]],
   ['handleActivePost', 'handleActivePost', (r) => ({ ...r.body, userId: r.user.id })],
   ['getFilterPost', 'getFilterPost', (r) => r.query],
-  ['getStatisticalTypePost', 'getStatisticalTypePost', (r) => r.query],
+  ['getStatisticalTypePost', 'getStatisticalTypePost', (r) => ({ ...r.query, companyId: r.user.companyId })],
   ['getListNoteByPost', 'getListNoteByPost', (r) => r.query],
   ['getRelatedPost', 'getRelatedPost', (r) => r.query],
   ['getRecommendedPost', 'getRecommendedPost', (r) => ({ ...r.query, userId: r.user.id })]
@@ -59,7 +59,9 @@ describe('postController', () => {
     const result = { errCode: 2, data: method };
     mockService[serviceMethod].mockResolvedValueOnce(result);
     await controller[method](req, res);
-    expect(mockService[serviceMethod]).toHaveBeenCalledWith(expectedArg(req));
+    const expected = expectedArg(req);
+    if (Array.isArray(expected)) expect(mockService[serviceMethod]).toHaveBeenCalledWith(...expected);
+    else expect(mockService[serviceMethod]).toHaveBeenCalledWith(expected);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(result);
   });
@@ -77,6 +79,27 @@ describe('postController', () => {
     expect(mockService.getListPostByAdmin).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: 11 }));
     await controller.getListPostByAdmin(request('ADMIN'), createResponse());
     expect(mockService.getListPostByAdmin).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: '999' }));
+
+    mockService.getStatisticalTypePost.mockResolvedValue({ errCode: 0 });
+    await controller.getStatisticalTypePost(request('EMPLOYER'), createResponse());
+    expect(mockService.getStatisticalTypePost).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: 11 }));
+    await controller.getStatisticalTypePost(request('ADMIN'), createResponse());
+    expect(mockService.getStatisticalTypePost).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: '999' }));
+  });
+
+  test('post detail exposes non-public posts only to an authorized admin or same-company recruiter', async () => {
+    mockService.getDetailPostById.mockResolvedValue({ errCode: 0 });
+    const guest = request();
+    delete guest.user;
+    await controller.getDetailPostById(guest, createResponse());
+    expect(mockService.getDetailPostById).toHaveBeenLastCalledWith('19', { includeNonPublic: false });
+
+    mockCanAccessPostApplicants.mockResolvedValueOnce(false);
+    await controller.getDetailPostById(request(), createResponse());
+    expect(mockService.getDetailPostById).toHaveBeenLastCalledWith('19', { includeNonPublic: false });
+
+    await controller.getDetailPostById(request('ADMIN'), createResponse());
+    expect(mockService.getDetailPostById).toHaveBeenLastCalledWith('19', { includeNonPublic: true });
   });
 
   test.each([

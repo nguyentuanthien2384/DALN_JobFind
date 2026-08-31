@@ -182,8 +182,17 @@ describe('postService', () => {
     const post = { id: 10, userId: 7 };
     mockDb.Post.findOne.mockResolvedValueOnce(post);
     mockDb.User.findOne.mockResolvedValueOnce({ companyId: 4 });
-    mockDb.Company.findOne.mockResolvedValueOnce({ id: 4 });
+    mockDb.Company.findOne.mockResolvedValueOnce({ id: 4, file: 'private-license' });
     expect((await service.getDetailPostById(10)).data.companyData).toEqual({ id: 4 });
+    expect(mockDb.Post.findOne).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { id: 10, statusCode: 'PS1' }
+    }));
+
+    mockDb.Post.findOne.mockResolvedValueOnce(post);
+    mockDb.User.findOne.mockResolvedValueOnce({ companyId: 4 });
+    mockDb.Company.findOne.mockResolvedValueOnce({ id: 4, file: 'private-license' });
+    await service.getDetailPostById(10, { includeNonPublic: true });
+    expect(mockDb.Post.findOne).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: 10 } }));
   });
 
   test('filters active posts across array filters, hot flag and pagination', async () => {

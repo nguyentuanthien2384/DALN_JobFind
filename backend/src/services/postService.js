@@ -655,7 +655,7 @@ let getAllPostByAdmin = (data) => {
 
 
 }
-let getDetailPostById = (id) => {
+let getDetailPostById = (id, { includeNonPublic = false } = {}) => {
     return new Promise(async (resolve, reject) => {
         try {
             if (!id) {
@@ -666,7 +666,10 @@ let getDetailPostById = (id) => {
             } else {
                 let post = await db.Post.findOne({
                     where: {
-                        id: id
+                        id: id,
+                        // Trang cong khai chi duoc doc tin da duyet. Admin va
+                        // nguoi cung cong ty duoc controller cap scope rieng.
+                        ...(includeNonPublic ? {} : { statusCode: 'PS1' })
                     },
                     attributes: {
                         exclude: ['detailPostId']
@@ -695,10 +698,14 @@ let getDetailPostById = (id) => {
                             exclude: ['userId']
                         }
                     })
-                    let company = await db.Company.findOne({
+                    let company = user ? await db.Company.findOne({
                         where: { id: user.companyId }
-                    })
-                    post.companyData = company
+                    }) : null
+                    // Tai lieu xac minh doanh nghiep khong bao gio di kem chi
+                    // tiet tin tuyen dung, ke ca khi admin dang xem tin cho duyet.
+                    const companyData = company?.toJSON ? company.toJSON() : company ? { ...company } : null
+                    if (companyData) delete companyData.file
+                    post.companyData = companyData
                     resolve({
                         errCode: 0,
                         data: post,
@@ -848,7 +855,7 @@ let getFilterPost = (data) => {
 let getStatisticalTypePost = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
-            const companyScope = data.companyId ? [{
+            const getCompanyScope = () => data.companyId ? [{
                 model: db.User,
                 as: 'userPostData',
                 attributes: [],
@@ -860,7 +867,7 @@ let getStatisticalTypePost = (data) => {
                     statusCode: 'PS1'
                 },
                 include: [
-                    ...companyScope,
+                    ...getCompanyScope(),
                     {
                         model: db.DetailPost, as: 'postDetailData', attributes: [],
                         include: [
@@ -879,7 +886,7 @@ let getStatisticalTypePost = (data) => {
                 where: {
                     statusCode: 'PS1'
                 },
-                include: companyScope
+                include: getCompanyScope()
             })
             resolve({
                 errCode: 0,

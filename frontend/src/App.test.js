@@ -75,6 +75,7 @@ describe("application routes", () => {
     it.each([
         ["ADMIN", undefined],
         ["EMPLOYER", undefined],
+        ["COMPANY", undefined],
         ["COMPANY", 8],
     ])(
         "allows %s users into the admin area",
@@ -84,11 +85,28 @@ describe("application routes", () => {
         }
     );
 
-    it.each(["ADMIN", "COMPANY", "EMPLOYER", "CANDIDATE"])(
-        "allows an authenticated %s user to use chat",
-        (roleCode) => {
-            renderAt("/chat/9", { id: 1, roleCode, companyId: 3 });
+    it.each([
+        ["CANDIDATE", undefined],
+        ["COMPANY", 3],
+        ["EMPLOYER", 3],
+    ])(
+        "allows an authenticated %s with the required company context to use chat",
+        (roleCode, companyId) => {
+            renderAt("/chat/9", { id: 1, roleCode, companyId });
             expect(screen.getByText("chat-page")).toBeInTheDocument();
+        }
+    );
+
+    it.each([
+        ["ADMIN", 3],
+        ["COMPANY", undefined],
+        ["EMPLOYER", undefined],
+    ])(
+        "returns 403 for chat when %s lacks backend chat permission",
+        (roleCode, companyId) => {
+            renderAt("/chat/9", { id: 1, roleCode, companyId });
+            expect(screen.getByText("navigate-/forbidden")).toBeInTheDocument();
+            expect(screen.queryByText("chat-page")).not.toBeInTheDocument();
         }
     );
 

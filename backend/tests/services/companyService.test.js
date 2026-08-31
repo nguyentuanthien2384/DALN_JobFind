@@ -156,7 +156,7 @@ describe('companyService', () => {
     expect(mockDb.Company.findAndCountAll).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ censorCode: 'CS2' }) }));
   });
 
-  test('loads company detail, its staff posts and decodes an attached file', async () => {
+  test('loads public company detail and never exposes its verification attachment', async () => {
     mockDb.Company.findOne.mockResolvedValueOnce(null);
     expect((await service.getDetailCompanyById(4)).errorMessage).toBeDefined();
     const company = { id: 4, file: Buffer.from('license').toString('base64') };
@@ -165,7 +165,7 @@ describe('companyService', () => {
     mockDb.Post.findAll.mockResolvedValue(['post']);
     const result = await service.getDetailCompanyById(4);
     expect(result.data.postData).toEqual(['post']);
-    expect(result.data.file).toBe('license');
+    expect(result.data.file).toBeUndefined();
   });
 
   test('loads an owned company by user or direct company id', async () => {

@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react';
 import { getListChatConversationService } from '../../service/userService';
 import { getSocket } from '../../socket';
-import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
+import { hasCompanyMembership, hasPermission, PERMISSIONS } from '../../auth/accessControl';
 import { readJsonStorage } from '../../util/storage';
 
 /**
@@ -161,10 +161,12 @@ const Menu = ({ user: suppliedUser }) => {
     const [user] = useState(() => suppliedUser || readJsonStorage('userData'))
     const [unreadChat, setUnreadChat] = useState(0)
     const [openKey, setOpenKey] = useState(null)
+    const canUseChat = hasPermission(user, PERMISSIONS.USE_CHAT)
+    const canViewDashboard = hasPermission(user, PERMISSIONS.VIEW_ADMIN_HOME)
 
     // Dem tin nhan chua doc cho muc "Tin nhan".
     useEffect(() => {
-        if (!user || !user.id) return
+        if (!user || !user.id || !canUseChat) return
         const loadUnread = async () => {
             const res = await getListChatConversationService()
             if (res && res.errCode === 0) setUnreadChat(res.totalUnread || 0)
@@ -177,7 +179,7 @@ const Menu = ({ user: suppliedUser }) => {
             window.clearInterval(intervalId)
             if (socket) socket.off('chat:new-message', loadUnread)
         }
-    }, [user])
+    }, [user, canUseChat])
 
     // Danh sach nhom menu theo vai tro
     const getGroups = () => {
@@ -185,7 +187,7 @@ const Menu = ({ user: suppliedUser }) => {
         if (user.roleCode === 'ADMIN') return MENU_ADMIN.filter(group => hasPermission(user, group.permission))
         if (user.roleCode === 'COMPANY') return MENU_COMPANY.filter(group => hasPermission(user, group.permission))
         if (user.roleCode === 'EMPLOYER') {
-            const menu = user.companyId ? MENU_EMPLOYER : MENU_EMPLOYER_CHUA_CO_CONG_TY
+            const menu = hasCompanyMembership(user) ? MENU_EMPLOYER : MENU_EMPLOYER_CHUA_CO_CONG_TY
             return menu.filter(group => hasPermission(user, group.permission))
         }
         return []
@@ -214,25 +216,29 @@ const Menu = ({ user: suppliedUser }) => {
     return (
         <nav className="sidebar sidebar-offcanvas" id="sidebar">
             <ul className="nav">
-                <li className={'nav-item relative' + (dangOTrangChu ? ' active' : '')}>
-                    <Link className="nav-link" to="/admin/" onClick={() => setOpenKey(null)}>
-                        <i className="icon-grid menu-icon" />
-                        <span className="menu-title">Trang chủ</span>
-                    </Link>
-                </li>
+                {canViewDashboard && (
+                    <li className={'nav-item relative' + (dangOTrangChu ? ' active' : '')}>
+                        <Link className="nav-link" to="/admin/" onClick={() => setOpenKey(null)}>
+                            <i className="icon-grid menu-icon" />
+                            <span className="menu-title">Trang chủ</span>
+                        </Link>
+                    </li>
+                )}
 
-                <li className={'nav-item relative' + (location.pathname.startsWith('/admin/chat') ? ' active' : '')}>
-                    <Link className="nav-link" to="/admin/chat" onClick={() => setOpenKey(null)}>
-                        <i className="icon-paper menu-icon" />
-                        <span className="menu-title">Tin nhắn</span>
-                        {unreadChat > 0 &&
-                            <span style={{
-                                background: '#fb246a', color: '#fff', borderRadius: '10px',
-                                fontSize: '11px', padding: '1px 7px', marginLeft: '8px'
-                            }}>{unreadChat}</span>
-                        }
-                    </Link>
-                </li>
+                {canUseChat && (
+                    <li className={'nav-item relative' + (location.pathname.startsWith('/admin/chat') ? ' active' : '')}>
+                        <Link className="nav-link" to="/admin/chat" onClick={() => setOpenKey(null)}>
+                            <i className="icon-paper menu-icon" />
+                            <span className="menu-title">Tin nhắn</span>
+                            {unreadChat > 0 &&
+                                <span style={{
+                                    background: '#fb246a', color: '#fff', borderRadius: '10px',
+                                    fontSize: '11px', padding: '1px 7px', marginLeft: '8px'
+                                }}>{unreadChat}</span>
+                            }
+                        </Link>
+                    </li>
+                )}
 
                 {groups.map(group => {
                     const dangMo = openKey === group.key

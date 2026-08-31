@@ -53,6 +53,25 @@ const canAccessPostApplicants = async (req, postId) => {
     return getCompanyId(req) === companyIdOfPost;
 };
 
+// Chu cong ty duoc quan ly ho so cua nhan su trong chinh tenant cua minh.
+// Quyen nay tach khoi quyen xem kho ung vien: EMPLOYER khong duoc sua nhan su,
+// va companyId do client gui khong bao gio duoc dung de quyet dinh quyen.
+const canManageCompanyUser = async (req, targetUserId) => {
+    const targetId = Number(targetUserId);
+    if (!Number.isInteger(targetId) || targetId <= 0 || !req.user) return false;
+    if (isAdmin(req)) return true;
+    if (getRole(req) !== 'COMPANY') return false;
+
+    const companyId = getCompanyId(req);
+    if (companyId === null) return false;
+    const target = await db.User.findOne({
+        where: { id: targetId },
+        attributes: ['id', 'companyId'],
+        raw: true
+    });
+    return Boolean(target) && Number(target.companyId) === companyId;
+};
+
 // Ho so trong kho ung vien chua du lieu lien he va CV. Ung vien duoc xem chinh
 // minh, admin duoc kiem tra he thong; nha tuyen dung chi duoc xem sau khi cong ty
 // da mo khoa ung vien do. Ban ghi CandidateView la quyen truy cap lau dai va cung
@@ -61,6 +80,10 @@ const canAccessCandidateProfile = async (req, candidateId) => {
     const targetId = Number(candidateId);
     if (!Number.isInteger(targetId) || targetId <= 0 || !req.user) return false;
     if (Number(req.user.id) === targetId || isAdmin(req)) return true;
+
+    // Trang quan ly nhan su dung chung endpoint chi tiet nguoi dung. Chu cong
+    // ty duoc doc nhan su cung companyId, nhung EMPLOYER thi khong.
+    if (await canManageCompanyUser(req, targetId)) return true;
     if (!isRecruiter(req)) return false;
 
     const companyId = getCompanyId(req);
@@ -83,5 +106,6 @@ module.exports = {
     canAccessCompany,
     getCompanyIdOfPost,
     canAccessPostApplicants,
+    canManageCompanyUser,
     canAccessCandidateProfile
 };

@@ -11,6 +11,12 @@ const mockLoginLimiter = jest.fn();
 const mockOtpLimiter = jest.fn();
 const mockRegisterLimiter = jest.fn();
 const mockPhoneLimiter = jest.fn();
+const mockAuthorize = jest.fn((permission) => {
+  const middleware = jest.fn();
+  middleware.permission = permission;
+  return middleware;
+});
+const mockPermissions = new Proxy({}, { get: (_target, key) => String(key) });
 
 jest.mock('express', () => ({ Router: jest.fn(() => mockRouter) }));
 for (const path of [
@@ -28,6 +34,10 @@ for (const path of [
 }
 jest.mock('../../src/middlewares/jwtVerify', () => ({
   verifyTokenUser: mockVerifyUser, verifyTokenAdmin: mockVerifyAdmin, verifyTokenOptional: mockVerifyOptional
+}));
+jest.mock('../../src/middlewares/authorize', () => ({
+  authorize: mockAuthorize,
+  PERMISSIONS: mockPermissions
 }));
 jest.mock('../../src/middlewares/rateLimit', () => ({
   loginLimiter: mockLoginLimiter, otpLimiter: mockOtpLimiter,
@@ -62,11 +72,38 @@ describe('web routes', () => {
     const latest = (path) => [...mockRoutes].reverse().find((route) => route.path === path);
     expect(latest('/api/create-new-user').handlers.slice(0, 2)).toEqual([mockRegisterLimiter, mockVerifyOptional]);
     expect(latest('/api/login').handlers[0]).toBe(mockLoginLimiter);
-    expect(latest('/api/ban-user').handlers[0]).toBe(mockVerifyAdmin);
+    expect(latest('/api/ban-user').handlers[0]).toBe(mockVerifyUser);
+    expect(latest('/api/ban-user').handlers[1].permission).toBe('ADMINISTRATION');
     expect(latest('/api/create-new-post').handlers[0]).toBe(mockVerifyUser);
+    expect(latest('/api/create-new-post').handlers[1].permission).toBe('JOB_MANAGE');
     expect(latest('/api/get-recommended-post').handlers[0]).toBe(mockVerifyUser);
+    expect(latest('/api/get-recommended-post').handlers[1].permission).toBe('RECOMMENDATION_READ');
+    expect(latest('/api/get-detail-post-by-id').handlers[0]).toBe(mockVerifyOptional);
+    expect(latest('/api/auth/me').handlers[1].permission).toBe('ACCOUNT_SELF');
     expect(latest('/api/request-reset-password-otp').handlers[0]).toBe(mockOtpLimiter);
     expect(latest('/api/check-phonenumber-user').handlers[0]).toBe(mockPhoneLimiter);
+  });
+
+  test('every private legacy API visibly pairs authentication with a named permission', () => {
+    const exceptions = new Set([
+      'post:/api/create-new-user', 'post:/api/login',
+      'get:/api/check-phonenumber-user', 'post:/api/request-reset-password-otp',
+      'post:/api/changepasswordbyPhone', 'get:/api/get-all-code',
+      'get:/api/get-list-allcode', 'get:/api/get-detail-all-code-by-code',
+      'get:/api/get-list-job-count-post', 'get:/api/get-all-skill-by-job-code',
+      'get:/api/get-list-skill', 'get:/api/get-list-company',
+      'get:/api/get-detail-company-by-id', 'get:/api/get-detail-post-by-id',
+      'get:/api/get-filter-post', 'get:/api/get-related-post',
+      'get:/api/check-favorite-post', 'get:/api/get-review-by-company',
+      'get:/api/check-follow-company'
+    ]);
+    const latestRoutes = new Map();
+    for (const route of mockRoutes) latestRoutes.set(`${route.method}:${route.path}`, route);
+    for (const [key, route] of latestRoutes) {
+      if (!route.path.startsWith('/api/') || exceptions.has(key)) continue;
+      expect(route.handlers[0]).toBe(mockVerifyUser);
+      expect(route.handlers[1]?.permission).toEqual(expect.any(String));
+    }
   });
 
   test('internal notification endpoint fails closed when secret is missing/wrong', () => {

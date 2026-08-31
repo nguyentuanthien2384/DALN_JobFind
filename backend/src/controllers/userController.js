@@ -1,5 +1,5 @@
 import userService from '../services/userService';
-import { canAccessCandidateProfile } from '../utils/authorization';
+import { canAccessCandidateProfile, canManageCompanyUser } from '../utils/authorization';
 import { getGrantedPermissions } from '../middlewares/authorize';
 
 const canUpdateUser = (req, targetUserId) => {
@@ -28,7 +28,11 @@ let handleCreateNewUser = async (req, res) => {
 }
 let handleUpdateUser = async (req, res) => {
     try {
-        if (!canUpdateUser(req, req.body.id)) {
+        const isAdmin = req.user?.userAccountData?.roleCode === 'ADMIN';
+        const isSelf = Number(req.user?.id) === Number(req.body.id);
+        const canManageTeamMember = !isAdmin && !isSelf
+            && await canManageCompanyUser(req, req.body.id);
+        if (!canUpdateUser(req, req.body.id) && !canManageTeamMember) {
             return res.status(403).json({
                 errCode: 3,
                 errMessage: 'Bạn không có quyền cập nhật hồ sơ của người dùng khác'
@@ -37,12 +41,17 @@ let handleUpdateUser = async (req, res) => {
         // A normal user may edit their profile, but never their role. The role
         // in the browser is not an authority; only an ADMIN route may change it.
         const updateData = { ...req.body };
-        const isAdmin = req.user?.userAccountData?.roleCode === 'ADMIN';
-        if (!isAdmin) {
+        if (isAdmin) {
+            updateData.allowedRoleCodes = ['ADMIN', 'COMPANY', 'EMPLOYER', 'CANDIDATE'];
+        } else if (canManageTeamMember) {
+            // Chu cong ty co the gan dong chu/nhan vien trong cung cong ty,
+            // nhung khong the nang thanh ADMIN hay chuyen thanh CANDIDATE.
+            updateData.allowedRoleCodes = ['COMPANY', 'EMPLOYER'];
+        } else {
             delete updateData.roleCode;
             updateData.id = req.user.id;
         }
-        updateData.allowRoleChange = isAdmin;
+        updateData.allowRoleChange = Boolean(isAdmin || canManageTeamMember);
         let data = await userService.updateUserData(updateData);
         return res.status(200).json(data);
     } catch (error) {

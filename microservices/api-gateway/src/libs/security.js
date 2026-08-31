@@ -45,8 +45,6 @@ export const parseTrustedProxies = (raw = '') => {
 };
 
 export const isOriginAllowed = (origin, allowedOrigins) => {
-    // Client khong phai trinh duyet (health check, mobile/native app) co the
-    // khong gui Origin. CORS chi bao ve ngu canh trinh duyet nen van cho phep.
     if (!origin) return true;
     try {
         return allowedOrigins.includes(new URL(origin).origin);
@@ -55,10 +53,52 @@ export const isOriginAllowed = (origin, allowedOrigins) => {
     }
 };
 
-// http-proxy-middleware chep header CORS tu backend cu vao response. Backend cu
-// co the dang chay voi URL_REACT la danh sach phan tach bang dau phay va tra ra
-// ca danh sach trong mot header (khong hop le theo CORS). Gateway da xac thuc
-// Origin, nen tai day chi phan chieu lai CHINH XAC mot origin da duoc phep.
+// Express co the nhan URL o dang ma hoa, roi WHATWG URL/Axios lai chuan hoa
+// khi Gateway ghep dia chi service. Giai ma lap co gioi han de bat ca bien the
+// ma hoa hai lan va tu choi bat ky path nao co the doi cau truc route.
+export const isSafeProxyPath = (rawValue) => {
+    if (typeof rawValue !== 'string' || !rawValue.startsWith('/')) return false;
+    let current = rawValue.split('?')[0];
+
+    for (let depth = 0; depth < 5; depth += 1) {
+        const hasControlCharacter = [...current].some((character) => {
+            const code = character.charCodeAt(0);
+            return code <= 31 || code === 127;
+        });
+        if (hasControlCharacter || /[\\?#]/.test(current)) return false;
+
+        const segments = current.split('/');
+        if (segments.some((segment) => segment === '.' || segment === '..')) return false;
+
+        let decoded;
+        try {
+            decoded = decodeURIComponent(current);
+        } catch {
+            return false;
+        }
+        if (decoded === current) return true;
+
+        // Slash/backslash/query/fragment ma hoa co the thay doi endpoint ma
+        // service phia sau nhin thay, nen khong duoc phep xuat hien trong path.
+        const slashCount = (value) => (value.match(/\//g) || []).length;
+        if (slashCount(decoded) !== slashCount(current)) return false;
+        current = decoded;
+    }
+
+    return false;
+};
+
+export const rejectUnsafeProxyPath = (req, res, next) => {
+    const rawPath = String(req.originalUrl || req.url || '').split('?')[0];
+    if (!isSafeProxyPath(rawPath)) {
+        return res.status(400).json({
+            errCode: 400,
+            errMessage: 'Đường dẫn yêu cầu không hợp lệ'
+        });
+    }
+    return next();
+};
+
 export const applySocketCorsHeaders = (proxyRes, req, allowedOrigins) => {
     const origin = req.headers.origin;
     if (origin && isOriginAllowed(origin, allowedOrigins)) {
@@ -79,15 +119,17 @@ export const applySocketCorsHeaders = (proxyRes, req, allowedOrigins) => {
 
 export const createSocketUpgradeHandler = ({ allowedOrigins, upgrade, logger }) => {
     return (req, socket, head) => {
-        if (isOriginAllowed(req.headers.origin, allowedOrigins)) {
+        const rawPath = String(req.url || '').split('?')[0];
+        const isSocketPath = rawPath === '/socket.io' || rawPath.startsWith('/socket.io/');
+        if (isSocketPath && isSafeProxyPath(rawPath)
+            && isOriginAllowed(req.headers.origin, allowedOrigins)) {
             return upgrade(req, socket, head);
         }
 
-        logger?.warn('tu choi WebSocket tu origin khong duoc phep', {
-            origin: req.headers.origin
+        logger?.warn('tu choi WebSocket khong hop le', {
+            origin: req.headers.origin,
+            path: rawPath
         });
-        // HTTP Upgrade khong di qua middleware CORS cua Express. Tra 403 tai
-        // day de website la khong the mo socket truc tiep vao backend cu.
         try {
             socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
         } catch {
@@ -99,8 +141,6 @@ export const createSocketUpgradeHandler = ({ allowedOrigins, upgrade, logger }) 
     };
 };
 
-// Tach thanh ham nho de wiring bao mat nay co the duoc unit test ma khong can
-// mo cong HTTP that trong test runner.
 export const mountLoginRateLimit = (app, limiter) => {
     app.post('/api/login', limiter);
 };

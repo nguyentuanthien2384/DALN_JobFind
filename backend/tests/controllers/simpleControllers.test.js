@@ -86,7 +86,7 @@ const cases = [
   [companyController, 'handleAddUserCompany', companyService, 'handleAddUserCompany', (r) => ({ ...r.body, companyId: r.user.companyId })],
   [companyController, 'getListCompany', companyService, 'getListCompany', query],
   [companyController, 'getDetailCompanyById', companyService, 'getDetailCompanyById', (r) => r.query.id],
-  [companyController, 'getDetailCompanyByUserId', companyService, 'getDetailCompanyByUserId', query],
+  [companyController, 'getDetailCompanyByUserId', companyService, 'getDetailCompanyByUserId', (r) => ({ userId: r.user.id, companyId: r.user.companyId })],
   [companyController, 'getAllUserByCompanyId', companyService, 'getAllUserByCompanyId', (r) => ({ ...r.query, companyId: r.user.companyId })],
   [companyController, 'handleQuitCompany', companyService, 'handleQuitCompany', (r) => ({
     ...r.body,
@@ -104,11 +104,11 @@ const cases = [
   [reviewController, 'handleDeleteReview', reviewService, 'handleDeleteReview', (r) => ({ ...r.body, userId: r.user.id })],
 
   [favoriteController, 'handleToggleFavoritePost', favoriteService, 'handleToggleFavoritePost', (r) => ({ ...r.body, userId: r.user.id })],
-  [favoriteController, 'checkFavoriteByUser', favoriteService, 'checkFavoriteByUser', query],
+  [favoriteController, 'checkFavoriteByUser', favoriteService, 'checkFavoriteByUser', (r) => ({ ...r.query, userId: r.user.id })],
   [favoriteController, 'getFavoritePostByUser', favoriteService, 'getFavoritePostByUser', (r) => ({ ...r.query, userId: r.user.id })],
 
   [followController, 'handleToggleFollowCompany', followService, 'handleToggleFollowCompany', (r) => ({ ...r.body, userId: r.user.id })],
-  [followController, 'checkFollowCompany', followService, 'checkFollowCompany', query],
+  [followController, 'checkFollowCompany', followService, 'checkFollowCompany', (r) => ({ ...r.query, userId: r.user.id })],
   [followController, 'getFollowedCompanyByUser', followService, 'getFollowedCompanyByUser', (r) => ({ ...r.query, userId: r.user.id })],
 
   [notificationController, 'getNotificationByUser', notificationService, 'getNotificationByUser', (r) => ({ ...r.query, userId: r.user.id })],

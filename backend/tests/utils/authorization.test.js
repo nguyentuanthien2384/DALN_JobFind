@@ -1,10 +1,11 @@
 const mockFindPost = jest.fn();
 const mockFindCandidateView = jest.fn();
+const mockFindUser = jest.fn();
 
 jest.mock('../../src/models/index', () => ({
   Post: { findOne: mockFindPost },
   CandidateView: { findOne: mockFindCandidateView },
-  User: {}
+  User: { findOne: mockFindUser }
 }));
 
 const authorization = require('../../src/utils/authorization');
@@ -17,6 +18,7 @@ describe('authorization helpers', () => {
   beforeEach(() => {
     mockFindPost.mockReset();
     mockFindCandidateView.mockReset();
+    mockFindUser.mockReset();
   });
 
   test('extracts roles and recognises admin/recruiter roles', () => {
@@ -74,5 +76,27 @@ describe('authorization helpers', () => {
       attributes: ['id'],
       raw: true
     });
+  });
+
+  test('lets only a company owner manage users in the same tenant', async () => {
+    expect(await authorization.canManageCompanyUser(reqFor('ADMIN'), 9)).toBe(true);
+    expect(await authorization.canManageCompanyUser(reqFor('EMPLOYER', 8), 9)).toBe(false);
+    expect(await authorization.canManageCompanyUser(reqFor('COMPANY'), 9)).toBe(false);
+
+    mockFindUser.mockResolvedValueOnce({ id: 9, companyId: 8 });
+    expect(await authorization.canManageCompanyUser(reqFor('COMPANY', 8), '9')).toBe(true);
+    mockFindUser.mockResolvedValueOnce({ id: 9, companyId: 7 });
+    expect(await authorization.canManageCompanyUser(reqFor('COMPANY', 8), 9)).toBe(false);
+    expect(mockFindUser).toHaveBeenLastCalledWith({
+      where: { id: 9 },
+      attributes: ['id', 'companyId'],
+      raw: true
+    });
+  });
+
+  test('company owners can read same-company staff without consuming candidate entitlement', async () => {
+    mockFindUser.mockResolvedValueOnce({ id: 9, companyId: 8 });
+    expect(await authorization.canAccessCandidateProfile(reqFor('COMPANY', 8), 9)).toBe(true);
+    expect(mockFindCandidateView).not.toHaveBeenCalled();
   });
 });

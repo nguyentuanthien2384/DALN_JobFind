@@ -86,11 +86,15 @@ let handleCreateNewUser = (data) => {
                 let allowedRoles
                 if (data.creatorRoleCode === 'ADMIN') {
                     allowedRoles = ['ADMIN', 'CANDIDATE', 'EMPLOYER', 'COMPANY']
-                } else if (data.creatorRoleCode === 'COMPANY') {
+                } else if (data.creatorRoleCode === 'COMPANY' && data.creatorCompanyId) {
                     allowedRoles = ['EMPLOYER', 'COMPANY']
-                } else {
-                    // Khach tu dang ky (hoac tai khoan khong co quyen tao ho).
+                } else if (!data.creatorRoleCode) {
+                    // Khach chua dang nhap duoc tu dang ky hai vai tro cong khai.
                     allowedRoles = ['CANDIDATE', 'EMPLOYER']
+                } else {
+                    // Tai khoan da dang nhap nhung khong co quyen quan ly user
+                    // khong duoc loi dung endpoint dang ky de tao tai khoan ho.
+                    allowedRoles = []
                 }
                 if (!allowedRoles.includes(data.roleCode)) {
                     resolve({
@@ -100,10 +104,17 @@ let handleCreateNewUser = (data) => {
                     return
                 }
 
-                // Tai khoan COMPANY chi duoc them nhan su vao chinh cong ty minh,
-                // khong nhan companyId do client tu dat.
+                // companyId la ranh gioi tenant, tuyet doi khong duoc tin tu
+                // payload dang ky cong khai. Khach/EMPLOYER/CANDIDATE tu dang ky
+                // luon bat dau ngoai cong ty; COMPANY da xac thuc chi gan duoc
+                // nhan su vao chinh cong ty minh. ADMIN moi co the chon tenant.
                 if (data.creatorRoleCode === 'COMPANY') {
                     data.companyId = data.creatorCompanyId
+                } else if (data.creatorRoleCode === 'ADMIN'
+                    && ['COMPANY', 'EMPLOYER'].includes(data.roleCode)) {
+                    data.companyId = data.companyId || null
+                } else {
+                    data.companyId = null
                 }
 
                 let check = await checkUserPhone(data.phonenumber);
@@ -294,6 +305,18 @@ let updateUserData = (data) => {
                     raw:false
                 })
                 if (user && account) {
+                    if (data.roleCode && data.allowRoleChange) {
+                        const validRoles = Array.isArray(data.allowedRoleCodes)
+                            ? data.allowedRoleCodes
+                            : []
+                        if (!validRoles.includes(data.roleCode)) {
+                            resolve({
+                                errCode: 3,
+                                errMessage: 'Vai trò người dùng không hợp lệ'
+                            })
+                            return
+                        }
+                    }
                     user.firstName = data.firstName
                     user.lastName = data.lastName
                     user.address = data.address
@@ -310,14 +333,6 @@ let updateUserData = (data) => {
                     }
                     await user.save();
                     if (data.roleCode && data.allowRoleChange) {
-                        const validRoles = ['ADMIN', 'COMPANY', 'EMPLOYER', 'CANDIDATE']
-                        if (!validRoles.includes(data.roleCode)) {
-                            resolve({
-                                errCode: 3,
-                                errMessage: 'Vai trò người dùng không hợp lệ'
-                            })
-                            return
-                        }
                         account.roleCode = data.roleCode
                     }
                     await account.save();

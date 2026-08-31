@@ -6,6 +6,7 @@ export const ROLES = Object.freeze({
 });
 
 export const PERMISSIONS = Object.freeze({
+    ACCESS_ADMIN_AREA: "admin.area.access",
     VIEW_ADMIN_HOME: "admin.home.view",
     USE_CHAT: "chat.use",
     MANAGE_PROFILE: "profile.manage",
@@ -25,11 +26,15 @@ export const PERMISSIONS = Object.freeze({
     VIEW_TRANSACTIONS: "company.transactions.view",
 });
 
-const COMMON_PERMISSIONS = [PERMISSIONS.USE_CHAT, PERMISSIONS.MANAGE_PROFILE];
+// Tat ca tai khoan da dang nhap deu duoc quan ly ho so cua chinh minh. Chat
+// khong phai quyen chung: backend loai ADMIN va bat buoc COMPANY/EMPLOYER phai
+// co companyId, trong khi CANDIDATE luon duoc dung.
+const COMMON_PERMISSIONS = [PERMISSIONS.MANAGE_PROFILE];
 
 const permissionSet = (permissions) => new Set([...COMMON_PERMISSIONS, ...permissions]);
 
 const ADMIN_PERMISSIONS = permissionSet([
+    PERMISSIONS.ACCESS_ADMIN_AREA,
     PERMISSIONS.VIEW_ADMIN_HOME,
     PERMISSIONS.VIEW_PLATFORM_REPORTS,
     PERMISSIONS.MANAGE_USERS,
@@ -40,7 +45,9 @@ const ADMIN_PERMISSIONS = permissionSet([
 ]);
 
 const COMPANY_PERMISSIONS = permissionSet([
+    PERMISSIONS.ACCESS_ADMIN_AREA,
     PERMISSIONS.VIEW_ADMIN_HOME,
+    PERMISSIONS.USE_CHAT,
     PERMISSIONS.MANAGE_COMPANY,
     PERMISSIONS.MANAGE_TEAM,
     PERMISSIONS.MANAGE_POSTS,
@@ -50,21 +57,35 @@ const COMPANY_PERMISSIONS = permissionSet([
 ]);
 
 const EMPLOYER_PERMISSIONS = permissionSet([
+    PERMISSIONS.ACCESS_ADMIN_AREA,
     PERMISSIONS.VIEW_ADMIN_HOME,
+    PERMISSIONS.USE_CHAT,
     PERMISSIONS.MANAGE_POSTS,
     PERMISSIONS.MANAGE_CANDIDATES,
 ]);
 
 const EMPLOYER_WITHOUT_COMPANY_PERMISSIONS = permissionSet([
-    PERMISSIONS.VIEW_ADMIN_HOME,
+    PERMISSIONS.ACCESS_ADMIN_AREA,
     PERMISSIONS.CREATE_COMPANY,
 ]);
 
 const CANDIDATE_PERMISSIONS = permissionSet([
+    PERMISSIONS.USE_CHAT,
     PERMISSIONS.VIEW_CANDIDATE_AREA,
 ]);
 
+const COMPANY_WITHOUT_COMPANY_PERMISSIONS = permissionSet([
+    PERMISSIONS.ACCESS_ADMIN_AREA,
+]);
+
 export const isKnownRole = (roleCode) => Object.values(ROLES).includes(roleCode);
+
+export const hasCompanyMembership = (user) => Boolean(
+    user
+    && user.companyId !== null
+    && user.companyId !== undefined
+    && user.companyId !== ""
+);
 
 export const getUserPermissions = (user) => {
     if (!user || !isKnownRole(user.roleCode)) return new Set();
@@ -74,10 +95,13 @@ export const getUserPermissions = (user) => {
             return new Set(ADMIN_PERMISSIONS);
         case ROLES.COMPANY:
             // Tai khoan chu cong ty bat buoc phai gan voi mot cong ty cu the.
-            // Neu du lieu phien bi cu/thieu companyId, chi cho dung quyen chung.
-            return user.companyId ? new Set(COMPANY_PERMISSIONS) : permissionSet([]);
+            // Neu du lieu phien bi cu/thieu companyId, chi cho vao khu quan tri
+            // de sua ho so; khong mo du lieu tenant, dashboard hay chat.
+            return hasCompanyMembership(user)
+                ? new Set(COMPANY_PERMISSIONS)
+                : new Set(COMPANY_WITHOUT_COMPANY_PERMISSIONS);
         case ROLES.EMPLOYER:
-            return user.companyId
+            return hasCompanyMembership(user)
                 ? new Set(EMPLOYER_PERMISSIONS)
                 : new Set(EMPLOYER_WITHOUT_COMPANY_PERMISSIONS);
         case ROLES.CANDIDATE:
@@ -99,6 +123,7 @@ export const hasAllPermissions = (user, permissions = []) =>
 export const getDefaultRouteForUser = (user) => {
     if (hasPermission(user, PERMISSIONS.VIEW_CANDIDATE_AREA)) return "/candidate/info";
     if (hasPermission(user, PERMISSIONS.VIEW_ADMIN_HOME)) return "/admin/";
+    if (hasPermission(user, PERMISSIONS.CREATE_COMPANY)) return "/admin/add-company/";
+    if (hasPermission(user, PERMISSIONS.ACCESS_ADMIN_AREA)) return "/admin/user-info/";
     return "/";
 };
-

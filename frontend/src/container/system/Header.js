@@ -7,9 +7,10 @@ import {
     markReadNotificationService,
 } from "../../service/userService";
 import { readJsonStorage } from "../../util/storage";
+import { getDefaultRouteForUser } from "../../auth/accessControl";
 
-const Header = () => {
-    const [user] = useState(() => readJsonStorage("userData", {}));
+const Header = ({ user: suppliedUser }) => {
+    const [user] = useState(() => suppliedUser || readJsonStorage("userData", {}));
     const [listNotification, setListNotification] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [showNotification, setShowNotification] = useState(false);
@@ -18,6 +19,7 @@ const Header = () => {
         document.body.classList.contains("sidebar-hidden")
     );
     const boxRef = useRef(null);
+    const homePath = getDefaultRouteForUser(user);
 
     const handleSidebarToggle = () => {
         const isMobile = window.matchMedia("(max-width: 991.98px)").matches;
@@ -113,14 +115,14 @@ const Header = () => {
     return (
         <nav className="navbar col-lg-12 col-12 p-0 fixed-top d-flex flex-row">
             <div className="text-center navbar-brand-wrapper d-flex align-items-center justify-content-center">
-                <Link className="navbar-brand brand-logo mr-5" to={"/admin/"}>
+                <Link className="navbar-brand brand-logo mr-5" to={homePath}>
                     <img
                         src="/assets/img/logo/logo.png"
                         className="mr-2"
                         alt="logo"
                     />
                 </Link>
-                <Link className="navbar-brand brand-logo-mini" to="/admin/">
+                <Link className="navbar-brand brand-logo-mini" to={homePath}>
                     <img src="/assetsAdmin/images/logo-mini.svg" alt="logo" />
                 </Link>
             </div>

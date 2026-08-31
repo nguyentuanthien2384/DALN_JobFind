@@ -111,7 +111,7 @@ describe("public Header", () => {
         expect(socket.on).toHaveBeenCalledWith("notification:new", expect.any(Function));
     });
 
-    it("renders the employer profile routes without candidate-only actions", async () => {
+    it("renders profile routes but no chat/dashboard shortcuts for an unattached employer", async () => {
         localStorage.setItem(
             "userData",
             JSON.stringify({
@@ -134,7 +134,44 @@ describe("public Header", () => {
         );
         expect(screen.queryByText("Công việc đã nộp")).not.toBeInTheDocument();
         expect(screen.queryByText("Việc làm đã lưu")).not.toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: /Tin nhắn/ })).not.toBeInTheDocument();
+        expect(getListChatConversationService).not.toHaveBeenCalled();
+        expect(socket.on).not.toHaveBeenCalledWith("chat:new-message", expect.any(Function));
     });
+
+    it.each([
+        ["ADMIN", 9],
+        ["COMPANY", undefined],
+    ])("hides chat and skips its API for %s without backend chat permission", async (roleCode, companyId) => {
+        localStorage.setItem(
+            "userData",
+            JSON.stringify({ id: 8, roleCode, companyId, firstName: roleCode, lastName: "User" })
+        );
+        render(<Header />);
+
+        expect(await screen.findByText(`${roleCode} User`)).toBeInTheDocument();
+        await waitFor(() => expect(getNotificationByUserService).toHaveBeenCalledTimes(1));
+        expect(screen.queryByRole("link", { name: /Tin nhắn/ })).not.toBeInTheDocument();
+        expect(getListChatConversationService).not.toHaveBeenCalled();
+        expect(socket.on).not.toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+    });
+
+    it.each(["COMPANY", "EMPLOYER"])(
+        "shows chat and loads its badge for an attached %s",
+        async (roleCode) => {
+            localStorage.setItem(
+                "userData",
+                JSON.stringify({ id: 8, roleCode, companyId: 4, firstName: roleCode, lastName: "User" })
+            );
+            render(<Header />);
+
+            expect(await screen.findByText(`${roleCode} User`)).toBeInTheDocument();
+            expect(await screen.findByText("3")).toBeInTheDocument();
+            expect(screen.getAllByRole("link", { name: /Tin nhắn/ })).toHaveLength(2);
+            expect(getListChatConversationService).toHaveBeenCalledTimes(1);
+            expect(socket.on).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+        }
+    );
 
     it("opens notifications, marks one or all as read, and closes with Escape", async () => {
         localStorage.setItem(

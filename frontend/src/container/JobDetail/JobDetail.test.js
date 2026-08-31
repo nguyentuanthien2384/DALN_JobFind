@@ -220,7 +220,11 @@ describe("JobDetail", () => {
         first.unmount();
         jest.useRealTimers();
 
-        localStorage.setItem("userData", JSON.stringify({ id: 88 }));
+        localStorage.setItem("userData", JSON.stringify({
+            id: 88,
+            roleCode: "EMPLOYER",
+            companyId: 9,
+        }));
         const owner = render(<JobDetail />);
         fireEvent.click(
             await screen.findByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" })
@@ -228,11 +232,23 @@ describe("JobDetail", () => {
         expect(toast.error).toHaveBeenCalledWith("Đây là tin đăng của bạn");
         owner.unmount();
 
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         render(<JobDetail />);
         fireEvent.click(
             await screen.findByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" })
         );
         expect(mockNavigate).toHaveBeenCalledWith("/chat/88");
+    });
+
+    it.each([
+        ["ADMIN", { id: 1, roleCode: "ADMIN" }],
+        ["COMPANY without companyId", { id: 2, roleCode: "COMPANY" }],
+        ["EMPLOYER without companyId", { id: 3, roleCode: "EMPLOYER" }],
+    ])("does not expose chat action to %s", async (_label, user) => {
+        localStorage.setItem("userData", JSON.stringify(user));
+        render(<JobDetail />);
+
+        expect(await screen.findByRole("heading", { name: "Senior React Developer" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" })).not.toBeInTheDocument();
     });
 });

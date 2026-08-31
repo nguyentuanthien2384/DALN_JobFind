@@ -5,10 +5,12 @@ const mockService = {
   changePaswordByPhone: jest.fn(), setDataUserSetting: jest.fn()
 };
 const mockCanAccessCandidateProfile = jest.fn();
+const mockCanManageCompanyUser = jest.fn();
 
 jest.mock('../../src/services/userService', () => mockService);
 jest.mock('../../src/utils/authorization', () => ({
-  canAccessCandidateProfile: mockCanAccessCandidateProfile
+  canAccessCandidateProfile: mockCanAccessCandidateProfile,
+  canManageCompanyUser: mockCanManageCompanyUser
 }));
 
 const controller = require('../../src/controllers/userController');
@@ -38,7 +40,10 @@ const cases = [
 describe('userController', () => {
   beforeAll(() => jest.spyOn(console, 'log').mockImplementation(() => {}));
   afterAll(() => console.log.mockRestore());
-  beforeEach(() => mockCanAccessCandidateProfile.mockResolvedValue(true));
+  beforeEach(() => {
+    mockCanAccessCandidateProfile.mockResolvedValue(true);
+    mockCanManageCompanyUser.mockResolvedValue(false);
+  });
 
   test('registration annotates the payload with the authenticated creator context', async () => {
     mockService.handleCreateNewUser.mockResolvedValueOnce({ errCode: 0 });
@@ -56,15 +61,35 @@ describe('userController', () => {
     }));
   });
 
-  test('profile update is restricted to the owner or an admin', async () => {
+  test('profile update is restricted to self, admin, or a same-company owner', async () => {
     mockService.updateUserData.mockResolvedValue({ errCode: 0 });
     await controller.handleUpdateUser(request('CANDIDATE'), createResponse());
-    expect(mockService.updateUserData).toHaveBeenCalled();
+    expect(mockService.updateUserData).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 7,
+      allowRoleChange: false
+    }));
 
     const admin = request('ADMIN');
     admin.body.id = 99;
+    admin.body.roleCode = 'COMPANY';
     await controller.handleUpdateUser(admin, createResponse());
-    expect(mockService.updateUserData).toHaveBeenLastCalledWith(admin.body);
+    expect(mockService.updateUserData).toHaveBeenLastCalledWith(expect.objectContaining({
+      ...admin.body,
+      allowRoleChange: true,
+      allowedRoleCodes: ['ADMIN', 'COMPANY', 'EMPLOYER', 'CANDIDATE']
+    }));
+
+    const owner = request('COMPANY');
+    owner.body.id = 88;
+    owner.body.roleCode = 'EMPLOYER';
+    mockCanManageCompanyUser.mockResolvedValueOnce(true);
+    await controller.handleUpdateUser(owner, createResponse());
+    expect(mockService.updateUserData).toHaveBeenLastCalledWith(expect.objectContaining({
+      id: 88,
+      roleCode: 'EMPLOYER',
+      allowRoleChange: true,
+      allowedRoleCodes: ['COMPANY', 'EMPLOYER']
+    }));
 
     const denied = request('CANDIDATE');
     denied.body.id = 99;
@@ -72,6 +97,21 @@ describe('userController', () => {
     await controller.handleUpdateUser(denied, res);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errCode: 3 }));
+  });
+
+  test('returns the current database identity and granted permission codes', async () => {
+    const req = request('COMPANY');
+    const res = createResponse();
+    await controller.getCurrentAuthorization(req, res);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      errCode: 0,
+      data: expect.objectContaining({
+        userId: 7,
+        roleCode: 'COMPANY',
+        companyId: 11,
+        permissions: expect.arrayContaining(['company:manage', 'job:manage'])
+      })
+    }));
   });
 
   test('settings update has the same owner/admin boundary', async () => {

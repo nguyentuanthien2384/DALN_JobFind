@@ -157,7 +157,10 @@ let getAllPostByAdmin = async (req, res) => {
 }
 let getDetailPostById = async (req, res) => {
     try {
-        let data = await postService.getDetailPostById(req.query.id);
+        const includeNonPublic = req.user
+            ? await canAccessPostApplicants(req, req.query.id)
+            : false;
+        let data = await postService.getDetailPostById(req.query.id, { includeNonPublic });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

@@ -59,6 +59,9 @@ describe('userService', () => {
   test('prevents privilege escalation during registration', async () => {
     expect((await service.handleCreateNewUser(validUser({ roleCode: 'ADMIN' }))).errCode).toBe(3);
     expect((await service.handleCreateNewUser(validUser({ creatorRoleCode: 'COMPANY', roleCode: 'CANDIDATE' }))).errCode).toBe(3);
+    expect((await service.handleCreateNewUser(validUser({ creatorRoleCode: 'COMPANY', roleCode: 'EMPLOYER' }))).errCode).toBe(3);
+    expect((await service.handleCreateNewUser(validUser({ creatorRoleCode: 'EMPLOYER', roleCode: 'EMPLOYER' }))).errCode).toBe(3);
+    expect((await service.handleCreateNewUser(validUser({ creatorRoleCode: 'CANDIDATE', roleCode: 'CANDIDATE' }))).errCode).toBe(3);
   });
 
   test('creates a user/account with hashed password and uploaded image', async () => {
@@ -71,6 +74,16 @@ describe('userService', () => {
     expect(mockDb.Account.create).toHaveBeenCalledWith(expect.objectContaining({
       phonenumber: '0901', password: 'hashed', roleCode: 'CANDIDATE', userId: 7
     }));
+  });
+
+  test('public registration cannot inject a company tenant id', async () => {
+    mockDb.Account.findOne.mockResolvedValue(null);
+    mockDb.User.create.mockResolvedValue({ id: 9 });
+    const result = await service.handleCreateNewUser(validUser({
+      roleCode: 'EMPLOYER', companyId: 999
+    }));
+    expect(result.errCode).toBe(0);
+    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ companyId: null }));
   });
 
   test('company creator forces its own company id and generated passwords are emailed', async () => {
@@ -88,6 +101,22 @@ describe('userService', () => {
   test('admin may create all supported roles and duplicate phones are rejected', async () => {
     mockDb.Account.findOne.mockResolvedValue({ id: 1 });
     expect((await service.handleCreateNewUser(validUser({ creatorRoleCode: 'ADMIN', roleCode: 'ADMIN' }))).errCode).toBe(1);
+  });
+
+  test('admin may assign recruiter tenant but candidate/admin accounts stay tenantless', async () => {
+    mockDb.Account.findOne.mockResolvedValue(null);
+    mockDb.User.create.mockResolvedValue({ id: 10 });
+    await service.handleCreateNewUser(validUser({
+      creatorRoleCode: 'ADMIN', roleCode: 'EMPLOYER', companyId: 12
+    }));
+    expect(mockDb.User.create).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: 12 }));
+
+    mockDb.Account.findOne.mockResolvedValue(null);
+    mockDb.User.create.mockResolvedValue({ id: 11 });
+    await service.handleCreateNewUser(validUser({
+      creatorRoleCode: 'ADMIN', roleCode: 'CANDIDATE', companyId: 12
+    }));
+    expect(mockDb.User.create).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: null }));
   });
 
   test.each([
@@ -115,10 +144,26 @@ describe('userService', () => {
     mockDb.Account.findOne.mockResolvedValueOnce(account);
     mockUpload.mockResolvedValueOnce({ url: 'avatar' });
     const result = await service.updateUserData({
-      id: 7, firstName: 'A', lastName: 'B', email: 'a@b.com', image: 'data', roleCode: 'EMPLOYER'
+      id: 7, firstName: 'A', lastName: 'B', email: 'a@b.com', image: 'data',
+      roleCode: 'EMPLOYER', allowRoleChange: true, allowedRoleCodes: ['EMPLOYER']
     });
     expect(result.errCode).toBe(0);
     expect(result.user).toEqual(expect.objectContaining({ id: 7, image: 'avatar', roleCode: 'EMPLOYER' }));
+  });
+
+  test('rejects a role outside the actor scope before persisting any profile changes', async () => {
+    const user = { id: 7, firstName: 'Old', save: jest.fn() };
+    const account = { roleCode: 'EMPLOYER', save: jest.fn() };
+    mockDb.User.findOne.mockResolvedValueOnce(user);
+    mockDb.Account.findOne.mockResolvedValueOnce(account);
+    const result = await service.updateUserData({
+      id: 7, firstName: 'Changed', roleCode: 'ADMIN',
+      allowRoleChange: true, allowedRoleCodes: ['COMPANY', 'EMPLOYER']
+    });
+    expect(result).toEqual(expect.objectContaining({ errCode: 3 }));
+    expect(user.save).not.toHaveBeenCalled();
+    expect(account.save).not.toHaveBeenCalled();
+    expect(user.firstName).toBe('Old');
   });
 
   test('OTP request handles missing accounts/email, cooldown and masks recipient email', async () => {

@@ -5,6 +5,7 @@ import './header.scss';
 import { getNotificationByUserService, markReadNotificationService, getListChatConversationService } from '../../service/userService';
 import { getSocket, disconnectSocket } from '../../socket';
 import { readJsonStorage } from '../../util/storage';
+import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
 
 const Header = () => {
     const [user] = useState(() => readJsonStorage('userData'))
@@ -14,6 +15,7 @@ const Header = () => {
     const [showNotification, setShowNotification] = useState(false)
     const notificationRef = useRef(null)
     const isCandidate = user?.roleCode === 'CANDIDATE'
+    const canUseChat = hasPermission(user, PERMISSIONS.USE_CHAT)
     const profilePath = isCandidate ? '/candidate/info' : '/admin/user-info/'
     const passwordPath = isCandidate ? '/candidate/changepassword/' : '/admin/changepassword/'
 
@@ -23,7 +25,7 @@ const Header = () => {
         const loadHeaderData = async () => {
             const [notificationResult, chatResult] = await Promise.allSettled([
                 getNotificationByUserService({ userId: user.id, limit: 10, offset: 0 }),
-                getListChatConversationService()
+                canUseChat ? getListChatConversationService() : Promise.resolve(null)
             ])
             const notificationRes = notificationResult.status === 'fulfilled' ? notificationResult.value : null
             const chatRes = chatResult.status === 'fulfilled' ? chatResult.value : null
@@ -44,18 +46,18 @@ const Header = () => {
         const socket = getSocket()
         const refresh = () => loadHeaderData()
         if (socket) {
-            socket.on('chat:new-message', refresh)
+            if (canUseChat) socket.on('chat:new-message', refresh)
             socket.on('notification:new', refresh)
         }
 
         return () => {
             window.clearInterval(intervalId)
             if (socket) {
-                socket.off('chat:new-message', refresh)
+                if (canUseChat) socket.off('chat:new-message', refresh)
                 socket.off('notification:new', refresh)
             }
         }
-    }, [user])
+    }, [user, canUseChat])
 
     let handleLogout = () => {
         disconnectSocket()
@@ -149,14 +151,14 @@ const Header = () => {
                                         <div className="header-btn d-none f-right d-lg-block">
                                             {user ?
                                                 <ul className="navbar-nav navbar-nav-right" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 0 }}>
-                                                    <li className="nav-item" style={{ position: 'relative', marginRight: '18px' }}>
-                                                        <Link to="/chat" style={{ color: '#252b60', fontSize: '18px', position: 'relative' }}>
+                                                    {canUseChat && <li className="nav-item" style={{ position: 'relative', marginRight: '18px' }}>
+                                                        <Link aria-label="Tin nhắn" to="/chat" style={{ color: '#252b60', fontSize: '18px', position: 'relative' }}>
                                                             <i className="far fa-comment-dots"></i>
                                                             {unreadChat > 0 &&
                                                                 <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: '#fb246a', color: '#fff', borderRadius: '50%', fontSize: '10px', padding: '1px 5px' }}>{unreadChat}</span>
                                                             }
                                                         </Link>
-                                                    </li>
+                                                    </li>}
                                                     <li ref={notificationRef} className="nav-item" style={{ position: 'relative', marginRight: '10px' }}>
                                                         <button type="button" aria-label="Thông báo" style={{ color: '#252b60', fontSize: '18px', position: 'relative', cursor: 'pointer', border: 0, background: 'none', padding: 0 }} onClick={() => setShowNotification(!showNotification)}>
                                                             <i className="far fa-bell"></i>
@@ -199,10 +201,10 @@ const Header = () => {
                                                                 <i className="far fa-file-word text-primary"></i>
                                                                 Công việc đã nộp
                                                             </Link>}
-                                                            <Link to="/chat" className="dropdown-item">
+                                                            {canUseChat && <Link to="/chat" className="dropdown-item">
                                                                 <i className="far fa-comment-dots text-primary"></i>
                                                                 Tin nhắn
-                                                            </Link>
+                                                            </Link>}
                                                             {isCandidate && <Link to="/candidate/saved-jobs/" className="dropdown-item">
                                                                 <i className="far fa-heart text-primary"></i>
                                                                 Việc làm đã lưu
