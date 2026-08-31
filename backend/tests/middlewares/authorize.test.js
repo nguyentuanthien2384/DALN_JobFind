@@ -10,7 +10,14 @@ const {
 const { createResponse } = require('../helpers/http');
 
 const reqFor = (roleCode, companyId = null) => ({
-  user: { id: 7, companyId, userAccountData: { roleCode } }
+  user: {
+    id: 7,
+    companyId,
+    userAccountData: { roleCode },
+    userCompanyData: companyId
+      ? { id: companyId, statusCode: 'S1', censorCode: 'CS1' }
+      : {}
+  }
 });
 
 describe('central backend authorization policy', () => {
@@ -43,7 +50,7 @@ describe('central backend authorization policy', () => {
       'notification:read', 'chat:use'
     ]],
     ['EMPLOYER', null, [
-      'account:self', 'company:create', 'candidate:profile:read', 'notification:read'
+      'account:self', 'company:create', 'notification:read'
     ]],
     ['CANDIDATE', null, [
       'account:self', 'candidate:apply', 'candidate:profile:read',
@@ -90,5 +97,20 @@ describe('central backend authorization policy', () => {
     expect(isPermissionGranted(reqFor('CANDIDATE'), PERMISSIONS.COMPANY_CREATE)).toBe(false);
     expect(isPermissionGranted(reqFor('COMPANY'), PERMISSIONS.COMPANY_MANAGE)).toBe(false);
     expect(isPermissionGranted(reqFor('COMPANY', 3), PERMISSIONS.COMPANY_MANAGE)).toBe(true);
+  });
+
+  test('operational recruiter permissions require a currently active and approved company', () => {
+    const pending = reqFor('COMPANY', 3);
+    pending.user.userCompanyData.censorCode = 'CS3';
+    expect(isPermissionGranted(pending, PERMISSIONS.COMPANY_MANAGE)).toBe(true);
+    expect(isPermissionGranted(pending, PERMISSIONS.JOB_MANAGE)).toBe(false);
+    expect(isPermissionGranted(pending, PERMISSIONS.CANDIDATE_SEARCH)).toBe(false);
+    expect(isPermissionGranted(pending, PERMISSIONS.PACKAGE_PURCHASE)).toBe(false);
+
+    const banned = reqFor('EMPLOYER', 3);
+    banned.user.userCompanyData.statusCode = 'S2';
+    expect(isPermissionGranted(banned, PERMISSIONS.RECRUITMENT_READ)).toBe(false);
+    expect(isPermissionGranted(banned, PERMISSIONS.CHAT)).toBe(false);
+    expect(isPermissionGranted(banned, PERMISSIONS.COMPANY_TEAM_EXIT)).toBe(true);
   });
 });

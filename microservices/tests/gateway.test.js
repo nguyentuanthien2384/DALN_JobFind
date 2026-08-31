@@ -58,7 +58,8 @@ describe('gateway authentication', () => {
     beforeEach(() => {
         mocks.verify.mockReset();
         mocks.resolveCurrentIdentity.mockReset().mockResolvedValue({
-            id: 9, roleCode: 'ADMIN', companyId: 4, statusCode: 'S1'
+            id: 9, roleCode: 'ADMIN', companyId: 4, statusCode: 'S1',
+            companyStatusCode: 'S1', companyCensorCode: 'CS1'
         });
     });
 
@@ -69,7 +70,10 @@ describe('gateway authentication', () => {
         const next = vi.fn();
         await optionalAuth(req, makeRes(), next);
         expect(mocks.verify.mock.calls[0][0]).toBe('token');
-        expect(req.user).toEqual({ id: 9, roleCode: 'ADMIN', companyId: 4 });
+        expect(req.user).toEqual({
+            id: 9, roleCode: 'ADMIN', companyId: 4,
+            companyStatusCode: 'S1', companyCensorCode: 'CS1'
+        });
         expect(next).toHaveBeenCalledOnce();
     });
 
@@ -98,7 +102,10 @@ describe('gateway authentication', () => {
         const req = makeReq({ headers: { authorization: 'plain-token' } });
         const next = vi.fn();
         await requireAuth(req, makeRes(), next);
-        expect(req.user).toEqual({ id: 12, roleCode: 'CANDIDATE', companyId: null });
+        expect(req.user).toEqual({
+            id: 12, roleCode: 'CANDIDATE', companyId: null,
+            companyStatusCode: null, companyCensorCode: null
+        });
         expect(next).toHaveBeenCalledOnce();
     });
 
@@ -107,12 +114,16 @@ describe('gateway authentication', () => {
             sub: 9, roleCode: 'ADMIN', companyId: 999
         });
         mocks.resolveCurrentIdentity.mockResolvedValue({
-            id: 9, roleCode: 'EMPLOYER', companyId: 7, statusCode: 'S1'
+            id: 9, roleCode: 'EMPLOYER', companyId: 7, statusCode: 'S1',
+            companyStatusCode: 'S1', companyCensorCode: 'CS1'
         });
         const { optionalAuth } = await import('../api-gateway/src/middlewares/auth.js');
         const req = makeReq({ headers: { authorization: 'Bearer stale-token' } });
         await optionalAuth(req, makeRes(), vi.fn());
-        expect(req.user).toEqual({ id: 9, roleCode: 'EMPLOYER', companyId: 7 });
+        expect(req.user).toEqual({
+            id: 9, roleCode: 'EMPLOYER', companyId: 7,
+            companyStatusCode: 'S1', companyCensorCode: 'CS1'
+        });
         expect(mocks.resolveCurrentIdentity).toHaveBeenCalledWith(9);
     });
 
@@ -166,8 +177,18 @@ describe('gateway authentication', () => {
         expect(companyless.statusCode).toBe(403);
 
         const next = vi.fn();
-        middleware(makeReq({ user: { id: 2, roleCode: 'EMPLOYER', companyId: 7 } }), makeRes(), next);
+        middleware(makeReq({ user: {
+            id: 2, roleCode: 'EMPLOYER', companyId: 7,
+            companyStatusCode: 'S1', companyCensorCode: 'CS1'
+        } }), makeRes(), next);
         expect(next).toHaveBeenCalledOnce();
+
+        const pending = makeRes();
+        middleware(makeReq({ user: {
+            id: 2, roleCode: 'EMPLOYER', companyId: 7,
+            companyStatusCode: 'S1', companyCensorCode: 'CS3'
+        } }), pending, vi.fn());
+        expect(pending.statusCode).toBe(403);
     });
 });
 
@@ -470,7 +491,10 @@ describe('circuit-breaker proxy', () => {
                 'x-user-id': '999', 'x-user-role': 'ADMIN',
                 'x-company-id': '999', 'x-internal-secret': 'attacker-secret', custom: 'ok'
             },
-            user: { id: 7, roleCode: 'COMPANY', companyId: 8 }
+            user: {
+                id: 7, roleCode: 'COMPANY', companyId: 8,
+                companyStatusCode: 'S1', companyCensorCode: 'CS1'
+            }
         });
         const res = makeRes();
         await createProxy('jobs')(req, res, vi.fn());
@@ -479,7 +503,8 @@ describe('circuit-breaker proxy', () => {
         expect(request.url).toContain('job-core-service:4002/jobs');
         expect(request.headers).toMatchObject({
             custom: 'ok', 'x-user-id': '7', 'x-user-role': 'COMPANY',
-            'x-company-id': '8', 'x-correlation-id': 'corr-test',
+            'x-company-id': '8', 'x-company-status': 'S1',
+            'x-company-censor': 'CS1', 'x-correlation-id': 'corr-test',
             'x-internal-secret': 'gateway-secret'
         });
         expect(request.headers.host).toBeUndefined();

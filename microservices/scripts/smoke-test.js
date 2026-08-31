@@ -96,6 +96,7 @@ const run = async () => {
     const candidateToken = await login(CANDIDATE);
     const adminToken = await login(ADMIN);
     const auth = { Authorization: `Bearer ${employerToken}`, 'Content-Type': 'application/json' };
+    const candidateAuth = { Authorization: `Bearer ${candidateToken}`, 'Content-Type': 'application/json' };
     const adminAuth2 = { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };
     // Id cua nha tuyen dung, can cho API cu (no nhan userId tu body).
     const employerUserId = JSON.parse(
@@ -118,16 +119,16 @@ const run = async () => {
     check('Ứng viên không đăng được tin tuyển dụng', r.status === 403);
 
     section('Hồ sơ & CV (Identity Service — MongoDB)');
-    r = await req('/api/profile', { headers: auth });
+    r = await req('/api/profile', { headers: candidateAuth });
     check('Đọc hồ sơ', r.body.errCode === 0);
 
     r = await req('/api/profile/cvs', {
-        method: 'POST', headers: auth,
+        method: 'POST', headers: candidateAuth,
         body: JSON.stringify({ title: 'CV kiểm thử', fullName: 'Kiểm Thử', skills: ['React'] })
     });
     check('Tạo CV', r.body.errCode === 0);
     const cvId = r.body.data?._id;
-    if (cvId) await req(`/api/profile/cvs/${cvId}`, { method: 'DELETE', headers: auth });
+    if (cvId) await req(`/api/profile/cvs/${cvId}`, { method: 'DELETE', headers: candidateAuth });
 
     section('CQRS: ghi MySQL → event → index Elasticsearch');
     const uniqueName = `Kiem Thu CQRS ${Date.now()}`;
@@ -150,13 +151,13 @@ const run = async () => {
         check('Search Service tự đồng bộ vào index', doc.found === true, doc._source?.name);
 
         r = await req('/api/ai/match-cv', {
-            method: 'POST', headers: auth,
+            method: 'POST', headers: candidateAuth,
             body: JSON.stringify({ resumeText: '3 năm kinh nghiệm Golang', jobId: newId })
         });
         const aiAccepted = r.status === 202 && Boolean(r.body.taskId);
         check('AI Worker nhận việc qua RabbitMQ', aiAccepted);
         if (aiAccepted) {
-            const aiTask = await waitForAiTask(r.body.taskId, auth);
+            const aiTask = await waitForAiTask(r.body.taskId, candidateAuth);
             const terminalStatus = ['done', 'failed'].includes(aiTask.body.data?.status);
             check('AI Worker phản hồi kết quả qua RabbitMQ', terminalStatus,
                 aiTask.body.data?.status === 'failed'

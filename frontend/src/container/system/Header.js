@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { disconnectSocket, getSocket } from "../../socket";
 import {
     getNotificationByUserService,
@@ -10,7 +10,10 @@ import { readJsonStorage } from "../../util/storage";
 import { getDefaultRouteForUser } from "../../auth/accessControl";
 
 const Header = ({ user: suppliedUser }) => {
-    const [user] = useState(() => suppliedUser || readJsonStorage("userData", {}));
+    const user = useMemo(
+        () => suppliedUser || readJsonStorage("userData", {}),
+        [suppliedUser]
+    );
     const [listNotification, setListNotification] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [showNotification, setShowNotification] = useState(false);

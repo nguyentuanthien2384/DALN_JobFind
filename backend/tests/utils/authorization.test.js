@@ -11,7 +11,14 @@ jest.mock('../../src/models/index', () => ({
 const authorization = require('../../src/utils/authorization');
 
 const reqFor = (roleCode, companyId = null) => ({
-  user: { id: 1, companyId, userAccountData: { roleCode } }
+  user: {
+    id: 1,
+    companyId,
+    userAccountData: { roleCode },
+    userCompanyData: companyId
+      ? { id: companyId, statusCode: 'S1', censorCode: 'CS1' }
+      : {}
+  }
 });
 
 describe('authorization helpers', () => {
@@ -97,6 +104,19 @@ describe('authorization helpers', () => {
   test('company owners can read same-company staff without consuming candidate entitlement', async () => {
     mockFindUser.mockResolvedValueOnce({ id: 9, companyId: 8 });
     expect(await authorization.canAccessCandidateProfile(reqFor('COMPANY', 8), 9)).toBe(true);
+    expect(mockFindCandidateView).not.toHaveBeenCalled();
+  });
+
+  test('pending or banned companies cannot cross the operational tenant boundary', async () => {
+    const pending = reqFor('COMPANY', 8);
+    pending.user.userCompanyData.censorCode = 'CS3';
+    expect(authorization.isApprovedCompany(pending)).toBe(false);
+    expect(authorization.canAccessCompany(pending, 8)).toBe(false);
+    expect(await authorization.canAccessPostApplicants(pending, 4)).toBe(false);
+    expect(await authorization.canManageCompanyUser(pending, 9)).toBe(false);
+    expect(await authorization.canAccessCandidateProfile(pending, 9)).toBe(false);
+    expect(mockFindPost).not.toHaveBeenCalled();
+    expect(mockFindUser).not.toHaveBeenCalled();
     expect(mockFindCandidateView).not.toHaveBeenCalled();
   });
 });

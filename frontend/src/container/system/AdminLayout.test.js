@@ -39,8 +39,14 @@ jest.mock("./User/UserInfo", () => () => <main>USER INFO</main>);
 jest.mock("./Post/ManagePost", () => () => <main>MANAGE POST</main>);
 
 const ADMIN = { id: 1, roleCode: "ADMIN" };
-const COMPANY = { id: 2, roleCode: "COMPANY", companyId: 7 };
-const EMPLOYER = { id: 3, roleCode: "EMPLOYER", companyId: 7 };
+const COMPANY = {
+    id: 2, roleCode: "COMPANY", companyId: 7,
+    companyStatusCode: "S1", companyCensorCode: "CS1",
+};
+const EMPLOYER = {
+    id: 3, roleCode: "EMPLOYER", companyId: 7,
+    companyStatusCode: "S1", companyCensorCode: "CS1",
+};
 const UNATTACHED_EMPLOYER = { id: 4, roleCode: "EMPLOYER" };
 
 const renderAdmin = (route, user = ADMIN) => {

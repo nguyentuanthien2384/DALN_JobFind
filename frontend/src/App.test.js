@@ -2,6 +2,11 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import App from "./App";
 
+const mockGetCurrentAuthorizationService = jest.fn();
+jest.mock("./service/userService", () => ({
+    getCurrentAuthorizationService: (...args) => mockGetCurrentAuthorizationService(...args),
+}));
+
 jest.mock("react-router-dom", () => {
     const React = require("react");
     const matches = (pattern, pathname) => {
@@ -44,7 +49,10 @@ jest.mock("./container/Forbidden/Forbidden", () => () => <div>forbidden-page</di
 const renderAt = (path, user) => {
     localStorage.clear();
     if (user) {
-        localStorage.setItem("userData", JSON.stringify(user));
+        const identity = user.companyId && !user.companyStatusCode
+            ? { ...user, companyStatusCode: "S1", companyCensorCode: "CS1" }
+            : user;
+        localStorage.setItem("userData", JSON.stringify(identity));
         localStorage.setItem("token_user", "valid-token");
     }
     window.history.replaceState({}, "", path);
@@ -52,6 +60,10 @@ const renderAt = (path, user) => {
 };
 
 describe("application routes", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockGetCurrentAuthorizationService.mockResolvedValue({ errCode: -1 });
+    });
     afterEach(() => localStorage.clear());
 
     it.each([
@@ -115,6 +127,17 @@ describe("application routes", () => {
         expect(screen.getByText("navigate-/login")).toBeInTheDocument();
     });
 
+    it("returns 403 for recruiter chat while the company is pending approval", () => {
+        renderAt("/chat", {
+            id: 1,
+            roleCode: "COMPANY",
+            companyId: 3,
+            companyStatusCode: "S1",
+            companyCensorCode: "CS3",
+        });
+        expect(screen.getByText("navigate-/forbidden")).toBeInTheDocument();
+    });
+
     it("redirects a guest away from the admin area", () => {
         renderAt("/admin/users");
         expect(screen.getByText("navigate-/login")).toBeInTheDocument();
@@ -131,6 +154,51 @@ describe("application routes", () => {
         window.history.replaceState({}, "", "/admin/users");
         render(<App />);
         expect(screen.getByText("navigate-/login")).toBeInTheDocument();
+    });
+
+    it("refreshes a legacy company session before granting operational permissions", async () => {
+        mockGetCurrentAuthorizationService.mockResolvedValueOnce({
+            errCode: 0,
+            data: {
+                userId: 8,
+                roleCode: "COMPANY",
+                companyId: 4,
+                companyStatusCode: "S1",
+                companyCensorCode: "CS1",
+            },
+        });
+        localStorage.setItem("userData", JSON.stringify({
+            id: 8,
+            roleCode: "COMPANY",
+            companyId: 4,
+            firstName: "Legacy",
+        }));
+        localStorage.setItem("token_user", "valid-token");
+        window.history.replaceState({}, "", "/chat");
+
+        render(<App />);
+        expect(screen.getByRole("status")).toHaveTextContent("Đang xác minh quyền truy cập");
+        expect(await screen.findByText("chat-page")).toBeInTheDocument();
+        expect(JSON.parse(localStorage.getItem("userData"))).toEqual(expect.objectContaining({
+            id: 8,
+            firstName: "Legacy",
+            companyStatusCode: "S1",
+            companyCensorCode: "CS1",
+        }));
+    });
+
+    it("keeps a legacy company session restricted when authorization cannot be refreshed", async () => {
+        localStorage.setItem("userData", JSON.stringify({
+            id: 8,
+            roleCode: "COMPANY",
+            companyId: 4,
+        }));
+        localStorage.setItem("token_user", "valid-token");
+        window.history.replaceState({}, "", "/chat");
+
+        render(<App />);
+        expect(await screen.findByText("navigate-/forbidden")).toBeInTheDocument();
+        expect(screen.queryByText("chat-page")).not.toBeInTheDocument();
     });
 
     it("allows candidates into their protected area with the shared layout", () => {

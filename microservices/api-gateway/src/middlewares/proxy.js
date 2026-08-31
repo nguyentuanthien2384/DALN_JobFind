@@ -96,6 +96,8 @@ const buildForwardHeaders = (req, { includeInternalSecret = true } = {}) => {
     delete headers['x-user-id'];
     delete headers['x-user-role'];
     delete headers['x-company-id'];
+    delete headers['x-company-status'];
+    delete headers['x-company-censor'];
     // Khong bao gio chuyen khoa do client tu gui. Gateway dat lai khoa cua
     // chinh no de service phan biet request noi bo voi request goi thang.
     delete headers['x-internal-secret'];
@@ -105,6 +107,12 @@ const buildForwardHeaders = (req, { includeInternalSecret = true } = {}) => {
         headers['x-user-role'] = req.user.roleCode || '';
         if (req.user.companyId !== null && req.user.companyId !== undefined) {
             headers['x-company-id'] = String(req.user.companyId);
+        }
+        if (req.user.companyStatusCode) {
+            headers['x-company-status'] = req.user.companyStatusCode;
+        }
+        if (req.user.companyCensorCode) {
+            headers['x-company-censor'] = req.user.companyCensorCode;
         }
     }
     if (includeInternalSecret && process.env.INTERNAL_SECRET) {

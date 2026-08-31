@@ -3,6 +3,12 @@ const { Op } = require("sequelize");
 require('dotenv').config();
 var nodemailer = require('nodemailer');
 const { getFrontendLink } = require('../utils/frontendUrl');
+const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
+const PUBLIC_COMPANY_ATTRIBUTES = [
+    'id', 'name', 'thumbnail', 'coverimage', 'descriptionHTML',
+    'website', 'address', 'phonenumber', 'amountEmployer'
+];
+const APPROVED_COMPANY_WHERE = { statusCode: 'S1', censorCode: 'CS1' };
 let sendmail = (note, userMail, link = null) => {
     var transporter = nodemailer.createTransport({
         service: 'gmail',
@@ -694,13 +700,19 @@ let getDetailPostById = (id, { includeNonPublic = false } = {}) => {
                 if (post) {
                     let user = await db.User.findOne({
                         where: { id: post.userId },
-                        attributes: {
-                            exclude: ['userId']
-                        }
+                        attributes: PUBLIC_USER_ATTRIBUTES
                     })
                     let company = user ? await db.Company.findOne({
-                        where: { id: user.companyId }
+                        where: { id: user.companyId, ...APPROVED_COMPANY_WHERE },
+                        attributes: PUBLIC_COMPANY_ATTRIBUTES
                     }) : null
+                    if (!company && !includeNonPublic) {
+                        resolve({
+                            errCode: 0,
+                            errMessage: 'Không tìm thấy bài viết'
+                        })
+                        return
+                    }
                     // Tai lieu xac minh doanh nghiep khong bao gio di kem chi
                     // tiet tin tuyen dung, ke ca khi admin dang xem tin cho duyet.
                     const companyData = company?.toJSON ? company.toJSON() : company ? { ...company } : null
@@ -819,11 +831,15 @@ let getFilterPost = (data) => {
                     },
                     {
                         model: db.User, as: 'userPostData',
-                        attributes: {
-                            exclude: ['userId']
-                        },
+                        attributes: PUBLIC_USER_ATTRIBUTES,
                         include: [
-                            { model: db.Company, as: 'userCompanyData'},
+                            {
+                                model: db.Company,
+                                as: 'userCompanyData',
+                                attributes: PUBLIC_COMPANY_ATTRIBUTES,
+                                where: APPROVED_COMPANY_WHERE,
+                                required: true
+                            },
                         ]
                     }
                 ],
@@ -948,7 +964,7 @@ let getRelatedPost = (data) => {
                 })
             } else {
                 let post = await db.Post.findOne({
-                    where: { id: data.postId },
+                    where: { id: data.postId, statusCode: 'PS1' },
                     raw: true
                 })
                 if (!post) {
@@ -1000,11 +1016,15 @@ let getRelatedPost = (data) => {
                                 },
                                 {
                                     model: db.User, as: 'userPostData',
-                                    attributes: {
-                                        exclude: ['userId']
-                                    },
+                                    attributes: PUBLIC_USER_ATTRIBUTES,
                                     include: [
-                                        { model: db.Company, as: 'userCompanyData', attributes: ['id', 'name', 'thumbnail'] },
+                                        {
+                                            model: db.Company,
+                                            as: 'userCompanyData',
+                                            attributes: ['id', 'name', 'thumbnail'],
+                                            where: APPROVED_COMPANY_WHERE,
+                                            required: true
+                                        },
                                     ]
                                 }
                             ],
@@ -1076,11 +1096,15 @@ let getRecommendedPost = (data) => {
                         },
                         {
                             model: db.User, as: 'userPostData',
-                            attributes: {
-                                exclude: ['userId']
-                            },
+                            attributes: PUBLIC_USER_ATTRIBUTES,
                             include: [
-                                { model: db.Company, as: 'userCompanyData' },
+                                {
+                                    model: db.Company,
+                                    as: 'userCompanyData',
+                                    attributes: PUBLIC_COMPANY_ATTRIBUTES,
+                                    where: APPROVED_COMPANY_WHERE,
+                                    required: true
+                                },
                             ]
                         }
                     ],

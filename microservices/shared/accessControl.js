@@ -74,8 +74,21 @@ export const identityFromTrustedHeaders = (req) => {
     const roleCode = String(req.headers['x-user-role'] || '').toUpperCase();
     const companyId = positiveInteger(req.headers['x-company-id']);
     if (!userId || !isKnownRole(roleCode)) return null;
-    return { id: userId, userId, roleCode, companyId };
+    return {
+        id: userId,
+        userId,
+        roleCode,
+        companyId,
+        companyStatusCode: req.headers['x-company-status'] || null,
+        companyCensorCode: req.headers['x-company-censor'] || null
+    };
 };
+
+export const hasApprovedCompany = (identity) => Boolean(
+    identity?.companyId
+    && identity.companyStatusCode === 'S1'
+    && identity.companyCensorCode === 'CS1'
+);
 
 const safeSecretEqual = (actual, expected) => {
     const actualBuffer = Buffer.from(String(actual || ''));
@@ -116,12 +129,11 @@ export const requireServicePermission = (permission, { companyRequired = false }
                 errMessage: 'Bạn không có quyền thực hiện thao tác này'
             });
         }
-        if (companyRequired && !req.user.companyId) {
+        if (companyRequired && !hasApprovedCompany(req.user)) {
             return res.status(403).json({
                 errCode: 403,
-                errMessage: 'Tài khoản của bạn chưa thuộc công ty nào'
+                errMessage: 'Công ty chưa được duyệt, đã bị khóa hoặc không tồn tại'
             });
         }
         return next();
     };
-

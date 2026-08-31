@@ -161,7 +161,11 @@ describe("public Header", () => {
         async (roleCode) => {
             localStorage.setItem(
                 "userData",
-                JSON.stringify({ id: 8, roleCode, companyId: 4, firstName: roleCode, lastName: "User" })
+                JSON.stringify({
+                    id: 8, roleCode, companyId: 4,
+                    companyStatusCode: "S1", companyCensorCode: "CS1",
+                    firstName: roleCode, lastName: "User",
+                })
             );
             render(<Header />);
 

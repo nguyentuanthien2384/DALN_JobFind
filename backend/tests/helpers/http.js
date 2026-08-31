@@ -15,6 +15,7 @@ const createRequest = (overrides = {}) => ({
   user: {
     id: 7,
     companyId: 11,
+    userCompanyData: { id: 11, statusCode: 'S1', censorCode: 'CS1' },
     userAccountData: { roleCode: 'EMPLOYER' }
   },
   ...overrides

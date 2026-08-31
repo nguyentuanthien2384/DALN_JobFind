@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     BrowserRouter as Router,
     Routes,
@@ -24,14 +24,74 @@ import Forbidden from "./container/Forbidden/Forbidden";
 import { readJsonStorage } from "./util/storage";
 import RouteGuard from "./auth/RouteGuard";
 import { PERMISSIONS } from "./auth/accessControl";
+import { getCurrentAuthorizationService } from "./service/userService";
+import SessionContext from "./auth/SessionContext";
 
 function App() {
-    const userData = readJsonStorage("userData");
-    const hasToken = Boolean(localStorage.getItem("token_user"));
+    const initialSession = useRef({
+        user: readJsonStorage("userData"),
+        hasToken: Boolean(localStorage.getItem("token_user")),
+    });
+    const [userData, setUserData] = useState(initialSession.current.user);
+    const hasToken = initialSession.current.hasToken;
+    const legacyCompanySession = Boolean(
+        hasToken
+        && userData
+        && ["COMPANY", "EMPLOYER"].includes(userData.roleCode)
+        && userData.companyId
+        && (!userData.companyStatusCode || !userData.companyCensorCode)
+    );
+    const [authorizationReady, setAuthorizationReady] = useState(!legacyCompanySession);
+
+    useEffect(() => {
+        let active = true;
+        const storedUser = initialSession.current.user;
+
+        if (!initialSession.current.hasToken || !storedUser) {
+            setAuthorizationReady(true);
+            return () => { active = false; };
+        }
+
+        const refreshAuthorization = async () => {
+            try {
+                const response = await getCurrentAuthorizationService();
+                if (!active) return;
+
+                if (response?.errCode === 0 && response.data) {
+                    const refreshedUser = {
+                        ...storedUser,
+                        id: response.data.userId,
+                        roleCode: response.data.roleCode,
+                        companyId: response.data.companyId,
+                        companyStatusCode: response.data.companyStatusCode,
+                        companyCensorCode: response.data.companyCensorCode,
+                    };
+                    localStorage.setItem("userData", JSON.stringify(refreshedUser));
+                    setUserData(refreshedUser);
+                }
+            } catch {
+                // Fail closed: giu nguyen quyen gioi han cua phien cu neu mang loi.
+            } finally {
+                if (active) setAuthorizationReady(true);
+            }
+        };
+
+        refreshAuthorization();
+        return () => { active = false; };
+    }, []);
+
+    if (!authorizationReady) {
+        return (
+            <main className="container py-5 text-center" role="status">
+                Đang xác minh quyền truy cập...
+            </main>
+        );
+    }
 
     return (
-        <Router>
-            <Routes>
+        <SessionContext.Provider value={userData}>
+            <Router>
+                <Routes>
                 {/* Public Routes */}
                 <Route
                     path="/"
@@ -209,8 +269,9 @@ function App() {
                     }
                 />
                 <Route path="*" element={<NotFound />} />
-            </Routes>
-        </Router>
+                </Routes>
+            </Router>
+        </SessionContext.Provider>
     );
 }
 

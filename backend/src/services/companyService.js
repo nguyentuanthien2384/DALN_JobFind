@@ -5,6 +5,12 @@ const cloudinary = require('../utils/cloudinary');
 require('dotenv').config();
 var nodemailer = require('nodemailer');
 const { getFrontendLink } = require('../utils/frontendUrl');
+
+const PUBLIC_COMPANY_ATTRIBUTES = [
+    'id', 'name', 'thumbnail', 'coverimage', 'descriptionHTML',
+    'descriptionMarkdown', 'website', 'address', 'phonenumber',
+    'amountEmployer', 'statusCode', 'censorCode', 'createdAt', 'updatedAt'
+];
 let sendmail = (note, userMail, link = null) => {
     var transporter = nodemailer.createTransport({
         service: 'gmail',
@@ -162,7 +168,9 @@ let handleCreateNewCompany = (data) => {
                         resolve({
                             errCode: 0,
                             errMessage: 'Đã tạo công ty thành công',
-                            companyId : company.id
+                            companyId: company.id,
+                            companyStatusCode: company.statusCode,
+                            companyCensorCode: company.censorCode
                         })
                     }
                     else {
@@ -467,7 +475,8 @@ let getListCompany = (data) => {
                 let objectFilter = {
                     offset: +data.offset,
                     limit: +data.limit,
-                    where: {statusCode : 'S1'}
+                    where: { statusCode: 'S1', censorCode: 'CS1' },
+                    attributes: PUBLIC_COMPANY_ATTRIBUTES
                 }
                 if (data.search) {
                     objectFilter.where = { ...objectFilter.where,
@@ -497,7 +506,8 @@ let getDetailCompanyById = (id) => {
             } else {
 
                 let company = await db.Company.findOne({
-                    where: { id: id },
+                    where: { id: id, statusCode: 'S1', censorCode: 'CS1' },
+                    attributes: PUBLIC_COMPANY_ATTRIBUTES,
                     include: [
                         { model: db.Allcode, as: 'censorData', attributes: ['value', 'code'] },
                     ],

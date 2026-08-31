@@ -19,7 +19,12 @@ const { createRequest, createResponse } = require('../helpers/http');
 const request = (roleCode = 'EMPLOYER') => createRequest({
   body: { id: 7, userId: 999, data: { id: 33 }, value: 'body' },
   query: { id: '7', phonenumber: '0901234567', value: 'query' },
-  user: { id: 7, companyId: 11, userAccountData: { roleCode } }
+  user: {
+    id: 7,
+    companyId: 11,
+    userCompanyData: { id: 11, statusCode: 'S1', censorCode: 'CS1' },
+    userAccountData: { roleCode }
+  }
 });
 
 const cases = [
@@ -109,6 +114,8 @@ describe('userController', () => {
         userId: 7,
         roleCode: 'COMPANY',
         companyId: 11,
+        companyStatusCode: 'S1',
+        companyCensorCode: 'CS1',
         permissions: expect.arrayContaining(['company:manage', 'job:manage'])
       })
     }));

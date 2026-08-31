@@ -74,7 +74,10 @@ describe("system Menu", () => {
     });
 
     it("shows recruiting and chat, but not owner-only actions, for an attached employer", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 2, roleCode: "EMPLOYER", companyId: 9 }));
+        localStorage.setItem("userData", JSON.stringify({
+            id: 2, roleCode: "EMPLOYER", companyId: 9,
+            companyStatusCode: "S1", companyCensorCode: "CS1",
+        }));
         const { unmount } = render(<Menu />);
 
         expect(screen.getByText("Tạo mới bài đăng")).toBeInTheDocument();
@@ -95,7 +98,10 @@ describe("system Menu", () => {
     });
 
     it("shows owner-only company, purchase and transaction actions to attached COMPANY", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 3, roleCode: "COMPANY", companyId: 5 }));
+        localStorage.setItem("userData", JSON.stringify({
+            id: 3, roleCode: "COMPANY", companyId: 5,
+            companyStatusCode: "S1", companyCensorCode: "CS1",
+        }));
         render(<Menu />);
 
         expect(screen.getByText("Thông tin công ty")).toBeInTheDocument();
@@ -108,7 +114,10 @@ describe("system Menu", () => {
     });
 
     it("keeps exactly one accordion group open and closes it from the home/chat links", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 3, roleCode: "COMPANY", companyId: 5 }));
+        localStorage.setItem("userData", JSON.stringify({
+            id: 3, roleCode: "COMPANY", companyId: 5,
+            companyStatusCode: "S1", companyCensorCode: "CS1",
+        }));
         render(<Menu />);
         const company = await screen.findByText("Quản lý công ty");
         const post = screen.getByText("Quản lý bài đăng");

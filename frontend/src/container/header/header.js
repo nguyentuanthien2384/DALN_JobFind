@@ -1,14 +1,19 @@
 import React from 'react'
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom'
 import './header.scss';
 import { getNotificationByUserService, markReadNotificationService, getListChatConversationService } from '../../service/userService';
 import { getSocket, disconnectSocket } from '../../socket';
 import { readJsonStorage } from '../../util/storage';
 import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
+import SessionContext from '../../auth/SessionContext';
 
 const Header = () => {
-    const [user] = useState(() => readJsonStorage('userData'))
+    const sessionUser = useContext(SessionContext)
+    const user = useMemo(
+        () => sessionUser || readJsonStorage('userData'),
+        [sessionUser]
+    )
     const [listNotification, setListNotification] = useState([])
     const [unreadCount, setUnreadCount] = useState(0)
     const [unreadChat, setUnreadChat] = useState(0)

@@ -19,9 +19,12 @@ export const resolveCurrentIdentity = async (userId) => {
     if (!Number.isInteger(id) || id <= 0) return null;
 
     const [rows] = await pool.query(
-        `SELECT u.id, u.companyId, a.roleCode, a.statusCode
+        `SELECT u.id, u.companyId, a.roleCode, a.statusCode,
+                c.statusCode AS companyStatusCode,
+                c.censorCode AS companyCensorCode
          FROM users u
          INNER JOIN accounts a ON a.userId = u.id
+         LEFT JOIN companies c ON c.id = u.companyId
          WHERE u.id = ?
          LIMIT 1`,
         [id]
@@ -35,11 +38,12 @@ export const resolveCurrentIdentity = async (userId) => {
         companyId: account.companyId === null || account.companyId === undefined
             ? null
             : Number(account.companyId),
-        statusCode: account.statusCode || null
+        statusCode: account.statusCode || null,
+        companyStatusCode: account.companyStatusCode || null,
+        companyCensorCode: account.companyCensorCode || null
     };
 };
 
 export const closeAccountStore = async () => {
     await pool.end();
 };
-

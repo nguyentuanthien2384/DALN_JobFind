@@ -28,6 +28,7 @@ describe("userService", () => {
         ["requestResetPasswordOtp", "post", [{ email: "a@b.co" }], "/api/request-reset-password-otp", { email: "a@b.co" }],
         ["getDetailUserById", "get", [4], "/api/get-detail-user-by-id?id=4"],
         ["handleLoginService", "post", [{ email: "a@b.co" }], "/api/login", { email: "a@b.co" }],
+        ["getCurrentAuthorizationService", "get", [], "/api/auth/me"],
         ["handleChangePassword", "post", [{ old: "one" }], "/api/changepassword", { old: "one" }],
         ["UpdateUserSettingService", "put", [{ id: 3 }], "/api/setDataUserSetting", { id: 3 }],
         ["getAllCodeService", "get", ["ROLE"], "/api/get-all-code?type=ROLE"],

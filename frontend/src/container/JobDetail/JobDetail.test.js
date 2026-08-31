@@ -224,6 +224,8 @@ describe("JobDetail", () => {
             id: 88,
             roleCode: "EMPLOYER",
             companyId: 9,
+            companyStatusCode: "S1",
+            companyCensorCode: "CS1",
         }));
         const owner = render(<JobDetail />);
         fireEvent.click(
@@ -244,6 +246,13 @@ describe("JobDetail", () => {
         ["ADMIN", { id: 1, roleCode: "ADMIN" }],
         ["COMPANY without companyId", { id: 2, roleCode: "COMPANY" }],
         ["EMPLOYER without companyId", { id: 3, roleCode: "EMPLOYER" }],
+        ["EMPLOYER in a pending company", {
+            id: 4,
+            roleCode: "EMPLOYER",
+            companyId: 9,
+            companyStatusCode: "S1",
+            companyCensorCode: "CS2",
+        }],
     ])("does not expose chat action to %s", async (_label, user) => {
         localStorage.setItem("userData", JSON.stringify(user));
         render(<JobDetail />);

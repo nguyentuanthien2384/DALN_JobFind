@@ -522,9 +522,21 @@ let handleLogin = (data) => {
                                         exclude: ['userId','file']
                                     },
                                     where: {id: account.userId  },
-                                    raw: true
+                                    include: [
+                                        {
+                                            model: db.Company,
+                                            as: 'userCompanyData',
+                                            attributes: ['id', 'statusCode', 'censorCode'],
+                                            required: false
+                                        }
+                                    ],
+                                    raw: true,
+                                    nest: true
                                 })
                                 user.roleCode = account.roleCode
+                                user.companyStatusCode = user.userCompanyData?.statusCode || null
+                                user.companyCensorCode = user.userCompanyData?.censorCode || null
+                                delete user.userCompanyData
                                 userData.errMessage = 'Ok';
                                 userData.errCode = 0;
                                 userData.user= user;

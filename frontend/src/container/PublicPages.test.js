@@ -19,6 +19,10 @@ jest.mock("react-router-dom", () => {
     return {
         Link: ({ to, children, ...props }) =>
             React.createElement("a", { href: to, ...props }, children),
+        Navigate: ({ to }) => React.createElement("span", {
+            "data-testid": "navigate",
+            "data-to": to,
+        }),
         Route: () => null,
         Routes: ({ children }) => {
             const route = React.Children.toArray(children).find((child) =>

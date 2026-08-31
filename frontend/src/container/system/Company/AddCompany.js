@@ -151,6 +151,8 @@ const AddCompany = () => {
                         ...userData,
                         roleCode: "COMPANY",
                         companyId: res.companyId,
+                        companyStatusCode: res.companyStatusCode,
+                        companyCensorCode: res.companyCensorCode,
                     };
                     localStorage.setItem("userData", JSON.stringify(newUser));
                     setTimeout(() => {

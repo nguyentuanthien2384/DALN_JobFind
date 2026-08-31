@@ -133,7 +133,11 @@ async function run() {
         "/api/get-statistical-cv?companyId=99999&fromDate=2024-01-01&toDate=2030-12-31&limit=5&offset=0",
         { headers: employerHeaders }
     );
-    check("Không xem được thống kê của công ty khác", crossCompanyStat.response.status === 403);
+    const tenantPinned = crossCompanyStat.response.ok
+        && crossCompanyStat.body.errCode === 0
+        && crossCompanyStat.body.count === companyStat.body.count
+        && JSON.stringify(crossCompanyStat.body.data) === JSON.stringify(companyStat.body.data);
+    check("companyId giả mạo bị bỏ qua và dữ liệu vẫn khóa theo công ty đăng nhập", tenantPinned);
 
     section("Đăng ký và đặt lại mật khẩu");
 

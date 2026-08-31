@@ -41,12 +41,16 @@ describe('centralized RBAC matrix', () => {
 
         const req = makeReq({ headers: {
             'x-internal-secret': 'trusted-secret', 'x-user-id': '8',
-            'x-user-role': 'EMPLOYER', 'x-company-id': '3'
+            'x-user-role': 'EMPLOYER', 'x-company-id': '3',
+            'x-company-status': 'S1', 'x-company-censor': 'CS1'
         } });
         const trustedNext = vi.fn();
         requireTrustedGateway(req, makeRes(), trustedNext);
         expect(trustedNext).toHaveBeenCalledOnce();
-        expect(req.user).toEqual({ id: 8, userId: 8, roleCode: 'EMPLOYER', companyId: 3 });
+        expect(req.user).toEqual({
+            id: 8, userId: 8, roleCode: 'EMPLOYER', companyId: 3,
+            companyStatusCode: 'S1', companyCensorCode: 'CS1'
+        });
 
         const allowed = vi.fn();
         requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true })(
@@ -71,6 +75,15 @@ describe('centralized RBAC matrix', () => {
             companyless, denied, vi.fn()
         );
         expect(denied.statusCode).toBe(403);
+
+        const pending = makeReq({ user: {
+            id: 9, roleCode: 'COMPANY', companyId: 4,
+            companyStatusCode: 'S1', companyCensorCode: 'CS3'
+        } });
+        const pendingDenied = makeRes();
+        requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true })(
+            pending, pendingDenied, vi.fn()
+        );
+        expect(pendingDenied.statusCode).toBe(403);
     });
 });
-

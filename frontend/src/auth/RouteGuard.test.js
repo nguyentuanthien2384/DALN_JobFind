@@ -24,6 +24,9 @@ const renderGuard = (props = {}, pathname = "/secure") => {
 };
 
 describe("RouteGuard", () => {
+    const approved = (roleCode, companyId) => ({
+        roleCode, companyId, companyStatusCode: "S1", companyCensorCode: "CS1",
+    });
     it.each([
         [{ hasToken: true }, "missing user"],
         [{ user: { roleCode: ROLES.ADMIN }, hasToken: false }, "missing token"],
@@ -58,7 +61,7 @@ describe("RouteGuard", () => {
 
     it("allows a route when at least one anyPermissions entry is granted", () => {
         renderGuard({
-            user: { roleCode: ROLES.EMPLOYER, companyId: 8 },
+            user: approved(ROLES.EMPLOYER, 8),
             anyPermissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_POSTS],
         });
         expect(screen.getByText("protected-content")).toBeInTheDocument();
@@ -74,7 +77,7 @@ describe("RouteGuard", () => {
     });
 
     it("requires every allPermissions entry", () => {
-        const user = { roleCode: ROLES.EMPLOYER, companyId: 8 };
+        const user = approved(ROLES.EMPLOYER, 8);
         renderGuard({
             user,
             allPermissions: [PERMISSIONS.MANAGE_POSTS, PERMISSIONS.MANAGE_TEAM],
@@ -83,7 +86,7 @@ describe("RouteGuard", () => {
     });
 
     it("combines role, any and all constraints when all are satisfied", () => {
-        const user = { roleCode: ROLES.COMPANY, companyId: 8 };
+        const user = approved(ROLES.COMPANY, 8);
         renderGuard({
             user,
             allowedRoles: [ROLES.COMPANY],

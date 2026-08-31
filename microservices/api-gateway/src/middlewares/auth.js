@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { resolveCurrentIdentity } from '../libs/accountStore.js';
-import { hasPermission, isKnownRole } from '../../../shared/accessControl.js';
+import { hasApprovedCompany, hasPermission, isKnownRole } from '../../../shared/accessControl.js';
 
 // Xac thuc tap trung tai Gateway.
 //
@@ -56,7 +56,9 @@ const authenticate = async (req) => {
         req.user = {
             id: current.id,
             roleCode: current.roleCode,
-            companyId: current.companyId
+            companyId: current.companyId,
+            companyStatusCode: current.companyStatusCode || null,
+            companyCensorCode: current.companyCensorCode || null
         };
         return req.user;
     } catch {
@@ -123,10 +125,10 @@ export const requirePermission = (permission, { companyRequired = false } = {}) 
                 errMessage: 'Bạn không có quyền thực hiện thao tác này'
             });
         }
-        if (companyRequired && !req.user.companyId) {
+        if (companyRequired && !hasApprovedCompany(req.user)) {
             return res.status(403).json({
                 errCode: 403,
-                errMessage: 'Tài khoản của bạn chưa thuộc công ty nào'
+                errMessage: 'Công ty chưa được duyệt, đã bị khóa hoặc không tồn tại'
             });
         }
         return next();

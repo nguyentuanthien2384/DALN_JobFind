@@ -19,12 +19,21 @@ const getCompanyId = (req) => {
     return companyId === null || companyId === undefined ? null : Number(companyId);
 };
 
+const isApprovedCompany = (req) => {
+    const companyId = getCompanyId(req);
+    const company = req.user?.userCompanyData;
+    return companyId !== null
+        && Number(company?.id) === companyId
+        && company?.statusCode === 'S1'
+        && company?.censorCode === 'CS1';
+};
+
 // Nguoi dung co duoc xem du lieu cua cong ty nay khong.
 const canAccessCompany = (req, companyId) => {
     if (isAdmin(req)) return true;
     if (companyId === null || companyId === undefined || companyId === 'null') return false;
     const mine = getCompanyId(req);
-    return mine !== null && mine === Number(companyId);
+    return mine !== null && mine === Number(companyId) && isApprovedCompany(req);
 };
 
 // Tim cong ty so huu mot tin tuyen dung (post -> nguoi dang -> cong ty).
@@ -47,7 +56,7 @@ const getCompanyIdOfPost = async (postId) => {
 // Nha tuyen dung chi duoc xem ho so ung tuyen vao tin cua chinh cong ty minh.
 const canAccessPostApplicants = async (req, postId) => {
     if (isAdmin(req)) return true;
-    if (!isRecruiter(req)) return false;
+    if (!isRecruiter(req) || !isApprovedCompany(req)) return false;
     const companyIdOfPost = await getCompanyIdOfPost(postId);
     if (companyIdOfPost === null) return false;
     return getCompanyId(req) === companyIdOfPost;
@@ -60,7 +69,7 @@ const canManageCompanyUser = async (req, targetUserId) => {
     const targetId = Number(targetUserId);
     if (!Number.isInteger(targetId) || targetId <= 0 || !req.user) return false;
     if (isAdmin(req)) return true;
-    if (getRole(req) !== 'COMPANY') return false;
+    if (getRole(req) !== 'COMPANY' || !isApprovedCompany(req)) return false;
 
     const companyId = getCompanyId(req);
     if (companyId === null) return false;
@@ -84,7 +93,7 @@ const canAccessCandidateProfile = async (req, candidateId) => {
     // Trang quan ly nhan su dung chung endpoint chi tiet nguoi dung. Chu cong
     // ty duoc doc nhan su cung companyId, nhung EMPLOYER thi khong.
     if (await canManageCompanyUser(req, targetId)) return true;
-    if (!isRecruiter(req)) return false;
+    if (!isRecruiter(req) || !isApprovedCompany(req)) return false;
 
     const companyId = getCompanyId(req);
     if (companyId === null) return false;
@@ -103,6 +112,7 @@ module.exports = {
     isAdmin,
     isRecruiter,
     getCompanyId,
+    isApprovedCompany,
     canAccessCompany,
     getCompanyIdOfPost,
     canAccessPostApplicants,

@@ -56,6 +56,11 @@ const COMPANY_PERMISSIONS = permissionSet([
     PERMISSIONS.VIEW_TRANSACTIONS,
 ]);
 
+const COMPANY_PENDING_PERMISSIONS = permissionSet([
+    PERMISSIONS.ACCESS_ADMIN_AREA,
+    PERMISSIONS.MANAGE_COMPANY,
+]);
+
 const EMPLOYER_PERMISSIONS = permissionSet([
     PERMISSIONS.ACCESS_ADMIN_AREA,
     PERMISSIONS.VIEW_ADMIN_HOME,
@@ -87,6 +92,12 @@ export const hasCompanyMembership = (user) => Boolean(
     && user.companyId !== ""
 );
 
+export const hasApprovedCompany = (user) => Boolean(
+    hasCompanyMembership(user)
+    && user.companyStatusCode === "S1"
+    && user.companyCensorCode === "CS1"
+);
+
 export const getUserPermissions = (user) => {
     if (!user || !isKnownRole(user.roleCode)) return new Set();
 
@@ -97,13 +108,16 @@ export const getUserPermissions = (user) => {
             // Tai khoan chu cong ty bat buoc phai gan voi mot cong ty cu the.
             // Neu du lieu phien bi cu/thieu companyId, chi cho vao khu quan tri
             // de sua ho so; khong mo du lieu tenant, dashboard hay chat.
+            if (hasApprovedCompany(user)) return new Set(COMPANY_PERMISSIONS);
             return hasCompanyMembership(user)
-                ? new Set(COMPANY_PERMISSIONS)
+                ? new Set(COMPANY_PENDING_PERMISSIONS)
                 : new Set(COMPANY_WITHOUT_COMPANY_PERMISSIONS);
         case ROLES.EMPLOYER:
-            return hasCompanyMembership(user)
+            return hasApprovedCompany(user)
                 ? new Set(EMPLOYER_PERMISSIONS)
-                : new Set(EMPLOYER_WITHOUT_COMPANY_PERMISSIONS);
+                : hasCompanyMembership(user)
+                    ? new Set(COMPANY_WITHOUT_COMPANY_PERMISSIONS)
+                    : new Set(EMPLOYER_WITHOUT_COMPANY_PERMISSIONS);
         case ROLES.CANDIDATE:
             return new Set(CANDIDATE_PERMISSIONS);
         default:
@@ -124,6 +138,7 @@ export const getDefaultRouteForUser = (user) => {
     if (hasPermission(user, PERMISSIONS.VIEW_CANDIDATE_AREA)) return "/candidate/info";
     if (hasPermission(user, PERMISSIONS.VIEW_ADMIN_HOME)) return "/admin/";
     if (hasPermission(user, PERMISSIONS.CREATE_COMPANY)) return "/admin/add-company/";
+    if (hasPermission(user, PERMISSIONS.MANAGE_COMPANY)) return "/admin/edit-company/";
     if (hasPermission(user, PERMISSIONS.ACCESS_ADMIN_AREA)) return "/admin/user-info/";
     return "/";
 };

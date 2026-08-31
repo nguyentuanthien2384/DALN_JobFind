@@ -49,6 +49,9 @@ const handleLoginService = (data) => {
     return axios.post(`/api/login`, data)
 
 }
+const getCurrentAuthorizationService = () => {
+    return axios.get(`/api/auth/me`)
+}
 
 const handleChangePassword = (data) => {
     return axios.post(`/api/changepassword`, data)
@@ -389,7 +392,7 @@ const getListChatConversationService = () => {
 
 export {
     DeleteAllcodeService, UpdateAllcodeService, getDetailAllcodeByCode, createAllCodeService, getListAllCodeService, getAllCodeService,
-    getAllUsers, createNewUser, UpdateUserService, BanUserService,UnbanUserService, getDetailUserById, handleChangePassword, handleLoginService,
+    getAllUsers, createNewUser, UpdateUserService, BanUserService,UnbanUserService, getDetailUserById, handleChangePassword, handleLoginService, getCurrentAuthorizationService,
     createCompanyService, getDetailCompanyByUserId, updateCompanyService, RecruitmentService, getAllUserByCompanyIdService, QuitCompanyService,
     createPostService, updatePostService, banPostService,acceptPostService, getAllPostByAdminService,getAllPostByRoleAdminService, getDetailPostByIdService, activePostService, checkUserPhoneService, getListPostService,
     getListJobTypeAndCountPost, getListCompany, getDetailCompanyById,changePasswordByphone,requestResetPasswordOtp,getStatisticalTypePost , getPackageByType, getPaymentLink , paymentOrderSuccessService , getAllPackage ,

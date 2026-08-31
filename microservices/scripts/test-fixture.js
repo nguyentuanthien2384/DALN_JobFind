@@ -22,6 +22,8 @@ const TEST_PREFIX = 'Kiem Thu ';
 
 const ES = process.env.ELASTICSEARCH_PUBLIC_URL || 'http://localhost:9201';
 const PG = process.env.POSTGRES_PUBLIC_URL || 'postgres://jobportal:jobportal@localhost:5435/application_db';
+const FIXTURE_LOCK = 'jobfind_microservices_smoke_fixture';
+const FIXTURE_LOCK_TIMEOUT_SECONDS = 90;
 
 const mysqlConfig = {
     host: process.env.MYSQL_HOST || '127.0.0.1',
@@ -37,12 +39,35 @@ const quiet = (label) => (error) => {
     console.log(`  (khong don duoc ${label}: ${error.message})`);
 };
 
+const restoreCompanyQuotas = async (conn, companies = []) => {
+    for (const company of companies) {
+        await conn.query(
+            'UPDATE companies SET allowPost = ?, allowCV = ?, allowCvFree = ? WHERE id = ?',
+            [company.allowPost, company.allowCV, company.allowCvFree, company.id]
+        );
+    }
+};
+
 // --- Chup anh truoc khi chay ---
 export const snapshot = async () => {
     const conn = await mysql.createConnection(mysqlConfig);
+    let keepConnectionForRestore = false;
+    let companies = [];
+    let quotasBoosted = false;
     try {
+        // Hai smoke test chay song song co the chup phai han muc da duoc cong tam
+        // cua nhau, sau do hoan nguyen sai +50. MySQL advisory lock duoc giu tren
+        // chinh connection nay cho den khi restore() hoan tat.
+        const [[lock]] = await conn.query(
+            'SELECT GET_LOCK(?, ?) AS acquired',
+            [FIXTURE_LOCK, FIXTURE_LOCK_TIMEOUT_SECONDS]
+        );
+        if (Number(lock?.acquired) !== 1) {
+            throw new Error('Không lấy được khóa chạy smoke test độc quyền');
+        }
+
         // O dem goi dich vu: bi tru moi lan dang tin hoac xem CV.
-        const [companies] = await conn.query(
+        [companies] = await conn.query(
             'SELECT id, allowPost, allowCV, allowCvFree FROM companies'
         );
         // Cac tac vu AI sinh ra trong luc chay can duoc phan biet voi tac vu cu.
@@ -55,17 +80,28 @@ export const snapshot = async () => {
         await conn.query(
             'UPDATE companies SET allowPost = allowPost + 50, allowCV = allowCV + 50, allowCvFree = allowCvFree + 50'
         );
+        quotasBoosted = true;
 
-        return { companies, taskIds: tasks.map((t) => t.id) };
+        keepConnectionForRestore = true;
+        return { companies, taskIds: tasks.map((t) => t.id), lockConnection: conn };
+    } catch (error) {
+        if (quotasBoosted) {
+            await restoreCompanyQuotas(conn, companies).catch(quiet('hạn mức công ty'));
+        }
+        throw error;
     } finally {
-        await conn.end();
+        if (!keepConnectionForRestore) {
+            await conn.query('SELECT RELEASE_LOCK(?)', [FIXTURE_LOCK]).catch(() => {});
+            await conn.end();
+        }
     }
 };
 
 // --- Tra lai nguyen trang ---
 export const restore = async (before) => {
-    const conn = await mysql.createConnection(mysqlConfig);
+    const conn = before.lockConnection || await mysql.createConnection(mysqlConfig);
     let removed = 0;
+    let quotasRestored = false;
 
     try {
         // Tim cac tin do kiem thu tao. Ten nam o bang detailposts.
@@ -96,12 +132,8 @@ export const restore = async (before) => {
         removed += notif.affectedRows || 0;
 
         // Tra lai cac o dem ve dung gia tri truoc khi chay.
-        for (const c of before.companies) {
-            await conn.query(
-                'UPDATE companies SET allowPost = ?, allowCV = ?, allowCvFree = ? WHERE id = ?',
-                [c.allowPost, c.allowCV, c.allowCvFree, c.id]
-            );
-        }
+        await restoreCompanyQuotas(conn, before.companies);
+        quotasRestored = true;
 
         // Tac vu AI moi phat sinh trong lan chay nay.
         if (before.taskIds.length) {
@@ -133,6 +165,15 @@ export const restore = async (before) => {
 
         console.log(`\nĐã dọn ${removed} bản ghi kiểm thử, trả các ô đếm gói dịch vụ về như cũ.`);
     } finally {
+        // Uu tien bao toan han muc ngay ca khi viec don MySQL/PostgreSQL/ES gap
+        // loi. Dong connection cung tu dong nha advisory lock neu RELEASE_LOCK
+        // khong thanh cong.
+        if (!quotasRestored) {
+            await restoreCompanyQuotas(conn, before.companies).catch(quiet('hạn mức công ty'));
+        }
+        if (before.lockConnection) {
+            await conn.query('SELECT RELEASE_LOCK(?)', [FIXTURE_LOCK]).catch(() => {});
+        }
         await conn.end();
     }
 };

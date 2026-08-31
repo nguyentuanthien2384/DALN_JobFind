@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getListChatConversationService } from '../../service/userService';
 import { getSocket } from '../../socket';
 import { hasCompanyMembership, hasPermission, PERMISSIONS } from '../../auth/accessControl';
@@ -158,7 +158,10 @@ const MENU_EMPLOYER = [
 
 const Menu = ({ user: suppliedUser }) => {
     const location = useLocation()
-    const [user] = useState(() => suppliedUser || readJsonStorage('userData'))
+    const user = useMemo(
+        () => suppliedUser || readJsonStorage('userData'),
+        [suppliedUser]
+    )
     const [unreadChat, setUnreadChat] = useState(0)
     const [openKey, setOpenKey] = useState(null)
     const canUseChat = hasPermission(user, PERMISSIONS.USE_CHAT)

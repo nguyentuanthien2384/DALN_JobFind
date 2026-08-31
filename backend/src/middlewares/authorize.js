@@ -55,7 +55,8 @@ const permissionMatrix = Object.freeze({
     },
     [PERMISSIONS.COMPANY_TEAM_MANAGE]: {
         roles: [ROLES.COMPANY],
-        requiresCompanyForRoles: [ROLES.COMPANY]
+        requiresCompanyForRoles: [ROLES.COMPANY],
+        requiresApprovedCompanyForRoles: [ROLES.COMPANY]
     },
     [PERMISSIONS.COMPANY_TEAM_EXIT]: {
         roles: [ROLES.COMPANY, ROLES.EMPLOYER],
@@ -63,39 +64,49 @@ const permissionMatrix = Object.freeze({
     },
     [PERMISSIONS.JOB_MANAGE]: {
         roles: [ROLES.COMPANY, ROLES.EMPLOYER],
-        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
+        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER],
+        requiresApprovedCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
     },
     [PERMISSIONS.RECRUITMENT_READ]: {
         roles: [ROLES.ADMIN, ROLES.COMPANY, ROLES.EMPLOYER],
-        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
+        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER],
+        requiresApprovedCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
     },
     [PERMISSIONS.RECRUITMENT_REPORT_READ]: {
         roles: [ROLES.ADMIN, ROLES.COMPANY, ROLES.EMPLOYER],
-        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
+        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER],
+        requiresApprovedCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
     },
     [PERMISSIONS.CANDIDATE_APPLY]: { roles: [ROLES.CANDIDATE] },
     // Resource-level checks still restrict this mixed route to self, an admin,
     // a same-company job application, or a purchased CandidateView entitlement.
-    [PERMISSIONS.CANDIDATE_PROFILE_READ]: { roles: allRoles },
+    [PERMISSIONS.CANDIDATE_PROFILE_READ]: {
+        roles: allRoles,
+        requiresApprovedCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
+    },
     [PERMISSIONS.CANDIDATE_SEARCH]: {
         roles: [ROLES.ADMIN, ROLES.COMPANY, ROLES.EMPLOYER],
-        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
+        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER],
+        requiresApprovedCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
     },
     [PERMISSIONS.RECOMMENDATION_READ]: { roles: [ROLES.CANDIDATE] },
     [PERMISSIONS.PACKAGE_CATALOG_READ]: { roles: [ROLES.ADMIN, ROLES.COMPANY] },
     [PERMISSIONS.PACKAGE_PURCHASE]: {
         roles: [ROLES.COMPANY],
-        requiresCompanyForRoles: [ROLES.COMPANY]
+        requiresCompanyForRoles: [ROLES.COMPANY],
+        requiresApprovedCompanyForRoles: [ROLES.COMPANY]
     },
     [PERMISSIONS.PACKAGE_HISTORY_READ]: {
         roles: [ROLES.ADMIN, ROLES.COMPANY],
-        requiresCompanyForRoles: [ROLES.COMPANY]
+        requiresCompanyForRoles: [ROLES.COMPANY],
+        requiresApprovedCompanyForRoles: [ROLES.COMPANY]
     },
     [PERMISSIONS.SOCIAL_INTERACT]: { roles: [ROLES.CANDIDATE] },
     [PERMISSIONS.NOTIFICATION_READ]: { roles: allRoles },
     [PERMISSIONS.CHAT]: {
         roles: [ROLES.CANDIDATE, ROLES.COMPANY, ROLES.EMPLOYER],
-        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
+        requiresCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER],
+        requiresApprovedCompanyForRoles: [ROLES.COMPANY, ROLES.EMPLOYER]
     }
 });
 
@@ -107,6 +118,11 @@ const hasCompany = (req) => (
     && req.user?.companyId !== ''
 );
 
+const hasApprovedCompany = (req) => hasCompany(req)
+    && Number(req.user?.userCompanyData?.id) === Number(req.user?.companyId)
+    && req.user?.userCompanyData?.statusCode === 'S1'
+    && req.user?.userCompanyData?.censorCode === 'CS1';
+
 const isPermissionGranted = (req, permission) => {
     const rule = permissionMatrix[permission];
     if (!rule || !req.user) return false;
@@ -115,6 +131,7 @@ const isPermissionGranted = (req, permission) => {
     if (!rule.roles.includes(roleCode)) return false;
     if (rule.requiresNoCompany && hasCompany(req)) return false;
     if (rule.requiresCompanyForRoles?.includes(roleCode) && !hasCompany(req)) return false;
+    if (rule.requiresApprovedCompanyForRoles?.includes(roleCode) && !hasApprovedCompany(req)) return false;
     return true;
 };
 
@@ -160,6 +177,7 @@ module.exports = {
     PERMISSIONS,
     permissionMatrix,
     getRoleCode,
+    hasApprovedCompany,
     isPermissionGranted,
     getGrantedPermissions,
     authorize

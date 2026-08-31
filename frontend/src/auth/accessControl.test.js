@@ -2,6 +2,7 @@ import {
     getDefaultRouteForUser,
     getUserPermissions,
     hasAllPermissions,
+    hasApprovedCompany,
     hasAnyPermission,
     hasCompanyMembership,
     hasPermission,
@@ -15,6 +16,12 @@ const expectExactPermissions = (user, expected) => {
 };
 
 describe("frontend access-control policy", () => {
+    const approved = (roleCode, companyId) => ({
+        roleCode,
+        companyId,
+        companyStatusCode: "S1",
+        companyCensorCode: "CS1",
+    });
     it("recognizes only the four backend role codes", () => {
         Object.values(ROLES).forEach((roleCode) => expect(isKnownRole(roleCode)).toBe(true));
         [undefined, null, "", "admin", "USER", "ROOT"].forEach((roleCode) =>
@@ -52,7 +59,7 @@ describe("frontend access-control policy", () => {
     });
 
     it("gives a COMPANY with companyId its tenant, dashboard and chat permissions", () => {
-        const user = { id: 2, roleCode: ROLES.COMPANY, companyId: 9 };
+        const user = { id: 2, ...approved(ROLES.COMPANY, 9) };
 
         expectExactPermissions(user, [
             PERMISSIONS.MANAGE_PROFILE,
@@ -86,7 +93,7 @@ describe("frontend access-control policy", () => {
     });
 
     it("gives an EMPLOYER with companyId recruiting, dashboard and chat permissions", () => {
-        const user = { id: 4, roleCode: ROLES.EMPLOYER, companyId: 12 };
+        const user = { id: 4, ...approved(ROLES.EMPLOYER, 12) };
 
         expectExactPermissions(user, [
             PERMISSIONS.MANAGE_PROFILE,
@@ -144,7 +151,7 @@ describe("frontend access-control policy", () => {
     });
 
     it("supports any/all permission checks without turning an empty any-list into access", () => {
-        const employer = { roleCode: ROLES.EMPLOYER, companyId: 2 };
+        const employer = approved(ROLES.EMPLOYER, 2);
 
         expect(hasAnyPermission(employer, [
             PERMISSIONS.MANAGE_USERS,
@@ -165,13 +172,41 @@ describe("frontend access-control policy", () => {
     it.each([
         [{ roleCode: ROLES.CANDIDATE }, "/candidate/info"],
         [{ roleCode: ROLES.ADMIN }, "/admin/"],
-        [{ roleCode: ROLES.COMPANY, companyId: 3 }, "/admin/"],
-        [{ roleCode: ROLES.EMPLOYER, companyId: 3 }, "/admin/"],
+        [approved(ROLES.COMPANY, 3), "/admin/"],
+        [approved(ROLES.EMPLOYER, 3), "/admin/"],
         [{ roleCode: ROLES.EMPLOYER }, "/admin/add-company/"],
         [{ roleCode: ROLES.COMPANY }, "/admin/user-info/"],
         [{ roleCode: "ROOT" }, "/"],
         [null, "/"],
     ])("chooses the safest landing route for identity %#", (user, expected) => {
         expect(getDefaultRouteForUser(user)).toBe(expected);
+    });
+
+    it("keeps pending/banned companies out of operational permissions", () => {
+        const pendingOwner = {
+            roleCode: ROLES.COMPANY,
+            companyId: 7,
+            companyStatusCode: "S1",
+            companyCensorCode: "CS3",
+        };
+        expect(hasApprovedCompany(pendingOwner)).toBe(false);
+        expectExactPermissions(pendingOwner, [
+            PERMISSIONS.MANAGE_PROFILE,
+            PERMISSIONS.ACCESS_ADMIN_AREA,
+            PERMISSIONS.MANAGE_COMPANY,
+        ]);
+        expect(getDefaultRouteForUser(pendingOwner)).toBe("/admin/edit-company/");
+
+        const bannedEmployer = {
+            roleCode: ROLES.EMPLOYER,
+            companyId: 7,
+            companyStatusCode: "S2",
+            companyCensorCode: "CS1",
+        };
+        expect(hasAnyPermission(bannedEmployer, [
+            PERMISSIONS.USE_CHAT,
+            PERMISSIONS.MANAGE_POSTS,
+            PERMISSIONS.MANAGE_CANDIDATES,
+        ])).toBe(false);
     });
 });

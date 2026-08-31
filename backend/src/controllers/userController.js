@@ -72,6 +72,8 @@ let getCurrentAuthorization = async (req, res) => {
             companyId: req.user.companyId === null || req.user.companyId === undefined
                 ? null
                 : Number(req.user.companyId),
+            companyStatusCode: req.user.userCompanyData?.statusCode || null,
+            companyCensorCode: req.user.userCompanyData?.censorCode || null,
             permissions: getGrantedPermissions(req)
         }
     });

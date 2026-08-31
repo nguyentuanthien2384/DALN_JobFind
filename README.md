@@ -296,6 +296,7 @@ Mật khẩu dữ liệu demo: `123456`.
 
 ## Tài liệu chuyên sâu
 
+- [Ma trận phân quyền và kiểm soát truy cập](docs/AUTHORIZATION.md)
 - [Chi tiết kiến trúc microservices](microservices/README.md)
 - [Mã nguồn template email kết quả](microservices/notification-service/src/templates.js)
 - [Giao diện pipeline Kanban](frontend/src/container/system/Cv/KanbanBoard.js)

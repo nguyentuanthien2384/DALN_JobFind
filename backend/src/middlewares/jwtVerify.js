@@ -18,6 +18,16 @@ const sendAuthenticationFailure = (res) => res.status(500).json({
     errMessage: 'Unable to verify account',
 })
 
+const currentIdentityIncludes = (accountAttributes = ['roleCode', 'statusCode']) => [
+    { model: db.Account, as: 'userAccountData', attributes: accountAttributes },
+    {
+        model: db.Company,
+        as: 'userCompanyData',
+        attributes: ['id', 'statusCode', 'censorCode'],
+        required: false
+    }
+]
+
 const middlewareControllers = {
     verifyTokenUser: (req, res, next) => {
         const token = req.headers.authorization
@@ -35,9 +45,7 @@ const middlewareControllers = {
                     const user = await db.User.findOne({
                         where: { id: payload.sub } ,
                         attributes: ['id', 'companyId'],
-                        include: [
-                            { model: db.Account, as: 'userAccountData', attributes: ['roleCode', 'statusCode'] }
-                        ],
+                        include: currentIdentityIncludes(),
                         raw: true,
                         nest: true
                     })
@@ -80,9 +88,7 @@ const middlewareControllers = {
                 const user = await db.User.findOne({
                     where: { id: payload.sub },
                     attributes: ['id', 'companyId'],
-                    include: [
-                        { model: db.Account, as: 'userAccountData', attributes: ['roleCode', 'statusCode'] }
-                    ],
+                    include: currentIdentityIncludes(),
                     raw: true,
                     nest: true
                 })
@@ -112,9 +118,7 @@ const middlewareControllers = {
                             attributes: {
                                 exclude: ['userId']
                             },
-                            include: [
-                                { model: db.Account, as: 'userAccountData' }
-                            ],
+                            include: currentIdentityIncludes(),
                             raw: true,
                             nest: true
                         }

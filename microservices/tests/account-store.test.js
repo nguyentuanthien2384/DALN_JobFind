@@ -22,13 +22,16 @@ beforeEach(() => {
 describe('gateway current-account resolver', () => {
     it('reads current role/company/status from MySQL and normalizes identifiers', async () => {
         mocks.query.mockResolvedValue([[{
-            id: '7', companyId: '3', roleCode: 'EMPLOYER', statusCode: 'S1'
+            id: '7', companyId: '3', roleCode: 'EMPLOYER', statusCode: 'S1',
+            companyStatusCode: 'S1', companyCensorCode: 'CS1'
         }]]);
         const { resolveCurrentIdentity } = await import('../api-gateway/src/libs/accountStore.js');
         await expect(resolveCurrentIdentity(7)).resolves.toEqual({
-            id: 7, companyId: 3, roleCode: 'EMPLOYER', statusCode: 'S1'
+            id: 7, companyId: 3, roleCode: 'EMPLOYER', statusCode: 'S1',
+            companyStatusCode: 'S1', companyCensorCode: 'CS1'
         });
         expect(mocks.query.mock.calls[0][0]).toContain('INNER JOIN accounts');
+        expect(mocks.query.mock.calls[0][0]).toContain('LEFT JOIN companies');
         expect(mocks.query.mock.calls[0][1]).toEqual([7]);
     });
 
@@ -38,7 +41,10 @@ describe('gateway current-account resolver', () => {
         expect(mocks.query).not.toHaveBeenCalled();
 
         mocks.query.mockResolvedValueOnce([[]]).mockResolvedValueOnce([[
-            { id: 8, companyId: null, roleCode: 'CANDIDATE', statusCode: 'S1' }
+            {
+                id: 8, companyId: null, roleCode: 'CANDIDATE', statusCode: 'S1',
+                companyStatusCode: null, companyCensorCode: null
+            }
         ]]);
         await expect(resolveCurrentIdentity(99)).resolves.toBeNull();
         await expect(resolveCurrentIdentity(8)).resolves.toMatchObject({ companyId: null });
@@ -46,4 +52,3 @@ describe('gateway current-account resolver', () => {
         expect(mocks.end).toHaveBeenCalledOnce();
     });
 });
-
