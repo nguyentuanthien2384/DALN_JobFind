@@ -148,10 +148,11 @@ DB_PORT=3333
 DB_NAME=jobfindtest
 DB_USER=root
 DB_PASSWORD=
-JWT_SECRET=thay-bang-khoa-rieng
+# Bắt buộc: sinh ngẫu nhiên tối thiểu 32 ký tự, dùng cùng giá trị ở hai file .env
+JWT_SECRET=
 URL_REACT=http://localhost:3000
-RABBITMQ_URL=amqp://jobportal:jobportal@localhost:5673
-INTERNAL_SECRET=thay-bang-khoa-rieng
+RABBITMQ_URL=amqp://jobportal:MAT_KHAU_NGAU_NHIEN@localhost:5673
+INTERNAL_SECRET=
 ```
 
 Khởi chạy XAMPP/MySQL, nạp database mẫu nếu cần, rồi chạy backend:
@@ -174,9 +175,13 @@ MYSQL_PORT=3333
 MYSQL_USER=root
 MYSQL_PASSWORD=
 MYSQL_DATABASE=jobfindtest
-JWT_SECRET=phai-trung-voi-backend
+JWT_SECRET=
+RABBITMQ_USER=jobportal
+RABBITMQ_PASSWORD=
+POSTGRES_USER=jobportal
+POSTGRES_PASSWORD=
 LEGACY_URL=http://host.docker.internal:5000
-INTERNAL_SECRET=phai-trung-voi-backend
+INTERNAL_SECRET=
 CORS_ORIGIN=http://localhost:3000
 
 # Bắt buộc nếu muốn gửi email kết quả thật

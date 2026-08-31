@@ -20,3 +20,9 @@ export const assertSecureJwtSecret = (value) => {
 };
 
 export const getJwtSecret = () => assertSecureJwtSecret(process.env.JWT_SECRET);
+
+export const requireEnvironment = (name) => {
+    const value = typeof process.env[name] === 'string' ? process.env[name].trim() : '';
+    if (!value) throw new Error(`${name} is required`);
+    return value;
+};

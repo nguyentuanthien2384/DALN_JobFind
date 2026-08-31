@@ -47,7 +47,11 @@ export const findPublicPost = (postId) => db.Post.findOne({
                 }
             ]
         }
-    ]
+    ],
+    // The project config enables raw queries globally. Explicit raw/nest keeps
+    // Sequelize from trying to hydrate a raw nested include (`result.get`).
+    raw: true,
+    nest: true
 });
 
 export const isPostOpenForApplications = (post, now = Date.now()) => {

@@ -1,5 +1,6 @@
 import amqplib from 'amqplib';
 import { EXCHANGE } from './events.js';
+import { requireEnvironment } from './securityConfig.js';
 
 const DEAD_LETTER_EXCHANGE = `${EXCHANGE}.dead-letter`;
 
@@ -59,7 +60,7 @@ export const getChannel = async () => {
     if (connecting) return connecting;
 
     connecting = (async () => {
-        const url = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
+        const url = requireEnvironment('RABBITMQ_URL');
         connection = await connectWithRetry(url);
 
         connection.on('error', (err) => log('loi ket noi', err.message));

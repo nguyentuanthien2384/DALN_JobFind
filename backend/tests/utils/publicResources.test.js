@@ -30,6 +30,7 @@ describe('public resource scope', () => {
     await findPublicPost(9);
     const query = mockDb.Post.findOne.mock.calls[0][0];
     expect(query.where).toEqual({ id: 9, statusCode: 'PS1' });
+    expect(query).toEqual(expect.objectContaining({ raw: true, nest: true }));
     expect(query.include[0]).toEqual(expect.objectContaining({ required: true }));
     expect(query.include[0].include[0]).toEqual(expect.objectContaining({
       where: { statusCode: 'S1' }, required: true

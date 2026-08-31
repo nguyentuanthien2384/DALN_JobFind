@@ -107,7 +107,7 @@ khảo `unicode_nodejs` chiếm 3000 / 5672 / 15672 / 27018 / 8500.
 | MongoDB | 27019 | |
 | Elasticsearch | 9201 | |
 | Redis | 6380 | |
-| RabbitMQ | 5673 | Giao diện quản trị: http://localhost:15673 (jobportal/jobportal) |
+| RabbitMQ | 5673 | Giao diện quản trị: http://localhost:15673 (tài khoản lấy từ `.env`) |
 
 ## Kiểm tra nhanh
 

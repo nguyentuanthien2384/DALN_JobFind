@@ -5,12 +5,17 @@
 // tai Gateway, va vong doi cua circuit breaker.
 
 import { snapshot, restore } from './test-fixture.js';
+import { randomUUID } from 'node:crypto';
 
 const GW = process.env.GATEWAY_URL || 'http://localhost:4000';
 const ES = process.env.ELASTICSEARCH_PUBLIC_URL || 'http://localhost:9201';
 const EMPLOYER = { phonenumber: process.env.SMOKE_EMPLOYER_PHONE || '0795095042', password: '123456' };
 const ADMIN = { phonenumber: process.env.SMOKE_ADMIN_PHONE || '0795095049', password: '123456' };
 const CANDIDATE = { phonenumber: process.env.SMOKE_CANDIDATE_PHONE || '0764188123', password: '123456' };
+// Tat ca request cua mot luot smoke dung chung mot ma. Nho vay audit log co
+// the duoc doi chieu va don dung pham vi, thay vi moi request bi Gateway gan
+// mot UUID rieng va de lai rac trong MongoDB sau moi lan chay.
+const RUN_CORRELATION_ID = process.env.SMOKE_CORRELATION_ID || `smoke-${randomUUID()}`;
 
 const failures = [];
 const check = (name, ok, extra = '') => {
@@ -22,7 +27,13 @@ const section = (t) => console.log(`\n--- ${t} ---`);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const req = async (path, opts = {}) => {
-    const r = await fetch(GW + path, opts);
+    const r = await fetch(GW + path, {
+        ...opts,
+        headers: {
+            ...(opts.headers || {}),
+            'x-correlation-id': RUN_CORRELATION_ID
+        }
+    });
     let b;
     try { b = await r.json(); } catch { b = {}; }
     return { status: r.status, body: b };
@@ -386,8 +397,12 @@ const run = async () => {
             `${r.body.count} dấu vết cho tin #${newId}`);
     }
 
-    r = await req('/api/admin/audit?kind=action&limit=5', { headers: adminAuth });
-    check('Nhật ký ghi lại thao tác người dùng', r.body.errCode === 0,
+    r = await req(
+        `/api/admin/audit?kind=action&correlationId=${encodeURIComponent(RUN_CORRELATION_ID)}&limit=5`,
+        { headers: adminAuth }
+    );
+    check('Nhật ký ghi đúng thao tác của lượt kiểm thử',
+        r.body.errCode === 0 && r.body.count > 0,
         `${r.body.count} bản ghi`);
 
     r = await req('/api/admin/master-data?type=JOBTYPE', { headers: adminAuth });
@@ -407,7 +422,7 @@ const run = async () => {
 (async () => {
     let before = null;
     try {
-        before = await snapshot();
+        before = await snapshot({ correlationId: RUN_CORRELATION_ID });
     } catch (error) {
         console.log(`(khong chup duoc anh CSDL: ${error.message} - se khong don sau khi chay)`);
     }

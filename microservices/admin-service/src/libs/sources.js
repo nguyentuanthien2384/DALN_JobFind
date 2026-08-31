@@ -1,6 +1,7 @@
 import mysql from 'mysql2/promise';
 import pg from 'pg';
 import { createLogger } from '../../../shared/logger.js';
+import { requireEnvironment } from '../../../shared/securityConfig.js';
 
 const logger = createLogger('admin-service');
 
@@ -28,7 +29,7 @@ export const mysqlPool = mysql.createPool({
 });
 
 export const pgPool = new pg.Pool({
-    connectionString: process.env.POSTGRES_URL || 'postgres://jobportal:jobportal@postgres:5432/application_db',
+    connectionString: requireEnvironment('POSTGRES_URL'),
     max: 5
 });
 

@@ -14,6 +14,26 @@
 
 import mysql from 'mysql2/promise';
 import pg from 'pg';
+import { MongoClient } from 'mongodb';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+// Read only the local secrets needed by this host-side fixture. Loading the
+// entire Compose .env into process.env would also import container-only hosts
+// such as host.docker.internal and break direct localhost probes.
+const readLocalEnv = () => {
+    try {
+        return Object.fromEntries(readFileSync(resolve(process.cwd(), '.env'), 'utf8')
+            .split(/\r?\n/)
+            .map((line) => line.match(/^([A-Z0-9_]+)=(.*)$/))
+            .filter(Boolean)
+            .map((match) => [match[1], match[2]]));
+    } catch {
+        return {};
+    }
+};
+
+const localEnv = readLocalEnv();
 
 const { Pool } = pg;
 
@@ -21,7 +41,14 @@ const { Pool } = pg;
 const TEST_PREFIX = 'Kiem Thu ';
 
 const ES = process.env.ELASTICSEARCH_PUBLIC_URL || 'http://localhost:9201';
-const PG = process.env.POSTGRES_PUBLIC_URL || 'postgres://jobportal:jobportal@localhost:5435/application_db';
+const postgresUser = process.env.POSTGRES_USER || localEnv.POSTGRES_USER || 'jobportal';
+const postgresPassword = process.env.POSTGRES_PASSWORD || localEnv.POSTGRES_PASSWORD;
+const PG = process.env.POSTGRES_PUBLIC_URL || (postgresPassword
+    ? `postgres://${encodeURIComponent(postgresUser)}:${encodeURIComponent(postgresPassword)}@localhost:5435/application_db`
+    : null);
+const MONGO = process.env.ADMIN_MONGO_PUBLIC_URL
+    || process.env.MONGO_PUBLIC_URL
+    || 'mongodb://127.0.0.1:27019/admin_db';
 const FIXTURE_LOCK = 'jobfind_microservices_smoke_fixture';
 const FIXTURE_LOCK_TIMEOUT_SECONDS = 90;
 
@@ -48,8 +75,52 @@ const restoreCompanyQuotas = async (conn, companies = []) => {
     }
 };
 
+const normalizeIds = (ids = []) => [...new Set(ids
+    .filter((id) => id !== null && id !== undefined && String(id).trim())
+    .map(String))];
+
+// Ham tach rieng de kiem thu duoc dieu kien an toan quan trong nhat: khong bao
+// gio goi deleteMany({}) neu khong co dau hieu chinh xac cua luot smoke.
+export const buildAuditCleanupFilter = ({ correlationId, postIds = [], taskIds = [] } = {}) => {
+    const clauses = [];
+    const normalizedCorrelationId = String(correlationId || '').trim();
+    const normalizedPostIds = normalizeIds(postIds);
+    const normalizedTaskIds = normalizeIds(taskIds);
+
+    if (normalizedCorrelationId) {
+        clauses.push({ kind: 'action', correlationId: normalizedCorrelationId });
+    }
+    if (normalizedPostIds.length) {
+        clauses.push({
+            kind: 'event', targetType: 'job', targetId: { $in: normalizedPostIds }
+        });
+    }
+    if (normalizedTaskIds.length) {
+        clauses.push({
+            kind: 'event', targetType: 'ai_task', targetId: { $in: normalizedTaskIds }
+        });
+    }
+
+    return clauses.length ? { $or: clauses } : null;
+};
+
+const cleanupAuditLogs = async ({ correlationId, postIds, taskIds }) => {
+    const filter = buildAuditCleanupFilter({ correlationId, postIds, taskIds });
+    if (!filter) return 0;
+
+    const client = new MongoClient(MONGO, { serverSelectionTimeoutMS: 3000 });
+    try {
+        await client.connect();
+        const databaseName = new URL(MONGO).pathname.replace(/^\//, '') || 'admin_db';
+        const result = await client.db(databaseName).collection('auditlogs').deleteMany(filter);
+        return result.deletedCount || 0;
+    } finally {
+        await client.close();
+    }
+};
+
 // --- Chup anh truoc khi chay ---
-export const snapshot = async () => {
+export const snapshot = async ({ correlationId } = {}) => {
     const conn = await mysql.createConnection(mysqlConfig);
     let keepConnectionForRestore = false;
     let companies = [];
@@ -83,7 +154,12 @@ export const snapshot = async () => {
         quotasBoosted = true;
 
         keepConnectionForRestore = true;
-        return { companies, taskIds: tasks.map((t) => t.id), lockConnection: conn };
+        return {
+            companies,
+            taskIds: tasks.map((t) => t.id),
+            correlationId,
+            lockConnection: conn
+        };
     } catch (error) {
         if (quotasBoosted) {
             await restoreCompanyQuotas(conn, companies).catch(quiet('hạn mức công ty'));
@@ -102,6 +178,8 @@ export const restore = async (before) => {
     const conn = before.lockConnection || await mysql.createConnection(mysqlConfig);
     let removed = 0;
     let quotasRestored = false;
+    let postIds = [];
+    let newTaskIds = [];
 
     try {
         // Tim cac tin do kiem thu tao. Ten nam o bang detailposts.
@@ -110,7 +188,7 @@ export const restore = async (before) => {
                JOIN detailposts d ON d.id = p.detailPostId
               WHERE d.name LIKE ?`, [TEST_PREFIX + '%']
         );
-        const postIds = posts.map((p) => p.id);
+        postIds = posts.map((p) => p.id);
         const detailIds = posts.map((p) => p.detailPostId).filter(Boolean);
 
         if (postIds.length) {
@@ -136,6 +214,10 @@ export const restore = async (before) => {
         quotasRestored = true;
 
         // Tac vu AI moi phat sinh trong lan chay nay.
+        const [newTasks] = before.taskIds.length
+            ? await conn.query('SELECT id FROM ai_tasks WHERE id NOT IN (?)', [before.taskIds])
+            : await conn.query('SELECT id FROM ai_tasks');
+        newTaskIds = newTasks.map((task) => task.id);
         if (before.taskIds.length) {
             await conn.query('DELETE FROM ai_tasks WHERE id NOT IN (?)', [before.taskIds])
                 .catch(() => {});
@@ -146,6 +228,7 @@ export const restore = async (before) => {
         // Xoa ho so tuong ung ben PostgreSQL, neu khong bang Kanban se con lai
         // nhung the ung vien tro toi tin da bi xoa.
         await (async () => {
+            if (!PG) throw new Error('Thiếu POSTGRES_PASSWORD hoặc POSTGRES_PUBLIC_URL');
             const pool = new Pool({ connectionString: PG });
             try {
                 await pool.query(
@@ -162,6 +245,20 @@ export const restore = async (before) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: { prefix: { 'name.keyword': TEST_PREFIX } } })
         }).catch(quiet('Elasticsearch'));
+
+        // Action log duoc gan correlationId cua ca luot chay. Event log chua
+        // mang header HTTP, nen doi chieu bang chinh ID cua tin/tac vu AI tam
+        // vua tao. Cac ID nay deu thuoc doi tuong da bi xoa o tren, vi vay khong
+        // cham vao nhat ky hien huu hoac hoat dong nguoi dung that.
+        const removedAuditLogs = await cleanupAuditLogs({
+            correlationId: before.correlationId,
+            postIds,
+            taskIds: newTaskIds
+        }).catch((error) => {
+            quiet('MongoDB audit log')(error);
+            return 0;
+        });
+        removed += removedAuditLogs;
 
         console.log(`\nĐã dọn ${removed} bản ghi kiểm thử, trả các ô đếm gói dịch vụ về như cũ.`);
     } finally {
