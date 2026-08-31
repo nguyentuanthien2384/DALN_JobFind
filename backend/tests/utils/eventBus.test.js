@@ -138,6 +138,22 @@ describe('eventBus', () => {
     });
   });
 
+  test('publishes company approval/activity changes for public search filtering', async () => {
+    process.env.RABBITMQ_URL = 'amqp://rabbit';
+    const { channel } = rabbit();
+    const company = {
+      companyId: 4, companyStatusCode: 'S2', companyCensorCode: 'CS1'
+    };
+    mockQuery.mockResolvedValue([[company]]);
+    const events = load();
+    await events.emitCompanyUpdated(4);
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('FROM companies'), expect.objectContaining({
+      replacements: { companyId: 4 }, type: 'SELECT'
+    }));
+    expect(channel.publish.mock.calls[0][1]).toBe('company.updated');
+    expect(JSON.parse(channel.publish.mock.calls[0][2].toString())).toEqual(company);
+  });
+
   test('application event skips orphan rows, supports absent names, and swallows DB errors', async () => {
     process.env.RABBITMQ_URL = 'amqp://rabbit';
     const { channel } = rabbit();

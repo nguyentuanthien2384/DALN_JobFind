@@ -2,6 +2,53 @@ import db from "../models/index";
 const { Op } = require("sequelize");
 require('dotenv').config();
 
+const RECRUITER_ROLES = new Set(['COMPANY', 'EMPLOYER']);
+
+const loadChatParticipants = async (senderId, receiverId) => db.User.findAll({
+    where: { id: { [Op.in]: [Number(senderId), Number(receiverId)] } },
+    attributes: ['id', 'companyId'],
+    include: [
+        {
+            model: db.Account,
+            as: 'userAccountData',
+            attributes: ['roleCode', 'statusCode'],
+            required: true
+        },
+        {
+            model: db.Company,
+            as: 'userCompanyData',
+            attributes: ['id', 'statusCode', 'censorCode'],
+            required: false
+        }
+    ],
+    raw: true,
+    nest: true
+});
+
+const canParticipantsChat = async (senderId, receiverId) => {
+    const participants = await loadChatParticipants(senderId, receiverId);
+    const sender = participants.find((user) => Number(user.id) === Number(senderId));
+    const receiver = participants.find((user) => Number(user.id) === Number(receiverId));
+    if (!sender || !receiver) return { allowed: false, missingReceiver: !receiver };
+
+    const active = (user) => user.userAccountData?.statusCode === 'S1';
+    const role = (user) => user.userAccountData?.roleCode;
+    const recruiterIsApproved = (user) => RECRUITER_ROLES.has(role(user))
+        && user.companyId !== null
+        && user.companyId !== undefined
+        && Number(user.userCompanyData?.id) === Number(user.companyId)
+        && user.userCompanyData?.statusCode === 'S1'
+        && user.userCompanyData?.censorCode === 'CS1';
+
+    if (!active(sender) || !active(receiver)) return { allowed: false };
+    const candidateAndRecruiter = (
+        role(sender) === 'CANDIDATE' && recruiterIsApproved(receiver)
+    ) || (
+        role(receiver) === 'CANDIDATE' && recruiterIsApproved(sender)
+    );
+    return { allowed: candidateAndRecruiter };
+};
+
 // Gửi tin nhắn
 let handleSendMessage = (data) => {
     return new Promise(async (resolve, reject) => {
@@ -23,16 +70,16 @@ let handleSendMessage = (data) => {
                     errMessage: 'Không thể tự gửi tin nhắn cho chính mình'
                 })
             } else {
-                let receiver = await db.User.findOne({
-                    where: { id: data.receiverId },
-                    attributes: {
-                        exclude: ['userId']
-                    }
-                })
-                if (!receiver) {
+                const relationship = await canParticipantsChat(data.senderId, data.receiverId)
+                if (relationship.missingReceiver) {
                     resolve({
                         errCode: 3,
                         errMessage: 'Không tìm thấy người nhận'
+                    })
+                } else if (!relationship.allowed) {
+                    resolve({
+                        errCode: 5,
+                        errMessage: 'Chỉ ứng viên và nhà tuyển dụng thuộc công ty đã duyệt mới được nhắn tin với nhau'
                     })
                 } else {
                     let message = await db.ChatMessage.create({
@@ -91,6 +138,14 @@ let getConversation = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             } else {
+                const relationship = await canParticipantsChat(data.userId, data.partnerId)
+                if (!relationship.allowed) {
+                    resolve({
+                        errCode: 5,
+                        errMessage: 'Bạn không có quyền mở cuộc trò chuyện này'
+                    })
+                    return
+                }
                 await markConversationRead(data)
                 let messages = await db.ChatMessage.findAll({
                     where: {

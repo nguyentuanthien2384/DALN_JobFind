@@ -1,6 +1,10 @@
 import userService from '../services/userService';
 import { canAccessCandidateProfile, canManageCompanyUser } from '../utils/authorization';
-import { getGrantedPermissions } from '../middlewares/authorize';
+import {
+    getGrantedPermissions,
+    isPermissionGranted,
+    PERMISSIONS
+} from '../middlewares/authorize';
 
 const canUpdateUser = (req, targetUserId) => {
     const roleCode = req.user?.userAccountData?.roleCode;
@@ -10,11 +14,23 @@ const canUpdateUser = (req, targetUserId) => {
 
 let handleCreateNewUser = async (req, res) => {
     try {
+        const creatorRoleCode = req.user?.userAccountData?.roleCode || null;
+        // Route nay dung chung cho dang ky cong khai, admin tao tai khoan va
+        // chu cong ty tao nhan su nen khong the gan mot authorize middleware
+        // duy nhat. Rieng COMPANY van phai dap ung day du quyen quan ly doi ngu
+        // (co companyId, cong ty dang hoat dong va da duyet).
+        if (creatorRoleCode === 'COMPANY'
+            && !isPermissionGranted(req, PERMISSIONS.COMPANY_TEAM_MANAGE)) {
+            return res.status(403).json({
+                errCode: 3,
+                errMessage: 'Công ty chưa được duyệt hoặc không có quyền tạo nhân sự'
+            });
+        }
         // Quyen cua tai khoan moi khong duoc tin tuong tu body: neu khong chan,
         // bat ky ai cung tu dang ky duoc mot tai khoan ADMIN.
         let data = await userService.handleCreateNewUser({
             ...req.body,
-            creatorRoleCode: req.user?.userAccountData?.roleCode || null,
+            creatorRoleCode,
             creatorCompanyId: req.user?.companyId || null
         });
         return res.status(200).json(data);

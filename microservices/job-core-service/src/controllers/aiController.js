@@ -60,7 +60,11 @@ export const matchCv = async (req, res) => {
 
     const [rows] = await pool.query(
         `SELECT d.name, d.descriptionHTML FROM posts p
-         JOIN detailposts d ON d.id = p.detailPostId WHERE p.id = ?`,
+         JOIN detailposts d ON d.id = p.detailPostId
+         JOIN users u ON u.id = p.userId
+         JOIN companies c ON c.id = u.companyId
+         WHERE p.id = ? AND p.statusCode = 'PS1'
+           AND c.statusCode = 'S1' AND c.censorCode = 'CS1'`,
         [jobId]
     );
     if (!rows.length) {
@@ -88,9 +92,10 @@ export const coverLetter = async (req, res) => {
         `SELECT d.name, d.descriptionHTML, c.name AS companyName
          FROM posts p
          JOIN detailposts d ON d.id = p.detailPostId
-         LEFT JOIN users u ON u.id = p.userId
-         LEFT JOIN companies c ON c.id = u.companyId
-         WHERE p.id = ?`,
+         JOIN users u ON u.id = p.userId
+         JOIN companies c ON c.id = u.companyId
+         WHERE p.id = ? AND p.statusCode = 'PS1'
+           AND c.statusCode = 'S1' AND c.censorCode = 'CS1'`,
         [jobId]
     );
     if (!rows.length) {

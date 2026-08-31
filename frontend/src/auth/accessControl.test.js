@@ -127,13 +127,15 @@ describe("frontend access-control policy", () => {
         ])).toBe(false);
     });
 
-    it("allows CANDIDATE profile, candidate area and chat only", () => {
+    it("allows CANDIDATE profile, applications, social actions and chat", () => {
         const user = { id: 6, roleCode: ROLES.CANDIDATE };
 
         expectExactPermissions(user, [
             PERMISSIONS.MANAGE_PROFILE,
             PERMISSIONS.USE_CHAT,
             PERMISSIONS.VIEW_CANDIDATE_AREA,
+            PERMISSIONS.APPLY_TO_JOB,
+            PERMISSIONS.SOCIAL_INTERACT,
         ]);
         expect(hasPermission(user, PERMISSIONS.ACCESS_ADMIN_AREA)).toBe(false);
         expect(hasPermission(user, PERMISSIONS.VIEW_ADMIN_HOME)).toBe(false);

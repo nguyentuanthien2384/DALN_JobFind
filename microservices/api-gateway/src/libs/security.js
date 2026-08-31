@@ -99,6 +99,31 @@ export const rejectUnsafeProxyPath = (req, res, next) => {
     return next();
 };
 
+// Endpoint co segment `internal` chi danh cho giao tiep service-to-service.
+// Kiem tra tren URL goc va giai ma lap de `/api/admin/internal/...` cung nhu
+// `/api/admin/%69nternal/...` khong the di qua mot public proxy prefix.
+export const hasInternalPathSegment = (rawValue) => {
+    if (typeof rawValue !== 'string') return true;
+    let current = rawValue.split('?')[0];
+
+    for (let depth = 0; depth < 5; depth += 1) {
+        if (current.split('/').some((segment) => segment.toLowerCase() === 'internal')) {
+            return true;
+        }
+        let decoded;
+        try {
+            decoded = decodeURIComponent(current);
+        } catch {
+            return true;
+        }
+        if (decoded === current) return false;
+        current = decoded;
+    }
+
+    // Qua nhieu lop ma hoa la bat thuong va phai fail closed.
+    return true;
+};
+
 export const applySocketCorsHeaders = (proxyRes, req, allowedOrigins) => {
     const origin = req.headers.origin;
     if (origin && isOriginAllowed(origin, allowedOrigins)) {

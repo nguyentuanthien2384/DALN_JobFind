@@ -358,7 +358,11 @@ describe('Redis rate limiter', () => {
 
 describe('gateway HTTP and WebSocket security configuration', () => {
     it('rejects encoded path traversal before any route or downstream proxy', async () => {
-        const { isSafeProxyPath, rejectUnsafeProxyPath } = await import('../api-gateway/src/libs/security.js');
+        const {
+            hasInternalPathSegment,
+            isSafeProxyPath,
+            rejectUnsafeProxyPath
+        } = await import('../api-gateway/src/libs/security.js');
         expect(isSafeProxyPath('/api/search/jobs')).toBe(true);
         expect(isSafeProxyPath('/api/search/caf%C3%A9')).toBe(true);
         for (const unsafe of [
@@ -383,6 +387,15 @@ describe('gateway HTTP and WebSocket security configuration', () => {
         const allowedNext = vi.fn();
         rejectUnsafeProxyPath(makeReq({ originalUrl: '/api/search/jobs?q=node' }), makeRes(), allowedNext);
         expect(allowedNext).toHaveBeenCalledOnce();
+
+        for (const internal of [
+            '/internal/jobs',
+            '/api/admin/internal/alias-map',
+            '/api/admin/%69nternal/alias-map',
+            '/api/admin/%2569nternal/alias-map'
+        ]) expect(hasInternalPathSegment(internal)).toBe(true);
+        expect(hasInternalPathSegment('/api/admin/internal-tools')).toBe(false);
+        expect(hasInternalPathSegment('/api/search/jobs')).toBe(false);
     });
 
     it('normalizes and deduplicates a comma-separated CORS origin list', async () => {

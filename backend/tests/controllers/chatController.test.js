@@ -36,6 +36,18 @@ describe('chatController', () => {
     expect(mockEmitNewMessage).not.toHaveBeenCalled();
   });
 
+  test('maps participant-level chat denials to HTTP 403', async () => {
+    mockService.handleSendMessage.mockResolvedValueOnce({ errCode: 5, errMessage: 'denied' });
+    const sendRes = createResponse();
+    await controller.handleSendMessage(req(), sendRes);
+    expect(sendRes.status).toHaveBeenCalledWith(403);
+
+    mockService.getConversation.mockResolvedValueOnce({ errCode: 5, errMessage: 'denied' });
+    const readRes = createResponse();
+    await controller.getConversation(req(), readRes);
+    expect(readRes.status).toHaveBeenCalledWith(403);
+  });
+
   test('scopes conversation reads to the authenticated user', async () => {
     mockService.getConversation.mockResolvedValueOnce({ errCode: 0 });
     await controller.getConversation(req(), createResponse());

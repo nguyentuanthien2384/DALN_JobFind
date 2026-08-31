@@ -42,11 +42,38 @@ describe('cvService', () => {
   });
 
   test('creates a CV and returns its id, including a failed create response', async () => {
+    mockDb.Post.findOne.mockResolvedValue({ id: 2, timeEnd: String(Date.now() + 60_000) });
+    mockDb.Cv.findOne.mockResolvedValue(null);
     mockDb.Cv.create.mockResolvedValueOnce({ id: 9 }).mockResolvedValueOnce(null);
     const payload = { userId: 1, postId: 2, file: 'base64', description: 'hello' };
     expect(await service.handleCreateCv(payload)).toEqual(expect.objectContaining({ errCode: 0, cvId: 9 }));
     expect(mockDb.Cv.create).toHaveBeenCalledWith({ userId: 1, postId: 2, file: 'base64', isChecked: 0, description: 'hello' });
     expect((await service.handleCreateCv(payload)).errCode).toBe(2);
+  });
+
+  test('rejects hidden, expired and duplicate applications', async () => {
+    const payload = { userId: 1, postId: 2, file: 'base64', description: 'hello' };
+    mockDb.Post.findOne.mockResolvedValueOnce(null);
+    expect((await service.handleCreateCv(payload)).errCode).toBe(3);
+
+    mockDb.Post.findOne.mockResolvedValueOnce({ id: 2, timeEnd: String(Date.now() - 1) });
+    expect((await service.handleCreateCv(payload)).errCode).toBe(4);
+
+    mockDb.Post.findOne.mockResolvedValueOnce({ id: 2, timeEnd: String(Date.now() + 60_000) });
+    mockDb.Cv.findOne.mockResolvedValueOnce({ id: 8 });
+    expect((await service.handleCreateCv(payload)).errCode).toBe(5);
+    expect(mockDb.Cv.create).not.toHaveBeenCalled();
+  });
+
+  test('maps a concurrent duplicate insert to the stable duplicate response', async () => {
+    mockDb.Post.findOne.mockResolvedValue({ id: 2, timeEnd: String(Date.now() + 60_000) });
+    mockDb.Cv.findOne.mockResolvedValue(null);
+    const conflict = new Error('duplicate');
+    conflict.name = 'SequelizeUniqueConstraintError';
+    mockDb.Cv.create.mockRejectedValue(conflict);
+    expect((await service.handleCreateCv({
+      userId: 1, postId: 2, file: 'base64', description: 'hello'
+    })).errCode).toBe(5);
   });
 
   test('lists applicants and calculates a CV skill match percentage', async () => {
@@ -230,6 +257,10 @@ describe('cvService', () => {
       ['checkSeeCandiate', { companyId: 1, candidateId: 2 }, mockDb.Company, 'findOne']
     ];
     for (const [method, arg, target, dbMethod] of failures) {
+      if (method === 'handleCreateCv') {
+        mockDb.Post.findOne.mockResolvedValueOnce({ id: 2, timeEnd: String(Date.now() + 60_000) });
+        mockDb.Cv.findOne.mockResolvedValueOnce(null);
+      }
       target[dbMethod].mockRejectedValueOnce(new Error('db'));
       await expect(service[method](arg)).rejects.toBeTruthy();
     }

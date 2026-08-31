@@ -22,13 +22,17 @@ const JobDetail = () => {
     const [isFavorite, setIsFavorite] = useState(false);
     const [relatedPost, setRelatedPost] = useState([]);
     const currentUser = readJsonStorage("userData");
-    const canStartChat = !currentUser || hasPermission(currentUser, PERMISSIONS.USE_CHAT);
+    // Khach van thay CTA de duoc dua toi trang dang nhap. Sau khi dang nhap,
+    // cac thao tac tren trang viec lam chi danh cho CANDIDATE.
+    const canApply = !currentUser || hasPermission(currentUser, PERMISSIONS.APPLY_TO_JOB);
+    const canSocialInteract = !currentUser || hasPermission(currentUser, PERMISSIONS.SOCIAL_INTERACT);
+    const canStartChat = canSocialInteract;
     useEffect(() => {
         if (id) {
             fetchPost(id);
             fetchRelatedPost(id);
             const userData = JSON.parse(localStorage.getItem("userData"));
-            if (userData) {
+            if (userData && hasPermission(userData, PERMISSIONS.SOCIAL_INTERACT)) {
                 fetchCheckFavorite(id, userData.id);
             }
         }
@@ -66,6 +70,10 @@ const JobDetail = () => {
             }, 1000);
             return;
         }
+        if (!hasPermission(userData, PERMISSIONS.SOCIAL_INTERACT)) {
+            toast.error("Chỉ ứng viên mới có thể lưu tin tuyển dụng");
+            return;
+        }
         let res = await toggleFavoritePostService({
             userId: userData.id,
             postId: id,
@@ -81,7 +89,10 @@ const JobDetail = () => {
     const handleOpenModal = () => {
         if (dataPost.timeEnd && CommonUtils.formatDate(dataPost.timeEnd) > 0) {
             const userData = JSON.parse(localStorage.getItem("userData"));
-            if (userData) setAcitveModal(true);
+            if (userData && hasPermission(userData, PERMISSIONS.APPLY_TO_JOB)) setAcitveModal(true);
+            else if (userData) {
+                toast.error("Chỉ ứng viên mới có thể nộp CV");
+            }
             else {
                 toast.error("Xin hãy đăng nhập để có thể thực hiện nộp CV");
                 setTimeout(() => {
@@ -345,15 +356,15 @@ const JobDetail = () => {
                                             </li>
                                         </ul>
                                         <div className="job-actions">
-                                            <button
+                                            {canApply && <button
                                                 type="button"
                                                 className="job-action-btn job-action-btn--primary"
                                                 onClick={() => handleOpenModal()}
                                             >
                                                 <i className="far fa-paper-plane"></i>
                                                 Ứng tuyển ngay
-                                            </button>
-                                            <button
+                                            </button>}
+                                            {canSocialInteract && <button
                                                 type="button"
                                                 className={
                                                     "job-action-btn job-action-btn--secondary" +
@@ -373,7 +384,7 @@ const JobDetail = () => {
                                                 {isFavorite
                                                     ? "Đã lưu tin"
                                                     : "Lưu tin"}
-                                            </button>
+                                            </button>}
                                             {canStartChat && <button
                                                 type="button"
                                                 className="job-action-btn job-action-btn--ghost"

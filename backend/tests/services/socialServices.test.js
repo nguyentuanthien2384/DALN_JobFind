@@ -54,6 +54,7 @@ describe('favoritePostService', () => {
   });
 
   test('checks favorite state and returns paginated saved jobs', async () => {
+    mockDb.Post.findOne.mockResolvedValue({ id: 2 });
     mockDb.FavoritePost.findOne.mockResolvedValueOnce({ id: 1 }).mockResolvedValueOnce(null);
     expect((await favorite.checkFavoriteByUser({ userId: 1, postId: 2 })).isFavorite).toBe(true);
     expect((await favorite.checkFavoriteByUser({ userId: 1, postId: 3 })).isFavorite).toBe(false);
@@ -62,11 +63,28 @@ describe('favoritePostService', () => {
       errCode: 0, data: [{ id: 1 }], count: 1
     });
     expect(mockDb.FavoritePost.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 0 }));
+    const postInclude = mockDb.FavoritePost.findAndCountAll.mock.calls[0][0].include[0];
+    expect(postInclude).toEqual(expect.objectContaining({ where: { statusCode: 'PS1' }, required: true }));
+    expect(postInclude.include[1]).toEqual(expect.objectContaining({
+      attributes: ['id', 'firstName', 'lastName', 'image', 'companyId'],
+      required: true
+    }));
+    expect(postInclude.include[1].include[0]).toEqual(expect.objectContaining({
+      where: { statusCode: 'S1', censorCode: 'CS1' },
+      required: true
+    }));
+  });
+
+  test('returns a neutral favorite state for a non-public post', async () => {
+    mockDb.Post.findOne.mockResolvedValue(null);
+    expect(await favorite.checkFavoriteByUser({ userId: 1, postId: 2 })).toEqual({
+      errCode: 0, isFavorite: false
+    });
+    expect(mockDb.FavoritePost.findOne).not.toHaveBeenCalled();
   });
 
   test.each([
     ['handleToggleFavoritePost', { userId: 1, postId: 2 }, 'findOne'],
-    ['checkFavoriteByUser', { userId: 1, postId: 2 }, 'findOne'],
     ['getFavoritePostByUser', { userId: 1 }, 'findAndCountAll']
   ])('%s rejects database failures', async (method, args, dbMethod) => {
     mockDb.FavoritePost[dbMethod].mockRejectedValueOnce(new Error('db'));
@@ -104,6 +122,7 @@ describe('followCompanyService', () => {
   });
 
   test('returns public follower count and optional current-user state', async () => {
+    mockDb.Company.findOne.mockResolvedValue({ id: 2 });
     mockDb.FollowCompany.count.mockResolvedValue(4);
     expect(await follow.checkFollowCompany({ companyId: 2 })).toEqual({ errCode: 0, isFollow: false, countFollower: 4 });
     mockDb.FollowCompany.findOne.mockResolvedValue({ id: 1 });
@@ -116,11 +135,20 @@ describe('followCompanyService', () => {
       errCode: 0, data: ['company'], count: 1
     });
     expect(mockDb.FollowCompany.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 5, offset: 10 }));
+    expect(mockDb.FollowCompany.findAndCountAll.mock.calls[0][0].include[0]).toEqual(expect.objectContaining({
+      where: { statusCode: 'S1', censorCode: 'CS1' },
+      required: true
+    }));
+  });
+
+  test('does not expose follower state for a non-public company', async () => {
+    mockDb.Company.findOne.mockResolvedValue(null);
+    expect((await follow.checkFollowCompany({ companyId: 2, userId: 1 })).errCode).toBe(2);
+    expect(mockDb.FollowCompany.count).not.toHaveBeenCalled();
   });
 
   test.each([
     ['handleToggleFollowCompany', { userId: 1, companyId: 2 }, 'findOne'],
-    ['checkFollowCompany', { companyId: 2 }, 'count'],
     ['getFollowedCompanyByUser', { userId: 1 }, 'findAndCountAll']
   ])('%s rejects database failures', async (method, args, dbMethod) => {
     mockDb.FollowCompany[dbMethod].mockRejectedValueOnce(new Error('db'));
@@ -159,6 +187,7 @@ describe('companyReviewService', () => {
   });
 
   test('calculates rounded averages and handles an empty review list', async () => {
+    mockDb.Company.findOne.mockResolvedValue({ id: 2 });
     mockDb.CompanyReview.findAndCountAll.mockResolvedValue({ rows: ['r'], count: 1 });
     mockDb.CompanyReview.sum.mockResolvedValueOnce(13).mockResolvedValueOnce(null);
     mockDb.CompanyReview.count.mockResolvedValueOnce(3).mockResolvedValueOnce(0);
@@ -168,6 +197,12 @@ describe('companyReviewService', () => {
     expect(mockDb.CompanyReview.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 2, offset: 0 }));
     expect((await review.getReviewByCompany({ companyId: 2 })).averageStar).toBe(0);
     expect((await review.getReviewByCompany({})).errCode).toBe(1);
+  });
+
+  test('does not expose reviews for a non-public company', async () => {
+    mockDb.Company.findOne.mockResolvedValue(null);
+    expect((await review.getReviewByCompany({ companyId: 2 })).errCode).toBe(3);
+    expect(mockDb.CompanyReview.findAndCountAll).not.toHaveBeenCalled();
   });
 
   test('deletion handles missing rows and enforces owner/admin authorisation', async () => {
@@ -194,7 +229,7 @@ describe('companyReviewService', () => {
 
   test.each([
     ['handleCreateReview', { userId: 1, companyId: 2, star: 5 }, mockDb.Company, 'findOne'],
-    ['getReviewByCompany', { companyId: 2 }, mockDb.CompanyReview, 'findAndCountAll'],
+    ['getReviewByCompany', { companyId: 2 }, mockDb.Company, 'findOne'],
     ['handleDeleteReview', { id: 1, userId: 2 }, mockDb.CompanyReview, 'findOne']
   ])('%s rejects database failures', async (method, args, target, dbMethod) => {
     target[dbMethod].mockRejectedValueOnce(new Error('db'));
@@ -244,11 +279,35 @@ describe('chatService', () => {
     expect((await chat.handleSendMessage({ senderId: 1, receiverId: '1', content: 'x' })).errCode).toBe(2);
   });
 
-  test('checks the receiver and stores trimmed content', async () => {
-    mockDb.User.findOne.mockResolvedValueOnce(null);
+  test('enforces candidate-to-approved-recruiter chat and stores trimmed content', async () => {
+    mockDb.User.findAll.mockResolvedValueOnce([{ id: 1 }]);
     expect((await chat.handleSendMessage({ senderId: 1, receiverId: 2, content: ' hi ' })).errCode).toBe(3);
+
+    mockDb.User.findAll.mockResolvedValueOnce([
+      { id: 1, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } },
+      { id: 2, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } }
+    ]);
+    expect((await chat.handleSendMessage({ senderId: 1, receiverId: 2, content: ' hi ' })).errCode).toBe(5);
+
+    mockDb.User.findAll.mockResolvedValueOnce([
+      { id: 1, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } },
+      {
+        id: 2, companyId: 4,
+        userAccountData: { roleCode: 'EMPLOYER', statusCode: 'S1' },
+        userCompanyData: { id: 4, statusCode: 'S1', censorCode: 'CS3' }
+      }
+    ]);
+    expect((await chat.handleSendMessage({ senderId: 1, receiverId: 2, content: ' hi ' })).errCode).toBe(5);
+
     const saved = { id: 9 };
-    mockDb.User.findOne.mockResolvedValueOnce({ id: 2 });
+    mockDb.User.findAll.mockResolvedValueOnce([
+      { id: 1, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } },
+      {
+        id: 2, companyId: 4,
+        userAccountData: { roleCode: 'EMPLOYER', statusCode: 'S1' },
+        userCompanyData: { id: 4, statusCode: 'S1', censorCode: 'CS1' }
+      }
+    ]);
     mockDb.ChatMessage.create.mockResolvedValueOnce(saved);
     expect(await chat.handleSendMessage({ senderId: 1, receiverId: 2, content: ' hi ' })).toEqual(expect.objectContaining({
       errCode: 0, data: saved
@@ -268,6 +327,14 @@ describe('chatService', () => {
   test('loads newest limited messages, reverses for display, and returns partner data', async () => {
     expect((await chat.getConversation({})).errCode).toBe(1);
     const rows = [{ id: 3 }, { id: 2 }, { id: 1 }];
+    mockDb.User.findAll.mockResolvedValueOnce([
+      { id: 1, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } },
+      {
+        id: 2, companyId: 4,
+        userAccountData: { roleCode: 'EMPLOYER', statusCode: 'S1' },
+        userCompanyData: { id: 4, statusCode: 'S1', censorCode: 'CS1' }
+      }
+    ]);
     mockDb.ChatMessage.update.mockResolvedValue([1]);
     mockDb.ChatMessage.findAll.mockResolvedValue(rows);
     mockDb.User.findOne.mockResolvedValue({ id: 2 });
@@ -275,6 +342,14 @@ describe('chatService', () => {
       errCode: 0, data: [{ id: 1 }, { id: 2 }, { id: 3 }], partnerData: { id: 2 }
     });
     expect(mockDb.ChatMessage.findAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 200, order: [['createdAt', 'DESC']] }));
+    mockDb.User.findAll.mockResolvedValueOnce([
+      { id: 1, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } },
+      {
+        id: 2, companyId: 4,
+        userAccountData: { roleCode: 'EMPLOYER', statusCode: 'S1' },
+        userCompanyData: { id: 4, statusCode: 'S1', censorCode: 'CS1' }
+      }
+    ]);
     await chat.getConversation({ userId: 1, partnerId: 2, limit: -5 });
     expect(mockDb.ChatMessage.findAll).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 1 }));
   });
@@ -295,9 +370,9 @@ describe('chatService', () => {
   });
 
   test.each([
-    ['handleSendMessage', { senderId: 1, receiverId: 2, content: 'hi' }, mockDb.User, 'findOne'],
+    ['handleSendMessage', { senderId: 1, receiverId: 2, content: 'hi' }, mockDb.User, 'findAll'],
     ['markConversationRead', { userId: 1, partnerId: 2 }, mockDb.ChatMessage, 'update'],
-    ['getConversation', { userId: 1, partnerId: 2 }, mockDb.ChatMessage, 'update'],
+    ['getConversation', { userId: 1, partnerId: 2 }, mockDb.User, 'findAll'],
     ['getListConversation', { userId: 1 }, mockDb.ChatMessage, 'findAll']
   ])('%s rejects database failures', async (method, args, target, dbMethod) => {
     target[dbMethod].mockRejectedValueOnce(new Error('db'));

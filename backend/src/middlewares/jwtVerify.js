@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken')
 import db from "../models/index";
+import { getJwtSecret } from '../utils/securityConfig';
 require('dotenv').config();
-const secretString = process.env.JWT_SECRET
 
 const isActiveAccount = (user) => (
     user && user.userAccountData && user.userAccountData.statusCode === 'S1'
@@ -33,7 +33,7 @@ const middlewareControllers = {
         const token = req.headers.authorization
         if (token) {
             const accessToken = token.split(' ')[1]
-            jwt.verify(accessToken, secretString, async (err, payload) => {
+            jwt.verify(accessToken, getJwtSecret(), async (err, payload) => {
                 if (err) {
                     return res.status(403).json({
                         status: false,
@@ -82,7 +82,7 @@ const middlewareControllers = {
         const accessToken = token.split(' ')[1]
         if (!accessToken) return next()
 
-        jwt.verify(accessToken, secretString, async (err, payload) => {
+        jwt.verify(accessToken, getJwtSecret(), async (err, payload) => {
             if (err) return next()
             try {
                 const user = await db.User.findOne({
@@ -103,7 +103,7 @@ const middlewareControllers = {
         const token = req.headers.authorization
         if (token) {
             const accessToken = token.split(' ')[1]
-            jwt.verify(accessToken, secretString, async (err, payload) => {
+            jwt.verify(accessToken, getJwtSecret(), async (err, payload) => {
                 if (err) {
                     return res.status(403).json({
                         status: false,

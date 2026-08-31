@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { resolveCurrentIdentity } from '../libs/accountStore.js';
 import { hasApprovedCompany, hasPermission, isKnownRole } from '../../../shared/accessControl.js';
+import { getJwtSecret } from '../../../shared/securityConfig.js';
 
 // Xac thuc tap trung tai Gateway.
 //
@@ -9,15 +10,13 @@ import { hasApprovedCompany, hasPermission, isKnownRole } from '../../../shared/
 // khoi request cua client truoc khi Gateway tu dat lai). Nho vay logic xac thuc
 // chi nam mot cho, va service ben duoi khong can biet ve JWT.
 
-const secret = process.env.JWT_SECRET;
-
 const decodeUserId = (req) => {
     const header = req.headers.authorization;
     if (!header) return null;
     const token = header.startsWith('Bearer ') ? header.slice(7) : header;
     if (!token) return null;
     try {
-        const payload = jwt.verify(token, secret);
+        const payload = jwt.verify(token, getJwtSecret());
         const id = Number(payload.sub ?? payload.id);
         return Number.isInteger(id) && id > 0 ? id : null;
     } catch {

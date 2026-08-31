@@ -105,10 +105,10 @@ const MENU_ADMIN = [
 const MENU_COMPANY = [
     {
         key: 'company-info', permission: PERMISSIONS.MANAGE_COMPANY, title: 'Quản lý công ty', icon: 'fas fa-clipboard menu-icon', children: [
-            { to: '/admin/edit-company/', label: 'Thông tin công ty' },
-            { to: '/admin/recruitment/', label: 'Tuyển dụng vào công ty' },
-            { to: '/admin/list-employer/', label: 'Danh sách nhân viên' },
-            { to: '/admin/add-user/', label: 'Thêm nhân viên' },
+            { to: '/admin/edit-company/', label: 'Thông tin công ty', permission: PERMISSIONS.MANAGE_COMPANY },
+            { to: '/admin/recruitment/', label: 'Tuyển dụng vào công ty', permission: PERMISSIONS.MANAGE_TEAM },
+            { to: '/admin/list-employer/', label: 'Danh sách nhân viên', permission: PERMISSIONS.MANAGE_TEAM },
+            { to: '/admin/add-user/', label: 'Thêm nhân viên', permission: PERMISSIONS.MANAGE_TEAM },
         ]
     },
     {
@@ -186,12 +186,21 @@ const Menu = ({ user: suppliedUser }) => {
 
     // Danh sach nhom menu theo vai tro
     const getGroups = () => {
+        const visibleGroups = (menu) => menu
+            .filter(group => hasPermission(user, group.permission))
+            .map(group => ({
+                ...group,
+                children: group.children.filter(child => (
+                    !child.permission || hasPermission(user, child.permission)
+                ))
+            }))
+            .filter(group => group.children.length > 0)
         if (!user) return []
-        if (user.roleCode === 'ADMIN') return MENU_ADMIN.filter(group => hasPermission(user, group.permission))
-        if (user.roleCode === 'COMPANY') return MENU_COMPANY.filter(group => hasPermission(user, group.permission))
+        if (user.roleCode === 'ADMIN') return visibleGroups(MENU_ADMIN)
+        if (user.roleCode === 'COMPANY') return visibleGroups(MENU_COMPANY)
         if (user.roleCode === 'EMPLOYER') {
             const menu = hasCompanyMembership(user) ? MENU_EMPLOYER : MENU_EMPLOYER_CHUA_CO_CONG_TY
-            return menu.filter(group => hasPermission(user, group.permission))
+            return visibleGroups(menu)
         }
         return []
     }

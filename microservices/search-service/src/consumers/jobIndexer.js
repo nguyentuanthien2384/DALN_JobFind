@@ -97,7 +97,13 @@ export const rebuildIndex = async () => {
 export const startIndexer = async () => {
     await consume(
         QUEUES.SEARCH_INDEXER,
-        [EVENTS.JOB_CREATED, EVENTS.JOB_UPDATED, EVENTS.JOB_DELETED, EVENTS.JOB_MODERATED],
+        [
+            EVENTS.JOB_CREATED,
+            EVENTS.JOB_UPDATED,
+            EVENTS.JOB_DELETED,
+            EVENTS.JOB_MODERATED,
+            EVENTS.COMPANY_UPDATED
+        ],
         async (payload, routingKey) => {
             switch (routingKey) {
                 case EVENTS.JOB_CREATED:
@@ -120,6 +126,25 @@ export const startIndexer = async () => {
                     });
                     logger.info('da cap nhat trang thai kiem duyet', {
                         jobId: payload.jobId, statusCode: payload.statusCode
+                    });
+                    break;
+                case EVENTS.COMPANY_UPDATED:
+                    if (!payload.companyId) break;
+                    await es.updateByQuery({
+                        index: INDEX,
+                        conflicts: 'proceed',
+                        refresh: true,
+                        query: { term: { companyId: Number(payload.companyId) } },
+                        script: {
+                            source: 'ctx._source.companyStatusCode = params.status; ctx._source.companyCensorCode = params.censor',
+                            params: {
+                                status: payload.companyStatusCode || null,
+                                censor: payload.companyCensorCode || null
+                            }
+                        }
+                    });
+                    logger.info('da cap nhat trang thai cong ty trong index', {
+                        companyId: payload.companyId
                     });
                     break;
                 default:

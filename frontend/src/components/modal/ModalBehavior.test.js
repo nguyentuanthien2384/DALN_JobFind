@@ -105,6 +105,21 @@ describe("SendCvModal", () => {
         expect(screen.getByLabelText("Tự chọn CV")).toBeChecked();
     });
 
+    it("does not expose the application modal to a non-candidate account", () => {
+        localStorage.setItem("userData", JSON.stringify({
+            id: 9,
+            roleCode: "EMPLOYER",
+            companyId: 3,
+            companyStatusCode: "S1",
+            companyCensorCode: "CS1",
+        }));
+        render(<SendCvModal isOpen postId={22} onHide={jest.fn()} />);
+
+        expect(screen.queryByText("NỘP CV CỦA BẠN CHO NHÀ TUYỂN DỤNG")).not.toBeInTheDocument();
+        expect(getDetailUserById).not.toHaveBeenCalled();
+        expect(createNewCv).not.toHaveBeenCalled();
+    });
+
     it("rejects files larger than 2 MB", async () => {
         render(<SendCvModal isOpen postId={22} onHide={jest.fn()} />);
         await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());

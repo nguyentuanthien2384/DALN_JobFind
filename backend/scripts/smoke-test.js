@@ -3,6 +3,8 @@ const candidatePhone = process.env.SMOKE_CANDIDATE_PHONE || "0764188123";
 const adminPhone = process.env.SMOKE_ADMIN_PHONE || "0795095049";
 // Tai khoan nha tuyen dung co cong ty, dung de kiem tra ranh gioi giua cac cong ty.
 const employerPhone = process.env.SMOKE_EMPLOYER_PHONE || "0795095042";
+// Cong ty dang bi tu choi/chua duyet, dung de xac minh khong the tao nhan su.
+const pendingCompanyPhone = process.env.SMOKE_PENDING_COMPANY_PHONE || "0785095048";
 const password = process.env.SMOKE_PASSWORD || "123456";
 
 const failures = [];
@@ -49,10 +51,15 @@ async function run() {
     const candidate = await login(candidatePhone, "Ứng viên");
     const admin = await login(adminPhone, "Quản trị viên");
     const employer = await login(employerPhone, "Nhà tuyển dụng");
+    const pendingCompany = await login(pendingCompanyPhone, "Công ty chưa được duyệt");
 
     const candidateHeaders = { Authorization: `Bearer ${candidate.token}`, "Content-Type": "application/json" };
     const adminHeaders = { Authorization: `Bearer ${admin.token}` };
     const employerHeaders = { Authorization: `Bearer ${employer.token}` };
+    const pendingCompanyHeaders = {
+        Authorization: `Bearer ${pendingCompany.token}`,
+        "Content-Type": "application/json"
+    };
     const employerCompanyId = employer.user.companyId;
 
     section("Chức năng cơ bản");
@@ -115,6 +122,31 @@ async function run() {
     const deniedReadProfile = await request(`/api/get-detail-user-by-id?id=${anotherUserId}`, { headers: candidateHeaders });
     check("Ứng viên không đọc được hồ sơ người khác", deniedReadProfile.response.status === 403);
 
+    const deniedChatPair = await request("/api/send-chat-message", {
+        method: "POST",
+        headers: candidateHeaders,
+        body: JSON.stringify({ receiverId: admin.user.id, content: "smoke-denied" }),
+    });
+    check(
+        "Chat chỉ cho phép ứng viên và nhà tuyển dụng hợp lệ",
+        deniedChatPair.response.status === 403 && deniedChatPair.body.errCode === 5
+    );
+
+    const hiddenCompanyId = pendingCompany.user.companyId;
+    const deniedFollow = await request("/api/toggle-follow-company", {
+        method: "POST",
+        headers: candidateHeaders,
+        body: JSON.stringify({ companyId: hiddenCompanyId }),
+    });
+    check("Không theo dõi được công ty chưa duyệt", deniedFollow.body.errCode === 2);
+
+    const deniedReview = await request("/api/create-company-review", {
+        method: "POST",
+        headers: candidateHeaders,
+        body: JSON.stringify({ companyId: hiddenCompanyId, star: 5, content: "smoke-denied" }),
+    });
+    check("Không đánh giá được công ty chưa duyệt", deniedReview.body.errCode === 3);
+
     section("Hồ sơ ứng tuyển không bị lộ");
 
     const publicCvList = await request("/api/get-all-list-cv-by-post?postId=1&limit=5&offset=0");
@@ -154,6 +186,23 @@ async function run() {
         }),
     });
     check("Không tự đăng ký được tài khoản quản trị", escalate.body.errCode === 3);
+
+    const pendingCompanyCreateTeam = await request("/api/create-new-user", {
+        method: "POST",
+        headers: pendingCompanyHeaders,
+        body: JSON.stringify({
+            phonenumber: "0900999888",
+            firstName: "Test",
+            lastName: "Pending Company",
+            roleCode: "EMPLOYER",
+            email: "pending-company-test@example.com",
+        }),
+    });
+    check(
+        "Công ty chưa được duyệt không thể tạo nhân sự",
+        pendingCompanyCreateTeam.response.status === 403
+            && pendingCompanyCreateTeam.body.errCode === 3
+    );
 
     const resetNoOtp = await request("/api/changepasswordbyPhone", {
         method: "POST",

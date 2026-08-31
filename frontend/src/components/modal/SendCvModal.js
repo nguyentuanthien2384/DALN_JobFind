@@ -4,6 +4,8 @@ import { Modal, ModalFooter, ModalBody, Button, Spinner } from 'reactstrap';
 import { createNewCv } from '../../service/cvService';
 import { getDetailUserById } from '../../service/userService';
 import CommonUtils from '../../util/CommonUtils';
+import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
+import { readJsonStorage } from '../../util/storage';
 import './modal.css'
 
 const dataURLtoFile = (dataurl, filename) => {
@@ -21,14 +23,16 @@ const dataURLtoFile = (dataurl, filename) => {
 };
 
 function SendCvModal(props) {
+    const currentUser = readJsonStorage('userData')
+    const canApply = hasPermission(currentUser, PERMISSIONS.APPLY_TO_JOB)
     const [isLoading, setIsLoading] = useState(false)
     const [inputValue, setInputValue] = useState({
         userId: '', postId: '', file: '', description: '', linkFile: '', linkFileUser: '', fileUser: ''
     })
     const [typeCv,setTypeCv] = useState('pcCv')
     useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem('userData'));
-        if (!userData) return undefined;
+        const userData = readJsonStorage('userData');
+        if (!userData || !hasPermission(userData, PERMISSIONS.APPLY_TO_JOB)) return undefined;
 
         let isMounted = true;
         const getFileCv = async () => {
@@ -84,6 +88,10 @@ function SendCvModal(props) {
         }
     }
     const handleSendCV = async () => {
+        if (!canApply) {
+            toast.error('Chỉ ứng viên mới có thể nộp CV')
+            return
+        }
         setIsLoading(true)
         let cvSend = ''
         if (typeCv === 'userCv') {
@@ -112,6 +120,8 @@ function SendCvModal(props) {
                 toast.error("Gửi thất bại");
         }, 1000);
     }
+    if (props.isOpen && !canApply) return null
+
     return (
         <div>
             <Modal isOpen={props.isOpen} className={'booking-modal-container'}

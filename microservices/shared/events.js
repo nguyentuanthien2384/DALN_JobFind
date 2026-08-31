@@ -11,6 +11,7 @@ export const EVENTS = {
     JOB_CREATED: 'job.created',
     JOB_UPDATED: 'job.updated',
     JOB_DELETED: 'job.deleted',
+    COMPANY_UPDATED: 'company.updated',
 
     // AI Worker phat ra sau khi kiem duyet xong noi dung tin.
     JOB_MODERATED: 'job.moderated',

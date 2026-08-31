@@ -1,4 +1,5 @@
 import db from "../models/index";
+import { APPROVED_COMPANY_WHERE, findPublicCompany } from '../utils/publicResources';
 const { Op } = require("sequelize");
 require('dotenv').config();
 
@@ -27,7 +28,7 @@ let handleToggleFollowCompany = (data) => {
                         errMessage: 'Đã bỏ theo dõi công ty'
                     })
                 } else {
-                    let company = await db.Company.findOne({ where: { id: data.companyId } })
+                    let company = await findPublicCompany(data.companyId)
                     if (!company) {
                         resolve({
                             errCode: 2,
@@ -62,6 +63,14 @@ let checkFollowCompany = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             } else {
+                const company = await findPublicCompany(data.companyId)
+                if (!company) {
+                    resolve({
+                        errCode: 2,
+                        errMessage: 'Không tìm thấy công ty'
+                    })
+                    return
+                }
                 let countFollower = await db.FollowCompany.count({
                     where: { companyId: data.companyId }
                 })
@@ -105,7 +114,9 @@ let getFollowedCompanyByUser = (data) => {
                     include: [
                         {
                             model: db.Company, as: 'companyFollowData',
-                            attributes: ['id', 'name', 'thumbnail', 'address', 'amountEmployer']
+                            attributes: ['id', 'name', 'thumbnail', 'address', 'amountEmployer'],
+                            where: APPROVED_COMPANY_WHERE,
+                            required: true
                         }
                     ]
                 }

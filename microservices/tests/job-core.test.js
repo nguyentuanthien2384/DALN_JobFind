@@ -123,10 +123,19 @@ describe('job write controller', () => {
         const { getJob, listJobsForReindex, loadJobForEvent } = await import('../job-core-service/src/controllers/jobController.js');
         mocks.pool.query.mockResolvedValueOnce([[{ id: 2 }]]);
         await expect(loadJobForEvent(2)).resolves.toEqual({ id: 2 });
-        mocks.pool.query.mockResolvedValueOnce([[{ id: 3 }]]);
+        mocks.pool.query.mockResolvedValueOnce([[
+            { id: 3, statusCode: 'PS1', companyStatusCode: 'S1', companyCensorCode: 'CS1' }
+        ]]);
         const found = makeRes();
         await getJob(makeReq({ params: { id: '3' } }), found);
         expect(found.body.data.id).toBe(3);
+        expect(found.body.data.companyStatusCode).toBeUndefined();
+        mocks.pool.query.mockResolvedValueOnce([[
+            { id: 3, statusCode: 'PS3', companyStatusCode: 'S1', companyCensorCode: 'CS1' }
+        ]]);
+        const nonPublic = makeRes();
+        await getJob(makeReq({ params: { id: '3' } }), nonPublic);
+        expect(nonPublic.statusCode).toBe(404);
         mocks.pool.query.mockResolvedValueOnce([[]]);
         const missing = makeRes();
         await getJob(makeReq({ params: { id: '3' } }), missing);
@@ -179,6 +188,8 @@ describe('AI task controller', () => {
         mocks.pool.query.mockResolvedValueOnce([[{ name: 'Dev', descriptionHTML: 'Build' }]]).mockResolvedValueOnce(undefined);
         const ok = makeRes();
         await matchCv(makeReq({ headers: { 'x-user-id': '2' }, body: { resumeText: 'CV', jobId: 1 } }), ok);
+        expect(mocks.pool.query.mock.calls[0][0]).toContain("p.statusCode = 'PS1'");
+        expect(mocks.pool.query.mock.calls[0][0]).toContain("c.censorCode = 'CS1'");
         expect(mocks.publish).toHaveBeenCalledWith('ai.match_cv', expect.objectContaining({ resumeText: 'CV', jobTitle: 'Dev', jobDescription: 'Build' }));
         expect(ok.statusCode).toBe(202);
     });
@@ -195,6 +206,8 @@ describe('AI task controller', () => {
         mocks.pool.query.mockResolvedValueOnce([[{ name: 'Dev', descriptionHTML: 'Build', companyName: null }]]).mockResolvedValueOnce(undefined);
         const ok = makeRes();
         await coverLetter(makeReq({ body: { resumeText: 'CV', jobId: 1 } }), ok);
+        expect(mocks.pool.query.mock.calls[0][0]).toContain("p.statusCode = 'PS1'");
+        expect(mocks.pool.query.mock.calls[0][0]).toContain("c.censorCode = 'CS1'");
         expect(mocks.publish).toHaveBeenCalledWith('ai.cover_letter', expect.objectContaining({ companyName: 'the company', language: 'en' }));
     });
 

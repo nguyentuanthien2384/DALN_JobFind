@@ -1,4 +1,5 @@
 import companyService from '../services/companyService';
+import { emitCompanyUpdated } from '../utils/eventBus';
 
 let handleCreateNewCompany = async (req, res) => {
     try {
@@ -6,6 +7,7 @@ let handleCreateNewCompany = async (req, res) => {
             ...req.body,
             userId: req.user.id
         });
+        if (data.errCode === 0 && data.companyId) emitCompanyUpdated(data.companyId);
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -23,6 +25,7 @@ let handleUpdateCompany = async (req, res) => {
             ...req.body,
             id: req.user.companyId
         });
+        if (data.errCode === 0) emitCompanyUpdated(req.user.companyId);
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -35,6 +38,7 @@ let handleUpdateCompany = async (req, res) => {
 let handleBanCompany = async (req, res) => {
     try {
         let data = await companyService.handleBanCompany(req.body.id);
+        if (data.errCode === 0) emitCompanyUpdated(req.body.id);
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -47,6 +51,7 @@ let handleBanCompany = async (req, res) => {
 let handleUnBanCompany = async (req, res) => {
     try {
         let data = await companyService.handleUnBanCompany(req.body.id);
+        if (data.errCode === 0) emitCompanyUpdated(req.body.id);
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -170,6 +175,7 @@ let getAllCompanyByAdmin = async (req, res) => {
 let handleAccecptCompany = async (req, res) => {
     try {
         let data = await companyService.handleAccecptCompany(req.body);
+        if (data.errCode === 0) emitCompanyUpdated(req.body.companyId);
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

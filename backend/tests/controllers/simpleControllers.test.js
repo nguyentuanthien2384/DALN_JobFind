@@ -36,6 +36,7 @@ jest.mock('../../src/services/packagePostService', () => ({
   updatePackagePost: jest.fn(), getStatisticalPackage: jest.fn(), getHistoryTrade: jest.fn(), getSumByYear: jest.fn()
 }));
 jest.mock('../../src/config/socket', () => ({ emitDashboardChanged: jest.fn() }));
+jest.mock('../../src/utils/eventBus', () => ({ emitCompanyUpdated: jest.fn() }));
 
 const allcodeService = require('../../src/services/allcodeService');
 const companyService = require('../../src/services/companyService');
@@ -46,6 +47,7 @@ const notificationService = require('../../src/services/notificationService');
 const packageCvService = require('../../src/services/packageCvService');
 const packagePostService = require('../../src/services/packagePostService');
 const socket = require('../../src/config/socket');
+const events = require('../../src/utils/eventBus');
 
 const allcodeController = require('../../src/controllers/allcodeController');
 const companyController = require('../../src/controllers/companyController');
@@ -185,5 +187,26 @@ describe('simple controller contracts', () => {
     packagePostService.paymentOrderSuccess.mockResolvedValueOnce({ errCode: 0, alreadyProcessed: true });
     await packagePostController.paymentOrderSuccess(baseRequest(), createResponse());
     expect(socket.emitDashboardChanged).not.toHaveBeenCalled();
+  });
+
+  test('successful company state changes refresh the search authorization scope', async () => {
+    companyService.handleUpdateCompany.mockResolvedValueOnce({ errCode: 0 });
+    await companyController.handleUpdateCompany(baseRequest(), createResponse());
+    expect(events.emitCompanyUpdated).toHaveBeenLastCalledWith(11);
+
+    companyService.handleBanCompany.mockResolvedValueOnce({ errCode: 0 });
+    await companyController.handleBanCompany(baseRequest(), createResponse());
+    expect(events.emitCompanyUpdated).toHaveBeenLastCalledWith(21);
+
+    companyService.handleAccecptCompany.mockResolvedValueOnce({ errCode: 0 });
+    const accept = baseRequest();
+    accept.body.companyId = 44;
+    await companyController.handleAccecptCompany(accept, createResponse());
+    expect(events.emitCompanyUpdated).toHaveBeenLastCalledWith(44);
+
+    events.emitCompanyUpdated.mockClear();
+    companyService.handleUnBanCompany.mockResolvedValueOnce({ errCode: 2 });
+    await companyController.handleUnBanCompany(baseRequest(), createResponse());
+    expect(events.emitCompanyUpdated).not.toHaveBeenCalled();
   });
 });

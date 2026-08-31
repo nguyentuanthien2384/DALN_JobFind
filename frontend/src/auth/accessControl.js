@@ -11,6 +11,8 @@ export const PERMISSIONS = Object.freeze({
     USE_CHAT: "chat.use",
     MANAGE_PROFILE: "profile.manage",
     VIEW_CANDIDATE_AREA: "candidate.area.view",
+    APPLY_TO_JOB: "candidate.jobs.apply",
+    SOCIAL_INTERACT: "candidate.social.interact",
     VIEW_PLATFORM_REPORTS: "platform.reports.view",
     MANAGE_USERS: "users.manage",
     MANAGE_REFERENCE_DATA: "reference-data.manage",
@@ -77,6 +79,8 @@ const EMPLOYER_WITHOUT_COMPANY_PERMISSIONS = permissionSet([
 const CANDIDATE_PERMISSIONS = permissionSet([
     PERMISSIONS.USE_CHAT,
     PERMISSIONS.VIEW_CANDIDATE_AREA,
+    PERMISSIONS.APPLY_TO_JOB,
+    PERMISSIONS.SOCIAL_INTERACT,
 ]);
 
 const COMPANY_WITHOUT_COMPANY_PERMISSIONS = permissionSet([

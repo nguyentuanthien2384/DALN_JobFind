@@ -1,6 +1,7 @@
 const mockSign = jest.fn(() => 'signed-token');
 const mockExtractBuffer = jest.fn();
 const mockExtractKeywords = jest.fn();
+const TEST_JWT_SECRET = 'unit-test-jwt-secret-2026-with-entropy';
 
 jest.mock('jsonwebtoken', () => ({ sign: mockSign }));
 jest.mock('pdf.js-extract', () => ({
@@ -14,7 +15,7 @@ describe('CommonUtils', () => {
     mockSign.mockClear();
     mockExtractBuffer.mockReset();
     mockExtractKeywords.mockReset();
-    process.env.JWT_SECRET = 'unit-secret';
+    process.env.JWT_SECRET = TEST_JWT_SECRET;
   });
 
   test('encodes identity and authorisation claims into a signed token', () => {
@@ -22,7 +23,7 @@ describe('CommonUtils', () => {
     expect(encodeToken(12, 'ADMIN', 9)).toBe('signed-token');
     expect(mockSign).toHaveBeenCalledWith(expect.objectContaining({
       iss: 'Tai Nguyen', sub: 12, roleCode: 'ADMIN', companyId: 9
-    }), 'unit-secret', { expiresIn: '3d' });
+    }), TEST_JWT_SECRET, { expiresIn: '3d' });
     const claims = mockSign.mock.calls[0][0];
     expect(claims).not.toHaveProperty('iat');
     expect(claims).not.toHaveProperty('exp');
@@ -35,7 +36,7 @@ describe('CommonUtils', () => {
     const { encodeToken } = require('../../src/utils/CommonUtils');
     const token = encodeToken(12, 'ADMIN', 9);
     const after = Math.floor(Date.now() / 1000);
-    const claims = realJwt.verify(token, 'unit-secret');
+    const claims = realJwt.verify(token, TEST_JWT_SECRET);
 
     expect(claims.iat).toBeGreaterThanOrEqual(before);
     expect(claims.iat).toBeLessThanOrEqual(after);

@@ -145,24 +145,33 @@ const run = async () => {
     const newId = r.body.data?.id;
 
     if (newId) {
+        r = await req(`/api/jobs/${newId}`);
+        check('Tin chờ duyệt không đọc được qua endpoint công khai', r.status === 404);
+
         // Su kien di qua RabbitMQ nen can mot chut thoi gian.
         await new Promise((s) => setTimeout(s, 3000));
         const doc = await fetch(`${ES}/jobs/_doc/${newId}`).then((x) => x.json()).catch(() => ({}));
         check('Search Service tự đồng bộ vào index', doc.found === true, doc._source?.name);
 
-        r = await req('/api/ai/match-cv', {
-            method: 'POST', headers: candidateAuth,
-            body: JSON.stringify({ resumeText: '3 năm kinh nghiệm Golang', jobId: newId })
-        });
-        const aiAccepted = r.status === 202 && Boolean(r.body.taskId);
-        check('AI Worker nhận việc qua RabbitMQ', aiAccepted);
-        if (aiAccepted) {
-            const aiTask = await waitForAiTask(r.body.taskId, candidateAuth);
-            const terminalStatus = ['done', 'failed'].includes(aiTask.body.data?.status);
-            check('AI Worker phản hồi kết quả qua RabbitMQ', terminalStatus,
-                aiTask.body.data?.status === 'failed'
-                    ? `failed có kiểm soát: ${aiTask.body.data?.error}`
-                    : aiTask.body.data?.status);
+        const publicJobs = await req('/api/search/jobs?limit=10');
+        const publicJobId = (publicJobs.body.data || [])
+            .find((job) => job.statusCode === 'PS1')?.id;
+        check('Có tin công khai để kiểm tra AI ứng viên', Boolean(publicJobId));
+        if (publicJobId) {
+            r = await req('/api/ai/match-cv', {
+                method: 'POST', headers: candidateAuth,
+                body: JSON.stringify({ resumeText: '3 năm kinh nghiệm Golang', jobId: publicJobId })
+            });
+            const aiAccepted = r.status === 202 && Boolean(r.body.taskId);
+            check('AI Worker nhận việc qua RabbitMQ', aiAccepted);
+            if (aiAccepted) {
+                const aiTask = await waitForAiTask(r.body.taskId, candidateAuth);
+                const terminalStatus = ['done', 'failed'].includes(aiTask.body.data?.status);
+                check('AI Worker phản hồi kết quả qua RabbitMQ', terminalStatus,
+                    aiTask.body.data?.status === 'failed'
+                        ? `failed có kiểm soát: ${aiTask.body.data?.error}`
+                        : aiTask.body.data?.status);
+            }
         }
 
         await req(`/api/jobs/${newId}`, { method: 'DELETE', headers: auth });
@@ -344,6 +353,9 @@ const run = async () => {
     section('Báo cáo & Nhật ký (Admin & Reporting Service)');
 
     const adminAuth = { Authorization: `Bearer ${adminToken}` };
+
+    r = await req('/api/admin/internal/alias-map', { headers: adminAuth });
+    check('Gateway không công khai endpoint server-to-server qua prefix admin', r.status === 404);
 
     r = await req('/api/admin/reports/overview', { headers: auth });
     check('Nhà tuyển dụng không mở được báo cáo', r.status === 403);

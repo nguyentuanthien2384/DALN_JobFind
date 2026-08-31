@@ -1,4 +1,5 @@
 import db from "../models/index";
+import { findPublicCompany } from '../utils/publicResources';
 const { Op } = require("sequelize");
 require('dotenv').config();
 
@@ -17,7 +18,7 @@ let handleCreateReview = (data) => {
                     errMessage: 'Số sao đánh giá phải từ 1 đến 5'
                 })
             } else {
-                let company = await db.Company.findOne({ where: { id: data.companyId } })
+                let company = await findPublicCompany(data.companyId)
                 if (!company) {
                     resolve({
                         errCode: 3,
@@ -69,6 +70,14 @@ let getReviewByCompany = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             } else {
+                const company = await findPublicCompany(data.companyId)
+                if (!company) {
+                    resolve({
+                        errCode: 3,
+                        errMessage: 'Không tìm thấy công ty'
+                    })
+                    return
+                }
                 let objectFilter = {
                     where: { companyId: data.companyId },
                     order: [['createdAt', 'DESC']],

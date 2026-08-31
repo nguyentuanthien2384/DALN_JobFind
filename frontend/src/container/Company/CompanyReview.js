@@ -8,6 +8,8 @@ import {
     createCompanyReviewService,
     deleteCompanyReviewService,
 } from "../../service/userService";
+import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
+import { readJsonStorage } from '../../util/storage';
 
 const CompanyReview = (props) => {
     const navigate = useNavigate();
@@ -17,7 +19,8 @@ const CompanyReview = (props) => {
     const [averageStar, setAverageStar] = useState(0);
     const [star, setStar] = useState(5);
     const [content, setContent] = useState("");
-    const userData = JSON.parse(localStorage.getItem("userData"));
+    const userData = readJsonStorage("userData");
+    const canSocialInteract = !userData || hasPermission(userData, PERMISSIONS.SOCIAL_INTERACT);
 
     const fetchReview = useCallback(async () => {
         let res = await getReviewByCompanyService({
@@ -45,6 +48,10 @@ const CompanyReview = (props) => {
                 localStorage.setItem("lastUrl", window.location.href);
                 navigate("/login");
             }, 1000);
+            return;
+        }
+        if (!hasPermission(userData, PERMISSIONS.SOCIAL_INTERACT)) {
+            toast.error("Chỉ ứng viên mới có thể đánh giá công ty");
             return;
         }
         if (!content) {
@@ -124,7 +131,7 @@ const CompanyReview = (props) => {
                 </div>
 
                 {/* Form gửi đánh giá */}
-                <div
+                {canSocialInteract && <div
                     style={{
                         border: "1px solid #eee",
                         borderRadius: "8px",
@@ -166,7 +173,7 @@ const CompanyReview = (props) => {
                     >
                         Gửi đánh giá
                     </button>
-                </div>
+                </div>}
 
                 {/* Danh sách đánh giá */}
                 {listReview && listReview.length > 0 ? (
@@ -216,7 +223,7 @@ const CompanyReview = (props) => {
                                             </span>
                                         </div>
                                     </div>
-                                    {userData &&
+                                    {userData && hasPermission(userData, PERMISSIONS.SOCIAL_INTERACT) &&
                                         +userData.id ===
                                             +item.userReviewData.id && (
                                             <span

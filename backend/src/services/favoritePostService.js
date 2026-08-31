@@ -1,4 +1,5 @@
 import db from "../models/index";
+import { APPROVED_COMPANY_WHERE, findPublicPost } from '../utils/publicResources';
 const { Op } = require("sequelize");
 require('dotenv').config();
 
@@ -27,7 +28,7 @@ let handleToggleFavoritePost = (data) => {
                         errMessage: 'Đã bỏ lưu tin tuyển dụng'
                     })
                 } else {
-                    let post = await db.Post.findOne({ where: { id: data.postId } })
+                    let post = await findPublicPost(data.postId)
                     if (!post) {
                         resolve({
                             errCode: 2,
@@ -62,6 +63,14 @@ let checkFavoriteByUser = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             } else {
+                const post = await findPublicPost(data.postId)
+                if (!post) {
+                    resolve({
+                        errCode: 0,
+                        isFavorite: false
+                    })
+                    return
+                }
                 let favorite = await db.FavoritePost.findOne({
                     where: {
                         userId: data.userId,
@@ -97,6 +106,8 @@ let getFavoritePostByUser = (data) => {
                     include: [
                         {
                             model: db.Post, as: 'postFavoriteData',
+                            where: { statusCode: 'PS1' },
+                            required: true,
                             include: [
                                 {
                                     model: db.DetailPost, as: 'postDetailData', attributes: ['id', 'name', 'amount'],
@@ -111,11 +122,16 @@ let getFavoritePostByUser = (data) => {
                                 },
                                 {
                                     model: db.User, as: 'userPostData',
-                                    attributes: {
-                                        exclude: ['userId']
-                                    },
+                                    attributes: ['id', 'firstName', 'lastName', 'image', 'companyId'],
+                                    required: true,
                                     include: [
-                                        { model: db.Company, as: 'userCompanyData', attributes: ['id', 'name', 'thumbnail'] },
+                                        {
+                                            model: db.Company,
+                                            as: 'userCompanyData',
+                                            attributes: ['id', 'name', 'thumbnail'],
+                                            where: APPROVED_COMPANY_WHERE,
+                                            required: true
+                                        },
                                     ]
                                 }
                             ]

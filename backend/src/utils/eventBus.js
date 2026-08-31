@@ -91,7 +91,9 @@ const loadJob = async (postId) => {
                 d.categoryJoblevelCode, d.categoryWorktypeCode,
                 d.experienceJobCode, d.genderPostCode,
                 u.companyId,
-                c.name AS companyName, c.thumbnail AS companyLogo
+                c.name AS companyName, c.thumbnail AS companyLogo,
+                c.statusCode AS companyStatusCode,
+                c.censorCode AS companyCensorCode
          FROM posts p
          JOIN detailposts d ON d.id = p.detailPostId
          LEFT JOIN users u ON u.id = p.userId
@@ -126,6 +128,27 @@ export const emitJobUpdated = async (postId) => {
         await publish('job.updated', { job });
     } catch (error) {
         log('khong tai duoc tin de phat job.updated', error.message);
+    }
+};
+
+/**
+ * Trang thai cong ty la mot phan cua dieu kien cong khai tin. Phat su kien nay
+ * de Search Service an/hien ngay cac tin da lap chi muc cua cong ty, khong cho
+ * toi dot doi chieu dinh ky.
+ */
+export const emitCompanyUpdated = async (companyId) => {
+    try {
+        const [rows] = await db.sequelize.query(
+            `SELECT id AS companyId, statusCode AS companyStatusCode,
+                    censorCode AS companyCensorCode
+               FROM companies WHERE id = :companyId`,
+            { replacements: { companyId }, type: db.sequelize.QueryTypes.SELECT }
+        );
+        const company = Array.isArray(rows) ? rows[0] : rows;
+        if (!company) return;
+        await publish('company.updated', company);
+    } catch (error) {
+        log('khong tai duoc cong ty de phat company.updated', error.message);
     }
 };
 
@@ -171,4 +194,9 @@ export const emitApplicationSubmitted = async (cvId) => {
     }
 };
 
-export default { emitJobCreated, emitJobUpdated, emitApplicationSubmitted };
+export default {
+    emitJobCreated,
+    emitJobUpdated,
+    emitCompanyUpdated,
+    emitApplicationSubmitted
+};

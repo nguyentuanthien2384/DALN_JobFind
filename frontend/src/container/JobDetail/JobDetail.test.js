@@ -99,7 +99,7 @@ describe("JobDetail", () => {
     });
 
     it("loads the post and related jobs and renders all important details", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
 
         render(<JobDetail />);
 
@@ -146,7 +146,7 @@ describe("JobDetail", () => {
     });
 
     it("toggles a favorite and reports both service and fallback errors", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         const view = render(<JobDetail />);
         await screen.findByRole("heading", { name: "Senior React Developer" });
         fireEvent.click(screen.getByRole("button", { name: "Lưu tin" }));
@@ -175,7 +175,7 @@ describe("JobDetail", () => {
     });
 
     it("opens and closes the application modal for a signed-in user", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         render(<JobDetail />);
         fireEvent.click(await screen.findByRole("button", { name: "Ứng tuyển ngay" }));
 
@@ -206,7 +206,7 @@ describe("JobDetail", () => {
         jest.useRealTimers();
     });
 
-    it("handles anonymous, owner and candidate chat actions", async () => {
+    it("handles anonymous and candidate chat actions", async () => {
         jest.useFakeTimers();
         const first = render(<JobDetail />);
         fireEvent.click(
@@ -219,20 +219,6 @@ describe("JobDetail", () => {
         expect(mockNavigate).toHaveBeenCalledWith("/login");
         first.unmount();
         jest.useRealTimers();
-
-        localStorage.setItem("userData", JSON.stringify({
-            id: 88,
-            roleCode: "EMPLOYER",
-            companyId: 9,
-            companyStatusCode: "S1",
-            companyCensorCode: "CS1",
-        }));
-        const owner = render(<JobDetail />);
-        fireEvent.click(
-            await screen.findByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" })
-        );
-        expect(toast.error).toHaveBeenCalledWith("Đây là tin đăng của bạn");
-        owner.unmount();
 
         localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         render(<JobDetail />);
@@ -253,11 +239,21 @@ describe("JobDetail", () => {
             companyStatusCode: "S1",
             companyCensorCode: "CS2",
         }],
+        ["EMPLOYER in an approved company", {
+            id: 5,
+            roleCode: "EMPLOYER",
+            companyId: 9,
+            companyStatusCode: "S1",
+            companyCensorCode: "CS1",
+        }],
     ])("does not expose chat action to %s", async (_label, user) => {
         localStorage.setItem("userData", JSON.stringify(user));
         render(<JobDetail />);
 
         expect(await screen.findByRole("heading", { name: "Senior React Developer" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Ứng tuyển ngay" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Lưu tin" })).not.toBeInTheDocument();
+        expect(checkFavoritePostService).not.toHaveBeenCalled();
     });
 });

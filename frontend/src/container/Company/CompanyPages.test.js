@@ -204,6 +204,17 @@ describe("CompanyReview", () => {
         });
     });
 
+    it("keeps reviews public but hides the review form from non-candidates", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
+        render(<CompanyReview companyId="42" />);
+
+        expect(await screen.findByText("Đồng nghiệp thân thiện")).toBeInTheDocument();
+        expect(screen.getByText("4.2")).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText(/Chia sẻ cảm nhận/)).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Gửi đánh giá" })).not.toBeInTheDocument();
+        expect(createCompanyReviewService).not.toHaveBeenCalled();
+    });
+
     it("requires login and records the current URL before redirecting", async () => {
         jest.useFakeTimers();
         render(<CompanyReview companyId="42" />);
@@ -224,7 +235,7 @@ describe("CompanyReview", () => {
     });
 
     it("validates content before submitting", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         render(<CompanyReview companyId="42" />);
         await screen.findByText("Đồng nghiệp thân thiện");
         fireEvent.click(screen.getByRole("button", { name: "Gửi đánh giá" }));
@@ -233,7 +244,7 @@ describe("CompanyReview", () => {
     });
 
     it("submits the selected star value, clears content and refreshes", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         render(<CompanyReview companyId="42" />);
         await screen.findByText("Đồng nghiệp thân thiện");
         fireEvent.click(screen.getByRole("button", { name: "2 sao" }));
@@ -258,7 +269,7 @@ describe("CompanyReview", () => {
     });
 
     it("lets the review owner delete and reports service failures", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         deleteCompanyReviewService.mockResolvedValue({ errCode: 2, errMessage: "Không thể xóa" });
         render(<CompanyReview companyId="42" />);
         fireEvent.click(await screen.findByText("Xóa"));
@@ -328,6 +339,22 @@ describe("DetailCompany", () => {
         expect(toggleFollowCompanyService).not.toHaveBeenCalled();
     });
 
+    it("hides follow and review actions from a recruiter", async () => {
+        localStorage.setItem("userData", JSON.stringify({
+            id: 8,
+            roleCode: "EMPLOYER",
+            companyId: 5,
+            companyStatusCode: "S1",
+            companyCensorCode: "CS1",
+        }));
+        render(<DetailCompany />);
+
+        expect(await screen.findByRole("heading", { name: "Công ty Sao Việt" })).toBeInTheDocument();
+        expect(screen.queryByText("Theo dõi (9)")).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText(/Chia sẻ cảm nhận/)).not.toBeInTheDocument();
+        expect(toggleFollowCompanyService).not.toHaveBeenCalled();
+    });
+
     it("recovers malformed login data as an anonymous visitor", async () => {
         localStorage.setItem("userData", "{broken-json");
         render(<DetailCompany />);
@@ -339,7 +366,7 @@ describe("DetailCompany", () => {
     });
 
     it("toggles follow state and adjusts the follower count", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         render(<DetailCompany />);
         fireEvent.click(await screen.findByText("Theo dõi (9)"));
 
@@ -351,7 +378,7 @@ describe("DetailCompany", () => {
     });
 
     it("reports follow errors and can copy the current detail URL", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         toggleFollowCompanyService.mockResolvedValue({ errCode: 2 });
         render(<DetailCompany />);
         fireEvent.click(await screen.findByText("Theo dõi (9)"));

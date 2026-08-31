@@ -113,6 +113,19 @@ describe("system Menu", () => {
         expect(await screen.findByText("3")).toBeInTheDocument();
     });
 
+    it("shows only company information to a pending COMPANY", () => {
+        localStorage.setItem("userData", JSON.stringify({
+            id: 4, roleCode: "COMPANY", companyId: 5,
+            companyStatusCode: "S1", companyCensorCode: "CS3",
+        }));
+        render(<Menu />);
+
+        expect(screen.getByText("Thông tin công ty")).toBeInTheDocument();
+        expect(screen.queryByText("Tuyển dụng vào công ty")).not.toBeInTheDocument();
+        expect(screen.queryByText("Danh sách nhân viên")).not.toBeInTheDocument();
+        expect(screen.queryByText("Thêm nhân viên")).not.toBeInTheDocument();
+    });
+
     it("keeps exactly one accordion group open and closes it from the home/chat links", async () => {
         localStorage.setItem("userData", JSON.stringify({
             id: 3, roleCode: "COMPANY", companyId: 5,

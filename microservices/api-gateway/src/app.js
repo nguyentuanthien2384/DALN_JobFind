@@ -8,6 +8,7 @@ import { listServices, startHealthPolling } from './libs/registry.js';
 import { createProxy, getBreakerStats } from './middlewares/proxy.js';
 import { optionalAuth, requirePermission } from './middlewares/auth.js';
 import { PERMISSIONS } from '../../shared/accessControl.js';
+import { assertSecureJwtSecret } from '../../shared/securityConfig.js';
 import { createRateLimiter } from './middlewares/rateLimit.js';
 import { auditMiddleware } from './middlewares/audit.js';
 import {
@@ -16,10 +17,12 @@ import {
     mountLoginRateLimit,
     parseAllowedOrigins,
     parseTrustedProxies,
+    hasInternalPathSegment,
     rejectUnsafeProxyPath
 } from './libs/security.js';
 
 const logger = createLogger('api-gateway');
+assertSecureJwtSecret(process.env.JWT_SECRET);
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 const allowedOrigins = parseAllowedOrigins(process.env.CORS_ORIGIN);
@@ -117,7 +120,8 @@ app.get('/status', (req, res) => {
 // Cac duong dan noi bo (/internal/*) khong duoc mo ra ngoai: chung danh cho
 // cac service goi lan nhau trong mang Docker.
 app.use((req, res, next) => {
-    if (req.path.startsWith('/internal')) {
+    const rawPath = String(req.originalUrl || req.url || '').split('?')[0];
+    if (hasInternalPathSegment(rawPath)) {
         return res.status(404).json({ errCode: 404, errMessage: 'Not found' });
     }
     next();

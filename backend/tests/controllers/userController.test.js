@@ -66,6 +66,22 @@ describe('userController', () => {
     }));
   });
 
+  test('pending or inactive companies cannot create team accounts through public registration', async () => {
+    const pending = request('COMPANY');
+    pending.user.userCompanyData.censorCode = 'CS0';
+    const pendingRes = createResponse();
+    await controller.handleCreateNewUser(pending, pendingRes);
+    expect(pendingRes.status).toHaveBeenCalledWith(403);
+    expect(pendingRes.json).toHaveBeenCalledWith(expect.objectContaining({ errCode: 3 }));
+
+    const inactive = request('COMPANY');
+    inactive.user.userCompanyData.statusCode = 'S2';
+    const inactiveRes = createResponse();
+    await controller.handleCreateNewUser(inactive, inactiveRes);
+    expect(inactiveRes.status).toHaveBeenCalledWith(403);
+    expect(inactiveRes.json).toHaveBeenCalledWith(expect.objectContaining({ errCode: 3 }));
+  });
+
   test('profile update is restricted to self, admin, or a same-company owner', async () => {
     mockService.updateUserData.mockResolvedValue({ errCode: 0 });
     await controller.handleUpdateUser(request('CANDIDATE'), createResponse());

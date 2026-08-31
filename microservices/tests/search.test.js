@@ -4,8 +4,9 @@ import { makeReq, makeRes } from './helpers.js';
 const mocks = vi.hoisted(() => {
     const es = {
         cluster: { health: vi.fn() },
-        indices: { exists: vi.fn(), create: vi.fn() },
-        search: vi.fn(), index: vi.fn(), delete: vi.fn(), update: vi.fn(), bulk: vi.fn()
+        indices: { exists: vi.fn(), create: vi.fn(), putMapping: vi.fn() },
+        search: vi.fn(), index: vi.fn(), delete: vi.fn(), update: vi.fn(),
+        updateByQuery: vi.fn(), bulk: vi.fn()
     };
     class Client { constructor(options) { es.options = options; return es; } }
     return {
@@ -28,7 +29,8 @@ afterEach(() => {
 beforeEach(() => {
     for (const fn of [
         mocks.es.cluster.health, mocks.es.indices.exists, mocks.es.indices.create,
-        mocks.es.search, mocks.es.index, mocks.es.delete, mocks.es.update, mocks.es.bulk,
+        mocks.es.indices.putMapping, mocks.es.search, mocks.es.index, mocks.es.delete,
+        mocks.es.update, mocks.es.updateByQuery, mocks.es.bulk,
         mocks.axiosGet, mocks.consume
     ]) fn.mockReset();
 });
@@ -65,6 +67,10 @@ describe('Elasticsearch adapter', () => {
         mocks.es.indices.create.mockClear();
         await ensureIndex();
         expect(mocks.es.indices.create).not.toHaveBeenCalled();
+        expect(mocks.es.indices.putMapping).toHaveBeenCalledWith(expect.objectContaining({
+            index: INDEX,
+            properties: expect.objectContaining({ companyStatusCode: { type: 'keyword' } })
+        }));
     });
 
     it('normalizes database jobs into bounded search documents', async () => {
@@ -74,7 +80,11 @@ describe('Elasticsearch adapter', () => {
             id: 1, name: 'Dev', descriptionHTML: '<p>Hello&nbsp;  world</p>', statusCode: 'PS1',
             amount: 0, isHot: 1, timePost: '123', timeEnd: 'bad'
         });
-        expect(doc).toMatchObject({ id: 1, description: 'Hello world', amount: 0, isHot: true, timePost: 123, timeEnd: null, indexedAt: '2026-01-01T00:00:00.000Z' });
+        expect(doc).toMatchObject({
+            id: 1, description: 'Hello world', amount: 0, isHot: true,
+            companyStatusCode: null, companyCensorCode: null,
+            timePost: 123, timeEnd: null, indexedAt: '2026-01-01T00:00:00.000Z'
+        });
         expect(toDocument({ descriptionHTML: 'x'.repeat(21000) }).description).toHaveLength(20000);
         expect(toDocument({}).amount).toBe(1);
     });
@@ -98,6 +108,11 @@ describe('search controllers', () => {
         const query = mocks.es.search.mock.calls[0][0];
         expect(query).toMatchObject({ index: 'jobs', from: 5, size: 100, sort: ['_score', { isHot: 'desc' }] });
         expect(query.query.bool.filter).toContainEqual({ term: { isHot: true } });
+        expect(query.query.bool.filter).toEqual(expect.arrayContaining([
+            { term: { statusCode: 'PS1' } },
+            { term: { companyStatusCode: 'S1' } },
+            { term: { companyCensorCode: 'CS1' } }
+        ]));
         expect(query.query.bool.must[0].multi_match.query).toBe('node');
         expect(query.highlight).toBeDefined();
     });
@@ -203,7 +218,7 @@ describe('search index consumer', () => {
         await startIndexer();
         const [queue, patterns, handler, options] = mocks.consume.mock.calls[0];
         expect(queue).toBe('search-service.indexer');
-        expect(patterns).toHaveLength(4);
+        expect(patterns).toHaveLength(5);
         expect(options).toEqual({ prefetch: 20 });
 
         mocks.es.index.mockResolvedValue(undefined);
@@ -218,6 +233,14 @@ describe('search index consumer', () => {
         mocks.es.update.mockResolvedValue(undefined);
         await handler({ jobId: 4, statusCode: 'PS1' }, 'job.moderated');
         expect(mocks.es.update).toHaveBeenCalledWith(expect.objectContaining({ id: '4', doc: { statusCode: 'PS1' } }));
+        mocks.es.updateByQuery.mockResolvedValue(undefined);
+        await handler({
+            companyId: 3, companyStatusCode: 'S2', companyCensorCode: 'CS1'
+        }, 'company.updated');
+        expect(mocks.es.updateByQuery).toHaveBeenCalledWith(expect.objectContaining({
+            query: { term: { companyId: 3 } },
+            script: expect.objectContaining({ params: { status: 'S2', censor: 'CS1' } })
+        }));
         await expect(handler({}, 'unknown')).resolves.toBeUndefined();
     });
 

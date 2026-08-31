@@ -19,6 +19,9 @@
   "jest": {
     "testEnvironment": "node",
     "clearMocks": true,
+    "setupFiles": [
+      "<rootDir>/tests/setupEnv.js"
+    ],
     "collectCoverageFrom": [
       "src/controllers/**/*.js",
       "src/services/**/*.js",

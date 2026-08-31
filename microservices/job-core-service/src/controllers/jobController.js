@@ -23,7 +23,9 @@ const loadJobForEvent = async (postId) => {
                 d.categoryJoblevelCode, d.categoryWorktypeCode,
                 d.experienceJobCode, d.genderPostCode,
                 u.companyId,
-                c.name AS companyName, c.thumbnail AS companyLogo
+                c.name AS companyName, c.thumbnail AS companyLogo,
+                c.statusCode AS companyStatusCode,
+                c.censorCode AS companyCensorCode
          FROM posts p
          JOIN detailposts d ON d.id = p.detailPostId
          LEFT JOIN users u ON u.id = p.userId
@@ -193,10 +195,20 @@ export const deleteJob = async (req, res) => {
 export const getJob = async (req, res) => {
     try {
         const job = await loadJobForEvent(Number(req.params.id));
-        if (!job) {
+        // Day la endpoint public. Tin cho duyet/bi tu choi va tin cua cong ty
+        // bi khoa/chua duyet khong duoc lo chi bang cach doan id.
+        if (!job
+            || job.statusCode !== 'PS1'
+            || job.companyStatusCode !== 'S1'
+            || job.companyCensorCode !== 'CS1') {
             return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy tin tuyển dụng' });
         }
-        return res.json({ errCode: 0, data: job });
+        const {
+            companyStatusCode: _companyStatusCode,
+            companyCensorCode: _companyCensorCode,
+            ...publicJob
+        } = job;
+        return res.json({ errCode: 0, data: publicJob });
     } catch (error) {
         logger.error('doc tin that bai', { error: error.message });
         return res.status(500).json({ errCode: -1, errMessage: 'Lỗi hệ thống' });
@@ -212,7 +224,9 @@ export const listJobsForReindex = async (req, res) => {
                     d.categoryJobCode, d.addressCode, d.salaryJobCode,
                     d.categoryJoblevelCode, d.categoryWorktypeCode,
                     d.experienceJobCode,
-                    u.companyId, c.name AS companyName, c.thumbnail AS companyLogo
+                    u.companyId, c.name AS companyName, c.thumbnail AS companyLogo,
+                    c.statusCode AS companyStatusCode,
+                    c.censorCode AS companyCensorCode
              FROM posts p
              JOIN detailposts d ON d.id = p.detailPostId
              LEFT JOIN users u ON u.id = p.userId

@@ -15,7 +15,7 @@ let handleSendMessage = async (req, res) => {
         if (data.errCode === 0) {
             emitNewMessage(data.data);
         }
-        return res.status(200).json(data);
+        return res.status(data.errCode === 5 ? 403 : 200).json(data);
     } catch (error) {
         console.log(error)
         return res.status(200).json({
@@ -32,7 +32,7 @@ let getConversation = async (req, res) => {
             partnerId: req.query.partnerId,
             limit: req.query.limit
         });
-        return res.status(200).json(data);
+        return res.status(data.errCode === 5 ? 403 : 200).json(data);
     } catch (error) {
         console.log(error)
         return res.status(200).json({

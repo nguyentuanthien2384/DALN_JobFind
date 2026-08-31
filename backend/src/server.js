@@ -6,7 +6,11 @@ import initwebRoutes from "./routes/web";
 import connectDB from "./config/connectDB";
 import {sendJobMail,updateFreeViewCv} from "./utils/schedule"
 import { initSocket } from "./config/socket";
+import { assertSecureJwtSecret } from './utils/securityConfig';
 require('dotenv').config();
+
+// Fail at startup instead of silently accepting a public/default signing key.
+assertSecureJwtSecret(process.env.JWT_SECRET);
 
 let app = express();
 

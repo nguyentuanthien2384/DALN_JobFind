@@ -3,6 +3,12 @@ import { createLogger } from '../../../shared/logger.js';
 
 const logger = createLogger('search-service');
 
+const publicJobFilter = () => [
+    { term: { statusCode: 'PS1' } },
+    { term: { companyStatusCode: 'S1' } },
+    { term: { companyCensorCode: 'CS1' } }
+];
+
 // Tim kiem sieu toc: loc theo tag/luong bang term query, tim theo chu bang
 // multi_match. Tat ca chay tren Elasticsearch nen khong dung toi MySQL.
 export const searchJobs = async (req, res) => {
@@ -13,7 +19,7 @@ export const searchJobs = async (req, res) => {
     } = req.query;
 
     // Nguoi tim viec chi duoc thay tin da duyet va dang hien thi.
-    const filter = [{ term: { statusCode: 'PS1' } }];
+    const filter = publicJobFilter();
     const must = [];
 
     const addTerm = (field, value) => {
@@ -89,7 +95,7 @@ export const suggest = async (req, res) => {
             size: 8,
             query: {
                 bool: {
-                    filter: [{ term: { statusCode: 'PS1' } }],
+                    filter: publicJobFilter(),
                     must: [{
                         // match_phrase_prefix hop voi goi y khi go do: no khop
                         // tu cuoi cung nhu mot tien to.
@@ -112,7 +118,7 @@ export const facets = async (req, res) => {
         const result = await es.search({
             index: INDEX,
             size: 0,
-            query: { bool: { filter: [{ term: { statusCode: 'PS1' } }] } },
+            query: { bool: { filter: publicJobFilter() } },
             aggs: {
                 byCategory: { terms: { field: 'categoryJobCode', size: 30 } },
                 byProvince: { terms: { field: 'addressCode', size: 30 } },
@@ -143,7 +149,7 @@ export const related = async (req, res) => {
             size: Math.min(Number(req.query.limit) || 6, 20),
             query: {
                 bool: {
-                    filter: [{ term: { statusCode: 'PS1' } }],
+                    filter: publicJobFilter(),
                     must_not: [{ term: { id: Number(jobId) } }],
                     must: [{
                         more_like_this: {

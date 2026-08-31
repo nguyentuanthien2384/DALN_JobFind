@@ -36,6 +36,8 @@ const mapping = {
         companyId: { type: 'integer' },
         companyName: { type: 'text', fields: { keyword: { type: 'keyword', ignore_above: 256 } } },
         companyLogo: { type: 'keyword', index: false },
+        companyStatusCode: { type: 'keyword' },
+        companyCensorCode: { type: 'keyword' },
         timePost: { type: 'long' },
         timeEnd: { type: 'long' },
         indexedAt: { type: 'date' }
@@ -60,6 +62,8 @@ export const ensureIndex = async () => {
         await es.indices.create({ index: INDEX, mappings: mapping });
         logger.info(`da tao index "${INDEX}"`);
     } else {
+        // Them mapping moi vao index hien co ma khong can xoa du lieu.
+        await es.indices.putMapping({ index: INDEX, properties: mapping.properties });
         logger.info(`index "${INDEX}" da ton tai`);
     }
 };
@@ -88,6 +92,8 @@ export const toDocument = (job) => ({
     companyId: job.companyId ?? null,
     companyName: job.companyName ?? null,
     companyLogo: job.companyLogo ?? null,
+    companyStatusCode: job.companyStatusCode ?? null,
+    companyCensorCode: job.companyCensorCode ?? null,
     timePost: Number(job.timePost) || null,
     timeEnd: Number(job.timeEnd) || null,
     indexedAt: new Date().toISOString()

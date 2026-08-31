@@ -8,7 +8,7 @@ services:
   mongo:
     image: mongo:7
     ports:
-      - "27019:27017"
+      - "127.0.0.1:27019:27017"
     volumes:
       - mongo-data:/data/db
     healthcheck:
@@ -25,7 +25,7 @@ services:
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
-      - "9201:9200"
+      - "127.0.0.1:9201:9200"
     volumes:
       - es-data:/usr/share/elasticsearch/data
     healthcheck:
@@ -40,15 +40,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: jobportal
-      POSTGRES_PASSWORD: jobportal
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: application_db
     ports:
-      - "5435:5432"
+      - "127.0.0.1:5435:5432"
     volumes:
       - pg-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jobportal -d application_db"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d application_db"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -57,7 +57,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -68,11 +68,11 @@ services:
   rabbitmq:
     image: rabbitmq:4-management-alpine
     environment:
-      RABBITMQ_DEFAULT_USER: jobportal
-      RABBITMQ_DEFAULT_PASS: jobportal
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
     ports:
-      - "5673:5672"
-      - "15673:15672"
+      - "127.0.0.1:5673:5672"
+      - "127.0.0.1:15673:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -107,9 +107,9 @@ services:
       MYSQL_USER: ${MYSQL_USER:-root}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
-      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
-      JWT_SECRET: ${JWT_SECRET:-anhtaideptrai}
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -128,8 +128,8 @@ services:
     environment:
       PORT: 4003
       ELASTICSEARCH_URL: http://elasticsearch:9200
-      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
       JOB_CORE_URL: http://job-core-service:4002
       RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
     depends_on:
@@ -150,9 +150,9 @@ services:
     environment:
       PORT: 4001
       MONGO_URL: mongodb://mongo:27017/identity_db
-      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
-      JWT_SECRET: ${JWT_SECRET:-anhtaideptrai}
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
     depends_on:
       mongo:
         condition: service_healthy
@@ -169,7 +169,7 @@ services:
       - .:/app
     command: npm start
     environment:
-      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5}
       AI_CONCURRENCY: ${AI_CONCURRENCY:-2}
@@ -188,15 +188,15 @@ services:
     command: npm start
     environment:
       PORT: 4004
-      POSTGRES_URL: postgres://jobportal:jobportal@postgres:5432/application_db
-      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      POSTGRES_URL: postgres://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/application_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
       MYSQL_PORT: ${MYSQL_PORT:-3333}
       MYSQL_USER: ${MYSQL_USER:-root}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
       RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -216,7 +216,7 @@ services:
     command: npm start
     environment:
       PORT: 4005
-      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
       MYSQL_PORT: ${MYSQL_PORT:-3333}
       MYSQL_USER: ${MYSQL_USER:-root}
@@ -225,7 +225,7 @@ services:
       EMAIL_APP: ${EMAIL_APP:-}
       EMAIL_APP_PASSWORD: ${EMAIL_APP_PASSWORD:-}
       LEGACY_URL: ${LEGACY_URL:-http://host.docker.internal:5000}
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -244,14 +244,14 @@ services:
     environment:
       PORT: 4006
       MONGO_URL: mongodb://mongo:27017/admin_db
-      POSTGRES_URL: postgres://jobportal:jobportal@postgres:5432/application_db
-      RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      POSTGRES_URL: postgres://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/application_db
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
       MYSQL_PORT: ${MYSQL_PORT:-3333}
       MYSQL_USER: ${MYSQL_USER:-root}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -270,11 +270,11 @@ services:
       - .:/app
     command: npm start
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     environment:
       PORT: 4000
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-anhtaideptrai}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       # Gateway doc identity hien tai tu MySQL, khong tin role/companyId cu trong JWT.
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
       MYSQL_PORT: ${MYSQL_PORT:-3333}
@@ -287,7 +287,7 @@ services:
       SEARCH_URL: http://search-service:4003
       APPLICATION_URL: http://application-service:4004
       ADMIN_URL: http://admin-service:4006
-      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
       LEGACY_URL: ${LEGACY_URL:-http://host.docker.internal:5000}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       # De trong neu Gateway duoc truy cap truc tiep. Neu co reverse proxy, chi

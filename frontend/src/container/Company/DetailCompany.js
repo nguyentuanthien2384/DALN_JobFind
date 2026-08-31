@@ -10,6 +10,7 @@ import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import { toggleFollowCompanyService, checkFollowCompanyService } from '../../service/userService';
 import { readJsonStorage } from '../../util/storage';
+import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
 const DetailCompany = () => {
     const [dataCompany, setdataCompany] = useState({})
     const [isLoading, setIsLoading] = useState(true)
@@ -18,6 +19,8 @@ const DetailCompany = () => {
     const [countFollower, setCountFollower] = useState(0)
     const { id } = useParams();
     const navigate = useNavigate()
+    const currentUser = readJsonStorage('userData')
+    const canSocialInteract = !currentUser || hasPermission(currentUser, PERMISSIONS.SOCIAL_INTERACT)
     useEffect(() => {
         if (id) {
 
@@ -67,6 +70,10 @@ const DetailCompany = () => {
         if (!userData) {
             toast.info('Vui lòng đăng nhập để theo dõi công ty')
             navigate('/login')
+            return
+        }
+        if (!hasPermission(userData, PERMISSIONS.SOCIAL_INTERACT)) {
+            toast.error('Chỉ ứng viên mới có thể theo dõi công ty')
             return
         }
         try {
@@ -144,10 +151,10 @@ const DetailCompany = () => {
                             </div>
                         </div>
                         <div className="box-follow">
-                            <button type="button" className="btn btn-follow btn-primary-hover" style={{ marginRight: '8px', background: isFollow ? '#fff' : '#fb246a', color: isFollow ? '#fb246a' : '#fff', border: '1px solid #fb246a', cursor: 'pointer' }} onClick={() => handleToggleFollow()}>
+                            {canSocialInteract && <button type="button" className="btn btn-follow btn-primary-hover" style={{ marginRight: '8px', background: isFollow ? '#fff' : '#fb246a', color: isFollow ? '#fb246a' : '#fff', border: '1px solid #fb246a', cursor: 'pointer' }} onClick={() => handleToggleFollow()}>
                                 <i className={isFollow ? "fas fa-bell" : "far fa-bell"} style={{ marginRight: '5px' }}></i>
                                 {isFollow ? 'Đang theo dõi' : 'Theo dõi'} ({countFollower})
-                            </button>
+                            </button>}
                             
                                 
                                 <span style={{background: dataCompany.censorData && (dataCompany.censorData.code === 'CS2' ? 'yellow' : dataCompany.censorData.code!=='CS1' ? 'red' : '' ), color: 'black'}} className="btn btn-follow btn-primary-hover">{dataCompany.censorData && dataCompany.censorData.value}</span>

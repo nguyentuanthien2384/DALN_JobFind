@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import chatService from "../services/chatService";
 import db from "../models/index";
+import { getJwtSecret } from '../utils/securityConfig';
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
@@ -25,7 +26,7 @@ const getUserIdFromHandshake = (socket) => {
     if (!raw) return null;
     const token = raw.startsWith('Bearer ') ? raw.slice(7) : raw;
     try {
-        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        const payload = jwt.verify(token, getJwtSecret());
         return payload.sub;
     } catch (error) {
         return null;

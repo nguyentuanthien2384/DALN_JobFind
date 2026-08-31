@@ -1,5 +1,6 @@
 import db from "../models/index";
 import CommonUtils from '../utils/CommonUtils';
+import { findPublicPost, isPostOpenForApplications } from '../utils/publicResources';
 const { Op, and } = require("sequelize");
 let caculateMatchCv = async(file,mapRequired) => {
     let myMapRequired = new Map(mapRequired)
@@ -56,13 +57,53 @@ let handleCreateCv = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             } else {
-                let cv = await db.Cv.create({
-                    userId: data.userId,
-                    file: data.file,
-                    postId: data.postId,
-                    isChecked: 0,
-                    description: data.description
+                const post = await findPublicPost(data.postId)
+                if (!post) {
+                    resolve({
+                        errCode: 3,
+                        errMessage: 'Không tìm thấy tin tuyển dụng đang công khai'
+                    })
+                    return
+                }
+                if (!isPostOpenForApplications(post)) {
+                    resolve({
+                        errCode: 4,
+                        errMessage: 'Tin tuyển dụng đã hết hạn ứng tuyển'
+                    })
+                    return
+                }
+                const existingCv = await db.Cv.findOne({
+                    where: { userId: data.userId, postId: data.postId },
+                    attributes: ['id']
                 })
+                if (existingCv) {
+                    resolve({
+                        errCode: 5,
+                        errMessage: 'Bạn đã ứng tuyển tin này'
+                    })
+                    return
+                }
+                let cv
+                try {
+                    cv = await db.Cv.create({
+                        userId: data.userId,
+                        file: data.file,
+                        postId: data.postId,
+                        isChecked: 0,
+                        description: data.description
+                    })
+                } catch (error) {
+                    // The unique database constraint closes the race between two
+                    // concurrent requests that both passed the lookup above.
+                    if (error?.name === 'SequelizeUniqueConstraintError') {
+                        resolve({
+                            errCode: 5,
+                            errMessage: 'Bạn đã ứng tuyển tin này'
+                        })
+                        return
+                    }
+                    throw error
+                }
                 if (cv) {
                     resolve({
                         errCode: 0,
