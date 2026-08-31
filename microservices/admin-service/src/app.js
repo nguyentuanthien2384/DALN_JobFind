@@ -6,6 +6,9 @@ import { testSources } from './libs/sources.js';
 import { overview, timeseries, distribution, recruitmentFunnel, activity } from './controllers/reportController.js';
 import { recordEvent, listLogs, targetHistory, ingestAction } from './controllers/auditController.js';
 import { listMasterData, upsertTag, deleteTag, aliasMap } from './controllers/tagController.js';
+import {
+    PERMISSIONS, requireServicePermission, requireTrustedGateway
+} from '../../shared/accessControl.js';
 
 const logger = createLogger('admin-service');
 const app = express();
@@ -24,21 +27,26 @@ app.get('/health', (req, res) => {
     });
 });
 
+app.use(requireTrustedGateway);
+
+const canReadAdmin = requireServicePermission(PERMISSIONS.ADMIN_READ);
+const canWriteAdmin = requireServicePermission(PERMISSIONS.ADMIN_WRITE);
+
 // --- Bao cao & bieu do ---
-app.get('/reports/overview', overview);
-app.get('/reports/timeseries', timeseries);
-app.get('/reports/distribution', distribution);
-app.get('/reports/funnel', recruitmentFunnel);
-app.get('/reports/activity', activity);
+app.get('/reports/overview', canReadAdmin, overview);
+app.get('/reports/timeseries', canReadAdmin, timeseries);
+app.get('/reports/distribution', canReadAdmin, distribution);
+app.get('/reports/funnel', canReadAdmin, recruitmentFunnel);
+app.get('/reports/activity', canReadAdmin, activity);
 
 // --- Nhat ky hoat dong ---
-app.get('/audit', listLogs);
-app.get('/audit/target/:type/:id', targetHistory);
+app.get('/audit', canReadAdmin, listLogs);
+app.get('/audit/target/:type/:id', canReadAdmin, targetHistory);
 
 // --- Master data ---
-app.get('/master-data', listMasterData);
-app.post('/master-data', upsertTag);
-app.delete('/master-data/:id', deleteTag);
+app.get('/master-data', canReadAdmin, listMasterData);
+app.post('/master-data', canWriteAdmin, upsertTag);
+app.delete('/master-data/:id', canWriteAdmin, deleteTag);
 
 // --- Noi bo ---
 // Gateway day thao tac cua nguoi dung vao day.

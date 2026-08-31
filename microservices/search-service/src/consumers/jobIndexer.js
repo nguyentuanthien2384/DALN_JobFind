@@ -30,7 +30,10 @@ const removeJob = async (jobId) => {
 export const rebuildIndex = async () => {
     const jobCoreUrl = process.env.JOB_CORE_URL || 'http://job-core-service:4002';
     try {
-        const { data } = await axios.get(`${jobCoreUrl}/internal/jobs`, { timeout: 30000 });
+        const { data } = await axios.get(`${jobCoreUrl}/internal/jobs`, {
+            timeout: 30000,
+            headers: { 'x-internal-secret': process.env.INTERNAL_SECRET || '' }
+        });
         if (data.errCode !== 0 || !Array.isArray(data.data)) {
             logger.warn('ben Ghi tra ve du lieu khong hop le, bo qua dung lai index');
             return;

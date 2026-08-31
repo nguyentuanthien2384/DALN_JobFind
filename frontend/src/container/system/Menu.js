@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react';
 import { getListChatConversationService } from '../../service/userService';
 import { getSocket } from '../../socket';
+import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
+import { readJsonStorage } from '../../util/storage';
 
 /**
  * Menu khu quan tri.
@@ -24,77 +26,77 @@ import { getSocket } from '../../socket';
 // Dinh nghia menu theo du lieu cho de doc va de them bot, thay vi lap JSX.
 const MENU_ADMIN = [
     {
-        key: 'report', title: 'Báo cáo & Thống kê', icon: 'fas fa-chart-line menu-icon', children: [
+        key: 'report', permission: PERMISSIONS.VIEW_PLATFORM_REPORTS, title: 'Báo cáo & Thống kê', icon: 'fas fa-chart-line menu-icon', children: [
             { to: '/admin/reports/', label: 'Bảng báo cáo' },
         ]
     },
     {
-        key: 'chart', title: 'Đồ thị', icon: 'icon-head menu-icon', children: [
+        key: 'chart', permission: PERMISSIONS.VIEW_PLATFORM_REPORTS, title: 'Đồ thị', icon: 'icon-head menu-icon', children: [
             { to: '/admin/sum-by-year-post/', label: 'Đồ thị doanh thu gói bài viết' },
             { to: '/admin/sum-by-year-cv/', label: 'Đồ thị doanh thu gói xem ứng viên' },
         ]
     },
     {
-        key: 'user', title: 'Quản lý người dùng', icon: 'icon-head menu-icon', children: [
+        key: 'user', permission: PERMISSIONS.MANAGE_USERS, title: 'Quản lý người dùng', icon: 'icon-head menu-icon', children: [
             { to: '/admin/list-user/', label: 'Danh sách người dùng' },
             { to: '/admin/add-user/', label: 'Thêm người dùng' },
         ]
     },
     {
-        key: 'jobtype', title: 'Quản lý loại công việc', icon: 'far fa-building menu-icon', children: [
+        key: 'jobtype', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý loại công việc', icon: 'far fa-building menu-icon', children: [
             { to: '/admin/list-job-type/', label: 'Danh sách loại công việc' },
             { to: '/admin/add-job-type/', label: 'Thêm loại công việc' },
         ]
     },
     {
-        key: 'jobskill', title: 'Quản lý kĩ năng', icon: 'fas fa-lightbulb menu-icon', children: [
+        key: 'jobskill', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý kĩ năng', icon: 'fas fa-lightbulb menu-icon', children: [
             { to: '/admin/list-job-skill/', label: 'Danh sách kĩ năng' },
             { to: '/admin/add-job-skill/', label: 'Thêm kĩ năng' },
         ]
     },
     {
-        key: 'joblevel', title: 'Quản lý cấp bậc', icon: 'fas fa-level-up-alt menu-icon', children: [
+        key: 'joblevel', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý cấp bậc', icon: 'fas fa-level-up-alt menu-icon', children: [
             { to: '/admin/list-job-level/', label: 'Danh sách cấp bậc' },
             { to: '/admin/add-job-level/', label: 'Thêm cấp bậc' },
         ]
     },
     {
-        key: 'worktype', title: 'Quản lý hình thức làm việc', icon: 'fas fa-briefcase menu-icon', children: [
+        key: 'worktype', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý hình thức làm việc', icon: 'fas fa-briefcase menu-icon', children: [
             { to: '/admin/list-work-type/', label: 'Danh sách hình thức làm việc' },
             { to: '/admin/add-work-type/', label: 'Thêm hình thức làm việc' },
         ]
     },
     {
-        key: 'salarytype', title: 'Quản lý khoảng lương', icon: 'fas fa-money-check-alt menu-icon', children: [
+        key: 'salarytype', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý khoảng lương', icon: 'fas fa-money-check-alt menu-icon', children: [
             { to: '/admin/list-salary-type/', label: 'Danh sách khoảng lương' },
             { to: '/admin/add-salary-type/', label: 'Thêm khoảng lương' },
         ]
     },
     {
-        key: 'exptype', title: 'Quản lý kinh nghiệm làm việc', icon: 'far fa-clock menu-icon', children: [
+        key: 'exptype', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý kinh nghiệm làm việc', icon: 'far fa-clock menu-icon', children: [
             { to: '/admin/list-exp-type/', label: 'Danh sách kinh nghiệm' },
             { to: '/admin/add-exp-type/', label: 'Thêm kinh nghiệm' },
         ]
     },
     {
-        key: 'packagepost', title: 'Quản lý gói bài đăng', icon: 'fas fa-cube menu-icon', children: [
+        key: 'packagepost', permission: PERMISSIONS.MANAGE_PACKAGES, title: 'Quản lý gói bài đăng', icon: 'fas fa-cube menu-icon', children: [
             { to: '/admin/list-package-post/', label: 'Danh sách gói bài đăng' },
             { to: '/admin/add-package-post/', label: 'Thêm gói bài đăng' },
         ]
     },
     {
-        key: 'packagecv', title: 'Quản lý gói xem ứng viên', icon: 'fas fa-cube menu-icon', children: [
+        key: 'packagecv', permission: PERMISSIONS.MANAGE_PACKAGES, title: 'Quản lý gói xem ứng viên', icon: 'fas fa-cube menu-icon', children: [
             { to: '/admin/list-package-cv/', label: 'Danh sách gói xem ứng viên' },
             { to: '/admin/add-package-cv/', label: 'Thêm gói xem ứng viên' },
         ]
     },
     {
-        key: 'admin-company', title: 'Quản lý công ty', icon: 'fas fa-clipboard menu-icon', children: [
+        key: 'admin-company', permission: PERMISSIONS.MODERATE_COMPANIES, title: 'Quản lý công ty', icon: 'fas fa-clipboard menu-icon', children: [
             { to: '/admin/list-company-admin/', label: 'Danh sách công ty' },
         ]
     },
     {
-        key: 'admin-post', title: 'Quản lý bài đăng', icon: 'fas fa-clipboard menu-icon', children: [
+        key: 'admin-post', permission: PERMISSIONS.MODERATE_POSTS, title: 'Quản lý bài đăng', icon: 'fas fa-clipboard menu-icon', children: [
             { to: '/admin/list-post-admin/', label: 'Danh sách bài đăng' },
         ]
     },
@@ -102,7 +104,7 @@ const MENU_ADMIN = [
 
 const MENU_COMPANY = [
     {
-        key: 'company-info', title: 'Quản lý công ty', icon: 'fas fa-clipboard menu-icon', children: [
+        key: 'company-info', permission: PERMISSIONS.MANAGE_COMPANY, title: 'Quản lý công ty', icon: 'fas fa-clipboard menu-icon', children: [
             { to: '/admin/edit-company/', label: 'Thông tin công ty' },
             { to: '/admin/recruitment/', label: 'Tuyển dụng vào công ty' },
             { to: '/admin/list-employer/', label: 'Danh sách nhân viên' },
@@ -110,21 +112,21 @@ const MENU_COMPANY = [
         ]
     },
     {
-        key: 'company-post', title: 'Quản lý bài đăng', icon: 'fas fa-clipboard menu-icon', children: [
+        key: 'company-post', permission: PERMISSIONS.MANAGE_POSTS, title: 'Quản lý bài đăng', icon: 'fas fa-clipboard menu-icon', children: [
             { to: '/admin/add-post/', label: 'Tạo mới bài đăng' },
             { to: '/admin/list-post/', label: 'Danh sách bài đăng' },
             { to: '/admin/buy-post/', label: 'Mua thêm lượt đăng bài' },
         ]
     },
     {
-        key: 'company-candidate', title: 'Quản lý ứng viên', icon: 'icon-head menu-icon', children: [
+        key: 'company-candidate', permission: PERMISSIONS.MANAGE_CANDIDATES, title: 'Quản lý ứng viên', icon: 'icon-head menu-icon', children: [
             { to: '/admin/pipeline/', label: 'Quy trình tuyển dụng' },
             { to: '/admin/list-candiate/', label: 'Tìm kiếm ứng viên' },
             { to: '/admin/buy-cv/', label: 'Mua thêm lượt xem ứng viên' },
         ]
     },
     {
-        key: 'company-history', title: 'Lịch sử giao dịch', icon: 'fas fa-money-check-alt menu-icon', children: [
+        key: 'company-history', permission: PERMISSIONS.VIEW_TRANSACTIONS, title: 'Lịch sử giao dịch', icon: 'fas fa-money-check-alt menu-icon', children: [
             { to: '/admin/history-post/', label: 'Lịch sử gói bài đăng' },
             { to: '/admin/history-cv/', label: 'Lịch sử gói xem ứng viên' },
         ]
@@ -133,7 +135,7 @@ const MENU_COMPANY = [
 
 const MENU_EMPLOYER_CHUA_CO_CONG_TY = [
     {
-        key: 'employer-company', title: 'Công ty', icon: 'fas fa-clipboard menu-icon', children: [
+        key: 'employer-company', permission: PERMISSIONS.CREATE_COMPANY, title: 'Công ty', icon: 'fas fa-clipboard menu-icon', children: [
             { to: '/admin/add-company/', label: 'Tạo mới công ty' },
         ]
     },
@@ -141,29 +143,24 @@ const MENU_EMPLOYER_CHUA_CO_CONG_TY = [
 
 const MENU_EMPLOYER = [
     {
-        key: 'employer-post', title: 'Quản lý bài đăng', icon: 'fas fa-clipboard menu-icon', children: [
+        key: 'employer-post', permission: PERMISSIONS.MANAGE_POSTS, title: 'Quản lý bài đăng', icon: 'fas fa-clipboard menu-icon', children: [
             { to: '/admin/add-post/', label: 'Tạo mới bài đăng' },
             { to: '/admin/list-post/', label: 'Danh sách bài đăng' },
         ]
     },
     {
-        key: 'employer-candidate', title: 'Quản lý ứng viên', icon: 'icon-head menu-icon', children: [
+        key: 'employer-candidate', permission: PERMISSIONS.MANAGE_CANDIDATES, title: 'Quản lý ứng viên', icon: 'icon-head menu-icon', children: [
             { to: '/admin/pipeline/', label: 'Quy trình tuyển dụng' },
             { to: '/admin/list-candiate/', label: 'Tìm kiếm ứng viên' },
         ]
     },
 ];
 
-const Menu = () => {
+const Menu = ({ user: suppliedUser }) => {
     const location = useLocation()
-    const [user, setUser] = useState({})
+    const [user] = useState(() => suppliedUser || readJsonStorage('userData'))
     const [unreadChat, setUnreadChat] = useState(0)
     const [openKey, setOpenKey] = useState(null)
-
-    useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem('userData'));
-        setUser(userData)
-    }, [])
 
     // Dem tin nhan chua doc cho muc "Tin nhan".
     useEffect(() => {
@@ -185,10 +182,11 @@ const Menu = () => {
     // Danh sach nhom menu theo vai tro
     const getGroups = () => {
         if (!user) return []
-        if (user.roleCode === 'ADMIN') return MENU_ADMIN
-        if (user.roleCode === 'COMPANY') return MENU_COMPANY
+        if (user.roleCode === 'ADMIN') return MENU_ADMIN.filter(group => hasPermission(user, group.permission))
+        if (user.roleCode === 'COMPANY') return MENU_COMPANY.filter(group => hasPermission(user, group.permission))
         if (user.roleCode === 'EMPLOYER') {
-            return user.companyId ? MENU_EMPLOYER : MENU_EMPLOYER_CHUA_CO_CONG_TY
+            const menu = user.companyId ? MENU_EMPLOYER : MENU_EMPLOYER_CHUA_CO_CONG_TY
+            return menu.filter(group => hasPermission(user, group.permission))
         }
         return []
     }

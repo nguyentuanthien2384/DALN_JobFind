@@ -8,6 +8,9 @@ import {
 import { savedCandidates, saveCandidate, removeCandidate } from './controllers/talentPoolController.js';
 import { syncFromLegacy, syncEndpoint } from './controllers/syncController.js';
 import { startSubmissionConsumer } from './consumers/submissionConsumer.js';
+import {
+    PERMISSIONS, requireServicePermission, requireTrustedGateway
+} from '../../shared/accessControl.js';
 
 const logger = createLogger('application-service');
 const app = express();
@@ -24,8 +27,20 @@ app.get('/health', async (req, res) => {
     }
 });
 
+app.use(requireTrustedGateway);
+
+const canManageApplications = requireServicePermission(
+    PERMISSIONS.APPLICATION_MANAGE,
+    { companyRequired: true }
+);
+const canReadOwnApplications = requireServicePermission(PERMISSIONS.APPLICATION_SELF_READ);
+const canManageTalentPool = requireServicePermission(
+    PERMISSIONS.TALENT_POOL_MANAGE,
+    { companyRequired: true }
+);
+
 // Giao dien can biet danh sach cac buoc de ve cot Kanban.
-app.get('/applications/stages', (req, res) => {
+app.get('/applications/stages', canManageApplications, (req, res) => {
     res.json({
         errCode: 0,
         data: STAGES.map((stage) => ({ stage, label: STAGE_LABELS[stage] }))
@@ -33,22 +48,22 @@ app.get('/applications/stages', (req, res) => {
 });
 
 // --- Nha tuyen dung ---
-app.get('/applications/board', getBoard);
-app.get('/applications/funnel', getFunnel);
-app.get('/applications', listApplications);
-app.get('/applications/:id', getApplication);
-app.patch('/applications/:id/stage', moveStage);
-app.post('/applications/:id/decision-notification', sendDecisionNotification);
-app.patch('/applications/:id/rating', rateApplication);
-app.post('/applications/:id/notes', addNote);
+app.get('/applications/board', canManageApplications, getBoard);
+app.get('/applications/funnel', canManageApplications, getFunnel);
+app.get('/applications', canManageApplications, listApplications);
+app.get('/applications/:id', canManageApplications, getApplication);
+app.patch('/applications/:id/stage', canManageApplications, moveStage);
+app.post('/applications/:id/decision-notification', canManageApplications, sendDecisionNotification);
+app.patch('/applications/:id/rating', canManageApplications, rateApplication);
+app.post('/applications/:id/notes', canManageApplications, addNote);
 
 // --- Ung vien ---
-app.get('/my-applications', myApplications);
+app.get('/my-applications', canReadOwnApplications, myApplications);
 
 // --- Kho ung vien ---
-app.get('/talent-pool', savedCandidates);
-app.post('/talent-pool', saveCandidate);
-app.delete('/talent-pool/:candidateId', removeCandidate);
+app.get('/talent-pool', canManageTalentPool, savedCandidates);
+app.post('/talent-pool', canManageTalentPool, saveCandidate);
+app.delete('/talent-pool/:candidateId', canManageTalentPool, removeCandidate);
 
 // --- Noi bo ---
 app.post('/internal/sync', syncEndpoint);

@@ -97,7 +97,12 @@ let getDetailCompanyById = async (req, res) => {
 }
 let getDetailCompanyByUserId = async (req, res) => {
     try {
-        let data = await companyService.getDetailCompanyByUserId(req.query);
+        const isAdmin = req.user?.userAccountData?.roleCode === 'ADMIN';
+        // The private variant may include verification documents. Company
+        // owners are bound to their token; only an admin may select a target.
+        let data = await companyService.getDetailCompanyByUserId(isAdmin
+            ? req.query
+            : { userId: req.user.id, companyId: req.user.companyId });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

@@ -309,8 +309,17 @@ let updateUserData = (data) => {
                         user.image = imageUrl
                     }
                     await user.save();
-                    if (data.roleCode)
-                    account.roleCode = data.roleCode
+                    if (data.roleCode && data.allowRoleChange) {
+                        const validRoles = ['ADMIN', 'COMPANY', 'EMPLOYER', 'CANDIDATE']
+                        if (!validRoles.includes(data.roleCode)) {
+                            resolve({
+                                errCode: 3,
+                                errMessage: 'Vai trò người dùng không hợp lệ'
+                            })
+                            return
+                        }
+                        account.roleCode = data.roleCode
+                    }
                     await account.save();
                     let temp = {
                         address: user.address,

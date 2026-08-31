@@ -1,5 +1,6 @@
 import userService from '../services/userService';
 import { canAccessCandidateProfile } from '../utils/authorization';
+import { getGrantedPermissions } from '../middlewares/authorize';
 
 const canUpdateUser = (req, targetUserId) => {
     const roleCode = req.user?.userAccountData?.roleCode;
@@ -33,7 +34,16 @@ let handleUpdateUser = async (req, res) => {
                 errMessage: 'Bạn không có quyền cập nhật hồ sơ của người dùng khác'
             });
         }
-        let data = await userService.updateUserData(req.body);
+        // A normal user may edit their profile, but never their role. The role
+        // in the browser is not an authority; only an ADMIN route may change it.
+        const updateData = { ...req.body };
+        const isAdmin = req.user?.userAccountData?.roleCode === 'ADMIN';
+        if (!isAdmin) {
+            delete updateData.roleCode;
+            updateData.id = req.user.id;
+        }
+        updateData.allowRoleChange = isAdmin;
+        let data = await userService.updateUserData(updateData);
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -42,6 +52,20 @@ let handleUpdateUser = async (req, res) => {
             errMessage: 'Error from server'
         })
     }
+}
+
+let getCurrentAuthorization = async (req, res) => {
+    return res.status(200).json({
+        errCode: 0,
+        data: {
+            userId: Number(req.user.id),
+            roleCode: req.user.userAccountData.roleCode,
+            companyId: req.user.companyId === null || req.user.companyId === undefined
+                ? null
+                : Number(req.user.companyId),
+            permissions: getGrantedPermissions(req)
+        }
+    });
 }
 let handleBanUser = async (req, res) => {
     try {
@@ -197,5 +221,6 @@ module.exports = {
     getDetailUserById: getDetailUserById,
     checkUserPhone: checkUserPhone,changePaswordByPhone,
     requestResetPasswordOtp,
-    setDataUserSetting
+    setDataUserSetting,
+    getCurrentAuthorization
 }

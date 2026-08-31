@@ -3,7 +3,6 @@ import {
     BrowserRouter as Router,
     Routes,
     Route,
-    Navigate,
 } from "react-router-dom";
 import Header from "./container/header/header";
 import Footer from "./container/footer/Footer";
@@ -21,11 +20,14 @@ import ListCompany from "./container/Company/ListCompany";
 import DetailCompany from "./container/Company/DetailCompany";
 import ChatPage from "./container/Chat/ChatPage";
 import NotFound from "./container/NotFound/NotFound";
+import Forbidden from "./container/Forbidden/Forbidden";
 import { readJsonStorage } from "./util/storage";
+import RouteGuard from "./auth/RouteGuard";
+import { PERMISSIONS } from "./auth/accessControl";
 
 function App() {
     const userData = readJsonStorage("userData");
-    const roleCode = userData?.roleCode;
+    const hasToken = Boolean(localStorage.getItem("token_user"));
 
     return (
         <Router>
@@ -105,21 +107,33 @@ function App() {
                 <Route
                     path="/chat"
                     element={
-                        <>
-                            <Header />
-                            <ChatPage />
-                            <Footer />
-                        </>
+                        <RouteGuard
+                            user={userData}
+                            hasToken={hasToken}
+                            anyPermissions={[PERMISSIONS.USE_CHAT]}
+                        >
+                            <>
+                                <Header />
+                                <ChatPage />
+                                <Footer />
+                            </>
+                        </RouteGuard>
                     }
                 />
                 <Route
                     path="/chat/:partnerId"
                     element={
-                        <>
-                            <Header />
-                            <ChatPage />
-                            <Footer />
-                        </>
+                        <RouteGuard
+                            user={userData}
+                            hasToken={hasToken}
+                            anyPermissions={[PERMISSIONS.USE_CHAT]}
+                        >
+                            <>
+                                <Header />
+                                <ChatPage />
+                                <Footer />
+                            </>
+                        </RouteGuard>
                     }
                 />
 
@@ -159,26 +173,39 @@ function App() {
                 <Route
                     path="/admin/*"
                     element={
-                        roleCode &&
-                        ["ADMIN", "EMPLOYER", "COMPANY"].includes(roleCode) ? (
-                            <HomeAdmin />
-                        ) : (
-                            <Navigate to="/login" />
-                        )
+                        <RouteGuard
+                            user={userData}
+                            hasToken={hasToken}
+                            anyPermissions={[PERMISSIONS.VIEW_ADMIN_HOME]}
+                        >
+                            <HomeAdmin user={userData} />
+                        </RouteGuard>
                     }
                 />
                 <Route
                     path="/candidate/*"
                     element={
-                        roleCode === "CANDIDATE" ? (
+                        <RouteGuard
+                            user={userData}
+                            hasToken={hasToken}
+                            anyPermissions={[PERMISSIONS.VIEW_CANDIDATE_AREA]}
+                        >
                             <>
                                 <Header />
                                 <HomeCandidate />
                                 <Footer />
                             </>
-                        ) : (
-                            <Navigate to="/login" />
-                        )
+                        </RouteGuard>
+                    }
+                />
+                <Route
+                    path="/forbidden"
+                    element={
+                        <>
+                            <Header />
+                            <Forbidden />
+                            <Footer />
+                        </>
                     }
                 />
                 <Route path="*" element={<NotFound />} />

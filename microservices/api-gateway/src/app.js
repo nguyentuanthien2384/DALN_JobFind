@@ -6,7 +6,8 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 import { createLogger } from '../../shared/logger.js';
 import { listServices, startHealthPolling } from './libs/registry.js';
 import { createProxy, getBreakerStats } from './middlewares/proxy.js';
-import { optionalAuth, requireAuth, requireRole } from './middlewares/auth.js';
+import { optionalAuth, requirePermission } from './middlewares/auth.js';
+import { PERMISSIONS } from '../../shared/accessControl.js';
 import { createRateLimiter } from './middlewares/rateLimit.js';
 import { auditMiddleware } from './middlewares/audit.js';
 import {
@@ -123,7 +124,10 @@ app.use((req, res, next) => {
 const sub = (prefix) => (req) => `${prefix}${req.path === '/' ? '' : req.path}`;
 
 // --- Identity & Profile Service ---
-app.use('/api/profile', requireAuth, createProxy('identity', sub('/profile')));
+app.use('/api/profile/cvs', requirePermission(PERMISSIONS.CV_SELF_MANAGE),
+    createProxy('identity', sub('/profile/cvs')));
+app.use('/api/profile', requirePermission(PERMISSIONS.PROFILE_SELF),
+    createProxy('identity', sub('/profile')));
 
 // --- Search & Discovery (ben Doc) - mo cho khach vang lai ---
 app.use('/api/search', publicLimiter, createProxy('search', sub('/search')));
@@ -131,30 +135,39 @@ app.use('/api/search', publicLimiter, createProxy('search', sub('/search')));
 // --- Job Core (ben Ghi) - phai dang nhap va dung vai tro ---
 // Day la app.post/get chu khong phai app.use, nen req.path la duong dan day du.
 // Dung req.params de dung lai duong dan cua service ben duoi.
-app.post('/api/jobs', writeLimiter, requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+app.post('/api/jobs', writeLimiter,
+    requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
     createProxy('jobs', () => '/jobs'));
-app.put('/api/jobs/:id', writeLimiter, requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+app.put('/api/jobs/:id', writeLimiter,
+    requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
     createProxy('jobs', (req) => `/jobs/${req.params.id}`));
-app.delete('/api/jobs/:id', writeLimiter, requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+app.delete('/api/jobs/:id', writeLimiter,
+    requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
     createProxy('jobs', (req) => `/jobs/${req.params.id}`));
 app.get('/api/jobs/:id', publicLimiter, createProxy('jobs', (req) => `/jobs/${req.params.id}`));
 
 // --- Quan ly ho so ung tuyen (Application & Workflow Service) ---
 // Ung vien chi duoc xem lich su ung tuyen cua chinh minh.
-app.get('/api/my-applications', requireAuth, createProxy('applications', () => '/my-applications'));
+app.get('/api/my-applications', requirePermission(PERMISSIONS.APPLICATION_SELF_READ),
+    createProxy('applications', () => '/my-applications'));
 // Danh sach cac buoc trong pipeline - giao dien can de ve cot Kanban.
-app.get('/api/applications/stages', requireAuth, createProxy('applications', () => '/applications/stages'));
+app.get('/api/applications/stages',
+    requirePermission(PERMISSIONS.APPLICATION_MANAGE, { companyRequired: true }),
+    createProxy('applications', () => '/applications/stages'));
 // Toan bo phan con lai chi danh cho nha tuyen dung.
-app.use('/api/applications', requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+app.use('/api/applications',
+    requirePermission(PERMISSIONS.APPLICATION_MANAGE, { companyRequired: true }),
     createProxy('applications', sub('/applications')));
-app.use('/api/talent-pool', requireRole('EMPLOYER', 'COMPANY', 'ADMIN'),
+app.use('/api/talent-pool',
+    requirePermission(PERMISSIONS.TALENT_POOL_MANAGE, { companyRequired: true }),
     createProxy('applications', sub('/talent-pool')));
 
 // --- Bao cao & quan tri (Admin & Reporting Service) - chi ADMIN ---
-app.use('/api/admin', requireRole('ADMIN'), createProxy('admin', sub('')));
+app.use('/api/admin', requirePermission(PERMISSIONS.ADMIN_READ), createProxy('admin', sub('')));
 
 // --- Cac tinh nang AI ---
-app.use('/api/ai', requireAuth, aiLimiter, createProxy('jobs', sub('/ai')));
+app.use('/api/ai', requirePermission(PERMISSIONS.AI_CANDIDATE_USE), aiLimiter,
+    createProxy('jobs', sub('/ai')));
 
 // --- Monolith cu: moi thu chua tach ra van chay binh thuong qua Gateway ---
 // Nho nhanh nay, frontend chi can tro vao Gateway mot lan duy nhat; viec tach

@@ -2,6 +2,9 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { createLogger } from '../../shared/logger.js';
 import {
+    PERMISSIONS, requireServicePermission, requireTrustedGateway
+} from '../../shared/accessControl.js';
+import {
     getMyProfile, updateMyProfile,
     listCvs, createCv, updateCv, deleteCv, importParsedCv
 } from './controllers/profileController.js';
@@ -21,16 +24,20 @@ app.get('/health', (req, res) => {
     });
 });
 
+app.use(requireTrustedGateway);
+
 // --- Ho so ---
-app.get('/profile', getMyProfile);
-app.put('/profile', updateMyProfile);
+const canUseOwnProfile = requireServicePermission(PERMISSIONS.PROFILE_SELF);
+app.get('/profile', canUseOwnProfile, getMyProfile);
+app.put('/profile', canUseOwnProfile, updateMyProfile);
 
 // --- CV Builder ---
-app.get('/profile/cvs', listCvs);
-app.post('/profile/cvs', createCv);
-app.put('/profile/cvs/:cvId', updateCv);
-app.delete('/profile/cvs/:cvId', deleteCv);
-app.post('/profile/cvs/import', importParsedCv);
+const canManageOwnCv = requireServicePermission(PERMISSIONS.CV_SELF_MANAGE);
+app.get('/profile/cvs', canManageOwnCv, listCvs);
+app.post('/profile/cvs', canManageOwnCv, createCv);
+app.put('/profile/cvs/:cvId', canManageOwnCv, updateCv);
+app.delete('/profile/cvs/:cvId', canManageOwnCv, deleteCv);
+app.post('/profile/cvs/import', canManageOwnCv, importParsedCv);
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {

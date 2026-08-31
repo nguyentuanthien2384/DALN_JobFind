@@ -848,11 +848,19 @@ let getFilterPost = (data) => {
 let getStatisticalTypePost = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
+            const companyScope = data.companyId ? [{
+                model: db.User,
+                as: 'userPostData',
+                attributes: [],
+                where: { companyId: data.companyId },
+                required: true
+            }] : []
             let res = await db.Post.findAll({
                 where: {
                     statusCode: 'PS1'
                 },
                 include: [
+                    ...companyScope,
                     {
                         model: db.DetailPost, as: 'postDetailData', attributes: [],
                         include: [
@@ -871,6 +879,7 @@ let getStatisticalTypePost = (data) => {
                 where: {
                     statusCode: 'PS1'
                 },
+                include: companyScope
             })
             resolve({
                 errCode: 0,

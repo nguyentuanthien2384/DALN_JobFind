@@ -117,10 +117,14 @@ let getAllCvByUserId = async (req, res) => {
 }
 let getStatisticalCv= async (req, res) => {
     try {
-        if (!canAccessCompany(req, req.query.companyId)) {
+        const companyId = isAdmin(req) ? req.query.companyId : getCompanyId(req);
+        if (!canAccessCompany(req, companyId)) {
             return forbidden(res, 'Bạn không có quyền xem thống kê của công ty này');
         }
-        let data = await cvService.getStatisticalCv(req.query);
+        let data = await cvService.getStatisticalCv({
+            ...req.query,
+            companyId
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

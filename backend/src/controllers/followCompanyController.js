@@ -18,7 +18,12 @@ let handleToggleFollowCompany = async (req, res) => {
 
 let checkFollowCompany = async (req, res) => {
     try {
-        let data = await followCompanyService.checkFollowCompany(req.query);
+        // Follower count stays public, while isFollow is always calculated for
+        // the authenticated caller instead of an arbitrary query.userId.
+        let data = await followCompanyService.checkFollowCompany({
+            ...req.query,
+            userId: req.user?.id || null
+        });
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

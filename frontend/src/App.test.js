@@ -19,6 +19,7 @@ jest.mock("react-router-dom", () => {
             return route ? route.props.element : null;
         },
         Navigate: ({ to }) => <div>navigate-{to}</div>,
+        useLocation: () => ({ pathname: global.window.location.pathname }),
     };
 });
 
@@ -38,10 +39,14 @@ jest.mock("./container/Company/ListCompany", () => () => <div>company-page</div>
 jest.mock("./container/Company/DetailCompany", () => () => <div>company-detail-page</div>);
 jest.mock("./container/Chat/ChatPage", () => () => <div>chat-page</div>);
 jest.mock("./container/NotFound/NotFound", () => () => <div>not-found-page</div>);
+jest.mock("./container/Forbidden/Forbidden", () => () => <div>forbidden-page</div>);
 
 const renderAt = (path, user) => {
     localStorage.clear();
-    if (user) localStorage.setItem("userData", JSON.stringify(user));
+    if (user) {
+        localStorage.setItem("userData", JSON.stringify(user));
+        localStorage.setItem("token_user", "valid-token");
+    }
     window.history.replaceState({}, "", path);
     return render(<App />);
 };
@@ -57,8 +62,6 @@ describe("application routes", () => {
         ["/company", "company-page"],
         ["/detail-company/12", "company-detail-page"],
         ["/detail-job/34", "job-detail-page"],
-        ["/chat", "chat-page"],
-        ["/chat/9", "chat-page"],
         ["/login", "login-page"],
         ["/register", "register-page"],
         ["/forget-password", "forget-password-page"],
@@ -69,22 +72,48 @@ describe("application routes", () => {
         expect(screen.getByText("site-footer")).toBeInTheDocument();
     });
 
-    it.each(["ADMIN", "EMPLOYER", "COMPANY"])(
+    it.each([
+        ["ADMIN", undefined],
+        ["EMPLOYER", undefined],
+        ["COMPANY", 8],
+    ])(
         "allows %s users into the admin area",
-        (roleCode) => {
-            renderAt("/admin/users", { id: 1, roleCode });
+        (roleCode, companyId) => {
+            renderAt("/admin/users", { id: 1, roleCode, companyId });
             expect(screen.getByText("admin-page")).toBeInTheDocument();
         }
     );
 
-    it.each([null, "CANDIDATE"])(
-        "redirects an unauthorized %s user away from the admin area",
+    it.each(["ADMIN", "COMPANY", "EMPLOYER", "CANDIDATE"])(
+        "allows an authenticated %s user to use chat",
         (roleCode) => {
-            renderAt("/admin/users", roleCode ? { id: 1, roleCode } : null);
-            expect(screen.getByText("navigate-/login")).toBeInTheDocument();
-            expect(screen.queryByText("admin-page")).not.toBeInTheDocument();
+            renderAt("/chat/9", { id: 1, roleCode, companyId: 3 });
+            expect(screen.getByText("chat-page")).toBeInTheDocument();
         }
     );
+
+    it("requires authentication for chat", () => {
+        renderAt("/chat");
+        expect(screen.getByText("navigate-/login")).toBeInTheDocument();
+    });
+
+    it("redirects a guest away from the admin area", () => {
+        renderAt("/admin/users");
+        expect(screen.getByText("navigate-/login")).toBeInTheDocument();
+    });
+
+    it("sends an authenticated candidate to the forbidden page instead of login", () => {
+        renderAt("/admin/users", { id: 1, roleCode: "CANDIDATE" });
+        expect(screen.getByText("navigate-/forbidden")).toBeInTheDocument();
+        expect(screen.queryByText("admin-page")).not.toBeInTheDocument();
+    });
+
+    it("does not trust persisted user data when its authentication token is missing", () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
+        window.history.replaceState({}, "", "/admin/users");
+        render(<App />);
+        expect(screen.getByText("navigate-/login")).toBeInTheDocument();
+    });
 
     it("allows candidates into their protected area with the shared layout", () => {
         renderAt("/candidate/info", { id: 2, roleCode: "CANDIDATE" });
@@ -93,14 +122,26 @@ describe("application routes", () => {
         expect(screen.getByText("site-footer")).toBeInTheDocument();
     });
 
-    it.each([null, "ADMIN", "EMPLOYER", "COMPANY"])(
-        "redirects a non-candidate %s user away from the candidate area",
+    it("redirects a guest away from the candidate area", () => {
+        renderAt("/candidate/info");
+        expect(screen.getByText("navigate-/login")).toBeInTheDocument();
+    });
+
+    it.each(["ADMIN", "EMPLOYER", "COMPANY"])(
+        "sends an authenticated non-candidate %s away from the candidate area",
         (roleCode) => {
-            renderAt("/candidate/info", roleCode ? { id: 1, roleCode } : null);
-            expect(screen.getByText("navigate-/login")).toBeInTheDocument();
+            renderAt("/candidate/info", { id: 1, roleCode, companyId: 4 });
+            expect(screen.getByText("navigate-/forbidden")).toBeInTheDocument();
             expect(screen.queryByText("candidate-page")).not.toBeInTheDocument();
         }
     );
+
+    it("renders a dedicated forbidden route with the shared public layout", () => {
+        renderAt("/forbidden", { id: 1, roleCode: "CANDIDATE" });
+        expect(screen.getByText("forbidden-page")).toBeInTheDocument();
+        expect(screen.getByText("site-header")).toBeInTheDocument();
+        expect(screen.getByText("site-footer")).toBeInTheDocument();
+    });
 
     it("uses the not-found page for an unknown route", () => {
         renderAt("/does-not-exist");

@@ -3,6 +3,7 @@ import { createLogger } from '../../shared/logger.js';
 import { waitForElastic, ensureIndex, es, INDEX } from './libs/elastic.js';
 import { startIndexer, rebuildIndex } from './consumers/jobIndexer.js';
 import { searchJobs, suggest, facets, related } from './controllers/searchController.js';
+import { requireTrustedGateway } from '../../shared/accessControl.js';
 
 const logger = createLogger('search-service');
 const app = express();
@@ -18,6 +19,9 @@ app.get('/health', async (req, res) => {
         res.status(503).json({ status: 'degraded', error: error.message });
     }
 });
+
+// Search cong khai tai Gateway, khong dong nghia voi viec cong khai cong service.
+app.use(requireTrustedGateway);
 
 app.get('/search/jobs', searchJobs);
 app.get('/search/suggest', suggest);

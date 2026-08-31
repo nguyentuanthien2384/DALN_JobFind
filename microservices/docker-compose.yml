@@ -109,6 +109,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
       RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
       JWT_SECRET: ${JWT_SECRET:-anhtaideptrai}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -128,6 +129,7 @@ services:
       PORT: 4003
       ELASTICSEARCH_URL: http://elasticsearch:9200
       RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
       JOB_CORE_URL: http://job-core-service:4002
       RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
     depends_on:
@@ -150,6 +152,7 @@ services:
       MONGO_URL: mongodb://mongo:27017/identity_db
       RABBITMQ_URL: amqp://jobportal:jobportal@rabbitmq:5672
       JWT_SECRET: ${JWT_SECRET:-anhtaideptrai}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
     depends_on:
       mongo:
         condition: service_healthy
@@ -193,6 +196,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
       RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -271,6 +275,12 @@ services:
       PORT: 4000
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-anhtaideptrai}
+      # Gateway doc identity hien tai tu MySQL, khong tin role/companyId cu trong JWT.
+      MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
+      MYSQL_PORT: ${MYSQL_PORT:-3333}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
       IDENTITY_URL: http://identity-service:4001
       JOB_CORE_URL: http://job-core-service:4002
       RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}

@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import UserCv from "../system/Cv/UserCv";
 import ChangePassword from "../system/User/ChangePassword";
 import CandidateInfo from "./CandidateInfo";
@@ -44,6 +44,7 @@ const HomeCandidate = () => {
                                 element={<SavedJobs />}
                             />
                             <Route path="/cv-detail/:id" element={<UserCv />} />
+                            <Route path="*" element={<Navigate to="/candidate/info" replace />} />
                         </Routes>
                     </div>
                     {/* content-wrapper ends */}

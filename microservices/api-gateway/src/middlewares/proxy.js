@@ -95,6 +95,9 @@ const buildForwardHeaders = (req) => {
     delete headers['x-user-id'];
     delete headers['x-user-role'];
     delete headers['x-company-id'];
+    // Khong bao gio chuyen khoa do client tu gui. Gateway dat lai khoa cua
+    // chinh no de service phan biet request noi bo voi request goi thang.
+    delete headers['x-internal-secret'];
 
     if (req.user) {
         headers['x-user-id'] = String(req.user.id);
@@ -102,6 +105,9 @@ const buildForwardHeaders = (req) => {
         if (req.user.companyId !== null && req.user.companyId !== undefined) {
             headers['x-company-id'] = String(req.user.companyId);
         }
+    }
+    if (process.env.INTERNAL_SECRET) {
+        headers['x-internal-secret'] = process.env.INTERNAL_SECRET;
     }
     headers['x-correlation-id'] = req.correlationId;
     return headers;

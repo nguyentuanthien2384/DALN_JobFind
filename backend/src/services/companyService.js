@@ -547,10 +547,10 @@ let getDetailCompanyById = (id) => {
                             },
                         ]
                     })
-                    if (company.file)
-                    {
-                        company.file = Buffer.from(company.file, 'base64').toString('binary')
-                    }
+                    // The public company page must never expose the business
+                    // verification attachment. Admin/owner use the private
+                    // getDetailCompanyByUserId endpoint for that document.
+                    delete company.file
                     resolve({
                         errCode: 0,
                         data: company,

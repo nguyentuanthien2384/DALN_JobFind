@@ -47,7 +47,18 @@ import ChartPost from "./Chart/ChartPost";
 import ChartCv from "./Chart/ChartCv";
 import ChatPage from "../Chat/ChatPage";
 import PaymentCancelled from "./PaymentCancelled";
-const HomeAdmin = () => {
+import RouteGuard from "../../auth/RouteGuard";
+import { hasPermission, PERMISSIONS } from "../../auth/accessControl";
+import { readJsonStorage } from "../../util/storage";
+
+const HomeAdmin = ({ user: suppliedUser }) => {
+    const user = suppliedUser || readJsonStorage("userData");
+    const guard = (element, ...permissions) => (
+        <RouteGuard user={user} anyPermissions={permissions}>
+            {element}
+        </RouteGuard>
+    );
+
     return (
         <div className="container-scroller">
             {/* partial:partials/_navbar.html */}
@@ -95,12 +106,16 @@ const HomeAdmin = () => {
                             <Link className="list-group-item list-group-item-action" to="/admin/chat">
                                 Tin nhắn tuyển dụng
                             </Link>
-                            <Link className="list-group-item list-group-item-action" to="/admin/pipeline">
-                                Quy trình ứng viên
-                            </Link>
-                            <Link className="list-group-item list-group-item-action" to="/admin/reports">
-                                Báo cáo tuyển dụng
-                            </Link>
+                            {hasPermission(user, PERMISSIONS.MANAGE_CANDIDATES) && (
+                                <Link className="list-group-item list-group-item-action" to="/admin/pipeline">
+                                    Quy trình ứng viên
+                                </Link>
+                            )}
+                            {hasPermission(user, PERMISSIONS.VIEW_PLATFORM_REPORTS) && (
+                                <Link className="list-group-item list-group-item-action" to="/admin/reports">
+                                    Báo cáo hệ thống
+                                </Link>
+                            )}
                         </div>
                         <p className="text-muted mt-4 mb-0">
                             Dữ liệu được đồng bộ tự động. Bạn có thể dùng nút Làm mới trên từng trang khi cần.
@@ -109,217 +124,235 @@ const HomeAdmin = () => {
                 </div>
                 {/* partial */}
                 {/* partial:partials/_sidebar.html */}
-                <Menu />
+                <Menu user={user} />
                 {/* partial */}
                 <div className="main-panel">
                     <div className="content-wrapper">
                         <Routes>
-                            <Route path="/" element={<Home />} />
-                            <Route path="/chat" element={<ChatPage />} />
-                            <Route path="/chat/:partnerId" element={<ChatPage />} />
-                            <Route path="/list-user" element={<ManageUser />} />
-                            <Route path="/pipeline" element={<KanbanBoard />} />
-                            <Route path="/reports" element={<ReportDashboard />} />
-                            <Route path="/add-user" element={<AddUser />} />
+                            <Route path="/" element={guard(<Home />, PERMISSIONS.VIEW_ADMIN_HOME)} />
+                            <Route path="/chat" element={guard(<ChatPage />, PERMISSIONS.USE_CHAT)} />
+                            <Route path="/chat/:partnerId" element={guard(<ChatPage />, PERMISSIONS.USE_CHAT)} />
+                            <Route path="/list-user" element={guard(<ManageUser />, PERMISSIONS.MANAGE_USERS)} />
+                            <Route path="/pipeline" element={guard(<KanbanBoard />, PERMISSIONS.MANAGE_CANDIDATES)} />
+                            <Route path="/reports" element={guard(<ReportDashboard />, PERMISSIONS.VIEW_PLATFORM_REPORTS)} />
+                            <Route
+                                path="/add-user"
+                                element={guard(<AddUser />, PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_TEAM)}
+                            />
                             <Route
                                 path="/edit-user/:id"
-                                element={<AddUser />}
+                                element={guard(<AddUser />, PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_TEAM)}
                             />
                             <Route
                                 path="/add-job-type"
-                                element={<AddJobType />}
+                                element={guard(<AddJobType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/list-job-type"
-                                element={<ManageJobType />}
+                                element={guard(<ManageJobType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/edit-job-type/:code"
-                                element={<AddJobType />}
+                                element={guard(<AddJobType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/add-job-skill"
-                                element={<AddJobSkill />}
+                                element={guard(<AddJobSkill />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/list-job-skill"
-                                element={<ManageJobSkill />}
+                                element={guard(<ManageJobSkill />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/edit-job-skill/:code"
-                                element={<AddJobSkill />}
+                                element={guard(<AddJobSkill />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/add-job-level"
-                                element={<AddJobLevel />}
+                                element={guard(<AddJobLevel />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/list-job-level"
-                                element={<ManageJobLevel />}
+                                element={guard(<ManageJobLevel />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/edit-job-level/:id"
-                                element={<AddJobLevel />}
+                                element={guard(<AddJobLevel />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/add-work-type"
-                                element={<AddWorkType />}
+                                element={guard(<AddWorkType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/list-work-type"
-                                element={<ManageWorkType />}
+                                element={guard(<ManageWorkType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/edit-work-type/:id"
-                                element={<AddWorkType />}
+                                element={guard(<AddWorkType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/add-salary-type"
-                                element={<AddSalaryType />}
+                                element={guard(<AddSalaryType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/list-salary-type"
-                                element={<ManageSalaryType />}
+                                element={guard(<ManageSalaryType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/edit-salary-type/:id"
-                                element={<AddSalaryType />}
+                                element={guard(<AddSalaryType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/add-exp-type"
-                                element={<AddExpType />}
+                                element={guard(<AddExpType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/list-exp-type"
-                                element={<ManageExpType />}
+                                element={guard(<ManageExpType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/edit-exp-type/:id"
-                                element={<AddExpType />}
+                                element={guard(<AddExpType />, PERMISSIONS.MANAGE_REFERENCE_DATA)}
                             />
                             <Route
                                 path="/add-package-post"
-                                element={<AddpackagePost />}
+                                element={guard(<AddpackagePost />, PERMISSIONS.MANAGE_PACKAGES)}
                             />
                             <Route
                                 path="/list-package-post"
-                                element={<ManagePackagePost />}
+                                element={guard(<ManagePackagePost />, PERMISSIONS.MANAGE_PACKAGES)}
                             />
                             <Route
                                 path="/edit-package-post/:id"
-                                element={<AddpackagePost />}
+                                element={guard(<AddpackagePost />, PERMISSIONS.MANAGE_PACKAGES)}
                             />
                             <Route
                                 path="/add-package-cv"
-                                element={<AddpackageCv />}
+                                element={guard(<AddpackageCv />, PERMISSIONS.MANAGE_PACKAGES)}
                             />
                             <Route
                                 path="/list-package-cv"
-                                element={<ManagePackageCv />}
+                                element={guard(<ManagePackageCv />, PERMISSIONS.MANAGE_PACKAGES)}
                             />
                             <Route
                                 path="/edit-package-cv/:id"
-                                element={<AddpackageCv />}
+                                element={guard(<AddpackageCv />, PERMISSIONS.MANAGE_PACKAGES)}
                             />
                             <Route
                                 path="/add-company"
-                                element={<AddCompany />}
+                                element={guard(<AddCompany />, PERMISSIONS.CREATE_COMPANY)}
                             />
                             <Route
                                 path="/edit-company"
-                                element={<AddCompany />}
+                                element={guard(<AddCompany />, PERMISSIONS.MANAGE_COMPANY)}
                             />
                             <Route
                                 path="/edit-company-admin/:id"
-                                element={<AddCompany />}
+                                element={guard(<AddCompany />, PERMISSIONS.MODERATE_COMPANIES)}
                             />
                             <Route
                                 path="/recruitment"
-                                element={<Recruitment />}
+                                element={guard(<Recruitment />, PERMISSIONS.MANAGE_TEAM)}
                             />
                             <Route
                                 path="/list-employer"
-                                element={<ManageEmployer />}
+                                element={guard(<ManageEmployer />, PERMISSIONS.MANAGE_TEAM)}
                             />
-                            <Route path="/add-post" element={<AddPost />} />
+                            <Route path="/add-post" element={guard(<AddPost />, PERMISSIONS.MANAGE_POSTS)} />
                             <Route
                                 path="/edit-post/:id"
-                                element={<AddPost />}
+                                element={guard(<AddPost />, PERMISSIONS.MANAGE_POSTS, PERMISSIONS.MODERATE_POSTS)}
                             />
-                            <Route path="/list-post" element={<ManagePost />} />
+                            <Route path="/list-post" element={guard(<ManagePost />, PERMISSIONS.MANAGE_POSTS)} />
                             <Route
                                 path="/list-post/:id"
-                                element={<ManagePost />}
+                                element={guard(<ManagePost />, PERMISSIONS.MANAGE_POSTS)}
                             />
-                            <Route path="/buy-post" element={<BuyPost />} />
+                            <Route path="/buy-post" element={guard(<BuyPost />, PERMISSIONS.PURCHASE_PACKAGES)} />
                             <Route
                                 path="/payment/success"
-                                element={<PaymentSuccess />}
+                                element={guard(<PaymentSuccess />, PERMISSIONS.PURCHASE_PACKAGES)}
                             />
                             <Route
                                 path="/payment/cancel"
                                 element={
-                                    <PaymentCancelled
-                                        storageKey="orderData"
-                                        buyPath="/admin/buy-post"
-                                        packageLabel="gói đăng bài"
-                                    />
+                                    guard(
+                                        <PaymentCancelled
+                                            storageKey="orderData"
+                                            buyPath="/admin/buy-post"
+                                            packageLabel="gói đăng bài"
+                                        />,
+                                        PERMISSIONS.PURCHASE_PACKAGES
+                                    )
                                 }
                             />
-                            <Route path="/buy-cv" element={<BuyCv />} />
+                            <Route path="/buy-cv" element={guard(<BuyCv />, PERMISSIONS.PURCHASE_PACKAGES)} />
                             <Route
                                 path="/paymentCv/success"
-                                element={<PaymentSuccessCv />}
+                                element={guard(<PaymentSuccessCv />, PERMISSIONS.PURCHASE_PACKAGES)}
                             />
                             <Route
                                 path="/paymentCv/cancel"
                                 element={
-                                    <PaymentCancelled
-                                        storageKey="orderCvData"
-                                        buyPath="/admin/buy-cv"
-                                        packageLabel="gói tìm ứng viên"
-                                    />
+                                    guard(
+                                        <PaymentCancelled
+                                            storageKey="orderCvData"
+                                            buyPath="/admin/buy-cv"
+                                            packageLabel="gói tìm ứng viên"
+                                        />,
+                                        PERMISSIONS.PURCHASE_PACKAGES
+                                    )
                                 }
                             />
                             <Route
                                 path="/list-post-admin"
-                                element={<ManagePost />}
+                                element={guard(<ManagePost />, PERMISSIONS.MODERATE_POSTS)}
                             />
-                            <Route path="/list-cv/:id" element={<ManageCv />} />
+                            <Route
+                                path="/list-cv/:id"
+                                element={guard(<ManageCv />, PERMISSIONS.MANAGE_CANDIDATES, PERMISSIONS.MODERATE_POSTS)}
+                            />
                             <Route
                                 path="/list-candiate"
-                                element={<FilterCv />}
+                                element={guard(<FilterCv />, PERMISSIONS.MANAGE_CANDIDATES)}
                             />
                             <Route
                                 path="/candiate/:id"
-                                element={<DetailFilterUser />}
+                                element={guard(<DetailFilterUser />, PERMISSIONS.MANAGE_CANDIDATES)}
                             />
-                            <Route path="/note/:id" element={<NotePost />} />
-                            <Route path="/user-cv/:id" element={<UserCv />} />
+                            <Route
+                                path="/note/:id"
+                                element={guard(<NotePost />, PERMISSIONS.MANAGE_POSTS, PERMISSIONS.MODERATE_POSTS)}
+                            />
+                            <Route
+                                path="/user-cv/:id"
+                                element={guard(<UserCv />, PERMISSIONS.MANAGE_CANDIDATES, PERMISSIONS.MODERATE_POSTS)}
+                            />
                             <Route
                                 path="/changepassword"
-                                element={<ChangePassword />}
+                                element={guard(<ChangePassword />, PERMISSIONS.MANAGE_PROFILE)}
                             />
-                            <Route path="/user-info" element={<UserInfo />} />
+                            <Route path="/user-info" element={guard(<UserInfo />, PERMISSIONS.MANAGE_PROFILE)} />
                             <Route
                                 path="/list-company-admin"
-                                element={<ManageCompany />}
+                                element={guard(<ManageCompany />, PERMISSIONS.MODERATE_COMPANIES)}
                             />
                             <Route
                                 path="/history-post"
-                                element={<HistoryTradePost />}
+                                element={guard(<HistoryTradePost />, PERMISSIONS.VIEW_TRANSACTIONS)}
                             />
                             <Route
                                 path="/history-cv"
-                                element={<HistoryTradeCv />}
+                                element={guard(<HistoryTradeCv />, PERMISSIONS.VIEW_TRANSACTIONS)}
                             />
                             <Route
                                 path="/sum-by-year-post"
-                                element={<ChartPost />}
+                                element={guard(<ChartPost />, PERMISSIONS.VIEW_PLATFORM_REPORTS)}
                             />
                             <Route
                                 path="/sum-by-year-cv"
-                                element={<ChartCv />}
+                                element={guard(<ChartCv />, PERMISSIONS.VIEW_PLATFORM_REPORTS)}
                             />
                             <Route path="*" element={<Navigate to="/admin/" replace />} />
                         </Routes>

@@ -204,7 +204,13 @@ let getFilterPost = async (req, res) => {
 
 let getStatisticalTypePost = async (req, res) => {
     try {
-        let data = await postService.getStatisticalTypePost(req.query);
+        const isAdmin = req.user?.userAccountData?.roleCode === 'ADMIN';
+        // Recruiters see only their tenant's jobs. Admin may request one
+        // company explicitly or omit companyId for a platform-wide report.
+        let data = await postService.getStatisticalTypePost({
+            ...req.query,
+            companyId: isAdmin ? req.query.companyId : req.user.companyId
+        });
         return res.status(200).json(data)
     } catch (error) {
         console.log(error)
