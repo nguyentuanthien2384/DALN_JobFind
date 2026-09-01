@@ -226,6 +226,7 @@ services:
       EMAIL_APP: ${EMAIL_APP:-}
       EMAIL_APP_PASSWORD: ${EMAIL_APP_PASSWORD:-}
       EMAIL_DEMO_RECIPIENT: ${EMAIL_DEMO_RECIPIENT:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       LEGACY_URL: ${LEGACY_URL:-http://host.docker.internal:5000}
       INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
     extra_hosts:

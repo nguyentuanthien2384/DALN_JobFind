@@ -204,7 +204,10 @@ song song. Thay vào đó Notification Service gọi endpoint nội bộ
 (không dùng JWT vì đây là giao tiếp giữa hai máy chủ, không có người dùng nào ở giữa).
 
 Để gửi email thật, thêm `EMAIL_APP` và `EMAIL_APP_PASSWORD` (Gmail App Password)
-vào `microservices/.env`, sau đó khởi động lại Notification Service. Dữ liệu mẫu
+vào `microservices/.env`. Đặt `FRONTEND_URL` thành địa chỉ frontend công khai để
+các nút trong email mở đúng trang, sau đó khởi động lại Notification Service.
+Email dùng chung khung responsive, có bản văn bản thuần và không phụ thuộc ảnh
+ngoài. Dữ liệu mẫu
 có thể chứa địa chỉ như `example@gmail.com`; trong `NODE_ENV=development`, các
 địa chỉ mẫu được chuyển an toàn tới `EMAIL_DEMO_RECIPIENT`, hoặc tới `EMAIL_APP`
 nếu chưa đặt biến này. Trong production, địa chỉ mẫu/không hợp lệ bị bỏ qua trước

@@ -183,6 +183,7 @@ POSTGRES_PASSWORD=
 LEGACY_URL=http://host.docker.internal:5000
 INTERNAL_SECRET=
 CORS_ORIGIN=http://localhost:3000
+FRONTEND_URL=http://localhost:3000
 
 # Bắt buộc nếu muốn gửi email kết quả thật
 NODE_ENV=development
@@ -200,6 +201,8 @@ Dữ liệu mẫu dùng địa chỉ không nhận thư như `example@gmail.com`
 development, Notification Service chuyển các địa chỉ mẫu tới
 `EMAIL_DEMO_RECIPIENT`; nếu biến này trống thì dùng chính `EMAIL_APP`. Ở
 production, địa chỉ mẫu bị chặn để tránh gửi nhầm hoặc tạo thư báo lỗi.
+`FRONTEND_URL` là địa chỉ frontend công khai được gắn vào các nút trong email;
+khi triển khai, thay giá trị localhost bằng domain thật của dự án.
 
 Khởi chạy toàn bộ service:
 

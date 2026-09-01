@@ -145,35 +145,51 @@ const getTransporter = () => {
     return transporter;
 };
 
-export const sendEmail = async ({ to, subject, html }) => {
+export const sendEmail = async ({ to, subject, html, text }) => {
     const recipient = resolveEmailRecipient(to);
+    const safeSubject = String(subject ?? '')
+        .replace(/[\r\n]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 200);
     if (recipient.skipped) {
         logger.warn('bo qua gui email vi dia chi nhan khong an toan', {
-            to: normalizeEmailRecipient(to), subject, reason: recipient.reason
+            to: normalizeEmailRecipient(to), subject: safeSubject, reason: recipient.reason
         });
         return recipient;
     }
     if (!emailConfigured()) {
-        logger.debug('bo qua gui email vi chua cau hinh EMAIL_APP', { to: recipient.to, subject });
+        logger.debug('bo qua gui email vi chua cau hinh EMAIL_APP', { to: recipient.to, subject: safeSubject });
         return { skipped: true, reason: EMAIL_SKIP_REASONS.NOT_CONFIGURED };
     }
 
-    const outgoingSubject = recipient.demo ? `[DEMO] ${subject ?? ''}` : subject;
+    const outgoingSubject = recipient.demo ? `[DEMO] ${safeSubject}` : safeSubject;
 
     try {
-        await getTransporter().sendMail({
+        const mail = {
             from: normalizeEmailRecipient(process.env.EMAIL_APP),
             to: recipient.to,
             subject: outgoingSubject,
             html
-        });
+        };
+        if (typeof text === 'string' && text.trim()) mail.text = text;
+
+        const info = await getTransporter().sendMail(mail);
         logger.info('da gui email', {
             to: recipient.to,
             subject: outgoingSubject,
             demo: recipient.demo,
-            originalTo: recipient.originalTo
+            originalTo: recipient.originalTo,
+            messageId: info?.messageId,
+            accepted: info?.accepted?.length,
+            rejected: info?.rejected?.length
         });
-        return { sent: true };
+        return {
+            sent: true,
+            ...(info?.messageId ? { messageId: info.messageId } : {}),
+            ...(Array.isArray(info?.accepted) ? { accepted: info.accepted } : {}),
+            ...(Array.isArray(info?.rejected) ? { rejected: info.rejected } : {})
+        };
     } catch (error) {
         // Email hong khong duoc lam hong ca luong: thong bao trong chuong da luu roi.
         logger.warn('gui email that bai', { to: recipient.to, error: error.message });

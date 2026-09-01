@@ -38,17 +38,17 @@ describe('notification event consumer', () => {
 
     it('delivers through database, realtime, and looked-up email channels', async () => {
         const { deliver, stats } = await import('../notification-service/src/consumers/notificationConsumer.js');
-        const template = { typeCode: 'X', content: 'Content', link: '/x', email: { subject: 'S', html: 'H' } };
+        const template = { typeCode: 'X', content: 'Content', link: '/x', email: { subject: 'S', html: 'H', text: 'T' } };
         await deliver({ userId: 2, template });
         expect(mocks.saveNotification).toHaveBeenCalledWith({ userId: 2, typeCode: 'X', content: 'Content', link: '/x' });
         expect(mocks.pushRealtime).toHaveBeenCalledWith({ userId: 2, notification: { id: 1, userId: 2 } });
-        expect(mocks.sendEmail).toHaveBeenCalledWith({ to: 'user@example.com', subject: 'S', html: 'H' });
+        expect(mocks.sendEmail).toHaveBeenCalledWith({ to: 'user@example.com', subject: 'S', html: 'H', text: 'T' });
         expect(stats).toEqual({ saved: 1, emailed: 1, pushed: 1, failed: 0 });
     });
 
     it('uses event email directly and skips invalid delivery requests', async () => {
         const { deliver, stats } = await import('../notification-service/src/consumers/notificationConsumer.js');
-        const template = { typeCode: 'X', content: 'C', email: { subject: 'S', html: 'H' } };
+        const template = { typeCode: 'X', content: 'C', email: { subject: 'S', html: 'H', text: 'T' } };
         await deliver({ userId: 2, template, recipientEmail: 'snapshot@example.com' });
         expect(mocks.getUserEmail).not.toHaveBeenCalled();
         expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'snapshot@example.com' }));
@@ -59,7 +59,7 @@ describe('notification event consumer', () => {
 
     it('isolates channel failures and increments only relevant stats', async () => {
         const { deliver, stats } = await import('../notification-service/src/consumers/notificationConsumer.js');
-        const template = { typeCode: 'X', content: 'C', email: { subject: 'S', html: 'H' } };
+        const template = { typeCode: 'X', content: 'C', email: { subject: 'S', html: 'H', text: 'T' } };
         mocks.saveNotification.mockRejectedValue(new Error('db'));
         mocks.getUserEmail.mockRejectedValue(new Error('lookup'));
         await expect(deliver({ userId: 2, template })).resolves.toBeUndefined();
@@ -72,7 +72,7 @@ describe('notification event consumer', () => {
         const { deliver, stats } = await import('../notification-service/src/consumers/notificationConsumer.js');
         mocks.pushRealtime.mockResolvedValue({ error: 'socket' });
         mocks.sendEmail.mockResolvedValue({ error: 'smtp' });
-        await deliver({ userId: 2, recipientEmail: 'a@b.com', template: { typeCode: 'X', content: 'C', email: { subject: 'S', html: 'H' } } });
+        await deliver({ userId: 2, recipientEmail: 'a@b.com', template: { typeCode: 'X', content: 'C', email: { subject: 'S', html: 'H', text: 'T' } } });
         expect(stats).toEqual({ saved: 1, emailed: 0, pushed: 0, failed: 0 });
     });
 

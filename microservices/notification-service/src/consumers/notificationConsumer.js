@@ -57,7 +57,8 @@ export const deliver = async ({ userId, template, recipientEmail }) => {
             const sent = await sendEmail({
                 to: email,
                 subject: template.email.subject,
-                html: template.email.html
+                html: template.email.html,
+                text: template.email.text
             });
             if (sent.sent) stats.emailed += 1;
         }

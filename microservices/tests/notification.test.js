@@ -24,6 +24,35 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllEnvs());
 
+const expectRichEmail = (email, { ctaUrl, progressCurrent } = {}) => {
+    expect(email).toEqual(expect.objectContaining({
+        subject: expect.any(String),
+        html: expect.any(String),
+        text: expect.any(String)
+    }));
+    expect(email.subject).not.toMatch(/[\r\n]/);
+    expect(email.html.trimStart()).toMatch(/^<!doctype html>/i);
+    expect(email.html).toMatch(/<meta[^>]+name=["']viewport["']/i);
+    expect(email.html).toMatch(/<(?:div|span)[^>]+(?:data-preheader|class=["'][^"']*preheader|display\s*:\s*none)/i);
+    expect(email.html).toMatch(/<table[^>]+role=["']presentation["']/i);
+    expect(email.text.trim()).not.toBe('');
+
+    if (ctaUrl) {
+        expect(email.html).toContain(`href="${ctaUrl}"`);
+        expect(email.text).toContain(ctaUrl);
+    }
+
+    if (progressCurrent) {
+        expect(email.html).toMatch(new RegExp(
+            `data-progress-current=["']${progressCurrent}["']|aria-label=["'][^"']*(?:bước\\s*${progressCurrent}|${progressCurrent}\\s*(?:/|trên)\\s*5)`,
+            'i'
+        ));
+        for (const label of ['Đã nộp', 'Xem xét', 'Phỏng vấn', 'Đề nghị', 'Kết quả']) {
+            expect(email.html).toContain(label);
+        }
+    }
+};
+
 describe('notification delivery channels', () => {
     it('persists bounded notifications and returns the created shape', async () => {
         mocks.mysqlPool.query.mockResolvedValue([{ insertId: 17 }]);
@@ -90,16 +119,26 @@ describe('notification delivery channels', () => {
         vi.stubEnv('EMAIL_APP', 'sender@gmail.com');
         vi.stubEnv('EMAIL_APP_PASSWORD', 'pass');
         const { sendEmail } = await import('../notification-service/src/libs/channels.js');
-        mocks.transporter.sendMail.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('smtp'));
+        mocks.transporter.sendMail.mockResolvedValueOnce({
+            messageId: 'message-1',
+            accepted: ['candidate@realmail.com'],
+            rejected: []
+        }).mockRejectedValueOnce(new Error('smtp'));
         await expect(sendEmail({
-            to: ' Candidate@RealMail.COM ', subject: 'S', html: '<p>H</p>'
-        })).resolves.toEqual({ sent: true });
+            to: ' Candidate@RealMail.COM ', subject: 'S', html: '<p>H</p>', text: 'H'
+        })).resolves.toEqual({
+            sent: true,
+            messageId: 'message-1',
+            accepted: ['candidate@realmail.com'],
+            rejected: []
+        });
         expect(mocks.createTransport).toHaveBeenCalledWith({ service: 'gmail', auth: { user: 'sender@gmail.com', pass: 'pass' } });
         expect(mocks.transporter.sendMail).toHaveBeenNthCalledWith(1, {
             from: 'sender@gmail.com',
             to: 'candidate@realmail.com',
             subject: 'S',
-            html: '<p>H</p>'
+            html: '<p>H</p>',
+            text: 'H'
         });
         await expect(sendEmail({ to: 'c@d.com', subject: 'S2', html: 'H2' })).resolves.toEqual({ error: 'smtp' });
         expect(mocks.createTransport).toHaveBeenCalledOnce();
@@ -114,13 +153,14 @@ describe('notification delivery channels', () => {
         mocks.transporter.sendMail.mockResolvedValueOnce({});
 
         await expect(sendEmail({
-            to: ' EXAMPLE@GMAIL.COM ', subject: 'Mời phỏng vấn', html: '<p>H</p>'
-        })).resolves.toEqual({ sent: true });
+            to: ' EXAMPLE@GMAIL.COM ', subject: 'Mời phỏng vấn', html: '<p>H</p>', text: 'H'
+        })).resolves.toMatchObject({ sent: true });
         expect(mocks.transporter.sendMail).toHaveBeenCalledWith({
             from: 'sender@gmail.com',
             to: 'demoinbox@realmail.com',
             subject: '[DEMO] Mời phỏng vấn',
-            html: '<p>H</p>'
+            html: '<p>H</p>',
+            text: 'H'
         });
     });
 
@@ -133,7 +173,7 @@ describe('notification delivery channels', () => {
 
         await expect(sendEmail({
             to: 'candidate@example.org', subject: 'Kết quả', html: 'H'
-        })).resolves.toEqual({ sent: true });
+        })).resolves.toMatchObject({ sent: true });
         expect(mocks.transporter.sendMail).toHaveBeenCalledWith(expect.objectContaining({
             to: 'sender@gmail.com', subject: '[DEMO] Kết quả'
         }));
@@ -199,18 +239,44 @@ describe('notification templates', () => {
     });
 
     it.each([
-        ['dang_xem_xet', 'đang được xem xét'],
-        ['phong_van', 'phỏng vấn'],
-        ['de_nghi', 'đề nghị nhận việc'],
-        ['nhan_viec', 'nhận việc'],
-        ['tu_choi', 'chưa phù hợp']
-    ])('renders stage %s with in-app and email content', async (stage, expected) => {
+        ['dang_xem_xet', 'đang được xem xét', 2],
+        ['phong_van', 'phỏng vấn', 3],
+        ['de_nghi', 'đề nghị nhận việc', 4],
+        ['nhan_viec', 'nhận việc', 5],
+        ['tu_choi', 'chưa phù hợp', 5]
+    ])('renders stage %s as a complete, trackable email', async (stage, expected, progressCurrent) => {
+        vi.stubEnv('FRONTEND_URL', 'https://jobs.example.test');
         const { applicationStageTemplate } = await import('../notification-service/src/templates.js');
         const template = applicationStageTemplate({ toStage: stage, jobTitle: 'Node Dev', candidateName: 'Lan', companyName: 'ACME' });
         expect(template.typeCode).toBe('APPLICATION_STAGE');
         expect(template.content.toLowerCase()).toContain(expected);
+        expect(template.link).toBe('/candidate/cv-post/');
+        expectRichEmail(template.email, {
+            ctaUrl: 'https://jobs.example.test/candidate/cv-post/',
+            progressCurrent
+        });
         expect(template.email.html).toContain('Job Finder');
         expect(template.email.html).toContain('Node Dev');
+        expect(template.email.text).toContain('Node Dev');
+    });
+
+    it('escapes every stage field and strips subject header injection characters', async () => {
+        const { applicationStageTemplate } = await import('../notification-service/src/templates.js');
+        const template = applicationStageTemplate({
+            toStage: 'phong_van',
+            jobTitle: '<Dev & Ops>\r\nBcc: victim@example.com',
+            candidateName: '<img src=x onerror=alert(1)>',
+            companyName: 'ACME & <script>alert(1)</script>'
+        });
+
+        expectRichEmail(template.email, {
+            ctaUrl: 'http://localhost:3000/candidate/cv-post/',
+            progressCurrent: 3
+        });
+        expect(template.email.html).toContain('&lt;Dev &amp; Ops&gt;');
+        expect(template.email.html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+        expect(template.email.html).toContain('ACME &amp; &lt;script&gt;alert(1)&lt;/script&gt;');
+        expect(template.email.html).not.toMatch(/<(?:script|img)\b/i);
     });
 
     it('uses safe defaults for missing stage context', async () => {
@@ -218,22 +284,35 @@ describe('notification templates', () => {
         const template = applicationStageTemplate({ toStage: 'dang_xem_xet' });
         expect(template.content).toContain('vị trí đã ứng tuyển');
         expect(template.email.subject).toContain('đã ứng tuyển');
+        expectRichEmail(template.email, {
+            ctaUrl: 'http://localhost:3000/candidate/cv-post/',
+            progressCurrent: 2
+        });
     });
 
     it.each([
         ['accepted', 'APPLICATION_ACCEPTED', 'trúng tuyển'],
         ['rejected', 'APPLICATION_REJECTED', 'Kết quả ứng tuyển']
-    ])('renders %s decisions and escapes all user-controlled HTML', async (decision, typeCode, text) => {
+    ])('renders %s decisions and escapes all user-controlled HTML', async (decision, typeCode, expected) => {
+        vi.stubEnv('FRONTEND_URL', 'https://jobs.example.test');
         const { applicationDecisionTemplate } = await import('../notification-service/src/templates.js');
         const template = applicationDecisionTemplate({
-            decision, jobTitle: '<Dev & Ops>', candidateName: '"Lan"', message: '<script>x</script>\nNext'
+            decision,
+            jobTitle: '<Dev & Ops>\r\nBcc: victim@example.com',
+            candidateName: '"Lan" <img src=x>',
+            message: '<script>x</script>\nNext'
         });
         expect(template.typeCode).toBe(typeCode);
-        expect(template.content).toContain(text);
+        expect(template.content).toContain(expected);
+        expect(template.link).toBe('/candidate/cv-post/');
+        expectRichEmail(template.email, {
+            ctaUrl: 'https://jobs.example.test/candidate/cv-post/',
+            progressCurrent: 5
+        });
         expect(template.email.html).toContain('&lt;Dev &amp; Ops&gt;');
         expect(template.email.html).toContain('&quot;Lan&quot;');
-        expect(template.email.html).toContain('&lt;script&gt;x&lt;/script&gt;<br>Next');
-        expect(template.email.html).not.toContain('<script>');
+        expect(template.email.html).toMatch(/&lt;script&gt;x&lt;\/script&gt;<br\s*\/?>(?:\s*)Next/);
+        expect(template.email.html).not.toMatch(/<(?:script|img)\b/i);
     });
 
     it('renders decision defaults and omits an empty custom-message section', async () => {
@@ -241,24 +320,78 @@ describe('notification templates', () => {
         const template = applicationDecisionTemplate({ decision: 'rejected' });
         expect(template.content).toContain('đã ứng tuyển');
         expect(template.email.html).not.toContain('Lời nhắn từ nhà tuyển dụng');
+        expectRichEmail(template.email, {
+            ctaUrl: 'http://localhost:3000/candidate/cv-post/',
+            progressCurrent: 5
+        });
     });
 
     it.each([true, false])('renders moderation result for approved=%s', async (approved) => {
+        vi.stubEnv('FRONTEND_URL', 'https://jobs.example.test');
         const { jobModeratedTemplate } = await import('../notification-service/src/templates.js');
-        const template = jobModeratedTemplate({ approved, jobTitle: 'Dev', reason: approved ? null : 'spam' });
+        const template = jobModeratedTemplate({
+            approved,
+            jobTitle: '<Dev>\r\nBcc: victim@example.com',
+            reason: approved ? null : '<script>spam</script>'
+        });
         expect(template.typeCode).toBe(approved ? 'POST_APPROVED' : 'POST_REJECTED');
-        expect(template.email.html).toContain('Dev');
-        if (!approved) expect(template.content).toContain('spam');
+        expectRichEmail(template.email, { ctaUrl: 'https://jobs.example.test/admin/list-post/' });
+        expect(template.email.html).toContain('&lt;Dev&gt;');
+        expect(template.email.html).not.toContain('<script>');
+        if (!approved) {
+            expect(template.content).toContain('spam');
+            expect(template.email.html).toContain('&lt;script&gt;spam&lt;/script&gt;');
+        }
     });
 
-    it('renders new-application and followed-company defaults', async () => {
-        const { newApplicationTemplate, newJobFromFollowedCompanyTemplate } = await import('../notification-service/src/templates.js');
-        const application = newApplicationTemplate({});
+    it('renders and escapes the new-application email with an absolute pipeline CTA', async () => {
+        vi.stubEnv('FRONTEND_URL', 'https://jobs.example.test');
+        const { newApplicationTemplate } = await import('../notification-service/src/templates.js');
+        const application = newApplicationTemplate({
+            candidateName: '<Candidate & Co>',
+            jobTitle: '<Dev>\r\nBcc: victim@example.com'
+        });
         expect(application.typeCode).toBe('NEW_CV');
-        expect(application.content).toContain('Một ứng viên');
-        const job = newJobFromFollowedCompanyTemplate({ jobTitle: 'Dev', jobId: 4 });
+        expectRichEmail(application.email, { ctaUrl: 'https://jobs.example.test/admin/pipeline/' });
+        expect(application.email.html).toContain('&lt;Candidate &amp; Co&gt;');
+        expect(application.email.html).toContain('&lt;Dev&gt;');
+        expect(application.email.html).not.toMatch(/<(?:script|img)\b/i);
+    });
+
+    it('renders and escapes a followed-company job email with an absolute job CTA', async () => {
+        vi.stubEnv('FRONTEND_URL', 'https://jobs.example.test');
+        const { newJobFromFollowedCompanyTemplate } = await import('../notification-service/src/templates.js');
+        const job = newJobFromFollowedCompanyTemplate({
+            jobTitle: '<Dev & Ops>\r\nBcc: victim@example.com',
+            companyName: '<ACME>',
+            jobId: 4
+        });
         expect(job.typeCode).toBe('NEW_POST');
         expect(job.link).toBe('/detail-job/4');
+        expectRichEmail(job.email, { ctaUrl: 'https://jobs.example.test/detail-job/4' });
+        expect(job.email.html).toContain('&lt;Dev &amp; Ops&gt;');
+        expect(job.email.html).toContain('&lt;ACME&gt;');
+    });
+
+    it('keeps safe defaults for recruiter and followed-company notifications', async () => {
+        const { newApplicationTemplate, newJobFromFollowedCompanyTemplate } = await import('../notification-service/src/templates.js');
+        const application = newApplicationTemplate({});
+        expect(application.content).toContain('Một ứng viên');
+        expectRichEmail(application.email, { ctaUrl: 'http://localhost:3000/admin/pipeline/' });
+
+        const job = newJobFromFollowedCompanyTemplate({ jobTitle: 'Dev', jobId: 4 });
         expect(job.content).toContain('Công ty bạn theo dõi');
+        expectRichEmail(job.email, { ctaUrl: 'http://localhost:3000/detail-job/4' });
+    });
+
+    it('falls back to the local frontend URL when FRONTEND_URL is unsafe', async () => {
+        vi.stubEnv('FRONTEND_URL', 'javascript:alert(1)');
+        const { applicationStageTemplate } = await import('../notification-service/src/templates.js');
+        const template = applicationStageTemplate({ toStage: 'phong_van', jobTitle: 'Dev' });
+        expect(template.email.html).not.toContain('href="javascript:');
+        expectRichEmail(template.email, {
+            ctaUrl: 'http://localhost:3000/candidate/cv-post/',
+            progressCurrent: 3
+        });
     });
 });
