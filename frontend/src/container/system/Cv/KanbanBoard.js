@@ -20,6 +20,16 @@ import "./KanbanBoard.scss";
 // keo tha ho so qua tung buoc tuyen dung, cham sao, ghi chu noi bo, va nhin ngay
 // duoc con bao nhieu nguoi dang o moi buoc.
 
+const isDemoRecipient = (value) => {
+    const email = String(value || "").trim().toLowerCase();
+    const domain = email.split("@")[1] || "";
+    const reservedDomains = ["example.com", "example.net", "example.org"];
+    return email === "example@gmail.com"
+        || reservedDomains.some((reserved) => domain === reserved || domain.endsWith(`.${reserved}`))
+        || [".example", ".invalid", ".test", ".local", ".localhost"]
+            .some((suffix) => domain.endsWith(suffix));
+};
+
 const KanbanBoard = () => {
     const navigate = useNavigate();
     const [columns, setColumns] = useState([]);
@@ -163,7 +173,9 @@ const KanbanBoard = () => {
 
     const handleSendDecision = async (decision) => {
         const label = decision === "accepted" ? "trúng tuyển" : "không trúng tuyển";
-        const destination = detail.candidate_email || "email đã đăng ký của ứng viên";
+        const destination = isDemoRecipient(detail.candidate_email)
+            ? "hộp thư demo (nếu đã cấu hình)"
+            : (detail.candidate_email || "email đã đăng ký của ứng viên");
         if (!window.confirm(`Gửi email thông báo ${label} đến ${destination}?`)) return;
 
         setIsSendingDecision(true);
@@ -171,7 +183,7 @@ const KanbanBoard = () => {
         setIsSendingDecision(false);
 
         if (res && res.errCode === 0) {
-            toast.success(`Đã gửi email thông báo ${label}`);
+            toast.success(`Đã xếp hàng gửi email thông báo ${label}`);
             setDetail((d) => ({ ...d, ...res.data, timeline: d.timeline }));
             setDecisionMessage("");
             await loadBoard(jobId);
@@ -355,6 +367,9 @@ const KanbanBoard = () => {
                                 <h5>Thông báo kết quả cho ứng viên</h5>
                                 <p className="kb-hint">
                                     Email sẽ gửi đến: <b>{detail.candidate_email || "email đã đăng ký"}</b>
+                                    {isDemoRecipient(detail.candidate_email)
+                                        ? " (dữ liệu mẫu — development sẽ chuyển nếu có hộp thư demo; production sẽ chặn)"
+                                        : ""}
                                 </p>
                                 <textarea
                                     rows={3}

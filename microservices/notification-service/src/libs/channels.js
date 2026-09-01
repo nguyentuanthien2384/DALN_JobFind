@@ -53,9 +53,86 @@ export const getCompanyFollowers = async (companyId) => {
 };
 
 // ===== KENH 2: EMAIL =====
+const RESERVED_EXAMPLE_DOMAINS = new Set(['example.com', 'example.net', 'example.org']);
+const PLACEHOLDER_DOMAIN_SUFFIXES = ['.example', '.invalid', '.test', '.local', '.localhost'];
+
+export const EMAIL_SKIP_REASONS = Object.freeze({
+    NOT_CONFIGURED: 'email_not_configured',
+    INVALID_RECIPIENT: 'invalid_recipient',
+    PLACEHOLDER_IN_PRODUCTION: 'placeholder_recipient_in_production',
+    NO_SAFE_DEMO_RECIPIENT: 'no_safe_demo_recipient'
+});
+
+export const normalizeEmailRecipient = (value) => (
+    typeof value === 'string' ? value.trim().toLowerCase() : ''
+);
+
+export const isValidEmailRecipient = (value) => {
+    const email = normalizeEmailRecipient(value);
+    if (!email || email.length > 254) return false;
+
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+
+    const [localPart, domain] = parts;
+    if (
+        !localPart || localPart.length > 64
+        || localPart.startsWith('.') || localPart.endsWith('.') || localPart.includes('..')
+        || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(localPart)
+    ) return false;
+
+    const labels = domain.split('.');
+    if (domain.length > 253 || labels.length < 2) return false;
+    return labels.every((label) => (
+        label.length > 0
+        && label.length <= 63
+        && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label)
+    ));
+};
+
+export const isPlaceholderEmailRecipient = (value) => {
+    const email = normalizeEmailRecipient(value);
+    if (!isValidEmailRecipient(email)) return false;
+    if (email === 'example@gmail.com') return true;
+
+    const domain = email.slice(email.lastIndexOf('@') + 1);
+    if ([...RESERVED_EXAMPLE_DOMAINS].some(
+        (reserved) => domain === reserved || domain.endsWith(`.${reserved}`)
+    )) return true;
+
+    return PLACEHOLDER_DOMAIN_SUFFIXES.some((suffix) => domain.endsWith(suffix));
+};
+
+const isSafeEmailRecipient = (value) => (
+    isValidEmailRecipient(value)
+    && !isPlaceholderEmailRecipient(value)
+    && !normalizeEmailRecipient(value).includes('youremail')
+);
+
 const emailConfigured = () => {
-    const user = process.env.EMAIL_APP;
-    return Boolean(user) && !user.includes('youremail');
+    return isSafeEmailRecipient(process.env.EMAIL_APP);
+};
+
+export const resolveEmailRecipient = (value) => {
+    const recipient = normalizeEmailRecipient(value);
+    if (!isValidEmailRecipient(recipient)) {
+        return { skipped: true, reason: EMAIL_SKIP_REASONS.INVALID_RECIPIENT };
+    }
+
+    if (!isPlaceholderEmailRecipient(recipient)) return { to: recipient, demo: false };
+
+    if (process.env.NODE_ENV === 'production') {
+        return { skipped: true, reason: EMAIL_SKIP_REASONS.PLACEHOLDER_IN_PRODUCTION };
+    }
+
+    const demoRecipient = [process.env.EMAIL_DEMO_RECIPIENT, process.env.EMAIL_APP]
+        .map(normalizeEmailRecipient)
+        .find(isSafeEmailRecipient);
+    if (!demoRecipient) {
+        return { skipped: true, reason: EMAIL_SKIP_REASONS.NO_SAFE_DEMO_RECIPIENT };
+    }
+
+    return { to: demoRecipient, demo: true, originalTo: recipient };
 };
 
 let transporter = null;
@@ -63,30 +140,43 @@ const getTransporter = () => {
     if (transporter) return transporter;
     transporter = nodemailer.createTransport({
         service: 'gmail',
-        auth: { user: process.env.EMAIL_APP, pass: process.env.EMAIL_APP_PASSWORD }
+        auth: { user: normalizeEmailRecipient(process.env.EMAIL_APP), pass: process.env.EMAIL_APP_PASSWORD }
     });
     return transporter;
 };
 
 export const sendEmail = async ({ to, subject, html }) => {
-    if (!emailConfigured()) {
-        logger.debug('bo qua gui email vi chua cau hinh EMAIL_APP', { to, subject });
-        return { skipped: true };
+    const recipient = resolveEmailRecipient(to);
+    if (recipient.skipped) {
+        logger.warn('bo qua gui email vi dia chi nhan khong an toan', {
+            to: normalizeEmailRecipient(to), subject, reason: recipient.reason
+        });
+        return recipient;
     }
-    if (!to) return { skipped: true };
+    if (!emailConfigured()) {
+        logger.debug('bo qua gui email vi chua cau hinh EMAIL_APP', { to: recipient.to, subject });
+        return { skipped: true, reason: EMAIL_SKIP_REASONS.NOT_CONFIGURED };
+    }
+
+    const outgoingSubject = recipient.demo ? `[DEMO] ${subject ?? ''}` : subject;
 
     try {
         await getTransporter().sendMail({
-            from: process.env.EMAIL_APP,
-            to,
-            subject,
+            from: normalizeEmailRecipient(process.env.EMAIL_APP),
+            to: recipient.to,
+            subject: outgoingSubject,
             html
         });
-        logger.info('da gui email', { to, subject });
+        logger.info('da gui email', {
+            to: recipient.to,
+            subject: outgoingSubject,
+            demo: recipient.demo,
+            originalTo: recipient.originalTo
+        });
         return { sent: true };
     } catch (error) {
         // Email hong khong duoc lam hong ca luong: thong bao trong chuong da luu roi.
-        logger.warn('gui email that bai', { to, error: error.message });
+        logger.warn('gui email that bai', { to: recipient.to, error: error.message });
         return { error: error.message };
     }
 };

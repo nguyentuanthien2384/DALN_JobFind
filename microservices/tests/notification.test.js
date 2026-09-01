@@ -13,6 +13,7 @@ vi.mock('nodemailer', () => ({ default: { createTransport: mocks.createTransport
 vi.mock('axios', () => ({ default: { post: mocks.axiosPost } }));
 
 beforeEach(() => {
+    vi.resetModules();
     mocks.createPool.mockReturnValue(mocks.mysqlPool);
     mocks.mysqlPool.query.mockReset();
     mocks.mysqlPool.getConnection.mockReset();
@@ -44,26 +45,126 @@ describe('notification delivery channels', () => {
         await expect(getCompanyFollowers(9)).resolves.toEqual([2, 3]);
     });
 
-    it('skips email when unconfigured or recipient is absent', async () => {
+    it('normalizes, validates, and recognizes explicit placeholder recipients', async () => {
+        const {
+            normalizeEmailRecipient, isValidEmailRecipient, isPlaceholderEmailRecipient
+        } = await import('../notification-service/src/libs/channels.js');
+
+        expect(normalizeEmailRecipient('  Candidate@RealMail.COM ')).toBe('candidate@realmail.com');
+        expect(isValidEmailRecipient('candidate@realmail.com')).toBe(true);
+        expect(isValidEmailRecipient('not-an-email')).toBe(false);
+
+        for (const placeholder of [
+            'example@gmail.com',
+            'candidate@example.com',
+            'candidate@mail.example.net',
+            'candidate@example.org',
+            'candidate@demo.example',
+            'candidate@demo.invalid',
+            'candidate@demo.test',
+            'candidate@demo.local'
+        ]) {
+            expect(isPlaceholderEmailRecipient(placeholder), placeholder).toBe(true);
+        }
+        expect(isPlaceholderEmailRecipient('candidate@realmail.com')).toBe(false);
+    });
+
+    it('skips email with a reason when configuration or recipient is invalid', async () => {
         vi.stubEnv('EMAIL_APP', 'youremail@gmail.com');
-        const { sendEmail, isEmailConfigured } = await import('../notification-service/src/libs/channels.js');
+        const { sendEmail, isEmailConfigured, EMAIL_SKIP_REASONS } = await import('../notification-service/src/libs/channels.js');
         expect(isEmailConfigured()).toBe(false);
-        await expect(sendEmail({ to: 'a@b.com', subject: 's', html: 'h' })).resolves.toEqual({ skipped: true });
+        await expect(sendEmail({ to: 'a@b.com', subject: 's', html: 'h' })).resolves.toEqual({
+            skipped: true, reason: EMAIL_SKIP_REASONS.NOT_CONFIGURED
+        });
         vi.stubEnv('EMAIL_APP', 'sender@gmail.com');
         expect(isEmailConfigured()).toBe(true);
-        await expect(sendEmail({ to: '', subject: 's', html: 'h' })).resolves.toEqual({ skipped: true });
+        vi.stubEnv('EMAIL_DEMO_RECIPIENT', 'demo@realmail.com');
+        await expect(sendEmail({ to: 'not-an-email', subject: 's', html: 'h' })).resolves.toEqual({
+            skipped: true, reason: EMAIL_SKIP_REASONS.INVALID_RECIPIENT
+        });
         expect(mocks.transporter.sendMail).not.toHaveBeenCalled();
     });
 
-    it('reuses an SMTP transporter and reports success/failure without throwing', async () => {
+    it('normalizes a real recipient without redirecting or changing its subject', async () => {
+        vi.stubEnv('NODE_ENV', 'production');
         vi.stubEnv('EMAIL_APP', 'sender@gmail.com');
         vi.stubEnv('EMAIL_APP_PASSWORD', 'pass');
         const { sendEmail } = await import('../notification-service/src/libs/channels.js');
         mocks.transporter.sendMail.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('smtp'));
-        await expect(sendEmail({ to: 'a@b.com', subject: 'S', html: '<p>H</p>' })).resolves.toEqual({ sent: true });
+        await expect(sendEmail({
+            to: ' Candidate@RealMail.COM ', subject: 'S', html: '<p>H</p>'
+        })).resolves.toEqual({ sent: true });
         expect(mocks.createTransport).toHaveBeenCalledWith({ service: 'gmail', auth: { user: 'sender@gmail.com', pass: 'pass' } });
+        expect(mocks.transporter.sendMail).toHaveBeenNthCalledWith(1, {
+            from: 'sender@gmail.com',
+            to: 'candidate@realmail.com',
+            subject: 'S',
+            html: '<p>H</p>'
+        });
         await expect(sendEmail({ to: 'c@d.com', subject: 'S2', html: 'H2' })).resolves.toEqual({ error: 'smtp' });
         expect(mocks.createTransport).toHaveBeenCalledOnce();
+    });
+
+    it('redirects a placeholder to EMAIL_DEMO_RECIPIENT in non-production and marks the subject', async () => {
+        vi.stubEnv('NODE_ENV', 'development');
+        vi.stubEnv('EMAIL_APP', 'sender@gmail.com');
+        vi.stubEnv('EMAIL_APP_PASSWORD', 'pass');
+        vi.stubEnv('EMAIL_DEMO_RECIPIENT', ' DemoInbox@RealMail.COM ');
+        const { sendEmail } = await import('../notification-service/src/libs/channels.js');
+        mocks.transporter.sendMail.mockResolvedValueOnce({});
+
+        await expect(sendEmail({
+            to: ' EXAMPLE@GMAIL.COM ', subject: 'Mời phỏng vấn', html: '<p>H</p>'
+        })).resolves.toEqual({ sent: true });
+        expect(mocks.transporter.sendMail).toHaveBeenCalledWith({
+            from: 'sender@gmail.com',
+            to: 'demoinbox@realmail.com',
+            subject: '[DEMO] Mời phỏng vấn',
+            html: '<p>H</p>'
+        });
+    });
+
+    it('falls back to a valid EMAIL_APP when the demo recipient is missing or invalid', async () => {
+        vi.stubEnv('NODE_ENV', 'test');
+        vi.stubEnv('EMAIL_APP', 'sender@gmail.com');
+        vi.stubEnv('EMAIL_DEMO_RECIPIENT', 'broken-address');
+        const { sendEmail } = await import('../notification-service/src/libs/channels.js');
+        mocks.transporter.sendMail.mockResolvedValueOnce({});
+
+        await expect(sendEmail({
+            to: 'candidate@example.org', subject: 'Kết quả', html: 'H'
+        })).resolves.toEqual({ sent: true });
+        expect(mocks.transporter.sendMail).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'sender@gmail.com', subject: '[DEMO] Kết quả'
+        }));
+    });
+
+    it('skips placeholders in production with a reason', async () => {
+        vi.stubEnv('NODE_ENV', 'production');
+        vi.stubEnv('EMAIL_APP', 'sender@gmail.com');
+        vi.stubEnv('EMAIL_DEMO_RECIPIENT', 'demo@realmail.com');
+        const { sendEmail, EMAIL_SKIP_REASONS } = await import('../notification-service/src/libs/channels.js');
+
+        await expect(sendEmail({
+            to: 'candidate@demo.test', subject: 'S', html: 'H'
+        })).resolves.toEqual({
+            skipped: true, reason: EMAIL_SKIP_REASONS.PLACEHOLDER_IN_PRODUCTION
+        });
+        expect(mocks.transporter.sendMail).not.toHaveBeenCalled();
+    });
+
+    it('skips a development placeholder when no safe redirect target exists', async () => {
+        vi.stubEnv('NODE_ENV', 'development');
+        vi.stubEnv('EMAIL_APP', 'youremail@gmail.com');
+        vi.stubEnv('EMAIL_DEMO_RECIPIENT', 'demo@example.com');
+        const { sendEmail, EMAIL_SKIP_REASONS } = await import('../notification-service/src/libs/channels.js');
+
+        await expect(sendEmail({
+            to: 'example@gmail.com', subject: 'S', html: 'H'
+        })).resolves.toEqual({
+            skipped: true, reason: EMAIL_SKIP_REASONS.NO_SAFE_DEMO_RECIPIENT
+        });
+        expect(mocks.transporter.sendMail).not.toHaveBeenCalled();
     });
 
     it('skips realtime without a secret and posts with trusted headers when configured', async () => {

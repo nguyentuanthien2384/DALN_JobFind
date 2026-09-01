@@ -146,7 +146,7 @@ describe('application pipeline controller', () => {
     });
 
     it('moves a stage transactionally and publishes a complete notification payload', async () => {
-        const before = { id: 1, stage: 'moi_ung_tuyen', company_id: 9, candidate_id: 2, candidate_name: 'Lan', job_id: 3, job_title: 'Dev' };
+        const before = { id: 1, stage: 'moi_ung_tuyen', company_id: 9, candidate_id: 2, candidate_email: 'lan@example.com', candidate_name: 'Lan', job_id: 3, job_title: 'Dev' };
         const after = { ...before, stage: 'phong_van' };
         const client = { query: vi.fn().mockResolvedValueOnce({ rows: [before] }).mockResolvedValueOnce({ rows: [after] }).mockResolvedValueOnce({}) };
         mocks.withTransaction.mockImplementation((work) => work(client));
@@ -155,7 +155,7 @@ describe('application pipeline controller', () => {
         await moveStage(companyReq({ params: { id: '1' }, body: { stage: 'phong_van', reason: 'Strong CV' } }), res);
         expect(client.query.mock.calls[2][1]).toEqual([1, 'moi_ung_tuyen', 'phong_van', 5, 'Strong CV']);
         expect(mocks.publish).toHaveBeenCalledWith('application.stage_changed', {
-            applicationId: 1, candidateId: 2, candidateName: 'Lan', jobId: 3, jobTitle: 'Dev',
+            applicationId: 1, candidateId: 2, candidateEmail: 'lan@example.com', candidateName: 'Lan', jobId: 3, jobTitle: 'Dev',
             fromStage: 'moi_ung_tuyen', toStage: 'phong_van', reason: 'Strong CV'
         });
         expect(res.body.data.stage).toBe('phong_van');

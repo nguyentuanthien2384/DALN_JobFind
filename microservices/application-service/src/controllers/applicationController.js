@@ -187,6 +187,7 @@ export const moveStage = async (req, res) => {
         await publish(EVENTS.APPLICATION_STAGE_CHANGED, {
             applicationId: result.app.id,
             candidateId: result.app.candidate_id,
+            candidateEmail: result.app.candidate_email,
             candidateName: result.app.candidate_name,
             jobId: result.app.job_id,
             jobTitle: result.app.job_title,

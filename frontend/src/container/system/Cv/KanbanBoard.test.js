@@ -40,7 +40,7 @@ const candidate = {
     id: 1,
     candidate_id: 10,
     candidate_name: "Lan Nguyen",
-    candidate_email: "lan@example.com",
+    candidate_email: "lan@candidate.vn",
     job_title: "Frontend Developer",
     stage: "applied",
     is_read: false,
@@ -206,9 +206,29 @@ describe("KanbanBoard", () => {
         expect(sendApplicationDecision).not.toHaveBeenCalled();
         fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
         await waitFor(() => expect(sendApplicationDecision).toHaveBeenCalledWith(1, "rejected", "Cảm ơn bạn"));
-        expect(confirm).toHaveBeenLastCalledWith("Gửi email thông báo không trúng tuyển đến lan@example.com?");
-        expect(toast.success).toHaveBeenCalledWith("Đã gửi email thông báo không trúng tuyển");
+        expect(confirm).toHaveBeenLastCalledWith("Gửi email thông báo không trúng tuyển đến lan@candidate.vn?");
+        expect(toast.success).toHaveBeenCalledWith("Đã xếp hàng gửi email thông báo không trúng tuyển");
         await waitFor(() => expect(getApplicationBoard).toHaveBeenCalledTimes(2));
+        confirm.mockRestore();
+    });
+
+    it("explains and safely labels a demo recipient before queuing email", async () => {
+        getApplicationDetail.mockResolvedValue({
+            ...detailResponse,
+            data: { ...detailResponse.data, candidate_email: "example@gmail.com" },
+        });
+        await renderLoadedBoard();
+        fireEvent.click(screen.getByText("Lan Nguyen"));
+        const modal = await screen.findByRole("dialog", { name: "Chi tiết hồ sơ Lan Nguyen" });
+        expect(within(modal).getByText(/dữ liệu mẫu/)).toHaveTextContent(
+            "development sẽ chuyển nếu có hộp thư demo; production sẽ chặn"
+        );
+
+        const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+        fireEvent.click(within(modal).getByRole("button", { name: "Gửi trúng tuyển" }));
+        await waitFor(() => expect(confirm).toHaveBeenCalledWith(
+            "Gửi email thông báo trúng tuyển đến hộp thư demo (nếu đã cấu hình)?"
+        ));
         confirm.mockRestore();
     });
 

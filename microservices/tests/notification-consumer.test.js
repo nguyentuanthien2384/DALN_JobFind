@@ -80,8 +80,10 @@ describe('notification event consumer', () => {
         const { handlers, stats } = await import('../notification-service/src/consumers/notificationConsumer.js');
         await handlers['application.stage_changed']({ candidateId: 2, toStage: 'moi_ung_tuyen', jobTitle: 'Dev' });
         expect(mocks.saveNotification).not.toHaveBeenCalled();
-        await handlers['application.stage_changed']({ candidateId: 2, candidateName: 'Lan', toStage: 'phong_van', jobTitle: 'Dev' });
+        await handlers['application.stage_changed']({ candidateId: 2, candidateEmail: 'interview@x.com', candidateName: 'Lan', toStage: 'phong_van', jobTitle: 'Dev' });
         expect(mocks.saveNotification.mock.calls[0][0]).toMatchObject({ userId: 2, typeCode: 'APPLICATION_STAGE' });
+        expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'interview@x.com' }));
+        expect(mocks.getUserEmail).not.toHaveBeenCalled();
         expect(stats.saved).toBe(1);
     });
 
@@ -89,6 +91,7 @@ describe('notification event consumer', () => {
         const { handlers } = await import('../notification-service/src/consumers/notificationConsumer.js');
         await handlers['application.decision_email_requested']({ candidateId: 2, candidateEmail: 'snapshot@x.com', candidateName: 'Lan', decision: 'accepted', jobTitle: 'Dev' });
         expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: 'snapshot@x.com' }));
+        expect(mocks.getUserEmail).not.toHaveBeenCalled();
     });
 
     it('validates recipient identity for application and moderation events', async () => {

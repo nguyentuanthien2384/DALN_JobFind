@@ -38,7 +38,7 @@ const reset = () => {
 
 const validUser = (extra = {}) => ({
   phonenumber: '0901', firstName: 'An', lastName: 'Nguyen', roleCode: 'CANDIDATE',
-  password: 'secret1', email: 'an@example.com', ...extra
+  password: 'secret1', email: 'an@candidate.vn', ...extra
 });
 
 describe('userService', () => {
@@ -68,9 +68,9 @@ describe('userService', () => {
     mockDb.Account.findOne.mockResolvedValue(null);
     mockUpload.mockResolvedValue({ url: 'avatar' });
     mockDb.User.create.mockResolvedValue({ id: 7 });
-    const result = await service.handleCreateNewUser(validUser({ image: 'data' }));
+    const result = await service.handleCreateNewUser(validUser({ image: 'data', email: '  An@Candidate.VN  ' }));
     expect(result.errCode).toBe(0);
-    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ image: 'avatar', email: 'an@example.com' }));
+    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ image: 'avatar', email: 'an@candidate.vn' }));
     expect(mockDb.Account.create).toHaveBeenCalledWith(expect.objectContaining({
       phonenumber: '0901', password: 'hashed', roleCode: 'CANDIDATE', userId: 7
     }));
@@ -86,16 +86,44 @@ describe('userService', () => {
     expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ companyId: null }));
   });
 
-  test('company creator forces its own company id and generated passwords are emailed', async () => {
+  test('company creator forces its own company id and emails generated passwords to a normalized address', async () => {
     mockDb.Account.findOne.mockResolvedValue(null);
     mockDb.User.create.mockResolvedValue({ id: 8 });
     const payload = validUser({
       creatorRoleCode: 'COMPANY', creatorCompanyId: 12, companyId: 999,
-      roleCode: 'EMPLOYER', password: undefined, email: undefined
+      roleCode: 'EMPLOYER', password: undefined, email: '  New.Hire@Candidate.VN '
     });
     expect((await service.handleCreateNewUser(payload)).errCode).toBe(0);
-    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ companyId: 12 }));
-    expect(mockSendMail).toHaveBeenCalled();
+    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: 12, email: 'new.hire@candidate.vn'
+    }));
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'new.hire@candidate.vn' }), expect.any(Function)
+    );
+  });
+
+  test.each([
+    undefined,
+    '',
+    'not-an-email',
+    'example@gmail.com',
+    'candidate@example.com',
+    'candidate@mail.example.net',
+    'candidate@demo.example',
+    'candidate@jobfind.local',
+    'candidate@example.invalid',
+    'candidate@example.test',
+    'candidate@demo.localhost',
+    'candidate@foo..com'
+  ])('rejects a missing or non-deliverable registration email: %s', async (email) => {
+    const result = await service.handleCreateNewUser(validUser({
+      creatorRoleCode: 'COMPANY', creatorCompanyId: 12,
+      roleCode: 'EMPLOYER', password: undefined, email
+    }));
+    expect(result.errCode).toBeGreaterThan(0);
+    expect(mockDb.User.create).not.toHaveBeenCalled();
+    expect(mockDb.Account.create).not.toHaveBeenCalled();
+    expect(mockSendMail).not.toHaveBeenCalled();
   });
 
   test('admin may create all supported roles and duplicate phones are rejected', async () => {
@@ -137,18 +165,58 @@ describe('userService', () => {
   test('updates profile/account fields and returns the safe public projection', async () => {
     mockDb.User.findOne.mockResolvedValueOnce(null);
     mockDb.Account.findOne.mockResolvedValueOnce(null);
-    expect((await service.updateUserData({ id: 7 })).errCode).toBe(1);
+    expect((await service.updateUserData({ id: 7, email: 'missing@candidate.vn' })).errCode).toBe(1);
     const user = { id: 7, companyId: 2, save: jest.fn() };
     const account = { roleCode: 'CANDIDATE', save: jest.fn() };
     mockDb.User.findOne.mockResolvedValueOnce(user);
     mockDb.Account.findOne.mockResolvedValueOnce(account);
     mockUpload.mockResolvedValueOnce({ url: 'avatar' });
     const result = await service.updateUserData({
-      id: 7, firstName: 'A', lastName: 'B', email: 'a@b.com', image: 'data',
+      id: 7, firstName: 'A', lastName: 'B', email: '  A@B.COM ', image: 'data',
       roleCode: 'EMPLOYER', allowRoleChange: true, allowedRoleCodes: ['EMPLOYER']
     });
     expect(result.errCode).toBe(0);
-    expect(result.user).toEqual(expect.objectContaining({ id: 7, image: 'avatar', roleCode: 'EMPLOYER' }));
+    expect(result.user).toEqual(expect.objectContaining({
+      id: 7, email: 'a@b.com', image: 'avatar', roleCode: 'EMPLOYER'
+    }));
+  });
+
+  test('preserves the existing email when an admin/team edit omits that field', async () => {
+    const user = {
+      id: 7, companyId: 2, email: 'existing@candidate.vn', image: null,
+      save: jest.fn()
+    };
+    const account = { roleCode: 'EMPLOYER', save: jest.fn() };
+    mockDb.User.findOne.mockResolvedValueOnce(user);
+    mockDb.Account.findOne.mockResolvedValueOnce(account);
+
+    const result = await service.updateUserData({
+      id: 7, firstName: 'Updated', lastName: 'User', roleCode: 'EMPLOYER'
+    });
+
+    expect(result.errCode).toBe(0);
+    expect(user.email).toBe('existing@candidate.vn');
+    expect(user.save).toHaveBeenCalled();
+  });
+
+  test.each([
+    undefined,
+    '',
+    'not-an-email',
+    'example@gmail.com',
+    'candidate@example.org',
+    'candidate@mail.example.com',
+    'candidate@demo.example',
+    'candidate@jobfind.local',
+    'candidate@example.invalid',
+    'candidate@example.test',
+    'candidate@demo.localhost',
+    'candidate@foo..com'
+  ])('rejects a missing or non-deliverable profile email: %s', async (email) => {
+    const result = await service.updateUserData({ id: 7, email });
+    expect(result.errCode).toBeGreaterThan(0);
+    expect(mockDb.User.findOne).not.toHaveBeenCalled();
+    expect(mockDb.Account.findOne).not.toHaveBeenCalled();
   });
 
   test('rejects a role outside the actor scope before persisting any profile changes', async () => {
@@ -157,7 +225,7 @@ describe('userService', () => {
     mockDb.User.findOne.mockResolvedValueOnce(user);
     mockDb.Account.findOne.mockResolvedValueOnce(account);
     const result = await service.updateUserData({
-      id: 7, firstName: 'Changed', roleCode: 'ADMIN',
+      id: 7, firstName: 'Changed', email: 'old@candidate.vn', roleCode: 'ADMIN',
       allowRoleChange: true, allowedRoleCodes: ['COMPANY', 'EMPLOYER']
     });
     expect(result).toEqual(expect.objectContaining({ errCode: 3 }));
@@ -270,7 +338,7 @@ describe('userService', () => {
     const failures = [
       ['handleCreateNewUser', validUser(), mockDb.Account, 'findOne'],
       ['banUser', 7, mockDb.User, 'findOne'], ['unbanUser', 7, mockDb.User, 'findOne'],
-      ['updateUserData', { id: 7 }, mockDb.User, 'findOne'],
+      ['updateUserData', { id: 7, email: 'user@candidate.vn' }, mockDb.User, 'findOne'],
       ['requestResetPasswordOtp', { phonenumber: 'x' }, mockDb.Account, 'findOne'],
       ['changePaswordByPhone', { phonenumber: 'x', password: '123456', otp: '1' }, mockDb.Account, 'findOne'],
       ['handleLogin', { phonenumber: 'x', password: 'x' }, mockDb.Account, 'findOne'],

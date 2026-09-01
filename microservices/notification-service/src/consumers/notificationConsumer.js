@@ -73,7 +73,11 @@ export const handlers = {
             companyName: payload.companyName
         });
         if (!template) return;
-        await deliver({ userId: payload.candidateId, template });
+        await deliver({
+            userId: payload.candidateId,
+            recipientEmail: payload.candidateEmail,
+            template
+        });
         logger.info('da bao chuyen buoc cho ung vien', {
             candidateId: payload.candidateId, toStage: payload.toStage
         });
@@ -91,7 +95,7 @@ export const handlers = {
             recipientEmail: payload.candidateEmail,
             template
         });
-        logger.info('da gui email ket qua tuyen dung', {
+        logger.info('da xu ly yeu cau gui email ket qua tuyen dung', {
             applicationId: payload.applicationId,
             candidateId: payload.candidateId,
             decision: payload.decision

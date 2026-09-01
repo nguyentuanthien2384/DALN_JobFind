@@ -216,6 +216,7 @@ services:
     command: npm start
     environment:
       PORT: 4005
+      NODE_ENV: ${NODE_ENV:-development}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
       MYSQL_PORT: ${MYSQL_PORT:-3333}
@@ -224,6 +225,7 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
       EMAIL_APP: ${EMAIL_APP:-}
       EMAIL_APP_PASSWORD: ${EMAIL_APP_PASSWORD:-}
+      EMAIL_DEMO_RECIPIENT: ${EMAIL_DEMO_RECIPIENT:-}
       LEGACY_URL: ${LEGACY_URL:-http://host.docker.internal:5000}
       INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
     extra_hosts:

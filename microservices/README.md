@@ -204,7 +204,11 @@ song song. Thay vào đó Notification Service gọi endpoint nội bộ
 (không dùng JWT vì đây là giao tiếp giữa hai máy chủ, không có người dùng nào ở giữa).
 
 Để gửi email thật, thêm `EMAIL_APP` và `EMAIL_APP_PASSWORD` (Gmail App Password)
-vào `microservices/.env`, sau đó khởi động lại Notification Service.
+vào `microservices/.env`, sau đó khởi động lại Notification Service. Dữ liệu mẫu
+có thể chứa địa chỉ như `example@gmail.com`; trong `NODE_ENV=development`, các
+địa chỉ mẫu được chuyển an toàn tới `EMAIL_DEMO_RECIPIENT`, hoặc tới `EMAIL_APP`
+nếu chưa đặt biến này. Trong production, địa chỉ mẫu/không hợp lệ bị bỏ qua trước
+khi gọi SMTP nên không tạo thêm thư báo lỗi 550.
 
 > ⚠️ **Gateway phải chuyển tiếp được WebSocket.** Lớp proxy dựa trên axios chỉ xử lý
 > được request/response thường, không làm được HTTP Upgrade. Nếu thiếu đoạn

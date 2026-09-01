@@ -8,6 +8,39 @@ const { getFrontendLink } = require('../utils/frontendUrl');
 const salt = bcrypt.genSaltSync(10);
 require('dotenv').config();
 let nodemailer = require('nodemailer');
+const normalizeEmail = (email) => typeof email === 'string'
+    ? email.trim().toLowerCase()
+    : ''
+
+const isValidRecipientEmail = (email) => {
+    const normalizedEmail = normalizeEmail(email)
+    if (!normalizedEmail || normalizedEmail.length > 254) return false
+
+    const parts = normalizedEmail.split('@')
+    if (parts.length !== 2) return false
+    const [localPart, domain] = parts
+    if (
+        !localPart || localPart.length > 64
+        || localPart.startsWith('.') || localPart.endsWith('.') || localPart.includes('..')
+        || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(localPart)
+    ) return false
+
+    const labels = domain.split('.')
+    if (domain.length > 253 || labels.length < 2 || !labels.every(label => (
+        label.length > 0
+        && label.length <= 63
+        && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label)
+    ))) return false
+
+    if (normalizedEmail === 'example@gmail.com') return false
+    const reservedDomains = ['example.com', 'example.net', 'example.org']
+    if (reservedDomains.some(reserved => domain === reserved || domain.endsWith(`.${reserved}`))) {
+        return false
+    }
+    return !['.example', '.invalid', '.test', '.local', '.localhost']
+        .some(suffix => domain.endsWith(suffix))
+}
+
 let sendmail = (note, userMail, link = null) => {
     let transporter = nodemailer.createTransport({
         service: 'gmail',
@@ -73,12 +106,22 @@ let checkUserPhone = (userPhone) => {
 let handleCreateNewUser = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
-            if (!data.phonenumber || !data.lastName || !data.firstName ) {
+            if (!data.phonenumber || !data.lastName || !data.firstName || !data.email) {
                 resolve({
                     errCode: 2,
                     errMessage: 'Missing required parameters !'
                 })
             } else {
+                const normalizedEmail = normalizeEmail(data.email)
+                if (!isValidRecipientEmail(normalizedEmail)) {
+                    resolve({
+                        errCode: 4,
+                        errMessage: 'Email không hợp lệ hoặc không thể nhận thư'
+                    })
+                    return
+                }
+                data.email = normalizedEmail
+
                 // Quyen cua tai khoan moi phai duoc chan theo nguoi tao, neu khong
                 // bat ky khach vang lai nao cung tu dang ky duoc mot tai khoan ADMIN.
                 // Cac muc nay khop voi danh sach ma man hinh Dang ky / Them nguoi dung
@@ -136,9 +179,6 @@ let handleCreateNewUser = (data) => {
                             upload_preset: 'dev_setups'
                         })
                         imageUrl = uploadedResponse.url
-                    }
-                    if (!data.email) {
-                        data.email = 'nguyenletantai1102200@gmail.com'
                     }
                     let params = {
                         firstName: data.firstName,
@@ -293,6 +333,16 @@ let updateUserData = (data) => {
                     errMessage: `Missing required parameters`
                 })
             } else {
+                const hasEmailUpdate = Object.prototype.hasOwnProperty.call(data, 'email')
+                const normalizedEmail = hasEmailUpdate ? normalizeEmail(data.email) : null
+                if (hasEmailUpdate && !isValidRecipientEmail(normalizedEmail)) {
+                    resolve({
+                        errCode: 4,
+                        errMessage: 'Email không hợp lệ hoặc không thể nhận thư'
+                    })
+                    return
+                }
+
                 let user = await db.User.findOne({
                     where: { id: data.id },
                     raw: false,
@@ -322,7 +372,7 @@ let updateUserData = (data) => {
                     user.address = data.address
                     user.genderCode = data.genderCode
                     user.dob = data.dob
-                    user.email = data.email
+                    if (hasEmailUpdate) user.email = normalizedEmail
                     if (data.image) {
                         let imageUrl = ""
                         const uploadedResponse = await cloudinary.uploader.upload(data.image, {

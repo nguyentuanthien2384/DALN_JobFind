@@ -185,12 +185,21 @@ INTERNAL_SECRET=
 CORS_ORIGIN=http://localhost:3000
 
 # Bắt buộc nếu muốn gửi email kết quả thật
+NODE_ENV=development
 EMAIL_APP=your-address@gmail.com
 EMAIL_APP_PASSWORD=gmail-app-password-16-characters
+
+# Tùy chọn: hộp thư nhận toàn bộ email của dữ liệu demo
+EMAIL_DEMO_RECIPIENT=your-address@gmail.com
 
 # Tùy chọn cho các tính năng AI
 ANTHROPIC_API_KEY=
 ```
+
+Dữ liệu mẫu dùng địa chỉ không nhận thư như `example@gmail.com`. Ở môi trường
+development, Notification Service chuyển các địa chỉ mẫu tới
+`EMAIL_DEMO_RECIPIENT`; nếu biến này trống thì dùng chính `EMAIL_APP`. Ở
+production, địa chỉ mẫu bị chặn để tránh gửi nhầm hoặc tạo thư báo lỗi.
 
 Khởi chạy toàn bộ service:
 
