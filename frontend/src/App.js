@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
     BrowserRouter as Router,
     Routes,
@@ -11,11 +11,9 @@ import JobPage from "./container/JobPage/JobPage";
 import DetailPage from "./container/JobDetail/JobDetail";
 import About from "./container/About/About";
 import Contact from "./container/Contact/Contact";
-import HomeAdmin from "./container/system/HomeAdmin";
 import Login from "./container/login/Login";
 import Register from "./container/login/Register";
 import ForgetPassword from "./container/login/ForgetPassword";
-import HomeCandidate from "./container/Candidate/HomeCandidate";
 import ListCompany from "./container/Company/ListCompany";
 import DetailCompany from "./container/Company/DetailCompany";
 import ChatPage from "./container/Chat/ChatPage";
@@ -26,6 +24,17 @@ import RouteGuard from "./auth/RouteGuard";
 import { PERMISSIONS } from "./auth/accessControl";
 import { getCurrentAuthorizationService } from "./service/userService";
 import SessionContext from "./auth/SessionContext";
+
+// Khu quan tri va khu ung vien keo theo nhieu bieu do, trinh sua va form lon.
+// Chi tai cac goi nay khi nguoi dung thuc su vao dung khu vuc.
+const HomeAdmin = lazy(() => import("./container/system/HomeAdmin"));
+const HomeCandidate = lazy(() => import("./container/Candidate/HomeCandidate"));
+
+const RoutePageLoader = () => (
+    <main className="route-page-loader" role="status" aria-live="polite">
+        Đang tải giao diện...
+    </main>
+);
 
 function App() {
     const initialSession = useRef({
@@ -238,7 +247,9 @@ function App() {
                             hasToken={hasToken}
                             anyPermissions={[PERMISSIONS.ACCESS_ADMIN_AREA]}
                         >
-                            <HomeAdmin user={userData} />
+                            <Suspense fallback={<RoutePageLoader />}>
+                                <HomeAdmin user={userData} />
+                            </Suspense>
                         </RouteGuard>
                     }
                 />
@@ -252,7 +263,9 @@ function App() {
                         >
                             <>
                                 <Header />
-                                <HomeCandidate />
+                                <Suspense fallback={<RoutePageLoader />}>
+                                    <HomeCandidate />
+                                </Suspense>
                                 <Footer />
                             </>
                         </RouteGuard>

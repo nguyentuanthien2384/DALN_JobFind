@@ -1,7 +1,8 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import Job from '../../../components/Job/Job'
-import {Input} from 'antd'
+import JobSearchAutocomplete from './JobSearchAutocomplete'
+import { prefetchJobDetail } from '../../JobDetail/jobDetailResource'
 const RightContent = (props) => {
     return (
         <>
@@ -13,9 +14,7 @@ const RightContent = (props) => {
                             <div className="col-lg-12">
                                 <div className="count-job mb-35">
                                     <span>{props.count} công việc được tìm thấy</span>
-                                    <Input.Search onSearch={props.handleSearch} className='mt-5' placeholder="Nhập tên bài đăng" allowClear enterButton="Tìm kiếm">
-                                    
-                                    </Input.Search>
+                                    <JobSearchAutocomplete onSearch={props.handleSearch} />
 
                                     {/* <!-- Select job items start --> */}
                                     {/* <div class="select-job-items">
@@ -33,7 +32,13 @@ const RightContent = (props) => {
                         </div>
                         {props.post.map((data) => {
                             return (
-                                <Link key={data.id} to={`/detail-job/${data.id}`}>
+                                <Link
+                                    key={data.id}
+                                    to={`/detail-job/${data.id}`}
+                                    onMouseEnter={() => prefetchJobDetail(data.id)}
+                                    onFocus={() => prefetchJobDetail(data.id)}
+                                    onTouchStart={() => prefetchJobDetail(data.id)}
+                                >
                                     <div className="single-job-items mb-30">
                                         <Job data={data} />
                                     </div>

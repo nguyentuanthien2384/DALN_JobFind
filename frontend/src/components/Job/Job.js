@@ -8,7 +8,15 @@ const Job = (props) => {
         <>
             <div className="job-items">
                 <div className="company-img">
-                    <img src={props.data.userPostData.userCompanyData.thumbnail} alt="" style={{ width: "85px", height: "85px" }} />
+                    <img
+                        src={props.data.userPostData.userCompanyData.thumbnail}
+                        alt=""
+                        width="85"
+                        height="85"
+                        loading="lazy"
+                        decoding="async"
+                        style={{ width: "85px", height: "85px", objectFit: "contain" }}
+                    />
                 </div>
                 <div className="job-tittle job-tittle2">
                     <div>
@@ -30,4 +38,4 @@ const Job = (props) => {
     )
 }
 
-export default Job
+export default React.memo(Job)

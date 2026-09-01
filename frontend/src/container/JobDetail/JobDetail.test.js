@@ -9,6 +9,7 @@ import {
 } from "../../service/userService";
 import CommonUtils from "../../util/CommonUtils";
 import JobDetail from "./JobDetail";
+import { clearJobDetailResourceCache } from "./jobDetailResource";
 
 const mockNavigate = jest.fn();
 let mockPostId = "42";
@@ -86,10 +87,11 @@ describe("JobDetail", () => {
     beforeEach(() => {
         localStorage.clear();
         jest.clearAllMocks();
+        clearJobDetailResourceCache();
         mockPostId = "42";
         CommonUtils.formatDate.mockReturnValue(10);
         getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: post });
-        getRelatedPostService.mockResolvedValue({ errCode: 0, data: [related] });
+        getRelatedPostService.mockResolvedValue({ errCode: 1, data: [] });
         checkFavoritePostService.mockResolvedValue({ errCode: 0, isFavorite: false });
         toggleFavoritePostService.mockResolvedValue({
             errCode: 0,
@@ -100,6 +102,7 @@ describe("JobDetail", () => {
 
     it("loads the post and related jobs and renders all important details", async () => {
         localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
+        getRelatedPostService.mockResolvedValueOnce({ errCode: 0, data: [related] });
 
         render(<JobDetail />);
 
@@ -130,6 +133,72 @@ describe("JobDetail", () => {
         expect(within(companyCard).getByText("Công ty Sao Việt")).toHaveClass(
             "company-details-value"
         );
+    });
+
+    it("keeps a full-height loading shell visible while the detail request is pending", async () => {
+        let resolveDetail;
+        getDetailPostByIdService.mockReturnValueOnce(new Promise((resolve) => {
+            resolveDetail = resolve;
+        }));
+
+        render(<JobDetail />);
+
+        const main = screen.getByRole("main");
+        expect(main).toHaveAttribute("aria-busy", "true");
+        expect(screen.getByRole("status", { name: "Đang tải chi tiết công việc" }))
+            .toBeInTheDocument();
+        expect(document.querySelector(".job-detail-skeleton__content-card")).toBeInTheDocument();
+
+        await act(async () => {
+            resolveDetail({ errCode: 0, data: post });
+        });
+        expect(await screen.findByRole("heading", { name: "Senior React Developer" }))
+            .toBeInTheDocument();
+        expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "false");
+    });
+
+    it("ignores a stale response when the user opens another job quickly", async () => {
+        const deferred = {};
+        getDetailPostByIdService.mockImplementation((postId) => new Promise((resolve) => {
+            deferred[postId] = resolve;
+        }));
+        const newerPost = {
+            ...post,
+            id: 99,
+            postDetailData: { ...post.postDetailData, name: "Frontend Lead" },
+        };
+        const view = render(<JobDetail />);
+
+        await waitFor(() => expect(deferred["42"]).toEqual(expect.any(Function)));
+        mockPostId = "99";
+        view.rerender(<JobDetail />);
+        await waitFor(() => expect(deferred["99"]).toEqual(expect.any(Function)));
+
+        await act(async () => deferred["99"]({ errCode: 0, data: newerPost }));
+        expect(await screen.findByRole("heading", { name: "Frontend Lead" })).toBeInTheDocument();
+
+        await act(async () => deferred["42"]({ errCode: 0, data: post }));
+        expect(screen.getByRole("heading", { name: "Frontend Lead" })).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Senior React Developer" }))
+            .not.toBeInTheDocument();
+        expect(window.scrollTo).toHaveBeenCalledTimes(2);
+    });
+
+    it("deduplicates development StrictMode requests and scrolls once", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
+
+        render(
+            <React.StrictMode>
+                <JobDetail />
+            </React.StrictMode>
+        );
+
+        expect(await screen.findByRole("heading", { name: "Senior React Developer" }))
+            .toBeInTheDocument();
+        expect(getDetailPostByIdService).toHaveBeenCalledTimes(1);
+        expect(getRelatedPostService).toHaveBeenCalledTimes(1);
+        expect(checkFavoritePostService).toHaveBeenCalledTimes(1);
+        expect(window.scrollTo).toHaveBeenCalledTimes(1);
     });
 
     it("does not check favorites for an anonymous visitor", async () => {

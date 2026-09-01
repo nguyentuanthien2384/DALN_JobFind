@@ -91,9 +91,9 @@ describe("application routes", () => {
         ["COMPANY", 8],
     ])(
         "allows %s users into the admin area",
-        (roleCode, companyId) => {
+        async (roleCode, companyId) => {
             renderAt("/admin/users", { id: 1, roleCode, companyId });
-            expect(screen.getByText("admin-page")).toBeInTheDocument();
+            expect(await screen.findByText("admin-page")).toBeInTheDocument();
         }
     );
 
@@ -201,9 +201,9 @@ describe("application routes", () => {
         expect(screen.queryByText("chat-page")).not.toBeInTheDocument();
     });
 
-    it("allows candidates into their protected area with the shared layout", () => {
+    it("allows candidates into their protected area with the shared layout", async () => {
         renderAt("/candidate/info", { id: 2, roleCode: "CANDIDATE" });
-        expect(screen.getByText("candidate-page")).toBeInTheDocument();
+        expect(await screen.findByText("candidate-page")).toBeInTheDocument();
         expect(screen.getByText("site-header")).toBeInTheDocument();
         expect(screen.getByText("site-footer")).toBeInTheDocument();
     });

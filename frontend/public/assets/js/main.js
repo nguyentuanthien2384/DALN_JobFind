@@ -286,24 +286,8 @@ $(document).ready(function () {
     nice_Select.niceSelect();
   }
 
-  /* 7.  Custom Sticky Menu  */
-  $(window).on('scroll', function () {
-    var scroll = $(window).scrollTop();
-    if (scroll < 245) {
-      $(".header-sticky").removeClass("sticky-bar");
-    } else {
-      $(".header-sticky").addClass("sticky-bar");
-    }
-  });
-
-  $(window).on('scroll', function () {
-    var scroll = $(window).scrollTop();
-    if (scroll < 245) {
-      $(".header-sticky").removeClass("sticky");
-    } else {
-      $(".header-sticky").addClass("sticky");
-    }
-  });
+  /* Header sticky is handled by the React layout. Keeping another pair of
+     scroll listeners here made the same element switch fixed states twice. */
 
 
 

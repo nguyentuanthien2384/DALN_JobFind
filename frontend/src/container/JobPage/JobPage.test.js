@@ -25,6 +25,7 @@ jest.mock("./RightPage/RightContent", () => (props) => (
         <span data-testid="job-count">{props.count}</span>
         {props.post.map((item) => <span key={item.id}>{item.name}</span>)}
         <button onClick={() => props.handleSearch("  React   Engineer  ")}>search</button>
+        <button onClick={() => props.handleSearch("")}>clear-search</button>
     </div>
 ));
 jest.mock("react-paginate", () => (props) => (
@@ -132,6 +133,20 @@ describe("JobPage", () => {
             sortName: undefined,
         });
         expect(screen.getByTestId("force-page")).toHaveTextContent("2");
+    });
+
+    it("returns to the first unfiltered page after the search keyword is cleared", async () => {
+        render(<JobPage />);
+        await waitFor(() => expect(getListPostService).toHaveBeenCalledTimes(1));
+
+        fireEvent.click(screen.getByRole("button", { name: "search" }));
+        await expectLatestQuery({ search: "React Engineer", offset: 0 });
+        fireEvent.click(screen.getByRole("button", { name: "page-three" }));
+        await expectLatestQuery({ search: "React Engineer", offset: 10 });
+
+        fireEvent.click(screen.getByRole("button", { name: "clear-search" }));
+        await expectLatestQuery({ search: "", offset: 0 });
+        expect(screen.getByTestId("force-page")).toHaveTextContent("0");
     });
 
     it("keeps the current empty result when the API returns an error", async () => {

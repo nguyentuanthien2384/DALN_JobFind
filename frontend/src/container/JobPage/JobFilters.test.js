@@ -3,23 +3,21 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useFetchAllcode } from "../../util/fetch";
 import LeftBar from "./LeftPage/LeftBar";
 import RightContent from "./RightPage/RightContent";
+import { prefetchJobDetail } from "../JobDetail/jobDetailResource";
 
 jest.mock("../../util/fetch", () => ({ useFetchAllcode: jest.fn() }));
 jest.mock("react-router-dom", () => {
     const React = require("react");
     return {
-        Link: ({ to, children }) => React.createElement("a", { href: to }, children),
+        Link: ({ to, children, ...props }) => React.createElement("a", { href: to, ...props }, children),
     };
 });
-jest.mock("antd", () => ({
-    Input: {
-        Search: ({ onSearch, placeholder }) => (
-            <button type="button" onClick={() => onSearch("backend")}>
-                {placeholder}
-            </button>
-        ),
-    },
-}));
+jest.mock("../JobDetail/jobDetailResource", () => ({ prefetchJobDetail: jest.fn() }));
+jest.mock("./RightPage/JobSearchAutocomplete", () => ({ onSearch }) => (
+    <button type="button" onClick={() => onSearch("backend")}>
+        Tìm việc làm
+    </button>
+));
 jest.mock("../../components/Job/Job", () => ({ data }) => <span>{data.title}</span>);
 
 const allCodes = {
@@ -80,7 +78,9 @@ describe("job filters and results", () => {
         expect(screen.getByText("2 công việc được tìm thấy")).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "React" })).toHaveAttribute("href", "/detail-job/4");
         expect(screen.getByRole("link", { name: "Node" })).toHaveAttribute("href", "/detail-job/5");
-        fireEvent.click(screen.getByRole("button", { name: "Nhập tên bài đăng" }));
+        fireEvent.mouseEnter(screen.getByRole("link", { name: "React" }));
+        expect(prefetchJobDetail).toHaveBeenCalledWith(4);
+        fireEvent.click(screen.getByRole("button", { name: "Tìm việc làm" }));
         expect(handleSearch).toHaveBeenCalledWith("backend");
     });
 

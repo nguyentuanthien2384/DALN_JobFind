@@ -1,64 +1,153 @@
-import React from "react";
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import SendCvModal from "../../components/modal/SendCvModal";
-import {
-    getDetailPostByIdService,
-    toggleFavoritePostService,
-    checkFavoritePostService,
-    getRelatedPostService,
-} from "../../service/userService";
-import { Link } from "react-router-dom";
+import { toggleFavoritePostService } from "../../service/userService";
 import moment from "moment";
 import CommonUtils from "../../util/CommonUtils";
 import { hasPermission, PERMISSIONS } from "../../auth/accessControl";
 import { readJsonStorage } from "../../util/storage";
+import {
+    getCachedJobDetail,
+    loadFavoriteState,
+    loadJobDetail,
+    loadRelatedJobs,
+    prefetchJobDetail,
+} from "./jobDetailResource";
+
+const JobDetailSkeleton = () => (
+    <div className="job-detail-skeleton" role="status" aria-label="Đang tải chi tiết công việc">
+        <div className="job-detail-cover" aria-hidden="true">
+            <div className="container">
+                <div className="cover-wrapper job-detail-skeleton__surface" />
+                <div className="job-detail-overview job-detail-skeleton__overview">
+                    <div className="job-logo">
+                        <div className="job-image-logo job-detail-skeleton__surface" />
+                    </div>
+                    <div className="job-info job-detail-skeleton__info">
+                        <span className="job-detail-skeleton__surface job-detail-skeleton__line job-detail-skeleton__line--title" />
+                        <span className="job-detail-skeleton__surface job-detail-skeleton__line job-detail-skeleton__line--company" />
+                        <span className="job-detail-skeleton__surface job-detail-skeleton__line job-detail-skeleton__line--meta" />
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div className="job-post-company pb-120" aria-hidden="true">
+            <div className="container">
+                <div className="row justify-content-between">
+                    <div className="col-xl-7 col-lg-8">
+                        <div className="job-post-details job-detail-skeleton__content-card">
+                            <span className="job-detail-skeleton__surface job-detail-skeleton__line job-detail-skeleton__line--heading" />
+                            {[100, 92, 96, 78, 88, 64].map((width) => (
+                                <span
+                                    key={width}
+                                    className="job-detail-skeleton__surface job-detail-skeleton__line"
+                                    style={{ width: `${width}%` }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                    <div className="col-xl-4 col-lg-4">
+                        <div className="post-details3 mb-50 job-detail-skeleton__side-card">
+                            <span className="job-detail-skeleton__surface job-detail-skeleton__line job-detail-skeleton__line--heading" />
+                            {[82, 94, 76, 88, 70].map((width) => (
+                                <span
+                                    key={width}
+                                    className="job-detail-skeleton__surface job-detail-skeleton__line"
+                                    style={{ width: `${width}%` }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <span className="job-detail-skeleton__label">Đang tải thông tin công việc…</span>
+    </div>
+);
+
 const JobDetail = () => {
     const navigate = useNavigate();
     const { id } = useParams();
     const [isActiveModal, setAcitveModal] = useState(false);
-    const [dataPost, setDataPost] = useState({});
+    const [detailState, setDetailState] = useState(() => {
+        const cachedData = getCachedJobDetail(id);
+        return { data: cachedData, isLoading: !cachedData, hasError: false };
+    });
     const [isFavorite, setIsFavorite] = useState(false);
     const [relatedPost, setRelatedPost] = useState([]);
+    const preparedJobIdRef = useRef(id);
+    const scrolledJobIdRef = useRef(null);
+    const dataPost = detailState.data;
     const currentUser = readJsonStorage("userData");
     // Khach van thay CTA de duoc dua toi trang dang nhap. Sau khi dang nhap,
     // cac thao tac tren trang viec lam chi danh cho CANDIDATE.
     const canApply = !currentUser || hasPermission(currentUser, PERMISSIONS.APPLY_TO_JOB);
     const canSocialInteract = !currentUser || hasPermission(currentUser, PERMISSIONS.SOCIAL_INTERACT);
     const canStartChat = canSocialInteract;
-    useEffect(() => {
-        if (id) {
-            fetchPost(id);
-            fetchRelatedPost(id);
-            const userData = JSON.parse(localStorage.getItem("userData"));
-            if (userData && hasPermission(userData, PERMISSIONS.SOCIAL_INTERACT)) {
-                fetchCheckFavorite(id, userData.id);
-            }
+    const currentUserId = currentUser?.id;
+    const shouldCheckFavorite = Boolean(
+        currentUserId && hasPermission(currentUser, PERMISSIONS.SOCIAL_INTERACT)
+    );
+
+    // Đặt lại vị trí cuộn và khung tải trước khi trình duyệt vẽ frame mới.
+    // Nhờ vậy người dùng không nhìn thấy trang cũ rồi mới bị kéo lên đầu trang.
+    useLayoutEffect(() => {
+        if (preparedJobIdRef.current !== id) {
+            const cachedData = getCachedJobDetail(id);
+            preparedJobIdRef.current = id;
+            setDetailState({ data: cachedData, isLoading: !cachedData, hasError: false });
+            setRelatedPost([]);
+            setIsFavorite(false);
+            setAcitveModal(false);
         }
-        window.scrollTo(0, 0);
+
+        if (scrolledJobIdRef.current !== id) {
+            window.scrollTo(0, 0);
+            scrolledJobIdRef.current = id;
+        }
     }, [id]);
 
-    let fetchPost = async (id) => {
-        let res = await getDetailPostByIdService(id);
-        if (res && res.errCode === 0) {
-            setDataPost(res.data);
-        }
-    };
+    useEffect(() => {
+        if (!id) return undefined;
 
-    let fetchRelatedPost = async (id) => {
-        let res = await getRelatedPostService({ postId: id, limit: 5 });
-        if (res && res.errCode === 0) {
-            setRelatedPost(res.data);
-        }
-    };
+        let active = true;
 
-    let fetchCheckFavorite = async (postId, userId) => {
-        let res = await checkFavoritePostService({ postId, userId });
-        if (res && res.errCode === 0) {
-            setIsFavorite(res.isFavorite);
+        loadJobDetail(id)
+            .then((res) => {
+                if (!active) return;
+                if (res?.errCode === 0 && res.data?.companyData) {
+                    setDetailState({ data: res.data, isLoading: false, hasError: false });
+                } else {
+                    setDetailState({ data: null, isLoading: false, hasError: true });
+                }
+            })
+            .catch(() => {
+                if (active) setDetailState({ data: null, isLoading: false, hasError: true });
+            });
+
+        loadRelatedJobs(id)
+            .then((res) => {
+                if (active && res?.errCode === 0) setRelatedPost(res.data || []);
+            })
+            .catch(() => {
+                if (active) setRelatedPost([]);
+            });
+
+        if (shouldCheckFavorite) {
+            loadFavoriteState(id, currentUserId)
+                .then((res) => {
+                    if (active && res?.errCode === 0) setIsFavorite(Boolean(res.isFavorite));
+                })
+                .catch(() => {
+                    if (active) setIsFavorite(false);
+                });
         }
-    };
+
+        return () => {
+            active = false;
+        };
+    }, [id, currentUserId, shouldCheckFavorite]);
 
     const handleToggleFavorite = async () => {
         const userData = JSON.parse(localStorage.getItem("userData"));
@@ -102,21 +191,31 @@ const JobDetail = () => {
             }
         } else toast.error("Hạn ứng tuyển đã hết");
     };
+
+    if (!dataPost?.companyData) {
+        return (
+            <main
+                className="job-detail-page"
+                aria-busy={detailState.isLoading ? "true" : "false"}
+            >
+                {detailState.hasError ? (
+                    <div className="container job-detail-error" role="alert">
+                        <i className="fas fa-exclamation-circle" aria-hidden="true" />
+                        <h1>Không thể tải thông tin công việc</h1>
+                        <p>Vui lòng kiểm tra kết nối và thử tải lại trang.</p>
+                        <button type="button" onClick={() => window.location.reload()}>
+                            Thử lại
+                        </button>
+                    </div>
+                ) : (
+                    <JobDetailSkeleton />
+                )}
+            </main>
+        );
+    }
+
     return (
-        <>
-            {/* <div id="preloader-active">
-        <div className="preloader d-flex align-items-center justify-content-center">
-            <div className="preloader-inner position-relative">
-                <div className="preloader-circle"></div>
-                <div className="preloader-img pere-text">
-                    <img src="assets/img/logo/logo.png" alt="">
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- Preloader Start --> */}
-            {dataPost.companyData && (
-                <main>
+        <main className="job-detail-page" aria-busy="false">
                     {/* Header dung chung kieu voi trang chi tiet cong ty:
                         anh bia chieu cao co dinh + thanh trang co logo dat de len anh bia. */}
                     <div className="job-detail-cover">
@@ -126,6 +225,9 @@ const JobDetail = () => {
                                     src={dataPost.companyData.coverimage}
                                     alt=""
                                     className="cover-img"
+                                    width="1140"
+                                    height="236"
+                                    decoding="async"
                                 />
                             </div>
                             <div className="job-detail-overview">
@@ -134,6 +236,9 @@ const JobDetail = () => {
                                         <img
                                             src={dataPost.companyData.thumbnail}
                                             alt={dataPost.companyData.name}
+                                            width="140"
+                                            height="140"
+                                            decoding="async"
                                         />
                                     </div>
                                 </div>
@@ -202,11 +307,14 @@ const JobDetail = () => {
                                                     <h4>Việc làm tương tự</h4>
                                                 </div>
                                             </div>
-                                            {relatedPost.map((item, index) => {
+                                            {relatedPost.map((item) => {
                                                 return (
                                                     <Link
-                                                        key={index}
+                                                        key={item.id}
                                                         to={`/detail-job/${item.id}`}
+                                                        onMouseEnter={() => prefetchJobDetail(item.id)}
+                                                        onFocus={() => prefetchJobDetail(item.id)}
+                                                        onTouchStart={() => prefetchJobDetail(item.id)}
                                                         style={{
                                                             display: "flex",
                                                             alignItems:
@@ -229,6 +337,10 @@ const JobDetail = () => {
                                                                     .thumbnail
                                                             }
                                                             alt=""
+                                                            width="60"
+                                                            height="60"
+                                                            loading="lazy"
+                                                            decoding="async"
                                                             style={{
                                                                 width: "60px",
                                                                 height: "60px",
@@ -508,9 +620,7 @@ const JobDetail = () => {
                         onHide={() => setAcitveModal(false)}
                         postId={id}
                     />
-                </main>
-            )}
-        </>
+        </main>
     );
 };
 

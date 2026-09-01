@@ -291,12 +291,13 @@ describe("public Header", () => {
         expect(await screen.findByText("4")).toBeInTheDocument();
     });
 
-    it("makes the header sticky after scrolling", async () => {
+    it("keeps one stable sticky shell without adding fixed-position classes", async () => {
         render(<Header />);
         await screen.findByRole("link", { name: "Đăng kí" });
         Object.defineProperty(window, "scrollY", { configurable: true, value: 20 });
         fireEvent.scroll(window);
-        expect(screen.getByTestId("public-header-area")).toHaveClass("sticky");
+        expect(screen.getByTestId("public-header-shell")).toHaveClass("public-header-shell");
+        expect(screen.getByTestId("public-header-area")).not.toHaveClass("sticky");
     });
 
     it("disconnects and clears credentials when logging out", async () => {

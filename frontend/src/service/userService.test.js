@@ -139,6 +139,11 @@ describe("userService", () => {
         expect(axios.get).toHaveBeenLastCalledWith(
             "/api/get-filter-post?limit=10&offset=0&categoryJobCode=IT&addressCode=HN&salaryJobCode=S1&categoryJoblevelCode=L1&categoryWorktypeCode=W1&experienceJobCode=E1&sortName=newest&isHot=1&search=react"
         );
+
+        await service.getListPostService({ ...base, search: "C# & .NET" });
+        expect(axios.get).toHaveBeenLastCalledWith(
+            "/api/get-filter-post?limit=10&offset=0&categoryJobCode=IT&addressCode=HN&salaryJobCode=S1&categoryJoblevelCode=L1&categoryWorktypeCode=W1&experienceJobCode=E1&sortName=newest&search=C%23%20%26%20.NET"
+        );
     });
 
     it("uses an empty user id when checking a company follow anonymously", async () => {

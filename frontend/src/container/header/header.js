@@ -76,17 +76,6 @@ const Header = () => {
         window.location.href = "/login"
     }
 
-    useEffect(() => {
-        const scrollHeader = () => {
-            var header = document.querySelector(".header-area");
-            if (header) {
-                header.classList.toggle("sticky", window.scrollY > 0)
-            }
-        }
-        window.addEventListener("scroll", scrollHeader)
-        return () => window.removeEventListener("scroll", scrollHeader)
-    }, [])
-
     const closeHeaderMenus = useCallback(() => {
         setShowNotification(false)
         setShowProfileMenu(false)
@@ -155,7 +144,7 @@ const Header = () => {
 
     return (
         <>
-            <header>
+            <header className="public-header-shell" data-testid="public-header-shell">
                 {/* <!-- Header Start --> */}
                 <div className="header-area header-transparrent" data-testid="public-header-area">
                     <div className="headder-top header-sticky">

@@ -221,6 +221,20 @@ nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link[aria-
    Truoc day cho nay la banner .slider-height2 cao 450px de trong hoan toan,
    roi con them pt-120 nen giua anh bia va noi dung ho ra mot khoang rat lon.
    ========================================================================== */
+.job-detail-page {
+    min-height: calc(100vh - 89px);
+}
+
+.route-page-loader {
+    display: flex;
+    min-height: calc(100vh - 89px);
+    align-items: center;
+    justify-content: center;
+    padding: 48px 20px;
+    color: #506172;
+    font-size: 16px;
+}
+
 .job-detail-cover {
     margin-bottom: 30px;
 }
@@ -320,6 +334,122 @@ nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link[aria-
 .job-detail-cover .job-meta i {
     margin-right: 6px;
     color: #fb246a;
+}
+
+/* Khung tải giữ đúng diện tích của trang thật để footer và thanh cuộn không
+   nhảy trong lúc API đang phản hồi. Các mảng màu là tĩnh để không tốn CPU/GPU. */
+.job-detail-skeleton {
+    position: relative;
+    min-height: 920px;
+    contain: layout paint;
+}
+
+.job-detail-skeleton__surface {
+    display: block;
+    background: #eef1f6;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+.job-detail-skeleton__overview {
+    min-height: 110px;
+}
+
+.job-detail-skeleton__info {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 12px;
+    padding-right: 24px;
+}
+
+.job-detail-skeleton__line {
+    width: 100%;
+    height: 14px;
+    border-radius: 7px;
+}
+
+.job-detail-skeleton__line--title {
+    width: min(430px, 78%);
+    height: 25px;
+    border-radius: 8px;
+}
+
+.job-detail-skeleton__line--company {
+    width: min(280px, 58%);
+}
+
+.job-detail-skeleton__line--meta {
+    width: min(520px, 90%);
+}
+
+.job-detail-skeleton__line--heading {
+    width: min(240px, 55%);
+    height: 22px;
+    margin-bottom: 34px;
+}
+
+.job-detail-skeleton__content-card,
+.job-detail-skeleton__side-card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.job-detail-skeleton__content-card {
+    min-height: 470px;
+    padding: 30px 0;
+}
+
+.job-detail-skeleton__side-card {
+    min-height: 370px;
+}
+
+.job-detail-skeleton__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.job-detail-error {
+    display: flex;
+    min-height: 620px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.job-detail-error i {
+    color: #fb246a;
+    font-size: 38px;
+}
+
+.job-detail-error h1 {
+    margin: 8px 0 0;
+    font-size: 24px;
+}
+
+.job-detail-error p {
+    margin: 0 0 8px;
+}
+
+.job-detail-error button {
+    min-height: 44px;
+    padding: 10px 22px;
+    border: 0;
+    border-radius: 5px;
+    background: #fb246a;
+    color: #fff;
+    cursor: pointer;
 }
 
 /* Khung "Thong tin cong ty" dung cung bo cuc voi "Thong tin cong viec".
