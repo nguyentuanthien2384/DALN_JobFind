@@ -40,22 +40,13 @@ describe("frontend access-control policy", () => {
         expect(hasCompanyMembership(user)).toBe(expected);
     });
 
-    it("gives ADMIN platform administration and dashboard permissions but never chat", () => {
+    it("gives ADMIN every declared permission as a super-admin", () => {
         const user = { id: 1, roleCode: ROLES.ADMIN };
 
-        expectExactPermissions(user, [
-            PERMISSIONS.MANAGE_PROFILE,
-            PERMISSIONS.ACCESS_ADMIN_AREA,
-            PERMISSIONS.VIEW_ADMIN_HOME,
-            PERMISSIONS.VIEW_PLATFORM_REPORTS,
-            PERMISSIONS.MANAGE_USERS,
-            PERMISSIONS.MANAGE_REFERENCE_DATA,
-            PERMISSIONS.MANAGE_PACKAGES,
-            PERMISSIONS.MODERATE_COMPANIES,
-            PERMISSIONS.MODERATE_POSTS,
-        ]);
-        expect(hasPermission(user, PERMISSIONS.USE_CHAT)).toBe(false);
-        expect(hasPermission(user, PERMISSIONS.MANAGE_POSTS)).toBe(false);
+        expectExactPermissions(user, Object.values(PERMISSIONS));
+        Object.values(PERMISSIONS).forEach((permission) => {
+            expect(hasPermission(user, permission)).toBe(true);
+        });
     });
 
     it("gives a COMPANY with companyId its tenant, dashboard and chat permissions", () => {
@@ -148,8 +139,8 @@ describe("frontend access-control policy", () => {
         expect(hasPermission({ roleCode: ROLES.ADMIN }, undefined)).toBe(false);
 
         const first = getUserPermissions({ roleCode: ROLES.ADMIN });
-        first.add(PERMISSIONS.USE_CHAT);
-        expect(getUserPermissions({ roleCode: ROLES.ADMIN }).has(PERMISSIONS.USE_CHAT)).toBe(false);
+        first.delete(PERMISSIONS.USE_CHAT);
+        expect(getUserPermissions({ roleCode: ROLES.ADMIN }).has(PERMISSIONS.USE_CHAT)).toBe(true);
     });
 
     it("supports any/all permission checks without turning an empty any-list into access", () => {

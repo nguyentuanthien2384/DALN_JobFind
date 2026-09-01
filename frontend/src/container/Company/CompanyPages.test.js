@@ -205,7 +205,13 @@ describe("CompanyReview", () => {
     });
 
     it("keeps reviews public but hides the review form from non-candidates", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
+        localStorage.setItem("userData", JSON.stringify({
+            id: 1,
+            roleCode: "EMPLOYER",
+            companyId: 9,
+            companyStatusCode: "S1",
+            companyCensorCode: "CS1",
+        }));
         render(<CompanyReview companyId="42" />);
 
         expect(await screen.findByText("Đồng nghiệp thân thiện")).toBeInTheDocument();

@@ -145,17 +145,29 @@ describe("public Header", () => {
         expect(socket.on).not.toHaveBeenCalledWith("chat:new-message", expect.any(Function));
     });
 
-    it.each([
-        ["ADMIN", 9],
-        ["COMPANY", undefined],
-    ])("hides chat and skips its API for %s without backend chat permission", async (roleCode, companyId) => {
+    it("shows chat and loads its badge for ADMIN", async () => {
         localStorage.setItem(
             "userData",
-            JSON.stringify({ id: 8, roleCode, companyId, firstName: roleCode, lastName: "User" })
+            JSON.stringify({ id: 8, roleCode: "ADMIN", firstName: "Admin", lastName: "User" })
         );
         render(<Header />);
 
-        expect(await screen.findByText(`${roleCode} User`)).toBeInTheDocument();
+        expect(await screen.findByText("Admin User")).toBeInTheDocument();
+        expect(await screen.findByText("3")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: /Admin User/ }));
+        expect(screen.getAllByRole("link", { name: /Tin nhắn/ })).toHaveLength(2);
+        expect(getListChatConversationService).toHaveBeenCalledTimes(1);
+        expect(socket.on).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+    });
+
+    it("hides chat and skips its API for COMPANY without backend chat permission", async () => {
+        localStorage.setItem(
+            "userData",
+            JSON.stringify({ id: 8, roleCode: "COMPANY", firstName: "COMPANY", lastName: "User" })
+        );
+        render(<Header />);
+
+        expect(await screen.findByText("COMPANY User")).toBeInTheDocument();
         await waitFor(() => expect(getNotificationByUserService).toHaveBeenCalledTimes(1));
         expect(screen.queryByRole("link", { name: /Tin nhắn/ })).not.toBeInTheDocument();
         expect(getListChatConversationService).not.toHaveBeenCalled();

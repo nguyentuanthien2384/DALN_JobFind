@@ -28,23 +28,14 @@ export const PERMISSIONS = Object.freeze({
     VIEW_TRANSACTIONS: "company.transactions.view",
 });
 
-// Tat ca tai khoan da dang nhap deu duoc quan ly ho so cua chinh minh. Chat
-// khong phai quyen chung: backend loai ADMIN va bat buoc COMPANY/EMPLOYER phai
-// co companyId, trong khi CANDIDATE luon duoc dung.
+// Tat ca tai khoan da dang nhap deu duoc quan ly ho so cua chinh minh. ADMIN la
+// super-admin nen nhan moi quyen da duoc khai bao; cac vai tro con lai van bi
+// gioi han theo nghiep vu va trang thai cong ty.
 const COMMON_PERMISSIONS = [PERMISSIONS.MANAGE_PROFILE];
 
 const permissionSet = (permissions) => new Set([...COMMON_PERMISSIONS, ...permissions]);
 
-const ADMIN_PERMISSIONS = permissionSet([
-    PERMISSIONS.ACCESS_ADMIN_AREA,
-    PERMISSIONS.VIEW_ADMIN_HOME,
-    PERMISSIONS.VIEW_PLATFORM_REPORTS,
-    PERMISSIONS.MANAGE_USERS,
-    PERMISSIONS.MANAGE_REFERENCE_DATA,
-    PERMISSIONS.MANAGE_PACKAGES,
-    PERMISSIONS.MODERATE_COMPANIES,
-    PERMISSIONS.MODERATE_POSTS,
-]);
+const ADMIN_PERMISSIONS = new Set(Object.values(PERMISSIONS));
 
 const COMPANY_PERMISSIONS = permissionSet([
     PERMISSIONS.ACCESS_ADMIN_AREA,
@@ -139,8 +130,9 @@ export const hasAllPermissions = (user, permissions = []) =>
     permissions.every((permission) => hasPermission(user, permission));
 
 export const getDefaultRouteForUser = (user) => {
-    if (hasPermission(user, PERMISSIONS.VIEW_CANDIDATE_AREA)) return "/candidate/info";
+    // ADMIN has every capability but its primary workspace remains /admin.
     if (hasPermission(user, PERMISSIONS.VIEW_ADMIN_HOME)) return "/admin/";
+    if (hasPermission(user, PERMISSIONS.VIEW_CANDIDATE_AREA)) return "/candidate/info";
     if (hasPermission(user, PERMISSIONS.CREATE_COMPANY)) return "/admin/add-company/";
     if (hasPermission(user, PERMISSIONS.MANAGE_COMPANY)) return "/admin/edit-company/";
     if (hasPermission(user, PERMISSIONS.ACCESS_ADMIN_AREA)) return "/admin/user-info/";

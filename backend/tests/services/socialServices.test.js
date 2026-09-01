@@ -315,6 +315,52 @@ describe('chatService', () => {
     expect(mockDb.ChatMessage.create).toHaveBeenCalledWith({ senderId: 1, receiverId: 2, content: 'hi', isRead: 0 });
   });
 
+  test('allows an active ADMIN to send, receive and open chat with any active account', async () => {
+    const activeAdmin = {
+      id: 1,
+      userAccountData: { roleCode: 'ADMIN', statusCode: 'S1' }
+    };
+    const activeEmployer = {
+      id: 2,
+      userAccountData: { roleCode: 'EMPLOYER', statusCode: 'S1' }
+    };
+
+    mockDb.User.findAll.mockResolvedValueOnce([activeAdmin, activeEmployer]);
+    mockDb.ChatMessage.create.mockResolvedValueOnce({ id: 10 });
+    expect(await chat.handleSendMessage({ senderId: 1, receiverId: 2, content: 'Admin hỗ trợ' })).toEqual(
+      expect.objectContaining({ errCode: 0, data: { id: 10 } })
+    );
+
+    mockDb.User.findAll.mockResolvedValueOnce([activeAdmin, activeEmployer]);
+    mockDb.ChatMessage.create.mockResolvedValueOnce({ id: 11 });
+    expect(await chat.handleSendMessage({ senderId: 2, receiverId: 1, content: 'Phản hồi admin' })).toEqual(
+      expect.objectContaining({ errCode: 0, data: { id: 11 } })
+    );
+    expect(mockDb.ChatMessage.create).toHaveBeenNthCalledWith(2, {
+      senderId: 2,
+      receiverId: 1,
+      content: 'Phản hồi admin',
+      isRead: 0
+    });
+
+    mockDb.User.findAll.mockResolvedValueOnce([activeAdmin, activeEmployer]);
+    mockDb.ChatMessage.update.mockResolvedValueOnce([1]);
+    mockDb.ChatMessage.findAll.mockResolvedValueOnce([{ id: 11 }, { id: 10 }]);
+    mockDb.User.findOne.mockResolvedValueOnce({ id: 2 });
+    expect(await chat.getConversation({ userId: 1, partnerId: 2 })).toEqual({
+      errCode: 0,
+      data: [{ id: 10 }, { id: 11 }],
+      partnerData: { id: 2 }
+    });
+
+    mockDb.User.findAll.mockResolvedValueOnce([
+      { ...activeAdmin, userAccountData: { roleCode: 'ADMIN', statusCode: 'S2' } },
+      activeEmployer
+    ]);
+    expect((await chat.handleSendMessage({ senderId: 1, receiverId: 2, content: 'blocked' })).errCode).toBe(5);
+    expect(mockDb.ChatMessage.create).toHaveBeenCalledTimes(2);
+  });
+
   test('marks unread incoming messages as read', async () => {
     expect((await chat.markConversationRead({})).errCode).toBe(1);
     mockDb.ChatMessage.update.mockResolvedValue([3]);

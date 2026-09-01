@@ -1,6 +1,11 @@
 import jwt from 'jsonwebtoken';
 import { resolveCurrentIdentity } from '../libs/accountStore.js';
-import { hasApprovedCompany, hasPermission, isKnownRole } from '../../../shared/accessControl.js';
+import {
+    hasApprovedCompany,
+    hasPermission,
+    isKnownRole,
+    ROLES
+} from '../../../shared/accessControl.js';
 import { getJwtSecret } from '../../../shared/securityConfig.js';
 
 // Xac thuc tap trung tai Gateway.
@@ -124,7 +129,11 @@ export const requirePermission = (permission, { companyRequired = false } = {}) 
                 errMessage: 'Bạn không có quyền thực hiện thao tác này'
             });
         }
-        if (companyRequired && !hasApprovedCompany(req.user)) {
+        if (
+            companyRequired
+            && req.user.roleCode !== ROLES.ADMIN
+            && !hasApprovedCompany(req.user)
+        ) {
             return res.status(403).json({
                 errCode: 403,
                 errMessage: 'Công ty chưa được duyệt, đã bị khóa hoặc không tồn tại'

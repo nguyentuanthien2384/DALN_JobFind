@@ -63,8 +63,8 @@ describe("admin layout shell", () => {
         expect(screen.getByText("ADMIN MENU")).toBeInTheDocument();
         expect(screen.getByText("ADMIN HOME")).toBeInTheDocument();
         expect(screen.getByText(/Bản quyền/)).toBeInTheDocument();
-        expect(screen.queryByRole("link", { name: "Tin nhắn tuyển dụng" })).not.toBeInTheDocument();
-        expect(screen.queryByRole("link", { name: "Quy trình ứng viên" })).not.toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Tin nhắn tuyển dụng" })).toHaveAttribute("href", "/admin/chat");
+        expect(screen.getByRole("link", { name: "Quy trình ứng viên" })).toHaveAttribute("href", "/admin/pipeline");
         expect(screen.getByRole("link", { name: "Báo cáo hệ thống" })).toHaveAttribute("href", "/admin/reports");
         expect(screen.queryByText("TO DO LIST")).not.toBeInTheDocument();
         expect(screen.queryByText("Feb 11 2018")).not.toBeInTheDocument();
@@ -78,13 +78,18 @@ describe("admin layout shell", () => {
     });
 
     it.each([
-        ["/chat", ADMIN, "/forbidden"],
         ["/chat", UNATTACHED_EMPLOYER, "/forbidden"],
         ["/list-post", UNATTACHED_EMPLOYER, "/forbidden"],
         ["/add-company", EMPLOYER, "/forbidden"],
     ])("returns 403 for disallowed nested route %s", (route, user, destination) => {
         renderAdmin(route, user);
         expect(screen.getByTestId("redirect")).toHaveTextContent(destination);
+    });
+
+    it("allows ADMIN to open the chat route", () => {
+        renderAdmin("/chat", ADMIN);
+        expect(screen.getByText("ADMIN CHAT")).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Tin nhắn tuyển dụng" })).toHaveAttribute("href", "/admin/chat");
     });
 
     it("allows an attached employer to use recruiting and chat routes", () => {

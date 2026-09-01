@@ -41,6 +41,12 @@ const canParticipantsChat = async (senderId, receiverId) => {
         && user.userCompanyData?.censorCode === 'CS1';
 
     if (!active(sender) || !active(receiver)) return { allowed: false };
+
+    // ADMIN is a super-admin and may open or answer a support/moderation
+    // conversation with any other active account.
+    const adminParticipant = role(sender) === 'ADMIN' || role(receiver) === 'ADMIN';
+    if (adminParticipant) return { allowed: true };
+
     const candidateAndRecruiter = (
         role(sender) === 'CANDIDATE' && recruiterIsApproved(receiver)
     ) || (

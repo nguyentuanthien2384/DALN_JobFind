@@ -23,11 +23,7 @@ export const PERMISSIONS = Object.freeze({
 });
 
 const matrix = {
-    [ROLES.ADMIN]: [
-        PERMISSIONS.PROFILE_SELF,
-        PERMISSIONS.ADMIN_READ,
-        PERMISSIONS.ADMIN_WRITE
-    ],
+    [ROLES.ADMIN]: Object.values(PERMISSIONS),
     [ROLES.COMPANY]: [
         PERMISSIONS.PROFILE_SELF,
         PERMISSIONS.JOB_MANAGE,
@@ -129,7 +125,11 @@ export const requireServicePermission = (permission, { companyRequired = false }
                 errMessage: 'Bạn không có quyền thực hiện thao tác này'
             });
         }
-        if (companyRequired && !hasApprovedCompany(req.user)) {
+        if (
+            companyRequired
+            && req.user.roleCode !== ROLES.ADMIN
+            && !hasApprovedCompany(req.user)
+        ) {
             return res.status(403).json({
                 errCode: 403,
                 errMessage: 'Công ty chưa được duyệt, đã bị khóa hoặc không tồn tại'

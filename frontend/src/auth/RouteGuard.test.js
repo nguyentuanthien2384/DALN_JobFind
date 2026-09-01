@@ -67,8 +67,20 @@ describe("RouteGuard", () => {
         expect(screen.getByText("protected-content")).toBeInTheDocument();
     });
 
+    it("allows ADMIN through candidate and chat permission constraints", () => {
+        renderGuard({
+            user: { roleCode: ROLES.ADMIN },
+            anyPermissions: [PERMISSIONS.USE_CHAT],
+            allPermissions: [
+                PERMISSIONS.VIEW_CANDIDATE_AREA,
+                PERMISSIONS.APPLY_TO_JOB,
+                PERMISSIONS.SOCIAL_INTERACT,
+            ],
+        });
+        expect(screen.getByText("protected-content")).toBeInTheDocument();
+    });
+
     it.each([
-        [{ roleCode: ROLES.ADMIN }, "ADMIN cannot chat"],
         [{ roleCode: ROLES.COMPANY }, "COMPANY without companyId cannot chat"],
         [{ roleCode: ROLES.EMPLOYER }, "EMPLOYER without companyId cannot chat"],
     ])("returns forbidden when anyPermissions is not granted: %s", (user) => {

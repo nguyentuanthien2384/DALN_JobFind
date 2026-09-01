@@ -98,6 +98,7 @@ describe("application routes", () => {
     );
 
     it.each([
+        ["ADMIN", undefined],
         ["CANDIDATE", undefined],
         ["COMPANY", 3],
         ["EMPLOYER", 3],
@@ -110,7 +111,6 @@ describe("application routes", () => {
     );
 
     it.each([
-        ["ADMIN", 3],
         ["COMPANY", undefined],
         ["EMPLOYER", undefined],
     ])(
@@ -208,13 +208,20 @@ describe("application routes", () => {
         expect(screen.getByText("site-footer")).toBeInTheDocument();
     });
 
+    it("allows ADMIN into the candidate area as a super-admin", async () => {
+        renderAt("/candidate/info", { id: 1, roleCode: "ADMIN" });
+        expect(await screen.findByText("candidate-page")).toBeInTheDocument();
+        expect(screen.getByText("site-header")).toBeInTheDocument();
+        expect(screen.getByText("site-footer")).toBeInTheDocument();
+    });
+
     it("redirects a guest away from the candidate area", () => {
         renderAt("/candidate/info");
         expect(screen.getByText("navigate-/login")).toBeInTheDocument();
     });
 
-    it.each(["ADMIN", "EMPLOYER", "COMPANY"])(
-        "sends an authenticated non-candidate %s away from the candidate area",
+    it.each(["EMPLOYER", "COMPANY"])(
+        "sends an authenticated recruiter role %s away from the candidate area",
         (roleCode) => {
             renderAt("/candidate/info", { id: 1, roleCode, companyId: 4 });
             expect(screen.getByText("navigate-/forbidden")).toBeInTheDocument();

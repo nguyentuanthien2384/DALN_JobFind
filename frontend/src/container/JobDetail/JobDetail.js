@@ -81,10 +81,13 @@ const JobDetail = () => {
     const dataPost = detailState.data;
     const currentUser = readJsonStorage("userData");
     // Khach van thay CTA de duoc dua toi trang dang nhap. Sau khi dang nhap,
-    // cac thao tac tren trang viec lam chi danh cho CANDIDATE.
+    // moi CTA duoc dieu khien bang capability rieng (ADMIN co tat ca capability).
     const canApply = !currentUser || hasPermission(currentUser, PERMISSIONS.APPLY_TO_JOB);
     const canSocialInteract = !currentUser || hasPermission(currentUser, PERMISSIONS.SOCIAL_INTERACT);
-    const canStartChat = canSocialInteract;
+    const canStartChat = !currentUser || (
+        hasPermission(currentUser, PERMISSIONS.USE_CHAT)
+        && hasPermission(currentUser, PERMISSIONS.SOCIAL_INTERACT)
+    );
     const currentUserId = currentUser?.id;
     const shouldCheckFavorite = Boolean(
         currentUserId && hasPermission(currentUser, PERMISSIONS.SOCIAL_INTERACT)

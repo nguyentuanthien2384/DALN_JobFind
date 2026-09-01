@@ -31,12 +31,7 @@ describe('central backend authorization policy', () => {
   });
 
   test.each([
-    ['ADMIN', null, [
-      'account:self', 'administration:manage', 'company:private:read',
-      'recruitment:read', 'recruitment:report:read', 'candidate:profile:read',
-      'candidate:search', 'package:catalog:read', 'package:history:read',
-      'notification:read'
-    ]],
+    ['ADMIN', null, Object.values(PERMISSIONS)],
     ['COMPANY', 4, [
       'account:self', 'company:private:read', 'company:manage',
       'company:team:manage', 'company:team:exit', 'job:manage',
@@ -97,6 +92,35 @@ describe('central backend authorization policy', () => {
     expect(isPermissionGranted(reqFor('CANDIDATE'), PERMISSIONS.COMPANY_CREATE)).toBe(false);
     expect(isPermissionGranted(reqFor('COMPANY'), PERMISSIONS.COMPANY_MANAGE)).toBe(false);
     expect(isPermissionGranted(reqFor('COMPANY', 3), PERMISSIONS.COMPANY_MANAGE)).toBe(true);
+  });
+
+  test('companyless ADMIN passes every known permission family through the middleware', () => {
+    const representativePermissions = [
+      PERMISSIONS.COMPANY_MANAGE,
+      PERMISSIONS.JOB_MANAGE,
+      PERMISSIONS.PACKAGE_PURCHASE,
+      PERMISSIONS.CANDIDATE_APPLY,
+      PERMISSIONS.SOCIAL_INTERACT,
+      PERMISSIONS.CHAT
+    ];
+
+    for (const permission of representativePermissions) {
+      const req = reqFor('ADMIN');
+      const res = createResponse();
+      const next = jest.fn();
+
+      authorize(permission)(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(res.status).not.toHaveBeenCalled();
+      expect(req.authorization).toEqual({
+        permission,
+        roleCode: 'ADMIN',
+        companyId: null
+      });
+    }
+
+    expect(isPermissionGranted(reqFor('ADMIN'), 'missing:permission')).toBe(false);
   });
 
   test('operational recruiter permissions require a currently active and approved company', () => {

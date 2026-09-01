@@ -176,6 +176,12 @@ describe('gateway authentication', () => {
         middleware(makeReq({ user: { id: 2, roleCode: 'EMPLOYER', companyId: null } }), companyless, vi.fn());
         expect(companyless.statusCode).toBe(403);
 
+        const companylessAdminNext = vi.fn();
+        middleware(makeReq({ user: {
+            id: 9, roleCode: 'ADMIN', companyId: null
+        } }), makeRes(), companylessAdminNext);
+        expect(companylessAdminNext).toHaveBeenCalledOnce();
+
         const next = vi.fn();
         middleware(makeReq({ user: {
             id: 2, roleCode: 'EMPLOYER', companyId: 7,

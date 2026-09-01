@@ -306,8 +306,30 @@ describe("JobDetail", () => {
         expect(mockNavigate).toHaveBeenCalledWith("/chat/88");
     });
 
+    it("lets ADMIN chat, apply and save the job as a super-admin", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
+        render(<JobDetail />);
+
+        expect(await screen.findByRole("heading", { name: "Senior React Developer" })).toBeInTheDocument();
+        expect(checkFavoritePostService).toHaveBeenCalledWith({ postId: "42", userId: 1 });
+        expect(screen.getByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Ứng tuyển ngay" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Lưu tin" })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" }));
+        expect(mockNavigate).toHaveBeenCalledWith("/chat/88");
+
+        fireEvent.click(screen.getByRole("button", { name: "Ứng tuyển ngay" }));
+        expect(screen.getByRole("dialog", { name: "Nộp CV" })).toHaveTextContent("post:42");
+
+        fireEvent.click(screen.getByRole("button", { name: "Lưu tin" }));
+        await waitFor(() => expect(toggleFavoritePostService).toHaveBeenCalledWith({
+            postId: "42",
+            userId: 1,
+        }));
+    });
+
     it.each([
-        ["ADMIN", { id: 1, roleCode: "ADMIN" }],
         ["COMPANY without companyId", { id: 2, roleCode: "COMPANY" }],
         ["EMPLOYER without companyId", { id: 3, roleCode: "EMPLOYER" }],
         ["EMPLOYER in a pending company", {

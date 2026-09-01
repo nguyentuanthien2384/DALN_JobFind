@@ -44,7 +44,7 @@ describe("system Menu", () => {
         getListChatConversationService.mockResolvedValue({ errCode: 0, totalUnread: 3 });
     });
 
-    it("shows only platform groups for ADMIN and never loads or exposes chat", async () => {
+    it("shows platform groups and chat for ADMIN", async () => {
         localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
         mockPathname = "/admin/list-user/";
         const { unmount } = render(<Menu />);
@@ -53,12 +53,15 @@ describe("system Menu", () => {
         expect(screen.getByRole("link", { name: "Danh sách người dùng" })).toHaveClass("active");
         expect(screen.getByText("Quản lý gói bài đăng")).toBeInTheDocument();
         expect(screen.queryByText("Tạo mới công ty")).not.toBeInTheDocument();
-        expect(screen.queryByRole("link", { name: "Tin nhắn" })).not.toBeInTheDocument();
-        expect(getListChatConversationService).not.toHaveBeenCalled();
-        expect(socket.on).not.toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+        expect(screen.getByRole("link", { name: /Tin nhắn/ })).toHaveAttribute("href", "/admin/chat");
+        expect(await screen.findByText("3")).toBeInTheDocument();
+        expect(getListChatConversationService).toHaveBeenCalledTimes(1);
+        expect(socket.on).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+
+        const chatHandler = socket.on.mock.calls.find(([event]) => event === "chat:new-message")[1];
 
         unmount();
-        expect(socket.off).not.toHaveBeenCalledWith("chat:new-message", expect.any(Function));
+        expect(socket.off).toHaveBeenCalledWith("chat:new-message", chatHandler);
     });
 
     it("limits an unattached employer menu to company creation and skips chat/dashboard work", async () => {
