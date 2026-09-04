@@ -63,7 +63,7 @@ const claimPendingEvents = async (limit = MAX_BATCH_SIZE) => {
 
     return withTransaction(async (conn) => {
         const [rows] = await conn.query(
-            `SELECT id, eventType, payload, attempts
+            `SELECT id, eventType, payload, attempts, aggregateId, createdAt
              FROM outbox_events
              WHERE publishedAt IS NULL
                AND (nextAttemptAt IS NULL OR nextAttemptAt <= ?)
@@ -121,7 +121,7 @@ let relayRunning = false;
 let relayTimer = null;
 
 // Broker confirm truoc khi danh dau da gui. Neu DB fail sau confirm, event
-// duoc gui lai voi cung messageId; consumer dedup la buoc tiep theo.
+// duoc gui lai voi cung messageId; Notification da dedup, consumer khac can tu bao ve.
 export const runOutboxOnce = async () => {
     if (relayRunning) return 0;
     relayRunning = true;
@@ -135,7 +135,12 @@ export const runOutboxOnce = async () => {
                 const payload = typeof event.payload === 'string'
                     ? JSON.parse(event.payload)
                     : event.payload;
-                await publishOutboxEvent(event.eventType, payload, { messageId: event.id });
+                await publishOutboxEvent(event.eventType, payload, {
+                    messageId: event.id,
+                    aggregateId: event.aggregateId,
+                    occurredAt: event.createdAt,
+                    producer: 'job-core-service'
+                });
                 await markPublished(event);
                 published += 1;
             } catch (error) {

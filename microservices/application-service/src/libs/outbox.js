@@ -55,6 +55,9 @@ export const runOutboxOnce = async () => {
                 try {
                     await publishOutboxEvent(event.event_type, event.payload, {
                         messageId: event.id,
+                        aggregateId: event.aggregate_id,
+                        occurredAt: event.created_at,
+                        producer: 'application-service',
                         correlationId: event.correlation_id || undefined
                     });
                 } catch (error) {

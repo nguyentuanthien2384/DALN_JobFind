@@ -1,4 +1,6 @@
 import express from 'express';
+import { ensureDeliveryTables } from './libs/deliveryStore.js';
+import { startDeliveryWorker } from './libs/deliveryWorker.js';
 import { createLogger } from '../../shared/logger.js';
 import {
     testMysql, isEmailConfigured
@@ -20,24 +22,18 @@ app.get('/health', (req, res) => res.json({
 }));
 
 const start = async () => {
-    try {
-        await testMysql();
-    } catch (error) {
-        // SMTP va RabbitMQ van co the hoat dong khi MySQL tam thoi khong san
-        // sang. Dac biet, email ket qua tuyen dung da mang san dia chi nguoi
-        // nhan nen khong can phai doc nguoc CSDL de gui duoc.
-        logger.warn('chua ket noi duoc MySQL: se thu lai khi xu ly thong bao', {
-            error: error.message
-        });
-    }
+    await testMysql();
+    await ensureDeliveryTables();
 
     if (!isEmailConfigured()) {
         logger.warn(
             'Chua cau hinh EMAIL_APP: thong bao van luu vao CSDL va day realtime, ' +
-            'chi rieng email la bo qua.'
+            'email co eventId se cho cau hinh trong hang doi.'
         );
     }
 
+    // Previously committed intents can progress even while RabbitMQ is reconnecting.
+    startDeliveryWorker({ stats });
     await startNotificationConsumer();
 
     app.listen(PORT, () => logger.info(`Notification Service dang chay tren cong ${PORT}`));

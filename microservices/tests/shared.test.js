@@ -119,6 +119,27 @@ describe('RabbitMQ wrapper', () => {
         expect(channel.ack).toHaveBeenCalledOnce();
     });
 
+    it('passes envelope metadata to the handler and preserves it through dead-lettering', async () => {
+        const { createEventEnvelope, eventProperties } = await import('../shared/eventEnvelope.js');
+        const event = createEventEnvelope({
+            eventId: 'stable-1', eventType: 'job.created', aggregateId: 12,
+            occurredAt: '2026-09-04T01:02:03Z', producer: 'job-core-service', correlationId: 'corr-1', data: { job: { id: 12 } }
+        });
+        const handler = vi.fn().mockRejectedValue(new Error('db unavailable'));
+        const { consume } = await import('../shared/rabbitmq.js');
+        await consume('queue', ['#'], handler);
+        const msg = { content: Buffer.from(JSON.stringify(event.data)), fields: { routingKey: event.eventType }, properties: eventProperties(event) };
+        await channel.consume.mock.calls[0][1](msg);
+        const { data, ...metadata } = event;
+        expect(handler).toHaveBeenCalledWith(data, event.eventType, metadata);
+        expect(channel.publish.mock.calls[0][3]).toMatchObject(eventProperties(event));
+        handler.mockClear();
+        msg.properties.headers['x-event-version'] = 2;
+        await channel.consume.mock.calls[0][1](msg);
+        expect(handler).not.toHaveBeenCalled();
+        expect(channel.publish.mock.calls[1][3].headers['x-error']).toContain('Unsupported event version');
+    });
+
     it('dead-letters malformed messages and handler failures with diagnostics', async () => {
         const handler = vi.fn().mockRejectedValue(new Error('boom'));
         const { consume } = await import('../shared/rabbitmq.js');

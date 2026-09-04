@@ -5,14 +5,13 @@ import { createLogger } from '../../../shared/logger.js';
 
 const logger = createLogger('notification-service');
 
-// Ba kenh gui thong bao. Moi kenh tu chiu trach nhiem loi cua minh: mot kenh
-// hong khong duoc keo hai kenh con lai chet theo. Nguoi dung tha nhan thong bao
-// trong chuong ma khong co email, con hon khong nhan duoc gi.
+// Ba adapter kenh thong bao. Event co ID duoc deliveryStore luu trong transaction,
+// sau do deliveryWorker gui email/realtime doc lap; event legacy van gui truc tiep.
 
 // ===== KENH 1: LUU VAO CSDL =====
 // Ghi thang vao bang `notifications` dang co cua he thong cu. Nho vay chuong
 // thong bao tren giao dien hoat dong ngay, khong phai sua mot dong frontend nao.
-const mysqlPool = mysql.createPool({
+export const mysqlPool = mysql.createPool({
     host: process.env.MYSQL_HOST || 'host.docker.internal',
     port: Number(process.env.MYSQL_PORT || 3333),
     user: process.env.MYSQL_USER || 'root',
@@ -24,9 +23,9 @@ const mysqlPool = mysql.createPool({
     timezone: '+07:00'
 });
 
-export const saveNotification = async ({ userId, typeCode, content, link }) => {
+export const saveNotification = async ({ userId, typeCode, content, link }, db = mysqlPool) => {
     const now = new Date();
-    const [result] = await mysqlPool.query(
+    const [result] = await db.query(
         `INSERT INTO notifications (userId, typeCode, isChecked, content, link, createdAt, updatedAt)
          VALUES (?, ?, 0, ?, ?, ?, ?)`,
         [userId, typeCode, String(content).slice(0, 500), link || null, now, now]
@@ -35,8 +34,8 @@ export const saveNotification = async ({ userId, typeCode, content, link }) => {
 };
 
 // Tim email cua nguoi dung de gui thu.
-export const getUserEmail = async (userId) => {
-    const [rows] = await mysqlPool.query('SELECT email, firstName, lastName FROM users WHERE id = ?', [userId]);
+export const getUserEmail = async (userId, db = mysqlPool) => {
+    const [rows] = await db.query('SELECT email, firstName, lastName FROM users WHERE id = ?', [userId]);
     if (!rows.length) return null;
     return {
         email: rows[0].email,
@@ -140,12 +139,15 @@ const getTransporter = () => {
     if (transporter) return transporter;
     transporter = nodemailer.createTransport({
         service: 'gmail',
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 30000,
         auth: { user: normalizeEmailRecipient(process.env.EMAIL_APP), pass: process.env.EMAIL_APP_PASSWORD }
     });
     return transporter;
 };
 
-export const sendEmail = async ({ to, subject, html, text }) => {
+export const sendEmail = async ({ to, subject, html, text, messageId }) => {
     const recipient = resolveEmailRecipient(to);
     const safeSubject = String(subject ?? '')
         .replace(/[\r\n]+/g, ' ')
@@ -173,6 +175,7 @@ export const sendEmail = async ({ to, subject, html, text }) => {
             html
         };
         if (typeof text === 'string' && text.trim()) mail.text = text;
+        if (messageId) mail.messageId = messageId;
 
         const info = await getTransporter().sendMail(mail);
         logger.info('da gui email', {
@@ -193,7 +196,12 @@ export const sendEmail = async ({ to, subject, html, text }) => {
     } catch (error) {
         // Email hong khong duoc lam hong ca luong: thong bao trong chuong da luu roi.
         logger.warn('gui email that bai', { to: recipient.to, error: error.message });
-        return { error: error.message };
+        return {
+            error: error.message,
+            ...(error.code ? { code: error.code } : {}),
+            ...(error.command ? { command: error.command } : {}),
+            ...(error.responseCode ? { responseCode: error.responseCode } : {})
+        };
     }
 };
 

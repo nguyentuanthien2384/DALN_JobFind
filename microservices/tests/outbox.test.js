@@ -50,7 +50,7 @@ describe('Job Core transactional outbox', () => {
         const conn = {
             query: vi.fn()
                 .mockResolvedValueOnce([[
-                    { id: 'event-1', eventType: 'job.created', payload: '{"job":{"id":12}}', attempts: 0 }
+                    { id: 'event-1', aggregateId: '12', createdAt: new Date('2026-09-04T01:02:03Z'), eventType: 'job.created', payload: '{"job":{"id":12}}', attempts: 0 }
                 ]])
                 .mockResolvedValueOnce([{ affectedRows: 1 }])
         };
@@ -58,7 +58,9 @@ describe('Job Core transactional outbox', () => {
         const { runOutboxOnce } = await import('../job-core-service/src/libs/outbox.js');
 
         await expect(runOutboxOnce()).resolves.toBe(1);
-        expect(mocks.publish).toHaveBeenCalledWith('job.created', { job: { id: 12 } }, { messageId: 'event-1' });
+        expect(mocks.publish).toHaveBeenCalledWith('job.created', { job: { id: 12 } }, {
+            messageId: 'event-1', aggregateId: '12', occurredAt: new Date('2026-09-04T01:02:03Z'), producer: 'job-core-service'
+        });
         expect(mocks.pool.query).toHaveBeenCalledWith(
             expect.stringContaining('SET publishedAt'),
             [expect.any(Date), 'event-1', expect.any(String)]

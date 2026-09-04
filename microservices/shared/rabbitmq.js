@@ -1,6 +1,7 @@
 import amqplib from 'amqplib';
 import { EXCHANGE } from './events.js';
 import { requireEnvironment } from './securityConfig.js';
+import { readEventMessage } from './eventEnvelope.js';
 
 const DEAD_LETTER_EXCHANGE = `${EXCHANGE}.dead-letter`;
 
@@ -114,7 +115,11 @@ const deadLetter = (ch, queueName, msg, error) => {
         ch.publish(DEAD_LETTER_EXCHANGE, queueName, msg.content, {
             persistent: true,
             contentType: msg.properties?.contentType || 'application/json',
-            timestamp: Date.now(),
+            ...(msg.properties?.messageId ? { messageId: msg.properties.messageId } : {}),
+            ...(msg.properties?.correlationId ? { correlationId: msg.properties.correlationId } : {}),
+            ...(msg.properties?.type ? { type: msg.properties.type } : {}),
+            ...(msg.properties?.appId ? { appId: msg.properties.appId } : {}),
+            timestamp: msg.properties?.timestamp ?? Math.floor(Date.now() / 1000),
             headers: {
                 ...(msg.properties?.headers || {}),
                 'x-original-routing-key': originalRoutingKey,
@@ -150,8 +155,9 @@ const attachConsumer = async ({ queueName, patterns, handler, prefetch }) => {
     await ch.consume(queueName, async (msg) => {
         if (!msg) return;
         let payload;
+        let metadata;
         try {
-            payload = JSON.parse(msg.content.toString());
+            ({ payload, metadata } = readEventMessage(msg));
         } catch (error) {
             // Tin hong thi khong bao gio parse duoc, requeue chi lam no quay vong
             // mai. Giu ban raw trong DLQ de dieu tra/replay thu cong.
@@ -161,7 +167,8 @@ const attachConsumer = async ({ queueName, patterns, handler, prefetch }) => {
         }
 
         try {
-            await handler(payload, msg.fields.routingKey);
+            if (metadata) await handler(payload, msg.fields.routingKey, metadata);
+            else await handler(payload, msg.fields.routingKey);
             ch.ack(msg);
         } catch (error) {
             log(`xu ly ${msg.fields.routingKey} that bai: ${error.message}`);

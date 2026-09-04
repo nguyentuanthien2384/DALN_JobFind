@@ -2,6 +2,7 @@ import amqplib from 'amqplib';
 import { EXCHANGE } from './events.js';
 import { requireEnvironment } from './securityConfig.js';
 import { createConfirmedPublisher } from './confirmedPublisher.js';
+import { createEventEnvelope, eventProperties } from './eventEnvelope.js';
 
 // Kenh rieng cho outbox: connect/confirm co gioi han thoi gian. Retry do relay
 // quyet dinh, khong de transaction PostgreSQL cho ket noi vo han.
@@ -72,16 +73,15 @@ const getPublisher = async () => {
     return opening;
 };
 
-export const publishOutboxEvent = async (routingKey, payload, { messageId, correlationId } = {}) => {
+export const publishOutboxEvent = async (routingKey, payload, { messageId, correlationId, aggregateId, occurredAt, producer } = {}) => {
     if (!messageId) throw new Error('Outbox publish requires a stable messageId');
-    const body = Buffer.from(JSON.stringify(payload));
+    const event = createEventEnvelope({ eventId: messageId, eventType: routingKey, data: payload, correlationId, aggregateId, occurredAt, producer });
+    const body = Buffer.from(JSON.stringify(event.data));
     const publisher = await getPublisher();
     await publisher.publish(EXCHANGE, routingKey, body, {
         persistent: true,
         contentType: 'application/json',
-        timestamp: Math.floor(Date.now() / 1000),
-        messageId,
-        ...(correlationId ? { correlationId } : {})
+        ...eventProperties(event)
     });
 };
 

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
         logger, expressApp, express,
         isConfigured: vi.fn(), logModel: vi.fn(), startTaskConsumer: vi.fn(),
         testMysql: vi.fn(), isEmailConfigured: vi.fn(), startNotificationConsumer: vi.fn(),
+        ensureDeliveryTables: vi.fn(), startDeliveryWorker: vi.fn(),
         stats: { saved: 0, emailed: 0, pushed: 0, failed: 0 }
     };
 });
@@ -25,6 +26,8 @@ vi.mock('../notification-service/src/consumers/notificationConsumer.js', () => (
     stats: mocks.stats,
     startNotificationConsumer: mocks.startNotificationConsumer
 }));
+vi.mock('../notification-service/src/libs/deliveryStore.js', () => ({ ensureDeliveryTables: mocks.ensureDeliveryTables }));
+vi.mock('../notification-service/src/libs/deliveryWorker.js', () => ({ startDeliveryWorker: mocks.startDeliveryWorker }));
 
 beforeEach(() => {
     vi.resetModules();
@@ -36,6 +39,8 @@ beforeEach(() => {
     mocks.expressApp.listen.mockImplementation((port, callback) => callback?.());
     mocks.startTaskConsumer.mockResolvedValue(undefined);
     mocks.testMysql.mockResolvedValue(undefined);
+    mocks.ensureDeliveryTables.mockResolvedValue(undefined);
+    for (const fn of Object.values(mocks.expressApp)) fn.mockClear();
     mocks.startNotificationConsumer.mockResolvedValue(undefined);
 });
 
@@ -56,7 +61,24 @@ describe('service bootstrap wiring', () => {
         expect(mocks.expressApp.use).toHaveBeenCalledWith('json-middleware');
         expect(mocks.expressApp.get).toHaveBeenCalledWith('/health', expect.any(Function));
         expect(mocks.testMysql).toHaveBeenCalledOnce();
+        expect(mocks.ensureDeliveryTables).toHaveBeenCalledOnce();
+        expect(mocks.ensureDeliveryTables.mock.invocationCallOrder[0]).toBeLessThan(mocks.startNotificationConsumer.mock.invocationCallOrder[0]);
+        expect(mocks.startDeliveryWorker).toHaveBeenCalledWith({ stats: mocks.stats });
         expect(mocks.startNotificationConsumer).toHaveBeenCalledOnce();
         expect(mocks.expressApp.listen).toHaveBeenCalledWith(4005, expect.any(Function));
+    });
+
+    it.each(['testMysql', 'ensureDeliveryTables'])('does not consume or send when %s fails', async (dependency) => {
+        const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined);
+        try {
+            mocks[dependency].mockRejectedValueOnce(new Error('db unavailable'));
+            await import('../notification-service/src/app.js');
+            await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(1));
+            expect(mocks.startNotificationConsumer).not.toHaveBeenCalled();
+            expect(mocks.startDeliveryWorker).not.toHaveBeenCalled();
+            expect(mocks.expressApp.listen).not.toHaveBeenCalled();
+        } finally {
+            exit.mockRestore();
+        }
     });
 });

@@ -34,7 +34,7 @@ const commandDatabase = ({ failOutbox = false, application = before } = {}) => {
         if (sql.startsWith('UPDATE applications')) return { rows: [{ ...application, stage: args[0] }] };
         if (sql.startsWith('INSERT INTO outbox_events')) {
             if (failOutbox) throw new Error('outbox storage unavailable');
-            event = { id: args[0], aggregate_id: args[1], event_type: args[2], payload: JSON.parse(args[3]), correlation_id: args[4], attempts: 0 };
+            event = { id: args[0], aggregate_id: args[1], event_type: args[2], payload: JSON.parse(args[3]), correlation_id: args[4], attempts: 0, created_at: new Date('2026-09-04T01:02:03Z') };
         }
         return { rows: [] };
     });
@@ -85,7 +85,7 @@ describe('Application outbox failure boundaries', () => {
         await expect(runOutboxOnce()).resolves.toBe(1);
         expect(state.published).toBe(true);
         expect(mocks.publish.mock.calls[0]).toEqual(mocks.publish.mock.calls[1]);
-        expect(mocks.publish.mock.calls[1][2]).toMatchObject({ messageId: event.id, correlationId: 'corr-test' });
+        expect(mocks.publish.mock.calls[1][2]).toMatchObject({ messageId: event.id, correlationId: 'corr-test', aggregateId: event.aggregate_id, occurredAt: event.created_at, producer: 'application-service' });
     });
 
     it.each([

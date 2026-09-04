@@ -79,7 +79,8 @@ Relay chạy cùng tiến trình Job Core nhưng tách khỏi request HTTP. Nó 
 lô event chưa phát theo thứ tự tạo, phát tuần tự trong lô, rồi mới cập nhật `publishedAt`. Bản
 migration tương ứng nằm tại `job-core-service/migrations/001_create_outbox_events.sql`;
 hiện startup vẫn gọi `CREATE TABLE IF NOT EXISTS` để môi trường demo tự khởi động
-được. Relay hiện dùng publisher confirms như mô tả bên dưới; consumer dedup là bước tiếp theo.
+được. Relay hiện dùng publisher confirms; Notification đã có chống trùng theo event ID
+như mô tả bên dưới, chưa áp dụng cho toàn bộ consumer.
 
 ## Outbox Application và publisher confirms
 
@@ -108,9 +109,10 @@ và routing key hiện tại được giữ nguyên. Chi tiết giao thức xem
 
 Confirm xác nhận broker nhận sự kiện, không xác nhận email đã gửi hoặc mọi consumer
 đã xử lý. Nếu broker đã nhận nhưng tiến trình/DB lỗi trước khi ghi dấu đã gửi, event
-có thể được phát lại. Consumer dedup, event envelope, publisher confirms cho các
+có thể được phát lại. Hai outbox đã dùng envelope v1 và Notification đã chống trùng
+cho sự kiện có ID. Chống trùng ở các consumer khác, publisher confirms cho các
 luồng publish trực tiếp còn lại và reliable DLQ vẫn là các bước kế tiếp; chưa có
-bảo đảm gửi email đúng một lần.
+bảo đảm SMTP giao thư đúng một lần.
 
 Để áp dụng trong môi trường local có Docker đang chạy, từ thư mục `microservices`:
 
@@ -135,6 +137,106 @@ Test hồi quy không cần Docker:
 ```powershell
 npm test -- tests/application-outbox.test.js tests/confirmed-publisher.test.js tests/outbox-publisher.test.js tests/outbox.test.js
 ```
+
+## Event envelope v1 và chống trùng Notification
+
+Phần bổ sung tiếp theo sau hai outbox: chuẩn hóa metadata sự kiện và lưu bền vững
+việc xử lý thông báo. Hợp đồng logic nằm tại
+`contracts/events/envelope.v1.schema.json`, mã dùng chung tại `shared/eventEnvelope.js`.
+Envelope gồm `eventId`, `eventType`, `eventVersion`, `aggregateId`, `occurredAt`,
+`producer`, `correlationId` và `data`. Đây mới là hợp đồng metadata; chưa phải
+schema kiểm tra mọi trường nghiệp vụ riêng của từng loại event.
+
+Để tương thích với consumer cũ, **body JSON vẫn là dữ liệu nghiệp vụ cũ**, không
+bọc thêm một lớp `data`. Trên RabbitMQ, ID/type/producer/correlation dùng các
+properties `messageId`/`type`/`appId`/`correlationId`; phiên bản, aggregate và thời
+điểm dùng headers `x-event-version`, `x-aggregate-id`, `x-occurred-at`.
+`timestamp` dùng giây Unix. `occurredAt` lấy từ thời điểm lưu outbox, không thay đổi
+khi retry. Application có correlation ID sẵn; Job Core hiện để `null`.
+
+Shared consumer kiểm tra phiên bản và routing key trước khi gọi handler, truyền
+metadata ở tham số thứ ba. Event cũ chỉ có `messageId` cũng được nhận diện;
+event không có ID vẫn đi luồng legacy, **không tự tạo ID lúc nhận**. Metadata được
+giữ khi đưa vào DLQ, nhưng xác nhận giao tin sang DLQ vẫn chưa được nâng cấp.
+
+Với sự kiện có ID, Notification thực hiện một transaction MySQL:
+
+1. Khóa inbox theo `(eventId, recipientId)`; đã xử lý thì bỏ qua.
+2. Ghi một thông báo vào bảng `notifications` và các yêu cầu email/realtime vào
+   `notification_deliveries`, cùng connection với inbox.
+3. Commit rồi mới trả thành công cho consumer xác nhận RabbitMQ.
+
+Khóa chính inbox và khóa duy nhất `(eventId, recipientId, channel)` ngăn tạo trùng
+khi nhận lại cùng event. Lỗi lưu làm rollback cả transaction và chuyển sự kiện
+theo đường lỗi/DLQ hiện có; **chưa có tự động retry/replay DLQ**. Người dùng bấm gửi
+lại kết quả là yêu cầu mới có ID mới nên vẫn gửi được. Với `job.created`, chống
+trùng áp dụng riêng từng người theo dõi; danh sách người theo dõi vẫn được đọc
+lại khi replay, chưa đóng băng danh sách người nhận cho toàn event.
+
+Worker xử lý các yêu cầu đã commit độc lập với RabbitMQ, khóa từng lần gửi bằng
+token. Email/realtime có trạng thái `pending`, `processing`, `sent`, `skipped`,
+`failed` hoặc `unknown`. Lỗi chắc chắn chưa gửi (ví dụ DNS hoặc SMTP từ chối tạm
+thời) được thử lại với khoảng chờ tăng dần, tối đa 60 giây và 10 lần. Thiếu cấu hình
+email/realtime thì tiếp tục chờ; địa chỉ không hợp lệ bị bỏ qua. Realtime có thể
+được đẩy lại cùng notification ID, không tạo thêm bản ghi trong chuông; giao diện
+vẫn có thể thấy tín hiệu realtime lặp.
+
+**Giới hạn SMTP:** timeout/mất kết nối hoặc tiến trình chết sau khi gửi có thể
+không xác định được server đã nhận thư hay chưa. Worker đánh dấu `unknown` và
+không tự gửi lại. Lần xử lý bị treo quá 5 phút cũng được chuyển email sang
+`unknown` khi worker quét; realtime trở về hàng chờ. Mỗi lời gọi có deadline 60
+giây; deadline không bảo đảm hủy SMTP đang chạy, nên kết quả đến muộn cũng không
+kích hoạt retry. `Message-ID` ổn định chỉ giúp đối chiếu, không phải bảo đảm hộp
+thư bên nhận sẽ loại trùng. Xem [SMTP transport của Nodemailer](https://nodemailer.com/smtp).
+
+Migration `notification-service/migrations/001_create_notification_delivery.sql`
+chỉ tạo hai bảng mới nếu thiếu; startup tự áp dụng và kiểm tra cả ba bảng dùng
+InnoDB. Nếu MySQL/schema chưa sẵn sàng, service dừng trước khi nhận/gửi thông báo.
+Không tự chuyển storage engine, không sửa/xóa thông báo cũ. Cần quyền tạo bảng và
+đọc/ghi các bảng mới. Chưa có tác vụ tự xóa inbox: phải giữ ID ít nhất bằng cửa sổ
+replay để không mất khả năng chống trùng; payload có dữ liệu cá nhân nên cần quản
+lý quyền truy cập và chính sách lưu trữ trước khi triển khai production.
+
+Áp dụng local khi Docker/MySQL đã chạy, từ thư mục `microservices`. Dừng hết
+Notification phiên bản cũ trước khi chạy bản mới để tránh worker cũ gửi trực
+tiếp song song với worker mới. Khi nâng cấp cụm nhiều replica cũng áp dụng quy
+tắc này. Ví dụ với Compose của dự án:
+
+```powershell
+docker compose stop notification-service
+docker compose up -d --no-deps --force-recreate notification-service application-service job-core-service
+docker compose logs --tail=100 notification-service
+```
+
+Không nạp lại dữ liệu mẫu. Worker sẽ tự tiếp tục gửi các yêu cầu `pending` đã lưu,
+kể cả khi RabbitMQ đang kết nối lại. Kiểm tra bằng truy vấn chỉ đọc trong MySQL:
+
+```sql
+SELECT channel, status, COUNT(*) AS total
+FROM notification_deliveries GROUP BY channel, status;
+
+SELECT id, eventId, recipientId, channel, status, attempts, lastError, updatedAt
+FROM notification_deliveries
+WHERE status IN ('unknown', 'failed')
+ORDER BY updatedAt DESC LIMIT 20;
+```
+
+Với `unknown`, đối chiếu nhật ký SMTP và `messageId` trong payload trước khi quyết
+định gửi mới. Không đổi hàng loạt `unknown` về `pending`. Khắc phục cấu hình/người
+nhận của `failed` trước khi dùng thao tác gửi lại trong ứng dụng. Không replay
+với ID mới chỉ để bỏ qua chống trùng. Nếu replay DLQ, giữ body, ID và metadata,
+phát về routing key gốc (header `x-original-routing-key`), không dùng tên queue
+DLQ làm routing key.
+
+Kiểm thử phần này không gọi SMTP thật:
+
+```powershell
+npm test -- tests/event-envelope.test.js tests/notification-delivery-store.test.js tests/notification-delivery-worker.test.js tests/notification-consumer.test.js tests/shared.test.js
+```
+
+Các bài kiểm tra transaction/đồng thời dùng database test double; vẫn cần kiểm
+thử tích hợp MySQL/RabbitMQ thật trước khi triển khai. Sự kiện publish trực tiếp
+không có ID, AI/Search/Admin và các luồng khác chưa được chống trùng trong phần này.
 
 ## Bốn tính năng AI
 
@@ -250,14 +352,14 @@ buộc UNIQUE nên chạy lại bao nhiêu lần cũng không nhân bản).
 
 ## Thông báo (Notification Service)
 
-Nghe sự kiện từ RabbitMQ rồi gửi qua **ba kênh độc lập**. Mỗi kênh tự chịu lỗi của
-mình — một kênh hỏng không kéo hai kênh còn lại chết theo. Người dùng thà nhận
-thông báo trong chuông mà không có email, còn hơn không nhận được gì.
+Nghe sự kiện từ RabbitMQ rồi gửi qua ba kênh. Sự kiện có ID dùng inbox và hàng đợi
+gửi bền vững như mô tả ở phần trên: lưu thông báo/yêu cầu gửi trước, rồi xử lý
+email và realtime độc lập. Sự kiện legacy không có ID vẫn dùng luồng gửi trực tiếp.
 
 | Kênh | Cách làm |
 |---|---|
 | Lưu vào CSDL | Ghi thẳng vào bảng `notifications` đang có → chuông thông báo trên giao diện chạy ngay, không sửa một dòng frontend |
-| Email | nodemailer; chưa cấu hình `EMAIL_APP` thì bỏ qua, không báo lỗi |
+| Email | nodemailer; sự kiện có ID chờ cấu hình trong hàng đợi, legacy bỏ qua nếu chưa cấu hình |
 | Realtime | Nhờ backend cũ đẩy qua Socket.IO (backend cũ đang giữ kết nối với trình duyệt) |
 
 Sự kiện đang nghe:

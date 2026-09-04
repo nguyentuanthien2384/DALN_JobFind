@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JobFind logical event envelope v1 (AMQP properties + JSON body)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventId", "eventType", "eventVersion", "aggregateId", "occurredAt", "producer", "correlationId", "data"],
+  "properties": {
+    "eventId": { "$ref": "#/$defs/identifier" },
+    "eventType": { "$ref": "#/$defs/identifier" },
+    "eventVersion": { "const": 1 },
+    "aggregateId": { "$ref": "#/$defs/identifier" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "producer": { "$ref": "#/$defs/identifier" },
+    "correlationId": { "type": ["string", "null"], "maxLength": 255 },
+    "data": { "type": "object" }
+  },
+  "$defs": {
+    "identifier": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$", "maxLength": 128 }
+  }
+}

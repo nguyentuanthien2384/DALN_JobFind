@@ -38,7 +38,9 @@ afterEach(async () => {
     await Promise.resolve();
     vi.useRealTimers();
 });
-const send = (id = 'event-1') => api.publishOutboxEvent('job.created', { job: { id: 12 } }, { messageId: id });
+const send = (id = 'event-1') => api.publishOutboxEvent('job.created', { job: { id: 12 } }, {
+    messageId: id, aggregateId: 12, occurredAt: '2026-09-04T01:02:03.456Z', producer: 'job-core-service'
+});
 
 describe('outbox RabbitMQ connection', () => {
     it('shares initialization and preserves payload plus stable event metadata', async () => {
@@ -50,6 +52,10 @@ describe('outbox RabbitMQ connection', () => {
         expect([exchange, key]).toEqual(['jobportal.events', 'job.created']);
         expect(JSON.parse(body.toString())).toEqual({ job: { id: 12 } });
         expect(properties).toMatchObject({ messageId: 'event-1', mandatory: true, persistent: true });
+        expect(properties).toMatchObject({
+            type: 'job.created', appId: 'job-core-service',
+            headers: { 'x-event-version': 1, 'x-aggregate-id': '12', 'x-occurred-at': '2026-09-04T01:02:03.456Z' }
+        });
     });
 
     it('does not publish until exchange initialization finishes', async () => {
@@ -99,5 +105,9 @@ describe('outbox RabbitMQ connection', () => {
         mq.connect.mockResolvedValueOnce(second.connection);
         await send();
         expect(second.channel.publish.mock.calls[0][3].messageId).toBe('event-1');
+        const original = first.channel.publish.mock.calls[0][3];
+        const retry = second.channel.publish.mock.calls[0][3];
+        expect(retry.timestamp).toBe(original.timestamp);
+        expect(retry.headers['x-occurred-at']).toBe(original.headers['x-occurred-at']);
     });
 });

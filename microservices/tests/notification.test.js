@@ -54,6 +54,23 @@ const expectRichEmail = (email, { ctaUrl, progressCurrent } = {}) => {
 };
 
 describe('notification delivery channels', () => {
+    it('uses the supplied transaction connection for notification writes and email lookup', async () => {
+        const db = { query: vi.fn().mockResolvedValueOnce([{ insertId: 8 }]).mockResolvedValueOnce([[{ email: 'user@x.com' }]]) };
+        const { saveNotification, getUserEmail } = await import('../notification-service/src/libs/channels.js');
+        expect((await saveNotification({ userId: 2, typeCode: 'X', content: 'C' }, db)).id).toBe(8);
+        expect((await getUserEmail(2, db)).email).toBe('user@x.com');
+        expect(mocks.mysqlPool.query).not.toHaveBeenCalled();
+    });
+
+    it('preserves the stable SMTP message ID and error details for safe delivery decisions', async () => {
+        vi.stubEnv('EMAIL_APP', 'sender@gmail.com');
+        const { sendEmail } = await import('../notification-service/src/libs/channels.js');
+        mocks.transporter.sendMail.mockRejectedValueOnce(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT', command: 'CONN' }));
+        expect(await sendEmail({ to: 'user@realmail.com', subject: 'S', html: 'H', messageId: '<stable@jobfind.local>' }))
+            .toEqual({ error: 'timeout', code: 'ETIMEDOUT', command: 'CONN' });
+        expect(mocks.transporter.sendMail).toHaveBeenCalledWith(expect.objectContaining({ messageId: '<stable@jobfind.local>' }));
+    });
+
     it('persists bounded notifications and returns the created shape', async () => {
         mocks.mysqlPool.query.mockResolvedValue([{ insertId: 17 }]);
         const { saveNotification } = await import('../notification-service/src/libs/channels.js');
@@ -132,7 +149,10 @@ describe('notification delivery channels', () => {
             accepted: ['candidate@realmail.com'],
             rejected: []
         });
-        expect(mocks.createTransport).toHaveBeenCalledWith({ service: 'gmail', auth: { user: 'sender@gmail.com', pass: 'pass' } });
+        expect(mocks.createTransport).toHaveBeenCalledWith({
+            service: 'gmail', auth: { user: 'sender@gmail.com', pass: 'pass' },
+            connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 30000
+        });
         expect(mocks.transporter.sendMail).toHaveBeenNthCalledWith(1, {
             from: 'sender@gmail.com',
             to: 'candidate@realmail.com',

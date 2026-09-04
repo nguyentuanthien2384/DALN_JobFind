@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     consume: vi.fn(),
+    queueNotification: vi.fn(),
     saveNotification: vi.fn(), getUserEmail: vi.fn(), getCompanyFollowers: vi.fn(),
     sendEmail: vi.fn(), pushRealtime: vi.fn()
 }));
 
 vi.mock('../shared/rabbitmq.js', () => ({ consume: mocks.consume }));
+vi.mock('../notification-service/src/libs/deliveryStore.js', () => ({ queueNotification: mocks.queueNotification }));
 vi.mock('../notification-service/src/libs/channels.js', () => ({
     saveNotification: mocks.saveNotification,
     getUserEmail: mocks.getUserEmail,
@@ -18,6 +20,7 @@ vi.mock('../notification-service/src/libs/channels.js', () => ({
 beforeEach(async () => {
     for (const fn of Object.values(mocks)) fn.mockReset();
     mocks.consume.mockResolvedValue(undefined);
+    mocks.queueNotification.mockResolvedValue({ duplicate: false, notificationId: 1 });
     mocks.saveNotification.mockResolvedValue({ id: 1, userId: 2 });
     mocks.getUserEmail.mockResolvedValue({ email: 'user@example.com' });
     mocks.getCompanyFollowers.mockResolvedValue([]);
@@ -28,6 +31,26 @@ beforeEach(async () => {
 });
 
 describe('notification event consumer', () => {
+    it('queues identified events durably without invoking external channels in the consumer', async () => {
+        const { handleNotificationEvent, stats } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const payload = { candidateId: 2, candidateEmail: 'snapshot@x.com', decision: 'accepted', jobTitle: 'Dev' };
+        await handleNotificationEvent(payload, 'application.decision_email_requested', { eventId: 'e1' });
+        mocks.queueNotification.mockResolvedValueOnce({ duplicate: true, notificationId: 1 });
+        await handleNotificationEvent(payload, 'application.decision_email_requested', { eventId: 'e1' });
+        expect(mocks.queueNotification).toHaveBeenCalledWith(expect.objectContaining({ eventId: 'e1', userId: 2, recipientEmail: 'snapshot@x.com' }));
+        expect(mocks.sendEmail).not.toHaveBeenCalled();
+        expect(mocks.saveNotification).not.toHaveBeenCalled();
+        expect(mocks.pushRealtime).not.toHaveBeenCalled();
+        expect(stats.saved).toBe(1);
+    });
+
+    it('propagates inbox errors so RabbitMQ cannot ACK an unpersisted delivery', async () => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        mocks.queueNotification.mockRejectedValue(new Error('inbox unavailable'));
+        await expect(handleNotificationEvent({ candidateId: 2, toStage: 'phong_van' }, 'application.stage_changed', { eventId: 'e1' })).rejects.toThrow('inbox unavailable');
+        expect(mocks.sendEmail).not.toHaveBeenCalled();
+    });
+
     it('registers every handler with bounded prefetch', async () => {
         const { startNotificationConsumer, handlers, handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
         await startNotificationConsumer();
