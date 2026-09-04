@@ -11,7 +11,7 @@ vi.mock('../job-core-service/src/libs/db.js', () => ({
     pool: mocks.pool,
     withTransaction: mocks.withTransaction
 }));
-vi.mock('../shared/rabbitmq.js', () => ({ publish: mocks.publish }));
+vi.mock('../shared/outboxPublisher.js', () => ({ publishOutboxEvent: mocks.publish }));
 vi.mock('../shared/logger.js', () => ({ createLogger: () => mocks.logger }));
 
 beforeEach(() => {
@@ -58,7 +58,7 @@ describe('Job Core transactional outbox', () => {
         const { runOutboxOnce } = await import('../job-core-service/src/libs/outbox.js');
 
         await expect(runOutboxOnce()).resolves.toBe(1);
-        expect(mocks.publish).toHaveBeenCalledWith('job.created', { job: { id: 12 } });
+        expect(mocks.publish).toHaveBeenCalledWith('job.created', { job: { id: 12 } }, { messageId: 'event-1' });
         expect(mocks.pool.query).toHaveBeenCalledWith(
             expect.stringContaining('SET publishedAt'),
             [expect.any(Date), 'event-1', expect.any(String)]

@@ -1,5 +1,5 @@
 import { pool, withTransaction, STAGES, STAGE_LABELS } from '../libs/db.js';
-import { publish } from '../../../shared/rabbitmq.js';
+import { enqueueOutboxEvent } from '../libs/outbox.js';
 import { EVENTS } from '../../../shared/events.js';
 import { createLogger } from '../../../shared/logger.js';
 
@@ -174,27 +174,29 @@ export const moveStage = async (req, res) => {
                 [app.id, app.stage, stage, userId, reason || null]
             );
 
-            return { app: updated[0], from: app.stage };
+            const changedApp = updated[0];
+            await enqueueOutboxEvent(client, {
+                aggregateId: app.id,
+                eventType: EVENTS.APPLICATION_STAGE_CHANGED,
+                correlationId: req.headers['x-correlation-id'] || req.correlationId || null,
+                payload: {
+                    applicationId: changedApp.id,
+                    candidateId: changedApp.candidate_id,
+                    candidateEmail: changedApp.candidate_email,
+                    candidateName: changedApp.candidate_name,
+                    jobId: changedApp.job_id,
+                    jobTitle: changedApp.job_title,
+                    fromStage: app.stage,
+                    toStage: stage,
+                    reason: reason || null
+                }
+            });
+            return { app: changedApp, from: app.stage };
         });
 
         if (result.notFound) return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy hồ sơ' });
         if (result.denied) return forbidden(res, 'Bạn không có quyền chuyển trạng thái hồ sơ này');
         if (result.unchanged) return res.json({ errCode: 0, data: result.app });
-
-        // Bao cho he thong biet de con gui thong bao/email cho ung vien.
-        // Kem san ten ung vien de Notification Service soan duoc thu xung ho dung
-        // ma khong phai goi nguoc lai hoi - moi service tu doc CSDL cua rieng no.
-        await publish(EVENTS.APPLICATION_STAGE_CHANGED, {
-            applicationId: result.app.id,
-            candidateId: result.app.candidate_id,
-            candidateEmail: result.app.candidate_email,
-            candidateName: result.app.candidate_name,
-            jobId: result.app.job_id,
-            jobTitle: result.app.job_title,
-            fromStage: result.from,
-            toStage: stage,
-            reason: reason || null
-        });
 
         logger.info('da chuyen trang thai', {
             applicationId: result.app.id, from: result.from, to: stage, actor: userId
@@ -257,31 +259,35 @@ export const sendDecisionNotification = async (req, res) => {
                     stage,
                     userId,
                     decision === 'accepted'
-                        ? 'Đã gửi email thông báo trúng tuyển cho ứng viên'
-                        : 'Đã gửi email thông báo không trúng tuyển cho ứng viên'
+                        ? 'Đã yêu cầu gửi email thông báo trúng tuyển cho ứng viên'
+                        : 'Đã yêu cầu gửi email thông báo không trúng tuyển cho ứng viên'
                 ]
             );
 
-            return { app: updated, from: changed ? app.stage : null, changed };
+            const from = changed ? app.stage : null;
+            await enqueueOutboxEvent(client, {
+                aggregateId: app.id,
+                eventType: EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED,
+                correlationId: req.headers['x-correlation-id'] || req.correlationId || null,
+                payload: {
+                    applicationId: updated.id,
+                    candidateId: updated.candidate_id,
+                    candidateEmail: updated.candidate_email,
+                    candidateName: updated.candidate_name,
+                    jobId: updated.job_id,
+                    jobTitle: updated.job_title,
+                    companyId: updated.company_id,
+                    decision,
+                    message: candidateMessage || null,
+                    fromStage: from,
+                    toStage: stage
+                }
+            });
+            return { app: updated, from, changed };
         });
 
         if (result.notFound) return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy hồ sơ ứng tuyển' });
         if (result.denied) return forbidden(res, 'Bạn không có quyền gửi kết quả cho hồ sơ này');
-
-        await publish(EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED, {
-            applicationId: result.app.id,
-            candidateId: result.app.candidate_id,
-            // Dung dia chi email tai thoi diem ung tuyen de ket qua den dung ho so.
-            candidateEmail: result.app.candidate_email,
-            candidateName: result.app.candidate_name,
-            jobId: result.app.job_id,
-            jobTitle: result.app.job_title,
-            companyId: result.app.company_id,
-            decision,
-            message: candidateMessage || null,
-            fromStage: result.from,
-            toStage: stage
-        });
 
         logger.info('da yeu cau gui email ket qua tuyen dung', {
             applicationId: result.app.id, decision, actor: userId, changed: result.changed

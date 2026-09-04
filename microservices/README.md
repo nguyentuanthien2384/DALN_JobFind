@@ -56,14 +56,14 @@ nhân bản riêng từng phần.
 
 Luồng khi đăng một tin tuyển dụng:
 
-1. `POST /api/jobs` → Job Core ghi vào MySQL trong một giao dịch, trạng thái `PS0` (chờ duyệt)
+1. `POST /api/jobs` → Job Core ghi vào MySQL trong một giao dịch, trạng thái `PS3` (chờ duyệt)
 2. Trong cùng giao dịch, Job Core ghi thêm các bản ghi `outbox_events` cho `job.created` và `ai.moderate_job`, rồi **trả về ngay**
-3. Outbox relay phát các bản ghi đã commit lên RabbitMQ và chỉ đánh dấu `publishedAt` sau khi lệnh phát thành công
+3. Outbox relay phát các bản ghi đã commit lên RabbitMQ và chỉ đánh dấu `publishedAt` sau khi broker xác nhận đã nhận
 4. Song song:
    - Search Service nghe `job.created` → dựng index Elasticsearch
    - AI Worker nghe `ai.moderate_job` → gọi Claude kiểm duyệt nội dung
 5. AI Worker phát `ai.result` → Job Core đổi trạng thái sang `PS1` (hiển thị) hoặc `PS2` (bị chặn)
-5. Search Service nghe `job.moderated` → cập nhật trạng thái trong index
+6. Search Service nghe `job.moderated` → cập nhật trạng thái trong index
 
 Tin bị chặn biến khỏi kết quả tìm kiếm mà không ai phải gọi ai trực tiếp.
 
@@ -79,7 +79,62 @@ Relay chạy cùng tiến trình Job Core nhưng tách khỏi request HTTP. Nó 
 lô event chưa phát theo thứ tự tạo, phát tuần tự trong lô, rồi mới cập nhật `publishedAt`. Bản
 migration tương ứng nằm tại `job-core-service/migrations/001_create_outbox_events.sql`;
 hiện startup vẫn gọi `CREATE TABLE IF NOT EXISTS` để môi trường demo tự khởi động
-được. Publisher confirms và idempotent consumers sẽ được bổ sung ở bước tiếp theo.
+được. Relay hiện dùng publisher confirms như mô tả bên dưới; consumer dedup là bước tiếp theo.
+
+## Outbox Application và publisher confirms
+
+Application Service ghi trạng thái hồ sơ, lịch sử và sự kiện trong cùng transaction
+PostgreSQL cho `application.stage_changed` và `application.decision_email_requested`.
+Địa chỉ email, tên ứng viên và thông tin việc làm trong sự kiện vẫn lấy từ snapshot
+hồ sơ. `emailQueued: true` nghĩa là yêu cầu gửi đã được lưu bền vững, chưa có nghĩa
+SMTP đã giao thư. Gửi lại kết quả bằng một thao tác mới tạo một event ID mới.
+
+Schema nằm tại `application-service/migrations/001_create_outbox_events.sql`, được
+startup đọc để khởi tạo bảng/index còn thiếu. Bảng outbox này nằm trong PostgreSQL
+của Application, độc lập với bảng cùng tên trong MySQL của Job Core.
+
+Relay Application khóa từng event bằng `FOR UPDATE SKIP LOCKED` trong lúc gửi,
+và chỉ commit dấu `published_at` sau confirm. Các replica có thể xử lý hồ sơ khác
+nhau đồng thời; event sau của cùng hồ sơ chờ event trước được gửi thành công.
+Lỗi gửi được lưu vào `last_error` và thử lại với khoảng chờ tăng dần, tối đa 60 giây.
+Một event lỗi kéo dài sẽ giữ các event sau của chính hồ sơ đó ở trạng thái chờ.
+
+Hai outbox dùng `shared/outboxPublisher.js` với kênh confirm riêng. Mỗi lần mở
+kết nối/kênh có giới hạn 10 giây, mỗi lần chờ confirm/drain cũng giới hạn 10 giây.
+Publisher xử lý ACK, NACK, channel đóng, timeout và `mandatory` return khi không có
+queue nào nhận được sự kiện. `messageId` giữ nguyên khi relay gửi lại; payload JSON
+và routing key hiện tại được giữ nguyên. Chi tiết giao thức xem
+[RabbitMQ Publisher Confirms](https://www.rabbitmq.com/docs/confirms).
+
+Confirm xác nhận broker nhận sự kiện, không xác nhận email đã gửi hoặc mọi consumer
+đã xử lý. Nếu broker đã nhận nhưng tiến trình/DB lỗi trước khi ghi dấu đã gửi, event
+có thể được phát lại. Consumer dedup, event envelope, publisher confirms cho các
+luồng publish trực tiếp còn lại và reliable DLQ vẫn là các bước kế tiếp; chưa có
+bảo đảm gửi email đúng một lần.
+
+Để áp dụng trong môi trường local có Docker đang chạy, từ thư mục `microservices`:
+
+```powershell
+docker compose up -d --no-deps --force-recreate application-service job-core-service
+docker compose logs --tail=100 application-service job-core-service
+```
+
+Không cần nạp lại database mẫu hoặc thêm biến môi trường. Có thể xem backlog bằng
+truy vấn chỉ đọc sau trong PostgreSQL `application_db`:
+
+```sql
+SELECT id, aggregate_id, event_type, attempts, next_attempt_at, last_error
+FROM outbox_events
+WHERE published_at IS NULL
+ORDER BY sequence
+LIMIT 20;
+```
+
+Test hồi quy không cần Docker:
+
+```powershell
+npm test -- tests/application-outbox.test.js tests/confirmed-publisher.test.js tests/outbox-publisher.test.js tests/outbox.test.js
+```
 
 ## Bốn tính năng AI
 

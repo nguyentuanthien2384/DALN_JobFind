@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     pool: { query: vi.fn() },
     withTransaction: vi.fn(),
     publish: vi.fn(),
+    enqueueOutboxEvent: vi.fn(),
     consume: vi.fn(),
     legacy: { query: vi.fn() },
     createPool: vi.fn()
@@ -20,12 +21,14 @@ vi.mock('../application-service/src/libs/db.js', () => ({
     }
 }));
 vi.mock('../shared/rabbitmq.js', () => ({ publish: mocks.publish, consume: mocks.consume }));
+vi.mock('../application-service/src/libs/outbox.js', () => ({ enqueueOutboxEvent: mocks.enqueueOutboxEvent }));
 vi.mock('mysql2/promise', () => ({ default: { createPool: mocks.createPool } }));
 
 beforeEach(() => {
     mocks.pool.query.mockReset();
     mocks.withTransaction.mockReset();
     mocks.publish.mockReset().mockResolvedValue(undefined);
+    mocks.enqueueOutboxEvent.mockReset().mockResolvedValue('event-id');
     mocks.consume.mockReset().mockResolvedValue(undefined);
     mocks.legacy.query.mockReset();
     mocks.createPool.mockReturnValue(mocks.legacy);
@@ -143,9 +146,10 @@ describe('application pipeline controller', () => {
         await moveStage(companyReq({ params: { id: '1' }, body: { stage: 'phong_van' } }), same);
         expect(same.body.data).toBe(unchanged);
         expect(mocks.publish).not.toHaveBeenCalled();
+        expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
     });
 
-    it('moves a stage transactionally and publishes a complete notification payload', async () => {
+    it('moves a stage and records the snapshot event in the same transaction', async () => {
         const before = { id: 1, stage: 'moi_ung_tuyen', company_id: 9, candidate_id: 2, candidate_email: 'lan@example.com', candidate_name: 'Lan', job_id: 3, job_title: 'Dev' };
         const after = { ...before, stage: 'phong_van' };
         const client = { query: vi.fn().mockResolvedValueOnce({ rows: [before] }).mockResolvedValueOnce({ rows: [after] }).mockResolvedValueOnce({}) };
@@ -154,14 +158,17 @@ describe('application pipeline controller', () => {
         const res = makeRes();
         await moveStage(companyReq({ params: { id: '1' }, body: { stage: 'phong_van', reason: 'Strong CV' } }), res);
         expect(client.query.mock.calls[2][1]).toEqual([1, 'moi_ung_tuyen', 'phong_van', 5, 'Strong CV']);
-        expect(mocks.publish).toHaveBeenCalledWith('application.stage_changed', {
+        expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(client, expect.objectContaining({
+            aggregateId: 1, eventType: 'application.stage_changed', payload: {
             applicationId: 1, candidateId: 2, candidateEmail: 'lan@example.com', candidateName: 'Lan', jobId: 3, jobTitle: 'Dev',
             fromStage: 'moi_ung_tuyen', toStage: 'phong_van', reason: 'Strong CV'
-        });
+            }
+        }));
+        expect(mocks.publish).not.toHaveBeenCalled();
         expect(res.body.data.stage).toBe('phong_van');
     });
 
-    it('maps stage transaction/publish failures to 500', async () => {
+    it('maps stage transaction failures to 500', async () => {
         mocks.withTransaction.mockRejectedValue(new Error('db'));
         const { moveStage } = await import('../application-service/src/controllers/applicationController.js');
         const res = makeRes();
@@ -190,7 +197,7 @@ describe('application pipeline controller', () => {
         const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
         const res = makeRes();
         await sendDecisionNotification(companyReq({ params: { id: '1' }, body: { decision: 'accepted', message: `  ${'x'.repeat(4000)}  ` } }), res);
-        const payload = mocks.publish.mock.calls[0][1];
+        const payload = mocks.enqueueOutboxEvent.mock.calls[0][1].payload;
         expect(payload).toMatchObject({ applicationId: 1, candidateEmail: 'a@b.com', decision: 'accepted', fromStage: 'phong_van', toStage: 'nhan_viec' });
         expect(payload.message).toHaveLength(3000);
         expect(res.body.emailQueued).toBe(true);
@@ -204,7 +211,7 @@ describe('application pipeline controller', () => {
         const ok = makeRes();
         await sendDecisionNotification(companyReq({ body: { decision: 'rejected', message: ' ' } }), ok);
         expect(client.query).toHaveBeenCalledTimes(2);
-        expect(mocks.publish.mock.calls[0][1]).toMatchObject({ fromStage: null, message: null });
+        expect(mocks.enqueueOutboxEvent.mock.calls[0][1].payload).toMatchObject({ fromStage: null, message: null });
         mocks.withTransaction.mockRejectedValue(new Error('db'));
         const failed = makeRes();
         await sendDecisionNotification(companyReq({ body: { decision: 'accepted' } }), failed);

@@ -1,6 +1,7 @@
 import express from 'express';
 import { createLogger } from '../../shared/logger.js';
 import { testConnection, initSchema, pool, STAGES, STAGE_LABELS } from './libs/db.js';
+import { ensureOutboxTable, startOutboxRelay } from './libs/outbox.js';
 import {
     getBoard, listApplications, getApplication, moveStage,
     sendDecisionNotification, rateApplication, addNote, getFunnel, myApplications
@@ -77,12 +78,14 @@ app.use((err, req, res, next) => {
 const start = async () => {
     await testConnection();
     await initSchema();
+    await ensureOutboxTable();
     // Nghe ho so moi tu backend cu. Phai bat TRUOC khi dong bo lan dau, de ho so
     // nop ngay trong luc dong bo cung khong bi bo lot.
     await startSubmissionConsumer();
 
     // Keo ho so cu sang de bang Kanban khong trong tron ngay tu dau.
     await syncFromLegacy();
+    startOutboxRelay();
 
     // Doi chieu lai dinh ky - cung ly do nhu ben Search Service: neu RabbitMQ chet
     // vai phut, nhung ho so nop trong khoang do se khong bao gio len bang Kanban,

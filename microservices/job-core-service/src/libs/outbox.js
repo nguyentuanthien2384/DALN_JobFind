@@ -1,10 +1,11 @@
 import crypto from 'node:crypto';
 import { pool, withTransaction } from './db.js';
-import { publish } from '../../../shared/rabbitmq.js';
+import { publishOutboxEvent } from '../../../shared/outboxPublisher.js';
 import { createLogger } from '../../../shared/logger.js';
 
 const logger = createLogger('job-core-service.outbox');
-const MAX_BATCH_SIZE = 50;
+// Moi publish cho toi da 10s connect + 10s confirm; 10 event van nam trong lease 5 phut.
+const MAX_BATCH_SIZE = 10;
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 // Outbox nay nam trong cung MySQL voi Job Core. Muc tieu cua no la de viec ghi
@@ -119,8 +120,8 @@ const releaseForRetry = async (event, error) => {
 let relayRunning = false;
 let relayTimer = null;
 
-// Relay co y nghia "at least once" o buoc nay. Publisher Confirms va
-// idempotent consumer se duoc bo sung o cac buoc tiep theo cua lo trinh.
+// Broker confirm truoc khi danh dau da gui. Neu DB fail sau confirm, event
+// duoc gui lai voi cung messageId; consumer dedup la buoc tiep theo.
 export const runOutboxOnce = async () => {
     if (relayRunning) return 0;
     relayRunning = true;
@@ -134,7 +135,7 @@ export const runOutboxOnce = async () => {
                 const payload = typeof event.payload === 'string'
                     ? JSON.parse(event.payload)
                     : event.payload;
-                await publish(event.eventType, payload);
+                await publishOutboxEvent(event.eventType, payload, { messageId: event.id });
                 await markPublished(event);
                 published += 1;
             } catch (error) {
