@@ -1393,6 +1393,26 @@ CREATE TABLE IF NOT EXISTS `ai_tasks` (
   KEY `idx_ai_tasks_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Bang `outbox_events` cua Job Core: ghi cung transaction voi posts/detailposts
+-- de su kien khong bi mat neu RabbitMQ tam thoi khong san sang.
+CREATE TABLE IF NOT EXISTS `outbox_events` (
+  `id` char(36) NOT NULL,
+  `aggregateType` varchar(64) NOT NULL,
+  `aggregateId` varchar(128) NOT NULL,
+  `eventType` varchar(128) NOT NULL,
+  `payload` longtext NOT NULL,
+  `attempts` int(10) unsigned NOT NULL DEFAULT 0,
+  `lastError` text DEFAULT NULL,
+  `nextAttemptAt` datetime(3) DEFAULT NULL,
+  `lockedAt` datetime(3) DEFAULT NULL,
+  `lockToken` char(36) DEFAULT NULL,
+  `createdAt` datetime(3) NOT NULL,
+  `publishedAt` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_outbox_pending` (`publishedAt`,`nextAttemptAt`,`createdAt`),
+  KEY `idx_outbox_lock` (`lockedAt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- --------------------------------------------------------
 -- DONG BO DU LIEU PHAT SINH TRONG QUA TRINH SU DUNG
 -- --------------------------------------------------------

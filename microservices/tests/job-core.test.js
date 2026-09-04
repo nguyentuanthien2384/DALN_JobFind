@@ -4,16 +4,19 @@ import { makeReq, makeRes } from './helpers.js';
 const mocks = vi.hoisted(() => ({
     pool: { query: vi.fn(), getConnection: vi.fn() },
     withTransaction: vi.fn(),
-    publish: vi.fn()
+    publish: vi.fn(),
+    enqueueOutboxEvent: vi.fn()
 }));
 
 vi.mock('../job-core-service/src/libs/db.js', () => ({ pool: mocks.pool, withTransaction: mocks.withTransaction }));
 vi.mock('../shared/rabbitmq.js', () => ({ publish: mocks.publish }));
+vi.mock('../job-core-service/src/libs/outbox.js', () => ({ enqueueOutboxEvent: mocks.enqueueOutboxEvent }));
 
 beforeEach(() => {
     mocks.pool.query.mockReset();
     mocks.withTransaction.mockReset();
     mocks.publish.mockReset().mockResolvedValue(undefined);
+    mocks.enqueueOutboxEvent.mockReset().mockResolvedValue('event-id');
 });
 
 describe('job write controller', () => {
@@ -25,22 +28,31 @@ describe('job write controller', () => {
         expect(mocks.withTransaction).not.toHaveBeenCalled();
     });
 
-    it('creates both records atomically and publishes search/moderation payloads', async () => {
-        const conn = { query: vi.fn().mockResolvedValueOnce([{ insertId: 10 }]).mockResolvedValueOnce([{ insertId: 20 }]) };
+    it('creates job and outbox records atomically', async () => {
+        const conn = {
+            query: vi.fn()
+                .mockResolvedValueOnce([{ insertId: 10 }])
+                .mockResolvedValueOnce([{ insertId: 20 }])
+                .mockResolvedValueOnce([[{ id: 20, name: 'Node Dev', descriptionHTML: '<p>Build</p>', companyId: 3 }]])
+        };
         mocks.withTransaction.mockImplementation((work) => work(conn));
         const job = { id: 20, name: 'Node Dev', descriptionHTML: '<p>Build</p>', companyId: 3 };
-        mocks.pool.query.mockResolvedValue([[job]]);
         const { createJob } = await import('../job-core-service/src/controllers/jobController.js');
         const res = makeRes();
         await createJob(makeReq({
             headers: { 'x-user-id': '7', 'x-company-id': '3' },
             body: { name: 'Node Dev', descriptionHTML: '<p>Build</p>', categoryJobCode: 'IT', amount: 0, isHot: true }
         }), res);
-        expect(conn.query).toHaveBeenCalledTimes(2);
+        expect(conn.query).toHaveBeenCalledTimes(3);
         expect(conn.query.mock.calls[0][1][6]).toBe(1);
         expect(conn.query.mock.calls[1][1][0]).toBe('PS3');
-        expect(mocks.publish).toHaveBeenNthCalledWith(1, 'job.created', { job });
-        expect(mocks.publish).toHaveBeenNthCalledWith(2, 'ai.moderate_job', { jobId: 20, name: 'Node Dev', descriptionHTML: '<p>Build</p>' });
+        expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(1, conn, expect.objectContaining({
+            aggregateType: 'job', aggregateId: 20, eventType: 'job.created', payload: { job }
+        }));
+        expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(2, conn, expect.objectContaining({
+            aggregateType: 'job', aggregateId: 20, eventType: 'ai.moderate_job',
+            payload: { jobId: 20, name: 'Node Dev', descriptionHTML: '<p>Build</p>' }
+        }));
         expect(res.statusCode).toBe(201);
     });
 
@@ -67,8 +79,13 @@ describe('job write controller', () => {
     it('updates owned jobs and re-moderates only when content changed', async () => {
         const old = { id: 4, companyId: 2, name: 'Old', descriptionHTML: 'Old desc' };
         const changed = { ...old, name: 'New', descriptionHTML: 'New desc' };
-        mocks.pool.query.mockResolvedValueOnce([[old]]).mockResolvedValueOnce([[changed]]);
-        const conn = { query: vi.fn().mockResolvedValue(undefined) };
+        mocks.pool.query.mockResolvedValueOnce([[old]]);
+        const conn = {
+            query: vi.fn()
+                .mockResolvedValueOnce(undefined)
+                .mockResolvedValueOnce(undefined)
+                .mockResolvedValueOnce([[changed]])
+        };
         mocks.withTransaction.mockImplementation((work) => work(conn));
         const { updateJob } = await import('../job-core-service/src/controllers/jobController.js');
         const res = makeRes();
@@ -76,15 +93,23 @@ describe('job write controller', () => {
             headers: { 'x-user-id': '1', 'x-company-id': '2', 'x-user-role': 'COMPANY' },
             params: { id: '4' }, body: { name: 'New', amount: 0 }
         }), res);
-        expect(conn.query).toHaveBeenCalledTimes(2);
-        expect(mocks.publish).toHaveBeenNthCalledWith(1, 'job.updated', { job: changed });
-        expect(mocks.publish).toHaveBeenNthCalledWith(2, 'ai.moderate_job', expect.objectContaining({ jobId: 4, name: 'New' }));
+        expect(conn.query).toHaveBeenCalledTimes(3);
+        expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(1, conn, expect.objectContaining({
+            eventType: 'job.updated', payload: { job: changed }
+        }));
+        expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(2, conn, expect.objectContaining({
+            eventType: 'ai.moderate_job', payload: expect.objectContaining({ jobId: 4, name: 'New' })
+        }));
         expect(res.body.data).toEqual(changed);
 
-        mocks.publish.mockClear();
-        mocks.pool.query.mockResolvedValueOnce([[old]]).mockResolvedValueOnce([[old]]);
+        mocks.enqueueOutboxEvent.mockClear();
+        mocks.pool.query.mockResolvedValueOnce([[old]]);
+        conn.query.mockReset()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce([[old]]);
         await updateJob(makeReq({ headers: { 'x-user-role': 'ADMIN' }, params: { id: '4' }, body: { amount: 3 } }), makeRes());
-        expect(mocks.publish).toHaveBeenCalledOnce();
+        expect(mocks.enqueueOutboxEvent).toHaveBeenCalledOnce();
     });
 
     it('maps update exceptions to 500', async () => {
@@ -107,11 +132,15 @@ describe('job write controller', () => {
         await deleteJob(makeReq({ headers: { 'x-company-id': '9' }, params: { id: '1' } }), denied);
         expect(denied.statusCode).toBe(403);
 
-        mocks.pool.query.mockResolvedValueOnce([[{ id: 1, companyId: 4 }]]).mockResolvedValueOnce([{ affectedRows: 1 }]);
+        mocks.pool.query.mockResolvedValueOnce([[{ id: 1, companyId: 4 }]]);
+        const conn = { query: vi.fn().mockResolvedValue([{ affectedRows: 1 }]) };
+        mocks.withTransaction.mockImplementation((work) => work(conn));
         const ok = makeRes();
         await deleteJob(makeReq({ headers: { 'x-company-id': '4' }, params: { id: '1' } }), ok);
-        expect(mocks.pool.query.mock.calls.at(-1)[1][0]).toBe('PS4');
-        expect(mocks.publish).toHaveBeenCalledWith('job.deleted', { jobId: 1 });
+        expect(conn.query.mock.calls.at(-1)[1][0]).toBe('PS4');
+        expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(conn, expect.objectContaining({
+            eventType: 'job.deleted', payload: { jobId: 1 }
+        }));
         expect(ok.body.errCode).toBe(0);
         mocks.pool.query.mockRejectedValue(new Error('db'));
         const failed = makeRes();

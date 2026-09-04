@@ -57,14 +57,29 @@ nhân bản riêng từng phần.
 Luồng khi đăng một tin tuyển dụng:
 
 1. `POST /api/jobs` → Job Core ghi vào MySQL trong một giao dịch, trạng thái `PS0` (chờ duyệt)
-2. Job Core phát `job.created` và `ai.moderate_job` lên RabbitMQ rồi **trả về ngay**
-3. Song song:
+2. Trong cùng giao dịch, Job Core ghi thêm các bản ghi `outbox_events` cho `job.created` và `ai.moderate_job`, rồi **trả về ngay**
+3. Outbox relay phát các bản ghi đã commit lên RabbitMQ và chỉ đánh dấu `publishedAt` sau khi lệnh phát thành công
+4. Song song:
    - Search Service nghe `job.created` → dựng index Elasticsearch
    - AI Worker nghe `ai.moderate_job` → gọi Claude kiểm duyệt nội dung
-4. AI Worker phát `ai.result` → Job Core đổi trạng thái sang `PS1` (hiển thị) hoặc `PS2` (bị chặn)
+5. AI Worker phát `ai.result` → Job Core đổi trạng thái sang `PS1` (hiển thị) hoặc `PS2` (bị chặn)
 5. Search Service nghe `job.moderated` → cập nhật trạng thái trong index
 
 Tin bị chặn biến khỏi kết quả tìm kiếm mà không ai phải gọi ai trực tiếp.
+
+## Transactional Outbox (Job Core)
+
+Các thay đổi chính của tin tuyển dụng (`create`, `update`, `delete`) không còn
+phát RabbitMQ trực tiếp ngay sau khi commit. Job Core ghi dữ liệu nghiệp vụ và
+event cần phát vào bảng `outbox_events` bằng **cùng một MySQL connection và
+transaction**. Vì vậy nếu transaction rollback thì event cũng không tồn tại;
+nếu RabbitMQ tạm thời mất kết nối, relay sẽ giữ lại event để thử lại.
+
+Relay chạy cùng tiến trình Job Core nhưng tách khỏi request HTTP. Nó claim một
+lô event chưa phát theo thứ tự tạo, phát tuần tự trong lô, rồi mới cập nhật `publishedAt`. Bản
+migration tương ứng nằm tại `job-core-service/migrations/001_create_outbox_events.sql`;
+hiện startup vẫn gọi `CREATE TABLE IF NOT EXISTS` để môi trường demo tự khởi động
+được. Publisher confirms và idempotent consumers sẽ được bổ sung ở bước tiếp theo.
 
 ## Bốn tính năng AI
 

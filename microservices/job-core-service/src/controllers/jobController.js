@@ -1,7 +1,7 @@
 import { pool, withTransaction } from '../libs/db.js';
-import { publish } from '../../../shared/rabbitmq.js';
 import { EVENTS } from '../../../shared/events.js';
 import { createLogger } from '../../../shared/logger.js';
+import { enqueueOutboxEvent } from '../libs/outbox.js';
 
 const logger = createLogger('job-core-service');
 
@@ -15,8 +15,8 @@ const identity = (req) => ({
 
 // Doc day du mot tin de dua vao event. Ben Doc (Search) can du thong tin de
 // dung index ma khong phai goi nguoc lai - do chinh la diem mau chot cua CQRS.
-const loadJobForEvent = async (postId) => {
-    const [rows] = await pool.query(
+const loadJobForEvent = async (postId, db = pool) => {
+    const [rows] = await db.query(
         `SELECT p.id, p.statusCode, p.timePost, p.timeEnd, p.isHot, p.userId,
                 d.name, d.descriptionHTML, d.descriptionMarkdown, d.amount,
                 d.categoryJobCode, d.addressCode, d.salaryJobCode,
@@ -48,7 +48,7 @@ export const createJob = async (req, res) => {
     }
 
     try {
-        const postId = await withTransaction(async (conn) => {
+        const { postId, job } = await withTransaction(async (conn) => {
             const [detail] = await conn.query(
                 `INSERT INTO detailposts
                  (name, descriptionHTML, descriptionMarkdown, categoryJobCode, addressCode,
@@ -80,18 +80,27 @@ export const createJob = async (req, res) => {
                     now, now
                 ]
             );
-            return post.insertId;
-        });
+            const createdJob = await loadJobForEvent(post.insertId, conn);
+            if (!createdJob) throw new Error('Không đọc được tin vừa tạo');
 
-        const job = await loadJobForEvent(postId);
+            await enqueueOutboxEvent(conn, {
+                aggregateType: 'job',
+                aggregateId: post.insertId,
+                eventType: EVENTS.JOB_CREATED,
+                payload: { job: createdJob }
+            });
+            await enqueueOutboxEvent(conn, {
+                aggregateType: 'job',
+                aggregateId: post.insertId,
+                eventType: EVENTS.AI_MODERATE_JOB,
+                payload: {
+                    jobId: post.insertId,
+                    name: createdJob.name,
+                    descriptionHTML: createdJob.descriptionHTML
+                }
+            });
 
-        // Bao cho ca he thong biet. Search Service se dung index, AI Worker se
-        // kiem duyet noi dung - ca hai chay song song va khong lam cham API nay.
-        await publish(EVENTS.JOB_CREATED, { job });
-        await publish(EVENTS.AI_MODERATE_JOB, {
-            jobId: postId,
-            name: job.name,
-            descriptionHTML: job.descriptionHTML
+            return { postId: post.insertId, job: createdJob };
         });
 
         logger.info('da tao tin tuyen dung', { postId, userId, companyId });
@@ -122,7 +131,7 @@ export const updateJob = async (req, res) => {
             });
         }
 
-        await withTransaction(async (conn) => {
+        const job = await withTransaction(async (conn) => {
             await conn.query(
                 `UPDATE detailposts SET
                    name = COALESCE(?, name),
@@ -145,17 +154,32 @@ export const updateJob = async (req, res) => {
                 ]
             );
             await conn.query('UPDATE posts SET updatedAt = ? WHERE id = ?', [new Date(), postId]);
-        });
 
-        const job = await loadJobForEvent(postId);
-        await publish(EVENTS.JOB_UPDATED, { job });
+            const updatedJob = await loadJobForEvent(postId, conn);
+            if (!updatedJob) throw new Error('Không đọc được tin vừa cập nhật');
 
-        // Noi dung doi thi phai kiem duyet lai.
-        if (b.descriptionHTML || b.name) {
-            await publish(EVENTS.AI_MODERATE_JOB, {
-                jobId: postId, name: job.name, descriptionHTML: job.descriptionHTML
+            await enqueueOutboxEvent(conn, {
+                aggregateType: 'job',
+                aggregateId: postId,
+                eventType: EVENTS.JOB_UPDATED,
+                payload: { job: updatedJob }
             });
-        }
+
+            if (b.descriptionHTML || b.name) {
+                await enqueueOutboxEvent(conn, {
+                    aggregateType: 'job',
+                    aggregateId: postId,
+                    eventType: EVENTS.AI_MODERATE_JOB,
+                    payload: {
+                        jobId: postId,
+                        name: updatedJob.name,
+                        descriptionHTML: updatedJob.descriptionHTML
+                    }
+                });
+            }
+
+            return updatedJob;
+        });
 
         logger.info('da cap nhat tin', { postId, userId });
         return res.json({ errCode: 0, data: job });
@@ -181,10 +205,16 @@ export const deleteJob = async (req, res) => {
 
         // Khong xoa han: doi trang thai sang PS4 (da bi chan). Giu lai de con doi
         // chieu voi ho so da ung tuyen vao tin do.
-        await pool.query('UPDATE posts SET statusCode = ?, updatedAt = ? WHERE id = ?',
-            ['PS4', new Date(), postId]);
-
-        await publish(EVENTS.JOB_DELETED, { jobId: postId });
+        await withTransaction(async (conn) => {
+            await conn.query('UPDATE posts SET statusCode = ?, updatedAt = ? WHERE id = ?',
+                ['PS4', new Date(), postId]);
+            await enqueueOutboxEvent(conn, {
+                aggregateType: 'job',
+                aggregateId: postId,
+                eventType: EVENTS.JOB_DELETED,
+                payload: { jobId: postId }
+            });
+        });
         return res.json({ errCode: 0, errMessage: 'Đã gỡ tin tuyển dụng' });
     } catch (error) {
         logger.error('xoa tin that bai', { error: error.message, postId });

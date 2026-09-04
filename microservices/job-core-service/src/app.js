@@ -1,6 +1,7 @@
 import express from 'express';
 import { createLogger } from '../../shared/logger.js';
 import { testConnection } from './libs/db.js';
+import { ensureOutboxTable, startOutboxRelay } from './libs/outbox.js';
 import { consume } from '../../shared/rabbitmq.js';
 import { EVENTS, QUEUES } from '../../shared/events.js';
 import {
@@ -45,11 +46,14 @@ app.get('/internal/jobs', listJobsForReindex);
 const start = async () => {
     await testConnection();
     await ensureAiTaskTable();
+    await ensureOutboxTable();
 
     // Lang nghe ket qua tra ve tu AI Worker.
     await consume(QUEUES.AI_RESULT_HANDLER, [EVENTS.AI_RESULT], async (payload) => {
         await handleAiResult(payload);
     });
+
+    startOutboxRelay();
 
     app.listen(PORT, () => logger.info(`Job Core Service dang chay tren cong ${PORT}`));
 };
