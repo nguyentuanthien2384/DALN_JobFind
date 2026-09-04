@@ -2,6 +2,7 @@ import { createLogger } from '../../../shared/logger.js';
 import { consume } from '../../../shared/rabbitmq.js';
 import { EVENTS } from '../../../shared/events.js';
 import { queueNotification } from '../libs/deliveryStore.js';
+import { notificationRetry } from '../libs/eventRetry.js';
 import {
     saveNotification, getUserEmail, getCompanyFollowers, sendEmail, pushRealtime
 } from '../libs/channels.js';
@@ -178,5 +179,5 @@ export const handleNotificationEvent = async (payload, routingKey, metadata) => 
 };
 
 export const startNotificationConsumer = async () => {
-    await consume(QUEUE, Object.keys(handlers), handleNotificationEvent, { prefetch: 10 });
+    await consume(QUEUE, Object.keys(handlers), handleNotificationEvent, { prefetch: 10, retry: notificationRetry });
 };

@@ -111,7 +111,8 @@ Confirm xác nhận broker nhận sự kiện, không xác nhận email đã g�
 đã xử lý. Nếu broker đã nhận nhưng tiến trình/DB lỗi trước khi ghi dấu đã gửi, event
 có thể được phát lại. Hai outbox đã dùng envelope v1 và Notification đã chống trùng
 cho sự kiện có ID. Chống trùng ở các consumer khác, publisher confirms cho các
-luồng publish trực tiếp còn lại và reliable DLQ vẫn là các bước kế tiếp; chưa có
+luồng publish trực tiếp còn lại vẫn là các bước kế tiếp. DLQ/retry đã dùng confirms
+như phần hướng dẫn bên dưới; chưa có
 bảo đảm SMTP giao thư đúng một lần.
 
 Để áp dụng trong môi trường local có Docker đang chạy, từ thư mục `microservices`:
@@ -157,7 +158,7 @@ khi retry. Application có correlation ID sẵn; Job Core hiện để `null`.
 Shared consumer kiểm tra phiên bản và routing key trước khi gọi handler, truyền
 metadata ở tham số thứ ba. Event cũ chỉ có `messageId` cũng được nhận diện;
 event không có ID vẫn đi luồng legacy, **không tự tạo ID lúc nhận**. Metadata được
-giữ khi đưa vào DLQ, nhưng xác nhận giao tin sang DLQ vẫn chưa được nâng cấp.
+giữ khi đưa vào DLQ. Chuyển tin sang DLQ hiện đã chờ publisher confirm.
 
 Với sự kiện có ID, Notification thực hiện một transaction MySQL:
 
@@ -168,7 +169,8 @@ Với sự kiện có ID, Notification thực hiện một transaction MySQL:
 
 Khóa chính inbox và khóa duy nhất `(eventId, recipientId, channel)` ngăn tạo trùng
 khi nhận lại cùng event. Lỗi lưu làm rollback cả transaction và chuyển sự kiện
-theo đường lỗi/DLQ hiện có; **chưa có tự động retry/replay DLQ**. Người dùng bấm gửi
+theo chính sách retry có giới hạn rồi DLQ bên dưới; **chưa có tự động replay DLQ**.
+Người dùng bấm gửi
 lại kết quả là yêu cầu mới có ID mới nên vẫn gửi được. Với `job.created`, chống
 trùng áp dụng riêng từng người theo dõi; danh sách người theo dõi vẫn được đọc
 lại khi replay, chưa đóng băng danh sách người nhận cho toàn event.
@@ -224,9 +226,9 @@ ORDER BY updatedAt DESC LIMIT 20;
 Với `unknown`, đối chiếu nhật ký SMTP và `messageId` trong payload trước khi quyết
 định gửi mới. Không đổi hàng loạt `unknown` về `pending`. Khắc phục cấu hình/người
 nhận của `failed` trước khi dùng thao tác gửi lại trong ứng dụng. Không replay
-với ID mới chỉ để bỏ qua chống trùng. Nếu replay DLQ, giữ body, ID và metadata,
-phát về routing key gốc (header `x-original-routing-key`), không dùng tên queue
-DLQ làm routing key.
+với ID mới chỉ để bỏ qua chống trùng. Replay DLQ cần giữ body/ID/metadata và chọn
+đúng consumer đích; không phát lại lên topic chung chỉ để sửa một dịch vụ vì có
+thể kích hoạt lại các consumer khác. Phần này chưa cung cấp công cụ replay tự động.
 
 Kiểm thử phần này không gọi SMTP thật:
 
@@ -237,6 +239,93 @@ npm test -- tests/event-envelope.test.js tests/notification-delivery-store.test.
 Các bài kiểm tra transaction/đồng thời dùng database test double; vẫn cần kiểm
 thử tích hợp MySQL/RabbitMQ thật trước khi triển khai. Sự kiện publish trực tiếp
 không có ID, AI/Search/Admin và các luồng khác chưa được chống trùng trong phần này.
+
+## DLQ có xác nhận và retry có giới hạn
+
+Mọi consumer dùng `shared/rabbitmq.js` hiện chuyển lỗi qua publisher riêng tại
+`shared/messageTransfer.js`. Kết nối confirm dùng chung cách quản lý với outbox
+(`shared/confirmedConnection.js`), nhưng **khác connection/channel** để lỗi chuyển
+tin không đóng kênh đang giữ các bản gốc chưa ACK.
+
+Trình tự: phát bản raw vào `${queueName}.dead-letter` qua exchange
+`jobportal.events.dead-letter`, chờ publisher confirm và buffer drain, rồi mới ACK
+bản gốc. `mandatory: true` phát hiện trường hợp không có queue đích. Connect/setup
+có giới hạn 10 giây; confirm/drain cũng có giới hạn 10 giây. Broker NACK, return,
+timeout hoặc mất kết nối đều không được coi là đã chuyển thành công. Bản gốc được
+requeue sau khoảng nghỉ 2 giây nếu kênh nhận vẫn sống; khi kênh nhận đã đóng, để
+RabbitMQ tự giao lại. Không có nhánh loại bỏ bản gốc khi chưa xác nhận bản chuyển.
+
+Đây là cơ chế **at-least-once**, không phải exactly-once. Nếu broker đã nhận bản
+chuyển nhưng ACK/confirm bị mất, DLQ/retry có thể có bản trùng; vẫn phải giữ event
+ID và dùng consumer chống trùng. Giới hạn này được mô tả trong
+[RabbitMQ Reliability Guide](https://www.rabbitmq.com/docs/reliability).
+
+Raw body, message ID, correlation ID, phiên bản, thời điểm và producer được giữ
+nguyên. Thêm `x-failed-queue`, `x-original-routing-key`, `x-error`, `x-failed-at`
+để điều tra. Không sao chép `expiration` khiến tin lỗi có thể tự hết hạn hoặc
+AMQP `userId` gắn với tài khoản publisher cũ. Không tự tạo event ID cho tin legacy.
+
+Retry handler **mặc định tắt**. Chỉ Notification hiện bật, đồng thời cần cả hai:
+
+- Event có ID nên đã đi qua inbox chống trùng.
+- Lỗi nằm trong danh sách lỗi database tạm thời, như mất kết nối, deadlock,
+  lock timeout hoặc quá nhiều kết nối. Sai schema/quyền truy cập, dữ liệu lỗi,
+  lỗi không nhận diện được và event legacy không được tự retry theo chính sách này.
+
+Lịch retry là 2, 10, 30 giây: tối đa ba lượt sau lần xử lý đầu trong một chuỗi
+retry. Hết lượt thì vào DLQ. `x-retry-count` nằm trong tin bền vững, nên consumer
+khởi động lại đọc tiếp số lượt đã ghi. Các lần broker redelivery do mất ACK hoặc
+crash có thể làm một lượt chạy lại; đây không phải giới hạn tuyệt đối số lần gọi
+handler khi hạ tầng liên tục gián đoạn. Lỗi chuyển tin ở mức hạ tầng không tiêu
+hao lượt retry nghiệp vụ, không tự bỏ tin khi hết số lần mất kết nối.
+
+Trong thời gian chờ, bản gốc **vẫn unacknowledged trong RabbitMQ**, chiếm một slot
+prefetch (Notification là 10). Sau khi chờ, publisher phát bền vững về đúng queue
+Notification qua default exchange, giữ routing key nghiệp vụ trong header, rồi
+mới ACK bản gốc khi có confirm. Không phát lại lên topic chung, không tạo queue
+TTL và không đổi arguments/type của queue hiện tại. Điều này phù hợp bước nâng
+cấp nhỏ hiện tại; khi lưu lượng lớn cần tách hạ tầng lập lịch retry để không giữ
+slot prefetch. Restart trong lúc chờ có thể làm bắt đầu lại khoảng chờ của lượt đó.
+
+Nếu gặp JSON hỏng, phiên bản envelope không hỗ trợ hoặc metadata retry không hợp
+lệ, consumer chuyển thẳng DLQ, không gọi handler. Những consumer AI/Search/Admin
+và luồng legacy vẫn **chưa được bật tự retry nghiệp vụ**. Redelivery của RabbitMQ
+(ví dụ mất ACK hoặc chuyển DLQ lỗi) vẫn có thể xảy ra với chúng, nên chống trùng
+cho các consumer đó vẫn cần làm tiếp. Retry handler không gửi SMTP: worker email
+riêng vẫn giữ nguyên nguyên tắc `unknown` không tự gửi lại.
+
+Kênh nhận tự kết nối/đăng ký lại khi channel đóng, kết nối mất hoặc broker hủy
+consumer. Callback cũ không ACK sang channel mới. Lỗi ACK sau xử lý thành công
+không bị biến thành lỗi nghiệp vụ/DLQ; đóng kênh gốc để broker giao lại. Khi đóng
+kết nối có chủ đích, không tự mở lại.
+
+Áp dụng local khi Docker và các dependency đã sẵn sàng: khởi động lại những
+service dùng thư viện RabbitMQ chung. Giữ toàn bộ volume/queue/inbox hiện có,
+không purge DLQ hoặc nạp lại dữ liệu mẫu. Dừng hết Notification cũ trước khi nâng
+cấp để tránh trộn hai phiên bản xử lý retry:
+
+```powershell
+docker compose stop notification-service
+docker compose up -d --no-deps --force-recreate job-core-service application-service notification-service search-service ai-worker admin-service identity-service api-gateway
+docker compose logs --tail=100 notification-service
+docker compose exec rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged consumers
+```
+
+Khi điều tra, xem queue `notification-service.events.dead-letter`, `x-error`,
+`x-retry-count` và event ID. Dùng chế độ xem có **requeue** trong RabbitMQ Management
+nếu cần đọc tin; tránh chế độ đọc rồi xóa. `messages_unacknowledged` tăng tạm thời
+có thể là đang backoff, không nhất thiết consumer bị treo. Sửa nguyên nhân trước
+khi lập kế hoạch replay đúng consumer, không tự replay toàn bộ DLQ.
+
+Kiểm thử không gọi broker/email thật:
+
+```powershell
+npm test -- tests/message-transfer.test.js tests/rabbitmq-lifecycle.test.js tests/notification-retry-policy.test.js tests/shared.test.js tests/outbox-publisher.test.js
+```
+
+Cần chạy kiểm thử tích hợp RabbitMQ/MySQL thật trước khi triển khai. Thứ tự xử lý
+nghiệp vụ xuyên các replica, công cụ replay có kiểm soát, chống trùng các consumer
+còn lại và confirms cho publish trực tiếp vẫn chưa được giải quyết trong phần này.
 
 ## Bốn tính năng AI
 

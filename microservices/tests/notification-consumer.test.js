@@ -53,9 +53,10 @@ describe('notification event consumer', () => {
 
     it('registers every handler with bounded prefetch', async () => {
         const { startNotificationConsumer, handlers, handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const { notificationRetry } = await import('../notification-service/src/libs/eventRetry.js');
         await startNotificationConsumer();
         expect(mocks.consume).toHaveBeenCalledWith(
-            'notification-service.events', Object.keys(handlers), handleNotificationEvent, { prefetch: 10 }
+            'notification-service.events', Object.keys(handlers), handleNotificationEvent, { prefetch: 10, retry: notificationRetry }
         );
     });
 

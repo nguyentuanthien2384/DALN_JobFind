@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 
 const mq = vi.hoisted(() => ({ connect: vi.fn() }));
 vi.mock('amqplib', () => ({ default: { connect: mq.connect } }));
 
-afterEach(() => {
+afterEach(async () => {
+    const { closeConnection } = await import('../shared/rabbitmq.js');
+    await closeConnection();
     vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
@@ -55,12 +58,13 @@ describe('shared logger', () => {
 describe('RabbitMQ wrapper', () => {
     let channel;
     let connection;
+    let transferChannel;
 
     beforeEach(() => {
         vi.resetModules();
         mq.connect.mockReset();
         vi.spyOn(console, 'log').mockImplementation(() => {});
-        channel = {
+        channel = Object.assign(new EventEmitter(), {
             assertExchange: vi.fn().mockResolvedValue(undefined),
             assertQueue: vi.fn().mockResolvedValue(undefined),
             prefetch: vi.fn().mockResolvedValue(undefined),
@@ -70,13 +74,22 @@ describe('RabbitMQ wrapper', () => {
             ack: vi.fn(),
             nack: vi.fn(),
             close: vi.fn().mockResolvedValue(undefined)
-        };
-        connection = {
-            on: vi.fn(),
+        });
+        connection = Object.assign(new EventEmitter(), {
             createChannel: vi.fn().mockResolvedValue(channel),
             close: vi.fn().mockResolvedValue(undefined)
-        };
-        mq.connect.mockResolvedValue(connection);
+        });
+        vi.spyOn(connection, 'on');
+        transferChannel = Object.assign(new EventEmitter(), {
+            assertExchange: vi.fn().mockResolvedValue(undefined),
+            publish: vi.fn((exchange, key, body, options, confirm) => { confirm(null); return true; }),
+            close: vi.fn(async () => transferChannel.emit('close'))
+        });
+        const transferConnection = Object.assign(new EventEmitter(), {
+            createConfirmChannel: vi.fn().mockResolvedValue(transferChannel),
+            close: vi.fn().mockResolvedValue(undefined)
+        });
+        mq.connect.mockImplementation(async (url, options) => options ? transferConnection : connection);
     });
 
     it('shares one connection across concurrent callers and declares the exchange', async () => {
@@ -132,12 +145,12 @@ describe('RabbitMQ wrapper', () => {
         await channel.consume.mock.calls[0][1](msg);
         const { data, ...metadata } = event;
         expect(handler).toHaveBeenCalledWith(data, event.eventType, metadata);
-        expect(channel.publish.mock.calls[0][3]).toMatchObject(eventProperties(event));
+        expect(transferChannel.publish.mock.calls[0][3]).toMatchObject(eventProperties(event));
         handler.mockClear();
         msg.properties.headers['x-event-version'] = 2;
         await channel.consume.mock.calls[0][1](msg);
         expect(handler).not.toHaveBeenCalled();
-        expect(channel.publish.mock.calls[1][3].headers['x-error']).toContain('Unsupported event version');
+        expect(transferChannel.publish.mock.calls[1][3].headers['x-error']).toContain('Unsupported event version');
     });
 
     it('dead-letters malformed messages and handler failures with diagnostics', async () => {
@@ -149,20 +162,20 @@ describe('RabbitMQ wrapper', () => {
         const failed = { content: Buffer.from('{}'), fields: { routingKey: 'job.created' }, properties: { contentType: 'application/custom' } };
         await callback(malformed);
         await callback(failed);
-        expect(channel.publish).toHaveBeenNthCalledWith(
+        expect(transferChannel.publish).toHaveBeenNthCalledWith(
             1, 'jobportal.events.dead-letter', 'queue', malformed.content,
             expect.objectContaining({
                 persistent: true,
                 contentType: 'application/json',
                 headers: expect.objectContaining({ trace: 't', 'x-original-routing-key': 'bad.json' })
-            })
+            }), expect.any(Function)
         );
-        expect(channel.publish).toHaveBeenNthCalledWith(
+        expect(transferChannel.publish).toHaveBeenNthCalledWith(
             2, 'jobportal.events.dead-letter', 'queue', failed.content,
             expect.objectContaining({
                 contentType: 'application/custom',
                 headers: expect.objectContaining({ 'x-original-routing-key': 'job.created', 'x-error': 'boom' })
-            })
+            }), expect.any(Function)
         );
         expect(channel.ack).toHaveBeenNthCalledWith(1, malformed);
         expect(channel.ack).toHaveBeenNthCalledWith(2, failed);
@@ -170,13 +183,16 @@ describe('RabbitMQ wrapper', () => {
     });
 
     it('requeues the original only when publishing to the DLQ fails', async () => {
+        vi.useFakeTimers();
         const handler = vi.fn();
         const { consume } = await import('../shared/rabbitmq.js');
         await consume('queue', ['#'], handler);
-        channel.publish.mockImplementationOnce(() => { throw new Error('channel closed'); });
+        transferChannel.publish.mockImplementationOnce(() => { throw new Error('channel closed'); });
         const callback = channel.consume.mock.calls[0][1];
         const malformed = { content: Buffer.from('{'), fields: { routingKey: 'bad.json' }, properties: {} };
-        await callback(malformed);
+        const pending = callback(malformed);
+        await vi.advanceTimersByTimeAsync(2000);
+        await pending;
         expect(channel.nack).toHaveBeenCalledWith(malformed, false, true);
         expect(channel.ack).not.toHaveBeenCalled();
     });
@@ -196,14 +212,14 @@ describe('RabbitMQ wrapper', () => {
 
     it('reconnects and reattaches remembered consumers after a connection closes', async () => {
         vi.useFakeTimers();
-        const secondChannel = {
+        const secondChannel = Object.assign(new EventEmitter(), {
             ...channel,
             assertExchange: vi.fn().mockResolvedValue(undefined),
             assertQueue: vi.fn().mockResolvedValue(undefined),
             prefetch: vi.fn().mockResolvedValue(undefined),
             bindQueue: vi.fn().mockResolvedValue(undefined),
             consume: vi.fn().mockResolvedValue(undefined)
-        };
+        });
         const secondConnection = {
             on: vi.fn(),
             createChannel: vi.fn().mockResolvedValue(secondChannel),
