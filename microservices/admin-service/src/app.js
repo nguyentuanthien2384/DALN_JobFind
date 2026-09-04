@@ -1,10 +1,11 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import { createLogger } from '../../shared/logger.js';
-import { consume } from '../../shared/rabbitmq.js';
+import { startAuditConsumer } from './consumers/auditConsumer.js';
+import { ensureAuditIndexes } from './models/AuditLog.js';
 import { testSources } from './libs/sources.js';
 import { overview, timeseries, distribution, recruitmentFunnel, activity } from './controllers/reportController.js';
-import { recordEvent, listLogs, targetHistory, ingestAction } from './controllers/auditController.js';
+import { listLogs, targetHistory, ingestAction } from './controllers/auditController.js';
 import { listMasterData, upsertTag, deleteTag, aliasMap } from './controllers/tagController.js';
 import {
     PERMISSIONS, requireServicePermission, requireTrustedGateway
@@ -13,8 +14,6 @@ import {
 const logger = createLogger('admin-service');
 const app = express();
 const PORT = Number(process.env.PORT || 4006);
-
-const QUEUE = 'admin-service.audit';
 
 app.use(express.json({ limit: '5mb' }));
 
@@ -76,6 +75,7 @@ const connectMongo = async (attempt = 1) => {
 
 const start = async () => {
     await connectMongo();
+    await ensureAuditIndexes();
     await testSources();
 
     // Nghe TAT CA su kien trong he thong bang ky tu dai dien '#'.
@@ -83,14 +83,7 @@ const start = async () => {
     // Day la service duy nhat lam vay: no can nhin thay moi thu de dung duoc buc
     // tranh toan canh. Cac service khac chi dang ky dung nhung su kien minh can,
     // de khong phai xu ly nhung thu khong lien quan.
-    await consume(QUEUE, ['#'], async (payload, routingKey) => {
-        try {
-            await recordEvent(routingKey, payload);
-        } catch (error) {
-            // Ghi nhat ky that bai khong duoc lam mat su kien cua ai ca.
-            logger.warn('ghi nhat ky that bai', { routingKey, error: error.message });
-        }
-    }, { prefetch: 50 });
+    await startAuditConsumer();
 
     app.listen(PORT, () => logger.info(`Admin & Reporting Service dang chay tren cong ${PORT}`));
 };

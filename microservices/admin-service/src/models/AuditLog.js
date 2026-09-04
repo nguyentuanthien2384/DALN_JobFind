@@ -19,6 +19,13 @@ const auditLogSchema = new mongoose.Schema({
 
     service: { type: String, index: true },
 
+    // Transport identity lives on the audit record itself: one atomic write,
+    // not a separate inbox that could commit without its audit entry.
+    eventId: String,
+    eventVersion: Number,
+    aggregateId: String,
+    occurredAt: Date,
+
     // Ai gay ra. Null voi su kien do he thong tu sinh.
     actorId: { type: Number, index: true },
     actorRole: String,
@@ -40,6 +47,14 @@ const auditLogSchema = new mongoose.Schema({
     // Khong dat `index: true` o day vi se tao trung index { createdAt: 1 }
     // voi TTL index va Mongoose phat canh bao moi lan khoi dong.
     createdAt: { type: Date, default: Date.now }
+}, { autoIndex: false });
+
+// Legacy events/actions without IDs are deliberately outside this constraint.
+auditLogSchema.index({ eventId: 1 }, {
+    name: 'audit_event_id_unique',
+    unique: true,
+    partialFilterExpression: { kind: 'event', eventId: { $type: 'string' } },
+    collation: { locale: 'simple' }
 });
 
 // Truy van hay dung nhat: "cho toi xem hoat dong gan day cua nguoi nay/cong ty nay".
@@ -52,3 +67,9 @@ auditLogSchema.index({ targetType: 1, targetId: 1, createdAt: -1 });
 auditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 180 * 24 * 3600 });
 
 export const AuditLog = mongoose.model('AuditLog', auditLogSchema);
+
+// Add declared indexes only; never syncIndexes/dropIndexes or rewrite old logs.
+// Startup must await this before consuming events, including when autoIndex is disabled.
+export const ensureAuditIndexes = async () => {
+    await AuditLog.createIndexes();
+};

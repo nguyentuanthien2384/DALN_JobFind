@@ -238,7 +238,8 @@ npm test -- tests/event-envelope.test.js tests/notification-delivery-store.test.
 
 Các bài kiểm tra transaction/đồng thời dùng database test double; vẫn cần kiểm
 thử tích hợp MySQL/RabbitMQ thật trước khi triển khai. Sự kiện publish trực tiếp
-không có ID, AI/Search/Admin và các luồng khác chưa được chống trùng trong phần này.
+không có ID, AI/Search và các luồng khác chưa được chống trùng trong phần này.
+Admin đã được bổ sung riêng ở phần bên dưới.
 
 ## DLQ có xác nhận và retry có giới hạn
 
@@ -265,9 +266,9 @@ nguyên. Thêm `x-failed-queue`, `x-original-routing-key`, `x-error`, `x-failed-
 để điều tra. Không sao chép `expiration` khiến tin lỗi có thể tự hết hạn hoặc
 AMQP `userId` gắn với tài khoản publisher cũ. Không tự tạo event ID cho tin legacy.
 
-Retry handler **mặc định tắt**. Chỉ Notification hiện bật, đồng thời cần cả hai:
+Retry handler **mặc định tắt**. Notification và Admin hiện bật, đồng thời cần cả hai:
 
-- Event có ID nên đã đi qua inbox chống trùng.
+- Event có ID nên đi qua cơ chế chống trùng của consumer tương ứng.
 - Lỗi nằm trong danh sách lỗi database tạm thời, như mất kết nối, deadlock,
   lock timeout hoặc quá nhiều kết nối. Sai schema/quyền truy cập, dữ liệu lỗi,
   lỗi không nhận diện được và event legacy không được tự retry theo chính sách này.
@@ -280,15 +281,15 @@ handler khi hạ tầng liên tục gián đoạn. Lỗi chuyển tin ở mức 
 hao lượt retry nghiệp vụ, không tự bỏ tin khi hết số lần mất kết nối.
 
 Trong thời gian chờ, bản gốc **vẫn unacknowledged trong RabbitMQ**, chiếm một slot
-prefetch (Notification là 10). Sau khi chờ, publisher phát bền vững về đúng queue
-Notification qua default exchange, giữ routing key nghiệp vụ trong header, rồi
+prefetch (Notification là 10, Admin là 50). Sau khi chờ, publisher phát bền vững về
+đúng queue của consumer bị lỗi qua default exchange, giữ routing key nghiệp vụ trong header, rồi
 mới ACK bản gốc khi có confirm. Không phát lại lên topic chung, không tạo queue
 TTL và không đổi arguments/type của queue hiện tại. Điều này phù hợp bước nâng
 cấp nhỏ hiện tại; khi lưu lượng lớn cần tách hạ tầng lập lịch retry để không giữ
 slot prefetch. Restart trong lúc chờ có thể làm bắt đầu lại khoảng chờ của lượt đó.
 
 Nếu gặp JSON hỏng, phiên bản envelope không hỗ trợ hoặc metadata retry không hợp
-lệ, consumer chuyển thẳng DLQ, không gọi handler. Những consumer AI/Search/Admin
+lệ, consumer chuyển thẳng DLQ, không gọi handler. Những consumer AI/Search
 và luồng legacy vẫn **chưa được bật tự retry nghiệp vụ**. Redelivery của RabbitMQ
 (ví dụ mất ACK hoặc chuyển DLQ lỗi) vẫn có thể xảy ra với chúng, nên chống trùng
 cho các consumer đó vẫn cần làm tiếp. Retry handler không gửi SMTP: worker email
@@ -326,6 +327,82 @@ npm test -- tests/message-transfer.test.js tests/rabbitmq-lifecycle.test.js test
 Cần chạy kiểm thử tích hợp RabbitMQ/MySQL thật trước khi triển khai. Thứ tự xử lý
 nghiệp vụ xuyên các replica, công cụ replay có kiểm soát, chống trùng các consumer
 còn lại và confirms cho publish trực tiếp vẫn chưa được giải quyết trong phần này.
+
+## Chống ghi trùng nhật ký Admin
+
+Admin nhận metadata sự kiện từ shared consumer và lưu `eventId`, `eventVersion`,
+`aggregateId`, `occurredAt`, `correlationId` cùng nhật ký. `service` dùng producer
+trong envelope; event cũ thiếu producer vẫn dùng tiền tố routing key như trước.
+Payload vẫn được lược bỏ trường nhạy cảm trước khi ghi. Có thể tra cứu một sự kiện
+qua API quản trị hiện có: `GET /api/admin/audit?eventId=<event-id>`.
+
+Với event có ID, thao tác `updateOne` dùng `upsert` và `$setOnInsert`: chỉ tạo bản
+ghi khi chưa có, không sửa payload hoặc `createdAt` của bản ghi đã tồn tại. Unique
+index `audit_event_id_unique` áp dụng riêng cho `kind: event` có `eventId` dạng
+chuỗi, phân biệt hoa/thường. Nhật ký chính là dấu đã xử lý: không có hai thao tác
+ghi rời rạc giữa inbox và audit log. Đây là cách dùng ghi nguyên tử trên một tài
+liệu và unique index của MongoDB; xem [MongoDB Atomicity and Transactions](https://www.mongodb.com/docs/manual/core/write-operations-atomicity/).
+
+Ghi mới yêu cầu `writeConcern: majority`, journal và timeout 5 giây. Khi đã khớp
+một bản ghi hoặc có xung đột unique key do xử lý đồng thời, Admin kiểm tra lại bằng
+majority read trên primary trước khi coi là đã ghi. Không bỏ qua mọi lỗi `11000`:
+chỉ xung đột đúng khóa `eventId` hiện tại mới được kiểm tra như một bản trùng.
+
+Startup **chờ tạo index xong trước khi nhận sự kiện**. Chỉ tạo index khai báo còn
+thiếu, không xóa index tùy chỉnh, không sửa/xóa dữ liệu cũ. Nếu có dữ liệu mang ID
+trùng sẵn hoặc thiếu quyền tạo index, service dừng để người vận hành kiểm tra;
+không tự dọn các bản ghi đó. Partial index cho phép giữ nhiều nhật ký legacy/action
+không có ID; xem [MongoDB Unique Indexes](https://www.mongodb.com/docs/manual/core/index-unique/).
+
+Lỗi ghi MongoDB không còn bị bắt rồi trả thành công cho RabbitMQ. Lỗi kết nối,
+write concern, xung đột ghi và một số lỗi tạm thời đã nhận diện được thử lại sau
+2/10/30 giây **chỉ khi event có ID**. Sai quyền, dữ liệu/schema hoặc lỗi không nhận
+diện được chuyển theo DLQ có confirm. Queue `admin-service.audit` độc lập với
+Notification/Search; retry Admin không phát lại cho các consumer kia.
+
+Giới hạn phần này:
+
+- Event không có ID vẫn ghi theo luồng cũ; không suy đoán ID từ nội dung và không
+  bật retry nghiệp vụ cho chúng. Lỗi ghi vẫn được chuyển DLQ, không nuốt lỗi.
+- Nhật ký thao tác HTTP từ Gateway (`kind: action`) chưa có chống trùng trong lần
+  bổ sung này. Nhật ký trùng hoặc bị bỏ sót trước đây không được tự sửa/bù.
+- TTL 180 ngày giữ nguyên, tính từ lần ghi đầu. Replay không kéo dài ngày lưu.
+  Sau khi TTL hoặc người vận hành xóa bản ghi, dấu chống trùng của event đó cũng
+  mất; replay lại có thể tạo nhật ký mới. Không cam kết chống trùng vĩnh viễn.
+- MongoDB local hiện là standalone. `majority` ở đây không thay thế replica set,
+  backup hay kiểm thử failover; không phải bảo đảm exactly-once cho toàn hệ thống.
+
+Áp dụng khi các dependency đang chạy, từ thư mục `microservices`. Dừng hết Admin
+phiên bản cũ trước để không còn consumer ghi nhật ký bỏ qua event ID:
+
+```powershell
+docker compose stop admin-service
+docker compose up -d --no-deps --force-recreate admin-service
+docker compose logs --tail=100 admin-service
+```
+
+Không cần biến môi trường mới hoặc nạp lại dữ liệu mẫu. Trong MongoDB `admin_db`,
+có thể kiểm tra chỉ đọc bằng `db.auditlogs.getIndexes()` và tra `eventId` trong
+`db.auditlogs`. Nếu index không tạo được, không xóa hàng loạt nhật ký để bỏ qua lỗi.
+
+Kiểm thử hồi quy:
+
+```powershell
+npm test -- tests/admin.test.js tests/admin-audit-events.test.js tests/admin-audit-model.test.js tests/admin-bootstrap.test.js
+npm run test:admin-audit:integration
+```
+
+Bài integration cần Docker đang chạy và image `mongo:7` đã có. Script **không đọc
+MONGO_URL của dự án**: tạo MongoDB tạm, chỉ mở cổng localhost ngẫu nhiên và tự dọn
+đúng container/volume tạm sau khi kiểm tra nhãn sở hữu. Không tải image tự động,
+không thay đổi database/container dịch vụ đang dùng. Sáu kiểm tra trên MongoDB
+thật bao gồm 50 upsert đồng thời, bảo toàn nhật ký/index cũ, replay, ID phân biệt
+hoa/thường, tính tương thích legacy và lỗi tạo index. Mất phản hồi sau khi MongoDB
+ghi thành công được mô phỏng ở phía client; chưa phải thử ngắt mạng hoặc failover
+replica set. RabbitMQ ACK/retry/DLQ của Admin được kiểm tra bằng test double.
+
+Phần kế tiếp vẫn là Search: cần kết hợp chống trùng với bảo vệ thứ tự cập nhật,
+không chỉ bỏ qua ID lặp. AI Worker và các luồng publish trực tiếp vẫn để riêng.
 
 ## Bốn tính năng AI
 
@@ -509,6 +586,8 @@ event ai.result          (ai-worker)
 ```
 
 Nhật ký tự xóa sau 180 ngày bằng cơ chế hết hạn của MongoDB, không phải dọn tay.
+Event có ID đã chống trùng như phần hướng dẫn bên trên; thao tác Gateway và event
+legacy không có ID chưa được chống trùng.
 Các đường dẫn nhạy cảm (đăng nhập, đổi mật khẩu) **không** được ghi.
 
 **Master data.** Bảng `allcodes` **không** được chuyển sang MongoDB: cột `code` của

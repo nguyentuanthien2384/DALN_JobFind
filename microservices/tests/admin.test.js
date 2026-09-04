@@ -4,7 +4,7 @@ import { chain, makeReq, makeRes } from './helpers.js';
 const mocks = vi.hoisted(() => ({
     mysqlPool: { query: vi.fn() },
     pgPool: { query: vi.fn() },
-    AuditLog: { create: vi.fn(), find: vi.fn(), countDocuments: vi.fn(), aggregate: vi.fn() },
+    AuditLog: { create: vi.fn(), updateOne: vi.fn(), findOne: vi.fn(), find: vi.fn(), countDocuments: vi.fn(), aggregate: vi.fn() },
     Tag: { find: vi.fn(), findOneAndUpdate: vi.fn(), findByIdAndDelete: vi.fn() }
 }));
 
@@ -74,10 +74,10 @@ describe('admin audit controller', () => {
         const res = makeRes();
         await listLogs(makeReq({ query: {
             kind: 'event', name: 'job', actorId: '2', targetType: 'job', targetId: 3,
-            correlationId: 'c', fromDate: '2026-01-01', toDate: '2026-02-01', limit: '500', offset: '4'
+            correlationId: 'c', eventId: 'event-1', fromDate: '2026-01-01', toDate: '2026-02-01', limit: '500', offset: '4'
         } }), res);
         const filter = mocks.AuditLog.find.mock.calls[0][0];
-        expect(filter).toMatchObject({ kind: 'event', actorId: 2, targetType: 'job', targetId: '3', correlationId: 'c' });
+        expect(filter).toMatchObject({ kind: 'event', actorId: 2, targetType: 'job', targetId: '3', correlationId: 'c', eventId: 'event-1' });
         expect(filter.name).toBeInstanceOf(RegExp);
         expect(filter.createdAt.$gte).toBeInstanceOf(Date);
         expect(q.skip).toHaveBeenCalledWith(4);

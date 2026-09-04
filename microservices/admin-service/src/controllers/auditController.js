@@ -3,8 +3,22 @@ import { createLogger } from '../../../shared/logger.js';
 
 const logger = createLogger('admin-service');
 
+const confirmExistingEvent = async (filter) => {
+    const existing = await AuditLog.findOne(filter).select({ _id: 1 })
+        .collation({ locale: 'simple' }).read('primary').readConcern('majority').maxTimeMS(5000).lean();
+    if (!existing) {
+        throw Object.assign(new Error('Audit event is not majority-visible'), { code: 'AUDIT_EVENT_NOT_VISIBLE' });
+    }
+};
+
 // Ghi mot su kien giua cac service.
-export const recordEvent = async (routingKey, payload) => {
+export const recordEvent = async (routingKey, payload, metadata = {}) => {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Invalid audit event payload');
+    const eventId = metadata?.eventId;
+    if (eventId !== undefined && (typeof eventId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(eventId))) {
+        throw new Error('Invalid audit eventId');
+    }
+    if (metadata?.eventType && metadata.eventType !== routingKey) throw new Error('Audit event type does not match routing key');
     // Tu tim khoa cua doi tuong bi tac dong trong payload, de sau con tra cuu
     // nguoc kieu "tin #51 da bi ai dong vao".
     const target = payload.jobId ? { type: 'job', id: String(payload.jobId) }
@@ -13,17 +27,56 @@ export const recordEvent = async (routingKey, payload) => {
                 : payload.job?.id ? { type: 'job', id: String(payload.job.id) }
                     : { type: null, id: null };
 
-    await AuditLog.create({
+    const record = {
         kind: 'event',
         name: routingKey,
-        service: routingKey.split('.')[0],
+        service: metadata?.producer || routingKey.split('.')[0],
         actorId: payload.actorId ?? payload.userId ?? null,
         targetType: target.type,
         targetId: target.id,
         // Cat bot cho an toan: mot vai su kien mang ca file CV base64, luu nguyen
         // se lam phinh CSDL rat nhanh.
         payload: trim(payload)
+    };
+    if (eventId === undefined) {
+        // Compatibility path: do not guess an identity from a payload hash/time.
+        await AuditLog.create(record);
+        return { duplicate: false, legacy: true };
+    }
+
+    const filter = { kind: 'event', eventId };
+    Object.assign(record, {
+        eventId,
+        eventVersion: metadata.eventVersion,
+        aggregateId: metadata.aggregateId,
+        occurredAt: metadata.occurredAt,
+        correlationId: metadata.correlationId,
+        createdAt: new Date()
     });
+    try {
+        const result = await AuditLog.updateOne(filter, { $setOnInsert: record }, {
+            upsert: true,
+            runValidators: true,
+            setDefaultsOnInsert: true,
+            collation: { locale: 'simple' },
+            writeConcern: { w: 'majority', j: true, wtimeout: 5000 }
+        });
+        if (!result?.acknowledged || !(result.matchedCount === 1 || result.upsertedCount === 1)) {
+            throw new Error('Audit write was not acknowledged');
+        }
+        // A duplicate path is a no-op update. Verify the retained entry rather
+        // than equating a local match with a durable audit record after failover.
+        if (result.matchedCount === 1) await confirmExistingEvent(filter);
+        return { duplicate: result.matchedCount === 1 };
+    } catch (error) {
+        // Concurrent upserts can race on the unique index. Only this exact key
+        // conflict is a possible duplicate; unrelated E11000 errors must surface.
+        const sameEvent = error?.code === 11000 && error.keyValue?.eventId === eventId
+            && error.keyPattern?.eventId === 1 && Object.keys(error.keyPattern).length === 1;
+        if (!sameEvent) throw error;
+        await confirmExistingEvent(filter);
+        return { duplicate: true };
+    }
 };
 
 // Ghi mot thao tac cua nguoi dung di qua Gateway.
@@ -88,6 +141,7 @@ export const listLogs = async (req, res) => {
     if (req.query.targetType) filter.targetType = req.query.targetType;
     if (req.query.targetId) filter.targetId = String(req.query.targetId);
     if (req.query.correlationId) filter.correlationId = req.query.correlationId;
+    if (req.query.eventId) filter.eventId = String(req.query.eventId);
     if (req.query.fromDate || req.query.toDate) {
         filter.createdAt = {};
         if (req.query.fromDate) filter.createdAt.$gte = new Date(req.query.fromDate);
