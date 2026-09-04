@@ -24,6 +24,7 @@
     "test:admin-audit:integration": "node scripts/test-admin-audit.mjs",
     "test:search-projection:integration": "node scripts/test-search-projection.mjs",
     "test:ai-tasks:integration": "node scripts/test-ai-tasks.mjs",
+    "test:ai-results:integration": "node scripts/test-ai-results.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

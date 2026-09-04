@@ -26,6 +26,10 @@ export const taskIdentity = (payload, routingKey, metadata = {}) => {
     if (moderation && (!/^[1-9][0-9]*$/.test(aggregateId) || !Number.isSafeInteger(Number(aggregateId)))) {
         throw new Error('Invalid AI jobId');
     }
+    if (moderation && payload.moderationRequestId !== undefined &&
+        (typeof payload.moderationRequestId !== 'string' || !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(payload.moderationRequestId))) {
+        throw new Error('Invalid AI moderationRequestId');
+    }
     if (metadata.aggregateId !== undefined && String(metadata.aggregateId) !== aggregateId) {
         throw new Error('AI event aggregate ID mismatch');
     }

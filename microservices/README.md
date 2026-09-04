@@ -62,7 +62,7 @@ Luồng khi đăng một tin tuyển dụng:
 4. Song song:
    - Search Service nghe `job.created` → đọc lại tin hiện tại từ Job Core rồi cập nhật Elasticsearch có kiểm tra xung đột
    - AI Worker nghe `ai.moderate_job` → gọi Claude kiểm duyệt nội dung
-5. AI Worker phát `ai.result` → Job Core đổi trạng thái sang `PS1` (hiển thị) hoặc `PS2` (bị chặn)
+5. AI Worker phát `ai.result` kèm mã lượt kiểm duyệt → Job Core kiểm tra lượt hiện tại, trạng thái chờ và nội dung trước khi đổi sang `PS1`/`PS2`; kết quả cũ bị bỏ qua
 6. Search Service nghe `job.moderated` → đọc lại trạng thái hiện tại rồi cập nhật index
 
 API tìm kiếm vẫn chỉ đọc Elasticsearch. Riêng đường đồng bộ index gọi nội bộ
@@ -115,7 +115,8 @@ Confirm xác nhận broker nhận sự kiện, không xác nhận email đã g�
 có thể được phát lại. Hai outbox đã dùng envelope v1; Notification/Admin đã chống
 trùng cho sự kiện có ID, Search đã bảo vệ kết quả đồng bộ như phần bên dưới.
 AI Worker cũng đã có ledger chống gọi lại tác vụ có ID và phát kết quả có confirm.
-Luồng nhận kết quả AI ở Job Core và các publisher trực tiếp còn lại vẫn là các bước kế tiếp. DLQ/retry đã dùng confirms
+Job Core nhận kết quả AI bằng inbox + giao dịch và phát `job.moderated` qua outbox.
+Các publisher trực tiếp còn lại vẫn là các bước kế tiếp. DLQ/retry đã dùng confirms
 như phần hướng dẫn bên dưới; chưa có
 bảo đảm SMTP giao thư đúng một lần.
 
@@ -270,10 +271,10 @@ nguyên. Thêm `x-failed-queue`, `x-original-routing-key`, `x-error`, `x-failed-
 để điều tra. Không sao chép `expiration` khiến tin lỗi có thể tự hết hạn hoặc
 AMQP `userId` gắn với tài khoản publisher cũ. Không tự tạo event ID cho tin legacy.
 
-Retry handler **mặc định tắt**. Notification, Admin và Search hiện bật, đồng thời cần cả hai:
+Retry handler **mặc định tắt**. Notification, Admin, Search và Job Core nhận `ai.result` hiện bật, đồng thời cần cả hai:
 
 - Event có ID nên đi qua cơ chế chống trùng của consumer tương ứng.
-- Lỗi nằm trong danh sách tạm thời của consumer: Notification/Admin nhận diện
+- Lỗi nằm trong danh sách tạm thời của consumer: Notification/Admin/Job Core AI-result nhận diện
   lỗi database như mất kết nối, deadlock, lock timeout hoặc quá nhiều kết nối;
   Search nhận diện lỗi nguồn HTTP/Elasticsearch như phần riêng bên dưới. Sai schema/quyền truy cập, dữ liệu lỗi,
   lỗi không nhận diện được và event legacy không được tự retry theo chính sách này.
@@ -286,7 +287,7 @@ handler khi hạ tầng liên tục gián đoạn. Lỗi chuyển tin ở mức 
 hao lượt retry nghiệp vụ, không tự bỏ tin khi hết số lần mất kết nối.
 
 Trong thời gian chờ, bản gốc **vẫn unacknowledged trong RabbitMQ**, chiếm một slot
-prefetch (Notification là 10, Admin là 50, Search là 20). Sau khi chờ, publisher phát bền vững về
+prefetch (Notification là 10, Admin là 50, Search là 20, Job Core AI-result mặc định 5). Sau khi chờ, publisher phát bền vững về
 đúng queue của consumer bị lỗi qua default exchange, giữ routing key nghiệp vụ trong header, rồi
 mới ACK bản gốc khi có confirm. Không phát lại lên topic chung, không tạo queue
 TTL và không đổi arguments/type của queue hiện tại. Điều này phù hợp bước nâng
@@ -294,11 +295,11 @@ cấp nhỏ hiện tại; khi lưu lượng lớn cần tách hạ tầng lập 
 slot prefetch. Restart trong lúc chờ có thể làm bắt đầu lại khoảng chờ của lượt đó.
 
 Nếu gặp JSON hỏng, phiên bản envelope không hỗ trợ hoặc metadata retry không hợp
-lệ, consumer chuyển thẳng DLQ, không gọi handler. Những consumer AI
+lệ, consumer chuyển thẳng DLQ, không gọi handler. AI Worker gọi model
 và luồng legacy vẫn **chưa được bật tự retry nghiệp vụ**. Redelivery của RabbitMQ
 (ví dụ mất ACK hoặc chuyển DLQ lỗi) vẫn có thể xảy ra. AI Worker có ledger như phần
-riêng bên dưới, nhưng Job Core nhận `ai.result` và một số luồng legacy còn cần
-bảo vệ tiếp. Retry handler không gửi SMTP: worker email
+riêng bên dưới; Job Core nhận `ai.result` đã có giao dịch/inbox và kiểm tra lượt
+kiểm duyệt. Một số luồng legacy vẫn cần bổ sung tiếp. Retry handler không gửi SMTP: worker email
 riêng vẫn giữ nguyên nguyên tắc `unknown` không tự gửi lại.
 
 Kênh nhận tự kết nối/đăng ký lại khi channel đóng, kết nối mất hoặc broker hủy
@@ -470,8 +471,9 @@ không bật retry nghiệp vụ; đối chiếu định kỳ là đường bù.
 Điều kiện và giới hạn:
 
 - Job Core phải đọc **MySQL primary hiện tại**, không đặt cache hoặc read replica
-  có độ trễ trước endpoint này. Chưa giải quyết thứ tự sai của các thao tác ghi
-  ngay tại nguồn (ví dụ kết quả AI cũ đổi lại trạng thái MySQL).
+  có độ trễ trước endpoint này. Search không tự sửa thứ tự thao tác ghi ngay tại
+  nguồn; Job Core đã có hàng rào riêng cho kết quả AI ở phần bên dưới. Chưa chuẩn
+  hóa phiên bản cho mọi thao tác legacy/SQL trực tiếp.
 - Mọi writer vào index `jobs` phải dùng đường CAS mới. Search cũ, script ghi thẳng
   ES hoặc việc xóa tombstone/index có thể làm mất bảo vệ. Chưa có chính sách dọn
   tombstone; không tự thêm TTL. Mapping mới chỉ bổ sung, không reset index.
@@ -577,9 +579,9 @@ Giới hạn quan trọng:
   đi qua DLQ có confirm; việc phục hồi cần kiểm tra/replay có chủ đích. `ready`
   chỉ được gửi tiếp khi worker nhận lại tin đầu vào tương ứng.
 - Kết quả vẫn có thể được giao hơn một lần (hai replica cùng đọc `ready`, confirm
-  hoặc dấu published bị mất). Chúng giữ cùng event ID và nội dung. **Job Core
-  chưa chống trùng `ai.result` và chưa chặn kết quả kiểm duyệt cũ đổi trạng thái
-  MySQL**; đây là phần kế tiếp trước khi bật replay/retry tự động đầu-cuối.
+  hoặc dấu published bị mất). Chúng giữ cùng event ID và nội dung. Job Core đã
+  được bổ sung inbox/giao dịch và mã lượt kiểm duyệt như phần bên dưới. Điều này
+  không tự bật replay DLQ hoặc retry việc gọi model.
 - `published` xác nhận broker nhận tin, không chứng minh Job Core xử lý xong.
   Phát yêu cầu AI từ các endpoint CV của Job Core vẫn là publish legacy trực tiếp.
 - Không backfill tác vụ đã chạy bằng worker cũ. Phải giữ ledger bền vững và cùng
@@ -626,6 +628,126 @@ chưa xác định, gửi lại kết quả và tương thích legacy. Model/Rab
 không dùng API key, không phát sinh phí AI, chưa phải kiểm thử Claude/RabbitMQ
 end-to-end hoặc MongoDB replica-set failover. Unit test kiểm tra thêm wiring,
 thứ tự các bước, giới hạn concurrency và tắt retry SDK.
+
+## Job Core: nhận kết quả AI đúng một lần về mặt nghiệp vụ
+
+Job Core bổ sung hai bảng trong cùng MySQL hiện tại: `ai_result_inbox` và
+`job_moderation_state`. Chỉ tạo bảng mới bằng `CREATE TABLE IF NOT EXISTS`, không
+ALTER/xóa dữ liệu bảng `posts`, `detailposts` hoặc `ai_tasks`. Trước khi nhận việc,
+startup kiểm tra cả sáu bảng tham gia (`posts`, `detailposts`, `ai_tasks`,
+`outbox_events` và hai bảng mới) đều dùng InnoDB; không tự đổi storage engine.
+
+Với mỗi `ai.result` có event ID, một giao dịch bao gồm:
+
+1. Ghi dấu inbox bằng khóa event ID phân biệt hoa/thường và hash nội dung.
+2. Khóa dòng công việc/tin tuyển dụng để đọc trạng thái mới nhất.
+3. Nếu kết quả còn hợp lệ, cập nhật dữ liệu và đóng lượt kiểm duyệt.
+4. Với quyết định kiểm duyệt được áp dụng, ghi `job.moderated` vào outbox bằng
+   cùng connection; sau đó ghi kết cục inbox rồi commit.
+
+Không gọi RabbitMQ, AI hoặc SMTP trong giao dịch này. Relay có confirm hiện có
+phát thông báo sau commit; Notification/Admin nhận được event ID ổn định để
+chống trùng. Mất ACK/commit response có thể làm consumer chạy lại, nhưng cùng ID
+và cùng nội dung không tạo lại thay đổi hoặc thông báo. Cùng ID nhưng nội dung
+khác bị từ chối (`AI_RESULT_ID_CONFLICT`), không ghi đè kết quả trước.
+
+Các locking read dùng `FOR UPDATE` và giữ khóa đến cuối giao dịch, theo
+[MySQL Locking Reads](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking-reads.html).
+Inbox, dữ liệu nghiệp vụ và ý định phát sự kiện cùng rollback khi có lỗi. Điều
+này không phải exactly-once truyền tải: RabbitMQ vẫn có thể giao trùng và các
+consumer khác vẫn phải giữ cơ chế chống trùng của riêng mình.
+
+### Hàng rào chống kết quả kiểm duyệt cũ
+
+Mỗi lần tạo tin hoặc cập nhật tiêu đề/mô tả qua Job Core:
+
+- Tạo UUID mới `moderationRequestId`, dùng cùng UUID làm ID event `ai.moderate_job`.
+- Ghi mã hiện tại và hash nguyên văn `name`/`descriptionHTML` vào
+  `job_moderation_state`, cùng giao dịch ghi tin/outbox.
+- Tin ở trạng thái `PS3` trong lúc chờ. Cập nhật không đụng hai trường nội dung
+  này không tạo lượt kiểm duyệt mới. Gửi lại hai trường dù nội dung giống nhau
+  vẫn tạo lượt mới; không suy đoán danh tính từ nội dung hoặc thời gian.
+
+AI Worker trả lại mã từ yêu cầu gốc trong phần điều khiển của kết quả, không lấy
+mã do model sinh ra. Job Core chỉ áp dụng khi mã khớp lượt `pending`, tin còn
+`PS3` và hash nội dung hiện tại vẫn khớp. Kết quả cũ/mất đối tượng/đã xử lý được
+ghi nhận `stale` rồi ACK, không đổi tin hoặc tạo thông báo. A → B → A qua Job Core
+vẫn dùng mã mới, nên không vô tình chấp nhận quyết định của lần A đầu tiên.
+
+Gỡ tin đặt `PS4` và hủy lượt kiểm duyệt trong cùng giao dịch. Sửa một tin đã gỡ
+trả 409, không tự khôi phục nó. Kết quả đến sau quyết định duyệt/từ chối thủ công
+không được ghi đè trạng thái đó. Nếu AI trả lỗi hạ tầng, giữ tin `PS3`, đánh dấu
+lượt là `failed` để kiểm tra/duyệt thủ công; lỗi hạ tầng không phải kết luận vi phạm.
+
+Giới hạn với writer cũ: kiểm tra hash phát hiện nội dung hiện tại đã bị sửa trực
+tiếp, nhưng backend cũ/SQL ngoài Job Core chưa tạo mã lượt mới và chưa tham gia
+giao thức này. Không bảo đảm phát hiện mọi chuỗi A → B → A hay chuỗi thay đổi trạng
+thái xảy ra hoàn toàn ở writer cũ rồi trở lại giá trị ban đầu trước khi nhận kết
+quả. Không có trigger mới hoặc chuyển đổi toàn bộ backend cũ trong bước này.
+
+### Kết quả CV và tương thích tin cũ
+
+Với parse CV/độ khớp/thư ứng tuyển, kiểm tra `taskId`, loại tác vụ và trạng thái
+trong `ai_tasks`. Chỉ tác vụ `pending` nhận kết quả đầu tiên; `done`/`failed` không
+bị cập nhật lại bởi kết quả đến sau, kể cả một event ID khác hoặc tin legacy không
+có event ID. Không nhận kết quả sai loại, sai đối tượng hay `ok`/`approved` không
+phải boolean. JSON kết quả được lưu nguyên vẹn, không cắt giữa chuỗi ở 60.000 ký
+tự như trước; từ chối kết quả vượt 1 MiB. Không tự sửa các JSON hỏng đã tồn tại.
+
+Kết quả kiểm duyệt cũ thiếu `moderationRequestId` không đủ căn cứ để tự duyệt:
+`AI_RESULT_UNCORRELATED` đưa vào DLQ để kiểm tra, **không suy đoán/bổ sung token**
+từ lượt đang chờ. Quy tắc này áp dụng cả kết quả có event ID nhưng thiếu token.
+Không backfill, không tự tái kiểm duyệt hàng loạt hoặc gọi lại AI. Nếu cần, người
+vận hành kiểm tra tin rồi chủ động duyệt tay hoặc yêu cầu một lượt kiểm duyệt mới.
+
+Handler kết quả bật retry 2/10/30 giây cho lỗi MySQL tạm thời đã nhận diện và event
+có ID (mất kết nối, deadlock, lock timeout, quá nhiều kết nối). Retry chạy lại
+**toàn bộ giao dịch**, không gọi model. Sai schema/quyền/dữ liệu/ID hoặc thiếu
+token không tự retry. Tin legacy không có event ID không bật retry nghiệp vụ.
+Xem [MySQL handling deadlocks](https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks-handling.html).
+Không có replay DLQ tự động trong thay đổi này.
+
+### Áp dụng và kiểm tra
+
+Khi sẵn sàng triển khai, cần tạm ngừng tạo/sửa tin và tạo tác vụ AI mới, để các
+worker cũ hoàn tất công việc đang chạy rồi dừng tất cả Job Core/AI Worker replica
+cũ. Không chạy lẫn hai phiên bản xử lý kết quả. Backup MySQL, kiểm tra InnoDB và
+quyền tạo hai bảng mới; không tự đổi engine hoặc xóa dữ liệu để vượt lỗi startup.
+
+Nâng AI Worker để hỗ trợ trả token, rồi nâng Job Core trước khi mở lại luồng ghi
+và xử lý hàng đợi. Kiểm tra riêng các yêu cầu/kết quả cũ đang ở queue, DLQ hoặc
+ledger `ready`: bản đã lưu không được tự thêm token khi replay. Chúng có thể cần
+duyệt thủ công hoặc tạo yêu cầu mới có chủ đích. Không restart database, nạp lại
+dữ liệu mẫu hoặc xóa inbox/ledger. Lần bổ sung này **chưa triển khai**.
+
+Kiểm tra chỉ đọc, không lấy nội dung CV/kết quả:
+
+```sql
+SELECT eventId, resultType, aggregateId, outcome, processedAt
+FROM ai_result_inbox ORDER BY processedAt DESC LIMIT 50;
+SELECT jobId, requestId, state, requestedAt, resolvedAt
+FROM job_moderation_state ORDER BY requestedAt DESC LIMIT 50;
+```
+
+Không có TTL/cleanup tự động cho hai bảng mới. Xóa inbox hoặc đặt lại tác vụ về
+`pending` có thể làm mất bảo vệ; chỉ thực hiện theo quy trình phục hồi đã xem xét.
+Kết quả CV vẫn nằm trong `ai_tasks` như trước, inbox chỉ giữ hash/metadata/kết cục.
+
+```powershell
+npm test
+npm run test:ai-results:integration
+```
+
+11 kiểm tra trên MySQL 8.0 tạm bao gồm 30 bản sao đồng thời, rollback cả inbox/
+outbox/trạng thái, mất phản hồi sau commit thật, A → B → A, khóa khi sửa/nhận kết
+quả, tin bị gỡ/duyệt tay, nội dung thay đổi trực tiếp và JSON dài. Script dùng image
+có sẵn, cổng localhost và database riêng; tự kiểm tra nhãn sở hữu trước khi dọn
+container/volume tạm. Không đọc cấu hình MySQL của dự án, không gọi RabbitMQ/AI/
+SMTP thật. Mất phản hồi được mô phỏng phía client, chưa phải thử failover hay
+kiểm thử end-to-end; retry/wiring/echo token được kiểm tra bằng unit test.
+
+Phần tiếp theo: chuyển các yêu cầu AI từ endpoint CV của Job Core sang transactional
+outbox; không gộp thêm luồng này hoặc công cụ replay vào lần bổ sung hiện tại.
 
 ## Bốn tính năng AI
 

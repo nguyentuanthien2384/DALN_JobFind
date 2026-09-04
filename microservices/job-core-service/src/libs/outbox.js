@@ -11,8 +11,8 @@ const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 // Outbox nay nam trong cung MySQL voi Job Core. Muc tieu cua no la de viec ghi
 // du lieu nghiep vu va viec ghi "can phat su kien" cung thanh cong hoac cung
 // rollback. Relay ben duoi se phat RabbitMQ sau khi transaction da commit.
-export const ensureOutboxTable = async () => {
-    await pool.query(`
+export const ensureOutboxTable = async (db = pool) => {
+    await db.query(`
         CREATE TABLE IF NOT EXISTS outbox_events (
             id             CHAR(36) NOT NULL,
             aggregateType  VARCHAR(64) NOT NULL,

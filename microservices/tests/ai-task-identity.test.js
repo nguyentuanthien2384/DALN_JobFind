@@ -32,5 +32,6 @@ describe('AI execution identity', () => {
         expect(() => taskIdentity({ jobId: 7 }, 'ai.moderate_job', { eventId: '' })).toThrow('eventId');
         expect(() => taskIdentity({ jobId: 7 }, 'ai.moderate_job', { aggregateId: '8' })).toThrow('mismatch');
         expect(() => taskIdentity({ jobId: 7 }, 'ai.moderate_job', { correlationId: 3 })).toThrow('correlationId');
+        expect(() => taskIdentity({ jobId: 7, moderationRequestId: 'bad' }, 'ai.moderate_job')).toThrow('moderationRequestId');
     });
 });

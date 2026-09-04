@@ -35,6 +35,10 @@ export const createTaskProcessor = ({ handlers, store, publishResult, isConfigur
             type: handler.type, taskId: payload.taskId, jobId: payload.jobId, taskKey: identity.key
         });
         const base = { taskId: payload.taskId, jobId: payload.jobId, type: handler.type };
+        // Echo source-controlled correlation, never a token invented by the model.
+        if (handler.type === 'moderate_job' && payload.moderationRequestId !== undefined) {
+            base.moderationRequestId = payload.moderationRequestId;
+        }
         let data;
         if (!isConfigured()) {
             data = { ...base, ok: false, error: 'Máy chủ chưa cấu hình ANTHROPIC_API_KEY' };

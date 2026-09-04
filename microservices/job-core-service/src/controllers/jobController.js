@@ -2,6 +2,7 @@ import { pool, withTransaction } from '../libs/db.js';
 import { EVENTS } from '../../../shared/events.js';
 import { createLogger } from '../../../shared/logger.js';
 import { enqueueOutboxEvent } from '../libs/outbox.js';
+import { requestJobModeration, cancelJobModeration } from '../libs/moderationState.js';
 
 const logger = createLogger('job-core-service');
 
@@ -89,16 +90,7 @@ export const createJob = async (req, res) => {
                 eventType: EVENTS.JOB_CREATED,
                 payload: { job: createdJob }
             });
-            await enqueueOutboxEvent(conn, {
-                aggregateType: 'job',
-                aggregateId: post.insertId,
-                eventType: EVENTS.AI_MODERATE_JOB,
-                payload: {
-                    jobId: post.insertId,
-                    name: createdJob.name,
-                    descriptionHTML: createdJob.descriptionHTML
-                }
-            });
+            await requestJobModeration(conn, createdJob);
 
             return { postId: post.insertId, job: createdJob };
         });
@@ -132,6 +124,11 @@ export const updateJob = async (req, res) => {
         }
 
         const job = await withTransaction(async (conn) => {
+            const [[locked]] = await conn.query('SELECT id, statusCode FROM posts WHERE id = ? FOR UPDATE', [postId]);
+            if (!locked || locked.statusCode === 'PS4') {
+                throw Object.assign(new Error('Tin đã được gỡ hoặc không còn tồn tại'), { statusCode: 409 });
+            }
+            const needsModeration = b.name != null || b.descriptionHTML != null;
             await conn.query(
                 `UPDATE detailposts SET
                    name = COALESCE(?, name),
@@ -153,7 +150,11 @@ export const updateJob = async (req, res) => {
                     postId
                 ]
             );
-            await conn.query('UPDATE posts SET updatedAt = ? WHERE id = ?', [new Date(), postId]);
+            if (needsModeration) {
+                await conn.query("UPDATE posts SET statusCode = 'PS3', updatedAt = ? WHERE id = ?", [new Date(), postId]);
+            } else {
+                await conn.query('UPDATE posts SET updatedAt = ? WHERE id = ?', [new Date(), postId]);
+            }
 
             const updatedJob = await loadJobForEvent(postId, conn);
             if (!updatedJob) throw new Error('Không đọc được tin vừa cập nhật');
@@ -165,18 +166,7 @@ export const updateJob = async (req, res) => {
                 payload: { job: updatedJob }
             });
 
-            if (b.descriptionHTML || b.name) {
-                await enqueueOutboxEvent(conn, {
-                    aggregateType: 'job',
-                    aggregateId: postId,
-                    eventType: EVENTS.AI_MODERATE_JOB,
-                    payload: {
-                        jobId: postId,
-                        name: updatedJob.name,
-                        descriptionHTML: updatedJob.descriptionHTML
-                    }
-                });
-            }
+            if (needsModeration) await requestJobModeration(conn, updatedJob);
 
             return updatedJob;
         });
@@ -185,6 +175,7 @@ export const updateJob = async (req, res) => {
         return res.json({ errCode: 0, data: job });
     } catch (error) {
         logger.error('cap nhat tin that bai', { error: error.message, postId });
+        if (error.statusCode === 409) return res.status(409).json({ errCode: 4, errMessage: error.message });
         return res.status(500).json({ errCode: -1, errMessage: 'Không cập nhật được tin' });
     }
 };
@@ -208,6 +199,7 @@ export const deleteJob = async (req, res) => {
         await withTransaction(async (conn) => {
             await conn.query('UPDATE posts SET statusCode = ?, updatedAt = ? WHERE id = ?',
                 ['PS4', new Date(), postId]);
+            await cancelJobModeration(conn, postId);
             await enqueueOutboxEvent(conn, {
                 aggregateType: 'job',
                 aggregateId: postId,

@@ -31,6 +31,15 @@ const payload = { taskId: 'task-1', resumeText: 'private CV' };
 const metadata = { eventId: 'event-1' };
 
 describe('durable AI task processing', () => {
+    it.each([true, false])('echoes the source moderation token on success/failure (ok=%s), not a model-supplied token', async (ok) => {
+        const f = fixture();
+        if (ok) f.run.mockResolvedValue({ approved: true, moderationRequestId: 'model-invented' });
+        else f.run.mockRejectedValue(new Error('timeout'));
+        const requestId = '11111111-1111-4111-8111-111111111111';
+        await f.create()({ jobId: 7, moderationRequestId: requestId }, 'ai.moderate_job', metadata);
+        expect(f.publishResult.mock.lastCall[0].data).toMatchObject({ ok, moderationRequestId: requestId });
+        expect(f.store.complete.mock.calls[0][1].data.moderationRequestId).toBe(requestId);
+    });
     it('claims before the model, saves before publish, marks only after confirmation and skips settled duplicates', async () => {
         const f = fixture();
         await f.create()(payload, 'ai.match_cv', metadata);

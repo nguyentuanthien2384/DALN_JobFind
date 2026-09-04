@@ -9,8 +9,8 @@ const logger = createLogger('job-core-service');
 // AI Worker chay bat dong bo: request tra ve ngay mot taskId, ket qua den sau.
 // Bang nay la cho hen gap giua hai ben. Tao rieng mot bang moi, khong dung vao
 // bang nao san co, nen viec them he thong microservice khong anh huong backend cu.
-export const ensureAiTaskTable = async () => {
-    await pool.query(`
+export const ensureAiTaskTable = async (db = pool) => {
+    await db.query(`
         CREATE TABLE IF NOT EXISTS ai_tasks (
             id VARCHAR(64) PRIMARY KEY,
             type VARCHAR(64) NOT NULL,
@@ -143,57 +143,5 @@ export const getTask = async (req, res) => {
     });
 };
 
-// Nhan ket qua tu AI Worker gui ve qua RabbitMQ.
-export const handleAiResult = async (payload) => {
-    const { taskId, jobId, type, ok, result, error } = payload;
-
-    if (taskId) {
-        await pool.query(
-            'UPDATE ai_tasks SET status = ?, result = ?, error = ?, updatedAt = ? WHERE id = ?',
-            [
-                ok ? 'done' : 'failed',
-                result ? JSON.stringify(result).slice(0, 60000) : null,
-                error || null,
-                new Date(),
-                taskId
-            ]
-        );
-        logger.info('da luu ket qua AI', { taskId, type, ok });
-    }
-
-    // Rieng ket qua kiem duyet thi tu dong chuyen trang thai tin tuyen dung.
-    if (type === 'moderate_job' && jobId) {
-        if (!ok) {
-            // AI loi (het han muc, mat mang, chua cau hinh khoa API) KHONG phai la
-            // ket luan "tin nay vi pham". Giu nguyen PS0 de admin duyet tay, thay vi
-            // tu choi oan mot tin hop le chi vi ha tang truc trac.
-            logger.warn('kiem duyet that bai, giu tin o trang thai cho duyet tay', {
-                jobId, error
-            });
-            return;
-        }
-
-        // PS1 = dang hien thi, PS2 = bi tu choi vi vi pham.
-        const statusCode = result?.approved ? 'PS1' : 'PS2';
-        await pool.query('UPDATE posts SET statusCode = ?, updatedAt = ? WHERE id = ?',
-            [statusCode, new Date(), jobId]);
-
-        // Lay them ten tin va nguoi dang de Notification Service co du du lieu
-        // soan thong bao ma khong phai goi nguoc lai hoi.
-        const [info] = await pool.query(
-            `SELECT p.userId AS posterId, d.name AS jobTitle
-             FROM posts p JOIN detailposts d ON d.id = p.detailPostId WHERE p.id = ?`,
-            [jobId]
-        );
-
-        await publish(EVENTS.JOB_MODERATED, {
-            jobId,
-            posterId: info[0]?.posterId ?? null,
-            jobTitle: info[0]?.jobTitle ?? null,
-            approved: Boolean(result?.approved),
-            statusCode,
-            reason: result?.reason || null
-        });
-        logger.info('da kiem duyet tin', { jobId, statusCode, approved: result?.approved });
-    }
-};
+// Kept as a re-export for existing imports; result handling owns its transaction.
+export { handleAiResult } from '../libs/aiResultHandler.js';

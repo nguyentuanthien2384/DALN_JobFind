@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => {
     const express = Object.assign(vi.fn(() => app), { json: vi.fn() });
     return { app, express, waitForElastic: vi.fn(), ensureIndex: vi.fn(), startIndexer: vi.fn(),
         rebuildIndex: vi.fn(), count: vi.fn(), testConnection: vi.fn(), consume: vi.fn(),
-        getJobForIndex: vi.fn(), timer: { unref: vi.fn() } };
+        getJobForIndex: vi.fn(), ensureAiResultTables: vi.fn(), handleAiResult: vi.fn(), timer: { unref: vi.fn() } };
 });
 vi.mock('express', () => ({ default: mocks.express }));
 vi.mock('../search-service/src/libs/elastic.js', () => ({
@@ -18,11 +18,12 @@ vi.mock('../search-service/src/consumers/jobIndexer.js', () => ({ startIndexer: 
 vi.mock('../search-service/src/controllers/searchController.js', () => ({ searchJobs: vi.fn(), suggest: vi.fn(), facets: vi.fn(), related: vi.fn() }));
 vi.mock('../job-core-service/src/libs/db.js', () => ({ testConnection: mocks.testConnection }));
 vi.mock('../job-core-service/src/libs/outbox.js', () => ({ ensureOutboxTable: vi.fn(), startOutboxRelay: vi.fn() }));
+vi.mock('../job-core-service/src/libs/moderationState.js', () => ({ ensureAiResultTables: mocks.ensureAiResultTables }));
 vi.mock('../job-core-service/src/controllers/jobController.js', () => ({
     createJob: vi.fn(), updateJob: vi.fn(), deleteJob: vi.fn(), getJob: vi.fn(), listJobsForReindex: vi.fn(), getJobForIndex: mocks.getJobForIndex
 }));
 vi.mock('../job-core-service/src/controllers/aiController.js', () => ({
-    ensureAiTaskTable: vi.fn(), parseResume: vi.fn(), matchCv: vi.fn(), coverLetter: vi.fn(), getTask: vi.fn(), handleAiResult: vi.fn()
+    ensureAiTaskTable: vi.fn(), parseResume: vi.fn(), matchCv: vi.fn(), coverLetter: vi.fn(), getTask: vi.fn(), handleAiResult: mocks.handleAiResult
 }));
 vi.mock('../shared/rabbitmq.js', () => ({ consume: mocks.consume }));
 
@@ -32,12 +33,38 @@ beforeEach(() => {
     mocks.express.mockReturnValue(mocks.app);
     for (const key of ['waitForElastic', 'ensureIndex', 'startIndexer', 'rebuildIndex', 'testConnection', 'consume']) mocks[key].mockResolvedValue(undefined);
     mocks.count.mockResolvedValue({ count: 3 });
+    mocks.ensureAiResultTables.mockResolvedValue(undefined);
+    mocks.handleAiResult.mockResolvedValue({ outcome: 'applied' });
     vi.spyOn(globalThis, 'setInterval').mockReturnValue(mocks.timer);
     vi.stubEnv('INTERNAL_SECRET', 'internal-bootstrap-secret');
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 describe('Search/Job Core projection wiring', () => {
+    it('passes AI result metadata to the transactional handler and waits for schemas before consuming', async () => {
+        await import('../job-core-service/src/app.js');
+        await vi.waitFor(() => expect(mocks.app.listen).toHaveBeenCalledOnce());
+        expect(mocks.ensureAiResultTables.mock.invocationCallOrder[0]).toBeLessThan(mocks.consume.mock.invocationCallOrder[0]);
+        const [queue, patterns, callback, options] = mocks.consume.mock.calls[0];
+        expect(queue).toBe('job-core-service.ai-results');
+        expect(patterns).toEqual(['ai.result']);
+        expect(options.retry.delaysMs).toEqual([2000, 10000, 30000]);
+        const metadata = { eventId: 'result-1', aggregateId: '7' };
+        await callback({ jobId: 7 }, 'ai.result', metadata);
+        expect(mocks.handleAiResult).toHaveBeenCalledWith({ jobId: 7 }, metadata);
+        mocks.handleAiResult.mockRejectedValueOnce(new Error('transaction failed'));
+        await expect(callback({}, 'ai.result', metadata)).rejects.toThrow('transaction failed');
+    });
+
+    it('does not consume results or expose writes if AI result schema checks fail', async () => {
+        const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined);
+        mocks.ensureAiResultTables.mockRejectedValueOnce(new Error('nontransactional table'));
+        await import('../job-core-service/src/app.js');
+        await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(1));
+        expect(mocks.consume).not.toHaveBeenCalled();
+        expect(mocks.app.listen).not.toHaveBeenCalled();
+    });
+
     it('protects the internal current-job route with the trusted-service middleware', async () => {
         const { requireTrustedGateway } = await import('../shared/accessControl.js');
         await import('../job-core-service/src/app.js');
