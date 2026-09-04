@@ -1,156 +1,110 @@
-import axios from 'axios';
-import { es, INDEX, toDocument } from '../libs/elastic.js';
+import { es, INDEX } from '../libs/elastic.js';
+import { listCurrentJobIds, jobIdString } from '../libs/jobSource.js';
+import { synchronizeJob } from '../libs/jobProjection.js';
+import { searchRetry } from '../libs/searchRetry.js';
 import { consume } from '../../../shared/rabbitmq.js';
 import { EVENTS, QUEUES } from '../../../shared/events.js';
 import { createLogger } from '../../../shared/logger.js';
 
 const logger = createLogger('search-service');
 
-// Ben Doc cua CQRS. Service nay khong bao gio ghi vao MySQL - no chi nghe su kien
-// tu ben Ghi roi dung lai du lieu duoi dang toi uu cho tim kiem.
-
-const indexJob = async (job) => {
-    if (!job?.id) return;
-    await es.index({ index: INDEX, id: String(job.id), document: toDocument(job) });
-    logger.info('da dua tin vao index', { jobId: job.id });
+const refreshIndex = async () => {
+    const result = await es.indices.refresh({ index: INDEX });
+    if (result?._shards?.failed) throw new Error('Incomplete Elasticsearch refresh');
 };
 
-const removeJob = async (jobId) => {
+// Scan every page, including tombstones. A stale list is only an ID discovery
+// mechanism, never permission to delete or overwrite a projection.
+export const listIndexedIds = async (query = { match_all: {} }) => {
+    let scrollId;
+    const ids = new Set();
     try {
-        await es.delete({ index: INDEX, id: String(jobId) });
-        logger.info('da go tin khoi index', { jobId });
-    } catch (error) {
-        // Tin chua tung duoc index thi khong co gi de xoa, khong phai loi.
-        if (error?.meta?.statusCode !== 404) throw error;
+        // GET/CAS is realtime; search/scroll is not. Include acknowledged writes
+        // that have not reached the periodic ES refresh before discovering IDs.
+        await refreshIndex();
+        let page = await es.search({
+            index: INDEX, size: 500, _source: false, sort: ['_doc'],
+            scroll: '1m', allow_partial_search_results: false, query
+        });
+        while (true) {
+            scrollId = page._scroll_id || scrollId;
+            if (page.timed_out || page._shards?.failed || !Array.isArray(page.hits?.hits)) {
+                throw new Error('Incomplete Elasticsearch reconciliation scan');
+            }
+            if (!page.hits.hits.length) break;
+            if (!scrollId) throw new Error('Missing Elasticsearch scroll cursor');
+            for (const hit of page.hits.hits) ids.add(jobIdString(hit._id));
+            page = await es.scroll({ scroll_id: scrollId, scroll: '1m' });
+        }
+        return [...ids];
+    } finally {
+        if (scrollId) {
+            try { await es.clearScroll({ scroll_id: scrollId }); }
+            catch (error) { logger.warn('khong dong duoc scroll', { error: error.message }); }
+        }
     }
 };
 
-// Dung lai toan bo index tu ben Ghi. Chay luc khoi dong de he thong tu phuc hoi
-// sau khi mat du lieu index hoac sau khi bo lo su kien luc offline.
-export const rebuildIndex = async () => {
-    const jobCoreUrl = process.env.JOB_CORE_URL || 'http://job-core-service:4002';
-    try {
-        const { data } = await axios.get(`${jobCoreUrl}/internal/jobs`, {
-            timeout: 30000,
-            headers: { 'x-internal-secret': process.env.INTERNAL_SECRET || '' }
-        });
-        if (data.errCode !== 0 || !Array.isArray(data.data)) {
-            logger.warn('ben Ghi tra ve du lieu khong hop le, bo qua dung lai index');
-            return;
+const synchronizeIds = async (ids, metadata = {}) => {
+    const uniqueIds = [...new Set(ids)];
+    const result = { total: uniqueIds.length, changed: 0, deleted: 0 };
+    let cursor = 0;
+    let firstError;
+    // Bound internal API load; wait for every started worker before reporting failure.
+    await Promise.all(Array.from({ length: Math.min(4, uniqueIds.length) }, async () => {
+        while (cursor < uniqueIds.length) {
+            const id = uniqueIds[cursor++];
+            try {
+                const item = await synchronizeJob(id, { eventId: metadata.eventId });
+                if (item.changed) result.changed += 1;
+                if (item.deleted) result.deleted += 1;
+            } catch (error) {
+                firstError ||= error;
+                logger.warn('doi chieu tin that bai', { jobId: id, error: error.message });
+            }
         }
-        if (!data.data.length) {
-            logger.info('ben Ghi chua co tin nao');
-            return;
-        }
+    }));
+    if (firstError) throw firstError;
+    return result;
+};
 
-        // Bulk API: mot lan goi cho ca lo, thay vi mot request cho moi tin.
-        const operations = data.data.flatMap((job) => [
-            { index: { _index: INDEX, _id: String(job.id) } },
-            toDocument(job)
-        ]);
-        const result = await es.bulk({ refresh: true, operations });
+let rebuilding = null;
+export const rebuildIndex = () => {
+    if (rebuilding) return rebuilding;
+    const work = (async () => {
+        const sourceIds = await listCurrentJobIds();
+        const indexedIds = await listIndexedIds();
+        const result = await synchronizeIds([...sourceIds, ...indexedIds]);
+        await refreshIndex();
+        logger.info('da doi chieu index', result);
+        return result;
+    })().finally(() => { if (rebuilding === work) rebuilding = null; });
+    rebuilding = work;
+    return work;
+};
 
-        if (result.errors) {
-            const failed = result.items.filter((i) => i.index?.error);
-            logger.warn('mot so tin khong dua vao index duoc', {
-                count: failed.length,
-                sample: failed[0]?.index?.error?.reason
-            });
-        }
-
-        // Don tin ma: tin da bien mat khoi nguon nhung con nam trong index.
-        //
-        // Chi ghi de thoi la chua du. Neu mot tin bi xoa thang trong CSDL (khong
-        // qua API nen khong co su kien nao duoc phat), no se nam lai trong index
-        // mai mai - nguoi dung van tim thay va bam vao mot tin khong con ton tai.
-        // Dung lai index phai la doi chieu HAI CHIEU moi that su dong bo.
-        const sourceIds = new Set(data.data.map((job) => String(job.id)));
-        const indexed = await es.search({
-            index: INDEX,
-            size: 10000,
-            _source: false,
-            query: { match_all: {} }
-        });
-        const orphans = indexed.hits.hits
-            .map((hit) => hit._id)
-            .filter((id) => !sourceIds.has(id));
-
-        if (orphans.length) {
-            await es.bulk({
-                refresh: true,
-                operations: orphans.flatMap((id) => [{ delete: { _index: INDEX, _id: id } }])
-            });
-            logger.info('da don tin ma khoi index', { count: orphans.length, ids: orphans });
-        }
-
-        logger.info('da dung lai index', {
-            total: data.data.length,
-            daDon: orphans.length
-        });
-    } catch (error) {
-        // Khong lam sap service: API tim kiem van phuc vu duoc bang du lieu cu,
-        // va su kien moi van tiep tuc cap nhat index.
-        logger.error('dung lai index that bai', { error: error.message });
+export const handleSearchEvent = async (payload, routingKey, metadata = {}) => {
+    if (routingKey === EVENTS.COMPANY_UPDATED) {
+        const companyId = jobIdString(payload?.companyId);
+        const sourceIds = await listCurrentJobIds(companyId);
+        const indexedIds = await listIndexedIds({ term: { companyId: Number(companyId) } });
+        await synchronizeIds([...sourceIds, ...indexedIds], metadata);
+        return;
     }
+    const snapshotEvent = [EVENTS.JOB_CREATED, EVENTS.JOB_UPDATED].includes(routingKey);
+    if (!snapshotEvent && ![EVENTS.JOB_DELETED, EVENTS.JOB_MODERATED].includes(routingKey)) return;
+    const id = jobIdString(snapshotEvent ? payload?.job?.id : payload?.jobId);
+    if (metadata.aggregateId !== undefined && String(metadata.aggregateId) !== id) {
+        throw new Error('Search event aggregate ID mismatch');
+    }
+    // Event payloads identify what to refresh; their old title/status never wins
+    // over the current authoritative state, even for legacy events without IDs.
+    await synchronizeJob(id, { eventId: metadata.eventId });
 };
 
 export const startIndexer = async () => {
-    await consume(
-        QUEUES.SEARCH_INDEXER,
-        [
-            EVENTS.JOB_CREATED,
-            EVENTS.JOB_UPDATED,
-            EVENTS.JOB_DELETED,
-            EVENTS.JOB_MODERATED,
-            EVENTS.COMPANY_UPDATED
-        ],
-        async (payload, routingKey) => {
-            switch (routingKey) {
-                case EVENTS.JOB_CREATED:
-                case EVENTS.JOB_UPDATED:
-                    await indexJob(payload.job);
-                    break;
-                case EVENTS.JOB_DELETED:
-                    await removeJob(payload.jobId);
-                    break;
-                case EVENTS.JOB_MODERATED:
-                    // Cap nhat trang thai sau kiem duyet: tin bi tu choi phai bien
-                    // khoi ket qua tim kiem ngay.
-                    await es.update({
-                        index: INDEX,
-                        id: String(payload.jobId),
-                        doc: { statusCode: payload.statusCode },
-                        retry_on_conflict: 3
-                    }).catch((error) => {
-                        if (error?.meta?.statusCode !== 404) throw error;
-                    });
-                    logger.info('da cap nhat trang thai kiem duyet', {
-                        jobId: payload.jobId, statusCode: payload.statusCode
-                    });
-                    break;
-                case EVENTS.COMPANY_UPDATED:
-                    if (!payload.companyId) break;
-                    await es.updateByQuery({
-                        index: INDEX,
-                        conflicts: 'proceed',
-                        refresh: true,
-                        query: { term: { companyId: Number(payload.companyId) } },
-                        script: {
-                            source: 'ctx._source.companyStatusCode = params.status; ctx._source.companyCensorCode = params.censor',
-                            params: {
-                                status: payload.companyStatusCode || null,
-                                censor: payload.companyCensorCode || null
-                            }
-                        }
-                    });
-                    logger.info('da cap nhat trang thai cong ty trong index', {
-                        companyId: payload.companyId
-                    });
-                    break;
-                default:
-                    break;
-            }
-        },
-        { prefetch: 20 }
-    );
+    await consume(QUEUES.SEARCH_INDEXER, [
+        EVENTS.JOB_CREATED, EVENTS.JOB_UPDATED, EVENTS.JOB_DELETED,
+        EVENTS.JOB_MODERATED, EVENTS.COMPANY_UPDATED
+    ], handleSearchEvent, { prefetch: 20, retry: searchRetry });
 };

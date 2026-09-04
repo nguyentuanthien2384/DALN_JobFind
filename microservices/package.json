@@ -22,6 +22,7 @@
     "ps": "docker compose ps",
     "test:smoke": "node scripts/smoke-test.js",
     "test:admin-audit:integration": "node scripts/test-admin-audit.mjs",
+    "test:search-projection:integration": "node scripts/test-search-projection.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

@@ -13,8 +13,8 @@ const identity = (req) => ({
     companyId: req.headers['x-company-id'] ? Number(req.headers['x-company-id']) : null
 });
 
-// Doc day du mot tin de dua vao event. Ben Doc (Search) can du thong tin de
-// dung index ma khong phai goi nguoc lai - do chinh la diem mau chot cua CQRS.
+// Shared primary-source snapshot for event payloads and Search refreshes.
+// Search rereads this snapshot until all source writers support domain versions.
 const loadJobForEvent = async (postId, db = pool) => {
     const [rows] = await db.query(
         `SELECT p.id, p.statusCode, p.timePost, p.timeEnd, p.isHot, p.userId,
@@ -242,6 +242,23 @@ export const getJob = async (req, res) => {
     } catch (error) {
         logger.error('doc tin that bai', { error: error.message });
         return res.status(500).json({ errCode: -1, errMessage: 'Lỗi hệ thống' });
+    }
+};
+
+// Trusted internal read for Search reconciliation. Unlike the public endpoint,
+// this must return moderated/blocked jobs so Search can remove their old state.
+export const getJobForIndex = async (req, res) => {
+    const id = String(req.params.id ?? '');
+    if (!/^[1-9][0-9]*$/.test(id) || !Number.isSafeInteger(Number(id))) {
+        return res.status(400).json({ errCode: 1, errMessage: 'ID tin không hợp lệ' });
+    }
+    try {
+        const job = await loadJobForEvent(Number(id));
+        if (!job) return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy tin tuyển dụng' });
+        return res.json({ errCode: 0, data: job });
+    } catch (error) {
+        logger.error('doc tin cho Search that bai', { postId: id, error: error.message });
+        return res.status(500).json({ errCode: -1, errMessage: 'Không đọc được dữ liệu nguồn' });
     }
 };
 

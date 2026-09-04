@@ -19,6 +19,37 @@ beforeEach(() => {
     mocks.enqueueOutboxEvent.mockReset().mockResolvedValue('event-id');
 });
 
+describe('current job for internal indexing', () => {
+    it.each(['PS1', 'PS2', 'PS3', 'PS4'])('returns authoritative rows including %s and company visibility', async (statusCode) => {
+        const { getJobForIndex } = await import('../job-core-service/src/controllers/jobController.js');
+        const job = { id: 7, statusCode, companyStatusCode: 'S2', companyCensorCode: 'CS2' };
+        mocks.pool.query.mockResolvedValue([[job]]);
+        const res = makeRes();
+        await getJobForIndex(makeReq({ params: { id: '7' } }), res);
+        expect(res.body).toEqual({ errCode: 0, data: job });
+        expect(mocks.pool.query.mock.calls[0][1]).toEqual([7]);
+        expect(mocks.pool.query.mock.calls[0][0]).not.toContain("p.statusCode = 'PS1'");
+    });
+
+    it('distinguishes invalid IDs, missing rows and database outages', async () => {
+        const { getJobForIndex } = await import('../job-core-service/src/controllers/jobController.js');
+        const invalid = makeRes();
+        await getJobForIndex(makeReq({ params: { id: '7x' } }), invalid);
+        expect(invalid.statusCode).toBe(400);
+        expect(mocks.pool.query).not.toHaveBeenCalled();
+        mocks.pool.query.mockResolvedValueOnce([[]]);
+        const missing = makeRes();
+        await getJobForIndex(makeReq({ params: { id: '7' } }), missing);
+        expect(missing.statusCode).toBe(404);
+        expect(missing.body.errCode).toBe(2);
+        mocks.pool.query.mockRejectedValueOnce(new Error('db down'));
+        const failed = makeRes();
+        await getJobForIndex(makeReq({ params: { id: '7' } }), failed);
+        expect(failed.statusCode).toBe(500);
+        expect(failed.body.errCode).toBe(-1);
+    });
+});
+
 describe('job write controller', () => {
     it('validates required job fields before touching the database', async () => {
         const { createJob } = await import('../job-core-service/src/controllers/jobController.js');

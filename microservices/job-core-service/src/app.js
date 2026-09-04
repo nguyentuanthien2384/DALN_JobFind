@@ -8,7 +8,7 @@ import {
     PERMISSIONS, requireServicePermission, requireTrustedGateway
 } from '../../shared/accessControl.js';
 import {
-    createJob, updateJob, deleteJob, getJob, listJobsForReindex
+    createJob, updateJob, deleteJob, getJob, listJobsForReindex, getJobForIndex
 } from './controllers/jobController.js';
 import {
     ensureAiTaskTable, parseResume, matchCv, coverLetter, getTask, handleAiResult
@@ -42,6 +42,7 @@ app.get('/ai/tasks/:taskId', canUseCandidateAi, getTask);
 
 // --- Noi bo: Search Service goi de dung lai index tu dau ---
 app.get('/internal/jobs', listJobsForReindex);
+app.get('/internal/jobs/:id', getJobForIndex);
 
 const start = async () => {
     await testConnection();

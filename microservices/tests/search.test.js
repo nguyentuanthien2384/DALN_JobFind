@@ -4,22 +4,24 @@ import { makeReq, makeRes } from './helpers.js';
 const mocks = vi.hoisted(() => {
     const es = {
         cluster: { health: vi.fn() },
-        indices: { exists: vi.fn(), create: vi.fn(), putMapping: vi.fn() },
+        indices: { exists: vi.fn(), create: vi.fn(), putMapping: vi.fn(), refresh: vi.fn() },
         search: vi.fn(), index: vi.fn(), delete: vi.fn(), update: vi.fn(),
-        updateByQuery: vi.fn(), bulk: vi.fn()
+        updateByQuery: vi.fn(), bulk: vi.fn(), scroll: vi.fn(), clearScroll: vi.fn()
     };
     class Client { constructor(options) { es.options = options; return es; } }
     return {
         es,
         Client,
         axiosGet: vi.fn(),
-        consume: vi.fn()
+        consume: vi.fn(), listCurrentJobIds: vi.fn(), synchronizeJob: vi.fn()
     };
 });
 
 vi.mock('@elastic/elasticsearch', () => ({ Client: mocks.Client }));
 vi.mock('axios', () => ({ default: { get: mocks.axiosGet } }));
 vi.mock('../shared/rabbitmq.js', () => ({ consume: mocks.consume }));
+vi.mock('../search-service/src/libs/jobProjection.js', () => ({ synchronizeJob: mocks.synchronizeJob }));
+vi.mock('../search-service/src/libs/jobSource.js', async (original) => ({ ...(await original()), listCurrentJobIds: mocks.listCurrentJobIds }));
 
 afterEach(() => {
     vi.useRealTimers();
@@ -30,9 +32,13 @@ beforeEach(() => {
     for (const fn of [
         mocks.es.cluster.health, mocks.es.indices.exists, mocks.es.indices.create,
         mocks.es.indices.putMapping, mocks.es.search, mocks.es.index, mocks.es.delete,
-        mocks.es.update, mocks.es.updateByQuery, mocks.es.bulk,
-        mocks.axiosGet, mocks.consume
+        mocks.es.update, mocks.es.updateByQuery, mocks.es.bulk, mocks.es.scroll, mocks.es.clearScroll, mocks.es.indices.refresh,
+        mocks.axiosGet, mocks.consume, mocks.listCurrentJobIds, mocks.synchronizeJob
     ]) fn.mockReset();
+    mocks.synchronizeJob.mockResolvedValue({ changed: true, deleted: false });
+    mocks.es.scroll.mockResolvedValue({ _scroll_id: 'cursor', hits: { hits: [] } });
+    mocks.es.search.mockResolvedValue({ _scroll_id: 'cursor', hits: { hits: [] } });
+    mocks.listCurrentJobIds.mockResolvedValue([]);
 });
 
 describe('Elasticsearch adapter', () => {
@@ -69,7 +75,8 @@ describe('Elasticsearch adapter', () => {
         expect(mocks.es.indices.create).not.toHaveBeenCalled();
         expect(mocks.es.indices.putMapping).toHaveBeenCalledWith(expect.objectContaining({
             index: INDEX,
-            properties: expect.objectContaining({ companyStatusCode: { type: 'keyword' } })
+            properties: expect.objectContaining({ companyStatusCode: { type: 'keyword' },
+                searchDeleted: { type: 'boolean' }, searchSync: { type: 'object', enabled: false } })
         }));
     });
 
@@ -91,6 +98,20 @@ describe('Elasticsearch adapter', () => {
 });
 
 describe('search controllers', () => {
+    it.each(['searchJobs', 'suggest', 'related', 'facets'])('hides tombstones and internal metadata in %s', async (action) => {
+        const controller = await import('../search-service/src/controllers/searchController.js');
+        mocks.es.search.mockResolvedValue({ hits: { hits: [{ _source: {
+            id: 7, name: 'Dev', searchDeleted: false, searchSync: { hash: 'private', triggerEventId: 'private' }
+        } }] } });
+        const res = makeRes();
+        await controller[action](makeReq({ params: { id: '1' }, query: { q: 'Dev' } }), res);
+        expect(mocks.es.search.mock.lastCall[0].query.bool.filter).toContainEqual({
+            bool: { must_not: [{ term: { searchDeleted: true } }] }
+        });
+        expect(JSON.stringify(res.body)).not.toContain('searchSync');
+        expect(JSON.stringify(res.body)).not.toContain('searchDeleted');
+    });
+
     it('builds keyword/filter/sort/highlight queries and maps hits', async () => {
         mocks.es.search.mockResolvedValue({
             took: 4,
@@ -185,74 +206,110 @@ describe('search controllers', () => {
 });
 
 describe('search index consumer', () => {
-    it('skips invalid/empty source responses', async () => {
+    it('reports source failures instead of declaring a successful rebuild', async () => {
         const { rebuildIndex } = await import('../search-service/src/consumers/jobIndexer.js');
-        mocks.axiosGet.mockResolvedValueOnce({ data: { errCode: 1 } }).mockResolvedValueOnce({ data: { errCode: 0, data: [] } });
-        await rebuildIndex();
-        await rebuildIndex();
+        mocks.listCurrentJobIds.mockRejectedValue(new Error('source offline'));
+        await expect(rebuildIndex()).rejects.toThrow('source offline');
+        expect(mocks.synchronizeJob).not.toHaveBeenCalled();
+    });
+
+    it('rechecks indexed orphans even when the source list is empty', async () => {
+        const { rebuildIndex } = await import('../search-service/src/consumers/jobIndexer.js');
+        mocks.es.search.mockResolvedValue({ _scroll_id: 'cursor', hits: { hits: [{ _id: '3' }] } });
+        mocks.synchronizeJob.mockResolvedValue({ changed: true, deleted: true });
+        expect(await rebuildIndex()).toEqual({ total: 1, changed: 1, deleted: 1 });
+        expect(mocks.synchronizeJob).toHaveBeenCalledWith('3', { eventId: undefined });
         expect(mocks.es.bulk).not.toHaveBeenCalled();
+        expect(mocks.es.delete).not.toHaveBeenCalled();
+        expect(mocks.es.indices.refresh).toHaveBeenCalledWith({ index: 'jobs' });
     });
 
-    it('bulk rebuilds documents, reports item errors, and deletes orphans', async () => {
+    it('unions source and indexed IDs, rereads each once, and shares overlapping rebuilds', async () => {
         const { rebuildIndex } = await import('../search-service/src/consumers/jobIndexer.js');
-        mocks.axiosGet.mockResolvedValue({ data: { errCode: 0, data: [{ id: 1, name: 'A' }, { id: 2, name: 'B' }] } });
-        mocks.es.bulk
-            .mockResolvedValueOnce({ errors: true, items: [{ index: { error: { reason: 'bad' } } }, { index: {} }] })
-            .mockResolvedValueOnce({ errors: false });
-        mocks.es.search.mockResolvedValue({ hits: { hits: [{ _id: '1' }, { _id: '3' }] } });
-        await rebuildIndex();
-        expect(mocks.es.bulk).toHaveBeenCalledTimes(2);
-        expect(mocks.es.bulk.mock.calls[0][0].operations).toHaveLength(4);
-        expect(mocks.es.bulk.mock.calls[1][0].operations).toEqual([{ delete: { _index: 'jobs', _id: '3' } }]);
+        let sourceReady;
+        mocks.listCurrentJobIds.mockImplementationOnce(() => new Promise((resolve) => { sourceReady = resolve; }));
+        const first = rebuildIndex();
+        const second = rebuildIndex();
+        expect(first).toBe(second);
+        mocks.es.search.mockResolvedValue({ _scroll_id: 'cursor', hits: { hits: [{ _id: '1' }, { _id: '3' }] } });
+        sourceReady(['1', '2']);
+        expect(await first).toEqual({ total: 3, changed: 3, deleted: 0 });
+        expect(mocks.synchronizeJob.mock.calls.map(([id]) => id).sort()).toEqual(['1', '2', '3']);
     });
 
-    it('does not throw when rebuilding fails', async () => {
+    it('scans beyond 10000 documents and releases its cursor', async () => {
+        const { listIndexedIds } = await import('../search-service/src/consumers/jobIndexer.js');
+        mocks.es.search.mockResolvedValue({ _scroll_id: 'first', hits: { hits: Array.from({ length: 10000 }, (_, i) => ({ _id: String(i + 1) })) } });
+        mocks.es.scroll.mockResolvedValueOnce({ _scroll_id: 'last', hits: { hits: [{ _id: '10001' }] } })
+            .mockResolvedValueOnce({ _scroll_id: 'last', hits: { hits: [] } });
+        expect(await listIndexedIds()).toHaveLength(10001);
+        expect(mocks.es.search.mock.calls[0][0]).toMatchObject({ scroll: '1m', allow_partial_search_results: false });
+        expect(mocks.es.clearScroll).toHaveBeenCalledWith({ scroll_id: 'last' });
+        expect(mocks.es.indices.refresh.mock.invocationCallOrder[0]).toBeLessThan(mocks.es.search.mock.invocationCallOrder[0]);
+    });
+
+    it('does not scan or report success after a partial refresh', async () => {
+        const { listIndexedIds } = await import('../search-service/src/consumers/jobIndexer.js');
+        mocks.es.indices.refresh.mockResolvedValueOnce({ _shards: { failed: 1 } });
+        await expect(listIndexedIds()).rejects.toThrow('Incomplete Elasticsearch refresh');
+        expect(mocks.es.search).not.toHaveBeenCalled();
+    });
+
+    it('reports a final visibility refresh failure instead of successful reconciliation', async () => {
         const { rebuildIndex } = await import('../search-service/src/consumers/jobIndexer.js');
-        mocks.axiosGet.mockRejectedValue(new Error('offline'));
-        await expect(rebuildIndex()).resolves.toBeUndefined();
+        mocks.es.indices.refresh.mockResolvedValueOnce({ _shards: { failed: 0 } })
+            .mockResolvedValueOnce({ _shards: { failed: 1 } });
+        await expect(rebuildIndex()).rejects.toThrow('Incomplete Elasticsearch refresh');
     });
 
-    it('registers all event handlers and applies create/update/delete/moderation events', async () => {
+    it('rejects a partial scan or cursor failure and still cleans up', async () => {
+        const { listIndexedIds } = await import('../search-service/src/consumers/jobIndexer.js');
+        mocks.es.search.mockResolvedValueOnce({ _scroll_id: 'cursor', timed_out: true, hits: { hits: [] } });
+        await expect(listIndexedIds()).rejects.toThrow('Incomplete');
+        expect(mocks.es.clearScroll).toHaveBeenCalledWith({ scroll_id: 'cursor' });
+        mocks.es.search.mockResolvedValueOnce({ _scroll_id: 'cursor', hits: { hits: [{ _id: '1' }] } });
+        mocks.es.scroll.mockRejectedValue(new Error('scroll expired'));
+        await expect(listIndexedIds()).rejects.toThrow('scroll expired');
+        expect(mocks.es.clearScroll).toHaveBeenCalledTimes(2);
+    });
+
+    it('reports partial refresh errors instead of ACKing a failed rebuild', async () => {
+        const { rebuildIndex } = await import('../search-service/src/consumers/jobIndexer.js');
+        mocks.listCurrentJobIds.mockResolvedValue(['1', '2']);
+        mocks.synchronizeJob.mockRejectedValueOnce(new Error('source unavailable'));
+        await expect(rebuildIndex()).rejects.toThrow('source unavailable');
+        expect(mocks.synchronizeJob).toHaveBeenCalledTimes(2);
+        // Discovery refreshed once; a failed synchronization never reaches the final refresh.
+        expect(mocks.es.indices.refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it('registers bounded retry and treats event payloads only as refresh signals', async () => {
         const { startIndexer } = await import('../search-service/src/consumers/jobIndexer.js');
-        mocks.consume.mockResolvedValue(undefined);
+        const { searchRetry } = await import('../search-service/src/libs/searchRetry.js');
         await startIndexer();
         const [queue, patterns, handler, options] = mocks.consume.mock.calls[0];
         expect(queue).toBe('search-service.indexer');
         expect(patterns).toHaveLength(5);
-        expect(options).toEqual({ prefetch: 20 });
-
-        mocks.es.index.mockResolvedValue(undefined);
-        await handler({ job: { id: 4, name: 'Dev' } }, 'job.created');
-        await handler({ job: null }, 'job.updated');
-        expect(mocks.es.index).toHaveBeenCalledOnce();
-
-        mocks.es.delete.mockResolvedValueOnce(undefined).mockRejectedValueOnce({ meta: { statusCode: 404 } });
-        await handler({ jobId: 4 }, 'job.deleted');
-        await handler({ jobId: 5 }, 'job.deleted');
-
-        mocks.es.update.mockResolvedValue(undefined);
-        await handler({ jobId: 4, statusCode: 'PS1' }, 'job.moderated');
-        expect(mocks.es.update).toHaveBeenCalledWith(expect.objectContaining({ id: '4', doc: { statusCode: 'PS1' } }));
-        mocks.es.updateByQuery.mockResolvedValue(undefined);
-        await handler({
-            companyId: 3, companyStatusCode: 'S2', companyCensorCode: 'CS1'
-        }, 'company.updated');
-        expect(mocks.es.updateByQuery).toHaveBeenCalledWith(expect.objectContaining({
-            query: { term: { companyId: 3 } },
-            script: expect.objectContaining({ params: { status: 'S2', censor: 'CS1' } })
-        }));
+        expect(options).toEqual({ prefetch: 20, retry: searchRetry });
+        for (const name of ['job.created', 'job.updated']) await handler({ job: { id: 4, name: 'stale title' } }, name, { eventId: 'e1', aggregateId: '4' });
+        for (const name of ['job.deleted', 'job.moderated']) await handler({ jobId: 4, statusCode: 'stale status' }, name);
+        expect(mocks.synchronizeJob).toHaveBeenCalledTimes(4);
+        expect(mocks.synchronizeJob).toHaveBeenCalledWith('4', { eventId: 'e1' });
+        expect(mocks.es.update).not.toHaveBeenCalled();
+        expect(mocks.es.index).not.toHaveBeenCalled();
+        await expect(handler({ job: null }, 'job.updated')).rejects.toThrow('Invalid job ID');
+        await expect(handler({ jobId: 4 }, 'job.deleted', { aggregateId: '5' })).rejects.toThrow('mismatch');
         await expect(handler({}, 'unknown')).resolves.toBeUndefined();
     });
 
-    it('rethrows non-404 delete and moderation errors', async () => {
-        const { startIndexer } = await import('../search-service/src/consumers/jobIndexer.js');
-        await startIndexer();
-        const handler = mocks.consume.mock.calls[0][2];
-        mocks.es.delete.mockRejectedValue(new Error('boom'));
-        await expect(handler({ jobId: 1 }, 'job.deleted')).rejects.toThrow('boom');
-        mocks.es.update.mockRejectedValue(new Error('boom2'));
-        await expect(handler({ jobId: 1 }, 'job.moderated')).rejects.toThrow('boom2');
-        mocks.es.update.mockRejectedValue({ meta: { statusCode: 404 } });
-        await expect(handler({ jobId: 1 }, 'job.moderated')).resolves.toBeUndefined();
+    it('refreshes company jobs plus stale indexed memberships without applying old company flags', async () => {
+        const { handleSearchEvent } = await import('../search-service/src/consumers/jobIndexer.js');
+        mocks.listCurrentJobIds.mockResolvedValue(['1']);
+        mocks.es.search.mockResolvedValue({ _scroll_id: 'cursor', hits: { hits: [{ _id: '2' }] } });
+        await handleSearchEvent({ companyId: 3, companyStatusCode: 'stale' }, 'company.updated', { eventId: 'c1' });
+        expect(mocks.listCurrentJobIds).toHaveBeenCalledWith('3');
+        expect(mocks.es.search.mock.calls[0][0].query).toEqual({ term: { companyId: 3 } });
+        expect(mocks.synchronizeJob.mock.calls).toEqual([['1', { eventId: 'c1' }], ['2', { eventId: 'c1' }]]);
+        expect(mocks.es.updateByQuery).not.toHaveBeenCalled();
     });
 });

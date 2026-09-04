@@ -60,12 +60,15 @@ Luồng khi đăng một tin tuyển dụng:
 2. Trong cùng giao dịch, Job Core ghi thêm các bản ghi `outbox_events` cho `job.created` và `ai.moderate_job`, rồi **trả về ngay**
 3. Outbox relay phát các bản ghi đã commit lên RabbitMQ và chỉ đánh dấu `publishedAt` sau khi broker xác nhận đã nhận
 4. Song song:
-   - Search Service nghe `job.created` → dựng index Elasticsearch
+   - Search Service nghe `job.created` → đọc lại tin hiện tại từ Job Core rồi cập nhật Elasticsearch có kiểm tra xung đột
    - AI Worker nghe `ai.moderate_job` → gọi Claude kiểm duyệt nội dung
 5. AI Worker phát `ai.result` → Job Core đổi trạng thái sang `PS1` (hiển thị) hoặc `PS2` (bị chặn)
-6. Search Service nghe `job.moderated` → cập nhật trạng thái trong index
+6. Search Service nghe `job.moderated` → đọc lại trạng thái hiện tại rồi cập nhật index
 
-Tin bị chặn biến khỏi kết quả tìm kiếm mà không ai phải gọi ai trực tiếp.
+API tìm kiếm vẫn chỉ đọc Elasticsearch. Riêng đường đồng bộ index gọi nội bộ
+Job Core để tránh áp dụng payload cũ, vì các nơi ghi dữ liệu chưa có phiên bản
+nghiệp vụ tăng đơn điệu thống nhất. Đây là đánh đổi có chủ đích, tăng phụ thuộc
+vào nguồn dữ liệu trong lúc đồng bộ; chi tiết ở phần Search bên dưới.
 
 ## Transactional Outbox (Job Core)
 
@@ -109,8 +112,9 @@ và routing key hiện tại được giữ nguyên. Chi tiết giao thức xem
 
 Confirm xác nhận broker nhận sự kiện, không xác nhận email đã gửi hoặc mọi consumer
 đã xử lý. Nếu broker đã nhận nhưng tiến trình/DB lỗi trước khi ghi dấu đã gửi, event
-có thể được phát lại. Hai outbox đã dùng envelope v1 và Notification đã chống trùng
-cho sự kiện có ID. Chống trùng ở các consumer khác, publisher confirms cho các
+có thể được phát lại. Hai outbox đã dùng envelope v1; Notification/Admin đã chống
+trùng cho sự kiện có ID, Search đã bảo vệ kết quả đồng bộ như phần bên dưới.
+Chống trùng ở AI Worker, publisher confirms cho các
 luồng publish trực tiếp còn lại vẫn là các bước kế tiếp. DLQ/retry đã dùng confirms
 như phần hướng dẫn bên dưới; chưa có
 bảo đảm SMTP giao thư đúng một lần.
@@ -238,8 +242,8 @@ npm test -- tests/event-envelope.test.js tests/notification-delivery-store.test.
 
 Các bài kiểm tra transaction/đồng thời dùng database test double; vẫn cần kiểm
 thử tích hợp MySQL/RabbitMQ thật trước khi triển khai. Sự kiện publish trực tiếp
-không có ID, AI/Search và các luồng khác chưa được chống trùng trong phần này.
-Admin đã được bổ sung riêng ở phần bên dưới.
+không có ID, AI và các luồng khác chưa được chống trùng trong phần này.
+Admin và Search đã được bổ sung riêng ở các phần bên dưới.
 
 ## DLQ có xác nhận và retry có giới hạn
 
@@ -266,11 +270,12 @@ nguyên. Thêm `x-failed-queue`, `x-original-routing-key`, `x-error`, `x-failed-
 để điều tra. Không sao chép `expiration` khiến tin lỗi có thể tự hết hạn hoặc
 AMQP `userId` gắn với tài khoản publisher cũ. Không tự tạo event ID cho tin legacy.
 
-Retry handler **mặc định tắt**. Notification và Admin hiện bật, đồng thời cần cả hai:
+Retry handler **mặc định tắt**. Notification, Admin và Search hiện bật, đồng thời cần cả hai:
 
 - Event có ID nên đi qua cơ chế chống trùng của consumer tương ứng.
-- Lỗi nằm trong danh sách lỗi database tạm thời, như mất kết nối, deadlock,
-  lock timeout hoặc quá nhiều kết nối. Sai schema/quyền truy cập, dữ liệu lỗi,
+- Lỗi nằm trong danh sách tạm thời của consumer: Notification/Admin nhận diện
+  lỗi database như mất kết nối, deadlock, lock timeout hoặc quá nhiều kết nối;
+  Search nhận diện lỗi nguồn HTTP/Elasticsearch như phần riêng bên dưới. Sai schema/quyền truy cập, dữ liệu lỗi,
   lỗi không nhận diện được và event legacy không được tự retry theo chính sách này.
 
 Lịch retry là 2, 10, 30 giây: tối đa ba lượt sau lần xử lý đầu trong một chuỗi
@@ -281,7 +286,7 @@ handler khi hạ tầng liên tục gián đoạn. Lỗi chuyển tin ở mức 
 hao lượt retry nghiệp vụ, không tự bỏ tin khi hết số lần mất kết nối.
 
 Trong thời gian chờ, bản gốc **vẫn unacknowledged trong RabbitMQ**, chiếm một slot
-prefetch (Notification là 10, Admin là 50). Sau khi chờ, publisher phát bền vững về
+prefetch (Notification là 10, Admin là 50, Search là 20). Sau khi chờ, publisher phát bền vững về
 đúng queue của consumer bị lỗi qua default exchange, giữ routing key nghiệp vụ trong header, rồi
 mới ACK bản gốc khi có confirm. Không phát lại lên topic chung, không tạo queue
 TTL và không đổi arguments/type của queue hiện tại. Điều này phù hợp bước nâng
@@ -289,7 +294,7 @@ cấp nhỏ hiện tại; khi lưu lượng lớn cần tách hạ tầng lập 
 slot prefetch. Restart trong lúc chờ có thể làm bắt đầu lại khoảng chờ của lượt đó.
 
 Nếu gặp JSON hỏng, phiên bản envelope không hỗ trợ hoặc metadata retry không hợp
-lệ, consumer chuyển thẳng DLQ, không gọi handler. Những consumer AI/Search
+lệ, consumer chuyển thẳng DLQ, không gọi handler. Những consumer AI
 và luồng legacy vẫn **chưa được bật tự retry nghiệp vụ**. Redelivery của RabbitMQ
 (ví dụ mất ACK hoặc chuyển DLQ lỗi) vẫn có thể xảy ra với chúng, nên chống trùng
 cho các consumer đó vẫn cần làm tiếp. Retry handler không gửi SMTP: worker email
@@ -401,8 +406,115 @@ hoa/thường, tính tương thích legacy và lỗi tạo index. Mất phản h
 ghi thành công được mô phỏng ở phía client; chưa phải thử ngắt mạng hoặc failover
 replica set. RabbitMQ ACK/retry/DLQ của Admin được kiểm tra bằng test double.
 
-Phần kế tiếp vẫn là Search: cần kết hợp chống trùng với bảo vệ thứ tự cập nhật,
-không chỉ bỏ qua ID lặp. AI Worker và các luồng publish trực tiếp vẫn để riêng.
+## Search: đồng bộ an toàn khi sự kiện trùng hoặc đến muộn
+
+Các sự kiện `job.created`, `job.updated`, `job.deleted`, `job.moderated` và
+`company.updated` giờ chỉ cung cấp ID cần đối chiếu. Không dùng tiêu đề/trạng thái
+trong payload cũ và không dùng `occurredAt` để suy đoán thứ tự dữ liệu. Job Core,
+AI moderation và backend cũ chưa có bộ đếm phiên bản nghiệp vụ thống nhất.
+
+Job Core bổ sung `GET /internal/jobs/:id`, được bảo vệ bằng `INTERNAL_SECRET` như
+API nội bộ hiện có. Endpoint đọc trực tiếp MySQL hiện tại, trả cả tin chờ duyệt,
+bị chặn, PS4 và trạng thái công ty. Chỉ HTTP 404 có `errCode: 2` nghĩa là không
+còn bản ghi; thiếu route, sai secret, timeout, lỗi database hay JSON sai cấu trúc
+đều là lỗi đồng bộ, tuyệt đối không phải lệnh xóa tin.
+
+Mỗi lần cập nhật một tin thực hiện theo thứ tự:
+
+1. Đọc realtime document Elasticsearch cùng `_seq_no` và `_primary_term`.
+2. Sau đó đọc trạng thái hiện tại từ Job Core.
+3. Ghi với `if_seq_no`/`if_primary_term`; nếu chưa có document thì dùng `op_type: create`.
+4. Khi một lượt khác đã ghi trước, bỏ snapshot nguồn cũ và đọc lại **cả hai bên**.
+   Tối đa 5 lần tranh chấp trong một lượt; không đổi generation rồi ghi lại payload cũ.
+
+Cơ chế này dùng [Elasticsearch optimistic concurrency control](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/optimistic-concurrency-control),
+hoạt động cả khi nhiều Search replica hoặc lượt dựng lại index cùng ghi một tin.
+Replay không tạo thêm document; nội dung không đổi thì giữ `indexedAt` cũ. Dù vậy
+vẫn ghi có điều kiện để tăng generation, chặn lượt chậm trong tình huống nguồn
+đổi A → B → A. Đây là chống trùng ở **kết quả nghiệp vụ**, không phải sổ lưu toàn
+bộ event ID và không bảo đảm mỗi event chỉ gây một lần đọc/ghi.
+
+Tin PS4 hoặc không còn ở nguồn được thay bằng tombstone tối thiểu trên chính ID
+cũ (`searchDeleted: true`), không xóa vật lý document. Nhờ giữ generation, một
+lượt cập nhật cũ đang chạy dở không thể tự làm tin xuất hiện lại. Nếu nguồn thật
+sự khôi phục tin, lần đối chiếu sau được phép hiển thị lại. Search/suggest/facets/
+related đều lọc tombstone; API không trả `searchSync`/`searchDeleted`. Health và
+reindex count không tính tombstone, nhưng vẫn có thể tính tin chưa được duyệt.
+`searchSync` là object không được lập chỉ mục, chứa hash và dấu chẩn đoán gần nhất;
+`triggerEventId` không phải phiên bản dữ liệu hay danh sách sự kiện đã xử lý.
+
+Dựng lại index và sự kiện công ty cũng đi qua đường đối chiếu từng ID này, không
+còn bulk ghi snapshot cũ, xóa orphan trực tiếp hay `updateByQuery` trạng thái cũ.
+Danh sách Job Core chỉ để tìm ID, kết hợp với ID đang có trong Elasticsearch.
+Trước khi quét có refresh để thấy cả ghi vừa được xác nhận; sau đó quét hết các
+trang bằng [scroll và đóng cursor](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/paginate-search-results),
+không còn giới hạn 10.000 tin. Danh sách nguồn rỗng vẫn kiểm tra từng tin trong
+index. Mỗi lượt đối chiếu dùng tối đa 4 tác vụ con; một tiến trình chỉ có một lượt
+rebuild đang chạy. Số tác vụ này không phải giới hạn toàn cụm và chưa phân trang
+API danh sách MySQL, nên cần theo dõi tải khi dữ liệu lớn.
+
+Lỗi một phần không còn được báo là dựng index thành công: API `/internal/reindex`
+trả 503; các ghi đã thành công không rollback. Lỗi đối chiếu lúc khởi động/định kỳ
+được ghi log, Search tiếp tục phục vụ index cũ và thử lại theo chu kỳ
+`RECONCILE_MINUTES` (mặc định 10). `/health` hiện phản ánh ES truy cập được, **không
+chứng minh index đã cập nhật đầy đủ**. Thành công rebuild cũng không phải snapshot
+nguyên tử của toàn bộ MySQL trong lúc nguồn tiếp tục thay đổi.
+
+Search bật retry 2/10/30 giây cho event có ID khi gặp lỗi kết nối/timeout đã nhận
+diện, HTTP 429/500/502/503/504, hoặc hết 5 lượt tranh chấp CAS. Sai ID/schema/quyền,
+404 không đúng hợp đồng và lỗi không nhận diện không tự retry; chuyển DLQ theo
+wrapper dùng chung. Event legacy không có ID vẫn đọc lại nguồn an toàn, nhưng
+không bật retry nghiệp vụ; đối chiếu định kỳ là đường bù. Chưa có replay DLQ tự động.
+
+Điều kiện và giới hạn:
+
+- Job Core phải đọc **MySQL primary hiện tại**, không đặt cache hoặc read replica
+  có độ trễ trước endpoint này. Chưa giải quyết thứ tự sai của các thao tác ghi
+  ngay tại nguồn (ví dụ kết quả AI cũ đổi lại trạng thái MySQL).
+- Mọi writer vào index `jobs` phải dùng đường CAS mới. Search cũ, script ghi thẳng
+  ES hoặc việc xóa tombstone/index có thể làm mất bảo vệ. Chưa có chính sách dọn
+  tombstone; không tự thêm TTL. Mapping mới chỉ bổ sung, không reset index.
+- Đây vẫn là eventual consistency, không phải transaction chung MySQL–ES hay
+  exactly-once. Phụ thuộc nguồn lúc đồng bộ và chi phí đọc/ghi tăng; chuẩn hóa
+  domain version ở toàn bộ writer là bước tối ưu riêng sau này.
+
+Áp dụng trong môi trường local khi đã sẵn sàng (chưa chạy các lệnh này trong lần bổ sung):
+
+```powershell
+docker compose stop search-service
+docker compose up -d --no-deps --force-recreate job-core-service
+```
+
+Chờ Job Core sẵn sàng và xác nhận endpoint mới trả đúng JSON với secret nội bộ,
+rồi mới chạy:
+
+```powershell
+docker compose up -d --no-deps --force-recreate search-service
+docker compose logs --tail=100 search-service
+```
+
+Phải dừng **tất cả** Search replica cũ trước khi cho bản mới ghi index, không chạy
+cuốn chiếu lẫn hai kiểu writer. Không cần đổi schema MySQL, thêm biến môi trường,
+nạp dữ liệu mẫu hoặc khởi động lại database. Kiểm tra log đối chiếu, kết quả tìm
+kiếm và lượng lỗi/DLQ sau nâng cấp; không chỉ dựa vào health.
+
+Kiểm thử:
+
+```powershell
+npm test
+npm run test:search-projection:integration
+```
+
+Bài integration dùng image ES 8.15.0 có sẵn, cổng localhost ngẫu nhiên và nguồn
+HTTP giả lập có kiểm soát; không kết nối ES/MySQL/RabbitMQ của dự án. Script tự
+kiểm tra nhãn sở hữu rồi dọn đúng container/volume tạm. 11 kiểm tra ES thật gồm
+CAS đồng thời, replay, A → B → A, tombstone với rebuild chậm, trạng thái công ty/
+kiểm duyệt, lỗi nguồn, phản hồi ghi bị mất được mô phỏng ở client, nguồn rỗng và
+quét hơn 10.000 ID. Chưa phải kiểm thử end-to-end MySQL–RabbitMQ–ES hoặc ES failover.
+Controller nguồn, bảo vệ API, retry và wiring được kiểm tra bằng unit test.
+
+Phần tiếp theo: AI Worker và các luồng publish trực tiếp còn lại, triển khai riêng
+từng bước để không mở rộng thay đổi này.
 
 ## Bốn tính năng AI
 

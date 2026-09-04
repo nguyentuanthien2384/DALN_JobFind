@@ -13,7 +13,7 @@ export const es = new Client({
 // Mapping duoc khai bao ro thay vi de Elasticsearch tu doan. Neu de tu doan,
 // truong nao cung thanh `text` va viec loc chinh xac theo ma nganh nghe hay sap xep
 // theo thoi gian se khong hoat dong dung.
-const mapping = {
+export const jobIndexMapping = {
     properties: {
         id: { type: 'integer' },
         name: {
@@ -40,7 +40,9 @@ const mapping = {
         companyCensorCode: { type: 'keyword' },
         timePost: { type: 'long' },
         timeEnd: { type: 'long' },
-        indexedAt: { type: 'date' }
+        indexedAt: { type: 'date' },
+        searchDeleted: { type: 'boolean' },
+        searchSync: { type: 'object', enabled: false }
     }
 };
 
@@ -59,11 +61,11 @@ export const waitForElastic = async (attempt = 1) => {
 export const ensureIndex = async () => {
     const exists = await es.indices.exists({ index: INDEX });
     if (!exists) {
-        await es.indices.create({ index: INDEX, mappings: mapping });
+        await es.indices.create({ index: INDEX, mappings: jobIndexMapping });
         logger.info(`da tao index "${INDEX}"`);
     } else {
         // Them mapping moi vao index hien co ma khong can xoa du lieu.
-        await es.indices.putMapping({ index: INDEX, properties: mapping.properties });
+        await es.indices.putMapping({ index: INDEX, properties: jobIndexMapping.properties });
         logger.info(`index "${INDEX}" da ton tai`);
     }
 };
@@ -98,3 +100,10 @@ export const toDocument = (job) => ({
     timeEnd: Number(job.timeEnd) || null,
     indexedAt: new Date().toISOString()
 });
+
+export const liveIndexQuery = { bool: { must_not: [{ term: { searchDeleted: true } }] } };
+
+export const publicSearchDocument = (source) => {
+    const { searchSync: _sync, searchDeleted: _deleted, ...document } = source || {};
+    return document;
+};

@@ -1,6 +1,6 @@
 import express from 'express';
 import { createLogger } from '../../shared/logger.js';
-import { waitForElastic, ensureIndex, es, INDEX } from './libs/elastic.js';
+import { waitForElastic, ensureIndex, es, INDEX, liveIndexQuery } from './libs/elastic.js';
 import { startIndexer, rebuildIndex } from './consumers/jobIndexer.js';
 import { searchJobs, suggest, facets, related } from './controllers/searchController.js';
 import { requireTrustedGateway } from '../../shared/accessControl.js';
@@ -13,7 +13,7 @@ app.use(express.json());
 
 app.get('/health', async (req, res) => {
     try {
-        const count = await es.count({ index: INDEX });
+        const count = await es.count({ index: INDEX, query: liveIndexQuery });
         res.json({ status: 'ok', service: 'search-service', indexed: count.count });
     } catch (error) {
         res.status(503).json({ status: 'degraded', error: error.message });
@@ -31,9 +31,14 @@ app.get('/search/related/:id', related);
 // Cho phep dung lai index thu cong khi can (vi du sau khi sua du lieu truc tiep
 // trong MySQL, luc do khong co su kien nao duoc phat ra).
 app.post('/internal/reindex', async (req, res) => {
-    await rebuildIndex();
-    const count = await es.count({ index: INDEX });
-    res.json({ errCode: 0, indexed: count.count });
+    try {
+        const reconciliation = await rebuildIndex();
+        const count = await es.count({ index: INDEX, query: liveIndexQuery });
+        res.json({ errCode: 0, indexed: count.count, reconciliation });
+    } catch (error) {
+        logger.warn('doi chieu thu cong that bai', { error: error.message });
+        res.status(503).json({ errCode: -1, errMessage: 'Chưa đối chiếu đầy đủ dữ liệu tìm kiếm' });
+    }
 });
 
 const start = async () => {
@@ -42,7 +47,7 @@ const start = async () => {
     await startIndexer();
     // Dung lai index luc khoi dong: he thong tu phuc hoi sau khi mat du lieu
     // hoac bo lo su kien trong luc offline.
-    await rebuildIndex();
+    await rebuildIndex().catch((error) => logger.warn('doi chieu luc khoi dong that bai', { error: error.message }));
 
     // Doi chieu lai dinh ky.
     //
@@ -51,8 +56,7 @@ const start = async () => {
     // cho toi khi co nguoi khoi dong lai service. Trieu chung rat kho phat hien:
     // tin dang len khong ai tim thay, ma khong co loi nao duoc ghi ra ca.
     //
-    // Dung lai index la thao tac lam bao nhieu lan cung cho ket qua giong nhau
-    // (ghi de theo id, don ban thua), nen chay lai dinh ky la an toan.
+    // Reconciliation and event updates share the same source reread + CAS path.
     const intervalMinutes = Number(process.env.RECONCILE_MINUTES || 10);
     const timer = setInterval(() => {
         rebuildIndex().catch((error) =>

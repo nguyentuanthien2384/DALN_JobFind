@@ -1,9 +1,10 @@
-import { es, INDEX } from '../libs/elastic.js';
+import { es, INDEX, publicSearchDocument } from '../libs/elastic.js';
 import { createLogger } from '../../../shared/logger.js';
 
 const logger = createLogger('search-service');
 
 const publicJobFilter = () => [
+    { bool: { must_not: [{ term: { searchDeleted: true } }] } },
     { term: { statusCode: 'PS1' } },
     { term: { companyStatusCode: 'S1' } },
     { term: { companyCensorCode: 'CS1' } }
@@ -65,7 +66,7 @@ export const searchJobs = async (req, res) => {
         });
 
         const data = result.hits.hits.map((hit) => ({
-            ...hit._source,
+            ...publicSearchDocument(hit._source),
             _score: hit._score,
             _highlight: hit.highlight?.description?.[0] || null
         }));
@@ -105,7 +106,7 @@ export const suggest = async (req, res) => {
             },
             _source: ['id', 'name', 'companyName', 'addressCode']
         });
-        return res.json({ errCode: 0, data: result.hits.hits.map((h) => h._source) });
+        return res.json({ errCode: 0, data: result.hits.hits.map((h) => publicSearchDocument(h._source)) });
     } catch (error) {
         logger.error('goi y that bai', { error: error.message });
         return res.status(500).json({ errCode: -1, errMessage: 'Lỗi hệ thống' });
@@ -162,7 +163,7 @@ export const related = async (req, res) => {
                 }
             }
         });
-        return res.json({ errCode: 0, data: result.hits.hits.map((h) => h._source) });
+        return res.json({ errCode: 0, data: result.hits.hits.map((h) => publicSearchDocument(h._source)) });
     } catch (error) {
         logger.error('tim tin lien quan that bai', { error: error.message });
         return res.status(500).json({ errCode: -1, errMessage: 'Lỗi hệ thống' });
