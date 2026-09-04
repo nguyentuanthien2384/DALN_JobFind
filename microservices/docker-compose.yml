@@ -173,7 +173,10 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5}
       AI_CONCURRENCY: ${AI_CONCURRENCY:-2}
+      AI_MONGO_URL: mongodb://mongo:27017/ai_worker_db
     depends_on:
+      mongo:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       deps-installer:

@@ -1,7 +1,10 @@
 import { createLogger } from '../../../shared/logger.js';
-import { consume, publish } from '../../../shared/rabbitmq.js';
+import { consume } from '../../../shared/rabbitmq.js';
+import { publishOutboxEvent } from '../../../shared/outboxPublisher.js';
 import { EVENTS, QUEUES } from '../../../shared/events.js';
 import { isConfigured } from '../libs/claude.js';
+import { taskStore } from '../libs/taskStore.js';
+import { createTaskProcessor } from '../libs/taskProcessor.js';
 import { parseResume } from '../jobs/resumeParser.js';
 import { matchCv } from '../jobs/smartMatching.js';
 import { moderateJob } from '../jobs/moderation.js';
@@ -16,69 +19,19 @@ export const handlers = {
     [EVENTS.AI_COVER_LETTER]: { type: 'cover_letter', run: (payload) => generateCoverLetter(payload) }
 };
 
-export const handleTask = async (payload, routingKey) => {
-    const handler = handlers[routingKey];
-    if (!handler) {
-        logger.warn('khong co ham xu ly cho su kien nay', { routingKey });
-        return;
-    }
+export const publishTaskResult = (event) => publishOutboxEvent(event.eventType, event.data, {
+    messageId: event.eventId, aggregateId: event.aggregateId,
+    occurredAt: event.occurredAt, producer: event.producer, correlationId: event.correlationId
+});
 
-    const started = Date.now();
-    logger.info('nhan viec', {
-        type: handler.type,
-        taskId: payload.taskId,
-        jobId: payload.jobId
-    });
-
-    if (!isConfigured()) {
-        await publish(EVENTS.AI_RESULT, {
-            taskId: payload.taskId,
-            jobId: payload.jobId,
-            type: handler.type,
-            ok: false,
-            error: 'Máy chủ chưa cấu hình ANTHROPIC_API_KEY'
-        });
-        return;
-    }
-
-    try {
-        const result = await handler.run(payload);
-        await publish(EVENTS.AI_RESULT, {
-            taskId: payload.taskId,
-            jobId: payload.jobId,
-            type: handler.type,
-            ok: true,
-            result
-        });
-        logger.info('xong', {
-            type: handler.type,
-            taskId: payload.taskId,
-            jobId: payload.jobId,
-            durationMs: Date.now() - started
-        });
-    } catch (error) {
-        // Bao that bai ve cho ben yeu cau thay vi nem loi ra de tin bi nack va
-        // nguoi dung cho mai khong co ket qua.
-        logger.error('xu ly that bai', {
-            type: handler.type,
-            taskId: payload.taskId,
-            error: error.message
-        });
-        await publish(EVENTS.AI_RESULT, {
-            taskId: payload.taskId,
-            jobId: payload.jobId,
-            type: handler.type,
-            ok: false,
-            error: error.message
-        });
-    }
-};
+export const handleTask = createTaskProcessor({
+    handlers, store: taskStore, publishResult: publishTaskResult, isConfigured, logger
+});
 
 export const startTaskConsumer = async () => {
-    await consume(
-        QUEUES.AI_WORKER,
-        Object.keys(handlers),
-        handleTask,
-        { prefetch: Number(process.env.AI_CONCURRENCY || 2) }
-    );
+    const prefetch = Number(process.env.AI_CONCURRENCY || 2);
+    if (!Number.isInteger(prefetch) || prefetch < 1 || prefetch > 100) throw new Error('AI_CONCURRENCY must be between 1 and 100');
+    // No automatic handler retry yet. Saved results can be replayed without
+    // calling the model; unresolved paid calls require operator investigation.
+    await consume(QUEUES.AI_WORKER, Object.keys(handlers), handleTask, { prefetch });
 };

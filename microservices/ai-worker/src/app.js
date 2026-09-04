@@ -1,6 +1,7 @@
 import { createLogger } from "../../shared/logger.js";
 import { isConfigured, logModel } from "./libs/claude.js";
 import { startTaskConsumer } from './consumers/taskConsumer.js';
+import { ensureTaskStore } from './libs/taskStore.js';
 
 const logger = createLogger("ai-worker");
 
@@ -17,6 +18,9 @@ const start = async () => {
     );
   }
   logModel();
+
+  // Refuse to consume until durable deduplication is available.
+  await ensureTaskStore();
 
   // Moi tin ton mot lan goi model - consumer gioi han so viec chay song song
   // de khong dam vao han muc goi API.

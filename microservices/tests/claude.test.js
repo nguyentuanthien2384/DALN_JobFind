@@ -5,7 +5,8 @@ const sdk = vi.hoisted(() => {
     const finalMessage = vi.fn();
     const stream = vi.fn(() => ({ finalMessage }));
     class Anthropic {
-        constructor() {
+        constructor(options) {
+            this.options = options;
             this.beta = { messages: { create, stream } };
         }
     }
@@ -27,6 +28,7 @@ describe('Claude adapter', () => {
     afterEach(() => vi.unstubAllEnvs());
 
     it('reports whether an API key is configured', () => {
+        expect(api.client.options).toEqual({ maxRetries: 0 });
         vi.stubEnv('ANTHROPIC_API_KEY', 'key');
         expect(api.isConfigured()).toBe(true);
         vi.stubEnv('ANTHROPIC_API_KEY', '');

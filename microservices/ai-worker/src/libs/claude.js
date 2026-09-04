@@ -6,7 +6,9 @@ const logger = createLogger("ai-worker");
 const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5";
 
 // SDK tu doc ANTHROPIC_API_KEY tu bien moi truong.
-export const client = new Anthropic();
+// A timeout/connection error does not prove the paid request was not processed.
+// Task redelivery is guarded by the durable ledger; disable hidden SDK retries too.
+export const client = new Anthropic({ maxRetries: 0 });
 
 export const isConfigured = () => Boolean(process.env.ANTHROPIC_API_KEY);
 

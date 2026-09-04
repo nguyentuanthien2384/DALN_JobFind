@@ -114,8 +114,8 @@ Confirm xác nhận broker nhận sự kiện, không xác nhận email đã g�
 đã xử lý. Nếu broker đã nhận nhưng tiến trình/DB lỗi trước khi ghi dấu đã gửi, event
 có thể được phát lại. Hai outbox đã dùng envelope v1; Notification/Admin đã chống
 trùng cho sự kiện có ID, Search đã bảo vệ kết quả đồng bộ như phần bên dưới.
-Chống trùng ở AI Worker, publisher confirms cho các
-luồng publish trực tiếp còn lại vẫn là các bước kế tiếp. DLQ/retry đã dùng confirms
+AI Worker cũng đã có ledger chống gọi lại tác vụ có ID và phát kết quả có confirm.
+Luồng nhận kết quả AI ở Job Core và các publisher trực tiếp còn lại vẫn là các bước kế tiếp. DLQ/retry đã dùng confirms
 như phần hướng dẫn bên dưới; chưa có
 bảo đảm SMTP giao thư đúng một lần.
 
@@ -242,8 +242,8 @@ npm test -- tests/event-envelope.test.js tests/notification-delivery-store.test.
 
 Các bài kiểm tra transaction/đồng thời dùng database test double; vẫn cần kiểm
 thử tích hợp MySQL/RabbitMQ thật trước khi triển khai. Sự kiện publish trực tiếp
-không có ID, AI và các luồng khác chưa được chống trùng trong phần này.
-Admin và Search đã được bổ sung riêng ở các phần bên dưới.
+không có ID và các luồng khác chưa được chống trùng trong phần này.
+Admin, Search và AI Worker đã được bổ sung riêng ở các phần bên dưới.
 
 ## DLQ có xác nhận và retry có giới hạn
 
@@ -296,8 +296,9 @@ slot prefetch. Restart trong lúc chờ có thể làm bắt đầu lại khoả
 Nếu gặp JSON hỏng, phiên bản envelope không hỗ trợ hoặc metadata retry không hợp
 lệ, consumer chuyển thẳng DLQ, không gọi handler. Những consumer AI
 và luồng legacy vẫn **chưa được bật tự retry nghiệp vụ**. Redelivery của RabbitMQ
-(ví dụ mất ACK hoặc chuyển DLQ lỗi) vẫn có thể xảy ra với chúng, nên chống trùng
-cho các consumer đó vẫn cần làm tiếp. Retry handler không gửi SMTP: worker email
+(ví dụ mất ACK hoặc chuyển DLQ lỗi) vẫn có thể xảy ra. AI Worker có ledger như phần
+riêng bên dưới, nhưng Job Core nhận `ai.result` và một số luồng legacy còn cần
+bảo vệ tiếp. Retry handler không gửi SMTP: worker email
 riêng vẫn giữ nguyên nguyên tắc `unknown` không tự gửi lại.
 
 Kênh nhận tự kết nối/đăng ký lại khi channel đóng, kết nối mất hoặc broker hủy
@@ -513,8 +514,118 @@ kiểm duyệt, lỗi nguồn, phản hồi ghi bị mất được mô phỏng 
 quét hơn 10.000 ID. Chưa phải kiểm thử end-to-end MySQL–RabbitMQ–ES hoặc ES failover.
 Controller nguồn, bảo vệ API, retry và wiring được kiểm tra bằng unit test.
 
-Phần tiếp theo: AI Worker và các luồng publish trực tiếp còn lại, triển khai riêng
-từng bước để không mở rộng thay đổi này.
+## AI Worker: chống gọi lại tác vụ đã nhận
+
+Worker bổ sung ledger `ai_worker_db.task_executions` trên MongoDB hiện có, tách
+database khỏi Identity/Admin. `AI_MONGO_URL` được cấp riêng trong Compose; chạy
+ngoài Docker phải tự cấu hình URI có tên database dành riêng cho AI. Worker phải
+kết nối được ledger và kiểm tra index trước khi nhận tác vụ. Không đổi schema
+MySQL, không ghi vào database nghiệp vụ của service khác.
+
+Phạm vi nhận diện:
+
+- Ưu tiên `eventId` của tin đầu vào. Outbox Job Core đã cấp ID cho các yêu cầu
+  `ai.moderate_job` mới. Hai ID khác nhau là hai yêu cầu khác nhau, kể cả cùng job.
+- Ba tác vụ CV/độ khớp/thư ứng tuyển hiện publish legacy nhưng có `taskId` ổn định;
+  khi không có event ID, dùng cặp routing key + taskId làm khóa.
+- Kiểm duyệt legacy không có cả event ID lẫn task ID vẫn tương thích luồng cũ,
+  có cảnh báo và **chưa chống trùng**. Không suy đoán danh tính từ jobId hoặc hash
+  nội dung, vì một tin có thể được sửa và kiểm duyệt nhiều lần.
+- Khóa đã tồn tại nhưng nội dung đầu vào khác sẽ bị từ chối (`AI_TASK_ID_CONFLICT`).
+  Hash chỉ để phát hiện xung đột; không dùng làm danh tính tác vụ và không lưu CV gốc.
+
+Ledger có ba trạng thái, mỗi bước là một
+[ghi nguyên tử trên một document MongoDB](https://www.mongodb.com/docs/manual/core/write-operations-atomicity/):
+
+1. `started`: insert khóa `_id` duy nhất, kèm owner và dấu thời gian, **trước khi
+   gọi AI**. Chỉ worker nhận xác nhận insert thành công được chạy model. Claim
+   không có TTL, không hết hạn để worker khác tự giành lại.
+2. `ready`: lưu nguyên kết quả thành công/thất bại và envelope `ai.result` trước
+   khi gửi RabbitMQ. Mã sự kiện kết quả ổn định theo khóa tác vụ; thời điểm và
+   correlation ID được giữ nguyên khi gửi lại kết quả đã lưu.
+3. `published`: chỉ đánh dấu sau publisher confirm. Lược bỏ nội dung kết quả khỏi
+   ledger, giữ khóa/hash/dấu trạng thái. Tin trùng đã published được bỏ qua, không
+   gọi model hoặc phát kết quả lại.
+
+Các bản trùng trong cùng tiến trình chờ chung công việc đang chạy. Giữa các
+replica, khóa MongoDB là hàng rào chính: nếu thấy `started` mà chưa có kết quả thì
+không gọi AI lần nữa, kể cả bản ghi rất cũ. Có thể worker khác còn đang xử lý,
+hoặc đã chết sau khi gửi yêu cầu tới nhà cung cấp. Không thể phân biệt chắc chắn
+hai trường hợp chỉ bằng thời gian, nên báo `AI_TASK_UNRESOLVED` và để wrapper
+chuyển bản tin vào DLQ để kiểm tra. Một bản trùng có thể vào DLQ trong khi owner
+cũ vẫn chạy và hoàn thành bình thường. Không coi trạng thái này là đã thành công.
+
+Nếu lần gọi model ném lỗi, worker lưu kết quả `ok: false` như trước, không tự chạy
+lại cùng tác vụ. Tắt retry ẩn trong SDK bằng `maxRetries: 0`; mặc định SDK tự thử
+lại một số lỗi, xem [Claude TypeScript SDK — Retries](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript#retries).
+Điều này không kiểm soát việc xử lý/fallback nội bộ tại nhà cung cấp và không phải
+cam kết họ chỉ tính phí đúng một lần. Cấu hình model, prompt và fallback giữ nguyên.
+
+Lỗi lưu ledger/gửi RabbitMQ không bị bắt thành lỗi model nữa. Đặc biệt, gửi một
+kết quả thành công thất bại sẽ không phát thêm kết quả thất bại mâu thuẫn. Khi
+nhận lại bản tin ở trạng thái `ready`, chỉ gửi lại envelope đã lưu, không gọi AI.
+MongoDB dùng ghi `majority` + journal, có timeout; mất xác nhận insert không được
+coi là đã giành quyền chạy. Không bật retry handler tự động cho AI trong bước này.
+
+Giới hạn quan trọng:
+
+- Đây là bảo vệ số lần gọi ở worker cho tác vụ nhận diện được, không phải
+  exactly-once toàn hệ thống. Crash sau khi model chạy nhưng trước khi lưu kết quả
+  có thể để lại `started` và người dùng chưa nhận được kết quả. Không tự xóa dấu
+  claim, không tự chạy lại hoặc tạo ID mới để vượt qua trạng thái chưa xác định.
+- Không có relay nền cho kết quả ở bước này. Khi lỗi chuyển kết quả, tin đầu vào
+  đi qua DLQ có confirm; việc phục hồi cần kiểm tra/replay có chủ đích. `ready`
+  chỉ được gửi tiếp khi worker nhận lại tin đầu vào tương ứng.
+- Kết quả vẫn có thể được giao hơn một lần (hai replica cùng đọc `ready`, confirm
+  hoặc dấu published bị mất). Chúng giữ cùng event ID và nội dung. **Job Core
+  chưa chống trùng `ai.result` và chưa chặn kết quả kiểm duyệt cũ đổi trạng thái
+  MySQL**; đây là phần kế tiếp trước khi bật replay/retry tự động đầu-cuối.
+- `published` xác nhận broker nhận tin, không chứng minh Job Core xử lý xong.
+  Phát yêu cầu AI từ các endpoint CV của Job Core vẫn là publish legacy trực tiếp.
+- Không backfill tác vụ đã chạy bằng worker cũ. Phải giữ ledger bền vững và cùng
+  database cho mọi replica; xóa ledger hoặc đổi ID/cách đóng gói khi replay có thể
+  gây gọi lại. Chưa có chính sách xóa khóa lịch sử.
+- Kết quả ở `ready` có thể chứa dữ liệu CV, cần phân quyền và bảo vệ backup; phần
+  kết quả được bỏ sau confirm. Đây không phải xóa dữ liệu khỏi RabbitMQ/DLQ,
+  Job Core, nhật ký Admin hay backup. Không ghi payload/result ra log của worker.
+
+Kiểm tra chỉ đọc trong database AI, không hiển thị nội dung CV/kết quả:
+
+```javascript
+db.task_executions.find(
+  { state: { $in: ["started", "ready"] } },
+  { _id: 1, eventId: 1, aggregateId: 1, routingKey: 1, state: 1, startedAt: 1, completedAt: 1 }
+).sort({ startedAt: 1 })
+```
+
+Với `started`, đối chiếu worker còn sống, log và yêu cầu phía nhà cung cấp trước
+khi quyết định xử lý; không dùng tuổi bản ghi làm bằng chứng AI chưa chạy. Với
+`ready`, kiểm tra trạng thái nghiệp vụ hiện tại và nguy cơ kết quả cũ ở Job Core
+trước khi replay. Giữ nguyên body, routing key, message ID và metadata gốc; chỉ
+gửi về đúng queue `ai-worker.jobs`, không phát lại lên topic cho mọi consumer.
+Chưa bổ sung công cụ replay hoặc sửa ledger tự động.
+
+Áp dụng khi đã sẵn sàng: ngừng tạo tác vụ mới, chờ worker cũ hoàn thành việc đang
+chạy và dừng **tất cả** replica cũ; không chạy lẫn bản có/không có ledger. Cài phụ
+thuộc từ workspace `microservices`, bảo đảm MongoDB đang sẵn sàng, rồi recreate
+riêng AI Worker bằng cấu hình Compose mới. Không restart/xóa database hay nạp
+dữ liệu mẫu. Việc dừng tiến trình đang gọi AI có thể để lại tác vụ chưa xác định.
+Lần bổ sung này **chưa chạy thao tác triển khai**.
+
+Kiểm thử:
+
+```powershell
+npm test
+npm run test:ai-tasks:integration
+```
+
+Integration dùng MongoDB 7 tạm trên cổng localhost ngẫu nhiên, tự xác minh nhãn sở
+hữu trước khi dọn container/volume. 11 kiểm tra gồm 30 worker độc lập tranh cùng
+khóa, đọc lại qua kết nối mới, xung đột input, các điểm mất phản hồi ghi, claim
+chưa xác định, gửi lại kết quả và tương thích legacy. Model/RabbitMQ được giả lập:
+không dùng API key, không phát sinh phí AI, chưa phải kiểm thử Claude/RabbitMQ
+end-to-end hoặc MongoDB replica-set failover. Unit test kiểm tra thêm wiring,
+thứ tự các bước, giới hạn concurrency và tắt retry SDK.
 
 ## Bốn tính năng AI
 
