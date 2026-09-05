@@ -59,7 +59,8 @@ try {
     legacyDb = legacyRequire('./src/models/index.js');
     assert.equal((await legacyDb.sequelize.query('SELECT DATABASE() AS name'))[0][0].name, database);
     const legacy = legacyRequire('./src/services/postService.js');
-    const { createJob, updateJob, repostJob } = await import('../job-core-service/src/controllers/jobController.js');
+    const { createJob, updateJob, repostJob, getJob } = await import('../job-core-service/src/controllers/jobController.js');
+    const { getManagedJob } = await import('../job-core-service/src/controllers/jobManagementController.js');
     const { ensureJobRequestTable } = await import('../job-core-service/src/libs/jobRequest.js');
     const { ensureAiTaskTable } = await import('../job-core-service/src/controllers/aiController.js');
     const { ensureOutboxTable } = await import('../job-core-service/src/libs/outbox.js');
@@ -71,6 +72,7 @@ try {
     const { PERMISSIONS, requireTrustedGateway, requireServicePermission } = await import('../shared/accessControl.js');
     const validSuccess = createContractValidator().compile(responseValidationSchema(operationById.jobCreate));
     const validEdit = createContractValidator().compile(responseValidationSchema(operationById.jobUpdate));
+    const validManaged = createContractValidator().compile(responseValidationSchema(operationById.jobManageGet));
     const validError = createContractValidator().compile(schemas.Error);
 
     await pool.query(`CREATE TABLE companies (id INT PRIMARY KEY, name VARCHAR(255), thumbnail VARCHAR(255),
@@ -100,6 +102,8 @@ try {
     contractRoute(app, 'jobCreate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), createJob);
     contractRoute(app, 'jobRepost', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), repostJob);
     contractRoute(app, 'jobUpdate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), updateJob);
+    contractRoute(app, 'jobManageGet', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), getManagedJob);
+    contractRoute(app, 'jobGet', getJob);
     server = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
     const url = `http://127.0.0.1:${server.address().port}/jobs`;
     const body = (isHot = 0) => ({ name: 'Synthetic developer', descriptionHTML: '<p>Test only</p>', descriptionMarkdown: 'Test only',
@@ -119,6 +123,16 @@ try {
     const oldCreate = async (isHot = 0, userId = 7) => {
         const data = await legacy.handleCreateNewPost({ ...body(isHot), userId });
         return { body: data, ok: data.errCode === 0, id: data.postId };
+    };
+    const managed = async (id, userId = 7, headers = {}, publicRead = false) => {
+        const response = await fetch(`${url}/${id}${publicRead ? '' : '/manage'}`, { signal: AbortSignal.timeout(15000), headers: {
+            'x-internal-secret': token, 'x-user-id': String(userId), 'x-user-role': 'COMPANY',
+            'x-company-id': '3', 'x-company-status': 'S1', 'x-company-censor': 'CS1', ...headers
+        } });
+        const data = await response.json();
+        const validate = response.status === 200 ? (publicRead ? validSuccess : validManaged) : validError;
+        assert.ok(validate(data), JSON.stringify({ errors: validate.errors, data }));
+        return { status: response.status, body: data, cacheControl: response.headers.get('cache-control') };
     };
     const repost = async (id, key, timeEnd = String(Date.now() + 86400000), userId = 7, headers = {}, overrides = {}) => {
         const response = await fetch(`${url}/${id}/repost`, { method: 'POST', signal: AbortSignal.timeout(15000), headers: {
@@ -371,7 +385,9 @@ try {
     await runJobEditChecks({ pool, check, core, edit, legacy, oldReup, counts, balance, waitForRowWait });
     const { runJobRequestChecks } = await import('./job-request-checks.mjs');
     await runJobRequestChecks({ pool, check, core, repost, edit, counts, balance, waitForRowWait });
-    console.log(`Posting writes integration: ${passed} checks passed (quotas + edits + idempotent create/repost); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
+    const { runJobManagementChecks } = await import('./job-management-checks.mjs');
+    await runJobManagementChecks({ pool, check, core, managed, edit, counts, balance });
+    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private management reads); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
     const closed = await Promise.allSettled([

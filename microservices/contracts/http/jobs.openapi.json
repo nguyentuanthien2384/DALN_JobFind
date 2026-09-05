@@ -1235,6 +1235,258 @@
         }
       }
     },
+    "/jobs/{id}/manage": {
+      "get": {
+        "operationId": "jobManageGet",
+        "tags": [
+          "jobs"
+        ],
+        "summary": "GET /jobs/:id/manage",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission job:manage; resource ownership checks still apply. Non-admin callers must belong to an active, approved company. Private current job read, including PS1/PS2/PS3/PS4. Non-admin access is restricted to the current approved company, rechecked with the job in one database statement; out-of-scope and missing IDs both return 404. ADMIN may inspect other companies. Returns raw classification codes, not Allcode labels or AI internals. PS3 means awaiting review, not proof a worker is processing. Cache-Control: private, no-store. Does not change the public jobGet visibility policy.",
+        "x-jobfind-permission": "job:manage",
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": true,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "description": "Authenticated identity forwarded by the trusted gateway only."
+          },
+          {
+            "name": "x-user-role",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ADMIN",
+                "COMPANY",
+                "EMPLOYER"
+              ]
+            }
+          },
+          {
+            "name": "x-company-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "description": "Required for non-admin callers; derived from the current account/company store by the gateway."
+          },
+          {
+            "name": "x-company-status",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "S1"
+            },
+            "description": "Required for non-admin callers; derived from the current account/company store by the gateway."
+          },
+          {
+            "name": "x-company-censor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "CS1"
+            },
+            "description": "Required for non-admin callers; derived from the current account/company store by the gateway."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ManagedJob"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ai/parse-resume": {
       "post": {
         "operationId": "aiParseResume",
@@ -5159,6 +5411,255 @@
       "Record": {
         "type": "object",
         "additionalProperties": true
+      },
+      "ManagedJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "descriptionHTML": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "statusCode": {
+            "type": "string",
+            "enum": [
+              "PS1",
+              "PS2",
+              "PS3",
+              "PS4"
+            ]
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "companyId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "companyName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "descriptionMarkdown": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timePost": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeEnd": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isHot": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          },
+          "companyLogo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "categoryJobCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addressCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salaryJobCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "categoryJoblevelCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "categoryWorktypeCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "experienceJobCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "genderPostCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "statusCode",
+          "timeEnd",
+          "isHot",
+          "userId",
+          "companyId",
+          "descriptionHTML",
+          "descriptionMarkdown",
+          "amount",
+          "categoryJobCode",
+          "addressCode",
+          "salaryJobCode",
+          "categoryJoblevelCode",
+          "categoryWorktypeCode",
+          "experienceJobCode",
+          "genderPostCode"
+        ],
+        "additionalProperties": false
       },
       "Suggestion": {
         "type": "object",

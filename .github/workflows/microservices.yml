@@ -37,7 +37,7 @@ jobs:
         working-directory: backend
       - run: npm test
         working-directory: backend
-      - name: Verify quotas, isolated edits and idempotent create/repost on disposable MySQL
+      - name: Verify job writes and private management reads on disposable MySQL
         working-directory: microservices
         run: |
           docker pull mysql:8.0

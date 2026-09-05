@@ -10,6 +10,7 @@ import { ensureOutboxTable, startOutboxRelay, stopOutboxRelay } from './libs/out
 import { ensureAiResultTables } from './libs/moderationState.js';
 import { ensureAiRequestTable } from './libs/aiTaskRequest.js';
 import { ensureJobRequestTable } from './libs/jobRequest.js';
+import { getManagedJob } from './controllers/jobManagementController.js';
 import { aiResultRetry } from './libs/aiResultRetry.js';
 import { consume, isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import { EVENTS, QUEUES } from '../../shared/events.js';
@@ -56,6 +57,7 @@ contractRoute(app, 'jobRepost', canManageJobs, repostJob);
 contractRoute(app, 'jobUpdate', canManageJobs, updateJob);
 contractRoute(app, 'jobDelete', canManageJobs, deleteJob);
 contractRoute(app, 'jobGet', getJob);
+contractRoute(app, 'jobManageGet', canManageJobs, getManagedJob);
 
 // --- Cac tinh nang AI ---
 const canUseCandidateAi = requireServicePermission(PERMISSIONS.AI_CANDIDATE_USE);

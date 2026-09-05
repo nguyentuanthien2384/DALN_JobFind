@@ -159,6 +159,11 @@ app.post('/api/jobs', writeLimiter,
 app.post('/api/jobs/:id/repost', writeLimiter,
     requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
     createProxy('jobs', (req) => `/jobs/${req.params.id}/repost`));
+app.get('/api/jobs/:id/manage', (req, res, next) => {
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+}, requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
+createProxy('jobs', (req) => `/jobs/${req.params.id}/manage`));
 app.put('/api/jobs/:id', writeLimiter,
     requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
     createProxy('jobs', (req) => `/jobs/${req.params.id}`));

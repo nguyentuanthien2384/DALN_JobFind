@@ -139,9 +139,37 @@ Ngày 05-09-2026: **894 test microservices (52 file), 517 test backend (30 suite
 
 Chỉ MySQL tạm cùng dữ liệu tổng hợp do test tạo bị dọn; không gọi AI/SMTP/PayPal và không dùng fixture sửa hạn mức dự án thật. Image `jobfind-microservices:local` đã dựng lại, chưa được đưa vào container đang phục vụ. Khi rollout sau sao lưu/đối chiếu schema: giữ các bản sửa backend 2a/2b, cập nhật Job Core trước Gateway và chỉ bật client mới khi toàn bộ writer phục vụ route đã hỗ trợ key. Không recreate DB/broker hoặc xóa volume.
 
+## Đợt 2d: dữ liệu biểu mẫu và đọc trạng thái tin riêng tư
+
+Đã bổ sung mã nguồn backend/Job Core/Gateway/frontend và kiểm thử. **Chưa chuyển API đọc/ghi của AddPost sang Job Core, chưa thay container đang chạy và chưa đổi schema/dữ liệu thật.** Màn hình hiện tại đã dùng lớp chuyển đổi khi đọc dữ liệu legacy; helper modern sẵn sàng cho bước chuyển sau.
+
+### Đọc tin trong phạm vi quản lý
+
+- `GET /api/jobs/:id/manage` dành cho COMPANY/EMPLOYER thuộc công ty hoạt động/đã duyệt và ADMIN. Có thể đọc PS1/PS2/PS3/PS4, kể cả tin hết hạn; không chỉ người tạo mà đồng nghiệp đúng công ty cũng được xem. ADMIN có thể xem công ty khác hoặc tin không còn liên kết công ty để hỗ trợ, không có nghĩa được bỏ qua quota khi đăng mới/đăng lại.
+- Kiểm tra người gọi hiện tại, công ty tác giả, trạng thái công ty và nội dung tin trong **cùng một câu SELECT**, không kiểm tra quyền bằng một lần đọc rồi lấy nội dung ở lần đọc khác. Quyền vai trò/tài khoản vẫn được Gateway xác thực trước đó. Người ngoài công ty và ID không tồn tại có cùng phản hồi 404, không trả nội dung. Không cần thêm bảng, không ghi quota/outbox hoặc tự yêu cầu AI.
+- Phản hồi là trạng thái hiện tại và mã phân loại gốc, không phải snapshot 201 của idempotency. Không kèm file xác minh doanh nghiệp, thông tin đăng nhập, quota, prompt, kết quả AI hoặc ID yêu cầu kiểm duyệt. Gateway và controller đặt `Cache-Control: private, no-store`. Hợp đồng `ManagedJob` riêng cho phản hồi này.
+- API công khai `/api/jobs/:id` giữ nguyên chính sách; thêm route quản lý không mở tin chờ duyệt/từ chối/đã gỡ cho ứng viên hoặc khách. PS3 chỉ có nghĩa chờ kiểm duyệt, không chứng minh worker đang xử lý. PS1 là đã duyệt, không tự đồng nghĩa còn hạn/đang hiển thị ở mọi projection.
+
+### Đồng bộ biểu mẫu mà không tự đổi luồng ghi
+
+- `jobFormAdapter.js` có mapping rõ ràng cho dữ liệu Job Core dạng phẳng và legacy `postDetailData`. Ưu tiên mã gốc, kể cả null; chỉ dùng mã trong association nếu API cũ không trả mã gốc. Backend chi tiết tin đã bổ sung 7 mã gốc, giữ các association/response cũ để tương thích.
+- Dropdown giữ mã đang lưu dù Allcode không còn bản ghi tương ứng, có nhãn giải thích; null là “Chưa chọn”, không tự đổi thành lựa chọn đầu. Mặc định chỉ áp dụng khi tạo tin mới. Không tạo mã mới trong DB hoặc giả lập nhãn từ dữ liệu không có.
+- AddPost bỏ gán giá trị dropdown bằng DOM và bỏ cập nhật state ngay trong render. Thêm lỗi tải rõ ràng, chặn lưu khi chưa tải đúng tin/không có dữ liệu/ngày lịch sử sai; bỏ phản hồi đọc đến muộn sau khi chuyển route. Vào trang tạo mới thì xóa dữ liệu tin trước đó. Hiển thị “Trạng thái lúc tải”, không giả lập cập nhật realtime; PS4 không có thao tác lưu/đăng lại.
+- `buildJobCreate` tạo payload modern theo allowlist, chuẩn hóa số lượng/ngày/loại tin, đổi `genderCode` của UI thành `genderPostCode`, không gửi danh tính/quyền/trạng thái hoặc nhãn Allcode. Tạo payload và giữ nguyên nó **trước khi gán key**; không tính lại ngày/payload cho mỗi lần retry.
+- `buildJobUpdate` so sánh với biểu mẫu đã tải: chỉ gửi trường thay đổi, giữ ý nghĩa clear/null, không gửi danh tính/trạng thái/loại tin/ngày hết hạn. Không đổi gì trả `null` để caller bỏ qua PUT; đổi ID/ngày/loại tin bị từ chối. Đây là giảm gửi full form, **chưa phải optimistic concurrency/If-Match**: hai người đổi cùng trường vẫn có thể ghi đè.
+- `jobPostingService` thêm đọc quản lý và PUT từng phần, timeout 15 giây/AbortSignal, kiểm tra ID, từ chối patch rỗng. Không tự retry hoặc fallback legacy. Các builder/helper modern **chưa được nối vào nút Lưu/Đăng lại**; writer legacy vẫn dùng payload cũ và chưa có HTTP idempotency/outbox bền.
+
+### Kiểm chứng và áp dụng
+
+Ngày 05-09-2026: 916 test microservices (53 file), 517 backend (30 suite), 763 frontend (51 suite) qua; frontend production build, image Docker cách ly và HTTP/event contracts đều qua. Hợp đồng hiện có **50 thao tác (44 public/6 nội bộ)**; 20 trường hợp serialize helper frontend và thêm round-trip payload từ builder form qua HTTP thực.
+
+`npm run test:job-writes:integration` hiện có **72 nhóm**: 61 nhóm trước + 11 nhóm đọc quản lý với MySQL/HTTP thật, gồm bốn trạng thái, phân quyền, đổi công ty, công ty khóa/chưa duyệt, actor không tồn tại, tin không liên kết công ty, mã danh mục thiếu/null, trường riêng tư, không tạo event và giữ chính sách public. Frontend có hồi quy tải thất bại/ID sai, đổi route khi đang tải, dữ liệu danh mục thiếu và ngày sai. Chưa nghiệm thu E2E trình duyệt trên stack thật hoặc mọi dữ liệu lịch sử.
+
+Không gọi AI/SMTP/PayPal, không push/chạy workflow GitHub; chỉ dọn MySQL tạm có nhãn sở hữu của bài test. Image mới đã được dựng nhưng chưa rollout. Khi áp dụng theo từng bước: backend bổ sung mã gốc trước frontend; Job Core trước Gateway trước khi dùng helper mới. Không recreate DB/broker, xóa volume hoặc sửa Allcode lịch sử để “làm test qua”. Các điều kiện rollout/sao lưu ở đợt 2c và `local-compose.md` vẫn còn áp dụng.
+
 ## Thứ tự các đợt còn lại
 
-1. Tiếp tục đồng bộ trước khi đổi API đăng tin: adapter phản hồi/Allcode cho form, đọc trạng thái tin của chủ sở hữu, chuyển luồng kiểm duyệt và xử lý xung đột form cũ. Hạn mức đã xử lý ở đợt 2a; sửa độc lập/giữ ngày hết hạn ở 2b; API đăng lại và idempotency của writer modern ở 2c. Chưa có nghĩa mọi nghiệp vụ đã tương đương; không chỉ đổi `/api/create-new-post` thành `/api/jobs`.
+1. Tiếp tục xử lý xung đột khi nhiều người sửa cùng tin và đồng bộ luồng kiểm duyệt trước khi chuyển từng màn hình. Hạn mức đã xử lý ở 2a; sửa độc lập/ngày hết hạn ở 2b; API đăng lại và idempotency modern ở 2c; adapter biểu mẫu/Allcode và đọc quản lý ở 2d. Còn vòng đời UI giữ payload/key, xử lý phản hồi đăng thành công, danh sách/note/duyệt legacy và nghiệm thu quyền. Không chỉ đổi `/api/create-new-post` thành `/api/jobs`.
 2. Hoàn thiện outbox cho publisher legacy và kế hoạch chuyển quyền sở hữu luồng ghi. Schema event đúng không tự bảo đảm gửi không mất; không phát hai event độc lập cho cùng một thao tác để “đồng bộ”.
 3. Nối màn hình AI/CV và chuyển luồng tìm kiếm/đăng tin theo từng màn hình khi phía server đủ nghiệp vụ. Hiện màn hình Kanban/báo cáo và gợi ý tìm kiếm đã có gọi microservice; danh sách tìm kiếm chính/đăng tin vẫn còn API legacy. Không coi helper API đã có là giao diện tính năng đã hoàn tất.
 4. Nghiệm thu các vai trò trên stack mới, hạn mức và thao tác lặp, token hết hạn, dịch vụ gián đoạn/phục hồi, dữ liệu cập nhật chậm giữa dịch vụ. Các mục kiến trúc/vận hành khác của PDF tiếp tục theo `implementation-progress.md`.

@@ -14,6 +14,7 @@ import * as aiClient from '../../frontend/src/service/aiSearchService.js';
 import * as applicationClient from '../../frontend/src/service/applicationService.js';
 import * as adminClient from '../../frontend/src/service/adminReportService.js';
 import * as jobClient from '../../frontend/src/service/jobPostingService.js';
+import { jobToForm, buildJobCreate, buildJobUpdate } from '../../frontend/src/service/jobFormAdapter.js';
 
 const cvId = '507f1f77bcf86cd799439011';
 const bodyExamples = {
@@ -81,6 +82,8 @@ afterAll(async () => {
 
 describe('real HTTP request contracts', () => {
     it.each([
+        ['jobManageGet', jobClient.getManagedJob, [7]],
+        ['jobUpdate', jobClient.updateJob, [7, { genderPostCode: null, amount: 3 }]],
         ['jobCreate', jobClient.createJob, [bodyExamples.JobCreate, { idempotencyKey: 'create-test' }]],
         ['jobRepost', jobClient.repostJob, [7, bodyExamples.JobRepost.timeEnd, { idempotencyKey: 'repost-test' }]],
         ['searchJobs', aiClient.searchJobs, [{ q: 'Node', limit: 12, offset: 0, isHot: false, categoryJobCode: 'IT' }]],
@@ -106,7 +109,7 @@ describe('real HTTP request contracts', () => {
         const url = new URL(target, 'http://contract.test');
         const prefix = op.service === 'admin' ? '/api/admin' : '/api';
         const path = url.pathname.slice(prefix.length);
-        const body = data === undefined ? undefined : JSON.parse(JSON.stringify(data));
+        const body = data === undefined || op.method === 'get' ? undefined : JSON.parse(JSON.stringify(data));
         const response = await send(id, { path, query: url.search, body, headers: config?.headers || {} });
         expect(response.status, await response.clone().text()).toBe(op.status);
         expect(hits[id]).toHaveBeenCalledOnce();
@@ -118,9 +121,20 @@ describe('real HTTP request contracts', () => {
         expect(hits[op.id]).toHaveBeenCalledOnce();
         if (body) expect((await response.json()).body).toEqual(body);
     });
+    it('accepts actual create/edit form adapters without UI, identity or unchanged fields', async () => {
+        const initial = jobToForm({ id: 7, statusCode: 'PS3', name: 'Developer', descriptionHTML: '<p>Work</p>', amount: 2,
+            categoryJobCode: 'IT', genderPostCode: null, timeEnd: '1700000000000' });
+        const create = buildJobCreate(initial, new Date(Date.now() + 86400000));
+        expect((await send('jobCreate', { body: create })).status).toBe(201);
+        const patch = buildJobUpdate({ ...initial, name: 'Changed', genderCode: 'G1' }, initial);
+        expect(patch).toEqual({ name: 'Changed', genderPostCode: 'G1' });
+        expect((await send('jobUpdate', { body: patch })).status).toBe(200);
+        expect(buildJobUpdate(initial, initial)).toBeNull();
+    });
 
     it.each([
         ['jobGet', { path: '/jobs/1x' }], ['jobGet', { path: '/jobs/9007199254740992' }],
+        ['jobManageGet', { path: '/jobs/1x/manage' }], ['jobManageGet', { query: '?companyId=4' }],
         ['cvDelete', { path: '/profile/cvs/not-a-mongo-id' }], ['aiTaskGet', { path: '/ai/tasks/bad%20id' }],
         ['jobCreate', { body: { ...bodyExamples.JobCreate, isHot: 'false' } }],
         ['jobCreate', { body: { ...bodyExamples.JobCreate, amount: -1 } }],
@@ -199,6 +213,10 @@ describe('real HTTP request contracts', () => {
         expect((await send('auditList', { query: '?limit=-1', headers: { 'x-user-role': 'CANDIDATE' } })).status).toBe(403);
         expect(hits.jobCreate).not.toHaveBeenCalled();
         expect(hits.auditList).not.toHaveBeenCalled();
+        expect((await send('jobManageGet', { omitIdentity: true })).status).toBe(403);
+        expect((await send('jobManageGet', { headers: { 'x-user-role': 'CANDIDATE' } })).status).toBe(403);
+        expect((await send('jobManageGet', { headers: { 'x-user-role': 'EMPLOYER', 'x-company-id': '3' } })).status).toBe(403);
+        expect(hits.jobManageGet).not.toHaveBeenCalled();
     });
     it('forwards rejected async controllers to the safe Express 4 error boundary', async () => {
         hits.profileGet.mockRejectedValueOnce(new Error('SQL and private CV details'));

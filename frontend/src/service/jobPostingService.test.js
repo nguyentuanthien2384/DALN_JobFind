@@ -1,9 +1,37 @@
 import axios from '../axios';
-import { createJobRequestOptions, createJob, repostJob } from './jobPostingService';
+import { createJobRequestOptions, createJob, repostJob, getManagedJob, updateJob } from './jobPostingService';
 
-jest.mock('../axios', () => ({ __esModule: true, default: { post: jest.fn() } }));
+jest.mock('../axios', () => ({ __esModule: true, default: { post: jest.fn(), get: jest.fn(), put: jest.fn() } }));
 beforeAll(() => { Object.defineProperty(globalThis, 'crypto', { value: require('crypto').webcrypto, configurable: true }); });
 beforeEach(() => axios.post.mockReset().mockResolvedValue({ errCode: 0, data: { id: 12, statusCode: 'PS3' } }));
+beforeEach(() => { axios.get.mockReset(); axios.put.mockReset(); });
+
+test('reads current management state and sends explicit partial edits with bounded cancellable HTTP', async () => {
+    const signal = new AbortController().signal;
+    await getManagedJob(12, { signal });
+    expect(axios.get).toHaveBeenCalledWith('/api/jobs/12/manage', { timeout: 15000, signal });
+    const patch = { genderPostCode: null, amount: 2 };
+    await updateJob('12', patch, { signal });
+    expect(axios.put).toHaveBeenCalledWith('/api/jobs/12', patch, { timeout: 15000, signal });
+    expect(axios.post).not.toHaveBeenCalled();
+});
+test.each([0, '../internal', '?companyId=4', true, [12], Number.MAX_SAFE_INTEGER + 1])('rejects invalid read/edit IDs %j', async id => {
+    await expect(getManagedJob(id)).rejects.toThrow();
+    await expect(updateJob(id, { name: 'Changed' })).rejects.toThrow();
+    expect(axios.get).not.toHaveBeenCalled(); expect(axios.put).not.toHaveBeenCalled();
+});
+test.each([null, undefined, {}, []])('does not send an empty/no-op edit %j', async patch => {
+    await expect(updateJob(12, patch)).rejects.toThrow('Không có thay đổi');
+    expect(axios.put).not.toHaveBeenCalled();
+});
+test('does not retry failed management reads/edits or fall back to legacy', async () => {
+    axios.get.mockRejectedValueOnce(new Error('offline'));
+    axios.put.mockRejectedValueOnce(new Error('offline'));
+    await expect(getManagedJob(12)).rejects.toThrow('offline');
+    await expect(updateJob(12, { name: 'Changed' })).rejects.toThrow('offline');
+    expect(axios.get).toHaveBeenCalledTimes(1); expect(axios.put).toHaveBeenCalledTimes(1);
+    expect(axios.post).not.toHaveBeenCalled();
+});
 
 test.each([
     [createJob, [{ name: 'Developer' }], '/api/jobs', { name: 'Developer' }],

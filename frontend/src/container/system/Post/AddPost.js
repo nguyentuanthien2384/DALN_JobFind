@@ -15,9 +15,26 @@ import "react-markdown-editor-lite/lib/index.css";
 import { useFetchAllcode } from "../../../util/fetch";
 import { useNavigate, useParams } from "react-router-dom";
 import { Spinner, Modal } from "reactstrap";
-import moment from "moment";
+import { jobToForm, jobDeadlineDate, jobClassificationOptions, jobStatusLabel } from "../../../service/jobFormAdapter";
 import "../../../components/modal/modal.css";
 import ReupPostModal from "../../../components/modal/ReupPostModal";
+const emptyPostForm = () => ({
+    name: "",
+    categoryJobCode: "",
+    addressCode: "",
+    salaryJobCode: "",
+    amount: "",
+    timeEnd: "",
+    categoryJoblevelCode: "",
+    categoryWorktypeCode: "",
+    experienceJobCode: "",
+    genderCode: "",
+    descriptionHTML: "",
+    descriptionMarkdown: "",
+    isActionADD: true,
+    id: "",
+    isHot: 0,
+});
 const AddPost = () => {
     const mdParser = new MarkdownIt();
     const [user, setUser] = useState({});
@@ -29,23 +46,7 @@ const AddPost = () => {
         hot: 0,
         nonHot: 0,
     });
-    const [inputValues, setInputValues] = useState({
-        name: "",
-        categoryJobCode: "",
-        addressCode: "",
-        salaryJobCode: "",
-        amount: "",
-        timeEnd: "",
-        categoryJoblevelCode: "",
-        categoryWorktypeCode: "",
-        experienceJobCode: "",
-        genderCode: "",
-        descriptionHTML: "",
-        descriptionMarkdown: "",
-        isActionADD: true,
-        id: "",
-        isHot: 0,
-    });
+    const [inputValues, setInputValues] = useState(() => ({ ...emptyPostForm(), isActionADD: !id }));
     const [propsModal, setPropsModal] = useState({
         isActive: false,
         handlePost: () => {},
@@ -60,63 +61,42 @@ const AddPost = () => {
         }
     }, []);
 
-    const setStatePost = useCallback((data) => {
-        setInputValues((currentValues) => ({
-            ...currentValues,
-            "name": data.postDetailData.name,
-            "categoryJobCode": data.postDetailData.jobTypePostData.code,
-            "addressCode": data.postDetailData.provincePostData.code,
-            "salaryJobCode": data.postDetailData.salaryTypePostData.code,
-            "amount": data.postDetailData.amount,
-            "timeEnd": data.timeEnd,
-            "categoryJoblevelCode": data.postDetailData.jobLevelPostData.code,
-            "categoryWorktypeCode": data.postDetailData.workTypePostData.code,
-            "experienceJobCode": data.postDetailData.expTypePostData.code,
-            "genderCode": data.postDetailData.genderPostData.code,
-            "descriptionHTML": data.postDetailData.descriptionHTML,
-            "descriptionMarkdown": data.postDetailData.descriptionMarkdown,
-            "isActionADD": false,
-            "id": data.id,
-        }));
-        document.querySelector('[name="categoryJobCode"]').value =
-            data.postDetailData.jobTypePostData.code;
-        document.querySelector('[name="addressCode"]').value =
-            data.postDetailData.provincePostData.code;
-        document.querySelector('[name="salaryJobCode"]').value =
-            data.postDetailData.salaryTypePostData.code;
-        document.querySelector('[name="categoryJoblevelCode"]').value =
-            data.postDetailData.jobLevelPostData.code;
-        document.querySelector('[name="categoryWorktypeCode"]').value =
-            data.postDetailData.workTypePostData.code;
-        document.querySelector('[name="experienceJobCode"]').value =
-            data.postDetailData.expTypePostData.code;
-        document.querySelector('[name="genderCode"]').value =
-            data.postDetailData.genderPostData.code;
-        settimeEnd(
-            moment
-                .unix(+data.timeEnd / 1000)
-                .locale("vi")
-                .toDate()
-        );
-    }, []);
-
-    const fetchPost = useCallback(async (postId) => {
-        const res = await getDetailPostByIdService(postId);
-        if (res && res.errCode === 0) {
-            setStatePost(res.data);
-        }
-    }, [setStatePost]);
-
+    const [loadError, setLoadError] = useState('');
+    const readyToEdit = !id || (!inputValues.isActionADD && String(inputValues.id) === String(id));
+    const validDeadline = jobDeadlineDate(inputValues.timeEnd);
     useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem("userData"));
-        if (userData && userData.roleCode !== "ADMIN" && !id) {
+        let active = true;
+        let userData;
+        try { userData = JSON.parse(localStorage.getItem("userData")) || {}; } catch { userData = {}; }
+        setUser(userData);
+        setLoadError('');
+        setisChangeDate(false);
+        setPropsModal({ isActive: false, handlePost: () => {} });
+        if (userData.id && userData.roleCode !== "ADMIN" && !id) {
             fetchCompany(userData.id, userData.companyId);
         }
         if (id) {
-            fetchPost(id);
+            setInputValues({ ...emptyPostForm(), isActionADD: false });
+            const load = async () => {
+                try {
+                    const res = await getDetailPostByIdService(id);
+                    if (!active) return;
+                    if (!res || res.errCode !== 0 || !res.data) throw new Error(res?.errMessage || 'Không đọc được tin tuyển dụng');
+                    const form = jobToForm(res.data);
+                    if (String(form.id) !== String(id)) throw new Error('Dữ liệu tin không khớp, vui lòng tải lại');
+                    setInputValues(form);
+                    settimeEnd(jobDeadlineDate(form.timeEnd));
+                } catch (error) {
+                    if (active) setLoadError(error.message || 'Không đọc được tin tuyển dụng');
+                }
+            };
+            load();
+        } else {
+            setInputValues(emptyPostForm());
+            settimeEnd(new Date());
         }
-        setUser(userData);
-    }, [fetchCompany, fetchPost, id]);
+        return () => { active = false; };
+    }, [fetchCompany, id]);
 
     const { data: dataGenderPost } = useFetchAllcode("GENDERPOST");
     const { data: dataJobType } = useFetchAllcode("JOBTYPE");
@@ -126,40 +106,20 @@ const AddPost = () => {
     const { data: dataWorkType } = useFetchAllcode("WORKTYPE");
     const { data: dataProvince } = useFetchAllcode("PROVINCE");
 
-    if (
-        dataGenderPost &&
-        dataGenderPost.length > 0 &&
-        inputValues.genderCode === "" &&
-        dataJobType &&
-        dataJobType.length > 0 &&
-        inputValues.categoryJobCode === "" &&
-        dataJobLevel &&
-        dataJobLevel.length > 0 &&
-        inputValues.categoryJoblevelCode === "" &&
-        dataSalaryType &&
-        dataSalaryType.length > 0 &&
-        inputValues.salaryJobCode === "" &&
-        dataExpType &&
-        dataExpType.length > 0 &&
-        inputValues.experienceJobCode === "" &&
-        dataWorkType &&
-        dataWorkType.length > 0 &&
-        inputValues.categoryWorktypeCode === "" &&
-        dataProvince &&
-        dataProvince.length > 0 &&
-        inputValues.addressCode === ""
-    ) {
-        setInputValues({
-            ...inputValues,
-            "genderCode": dataGenderPost[0].code,
-            "categoryJobCode": dataJobType[0].code,
-            "categoryJoblevelCode": dataJobLevel[0].code,
-            "salaryJobCode": dataSalaryType[0].code,
-            "experienceJobCode": dataExpType[0].code,
-            "categoryWorktypeCode": dataWorkType[0].code,
-            "addressCode": dataProvince[0].code,
+    useEffect(() => {
+        if (id) return; // Never fill null/unknown historical codes while editing.
+        const defaults = { genderCode: dataGenderPost, categoryJobCode: dataJobType,
+            categoryJoblevelCode: dataJobLevel, salaryJobCode: dataSalaryType,
+            experienceJobCode: dataExpType, categoryWorktypeCode: dataWorkType, addressCode: dataProvince };
+        setInputValues(current => {
+            const changes = Object.fromEntries(Object.entries(defaults)
+                .filter(([field, items]) => current[field] === '' && items?.[0]?.code)
+                .map(([field, items]) => [field, items[0].code]));
+            return Object.keys(changes).length ? { ...current, ...changes } : current;
         });
-    }
+    }, [id, dataGenderPost, dataJobType, dataJobLevel, dataSalaryType, dataExpType, dataWorkType, dataProvince,
+        inputValues.genderCode, inputValues.categoryJobCode, inputValues.categoryJoblevelCode,
+        inputValues.salaryJobCode, inputValues.experienceJobCode, inputValues.categoryWorktypeCode, inputValues.addressCode]);
     const handleOnChange = (event) => {
         const { name, value } = event.target;
         setInputValues({ ...inputValues, [name]: value });
@@ -182,10 +142,13 @@ const AddPost = () => {
         setisChangeDate(true);
     };
     let handleSavePost = async () => {
+        if (!readyToEdit || isLoading || loadError || inputValues.statusCode === 'PS4') return;
+        if (id && !validDeadline) { toast.error('Ngày hết hạn đang lưu không hợp lệ; vui lòng liên hệ quản trị viên'); return; }
         setIsLoading(true);
         if (inputValues.isActionADD === true) {
             if (new Date().getTime() > new Date(timeEnd).getTime()) {
                 toast.error("Ngày kết thúc phải hơn ngày hiện tại");
+                setIsLoading(false);
             } else {
                 let res = await createPostService({
                     name: inputValues.name,
@@ -261,6 +224,7 @@ const AddPost = () => {
         }
     };
     let handleReupPost = async (timeEnd) => {
+        if (!readyToEdit || loadError || inputValues.statusCode === 'PS4' || !validDeadline) return;
         let res = await reupPostService({
             userId: user.id,
             postId: id,
@@ -308,6 +272,10 @@ const AddPost = () => {
                                         </p>
                                     </div>
                                 )}
+                            {id && !readyToEdit && !loadError && <p role="status">Đang tải thông tin tin...</p>}
+                            {loadError && <p role="alert">{loadError}. Vui lòng tải lại trang.</p>}
+                            {id && readyToEdit && <p>Trạng thái lúc tải: {jobStatusLabel(inputValues.statusCode)}</p>}
+                            {id && readyToEdit && !validDeadline && <p role="alert">Ngày hết hạn đang lưu không hợp lệ; vui lòng liên hệ quản trị viên.</p>}
                             <form className="form-sample">
                                 <div className="row">
                                     <div className="col-md-6">
@@ -357,10 +325,7 @@ const AddPost = () => {
                                                         handleOnChange(event)
                                                     }
                                                 >
-                                                    {dataProvince &&
-                                                        dataProvince.length >
-                                                            0 &&
-                                                        dataProvince.map(
+                                                    {jobClassificationOptions(dataProvince, inputValues.addressCode).map(
                                                             (item, index) => {
                                                                 return (
                                                                     <option
@@ -457,10 +422,7 @@ const AddPost = () => {
                                                         handleOnChange(event)
                                                     }
                                                 >
-                                                    {dataGenderPost &&
-                                                        dataGenderPost.length >
-                                                            0 &&
-                                                        dataGenderPost.map(
+                                                    {jobClassificationOptions(dataGenderPost, inputValues.genderCode).map(
                                                             (item, index) => {
                                                                 return (
                                                                     <option
@@ -505,10 +467,7 @@ const AddPost = () => {
                                                         handleOnChange(event)
                                                     }
                                                 >
-                                                    {dataExpType &&
-                                                        dataExpType.length >
-                                                            0 &&
-                                                        dataExpType.map(
+                                                    {jobClassificationOptions(dataExpType, inputValues.experienceJobCode).map(
                                                             (item, index) => {
                                                                 return (
                                                                     <option
@@ -555,10 +514,7 @@ const AddPost = () => {
                                                         handleOnChange(event)
                                                     }
                                                 >
-                                                    {dataJobType &&
-                                                        dataJobType.length >
-                                                            0 &&
-                                                        dataJobType.map(
+                                                    {jobClassificationOptions(dataJobType, inputValues.categoryJobCode).map(
                                                             (item, index) => {
                                                                 return (
                                                                     <option
@@ -603,10 +559,7 @@ const AddPost = () => {
                                                         handleOnChange(event)
                                                     }
                                                 >
-                                                    {dataJobLevel &&
-                                                        dataJobLevel.length >
-                                                            0 &&
-                                                        dataJobLevel.map(
+                                                    {jobClassificationOptions(dataJobLevel, inputValues.categoryJoblevelCode).map(
                                                             (item, index) => {
                                                                 return (
                                                                     <option
@@ -653,10 +606,7 @@ const AddPost = () => {
                                                         handleOnChange(event)
                                                     }
                                                 >
-                                                    {dataSalaryType &&
-                                                        dataSalaryType.length >
-                                                            0 &&
-                                                        dataSalaryType.map(
+                                                    {jobClassificationOptions(dataSalaryType, inputValues.salaryJobCode).map(
                                                             (item, index) => {
                                                                 return (
                                                                     <option
@@ -701,10 +651,7 @@ const AddPost = () => {
                                                         handleOnChange(event)
                                                     }
                                                 >
-                                                    {dataWorkType &&
-                                                        dataWorkType.length >
-                                                            0 &&
-                                                        dataWorkType.map(
+                                                    {jobClassificationOptions(dataWorkType, inputValues.categoryWorktypeCode).map(
                                                             (item, index) => {
                                                                 return (
                                                                     <option
@@ -783,6 +730,7 @@ const AddPost = () => {
                                 {user.roleCode !== "ADMIN" && (
                                     <>
                                         <button
+                                            disabled={!readyToEdit || !!loadError || isLoading || inputValues.statusCode === 'PS4' || (!!id && !validDeadline)}
                                             onClick={() => handleSavePost()}
                                             type="button"
                                             className="btn1 btn1-primary1 btn1-icon-text"
@@ -792,7 +740,7 @@ const AddPost = () => {
                                         </button>
                                     </>
                                 )}
-                                {id &&
+                                {id && readyToEdit && !loadError && validDeadline && inputValues.statusCode !== 'PS4' &&
                                     user.roleCode !== "ADMIN" &&
                                     new Date().getTime() >
                                         new Date(timeEnd).getTime() && (

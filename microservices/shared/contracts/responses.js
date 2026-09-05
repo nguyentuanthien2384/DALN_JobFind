@@ -15,6 +15,16 @@ const stageLabel = record({ stage, label: text() });
 
 export const responseDefinitions = {
     ...schemas,
+    ManagedJob: object({
+        ...schemas.Job.properties,
+        descriptionMarkdown: nullable(text(200000)), amount: nullable(integer(1, 100000)),
+        timePost: nullable(text(32)), timeEnd: nullable(text(32)), isHot: { type: 'integer', enum: [0, 1] },
+        companyLogo: nullable(text(200000)),
+        ...Object.fromEntries(['categoryJobCode', 'addressCode', 'salaryJobCode', 'categoryJoblevelCode',
+            'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode'].map(field => [field, nullable(text(64))]))
+    }, ['id', 'name', 'statusCode', 'timeEnd', 'isHot', 'userId', 'companyId', 'descriptionHTML', 'descriptionMarkdown',
+        'amount', 'categoryJobCode', 'addressCode', 'salaryJobCode', 'categoryJoblevelCode',
+        'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode']),
     Suggestion: record({ id, name: text(), companyName: nullable(text()), addressCode: nullable(text()) }, ['id', 'name']),
     SearchJob: record({ id, name: text(), statusCode: text(), _score: nullable(number), _highlight: nullable(text(200000)) }, ['id', 'name']),
     Facets: record({ categories: list(bucket), provinces: list(bucket), salaries: list(bucket) }),

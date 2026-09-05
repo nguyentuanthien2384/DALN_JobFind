@@ -344,4 +344,69 @@ describe("post editor", () => {
         expect(container.querySelector('input[name="name"]')).toBeDisabled();
         expect(screen.queryByRole("button", { name: "Lưu" })).not.toBeInTheDocument();
     });
+
+    it('preserves unknown raw codes and null joins instead of overwriting with dropdown defaults', async () => {
+        mockParams = { id: '55' };
+        getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: { ...detailPost, statusCode: 'PS2', postDetailData: {
+            ...detailPost.postDetailData, categoryJobCode: 'DELETED-CODE', jobTypePostData: null,
+            addressCode: null, provincePostData: null, genderPostCode: 'OLD-GENDER', genderPostData: null
+        } } });
+        const { container } = render(<AddPost />);
+        await waitFor(() => expect(container.querySelector('input[name="name"]')).toHaveValue('Bài cũ'));
+        expect(container.querySelector('[name="categoryJobCode"]')).toHaveValue('DELETED-CODE');
+        expect(container.querySelector('[name="addressCode"]')).toHaveValue('');
+        expect(container.querySelector('[name="genderCode"]')).toHaveValue('OLD-GENDER');
+        expect(screen.getByText('Trạng thái lúc tải: Bị từ chối')).toBeInTheDocument();
+        expect(screen.getByText('Mã đang lưu: DELETED-CODE (không có trong danh mục)')).toBeInTheDocument();
+    });
+    it.each([
+        { errCode: 0 }, { errCode: 403, errMessage: 'Không có quyền' },
+        { errCode: 0, data: { ...detailPost, id: 56 } },
+        { errCode: 0, data: { ...detailPost, postDetailData: null } }
+    ])('failed/mismatched edit read never becomes a create or permits a write: %j', async response => {
+        mockParams = { id: '55' };
+        getDetailPostByIdService.mockResolvedValue(response);
+        render(<AddPost />);
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Lưu' })).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+        expect(screen.queryByRole('button', { name: 'Đăng lại' })).not.toBeInTheDocument();
+        expect(createPostService).not.toHaveBeenCalled(); expect(updatePostService).not.toHaveBeenCalled();
+    });
+    it('ignores an earlier response when navigating to another post and resets on a new-post route', async () => {
+        mockParams = { id: '55' };
+        let finishFirst;
+        getDetailPostByIdService.mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }));
+        const { container, rerender } = render(<AddPost />);
+        expect(screen.getByRole('button', { name: 'Lưu' })).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+        expect(createPostService).not.toHaveBeenCalled();
+        mockParams = { id: '56' };
+        getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: { ...detailPost, id: 56, postDetailData: { ...detailPost.postDetailData, name: 'Tin mới nhất' } } });
+        rerender(<AddPost />);
+        await waitFor(() => expect(container.querySelector('input[name="name"]')).toHaveValue('Tin mới nhất'));
+        await act(async () => finishFirst({ errCode: 0, data: detailPost }));
+        expect(container.querySelector('input[name="name"]')).toHaveValue('Tin mới nhất');
+        mockParams = {};
+        rerender(<AddPost />);
+        expect(container.querySelector('input[name="name"]')).toHaveValue('');
+        expect(screen.getByText('Thêm mới bài đăng')).toBeInTheDocument();
+    });
+    it('shows malformed historical deadlines safely without allowing edit/repost', async () => {
+        mockParams = { id: '55' };
+        getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: { ...detailPost, timeEnd: 'bad date' } });
+        render(<AddPost />);
+        expect(await screen.findByRole('alert')).toHaveTextContent('Ngày hết hạn đang lưu không hợp lệ');
+        expect(screen.getByLabelText('Ngày kết thúc')).toHaveValue('');
+        expect(screen.getByRole('button', { name: 'Lưu' })).toBeDisabled();
+        expect(screen.queryByRole('button', { name: 'Đăng lại' })).not.toBeInTheDocument();
+    });
+    it('displays removed status but never enables save/repost for PS4', async () => {
+        mockParams = { id: '55' };
+        getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: { ...detailPost, statusCode: 'PS4' } });
+        render(<AddPost />);
+        expect(await screen.findByText('Trạng thái lúc tải: Đã gỡ hoặc bị chặn')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Lưu' })).toBeDisabled();
+        expect(screen.queryByRole('button', { name: 'Đăng lại' })).not.toBeInTheDocument();
+    });
 });

@@ -28,8 +28,20 @@ const postJob = async (path, body, options) => {
 };
 
 export const createJob = (body, options) => postJob('/api/jobs', body, options);
+const validJobId = value => ['string', 'number'].includes(typeof value) && /^[1-9][0-9]*$/.test(String(value)) && Number.isSafeInteger(Number(value));
+export const getManagedJob = (id, options = {}) => {
+    if (!validJobId(id)) return Promise.reject(new Error('Mã tin không hợp lệ'));
+    return axios.get(`/api/jobs/${id}/manage`, { timeout: 15000, ...(options.signal && { signal: options.signal }) });
+};
+export const updateJob = (id, patch, options = {}) => {
+    if (!validJobId(id)) return Promise.reject(new Error('Mã tin không hợp lệ'));
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch) || !Object.keys(patch).length) {
+        return Promise.reject(new Error('Không có thay đổi để gửi'));
+    }
+    return axios.put(`/api/jobs/${id}`, patch, { timeout: 15000, ...(options.signal && { signal: options.signal }) });
+};
 export const repostJob = (sourceId, timeEnd, options) => {
-    if (!/^[1-9][0-9]*$/.test(String(sourceId)) || !Number.isSafeInteger(Number(sourceId))) {
+    if (!validJobId(sourceId)) {
         return Promise.reject(new Error('Mã tin nguồn không hợp lệ'));
     }
     return postJob(`/api/jobs/${sourceId}/repost`, { timeEnd }, options);

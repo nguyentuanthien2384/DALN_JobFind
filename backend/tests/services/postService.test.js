@@ -260,6 +260,10 @@ describe('postService', () => {
     mockDb.Company.findOne.mockResolvedValueOnce({ id: 4, file: 'private-license' });
     await service.getDetailPostById(10, { includeNonPublic: true });
     expect(mockDb.Post.findOne).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: 10 } }));
+    const detailQuery = mockDb.Post.findOne.mock.calls.at(-1)[0].include.find(item => item.as === 'postDetailData');
+    expect(detailQuery.attributes).toEqual(expect.arrayContaining(['categoryJobCode', 'addressCode', 'salaryJobCode',
+      'categoryJoblevelCode', 'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode']));
+    expect(detailQuery.include).toHaveLength(7); // keep old associations for clients not yet migrated
   });
 
   test('filters active posts across array filters, hot flag and pagination', async () => {

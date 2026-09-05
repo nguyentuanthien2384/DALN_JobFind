@@ -502,7 +502,9 @@ let getDetailPostById = (id, { includeNonPublic = false } = {}) => {
                     raw: true,
                     include: [
                         {
-                            model: db.DetailPost, as: 'postDetailData', attributes: ['id', 'name', 'descriptionHTML', 'descriptionMarkdown', 'amount'],
+                            model: db.DetailPost, as: 'postDetailData', attributes: ['id', 'name', 'descriptionHTML', 'descriptionMarkdown', 'amount',
+                                'categoryJobCode', 'addressCode', 'salaryJobCode', 'categoryJoblevelCode',
+                                'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode'],
                             include: [
                                 { model: db.Allcode, as: 'jobTypePostData', attributes: ['value', 'code'] },
                                 { model: db.Allcode, as: 'workTypePostData', attributes: ['value', 'code'] },

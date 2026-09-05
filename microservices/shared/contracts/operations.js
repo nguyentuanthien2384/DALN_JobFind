@@ -15,6 +15,7 @@ export const operations = [
     op('jobUpdate', 'jobs', 'put', '/jobs/:id', P.JOB_MANAGE, { params: jobParams, body: 'JobUpdate', response: 'Job', ...company }),
     op('jobDelete', 'jobs', 'delete', '/jobs/:id', P.JOB_MANAGE, { params: jobParams, response: 'Ack', ...company }),
     op('jobGet', 'jobs', 'get', '/jobs/:id', null, { params: jobParams, response: 'Job' }),
+    op('jobManageGet', 'jobs', 'get', '/jobs/:id/manage', P.JOB_MANAGE, { params: jobParams, response: 'ManagedJob', ...company }),
     op('aiParseResume', 'jobs', 'post', '/ai/parse-resume', P.AI_CANDIDATE_USE, { body: 'ParseResume', response: 'AcceptedTask', status: 202, idempotency: true }),
     op('aiMatchCv', 'jobs', 'post', '/ai/match-cv', P.AI_CANDIDATE_USE, { body: 'MatchCv', response: 'AcceptedTask', status: 202, idempotency: true }),
     op('aiCoverLetter', 'jobs', 'post', '/ai/cover-letter', P.AI_CANDIDATE_USE, { body: 'CoverLetter', response: 'AcceptedTask', status: 202, idempotency: true }),
