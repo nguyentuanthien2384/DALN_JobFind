@@ -18,6 +18,7 @@ const containers = [];
 let pool;
 let brokerConnection;
 let closePublisher;
+let httpServer;
 let transportAttempts = 0;
 let passed = 0;
 const faultServer = createServer((socket) => { transportAttempts += 1; socket.destroy(); });
@@ -58,7 +59,7 @@ try {
     ({ closeOutboxPublisher: closePublisher } = await import('../shared/outboxPublisher.js'));
     const { ensureAiResultTables } = await import('../job-core-service/src/libs/moderationState.js');
     const { handleAiResult } = await import('../job-core-service/src/libs/aiResultHandler.js');
-    const { MAX_AI_REQUEST_BYTES } = await import('../job-core-service/src/libs/aiTaskRequest.js');
+    const { MAX_AI_REQUEST_BYTES, ensureAiRequestTable } = await import('../job-core-service/src/libs/aiTaskRequest.js');
     const { EXCHANGE } = await import('../shared/events.js');
     const { readEventMessage } = await import('../shared/eventEnvelope.js');
     const { taskIdentity } = await import('../ai-worker/src/libs/taskIdentity.js');
@@ -73,6 +74,7 @@ try {
     await ensureAiTaskTable();
     await ensureOutboxTable();
     await ensureAiResultTables();
+    await ensureAiRequestTable();
 
     const count = async (table) => (await pool.query(`SELECT COUNT(*) AS n FROM ${table}`))[0][0].n;
     const event = async (id) => (await pool.query('SELECT * FROM outbox_events WHERE id = ?', [id]))[0][0];
@@ -256,11 +258,160 @@ try {
         assert.equal((await task(legacyId)).status, 'pending');
         assert.equal(await event(legacyId), undefined);
     });
-    console.log(`AI request integration: ${passed} checks passed on disposable MySQL/RabbitMQ; no real AI or SMTP calls.`);
+    // Exercise the actual HTTP handlers and trusted-service guards with a local
+    // server. A response can be dropped AFTER commit without mocking MySQL.
+    const { default: express } = await import('express');
+    const { requireTrustedGateway, requireServicePermission, PERMISSIONS } = await import('../shared/accessControl.js');
+    process.env.INTERNAL_SECRET = token;
+    const app = express();
+    let dropAcceptedResponse = false;
+    app.use(express.json({ limit: '50mb' }));
+    app.use(requireTrustedGateway, requireServicePermission(PERMISSIONS.AI_CANDIDATE_USE));
+    app.use((_req, res, next) => {
+        const json = res.json.bind(res);
+        res.json = (body) => {
+            if (dropAcceptedResponse && res.statusCode === 202) {
+                dropAcceptedResponse = false;
+                res.destroy();
+                return res;
+            }
+            return json(body);
+        };
+        next();
+    });
+    app.post('/ai/parse-resume', parseResume);
+    app.post('/ai/match-cv', matchCv);
+    app.post('/ai/cover-letter', coverLetter);
+    await new Promise((resolve) => { httpServer = app.listen(0, '127.0.0.1', resolve); });
+    const http = async (path, body, key, user = '9') => {
+        const result = await fetch(`http://127.0.0.1:${httpServer.address().port}${path}`, {
+            method: 'POST', signal: AbortSignal.timeout(10000),
+            headers: { 'content-type': 'application/json', 'x-internal-secret': token,
+                'x-user-id': user, 'x-user-role': 'CANDIDATE', 'Idempotency-Key': key },
+            body: JSON.stringify(body)
+        });
+        return { status: result.status, body: await result.json() };
+    };
+    const totals = async () => [await count('ai_request_keys'), await count('ai_tasks'), await count('outbox_events')];
+    const keyedCases = [
+        ['/ai/parse-resume', { fileBase64: 'synthetic-http-cv', fileName: 'test.pdf' }],
+        ['/ai/match-cv', { resumeText: 'Synthetic CV', jobId: 1 }],
+        ['/ai/cover-letter', { resumeText: 'Synthetic CV', jobId: 1, language: 'en' }]
+    ];
+    const keyed = [];
+
+    await check('20 concurrent HTTP copies per endpoint create exactly one key, task and outbox record', async () => {
+        for (const [path, body] of keyedCases) {
+            const key = randomUUID();
+            const before = await totals();
+            const responses = await Promise.all(Array.from({ length: 20 }, () => http(path, body, key)));
+            assert.ok(responses.every((res) => res.status === 202), JSON.stringify(responses));
+            assert.equal(new Set(responses.map((res) => res.body.taskId)).size, 1);
+            assert.deepEqual(await totals(), before.map((n) => n + 1));
+            keyed.push({ path, body, key, taskId: responses[0].body.taskId });
+        }
+    });
+
+    await check('same-key replays survive edits and deletion of the source job without recreating work', async () => {
+        const before = await totals();
+        await pool.query("UPDATE posts SET statusCode = 'PS4' WHERE id = 1");
+        await pool.query("UPDATE detailposts SET descriptionHTML = 'changed again' WHERE id = 1");
+        try {
+            for (const item of keyed) {
+                const res = await http(item.path, { ...item.body, jobId: item.body.jobId ? '1' : undefined }, item.key);
+                assert.equal(res.status, 202);
+                assert.equal(res.body.taskId, item.taskId);
+            }
+        } finally { await pool.query("UPDATE posts SET statusCode = 'PS1' WHERE id = 1"); }
+        assert.deepEqual(await totals(), before);
+    });
+
+    await check('changed inputs and endpoint changes conflict without revealing or overwriting the original task', async () => {
+        const before = await totals();
+        for (const item of keyed) {
+            const body = item.body.fileBase64 ? { ...item.body, fileBase64: 'changed' } : { ...item.body, resumeText: 'changed' };
+            const res = await http(item.path, body, item.key);
+            assert.equal(res.status, 409);
+            assert.equal(res.body.taskId, undefined);
+        }
+        assert.equal((await http('/ai/cover-letter', { resumeText: 'Synthetic CV', jobId: 1 }, keyed[1].key)).status, 409);
+        assert.deepEqual(await totals(), before);
+    });
+
+    await check('a lost real HTTP response after commit is recovered with the same task ID', async () => {
+        const key = randomUUID();
+        const body = { fileBase64: 'synthetic-lost-response' };
+        const before = await totals();
+        dropAcceptedResponse = true;
+        await assert.rejects(http('/ai/parse-resume', body, key), /fetch failed/);
+        const [[mapping]] = await pool.query('SELECT taskId FROM ai_request_keys WHERE userId = 9 AND requestKey = ?', [key]);
+        assert.ok(mapping);
+        assert.ok(await task(mapping.taskId));
+        assert.ok(await event(mapping.taskId));
+        const res = await http('/ai/parse-resume', body, key);
+        assert.equal(res.status, 202);
+        assert.equal(res.body.taskId, mapping.taskId);
+        assert.deepEqual(await totals(), before.map((n) => n + 1));
+    });
+
+    await check('SQL rollback releases the key together with task/outbox, so a later retry may succeed', async () => {
+        const key = randomUUID();
+        const body = { fileBase64: 'synthetic-rollback' };
+        const before = await totals();
+        await pool.query("CREATE TRIGGER fail_keyed_outbox AFTER INSERT ON outbox_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'keyed rollback test'");
+        try {
+            assert.equal((await http('/ai/parse-resume', body, key)).status, 500);
+            assert.deepEqual(await totals(), before);
+        } finally { await pool.query('DROP TRIGGER fail_keyed_outbox'); }
+        assert.equal((await http('/ai/parse-resume', body, key)).status, 202);
+        assert.deepEqual(await totals(), before.map((n) => n + 1));
+    });
+
+    await check('a nonexistent job does not reserve a key; a corrected retry can be accepted', async () => {
+        const key = randomUUID();
+        const before = await totals();
+        assert.equal((await http('/ai/match-cv', { resumeText: 'CV', jobId: 404 }, key)).status, 404);
+        assert.deepEqual(await totals(), before);
+        assert.equal((await http('/ai/match-cv', { resumeText: 'CV', jobId: 1 }, key)).status, 202);
+    });
+
+    await check('user scoping and case-sensitive keys are enforced by real MySQL', async () => {
+        const key = `Scoped-${randomUUID()}`;
+        const body = { fileBase64: 'synthetic-scope' };
+        const first = await http('/ai/parse-resume', body, key);
+        const otherUser = await http('/ai/parse-resume', body, key, '10');
+        const otherCase = await http('/ai/parse-resume', body, key.toLowerCase());
+        assert.ok([first, otherUser, otherCase].every((res) => res.status === 202));
+        assert.equal(new Set([first, otherUser, otherCase].map((res) => res.body.taskId)).size, 3);
+        assert.equal((await http('/ai/parse-resume', body, key)).body.taskId, first.body.taskId);
+    });
+
+    await check('retries keep done/failed tasks intact and refuse to recreate a missing mapped task', async () => {
+        const before = await totals();
+        for (const [index, status] of ['done', 'failed'].entries()) {
+            const item = keyed[index];
+            await pool.query('UPDATE ai_tasks SET status = ? WHERE id = ?', [status, item.taskId]);
+            const res = await http(item.path, item.body, item.key);
+            assert.equal(res.body.taskId, item.taskId);
+            assert.equal((await task(item.taskId)).status, status);
+        }
+        const missing = keyed[2];
+        // Deliberate corruption in the disposable fixture; no production cleanup.
+        await pool.query('DELETE FROM ai_tasks WHERE id = ?', [missing.taskId]);
+        const rejected = await http(missing.path, missing.body, missing.key);
+        assert.equal(rejected.status, 409);
+        assert.equal(rejected.body.taskId, undefined);
+        assert.deepEqual(await totals(), [before[0], before[1] - 1, before[2]]);
+        await ensureAiRequestTable();
+        assert.deepEqual(await totals(), [before[0], before[1] - 1, before[2]]);
+    });
+    console.log(`AI request integration: ${passed} checks passed on disposable MySQL/RabbitMQ and local HTTP; no real AI or SMTP calls.`);
 } finally {
     closePublisher?.();
+    httpServer?.closeAllConnections();
     const closed = await Promise.allSettled([
         brokerConnection?.close(), pool?.end(),
+        httpServer && new Promise((resolve) => httpServer.close(resolve)),
         new Promise((resolve) => faultServer.close(resolve))
     ]);
     for (const item of closed) if (item.status === 'rejected') console.error('Test connection cleanup failed:', item.reason.message);

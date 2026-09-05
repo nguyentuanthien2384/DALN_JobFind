@@ -36,6 +36,17 @@ const requestFailed = (res, type, error) => {
     if (error.code === 'AI_REQUEST_TOO_LARGE') {
         return res.status(413).json({ errCode: 1, errMessage: 'Dữ liệu yêu cầu AI vượt giới hạn 8 MiB' });
     }
+    const expected = {
+        AI_REQUEST_KEY_INVALID: [400, 'Mã gửi lại yêu cầu không hợp lệ'],
+        AI_REQUEST_UNAUTHORIZED: [401, 'Bạn cần đăng nhập để gửi yêu cầu AI'],
+        AI_REQUEST_KEY_CONFLICT: [409, 'Mã gửi lại đã được dùng cho nội dung khác'],
+        AI_REQUEST_STATE_CONFLICT: [409, 'Yêu cầu đã lưu cần được kiểm tra, không thể tự tạo lại'],
+        AI_REQUEST_JOB_NOT_FOUND: [404, 'Không tìm thấy tin tuyển dụng']
+    };
+    if (Object.hasOwn(expected, error.code)) {
+        const [status, errMessage] = expected[error.code];
+        return res.status(status).json({ errCode: status === 404 ? 2 : status, errMessage });
+    }
     // MySQL error messages/SQL can contain CV data. Log only an error code.
     logger.error('khong luu duoc yeu cau AI', { type, code: error.code || 'AI_REQUEST_FAILED' });
     return res.status(500).json({ errCode: -1, errMessage: 'Không thể xác nhận đã lưu yêu cầu AI' });
@@ -50,7 +61,9 @@ export const parseResume = async (req, res) => {
     try {
         const taskId = await enqueueAiTask({
             type: 'parse_resume', userId: userIdOf(req), input: { fileName },
-            payload: { fileBase64, fileName }
+            payload: { fileBase64, fileName },
+            requestData: { fileBase64, fileName: fileName ?? null },
+            idempotencyKey: req.headers['idempotency-key']
         });
         return res.status(202).json({ errCode: 0, taskId, errMessage: 'Đang phân tích CV' });
     } catch (error) { return requestFailed(res, 'parse_resume', error); }
@@ -64,22 +77,23 @@ export const matchCv = async (req, res) => {
     }
 
     try {
-        const [rows] = await pool.query(
-            `SELECT d.name, d.descriptionHTML FROM posts p
-             JOIN detailposts d ON d.id = p.detailPostId
-             JOIN users u ON u.id = p.userId
-             JOIN companies c ON c.id = u.companyId
-             WHERE p.id = ? AND p.statusCode = 'PS1'
-               AND c.statusCode = 'S1' AND c.censorCode = 'CS1'`,
-            [jobId]
-        );
-        if (!rows.length) {
-            return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy tin tuyển dụng' });
-        }
-
         const taskId = await enqueueAiTask({
             type: 'match_cv', userId: userIdOf(req), input: { jobId },
-            payload: { resumeText, jobTitle: rows[0].name, jobDescription: rows[0].descriptionHTML }
+            requestData: { resumeText, jobId: Number(jobId) },
+            idempotencyKey: req.headers['idempotency-key'],
+            payload: async (conn) => {
+                const [rows] = await conn.query(
+                    `SELECT d.name, d.descriptionHTML FROM posts p
+                     JOIN detailposts d ON d.id = p.detailPostId
+                     JOIN users u ON u.id = p.userId
+                     JOIN companies c ON c.id = u.companyId
+                     WHERE p.id = ? AND p.statusCode = 'PS1'
+                       AND c.statusCode = 'S1' AND c.censorCode = 'CS1'`,
+                    [jobId]
+                );
+                if (!rows.length) throw Object.assign(new Error('Job not found'), { code: 'AI_REQUEST_JOB_NOT_FOUND' });
+                return { resumeText, jobTitle: rows[0].name, jobDescription: rows[0].descriptionHTML };
+            }
         });
         return res.status(202).json({ errCode: 0, taskId, errMessage: 'Đang chấm độ khớp' });
     } catch (error) { return requestFailed(res, 'match_cv', error); }
@@ -93,25 +107,26 @@ export const coverLetter = async (req, res) => {
     }
 
     try {
-        const [rows] = await pool.query(
-            `SELECT d.name, d.descriptionHTML, c.name AS companyName
-             FROM posts p
-             JOIN detailposts d ON d.id = p.detailPostId
-             JOIN users u ON u.id = p.userId
-             JOIN companies c ON c.id = u.companyId
-             WHERE p.id = ? AND p.statusCode = 'PS1'
-               AND c.statusCode = 'S1' AND c.censorCode = 'CS1'`,
-            [jobId]
-        );
-        if (!rows.length) {
-            return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy tin tuyển dụng' });
-        }
-
         const taskId = await enqueueAiTask({
             type: 'cover_letter', userId: userIdOf(req), input: { jobId, language },
-            payload: {
-                resumeText, jobTitle: rows[0].name, jobDescription: rows[0].descriptionHTML,
-                companyName: rows[0].companyName || 'the company', language: language || 'en'
+            requestData: { resumeText, jobId: Number(jobId), language: language || 'en' },
+            idempotencyKey: req.headers['idempotency-key'],
+            payload: async (conn) => {
+                const [rows] = await conn.query(
+                    `SELECT d.name, d.descriptionHTML, c.name AS companyName
+                     FROM posts p
+                     JOIN detailposts d ON d.id = p.detailPostId
+                     JOIN users u ON u.id = p.userId
+                     JOIN companies c ON c.id = u.companyId
+                     WHERE p.id = ? AND p.statusCode = 'PS1'
+                       AND c.statusCode = 'S1' AND c.censorCode = 'CS1'`,
+                    [jobId]
+                );
+                if (!rows.length) throw Object.assign(new Error('Job not found'), { code: 'AI_REQUEST_JOB_NOT_FOUND' });
+                return {
+                    resumeText, jobTitle: rows[0].name, jobDescription: rows[0].descriptionHTML,
+                    companyName: rows[0].companyName || 'the company', language: language || 'en'
+                };
             }
         });
         return res.status(202).json({ errCode: 0, taskId, errMessage: 'Đang soạn thư ứng tuyển' });

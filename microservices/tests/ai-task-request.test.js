@@ -21,10 +21,13 @@ const cases = [
     ['cover_letter', coverLetter, { resumeText: 'private-resume', jobId: '1', language: 'vi' }]
 ];
 const request = (body) => makeReq({ body, headers: { 'x-user-id': '9' } });
+const queryResult = (sql) => sql.includes('SELECT d.name')
+    ? [[{ name: 'Dev', descriptionHTML: '<p>Build</p>', companyName: 'Company' }]]
+    : [{ affectedRows: 1 }];
 
 beforeEach(() => {
     mocks.pool.query.mockReset().mockResolvedValue([[{ name: 'Dev', descriptionHTML: '<p>Build</p>', companyName: 'Company' }]]);
-    mocks.conn.query.mockReset().mockResolvedValue([{ affectedRows: 1 }]);
+    mocks.conn.query.mockReset().mockImplementation(async (sql) => queryResult(sql));
     mocks.withTransaction.mockReset().mockImplementation((work) => work(mocks.conn));
     mocks.publish.mockReset();
     mocks.logger.error.mockReset();
@@ -35,7 +38,7 @@ describe('candidate AI request durability', () => {
         const res = makeRes();
         await handler(request(body), res);
         expect(res.statusCode).toBe(202);
-        const [task, event] = mocks.conn.query.mock.calls;
+        const [task, event] = mocks.conn.query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO'));
         expect(task[0]).toContain('INSERT INTO ai_tasks');
         expect(task[1].slice(0, 4)).toEqual([res.body.taskId, type, 'pending', 9]);
         expect(task[1][4]).not.toContain('private-');
@@ -66,8 +69,10 @@ describe('candidate AI request durability', () => {
     });
 
     it.each(cases)('%s handles an outbox insert failure without leaking private SQL or reporting 202', async (_type, handler, body) => {
-        mocks.conn.query.mockResolvedValueOnce([{ affectedRows: 1 }])
-            .mockRejectedValueOnce(Object.assign(new Error('private-resume in SQL parameters'), { code: 'ER_SIGNAL_EXCEPTION', sql: 'private-base64' }));
+        mocks.conn.query.mockImplementation(async (sql) => {
+            if (sql.includes('INSERT INTO outbox_events')) throw Object.assign(new Error('private-resume in SQL parameters'), { code: 'ER_SIGNAL_EXCEPTION', sql: 'private-base64' });
+            return queryResult(sql);
+        });
         const res = makeRes();
         await handler(request(body), res);
         expect(res.statusCode).toBe(500);
@@ -86,15 +91,16 @@ describe('candidate AI request durability', () => {
         expect(res.statusCode).toBe(500);
         expect(res.body).not.toHaveProperty('taskId');
         expect(mocks.withTransaction).toHaveBeenCalledOnce();
-        expect(mocks.conn.query).toHaveBeenCalledTimes(2);
+        expect(mocks.conn.query).toHaveBeenCalledTimes(_type === 'parse_resume' ? 2 : 3);
     });
 
     it.each([matchCv, coverLetter])('handles a failed job lookup as an HTTP error', async (handler) => {
-        mocks.pool.query.mockRejectedValue(new Error('lookup failed with private SQL'));
+        mocks.conn.query.mockRejectedValue(new Error('lookup failed with private SQL'));
         const res = makeRes();
         await handler(request({ resumeText: 'CV', jobId: 1 }), res);
         expect(res.statusCode).toBe(500);
-        expect(mocks.withTransaction).not.toHaveBeenCalled();
+        expect(mocks.withTransaction).toHaveBeenCalledOnce();
+        expect(mocks.conn.query).toHaveBeenCalledOnce();
     });
 
     it('preserves complete Unicode metadata instead of cutting JSON at 60000 characters', async () => {

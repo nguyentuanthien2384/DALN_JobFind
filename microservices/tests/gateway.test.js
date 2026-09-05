@@ -500,7 +500,7 @@ describe('circuit-breaker proxy', () => {
         mocks.breakerInstances.length = 0;
     });
 
-    it('forwards trusted identity while removing spoofable and hop-by-hop headers', async () => {
+    it('preserves the request key while replacing spoofed identity and removing hop-by-hop headers', async () => {
         vi.stubEnv('INTERNAL_SECRET', 'gateway-secret');
         mocks.axios.mockResolvedValue({ status: 201, headers: {}, data: { errCode: 0 } });
         const { createProxy } = await import('../api-gateway/src/middlewares/proxy.js');
@@ -509,7 +509,8 @@ describe('circuit-breaker proxy', () => {
             headers: {
                 host: 'evil', connection: 'keep', 'content-length': '99',
                 'x-user-id': '999', 'x-user-role': 'ADMIN',
-                'x-company-id': '999', 'x-internal-secret': 'attacker-secret', custom: 'ok'
+                'x-company-id': '999', 'x-internal-secret': 'attacker-secret', custom: 'ok',
+                'idempotency-key': 'candidate-request-key'
             },
             user: {
                 id: 7, roleCode: 'COMPANY', companyId: 8,
@@ -525,7 +526,7 @@ describe('circuit-breaker proxy', () => {
             custom: 'ok', 'x-user-id': '7', 'x-user-role': 'COMPANY',
             'x-company-id': '8', 'x-company-status': 'S1',
             'x-company-censor': 'CS1', 'x-correlation-id': 'corr-test',
-            'x-internal-secret': 'gateway-secret'
+            'x-internal-secret': 'gateway-secret', 'idempotency-key': 'candidate-request-key'
         });
         expect(request.headers.host).toBeUndefined();
         expect(request.validateStatus(499)).toBe(true);

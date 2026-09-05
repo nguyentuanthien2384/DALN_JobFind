@@ -34,17 +34,44 @@ const getRelatedJobs = (jobId, limit = 6) =>
 // getAiTask. Lam vay vi mot lan goi model mat vai giay den vai chuc giay, giu
 // ket noi HTTP cho ca quang do se lam nghen may chu.
 
+// Create once per user action, then keep these options for every retry of it.
+// Keep the key in UI state; do not persist the CV or infer identity from its text.
+const createAiRequestOptions = () => {
+    if (!globalThis.crypto?.getRandomValues) throw new Error("Trình duyệt chưa hỗ trợ tạo mã yêu cầu an toàn");
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    return Object.freeze({
+        idempotencyKey: Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("")
+    });
+};
+
+const postAi = async (path, body, options = createAiRequestOptions()) => {
+    const { idempotencyKey } = options;
+    if (typeof idempotencyKey !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(idempotencyKey)) {
+        throw new Error("Mã gửi lại yêu cầu không hợp lệ");
+    }
+    try {
+        const result = await axios.post(path, body, { headers: { "Idempotency-Key": idempotencyKey } });
+        // The shared Axios adapter returns errors as data. Include the key on both
+        // success and failure so callers can retry after an uncertain response.
+        return { ...result, idempotencyKey };
+    } catch (error) {
+        error.idempotencyKey = idempotencyKey;
+        throw error;
+    }
+};
+
 // Boc tach CV tu file PDF thanh du lieu co cau truc.
-const parseResumeAi = (fileBase64, fileName) =>
-    axios.post(`/api/ai/parse-resume`, { fileBase64, fileName });
+const parseResumeAi = (fileBase64, fileName, options) =>
+    postAi(`/api/ai/parse-resume`, { fileBase64, fileName }, options);
 
 // Cham diem do khop giua CV va mot tin tuyen dung.
-const matchCvAi = (resumeText, jobId) =>
-    axios.post(`/api/ai/match-cv`, { resumeText, jobId });
+const matchCvAi = (resumeText, jobId, options) =>
+    postAi(`/api/ai/match-cv`, { resumeText, jobId }, options);
 
 // Sinh thu ung tuyen.
-const coverLetterAi = (resumeText, jobId, language = "en") =>
-    axios.post(`/api/ai/cover-letter`, { resumeText, jobId, language });
+const coverLetterAi = (resumeText, jobId, language = "en", options) =>
+    postAi(`/api/ai/cover-letter`, { resumeText, jobId, language }, options);
 
 // Hoi ket qua cua mot tac vu AI.
 const getAiTask = (taskId) => axios.get(`/api/ai/tasks/${taskId}`);
@@ -82,7 +109,7 @@ const getSystemStatus = () => axios.get(`/status`);
 
 export {
     searchJobs, suggestJobs, getSearchFacets, getRelatedJobs,
-    parseResumeAi, matchCvAi, coverLetterAi, getAiTask, waitForAiTask,
+    createAiRequestOptions, parseResumeAi, matchCvAi, coverLetterAi, getAiTask, waitForAiTask,
     getMyProfile, updateMyProfile,
     listMyCvs, createMyCv, updateMyCv, deleteMyCv, importParsedCv,
     getSystemStatus

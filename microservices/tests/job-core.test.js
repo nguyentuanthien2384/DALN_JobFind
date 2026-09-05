@@ -267,15 +267,15 @@ describe('AI task controller', () => {
         const invalid = makeRes();
         await matchCv(makeReq({ body: { resumeText: 'CV' } }), invalid);
         expect(invalid.statusCode).toBe(400);
-        mocks.pool.query.mockResolvedValueOnce([[]]);
+        mocks.conn.query.mockResolvedValueOnce([[]]);
         const missing = makeRes();
         await matchCv(makeReq({ body: { resumeText: 'CV', jobId: 1 } }), missing);
         expect(missing.statusCode).toBe(404);
-        mocks.pool.query.mockResolvedValueOnce([[{ name: 'Dev', descriptionHTML: 'Build' }]]).mockResolvedValueOnce(undefined);
+        mocks.conn.query.mockResolvedValueOnce([[{ name: 'Dev', descriptionHTML: 'Build' }]]);
         const ok = makeRes();
         await matchCv(makeReq({ headers: { 'x-user-id': '2' }, body: { resumeText: 'CV', jobId: 1 } }), ok);
-        expect(mocks.pool.query.mock.calls[0][0]).toContain("p.statusCode = 'PS1'");
-        expect(mocks.pool.query.mock.calls[0][0]).toContain("c.censorCode = 'CS1'");
+        expect(mocks.conn.query.mock.calls[0][0]).toContain("p.statusCode = 'PS1'");
+        expect(mocks.conn.query.mock.calls[0][0]).toContain("c.censorCode = 'CS1'");
         expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(mocks.conn, expect.objectContaining({
             eventId: ok.body.taskId, aggregateId: ok.body.taskId, eventType: 'ai.match_cv',
             payload: { taskId: ok.body.taskId, resumeText: 'CV', jobTitle: 'Dev', jobDescription: 'Build' }
@@ -289,15 +289,15 @@ describe('AI task controller', () => {
         const invalid = makeRes();
         await coverLetter(makeReq(), invalid);
         expect(invalid.statusCode).toBe(400);
-        mocks.pool.query.mockResolvedValueOnce([[]]);
+        mocks.conn.query.mockResolvedValueOnce([[]]);
         const missing = makeRes();
         await coverLetter(makeReq({ body: { resumeText: 'CV', jobId: 1 } }), missing);
         expect(missing.statusCode).toBe(404);
-        mocks.pool.query.mockResolvedValueOnce([[{ name: 'Dev', descriptionHTML: 'Build', companyName: null }]]).mockResolvedValueOnce(undefined);
+        mocks.conn.query.mockResolvedValueOnce([[{ name: 'Dev', descriptionHTML: 'Build', companyName: null }]]);
         const ok = makeRes();
         await coverLetter(makeReq({ body: { resumeText: 'CV', jobId: 1 } }), ok);
-        expect(mocks.pool.query.mock.calls[0][0]).toContain("p.statusCode = 'PS1'");
-        expect(mocks.pool.query.mock.calls[0][0]).toContain("c.censorCode = 'CS1'");
+        expect(mocks.conn.query.mock.calls[0][0]).toContain("p.statusCode = 'PS1'");
+        expect(mocks.conn.query.mock.calls[0][0]).toContain("c.censorCode = 'CS1'");
         expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(mocks.conn, expect.objectContaining({
             eventId: ok.body.taskId, aggregateId: ok.body.taskId, eventType: 'ai.cover_letter',
             payload: expect.objectContaining({ taskId: ok.body.taskId, companyName: 'the company', language: 'en' })

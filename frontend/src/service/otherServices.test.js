@@ -4,6 +4,9 @@ import * as applications from "./applicationService";
 import * as ai from "./aiSearchService";
 import * as reports from "./adminReportService";
 
+// This Jest/jsdom version predates Web Crypto; use Node's real implementation.
+beforeAll(() => { Object.defineProperty(globalThis, "crypto", { value: require("crypto").webcrypto, configurable: true }); });
+
 jest.mock("../axios", () => ({
     __esModule: true,
     default: {
@@ -79,9 +82,6 @@ describe("aiSearchService", () => {
         ["suggestJobs", "get", ["C# & .NET"], "/api/search/suggest?q=C%23%20%26%20.NET"],
         ["getSearchFacets", "get", [], "/api/search/facets"],
         ["getRelatedJobs", "get", [7, 3], "/api/search/related/7?limit=3"],
-        ["parseResumeAi", "post", ["base64", "cv.pdf"], "/api/ai/parse-resume", { fileBase64: "base64", fileName: "cv.pdf" }],
-        ["matchCvAi", "post", ["resume", 7], "/api/ai/match-cv", { resumeText: "resume", jobId: 7 }],
-        ["coverLetterAi", "post", ["resume", 7, "vi"], "/api/ai/cover-letter", { resumeText: "resume", jobId: 7, language: "vi" }],
         ["getAiTask", "get", ["task-1"], "/api/ai/tasks/task-1"],
         ["getMyProfile", "get", [], "/api/profile"],
         ["updateMyProfile", "put", [{ name: "Lan" }], "/api/profile", { name: "Lan" }],
@@ -101,7 +101,7 @@ describe("aiSearchService", () => {
             resumeText: "resume",
             jobId: 8,
             language: "en",
-        });
+        }, { headers: { "Idempotency-Key": expect.any(String) } });
     });
 
     it("returns a completed AI task result", async () => {

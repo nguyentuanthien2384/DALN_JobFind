@@ -3,6 +3,7 @@ import { createLogger } from '../../shared/logger.js';
 import { testConnection } from './libs/db.js';
 import { ensureOutboxTable, startOutboxRelay } from './libs/outbox.js';
 import { ensureAiResultTables } from './libs/moderationState.js';
+import { ensureAiRequestTable } from './libs/aiTaskRequest.js';
 import { aiResultRetry } from './libs/aiResultRetry.js';
 import { consume } from '../../shared/rabbitmq.js';
 import { EVENTS, QUEUES } from '../../shared/events.js';
@@ -51,6 +52,7 @@ const start = async () => {
     await ensureAiTaskTable();
     await ensureOutboxTable();
     await ensureAiResultTables();
+    await ensureAiRequestTable();
 
     // Lang nghe ket qua tra ve tu AI Worker.
     await consume(QUEUES.AI_RESULT_HANDLER, [EVENTS.AI_RESULT], async (payload, _routingKey, metadata) => {

@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => {
     const express = Object.assign(vi.fn(() => app), { json: vi.fn() });
     return { app, express, waitForElastic: vi.fn(), ensureIndex: vi.fn(), startIndexer: vi.fn(),
         rebuildIndex: vi.fn(), count: vi.fn(), testConnection: vi.fn(), consume: vi.fn(),
-        getJobForIndex: vi.fn(), ensureAiResultTables: vi.fn(), handleAiResult: vi.fn(), timer: { unref: vi.fn() } };
+        getJobForIndex: vi.fn(), ensureAiResultTables: vi.fn(), ensureAiRequestTable: vi.fn(), handleAiResult: vi.fn(), timer: { unref: vi.fn() } };
 });
 vi.mock('express', () => ({ default: mocks.express }));
 vi.mock('../search-service/src/libs/elastic.js', () => ({
@@ -19,6 +19,7 @@ vi.mock('../search-service/src/controllers/searchController.js', () => ({ search
 vi.mock('../job-core-service/src/libs/db.js', () => ({ testConnection: mocks.testConnection }));
 vi.mock('../job-core-service/src/libs/outbox.js', () => ({ ensureOutboxTable: vi.fn(), startOutboxRelay: vi.fn() }));
 vi.mock('../job-core-service/src/libs/moderationState.js', () => ({ ensureAiResultTables: mocks.ensureAiResultTables }));
+vi.mock('../job-core-service/src/libs/aiTaskRequest.js', () => ({ ensureAiRequestTable: mocks.ensureAiRequestTable }));
 vi.mock('../job-core-service/src/controllers/jobController.js', () => ({
     createJob: vi.fn(), updateJob: vi.fn(), deleteJob: vi.fn(), getJob: vi.fn(), listJobsForReindex: vi.fn(), getJobForIndex: mocks.getJobForIndex
 }));
@@ -34,6 +35,7 @@ beforeEach(() => {
     for (const key of ['waitForElastic', 'ensureIndex', 'startIndexer', 'rebuildIndex', 'testConnection', 'consume']) mocks[key].mockResolvedValue(undefined);
     mocks.count.mockResolvedValue({ count: 3 });
     mocks.ensureAiResultTables.mockResolvedValue(undefined);
+    mocks.ensureAiRequestTable.mockResolvedValue(undefined);
     mocks.handleAiResult.mockResolvedValue({ outcome: 'applied' });
     vi.spyOn(globalThis, 'setInterval').mockReturnValue(mocks.timer);
     vi.stubEnv('INTERNAL_SECRET', 'internal-bootstrap-secret');
@@ -45,6 +47,7 @@ describe('Search/Job Core projection wiring', () => {
         await import('../job-core-service/src/app.js');
         await vi.waitFor(() => expect(mocks.app.listen).toHaveBeenCalledOnce());
         expect(mocks.ensureAiResultTables.mock.invocationCallOrder[0]).toBeLessThan(mocks.consume.mock.invocationCallOrder[0]);
+        expect(mocks.ensureAiRequestTable.mock.invocationCallOrder[0]).toBeLessThan(mocks.consume.mock.invocationCallOrder[0]);
         const [queue, patterns, callback, options] = mocks.consume.mock.calls[0];
         expect(queue).toBe('job-core-service.ai-results');
         expect(patterns).toEqual(['ai.result']);
@@ -59,6 +62,15 @@ describe('Search/Job Core projection wiring', () => {
     it('does not consume results or expose writes if AI result schema checks fail', async () => {
         const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined);
         mocks.ensureAiResultTables.mockRejectedValueOnce(new Error('nontransactional table'));
+        await import('../job-core-service/src/app.js');
+        await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(1));
+        expect(mocks.consume).not.toHaveBeenCalled();
+        expect(mocks.app.listen).not.toHaveBeenCalled();
+    });
+
+    it('does not open writes when request key table setup fails', async () => {
+        const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined);
+        mocks.ensureAiRequestTable.mockRejectedValueOnce(new Error('nontransactional request key table'));
         await import('../job-core-service/src/app.js');
         await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(1));
         expect(mocks.consume).not.toHaveBeenCalled();

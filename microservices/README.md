@@ -753,10 +753,10 @@ kiểm thử end-to-end; retry/wiring/echo token được kiểm tra bằng unit
 
 Ba endpoint `POST /ai/parse-resume`, `/ai/match-cv`, `/ai/cover-letter` dùng
 `libs/aiTaskRequest.js` để lưu tác vụ và ý định gửi AI trong **cùng một giao dịch
-MySQL**. Tái sử dụng `ai_tasks` và `outbox_events` đã có, không thêm bảng/migration
-hoặc đổi schema ở bước này. Kiểm tra InnoDB tại startup của bước trước vẫn áp dụng.
+MySQL**. Tái sử dụng `ai_tasks` và `outbox_events` đã có. Phần chống trùng HTTP
+bên dưới bổ sung riêng bảng `ai_request_keys`; kiểm tra InnoDB tại startup vẫn áp dụng.
 
-Luồng nhận yêu cầu:
+Luồng nhận một yêu cầu mới (sau khi kiểm tra khóa gửi lại, nếu có):
 
 1. Kiểm tra trường bắt buộc/kiểu dữ liệu. Match/thư vẫn chỉ đọc tin `PS1` thuộc
    công ty `S1`/`CS1`; không tìm thấy hoặc không công khai trả 404.
@@ -782,7 +782,8 @@ event ID mang hai nội dung khác nhau. Đây không phải khóa ngăn tin/cô
 
 - Payload gửi worker tối đa **8 MiB JSON UTF-8**, tính cả base64, Unicode, ký tự
   escape và metadata. File PDF gốc phải nhỏ hơn khoảng 6 MiB để còn chỗ cho tên
-  file/metadata. Vượt giới hạn trả 413 trước khi mở giao dịch, không cắt nội dung.
+  file/metadata. Dữ liệu gốc quá lớn trả 413 trước khi mở giao dịch. Nếu snapshot
+  tin làm payload vượt giới hạn, rollback giao dịch và trả 413, không cắt nội dung.
 - `fileBase64`/`resumeText` phải là chuỗi không rỗng; `fileName`/`language` nếu có
   phải là chuỗi hoặc null; `jobId` là số nguyên dương an toàn hoặc chuỗi số tương
   ứng. Chưa thêm bước xác thực nội dung PDF/base64 hay đổi giới hạn/prompt của model.
@@ -792,12 +793,10 @@ event ID mang hai nội dung khác nhau. Đây không phải khóa ngăn tin/cô
   hoặc mã tác vụ khi chưa xác nhận commit; log chỉ loại tác vụ/mã lỗi, không đưa
   SQL hay nội dung CV từ lỗi MySQL vào phản hồi/log của handler.
 
-**Chưa chống trùng giữa các lần gửi HTTP.** Hai lần POST, kể cả cùng nội dung, tạo
-hai tác vụ độc lập và có thể gọi AI hai lần. Nếu commit đã thành công nhưng phản
-hồi bị mất, task/outbox vẫn có thể tồn tại dù client gặp 500/timeout. Handler không
-tự retry giao dịch; không thể coi 500 là bằng chứng chắc chắn chưa lưu. Cơ chế
-chống trùng ở worker bảo vệ các lần relay gửi lại **cùng event ID**, không bảo vệ
-việc người dùng gửi POST mới. Phần tiếp theo sẽ bổ sung khóa chống trùng cho HTTP.
+Các POST cùng tài khoản/khóa/nội dung đã có chống trùng như phần bên dưới. POST
+không có khóa hoặc dùng khóa mới vẫn tạo tác vụ độc lập, kể cả cùng nội dung. Nếu
+commit thành công nhưng phản hồi bị mất, task/outbox có thể tồn tại dù client
+gặp 500/timeout; gửi lại phải giữ nguyên khóa. Handler không tự retry giao dịch.
 
 ### Dữ liệu lưu giữ và áp dụng
 
@@ -808,8 +807,9 @@ database/backup như dữ liệu CV. `ai_tasks.input` không giữ thêm một b
 Chính sách lưu giữ/xóa cần xét cả outbox, RabbitMQ/DLQ, kết quả và backup.
 
 Nâng Job Core sau khi AI Worker đã có ledger hỗ trợ envelope v1 từ bước trước.
-Giữ queue/binding bền vững và cấu hình MySQL/RabbitMQ đã có. Không cần thay đổi
-frontend, cài thêm thư viện hoặc restart database. Lần bổ sung này **chưa triển khai**.
+Giữ queue/binding bền vững và cấu hình MySQL/RabbitMQ đã có. Lớp gọi API frontend
+đã hỗ trợ khóa gửi lại như phần sau; không cài thêm thư viện hoặc restart database.
+Lần bổ sung này **chưa triển khai**.
 
 Không backfill task `pending` cũ thiếu outbox: metadata cũ không đủ khôi phục CV và
 không chứng minh AI chưa chạy. Giữ nguyên metadata khi xử lý tin legacy; tự thêm
@@ -834,12 +834,14 @@ npm test
 npm run test:ai-requests:integration
 ```
 
-Script có 10 kiểm tra dùng MySQL 8.0 và RabbitMQ 4 tạm: cả ba endpoint lưu dữ liệu
+Script có 18 kiểm tra dùng MySQL 8.0, RabbitMQ 4 tạm và HTTP localhost. Mười kiểm
+tra outbox gồm: cả ba endpoint lưu dữ liệu
 khi transport lỗi, snapshot ổn định, rollback sau insert outbox thật, lỗi insert
 task, dữ liệu quá lớn/không hợp lệ/tin không công khai, retry sau mất kết nối,
 mandatory routing, phục hồi gửi thật, lỗi đánh dấu DB sau broker confirm và nhận
 kết quả/hỏi trạng thái bằng đúng task ID. Unit test kiểm tra thêm chờ commit,
-commit không xác định, biên 8 MiB và tính byte Unicode/JSON escape.
+commit không xác định, biên 8 MiB và tính byte Unicode/JSON escape. Tám kiểm tra
+HTTP bổ sung được mô tả ở phần chống trùng bên dưới.
 
 Script chỉ dùng image có sẵn, cổng localhost ngẫu nhiên và thông tin kết nối tạm
 do nó tạo, không đọc cấu hình database dự án. SQL trigger gây lỗi chỉ tồn tại
@@ -847,6 +849,93 @@ trong database thử; kiểm tra nhãn sở hữu trước khi dọn từng cont
 Không gọi Claude/SMTP; chưa thử failover database, AI Worker/MongoDB hoặc toàn
 luồng HTTP qua Gateway trong script này. Dừng giữa chừng có thể cần dọn container
 mang nhãn `jobfind.ai-requests-test` sau khi xác minh đúng phiên thử.
+
+## Job Core: chống tạo trùng tác vụ khi gửi lại HTTP
+
+Ba endpoint AI nhận header tùy chọn `Idempotency-Key`. Khóa dài 1–128 ký tự ASCII,
+bắt đầu bằng chữ/số, còn lại là chữ/số hoặc `._:-`, phân biệt hoa/thường. Mỗi lượt
+gửi có chủ đích cần một khóa ngẫu nhiên mới; mọi lần gửi lại của lượt đó giữ nguyên
+khóa và nội dung. Không dùng CV, user ID hay hash nội dung làm khóa.
+
+Bảng mới `ai_request_keys` có khóa chính `(userId, requestKey)`, lưu loại tác vụ,
+hash ý định của client, `taskId` và thời điểm. Không lưu thêm CV vào bảng này.
+Tài khoản được lấy từ danh tính do Gateway xác thực; client không thể dùng khóa
+để xem tác vụ của tài khoản khác. Cùng khóa nhưng khác tài khoản là hai yêu cầu
+riêng; cùng tài khoản mà đổi endpoint/nội dung trả 409, không lộ task ID cũ.
+
+Trong một giao dịch InnoDB, Job Core insert khóa trước, sau đó mới đọc snapshot
+tin, ghi task và outbox. Một request trùng sẽ chờ giao dịch đầu kết thúc:
+
+- Nếu lần đầu commit, cùng loại/hash trả lại task ID đã lưu, không đọc lại tin,
+  không ghi task/outbox mới. HTTP vẫn trả 202; dùng API hỏi trạng thái để biết
+  task còn `pending` hay đã `done`/`failed`. Không đặt lại trạng thái của task.
+- Nếu lần đầu rollback, khóa/task/outbox đều không tồn tại; lần gửi sau có thể
+  nhận việc. Lỗi validation, 404 hoặc rollback không được lưu như một kết quả cố định.
+- Nếu khóa trỏ đến task bị mất/sai chủ/sai loại, trả 409 yêu cầu đối chiếu thủ công;
+  không tự tạo task thay thế hoặc tự gọi lại model.
+
+Hash dùng các trường client thực sự điều khiển: file/name cho parse; resume/job ID
+cho match; thêm ngôn ngữ cho thư. Job ID số và chuỗi số được chuẩn hóa như nhau;
+ngôn ngữ bỏ trống/null/chuỗi rỗng tương đương mặc định `en`, tên file bỏ trống và
+null tương đương. Giữ nguyên văn CV/tên file/ngôn ngữ khác; trường API không sử
+dụng không tham gia hash. Snapshot công ty/tin không nằm trong hash này: retry
+sau khi tin thay đổi/ẩn/gỡ vẫn tìm được task cũ. Khóa mới vẫn phải qua kiểm tra
+tin công khai hiện tại. Phiên bản hash hiện là `1`; không đổi quy tắc khi replay.
+
+### Cách dùng từ frontend
+
+`frontend/src/service/aiSearchService.js` xuất `createAiRequestOptions()`. Giao diện
+cần tạo options **một lần cho mỗi lượt thao tác**, giữ trong state/ref rồi truyền
+lại cho cả lần gửi đầu, lần bấm trùng và lần thử lại sau lỗi:
+
+```js
+const options = createAiRequestOptions();
+const result = await matchCvAi(resumeText, jobId, options);
+// Khi người dùng thử lại chính lượt trên:
+const retried = await matchCvAi(resumeText, jobId, options);
+```
+
+Chữ ký tương ứng: `parseResumeAi(fileBase64, fileName, options)` và
+`coverLetterAi(resumeText, jobId, language, options)`. Thay đổi input hoặc chủ động
+yêu cầu AI xử lý mới phải tạo options mới. Không tự đổi khóa khi gặp 409/timeout.
+
+Để tương thích lời gọi cũ, bỏ options sẽ tạo khóa mới cho **mỗi lần gọi hàm**.
+Kết quả thành công hoặc lỗi đã được Axios chuẩn hóa đều có thêm `idempotencyKey`;
+promise bị reject cũng giữ khóa trên Error. Nếu lần đầu không giữ options, có
+thể thử lại với `{ idempotencyKey: result.idempotencyKey }`. Không có retry mạng
+tự động, cache kết quả theo nội dung hay lưu CV/khóa vào localStorage.
+
+Hiện repo chưa có màn hình gọi ba hàm AI này ngoài lớp service/test. Phần này
+hoàn thiện hợp đồng API và helper; chưa gắn cơ chế vào nút UI cụ thể. Bỏ options
+trên hai lần bấm hoặc làm mất khóa khi tải lại trang vẫn có thể tạo hai tác vụ.
+Client cũ gửi trực tiếp HTTP không có header cũng chưa được bảo vệ khỏi gửi trùng.
+
+### Nâng cấp và kiểm tra
+
+Job Core tạo thêm bảng bằng `CREATE TABLE IF NOT EXISTS`, kiểm tra InnoDB trước
+khi mở HTTP/consumer; không ALTER bảng nghiệp vụ, không backfill task cũ. Cần
+backup và quyền tạo bảng. Dừng/loại khỏi phục vụ tất cả replica Job Core cũ trước
+khi đưa client có khóa vào sử dụng: bản cũ bỏ qua header và có thể tạo trùng.
+Nâng toàn bộ Job Core trước, sau đó nâng lớp gọi API frontend. Không cần đổi
+AI Worker ở bước này. Thay đổi **chưa được triển khai**.
+
+Không có TTL/xóa tự động cho khóa; xóa mapping có thể biến retry cũ thành lượt
+gọi AI mới. Giữ mapping và task cùng quy trình lưu giữ/phục hồi. Không xem một
+500/timeout là bằng chứng giao dịch đã rollback; dùng lại khóa để đối chiếu.
+
+```sql
+SELECT k.userId, k.type, k.taskId, k.createdAt, t.status
+FROM ai_request_keys k LEFT JOIN ai_tasks t ON t.id = k.taskId
+ORDER BY k.createdAt DESC LIMIT 50;
+```
+
+Tám kiểm tra HTTP/MySQL thật bổ sung trong `test:ai-requests:integration` bao gồm
+20 lần gửi đồng thời cho mỗi endpoint, retry sau tin bị gỡ, xung đột input/loại,
+chủ động ngắt kết nối HTTP sau commit thật, rollback cả ba bảng, 404 không giữ
+khóa, cách ly người dùng/phân biệt hoa thường và task hoàn tất/bị mất. Unit test
+kiểm tra startup, header qua Gateway, chuẩn hóa input và helper frontend. HTTP
+test gọi các handler với middleware tin cậy thật trên localhost, chưa chạy qua
+Gateway/JWT thật hay trình duyệt/AI Worker; không gọi AI tính phí.
 
 ## Bốn tính năng AI
 
