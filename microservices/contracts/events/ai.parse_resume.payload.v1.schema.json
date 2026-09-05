@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+      "maxLength": 64
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fileBase64": {
+      "type": "string",
+      "maxLength": 8388608,
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "fileName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "taskId",
+    "fileBase64"
+  ],
+  "additionalProperties": true,
+  "title": "ai.parse_resume payload v1",
+  "examples": [
+    {
+      "taskId": "task-1",
+      "fileBase64": "c3ludGhldGlj",
+      "fileName": "example.pdf"
+    }
+  ]
+}

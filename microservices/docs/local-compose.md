@@ -12,6 +12,7 @@ Phạm vi: một máy phát triển, chỉ công bố cổng trên `127.0.0.1`. 
 - JSON thường giới hạn 1 MiB; yêu cầu parse-resume 12 MiB ở lớp HTTP, sau đó lớp nghiệp vụ vẫn giới hạn dữ liệu AI 8 MiB. Các route upload legacy được liệt kê riêng trong `shared/httpBoundary.js` còn giữ 50 MiB để tránh phá tương thích; cần tiếp tục chuyển chúng sang upload file riêng.
 - Login và AI trả 503 khi bộ giới hạn Redis không hoạt động. Các route công khai vẫn cho phép tiếp tục theo chính sách sẵn có.
 - Các API microservice mới chỉ nhận JSON đúng schema; trường lạ, ID sai, phân trang/khoảng ngày sai trả 400, media type sai trả 415. Không gửi nguyên đối tượng DB khi cập nhật CV/profile. Xem `http-contracts.md` và `contracts/http/gateway.openapi.json` trước khi chuyển ứng dụng. Route legacy ngoài namespace mới không bị áp dụng schema này.
+- Event mới có `x-payload-version: 1`; consumer kiểm tra schema trước nghiệp vụ, giữ nguyên backlog không đánh dấu. Kiểm tra pending outbox trên bản sao và thứ tự consumer trước producer theo `event-contracts.md`. Event pending cũ sai schema được giữ lại, không tự xóa/sửa để vượt kiểm tra.
 
 ## Chuẩn bị trước khi chuyển cấu hình
 
@@ -49,8 +50,8 @@ Chỉ dùng `npm run local:up` khi chủ động muốn Compose quản lý cả 
 - Prometheus ở `http://localhost:9091`, dữ liệu giữ tối đa 7 ngày/1 GB. Giao diện này chỉ dành cho máy local. Các endpoint microservice được scrape bằng secret riêng.
 - Các metric đã có: request count/duration/active, runtime Node, readiness, số event outbox chưa publish và tuổi event cũ nhất, số task AI theo trạng thái và tuổi task pending. Nhãn route dùng mẫu `/jobs/:id` hoặc tên proxy, không dùng ID người dùng/job/email/query string.
 - Cảnh báo: không scrape được, chưa ready, tỷ lệ HTTP 5xx trên 2% trong 10 phút, outbox cũ trên 60 giây, AI pending trên 5 phút. Đây là cảnh báo hiển thị trong Prometheus; **chưa cấu hình Alertmanager gửi email/chat**. Dashboard Grafana, DLQ exporter và tracing xuyên RabbitMQ chưa có.
-- `npm run test:image` chạy một container tạm, không mạng ngoài/DB thật/AI/SMTP, kiểm tra user không phải root, liveness, readiness thất bại đúng lúc, quyền `/status` và `/metrics`, giới hạn body, chặn fallback sai method, OpenAPI đóng gói đúng nguồn và SIGTERM sạch.
-- CI mới chạy test microservices/backend, kiểm tra dependency, build image theo commit SHA, kiểm thử image và kiểm tra rule Prometheus. Workflow chưa được chạy trên GitHub trong lần thay đổi này; chưa có push/deploy, registry signing hay quét hệ điều hành image.
+- `npm run test:image` chạy một container tạm, không mạng ngoài/DB thật/AI/SMTP, kiểm tra user không phải root, liveness, readiness thất bại đúng lúc, quyền `/status` và `/metrics`, giới hạn body, chặn fallback sai method, HTTP/event contracts đóng gói đúng nguồn và SIGTERM sạch.
+- CI mới chạy test microservices/backend, kiểm tra dependency, build image theo commit SHA, kiểm thử image, event trên broker cách ly và kiểm tra rule Prometheus. Lockfile backend đã được bỏ khỏi danh sách ignore để CI có thể cài đúng phiên bản. Workflow chưa được chạy trên GitHub trong lần thay đổi này; chưa có push/deploy, registry signing hay quét hệ điều hành image.
 - Root dependency `express`/`qs` và override `qs` được giữ có chủ đích để toàn bộ workspace dùng bản vá `qs` 6.16.0; kiểm tra bằng `npm ls qs` và `npm audit`, không chỉ nhìn phiên bản gốc trong manifest.
 
 ## Khi có sự cố
@@ -73,4 +74,4 @@ Giữ image đã kiểm chứng theo commit SHA trước mỗi đợt. Gán `JOB
 
 ## Mốc kiểm thử lần bổ sung này
 
-Ngày 05-09-2026, sau đợt hợp đồng HTTP: 495 kiểm thử backend, 696 kiểm thử microservices, 19 kiểm tra tích hợp MySQL/RabbitMQ/HTTP trong container dùng một lần đã qua. Trong đó có 134 kiểm thử HTTP/OpenAPI/frontend và các kiểm tra phản hồi controller. Image Gateway đã build lại và qua bài kiểm thử cách ly; `npm audit --omit=dev` không báo lỗ hổng. Các số này không chứng minh toàn hệ thống đạt SLO, chạy tải cao hoặc đã triển khai bản mới lên các container đang phục vụ người dùng.
+Ngày 05-09-2026, sau đợt hợp đồng event: 496 kiểm thử backend, 789 kiểm thử microservices, 19 kiểm tra tích hợp MySQL/RabbitMQ/HTTP và 5 nhóm kiểm tra hợp đồng event trên RabbitMQ trong container dùng một lần đã qua. Bao gồm kiểm thử HTTP/OpenAPI/frontend của đợt trước và kiểm thử payload/consumer của đợt này. Image Gateway đã build lại và qua bài kiểm thử cách ly; `npm audit --omit=dev` không báo lỗ hổng ở cả microservices và backend sau bản vá `qs`. Các số này không chứng minh toàn hệ thống đạt SLO, chạy tải cao hoặc đã triển khai bản mới lên các container đang phục vụ người dùng.

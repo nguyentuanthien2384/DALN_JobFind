@@ -67,7 +67,8 @@ describe('eventBus', () => {
     expect(channel.assertExchange).toHaveBeenCalledWith('jobportal.events', 'topic', { durable: true });
     expect(channel.publish).toHaveBeenNthCalledWith(
       1, 'jobportal.events', 'job.created', expect.any(Buffer),
-      { persistent: true, contentType: 'application/json' }
+      expect.objectContaining({ persistent: true, contentType: 'application/json', messageId: expect.any(String),
+        type: 'job.created', appId: 'legacy-backend', headers: expect.objectContaining({ 'x-payload-version': 1, 'x-event-version': 1, 'x-aggregate-id': '10' }) })
     );
     expect(JSON.parse(channel.publish.mock.calls[0][2].toString())).toEqual({ job });
     expect(channel.publish.mock.calls[1][1]).toBe('job.updated');
@@ -86,6 +87,18 @@ describe('eventBus', () => {
     mockQuery.mockRejectedValueOnce(new Error('db'));
     await expect(events.emitJobUpdated(10)).resolves.toBeUndefined();
     expect(console.log).toHaveBeenCalledWith('[eventBus] khong tai duoc tin de phat job.updated', 'db');
+  });
+
+  test('rejects invalid domain data before contacting the broker, without logging private payloads', async () => {
+    process.env.RABBITMQ_URL = 'amqp://rabbit';
+    const { channel } = rabbit();
+    const events = load();
+    mockQuery.mockResolvedValue([[{ id: 'bad-id', name: 'PRIVATE_SENTINEL', statusCode: 'PS1' }]]);
+    await expect(events.emitJobCreated(10)).resolves.toBeUndefined();
+    expect(channel.publish).not.toHaveBeenCalled();
+    expect(mockConnect).not.toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalledWith('[eventBus] phat job.created that bai', 'EVENT_PAYLOAD_INVALID');
+    expect(JSON.stringify(console.log.mock.calls)).not.toContain('PRIVATE_SENTINEL');
   });
 
   test('connection failures and publish failures never reject the caller', async () => {
@@ -163,7 +176,7 @@ describe('eventBus', () => {
     expect(channel.publish).not.toHaveBeenCalled();
 
     mockQuery.mockResolvedValueOnce([[{
-      cvId: 2, companyId: 4, firstName: null, lastName: null
+      cvId: 2, jobId: 10, candidateId: 7, companyId: 4, firstName: null, lastName: null
     }]]);
     await events.emitApplicationSubmitted(2);
     expect(JSON.parse(channel.publish.mock.calls[0][2].toString()).candidateName).toBeNull();

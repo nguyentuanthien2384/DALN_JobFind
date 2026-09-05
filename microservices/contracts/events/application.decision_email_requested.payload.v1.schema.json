@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "applicationId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "candidateId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "candidateEmail": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "candidateName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "jobTitle": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companyId": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companyName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fromStage": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "moi_ung_tuyen",
+            "dang_xem_xet",
+            "phong_van",
+            "de_nghi",
+            "nhan_viec",
+            "tu_choi"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "toStage": {
+      "type": "string",
+      "enum": [
+        "moi_ung_tuyen",
+        "dang_xem_xet",
+        "phong_van",
+        "de_nghi",
+        "nhan_viec",
+        "tu_choi"
+      ]
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decision": {
+      "enum": [
+        "accepted",
+        "rejected"
+      ]
+    },
+    "message": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "applicationId",
+    "candidateId",
+    "jobId",
+    "decision",
+    "toStage"
+  ],
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "accepted"
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "toStage": {
+            "const": "nhan_viec"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "toStage": {
+            "const": "tu_choi"
+          }
+        }
+      }
+    }
+  ],
+  "title": "application.decision_email_requested payload v1",
+  "examples": [
+    {
+      "jobId": 7,
+      "candidateId": 9,
+      "candidateName": "Ứng viên mẫu",
+      "candidateEmail": "candidate@example.invalid",
+      "jobTitle": "Developer",
+      "applicationId": 31,
+      "companyId": 3,
+      "fromStage": null,
+      "toStage": "nhan_viec",
+      "decision": "accepted",
+      "message": "Congratulations"
+    }
+  ]
+}

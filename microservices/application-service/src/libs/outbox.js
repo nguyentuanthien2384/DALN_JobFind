@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { pool, withTransaction } from './db.js';
 import { publishOutboxEvent } from '../../../shared/outboxPublisher.js';
 import { createLogger } from '../../../shared/logger.js';
+import { serializeEventPayload } from '../../../shared/eventContract.js';
 
 const logger = createLogger('application-service.outbox');
 const schema = new URL('../../migrations/001_create_outbox_events.sql', import.meta.url);
@@ -16,10 +17,11 @@ export const ensureOutboxTable = async () => {
 export const enqueueOutboxEvent = async (client, {
     aggregateId, eventType, payload, correlationId = null, eventId = randomUUID()
 }) => {
+    const { json } = serializeEventPayload(eventType, payload, { aggregateId });
     await client.query(
         `INSERT INTO outbox_events (id, aggregate_id, event_type, payload, correlation_id)
          VALUES ($1, $2, $3, $4::jsonb, $5)`,
-        [eventId, aggregateId, eventType, JSON.stringify(payload), correlationId]
+        [eventId, aggregateId, eventType, json, correlationId]
     );
     return eventId;
 };

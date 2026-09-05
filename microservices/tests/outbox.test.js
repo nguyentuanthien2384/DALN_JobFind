@@ -23,6 +23,12 @@ beforeEach(() => {
 });
 
 describe('Job Core transactional outbox', () => {
+    it('refuses invalid payloads before any outbox INSERT', async () => {
+        const { enqueueOutboxEvent } = await import('../job-core-service/src/libs/outbox.js');
+        const conn = { query: vi.fn() };
+        await expect(enqueueOutboxEvent(conn, { aggregateType: 'job', aggregateId: 12, eventType: 'job.created', payload: { job: { id: 12 } } })).rejects.toHaveProperty('code', 'EVENT_PAYLOAD_INVALID');
+        expect(conn.query).not.toHaveBeenCalled();
+    });
     it('creates an idempotent outbox table at startup', async () => {
         const { ensureOutboxTable } = await import('../job-core-service/src/libs/outbox.js');
         await ensureOutboxTable();
@@ -38,11 +44,11 @@ describe('Job Core transactional outbox', () => {
             aggregateType: 'job',
             aggregateId: 12,
             eventType: 'job.created',
-            payload: { job: { id: 12 } }
+            payload: { job: { id: 12, name: 'Developer', statusCode: 'PS1' } }
         });
         expect(conn.query).toHaveBeenCalledWith(
             expect.stringContaining('INSERT INTO outbox_events'),
-            ['event-1', 'job', '12', 'job.created', '{"job":{"id":12}}', expect.any(Date)]
+            ['event-1', 'job', '12', 'job.created', '{"job":{"id":12,"name":"Developer","statusCode":"PS1"}}', expect.any(Date)]
         );
     });
 

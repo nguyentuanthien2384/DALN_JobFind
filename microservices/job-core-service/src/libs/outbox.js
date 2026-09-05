@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { pool, withTransaction } from './db.js';
 import { publishOutboxEvent } from '../../../shared/outboxPublisher.js';
 import { createLogger } from '../../../shared/logger.js';
+import { serializeEventPayload } from '../../../shared/eventContract.js';
 
 const logger = createLogger('job-core-service.outbox');
 // Moi publish cho toi da 10s connect + 10s confirm; 10 event van nam trong lease 5 phut.
@@ -40,6 +41,7 @@ export const enqueueOutboxEvent = async (
     conn,
     { aggregateType, aggregateId, eventType, payload, eventId = crypto.randomUUID() }
 ) => {
+    const { json } = serializeEventPayload(eventType, payload, { aggregateId });
     await conn.query(
         `INSERT INTO outbox_events
          (id, aggregateType, aggregateId, eventType, payload, createdAt)
@@ -49,7 +51,7 @@ export const enqueueOutboxEvent = async (
             aggregateType,
             String(aggregateId),
             eventType,
-            JSON.stringify(payload),
+            json,
             new Date()
         ]
     );

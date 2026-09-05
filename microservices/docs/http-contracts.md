@@ -57,6 +57,6 @@ Tài liệu tham khảo: [OpenAPI 3.1.1](https://spec.openapis.org/oas/v3.1.1.ht
 Đây là bản hợp đồng đầu tiên, `info.version=1.0.0`; giữ URL `/api/...` để không phá frontend. Việc siết dữ liệu từng bị bỏ qua là thay đổi hành vi cần thử trước khi chuyển container thật. Từ bản này: thêm response field tùy chọn là thay đổi tương thích; thêm trường bắt buộc, đổi kiểu/enum hoặc thu hẹp đầu vào cần phiên bản lớn, kế hoạch client/rollout và test hồi quy. Không chỉ tăng số version rồi âm thầm thay yêu cầu của client.
 
 - `/health`, `/healthz`, `/readyz`, `/metrics`, `/status`, `/` là API vận hành: xem `local-compose.md`. Socket.IO và toàn bộ route monolith legacy chưa được mô tả bằng OpenAPI trong đợt này.
-- Envelope event v1 vẫn giữ nguyên; schema payload nghiệp vụ cho mọi event, version compatibility giữa producer/consumer và consumer-driven contracts là bước tiếp theo. Không siết message đang tồn trong RabbitMQ chỉ từ thay đổi HTTP.
+- Envelope event v1 giữ body cũ; đợt tiếp theo đã bổ sung schema cho 13 event và header payload version riêng, cùng kiểm thử consumer. Xem `event-contracts.md`; message backlog không đánh dấu không tự bị ép theo schema mới. Pending outbox cần kiểm tra riêng trước rollout.
 - `fileBase64` hiện chỉ được kiểm tra kiểu/độ dài, chưa kiểm tra file có thực sự là PDF an toàn. Object storage, quét nội dung, TTL/quyền download và bỏ base64 khỏi queue chưa triển khai.
 - Không gọi AI trả phí, gửi SMTP, sửa schema/dữ liệu thật hoặc tự khởi động lại stack đang phục vụ người dùng trong đợt này.

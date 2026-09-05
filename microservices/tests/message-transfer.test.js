@@ -68,6 +68,33 @@ const redelivered = (call) => ({ content: call[2], properties: call[3], fields: 
 const failPermanently = () => handler.mockRejectedValue(new Error('bad payload'));
 
 describe('confirmed DLQ transfer failure boundaries', () => {
+    it('quarantines a marked invalid payload without calling business logic, preserving raw bytes/version', async () => {
+        original.properties.headers['x-payload-version'] = 1;
+        // Legacy fixture lacks applicationId/jobId/fromStage: invalid when explicitly marked v1.
+        const pending = callback(original);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(handler).not.toHaveBeenCalled();
+        expect(source.ack).not.toHaveBeenCalled();
+        expect(published()[2]).toBe(original.content);
+        expect(published()[3].headers).toMatchObject({ 'x-payload-version': 1, 'x-error': 'EVENT_PAYLOAD_INVALID' });
+        published()[4](null);
+        await pending;
+        expect(source.ack).toHaveBeenCalledExactlyOnceWith(original);
+    });
+    it('preserves typed contract metadata through a targeted retry', async () => {
+        original.properties.headers['x-payload-version'] = 1;
+        original.content = Buffer.from(JSON.stringify({ applicationId: 31, candidateId: 2, jobId: 7, fromStage: 'moi_ung_tuyen', toStage: 'phong_van' }));
+        const pending = callback(original);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(published()[0]).toBe('');
+        expect(published()[3].headers['x-payload-version']).toBe(1);
+        published()[4](null);
+        await pending;
+        handler.mockResolvedValueOnce(undefined);
+        await callback(redelivered(published()));
+        expect(handler.mock.lastCall[2]).toMatchObject({ payloadVersion: 1, aggregateId: '31', eventId: 'stable-event' });
+        expect(source.ack).toHaveBeenCalledTimes(2);
+    });
     it('waits for both confirmation and socket drain before ACKing the source', async () => {
         failPermanently();
         publisher.channel.publish.mockReturnValue(false);

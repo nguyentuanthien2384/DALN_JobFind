@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
-import { expectResponseContract } from './contractAssertions.js';
+import { expectResponseContract, decodeEventFixture } from './contractAssertions.js';
+import { eventCatalog } from '../shared/contracts/eventCatalog.js';
 
 const mocks = vi.hoisted(() => {
     const es = {
@@ -40,6 +41,20 @@ beforeEach(() => {
     mocks.es.scroll.mockResolvedValue({ _scroll_id: 'cursor', hits: { hits: [] } });
     mocks.es.search.mockResolvedValue({ _scroll_id: 'cursor', hits: { hits: [] } });
     mocks.listCurrentJobIds.mockResolvedValue([]);
+});
+
+describe('published search consumer contracts', () => {
+    it.each(Object.keys(eventCatalog).filter((key) => eventCatalog[key].consumers.includes('search-service.indexer')))
+    ('refreshes the correct source for %s without trusting snapshot fields', async (key) => {
+        const { handleSearchEvent } = await import('../search-service/src/consumers/jobIndexer.js');
+        mocks.listCurrentJobIds.mockResolvedValue(['7']);
+        const { payload, metadata } = decodeEventFixture(key);
+        await handleSearchEvent(payload, key, metadata);
+        expect(mocks.synchronizeJob).toHaveBeenCalledWith('7', { eventId: metadata.eventId });
+        if (key === 'company.updated') expect(mocks.listCurrentJobIds).toHaveBeenCalledWith('3');
+        expect(mocks.es.index).not.toHaveBeenCalled();
+        expect(mocks.es.updateByQuery).not.toHaveBeenCalled();
+    });
 });
 
 describe('Elasticsearch adapter', () => {

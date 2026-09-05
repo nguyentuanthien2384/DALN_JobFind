@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "cvId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "candidateId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "companyId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "posterId": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "jobTitle": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "candidateName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "candidateEmail": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "candidatePhone": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "coverLetter": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "appliedAt": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "string",
+              "format": "date"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "cvId",
+    "jobId",
+    "candidateId",
+    "companyId"
+  ],
+  "additionalProperties": true,
+  "title": "application.submitted payload v1",
+  "examples": [
+    {
+      "jobId": 7,
+      "candidateId": 9,
+      "candidateName": "Ứng viên mẫu",
+      "candidateEmail": "candidate@example.invalid",
+      "jobTitle": "Developer",
+      "cvId": 21,
+      "companyId": 3,
+      "posterId": 5,
+      "candidatePhone": null,
+      "coverLetter": "Synthetic letter",
+      "appliedAt": "2026-09-05T00:00:00.000Z"
+    }
+  ]
+}

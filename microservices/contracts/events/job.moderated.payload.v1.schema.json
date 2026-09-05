@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "jobId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "posterId": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "jobTitle": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "approved": {
+      "type": "boolean"
+    },
+    "statusCode": {
+      "enum": [
+        "PS1",
+        "PS2"
+      ]
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "moderationRequestId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$"
+    }
+  },
+  "required": [
+    "jobId",
+    "approved",
+    "statusCode"
+  ],
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "approved": {
+            "const": true
+          }
+        },
+        "required": [
+          "approved"
+        ]
+      },
+      "then": {
+        "properties": {
+          "statusCode": {
+            "const": "PS1"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "statusCode": {
+            "const": "PS2"
+          }
+        }
+      }
+    }
+  ],
+  "title": "job.moderated payload v1",
+  "examples": [
+    {
+      "jobId": 7,
+      "posterId": 5,
+      "jobTitle": "Developer",
+      "approved": true,
+      "statusCode": "PS1",
+      "reason": "OK",
+      "moderationRequestId": "11111111-1111-4111-8111-111111111111"
+    }
+  ]
+}

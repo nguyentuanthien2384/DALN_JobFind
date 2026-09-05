@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
-import { expectResponseContract } from './contractAssertions.js';
+import { expectResponseContract, decodeEventFixture } from './contractAssertions.js';
 
 const mocks = vi.hoisted(() => ({
     pool: { query: vi.fn() },
@@ -392,6 +392,18 @@ describe('legacy application synchronization', () => {
 });
 
 describe('submission event consumer', () => {
+    it('accepts the published legacy submission contract with intact identity and snapshot', async () => {
+        const { startSubmissionConsumer } = await import('../application-service/src/consumers/submissionConsumer.js');
+        await startSubmissionConsumer();
+        const handler = mocks.consume.mock.calls[0][2];
+        mocks.pool.query.mockResolvedValue({ rowCount: 1 });
+        const { payload, metadata } = decodeEventFixture('application.submitted');
+        await handler(payload, 'application.submitted', metadata);
+        const [sql, values] = mocks.pool.query.mock.calls[0];
+        expect(sql).toContain('ON CONFLICT (legacy_cv_id) DO NOTHING');
+        expect(values.slice(0, 9)).toEqual([21, 7, 'Developer', 9, payload.candidateName, payload.candidateEmail, null, 3, payload.coverLetter]);
+        expect(values[9]).toEqual(new Date(payload.appliedAt));
+    });
     it('registers a durable idempotent consumer and skips incomplete events', async () => {
         const { startSubmissionConsumer } = await import('../application-service/src/consumers/submissionConsumer.js');
         await startSubmissionConsumer();

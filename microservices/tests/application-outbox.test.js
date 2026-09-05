@@ -60,6 +60,11 @@ const relayDatabase = (event, { failMark = false } = {}) => {
 };
 
 describe('Application outbox failure boundaries', () => {
+    it('rejects bad stage event data before an outbox INSERT', async () => {
+        const { enqueueOutboxEvent } = await import('../application-service/src/libs/outbox.js');
+        await expect(enqueueOutboxEvent(mocks.client, { aggregateId: 31, eventType: 'application.stage_changed', payload: { toStage: 'bad' } })).rejects.toHaveProperty('code', 'EVENT_PAYLOAD_INVALID');
+        expect(mocks.client.query).not.toHaveBeenCalled();
+    });
     it('commits a decision while broker is offline, then retries the same snapshot and event ID', async () => {
         const eventOf = commandDatabase();
         mocks.publish.mockRejectedValue(new Error('broker unavailable'));

@@ -1,5 +1,6 @@
 import amqplib from 'amqplib';
 import db from '../models/index';
+import { prepareDomainEvent } from './eventContract';
 require('dotenv').config();
 
 /**
@@ -64,12 +65,10 @@ const getChannel = async () => {
 
 const publish = async (routingKey, payload) => {
     try {
+        const event = prepareDomainEvent(routingKey, payload);
         const ch = await getChannel();
         if (!ch) return;
-        ch.publish(EXCHANGE, routingKey, Buffer.from(JSON.stringify(payload)), {
-            persistent: true,
-            contentType: 'application/json'
-        });
+        ch.publish(EXCHANGE, routingKey, event.body, event.properties);
         log(`da phat ${routingKey}`);
     } catch (error) {
         log(`phat ${routingKey} that bai`, error.message);

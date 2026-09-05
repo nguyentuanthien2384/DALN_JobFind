@@ -3,6 +3,8 @@ import { createAiResultHandler } from '../job-core-service/src/libs/aiResultHand
 import { moderationContentHash } from '../job-core-service/src/libs/moderationState.js';
 import { validateAiResult } from '../job-core-service/src/libs/aiResultValidation.js';
 import { aiResultRetry } from '../job-core-service/src/libs/aiResultRetry.js';
+import { decodeEventFixture } from './contractAssertions.js';
+import { assertEventPayload } from '../shared/eventContract.js';
 
 const requestId = '11111111-1111-4111-8111-111111111111';
 const detail = { name: 'Developer', descriptionHTML: '<p>Build</p>' };
@@ -24,6 +26,25 @@ const makeFixture = ({ post = { id: 7, detailPostId: 3, statusCode: 'PS3', userI
 };
 
 describe('transactional AI results', () => {
+    it('accepts a typed moderation result and emits a matching validated downstream event', async () => {
+        const f = makeFixture();
+        const decoded = decodeEventFixture('ai.result', payload);
+        expect(await f.handle(decoded.payload, decoded.metadata)).toEqual({ outcome: 'applied' });
+        const outgoing = f.enqueue.mock.calls[0][1];
+        expect(() => assertEventPayload(outgoing.eventType, outgoing.payload, { aggregateId: outgoing.aggregateId })).not.toThrow();
+    });
+    it.each(['parse_resume', 'match_cv', 'cover_letter'])('accepts a typed %s success/failure into its task inbox', async (type) => {
+        const results = { parse_resume: { fullName: null, skills: [] }, match_cv: { score: 80 }, cover_letter: { letter: 'Synthetic letter' } };
+        for (const ok of [true, false]) {
+            const f = makeFixture({ task: { id: 'task-1', type, status: 'pending' } });
+            const data = { taskId: 'task-1', type, ok, ...(ok ? { result: results[type] } : { error: 'EVENT_PAYLOAD_INVALID' }) };
+            const decoded = decodeEventFixture('ai.result', data);
+            await f.handle(decoded.payload, decoded.metadata);
+            const write = f.conn.query.mock.calls.find(([sql]) => sql.startsWith('UPDATE ai_tasks'));
+            expect(write[1][0]).toBe(ok ? 'done' : 'failed');
+            expect(f.enqueue).not.toHaveBeenCalled();
+        }
+    });
     it('commits the inbox, moderation state, status and outgoing event on the same connection', async () => {
         const f = makeFixture();
         expect(await f.handle(payload, metadata)).toEqual({ outcome: 'applied' });

@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { EVENTS } from '../../../shared/events.js';
 import { createEventEnvelope } from '../../../shared/eventEnvelope.js';
+import { serializeEventPayload } from '../../../shared/eventContract.js';
 import { taskIdentity, taskStateError } from './taskIdentity.js';
 
 // Persistence/transport errors must escape. In particular, a failed success-result
 // publish must NEVER be converted into a second, contradictory model-failure event.
 export const createTaskProcessor = ({ handlers, store, publishResult, isConfigured, logger }) => {
     const active = new Map();
-    const execute = async (payload, handler, identity) => {
+    const execute = async (payload, handler, identity, payloadVersion) => {
         let record;
         if (identity.key) {
             const claim = await store.claim(identity);
@@ -45,6 +46,10 @@ export const createTaskProcessor = ({ handlers, store, publishResult, isConfigur
         } else {
             try {
                 data = { ...base, ok: true, result: await handler.run(payload) };
+                // Validate while still inside the model-outcome boundary. A bad
+                // structured response becomes one durable failed result, not an
+                // unresolved paid call that an operator might accidentally rerun.
+                if (payloadVersion !== undefined) serializeEventPayload(EVENTS.AI_RESULT, data, { version: payloadVersion, aggregateId: identity.aggregateId });
             } catch (error) {
                 logger?.error('goi AI that bai; khong tu goi lai', { type: handler.type, taskId: payload.taskId, jobId: payload.jobId });
                 data = { ...base, ok: false, error: String(error?.message || 'Lỗi xử lý AI').slice(0, 1000) };
@@ -55,6 +60,7 @@ export const createTaskProcessor = ({ handlers, store, publishResult, isConfigur
             eventId: identity.resultEventId || randomUUID(), eventType: EVENTS.AI_RESULT,
             aggregateId: identity.aggregateId, occurredAt: new Date().toISOString(),
             producer: 'ai-worker', correlationId: record?.correlationId ?? identity.correlationId,
+            ...(payloadVersion !== undefined && { payloadVersion }),
             data: JSON.parse(JSON.stringify(data))
         });
         if (record) await store.complete(record, output);
@@ -75,7 +81,7 @@ export const createTaskProcessor = ({ handlers, store, publishResult, isConfigur
             if (pending.fingerprint !== identity.fingerprint) throw taskStateError('AI_TASK_ID_CONFLICT', 'AI task identity was reused with different input');
             return pending.promise;
         }
-        const promise = execute(payload, handler, identity);
+        const promise = execute(payload, handler, identity, metadata.payloadVersion);
         if (!identity.key) return promise;
         active.set(identity.key, { fingerprint: identity.fingerprint, promise });
         try { await promise; } finally { active.delete(identity.key); }

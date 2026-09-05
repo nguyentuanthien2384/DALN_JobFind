@@ -8,6 +8,7 @@
     "eventId": { "$ref": "#/$defs/identifier" },
     "eventType": { "$ref": "#/$defs/identifier" },
     "eventVersion": { "const": 1 },
+    "payloadVersion": { "const": 1, "description": "Optional payload contract version, independent of envelope version. Missing means legacy compatibility." },
     "aggregateId": { "$ref": "#/$defs/identifier" },
     "occurredAt": { "type": "string", "format": "date-time" },
     "producer": { "$ref": "#/$defs/identifier" },

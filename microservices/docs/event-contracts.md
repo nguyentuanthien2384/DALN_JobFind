@@ -1,0 +1,56 @@
+# Hợp đồng sự kiện RabbitMQ — payload v1
+
+## Phạm vi
+
+13 loại sự kiện hiện khai báo trong `shared/events.js` đã có JSON Schema 2020-12: nhóm job/company, bốn yêu cầu AI và kết quả AI, ba sự kiện application. `contracts/events/catalog.v1.json` liệt kê producer, queue nhận, trường định danh đối tượng và giới hạn byte của từng loại. Danh sách producer mô tả mã nguồn hiện tại, **không phải** cơ chế xác thực hoặc phân quyền RabbitMQ.
+
+Nguồn chỉnh sửa là `shared/contracts/eventCatalog.js` và `shared/contracts/eventValidator.cjs`. Các file `contracts/events/*.payload.v1.schema.json`, catalog và bản sao validator/catalog trong `backend/src/contracts` được sinh tự động. Backend chạy độc lập, không cần import trực tiếp workspace microservices. Không sửa các bản sao bằng tay.
+
+## Dữ liệu trên đường truyền
+
+Body vẫn là JSON nghiệp vụ cũ, không bọc thêm lớp `data`. AMQP properties mang `messageId`, `type`, `appId`, timestamp; headers mang `x-event-version: 1`, `x-payload-version: 1`, `x-aggregate-id`, `x-occurred-at`. Correlation ID có thì giữ nguyên.
+
+Hai version có ý nghĩa riêng: event version mô tả envelope/metadata; payload version mô tả dữ liệu nghiệp vụ. Payload có đánh dấu v1 bắt buộc đi kèm envelope hợp lệ, routing key khớp type và aggregate ID khớp đối tượng trong payload. Không tạo ID mới khi nhận lại thông điệp.
+
+Schema chỉ bắt buộc các trường cốt lõi, kiểm tra kiểu của những trường đã biết và cho phép trường bổ sung để producer/consumer nâng cấp lệch thời điểm. Không tự ép kiểu, cắt dữ liệu, thêm mặc định hoặc xóa trường. ID số phải thuộc miền số nguyên an toàn của JavaScript; chuỗi ID dùng custom format `jobfind-id` bên cạnh pattern. Công cụ JSON Schema ngoài dự án có thể không hiểu custom format này; kiểm chứng đầy đủ bằng validator của dự án.
+
+Ví dụ: trạng thái ứng tuyển phải dùng enum của Application; quyết định accepted/rejected phải khớp trạng thái đích; kết quả kiểm duyệt boolean phải khớp PS1/PS2. `ai.result` phân biệt bốn loại nhiệm vụ và kết quả thành công/thất bại, không cho cùng lúc có result và error; điểm matching là số nguyên 0–100. Các trường định danh được worker truyền tiếp cũng được kiểm tra ở đầu vào.
+
+Giới hạn tính theo JSON đã serialize thành UTF-8: yêu cầu AI 8 MiB, kết quả AI 1 MiB, các nhóm còn lại 64 MiB để còn tương thích snapshot/logo legacy. Một số trường có giới hạn nhỏ hơn. Đây là trần validator, **không phải** cam kết broker/DB/client chấp nhận message lớn đến mức đó; giới hạn thực tế còn phụ thuộc cấu hình từng tầng. Chưa chuyển file/logo lớn sang object storage và chưa xác minh nội dung PDF an toàn.
+
+## Điểm kiểm tra và xử lý lỗi
+
+- Job Core/Application kiểm tra trước khi ghi outbox trên connection của transaction; dữ liệu sai ném lỗi để transaction có thể rollback. Relay kiểm tra lại trước khi mở kết nối/publish có confirm.
+- Backend legacy kiểm tra trước khi publish, bổ sung ID cho từng lần tạo message. Đường legacy vẫn best-effort, chưa transactional outbox/confirm; gọi lại hàm emit là một event mới, không phải retry giữ nguyên ID. Không suy ra bảo đảm không mất/trùng cho legacy từ việc có schema.
+- Consumer kiểm tra message có đánh dấu trước bộ xử lý nghiệp vụ. JSON sai, schema sai, version không hỗ trợ hoặc sai định danh được chuyển sang DLQ qua publisher có confirm, không tự thử lại nghiệp vụ. ACK bản gốc chỉ sau khi chuyển thành công; nếu chưa confirm, giữ khả năng broker giao lại bản gốc. Retry của lỗi nghiệp vụ tạm thời vẫn giữ byte, ID, routing key gốc và version.
+- Lỗi JSON/schema dùng thông báo cố định, không đính kèm nội dung CV/email hay chi tiết giá trị lỗi vào log/header lỗi. DLQ vẫn chứa **toàn bộ bản gốc**, gồm dữ liệu cá nhân: phải hạn chế quyền đọc và có chính sách lưu giữ riêng.
+- Với yêu cầu AI có đánh dấu v1, kết quả mô hình sai cấu trúc trở thành một kết quả thất bại được lưu bền. Gửi lại kết quả đã lưu không gọi mô hình lần nữa. Không thay đổi chính sách cách ly tác vụ đã bắt đầu nhưng chưa biết kết quả.
+
+## Nâng cấp và tương thích dữ liệu cũ
+
+1. Sao lưu, kiểm tra image và kiểm tra dữ liệu pending trên bản sao trước khi thay ứng dụng thật. Không sửa queue arguments, purge queue, xóa inbox/ledger hoặc đánh dấu event đã publish bằng tay.
+2. Cập nhật consumer trước producer. Một số service kiêm cả hai vai trò: ưu tiên các consumer đầu cuối, sau đó worker/Job Core/Application và cuối cùng backend phát sự kiện. Consumer cũ vốn bỏ qua header mới và vẫn đọc body cũ, nhưng chưa có lớp kiểm tra v1. Bảo đảm toàn bộ consumer đã nâng cấp trước khi nghiệm thu khả năng chặn dữ liệu sai.
+3. Message cũ **không có** `x-payload-version` tiếp tục đường tương thích cũ, kể cả envelope v1 cũ hoặc message không ID. Không tự gán version/ID cho backlog, không tuyên bố message thiếu ID đã có dedup.
+4. Outbox hiện chưa có cột payload version. Relay dùng **v1 cố định** cho các row pending, gồm row được tạo trước đợt này. Row không hợp lệ được giữ pending với lỗi và lịch gửi lại, không bị xóa hoặc bỏ qua. Trong Application, nó còn chặn các event sau của cùng aggregate để giữ thứ tự. Cần đối chiếu dữ liệu lỗi có kiểm soát; không tự nới schema hoặc sửa payload với cùng event ID đã từng được xử lý. Đợt này chưa đọc/di chuyển pending row trên DB thật.
+5. Kết quả AI cũ đã lưu và tác vụ cũ không đánh dấu giữ đường tương thích không payload version. Ngoại lệ publisher `payloadVersion: null` chỉ dành cho `ai-worker`/`ai.result`; không được dùng để bỏ qua validator cho producer khác. Không viết lại kết quả cũ, đổi ID hay gọi AI trả phí để tạo bản mới chỉ nhằm hợp schema.
+6. Trước khi có payload v2, phải lưu version cùng outbox/task, thêm consumer hiểu cả phiên bản cũ và mới, và kiểm tra backlog. **Không đổi default của relay từ 1 sang 2**: việc đó sẽ âm thầm đổi version dữ liệu cũ. Thêm trường tùy chọn mới phải có kiểm thử consumer tương thích; thêm trường bắt buộc, đổi kiểu/enum hoặc thu hẹp giới hạn cần phiên bản mới và kế hoạch chuyển đổi.
+
+## Kiểm chứng
+
+Chạy tại thư mục `microservices`:
+
+```powershell
+npm run contracts:generate
+npm run contracts:check
+npm test
+npm run test:event-contracts:integration
+npm run test:ai-requests:integration
+docker build -t jobfind-microservices:local .
+npm run test:image
+```
+
+Bài tích hợp event cần image `rabbitmq:4-management-alpine` có sẵn; nếu thiếu, tải image đó trước khi chạy. Script tạo broker riêng với cổng loopback ngẫu nhiên, không đọc `.env`, không chạm queue thật. Nó kiểm tra cả 13 loại qua publish có confirm, schema/version sai vào DLQ, backlog cũ, targeted retry và replay AI cũ; chỉ xóa container cùng dữ liệu tạm do chính nó tạo sau khi kiểm tra nhãn sở hữu.
+
+Test consumer dùng bộ xử lý thật của Search, Notification, Application, Admin, AI Worker và AI Result, với DB/SMTP/AI được mô phỏng. Chúng kiểm tra dữ liệu và ID vào đúng nhánh nghiệp vụ; không thay thế E2E mọi vai trò hoặc mọi dữ liệu lịch sử. CI kiểm tra bản sinh không lệch, unit/consumer contracts, broker cách ly và các contract đóng gói trong image. Chưa có Pact broker hay cổng triển khai đối chiếu từng phiên bản service độc lập.
+
+Đợt này không khởi động lại container ứng dụng thật, không chạy migration, gọi AI/SMTP, push hoặc deploy GitHub. Xem `implementation-progress.md` về các yêu cầu PDF còn lại và `local-compose.md` về điều kiện chuyển image.

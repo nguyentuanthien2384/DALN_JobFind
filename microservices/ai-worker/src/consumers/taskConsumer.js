@@ -21,7 +21,8 @@ export const handlers = {
 
 export const publishTaskResult = (event) => publishOutboxEvent(event.eventType, event.data, {
     messageId: event.eventId, aggregateId: event.aggregateId,
-    occurredAt: event.occurredAt, producer: event.producer, correlationId: event.correlationId
+    occurredAt: event.occurredAt, producer: event.producer, correlationId: event.correlationId,
+    payloadVersion: event.payloadVersion ?? null // Preserve the compatibility of already-saved results.
 });
 
 export const handleTask = createTaskProcessor({

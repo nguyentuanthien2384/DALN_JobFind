@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { decodeEventFixture } from './contractAssertions.js';
+import { assertEventPayload } from '../shared/eventContract.js';
 
 const mocks = vi.hoisted(() => ({
     consume: vi.fn(), publish: vi.fn(), isConfigured: vi.fn(),
@@ -26,6 +28,23 @@ beforeEach(() => {
 });
 
 describe('AI RabbitMQ task consumer', () => {
+    it.each([
+        ['ai.moderate_job', 'moderateJob', { approved: true }],
+        ['ai.parse_resume', 'parseResume', { fullName: null, skills: [] }],
+        ['ai.match_cv', 'matchCv', { score: 80 }],
+        ['ai.cover_letter', 'generateCoverLetter', { letter: 'Synthetic letter' }]
+    ])('accepts the published %s input and returns a typed result through the actual consumer', async (key, method, result) => {
+        const { handleTask } = await import('../ai-worker/src/consumers/taskConsumer.js');
+        const { payload, metadata } = decodeEventFixture(key);
+        mocks[method].mockResolvedValue(result);
+        await handleTask(payload, key, metadata);
+        expect(mocks[method]).toHaveBeenCalledWith(payload);
+        const [type, data, options] = mocks.publish.mock.calls[0];
+        expect(data).toMatchObject({ ok: true, result });
+        expect(options.payloadVersion).toBe(1);
+        expect(() => assertEventPayload(type, data, { aggregateId: options.aggregateId })).not.toThrow();
+        expect(mocks.complete.mock.invocationCallOrder[0]).toBeLessThan(mocks.publish.mock.invocationCallOrder[0]);
+    });
     it('registers every supported task with configured concurrency', async () => {
         vi.stubEnv('AI_CONCURRENCY', '7');
         const { startTaskConsumer, handlers, handleTask } = await import('../ai-worker/src/consumers/taskConsumer.js');

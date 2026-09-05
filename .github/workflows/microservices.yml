@@ -52,6 +52,11 @@ jobs:
       - name: Exercise packaged gateway with no external network
         working-directory: microservices
         run: node scripts/test-image.mjs
+      - name: Verify event contracts on an isolated broker
+        working-directory: microservices
+        run: |
+          docker pull rabbitmq:4-management-alpine
+          npm run test:event-contracts:integration
       - name: Validate monitoring rules
         working-directory: microservices
         run: |

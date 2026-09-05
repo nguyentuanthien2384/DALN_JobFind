@@ -11,6 +11,8 @@ vi.mock('../shared/messageTransfer.js', () => ({ transferMessage: mocks.transfer
 import { recordEvent } from '../admin-service/src/controllers/auditController.js';
 import { auditRetry, handleAuditEvent, startAuditConsumer } from '../admin-service/src/consumers/auditConsumer.js';
 import { createDeliveryHandler } from '../shared/consumeDelivery.js';
+import { decodeEventFixture } from './contractAssertions.js';
+import { eventCatalog } from '../shared/contracts/eventCatalog.js';
 
 const metadata = {
     eventId: 'event-1', eventType: 'job.created', eventVersion: 1, producer: 'job-core-service',
@@ -34,6 +36,13 @@ beforeEach(() => {
 });
 
 describe('idempotent Admin audit persistence', () => {
+    it.each(Object.keys(eventCatalog))('accepts the published %s contract without losing dedup identity', async (key) => {
+        const { payload, metadata: identity } = decodeEventFixture(key);
+        await handleAuditEvent(payload, key, identity);
+        expect(mocks.AuditLog.updateOne.mock.calls[0][0]).toEqual({ kind: 'event', eventId: identity.eventId });
+        expect(mocks.AuditLog.updateOne.mock.calls[0][1].$setOnInsert).toMatchObject({ name: key, aggregateId: identity.aggregateId });
+        expect(mocks.AuditLog.create).not.toHaveBeenCalled();
+    });
     it('atomically inserts metadata and redacted payload without a separate inbox', async () => {
         expect(await recordEvent('job.created', { jobId: 7, nested: { fileBase64: 'secret', password: 'secret' } }, metadata)).toEqual({ duplicate: false });
         expect(mocks.AuditLog.create).not.toHaveBeenCalled();

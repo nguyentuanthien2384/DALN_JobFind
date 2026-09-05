@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+      "maxLength": 64
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resumeText": {
+      "type": "string",
+      "maxLength": 1000000
+    },
+    "jobTitle": {
+      "type": "string",
+      "maxLength": 1000000
+    },
+    "jobDescription": {
+      "type": "string",
+      "maxLength": 1000000
+    },
+    "companyName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "language": {
+      "type": "string",
+      "maxLength": 32
+    }
+  },
+  "required": [
+    "taskId",
+    "resumeText",
+    "jobTitle",
+    "jobDescription"
+  ],
+  "additionalProperties": true,
+  "title": "ai.cover_letter payload v1",
+  "examples": [
+    {
+      "taskId": "task-1",
+      "resumeText": "Synthetic CV",
+      "jobTitle": "Developer",
+      "jobDescription": "Build services",
+      "companyName": "Example",
+      "language": "en"
+    }
+  ]
+}

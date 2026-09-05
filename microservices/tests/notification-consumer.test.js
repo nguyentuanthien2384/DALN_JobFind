@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { decodeEventFixture } from './contractAssertions.js';
+import { eventCatalog } from '../shared/contracts/eventCatalog.js';
 
 const mocks = vi.hoisted(() => ({
     consume: vi.fn(),
@@ -31,6 +33,17 @@ beforeEach(async () => {
 });
 
 describe('notification event consumer', () => {
+    it.each(Object.keys(eventCatalog).filter((key) => eventCatalog[key].consumers.includes('notification-service.events')))
+    ('accepts the published %s contract into the durable delivery path', async (key) => {
+        mocks.getCompanyFollowers.mockResolvedValue([9]);
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const { payload, metadata } = decodeEventFixture(key);
+        await handleNotificationEvent(payload, key, metadata);
+        expect(mocks.queueNotification).toHaveBeenCalledOnce();
+        expect(mocks.queueNotification.mock.calls[0][0]).toMatchObject({ eventId: metadata.eventId });
+        expect(mocks.sendEmail).not.toHaveBeenCalled();
+        expect(mocks.pushRealtime).not.toHaveBeenCalled();
+    });
     it('queues identified events durably without invoking external channels in the consumer', async () => {
         const { handleNotificationEvent, stats } = await import('../notification-service/src/consumers/notificationConsumer.js');
         const payload = { candidateId: 2, candidateEmail: 'snapshot@x.com', decision: 'accepted', jobTitle: 'Dev' };

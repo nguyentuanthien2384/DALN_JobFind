@@ -21,8 +21,8 @@
     "logs": "docker compose logs -f",
     "ps": "docker compose ps",
     "test:smoke": "node scripts/smoke-test.js",
-    "contracts:generate": "node scripts/http-contracts.mjs",
-    "contracts:check": "node scripts/http-contracts.mjs --check",
+    "contracts:generate": "node scripts/http-contracts.mjs && node scripts/event-contracts.mjs",
+    "contracts:check": "node scripts/http-contracts.mjs --check && node scripts/event-contracts.mjs --check",
     "local:prepare": "node scripts/prepare-local.mjs",
     "local:up": "docker compose -f docker-compose.yml -f compose.local.yml --profile monitoring up -d --build",
     "local:ps": "docker compose -f docker-compose.yml -f compose.local.yml --profile monitoring ps",
@@ -32,6 +32,7 @@
     "test:ai-tasks:integration": "node scripts/test-ai-tasks.mjs",
     "test:ai-results:integration": "node scripts/test-ai-results.mjs",
     "test:ai-requests:integration": "node scripts/test-ai-requests.mjs",
+    "test:event-contracts:integration": "node scripts/test-event-contracts.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

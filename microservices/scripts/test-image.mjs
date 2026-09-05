@@ -20,7 +20,11 @@ assert.equal((await get('/api/jobs/1', {method:'POST'})).status, 404, 'unsupport
 const { readFile } = await import('node:fs/promises');
 const { buildOpenApi } = await import('/app/shared/contracts/openapi.js');
 assert.deepEqual(JSON.parse(await readFile('/app/contracts/http/gateway.openapi.json', 'utf8')), buildOpenApi());
-console.log('PASS image: non-root, isolated HTTP, readiness, protected status/metrics, payload limit, contract guard and packaged OpenAPI');
+const { eventCatalog, eventExamples } = await import('/app/shared/contracts/eventCatalog.js');
+const { assertEventPayload } = await import('/app/shared/eventContract.js');
+assert.deepEqual(JSON.parse(await readFile('/app/contracts/events/catalog.v1.json', 'utf8')).events, eventCatalog);
+for (const [key, example] of Object.entries(eventExamples)) assertEventPayload(key, example);
+console.log('PASS image: non-root, isolated HTTP, readiness, protected status/metrics, payload limit, contract guard and packaged HTTP/event contracts');
 process.kill(process.pid, 'SIGTERM');
 `;
 execFileSync('docker', ['run', '--rm', '--network', 'none', '--read-only', '--tmpfs', '/tmp',

@@ -1,0 +1,663 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "parse_resume"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "fullName": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "email": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "phone": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "address": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "summary": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "yearsOfExperience": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "skills": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              "maxItems": 1000
+            },
+            "languages": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              "maxItems": 1000
+            },
+            "experiences": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "company": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "position": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "duration": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [],
+                "additionalProperties": true
+              },
+              "maxItems": 1000
+            },
+            "educations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "school": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "major": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "degree": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "year": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [],
+                "additionalProperties": true
+              },
+              "maxItems": 1000
+            }
+          },
+          "required": [
+            "fullName",
+            "skills"
+          ],
+          "additionalProperties": true
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        "taskId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+          "maxLength": 64
+        },
+        "jobId": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,15}$",
+                  "format": "jobfind-id"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "ok",
+        "taskId"
+      ],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ok": {
+                "const": true
+              }
+            },
+            "required": [
+              "ok"
+            ]
+          },
+          "then": {
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {},
+              "error": false
+            }
+          },
+          "else": {
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {},
+              "result": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "match_cv"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "score": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "verdict": {
+              "enum": [
+                "rat_phu_hop",
+                "phu_hop",
+                "can_can_nhac",
+                "chua_phu_hop"
+              ]
+            },
+            "matchedSkills": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              "maxItems": 1000
+            },
+            "missingSkills": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              "maxItems": 1000
+            },
+            "strengths": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              "maxItems": 1000
+            },
+            "concerns": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              "maxItems": 1000
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 1000000
+            }
+          },
+          "required": [
+            "score"
+          ],
+          "additionalProperties": true
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        "taskId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+          "maxLength": 64
+        },
+        "jobId": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,15}$",
+                  "format": "jobfind-id"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "ok",
+        "taskId"
+      ],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ok": {
+                "const": true
+              }
+            },
+            "required": [
+              "ok"
+            ]
+          },
+          "then": {
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {},
+              "error": false
+            }
+          },
+          "else": {
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {},
+              "result": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "cover_letter"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "letter": {
+              "type": "string",
+              "maxLength": 1000000
+            },
+            "language": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "wordCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "letter"
+          ],
+          "additionalProperties": true
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        "taskId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+          "maxLength": 64
+        },
+        "jobId": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,15}$",
+                  "format": "jobfind-id"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "ok",
+        "taskId"
+      ],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ok": {
+                "const": true
+              }
+            },
+            "required": [
+              "ok"
+            ]
+          },
+          "then": {
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {},
+              "error": false
+            }
+          },
+          "else": {
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {},
+              "result": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "moderate_job"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "approved": {
+              "type": "boolean"
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "riskLevel": {
+              "enum": [
+                "an_toan",
+                "can_xem_lai",
+                "nguy_hiem"
+              ]
+            },
+            "violations": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "maxItems": 1000
+            }
+          },
+          "required": [
+            "approved"
+          ],
+          "additionalProperties": true
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        "jobId": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        "taskId": {
+          "type": "null"
+        },
+        "moderationRequestId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$"
+        }
+      },
+      "required": [
+        "type",
+        "ok",
+        "jobId",
+        "moderationRequestId"
+      ],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ok": {
+                "const": true
+              }
+            },
+            "required": [
+              "ok"
+            ]
+          },
+          "then": {
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {},
+              "error": false
+            }
+          },
+          "else": {
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {},
+              "result": false
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "title": "ai.result payload v1",
+  "examples": [
+    {
+      "taskId": "task-1",
+      "type": "match_cv",
+      "ok": true,
+      "result": {
+        "score": 80,
+        "matchedSkills": [
+          "Node"
+        ]
+      }
+    }
+  ]
+}
