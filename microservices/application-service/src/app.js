@@ -1,4 +1,6 @@
 import express from 'express';
+import { contractRoute } from '../../shared/requestContract.js';
+import { jsonBodies, safeHttpError } from '../../shared/httpBoundary.js';
 import { createServiceRuntime, periodicTask } from '../../shared/serviceRuntime.js';
 import { isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import { closeOutboxPublisher } from '../../shared/outboxPublisher.js';
@@ -33,7 +35,7 @@ registerOutboxMetrics(runtime.registry, async () => {
     return rows[0];
 });
 
-app.use(express.json({ limit: '10mb' }));
+app.use(jsonBodies(express));
 
 
 app.use(requireTrustedGateway);
@@ -49,7 +51,7 @@ const canManageTalentPool = requireServicePermission(
 );
 
 // Giao dien can biet danh sach cac buoc de ve cot Kanban.
-app.get('/applications/stages', canManageApplications, (req, res) => {
+contractRoute(app, 'applicationStages', canManageApplications, (req, res) => {
     res.json({
         errCode: 0,
         data: STAGES.map((stage) => ({ stage, label: STAGE_LABELS[stage] }))
@@ -57,31 +59,28 @@ app.get('/applications/stages', canManageApplications, (req, res) => {
 });
 
 // --- Nha tuyen dung ---
-app.get('/applications/board', canManageApplications, getBoard);
-app.get('/applications/funnel', canManageApplications, getFunnel);
-app.get('/applications', canManageApplications, listApplications);
-app.get('/applications/:id', canManageApplications, getApplication);
-app.patch('/applications/:id/stage', canManageApplications, moveStage);
-app.post('/applications/:id/decision-notification', canManageApplications, sendDecisionNotification);
-app.patch('/applications/:id/rating', canManageApplications, rateApplication);
-app.post('/applications/:id/notes', canManageApplications, addNote);
+contractRoute(app, 'applicationBoard', canManageApplications, getBoard);
+contractRoute(app, 'applicationFunnel', canManageApplications, getFunnel);
+contractRoute(app, 'applicationList', canManageApplications, listApplications);
+contractRoute(app, 'applicationGet', canManageApplications, getApplication);
+contractRoute(app, 'applicationMove', canManageApplications, moveStage);
+contractRoute(app, 'applicationDecision', canManageApplications, sendDecisionNotification);
+contractRoute(app, 'applicationRating', canManageApplications, rateApplication);
+contractRoute(app, 'applicationNote', canManageApplications, addNote);
 
 // --- Ung vien ---
-app.get('/my-applications', canReadOwnApplications, myApplications);
+contractRoute(app, 'myApplications', canReadOwnApplications, myApplications);
 
 // --- Kho ung vien ---
-app.get('/talent-pool', canManageTalentPool, savedCandidates);
-app.post('/talent-pool', canManageTalentPool, saveCandidate);
-app.delete('/talent-pool/:candidateId', canManageTalentPool, removeCandidate);
+contractRoute(app, 'talentList', canManageTalentPool, savedCandidates);
+contractRoute(app, 'talentSave', canManageTalentPool, saveCandidate);
+contractRoute(app, 'talentDelete', canManageTalentPool, removeCandidate);
 
 // --- Noi bo ---
-app.post('/internal/sync', syncEndpoint);
+contractRoute(app, 'applicationSync', syncEndpoint);
 
 // eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-    logger.error('loi khong bat duoc', { error: err.message, url: req.originalUrl });
-    res.status(500).json({ errCode: -1, errMessage: 'Lỗi hệ thống' });
-});
+app.use(safeHttpError);
 
 const start = async () => {
     await testConnection();

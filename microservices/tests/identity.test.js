@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
+import { expectResponseContract } from './contractAssertions.js';
 
 const db = vi.hoisted(() => ({
     Profile: { findOne: vi.fn(), create: vi.fn() }
@@ -34,6 +35,7 @@ describe('identity profile and CV controller', () => {
 
     it('creates a migrated profile with safe role/company defaults', async () => {
         const created = makeProfile();
+        created.legacyUserId = 7;
         db.Profile.findOne.mockResolvedValue(null);
         db.Profile.create.mockResolvedValue(created);
         const { getMyProfile } = await import('../identity-service/src/controllers/profileController.js');
@@ -41,6 +43,7 @@ describe('identity profile and CV controller', () => {
         await getMyProfile(makeReq({ headers: { 'x-user-id': '7' } }), res);
         expect(db.Profile.create).toHaveBeenCalledWith({ legacyUserId: 7, roleCode: 'CANDIDATE', companyId: null });
         expect(res.body).toEqual({ errCode: 0, data: created });
+        expectResponseContract('profileGet', res);
     });
 
     it('updates only whitelisted profile fields and merges preferences', async () => {

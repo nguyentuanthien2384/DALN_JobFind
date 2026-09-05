@@ -16,7 +16,11 @@ const metrics = await get('/metrics', {headers:{authorization:'Bearer image-test
 assert.equal(metrics.status, 200);
 assert.match(await metrics.text(), /jobfind_http_requests_total/);
 assert.equal((await get('/api/login', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({x:'a'.repeat(1100000)})})).status, 413);
-console.log('PASS image: non-root, isolated HTTP, readiness, protected status/metrics, payload limit');
+assert.equal((await get('/api/jobs/1', {method:'POST'})).status, 404, 'unsupported methods must not reach legacy');
+const { readFile } = await import('node:fs/promises');
+const { buildOpenApi } = await import('/app/shared/contracts/openapi.js');
+assert.deepEqual(JSON.parse(await readFile('/app/contracts/http/gateway.openapi.json', 'utf8')), buildOpenApi());
+console.log('PASS image: non-root, isolated HTTP, readiness, protected status/metrics, payload limit, contract guard and packaged OpenAPI');
 process.kill(process.pid, 'SIGTERM');
 `;
 execFileSync('docker', ['run', '--rm', '--network', 'none', '--read-only', '--tmpfs', '/tmp',

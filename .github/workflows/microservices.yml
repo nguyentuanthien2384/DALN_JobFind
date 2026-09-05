@@ -1,9 +1,9 @@
 name: Microservices quality
 on:
   push:
-    paths: ['microservices/**', 'backend/**', '.github/workflows/microservices.yml']
+    paths: ['microservices/**', 'backend/**', 'frontend/src/service/**', 'frontend/src/axios.js', '.github/workflows/microservices.yml']
   pull_request:
-    paths: ['microservices/**', 'backend/**', '.github/workflows/microservices.yml']
+    paths: ['microservices/**', 'backend/**', 'frontend/src/service/**', 'frontend/src/axios.js', '.github/workflows/microservices.yml']
 permissions:
   contents: read
 concurrency:
@@ -27,6 +27,8 @@ jobs:
       - run: npm ci --ignore-scripts
         working-directory: microservices
       - run: npm test
+        working-directory: microservices
+      - run: npm run contracts:check
         working-directory: microservices
       - run: npm audit --omit=dev --audit-level=high
         working-directory: microservices

@@ -1,4 +1,6 @@
 import express from 'express';
+import { contractRoute } from '../../shared/requestContract.js';
+import { jsonBodies, safeHttpError } from '../../shared/httpBoundary.js';
 import { createServiceRuntime } from '../../shared/serviceRuntime.js';
 import { closeConnection } from '../../shared/rabbitmq.js';
 import mongoose from 'mongoose';
@@ -19,29 +21,26 @@ const runtime = createServiceRuntime(app, { service: 'identity-service', logger,
 runtime.onClose(() => mongoose.disconnect());
 runtime.onClose(() => closeConnection());
 
-app.use(express.json({ limit: '10mb' }));
+app.use(jsonBodies(express));
 
 
 app.use(requireTrustedGateway);
 
 // --- Ho so ---
 const canUseOwnProfile = requireServicePermission(PERMISSIONS.PROFILE_SELF);
-app.get('/profile', canUseOwnProfile, getMyProfile);
-app.put('/profile', canUseOwnProfile, updateMyProfile);
+contractRoute(app, 'profileGet', canUseOwnProfile, getMyProfile);
+contractRoute(app, 'profileUpdate', canUseOwnProfile, updateMyProfile);
 
 // --- CV Builder ---
 const canManageOwnCv = requireServicePermission(PERMISSIONS.CV_SELF_MANAGE);
-app.get('/profile/cvs', canManageOwnCv, listCvs);
-app.post('/profile/cvs', canManageOwnCv, createCv);
-app.put('/profile/cvs/:cvId', canManageOwnCv, updateCv);
-app.delete('/profile/cvs/:cvId', canManageOwnCv, deleteCv);
-app.post('/profile/cvs/import', canManageOwnCv, importParsedCv);
+contractRoute(app, 'cvList', canManageOwnCv, listCvs);
+contractRoute(app, 'cvCreate', canManageOwnCv, createCv);
+contractRoute(app, 'cvUpdate', canManageOwnCv, updateCv);
+contractRoute(app, 'cvDelete', canManageOwnCv, deleteCv);
+contractRoute(app, 'cvImport', canManageOwnCv, importParsedCv);
 
 // eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-    logger.error('loi khong bat duoc', { error: err.message, url: req.originalUrl });
-    res.status(500).json({ errCode: -1, errMessage: 'Lỗi hệ thống' });
-});
+app.use(safeHttpError);
 
 const connectMongo = async (attempt = 1) => {
     try {

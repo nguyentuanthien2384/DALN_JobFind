@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
+import { expectResponseContract } from './contractAssertions.js';
 
 const mocks = vi.hoisted(() => ({
     pool: { query: vi.fn(), getConnection: vi.fn() },
@@ -24,11 +25,12 @@ beforeEach(() => {
 describe('current job for internal indexing', () => {
     it.each(['PS1', 'PS2', 'PS3', 'PS4'])('returns authoritative rows including %s and company visibility', async (statusCode) => {
         const { getJobForIndex } = await import('../job-core-service/src/controllers/jobController.js');
-        const job = { id: 7, statusCode, companyStatusCode: 'S2', companyCensorCode: 'CS2' };
+        const job = { id: 7, name: 'Developer', statusCode, companyStatusCode: 'S2', companyCensorCode: 'CS2' };
         mocks.pool.query.mockResolvedValue([[job]]);
         const res = makeRes();
         await getJobForIndex(makeReq({ params: { id: '7' } }), res);
         expect(res.body).toEqual({ errCode: 0, data: job });
+        expectResponseContract('jobIndexGet', res);
         expect(mocks.pool.query.mock.calls[0][1]).toEqual([7]);
         expect(mocks.pool.query.mock.calls[0][0]).not.toContain("p.statusCode = 'PS1'");
     });

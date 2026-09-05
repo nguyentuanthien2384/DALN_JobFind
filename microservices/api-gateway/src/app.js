@@ -3,6 +3,7 @@ import http from 'node:http';
 import cors from 'cors';
 import { createServiceRuntime } from '../../shared/serviceRuntime.js';
 import { requestBodies, safeHttpError } from '../../shared/httpBoundary.js';
+import { rejectUnknownModernRoute } from '../../shared/requestContract.js';
 import { checkAccountStore, closeAccountStore } from './libs/accountStore.js';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { createLogger } from '../../shared/logger.js';
@@ -125,6 +126,7 @@ app.get('/status', requireAuth, requireRole('ADMIN'), (req, res) => {
 });
 
 // ===================== DINH TUYEN =====================
+app.use(rejectUnknownModernRoute);
 // Cac duong dan noi bo (/internal/*) khong duoc mo ra ngoai: chung danh cho
 // cac service goi lan nhau trong mang Docker.
 app.use((req, res, next) => {

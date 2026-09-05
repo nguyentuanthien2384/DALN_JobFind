@@ -85,7 +85,8 @@ describe('Search/Job Core projection wiring', () => {
         const guard = mocks.app.use.mock.calls.findIndex(([fn]) => fn === requireTrustedGateway);
         expect(route).toBeGreaterThanOrEqual(0);
         expect(guard).toBeGreaterThanOrEqual(0);
-        expect(mocks.app.get.mock.calls[route][1]).toBe(mocks.getJobForIndex);
+        await mocks.app.get.mock.calls[route].at(-1)(makeReq(), makeRes(), vi.fn());
+        expect(mocks.getJobForIndex).toHaveBeenCalled();
         expect(mocks.app.use.mock.invocationCallOrder[guard]).toBeLessThan(mocks.app.get.mock.invocationCallOrder[route]);
         const denied = makeRes();
         const next = vi.fn();
@@ -110,7 +111,7 @@ describe('Search/Job Core projection wiring', () => {
         await import('../search-service/src/app.js');
         await vi.waitFor(() => expect(mocks.app.listen).toHaveBeenCalledOnce());
         const { requireTrustedGateway } = await import('../shared/accessControl.js');
-        const route = mocks.app.post.mock.calls.find(([path]) => path === '/internal/reindex')[1];
+        const route = mocks.app.post.mock.calls.find(([path]) => path === '/internal/reindex').at(-1);
         expect(mocks.app.use).toHaveBeenCalledWith(requireTrustedGateway);
         mocks.rebuildIndex.mockRejectedValueOnce(new Error('one ID failed'));
         const failed = makeRes();

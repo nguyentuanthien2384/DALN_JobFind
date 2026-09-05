@@ -1,4 +1,5 @@
 import express from 'express';
+import { contractRoute } from '../../shared/requestContract.js';
 import { createServiceRuntime } from '../../shared/serviceRuntime.js';
 import { jsonBodies, safeHttpError } from '../../shared/httpBoundary.js';
 import { registerOutboxMetrics, registerAiTaskMetrics } from '../../shared/operationalMetrics.js';
@@ -49,21 +50,21 @@ app.use(requireTrustedGateway);
 
 // --- Ben Ghi (Command) ---
 const canManageJobs = requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true });
-app.post('/jobs', canManageJobs, createJob);
-app.put('/jobs/:id', canManageJobs, updateJob);
-app.delete('/jobs/:id', canManageJobs, deleteJob);
-app.get('/jobs/:id', getJob);
+contractRoute(app, 'jobCreate', canManageJobs, createJob);
+contractRoute(app, 'jobUpdate', canManageJobs, updateJob);
+contractRoute(app, 'jobDelete', canManageJobs, deleteJob);
+contractRoute(app, 'jobGet', getJob);
 
 // --- Cac tinh nang AI ---
 const canUseCandidateAi = requireServicePermission(PERMISSIONS.AI_CANDIDATE_USE);
-app.post('/ai/parse-resume', canUseCandidateAi, parseResume);
-app.post('/ai/match-cv', canUseCandidateAi, matchCv);
-app.post('/ai/cover-letter', canUseCandidateAi, coverLetter);
-app.get('/ai/tasks/:taskId', canUseCandidateAi, getTask);
+contractRoute(app, 'aiParseResume', canUseCandidateAi, parseResume);
+contractRoute(app, 'aiMatchCv', canUseCandidateAi, matchCv);
+contractRoute(app, 'aiCoverLetter', canUseCandidateAi, coverLetter);
+contractRoute(app, 'aiTaskGet', canUseCandidateAi, getTask);
 
 // --- Noi bo: Search Service goi de dung lai index tu dau ---
-app.get('/internal/jobs', listJobsForReindex);
-app.get('/internal/jobs/:id', getJobForIndex);
+contractRoute(app, 'jobIndexList', listJobsForReindex);
+contractRoute(app, 'jobIndexGet', getJobForIndex);
 app.use(safeHttpError);
 
 const start = async () => {

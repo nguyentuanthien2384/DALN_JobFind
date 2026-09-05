@@ -136,7 +136,8 @@ const trim = (obj) => {
 export const listLogs = async (req, res) => {
     const filter = {};
     if (req.query.kind) filter.kind = req.query.kind;
-    if (req.query.name) filter.name = new RegExp(req.query.name, 'i');
+    // Search text is literal, never an attacker-supplied regular expression.
+    if (req.query.name) filter.name = new RegExp(String(req.query.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     if (req.query.actorId) filter.actorId = Number(req.query.actorId);
     if (req.query.targetType) filter.targetType = req.query.targetType;
     if (req.query.targetId) filter.targetId = String(req.query.targetId);

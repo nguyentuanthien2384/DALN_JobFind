@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
+import { expectResponseContract } from './contractAssertions.js';
 
 const mocks = vi.hoisted(() => {
     const es = {
@@ -168,6 +169,7 @@ describe('search controllers', () => {
         const ok = makeRes();
         await suggest(makeReq({ query: { q: ' no ' } }), ok);
         expect(ok.body.data[0].name).toBe('Node');
+        expectResponseContract('searchSuggest', ok);
         expect(mocks.es.search.mock.calls[0][0].query.bool.must[0].match_phrase_prefix.name.query).toBe('no');
         mocks.es.search.mockRejectedValue(new Error('x'));
         const failed = makeRes();
@@ -184,6 +186,7 @@ describe('search controllers', () => {
         const res = makeRes();
         await facets(makeReq(), res);
         expect(res.body.data).toEqual({ categories: [{ code: 'IT', count: 3 }], provinces: [{ code: 'HN', count: 2 }], salaries: [] });
+        expectResponseContract('searchFacets', res);
         mocks.es.search.mockRejectedValue(new Error('x'));
         const failed = makeRes();
         await facets(makeReq(), failed);

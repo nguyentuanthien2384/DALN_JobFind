@@ -1,0 +1,5310 @@
+{
+  "openapi": "3.1.1",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "JobFind search HTTP API",
+    "version": "1.0.0",
+    "description": "Generated from executable request contracts. JSON only; unknown fields and invalid types are rejected, never silently coerced or removed. Response extensions remain allowed for the legacy migration. Operational endpoints, Socket.IO and legacy /api/* routes are documented separately in docs/http-contracts.md."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Direct service origin in the private Compose network; do not publish publicly"
+    }
+  ],
+  "tags": [
+    {
+      "name": "search"
+    }
+  ],
+  "paths": {
+    "/search/jobs": {
+      "get": {
+        "operationId": "searchJobs",
+        "tags": [
+          "search"
+        ],
+        "summary": "GET /search/jobs",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required. offset + effective limit must not exceed 10000; limit=0 uses the default of 12.",
+        "x-jobfind-permission": null,
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          {
+            "name": "categoryJobCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "addressCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "salaryJobCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "categoryJoblevelCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "categoryWorktypeCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "experienceJobCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "isHot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "0",
+                "true",
+                "false",
+                ""
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "newest",
+                "relevance"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$",
+              "maxLength": 3,
+              "format": "jobfind-uint-100"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$",
+              "maxLength": 5,
+              "format": "jobfind-uint-10000"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SearchJob"
+                      }
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/suggest": {
+      "get": {
+        "operationId": "searchSuggest",
+        "tags": [
+          "search"
+        ],
+        "summary": "GET /search/suggest",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required.",
+        "x-jobfind-permission": null,
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Suggestion"
+                      }
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/facets": {
+      "get": {
+        "operationId": "searchFacets",
+        "tags": [
+          "search"
+        ],
+        "summary": "GET /search/facets",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required.",
+        "x-jobfind-permission": null,
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Facets"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search/related/{id}": {
+      "get": {
+        "operationId": "searchRelated",
+        "tags": [
+          "search"
+        ],
+        "summary": "GET /search/related/:id",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required.",
+        "x-jobfind-permission": null,
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$",
+              "maxLength": 2,
+              "format": "jobfind-uint-20"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SearchJob"
+                      }
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/reindex": {
+      "post": {
+        "operationId": "searchReindex",
+        "tags": [
+          "search"
+        ],
+        "summary": "POST /internal/reindex",
+        "description": "Service-to-service only. Never exposed through the public gateway. No end-user login required.",
+        "x-jobfind-permission": null,
+        "x-jobfind-internal": true,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReindexResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "internalSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-internal-secret",
+        "description": "Private service credential. User context is supplied by the trusted gateway via x-user-id, x-user-role and x-company-id; never trust client-supplied identity headers."
+      }
+    },
+    "schemas": {
+      "Empty": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "JobCreate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "descriptionHTML": {
+            "type": "string",
+            "maxLength": 200000,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "descriptionMarkdown": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "categoryJobCode": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "addressCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salaryJobCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              {
+                "type": "string",
+                "pattern": "^(100000|[1-9][0-9]{0,4})$"
+              }
+            ]
+          },
+          "categoryJoblevelCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "categoryWorktypeCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "experienceJobCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "genderPostCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeEnd": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8640000000000000
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "isHot": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "descriptionHTML",
+          "categoryJobCode"
+        ],
+        "additionalProperties": false
+      },
+      "JobUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "descriptionHTML": {
+            "type": "string",
+            "maxLength": 200000,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "descriptionMarkdown": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "categoryJobCode": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "addressCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "salaryJobCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              {
+                "type": "string",
+                "pattern": "^(100000|[1-9][0-9]{0,4})$"
+              }
+            ]
+          },
+          "categoryJoblevelCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "categoryWorktypeCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "experienceJobCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "ParseResume": {
+        "type": "object",
+        "properties": {
+          "fileBase64": {
+            "type": "string",
+            "maxLength": 8388608,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "fileName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "fileBase64"
+        ],
+        "additionalProperties": false
+      },
+      "MatchCv": {
+        "type": "object",
+        "properties": {
+          "resumeText": {
+            "type": "string",
+            "maxLength": 500000,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          }
+        },
+        "required": [
+          "resumeText",
+          "jobId"
+        ],
+        "additionalProperties": false
+      },
+      "CoverLetter": {
+        "type": "object",
+        "properties": {
+          "resumeText": {
+            "type": "string",
+            "maxLength": 500000,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "resumeText",
+          "jobId"
+        ],
+        "additionalProperties": false
+      },
+      "ProfileUpdate": {
+        "type": "object",
+        "properties": {
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "about": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "maxItems": 100
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phonenumber": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jobPreference": {
+            "type": "object",
+            "properties": {
+              "categoryJobCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "addressCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "salaryJobCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "experienceJobCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "isFindJob": {
+                "type": "boolean"
+              },
+              "isTakeMail": {
+                "type": "boolean"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "CvCreate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fullName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "maxItems": 100
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "maxItems": 100
+          },
+          "experiences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "company": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "position": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "from": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 10000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "educations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "school": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "major": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "degree": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "year": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "parsedFrom": {
+            "type": "object",
+            "properties": {
+              "fileName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "parsedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                ]
+              },
+              "raw": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 255
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "template": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "fullName": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 255
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 320
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "phone": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "address": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 1000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "summary": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "skills": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 255,
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    },
+                    "maxItems": 100
+                  },
+                  "languages": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 255,
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    },
+                    "maxItems": 100
+                  },
+                  "experiences": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "company": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 255
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "position": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 255
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "duration": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 255
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "description": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 10000
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 100
+                  },
+                  "educations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "school": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 255
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "major": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 255
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "degree": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 255
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "year": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 100
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 100
+                  },
+                  "yearsOfExperience": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 100
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "CvUpdate": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fullName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "maxItems": 100
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "maxItems": 100
+          },
+          "experiences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "company": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "position": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "from": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 10000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "educations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "school": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "major": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "degree": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "year": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "CvImport": {
+        "type": "object",
+        "properties": {
+          "parsed": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "template": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "fullName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "email": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 320
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "phone": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "address": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "summary": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 100
+              },
+              "languages": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 255,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 100
+              },
+              "experiences": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "company": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 255
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "position": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 255
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "duration": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 255
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "description": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 10000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [],
+                  "additionalProperties": false
+                },
+                "maxItems": 100
+              },
+              "educations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "school": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 255
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "major": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 255
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "degree": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 255
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "year": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [],
+                  "additionalProperties": false
+                },
+                "maxItems": 100
+              },
+              "yearsOfExperience": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "fileName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "parsed"
+        ],
+        "additionalProperties": false
+      },
+      "MoveStage": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "moi_ung_tuyen",
+              "dang_xem_xet",
+              "phong_van",
+              "de_nghi",
+              "nhan_viec",
+              "tu_choi"
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "stage"
+        ],
+        "additionalProperties": false
+      },
+      "Decision": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "rejected"
+            ]
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 3000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "additionalProperties": false
+      },
+      "Rating": {
+        "type": "object",
+        "properties": {
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-5]$"
+              }
+            ]
+          }
+        },
+        "required": [
+          "rating"
+        ],
+        "additionalProperties": false
+      },
+      "Note": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "additionalProperties": false
+      },
+      "TalentSave": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "candidateName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "maxItems": 50
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "candidateId"
+        ],
+        "additionalProperties": false
+      },
+      "TagSave": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "maxItems": 100
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weight": {
+            "type": "number",
+            "minimum": -1000000,
+            "maximum": 1000000
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": false
+      },
+      "AuditAction": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ]
+          },
+          "route": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "actorId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actorRole": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "companyId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "durationMs": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 86400000
+          },
+          "ip": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "correlationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "method",
+          "route",
+          "status",
+          "durationMs"
+        ],
+        "additionalProperties": false
+      },
+      "SearchQuery": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "categoryJobCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "addressCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "salaryJobCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "categoryJoblevelCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "categoryWorktypeCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "experienceJobCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "isHot": {
+            "type": "string",
+            "enum": [
+              "1",
+              "0",
+              "true",
+              "false",
+              ""
+            ]
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "newest",
+              "relevance"
+            ]
+          },
+          "limit": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "maxLength": 3,
+            "format": "jobfind-uint-100"
+          },
+          "offset": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "maxLength": 5,
+            "format": "jobfind-uint-10000"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "ApplicationQuery": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,15}$",
+            "format": "jobfind-id"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "moi_ung_tuyen",
+              "dang_xem_xet",
+              "phong_van",
+              "de_nghi",
+              "nhan_viec",
+              "tu_choi"
+            ]
+          },
+          "minRating": {
+            "type": "string",
+            "pattern": "^[1-5]$"
+          },
+          "q": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "limit": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "maxLength": 3,
+            "format": "jobfind-uint-100"
+          },
+          "offset": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "maxLength": 7,
+            "format": "jobfind-uint-1000000"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "AuditQuery": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "event",
+              "action"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "actorId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,15}$",
+            "format": "jobfind-id"
+          },
+          "targetType": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "targetId": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+          },
+          "correlationId": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "eventId": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+          },
+          "fromDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "toDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "limit": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "maxLength": 3,
+            "format": "jobfind-uint-200"
+          },
+          "offset": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "maxLength": 7,
+            "format": "jobfind-uint-1000000"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "RangeQuery": {
+        "type": "object",
+        "properties": {
+          "fromDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "toDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "errCode": {
+            "type": "integer"
+          },
+          "errMessage": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "requestId": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          }
+        },
+        "required": [
+          "errCode"
+        ],
+        "additionalProperties": true
+      },
+      "Ack": {
+        "type": "object",
+        "properties": {
+          "errCode": {
+            "const": 0
+          },
+          "errMessage": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "errCode"
+        ],
+        "additionalProperties": true
+      },
+      "AcceptedTask": {
+        "type": "object",
+        "properties": {
+          "errCode": {
+            "const": 0
+          },
+          "taskId": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+          },
+          "errMessage": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "errCode",
+          "taskId"
+        ],
+        "additionalProperties": false
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "parse_resume",
+              "match_cv",
+              "cover_letter"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "done",
+              "failed"
+            ]
+          },
+          "result": {},
+          "error": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "result",
+          "error",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "descriptionHTML": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "statusCode": {
+            "type": "string",
+            "enum": [
+              "PS1",
+              "PS2",
+              "PS3",
+              "PS4"
+            ]
+          },
+          "userId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "companyId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "companyName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "statusCode"
+        ],
+        "additionalProperties": true
+      },
+      "Cv": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fullName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "maxItems": 100
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255,
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "maxItems": 100
+          },
+          "experiences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "company": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "position": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "from": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 10000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "educations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "school": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "major": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "degree": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "year": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "_id": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{24}$"
+          },
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          }
+        },
+        "required": [
+          "_id"
+        ],
+        "additionalProperties": true
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "legacyUserId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "roleCode": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "companyId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cvs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Cv"
+            }
+          }
+        },
+        "required": [
+          "legacyUserId"
+        ],
+        "additionalProperties": true
+      },
+      "Application": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "candidate_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "company_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "moi_ung_tuyen",
+              "dang_xem_xet",
+              "phong_van",
+              "de_nghi",
+              "nhan_viec",
+              "tu_choi"
+            ]
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "stage"
+        ],
+        "additionalProperties": true
+      },
+      "Record": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "Suggestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "companyName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "addressCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": true
+      },
+      "SearchJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "statusCode": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "_highlight": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": true
+      },
+      "Facets": {
+        "type": "object",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "code",
+                "count"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "provinces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "code",
+                "count"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "salaries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "code",
+                "count"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "categories",
+          "provinces",
+          "salaries"
+        ],
+        "additionalProperties": true
+      },
+      "StageLabel": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "moi_ung_tuyen",
+              "dang_xem_xet",
+              "phong_van",
+              "de_nghi",
+              "nhan_viec",
+              "tu_choi"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "stage",
+          "label"
+        ],
+        "additionalProperties": true
+      },
+      "Board": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stage": {
+                  "type": "string",
+                  "enum": [
+                    "moi_ung_tuyen",
+                    "dang_xem_xet",
+                    "phong_van",
+                    "de_nghi",
+                    "nhan_viec",
+                    "tu_choi"
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Application"
+                  }
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "stage",
+                "label",
+                "items",
+                "count"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "columns",
+          "total"
+        ],
+        "additionalProperties": true
+      },
+      "Funnel": {
+        "type": "object",
+        "properties": {
+          "funnel": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stage": {
+                  "type": "string",
+                  "enum": [
+                    "moi_ung_tuyen",
+                    "dang_xem_xet",
+                    "phong_van",
+                    "de_nghi",
+                    "nhan_viec",
+                    "tu_choi"
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "avgRating": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "stage",
+                "label",
+                "count",
+                "avgRating"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "hired": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "conversionRate": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "funnel",
+          "total",
+          "hired",
+          "conversionRate"
+        ],
+        "additionalProperties": true
+      },
+      "ApplicationNote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "application_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "author_id": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "application_id",
+          "author_id",
+          "body",
+          "created_at"
+        ],
+        "additionalProperties": true
+      },
+      "MyApplication": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "moi_ung_tuyen",
+              "dang_xem_xet",
+              "phong_van",
+              "de_nghi",
+              "nhan_viec",
+              "tu_choi"
+            ]
+          },
+          "stageLabel": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "applied_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          },
+          "stage_changed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "job_id",
+          "job_title",
+          "stage",
+          "stageLabel",
+          "applied_at",
+          "stage_changed_at"
+        ],
+        "additionalProperties": true
+      },
+      "Talent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "candidate_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "company_id": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidate_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "saved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "candidate_id"
+        ],
+        "additionalProperties": true
+      },
+      "Audit": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{24}$"
+          },
+          "kind": {
+            "enum": [
+              "event",
+              "action"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "payload": {},
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ]
+          }
+        },
+        "required": [
+          "_id",
+          "kind",
+          "name"
+        ],
+        "additionalProperties": true
+      },
+      "Master": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "type": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weight": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hasTag": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "value",
+          "type",
+          "aliases",
+          "group",
+          "weight",
+          "isActive",
+          "description",
+          "hasTag"
+        ],
+        "additionalProperties": true
+      },
+      "Tag": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{24}$"
+          },
+          "type": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "weight": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "_id",
+          "type",
+          "name"
+        ],
+        "additionalProperties": true
+      },
+      "AliasMap": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "required": [
+            "code",
+            "type",
+            "name"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "ReportOverview": {
+        "type": "object",
+        "properties": {
+          "khoangThoiGian": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                ]
+              },
+              "to": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "additionalProperties": true
+          },
+          "nguoiDung": {
+            "type": "object",
+            "properties": {
+              "tong": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                  }
+                ]
+              },
+              "moi": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "tong",
+              "moi"
+            ],
+            "additionalProperties": true
+          },
+          "congTy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+              }
+            ]
+          },
+          "tinTuyenDung": {
+            "type": "object",
+            "properties": {
+              "dangHienThi": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                  }
+                ]
+              },
+              "choDuyet": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "dangHienThi",
+              "choDuyet"
+            ],
+            "additionalProperties": true
+          },
+          "hoSoUngTuyen": {
+            "type": "object",
+            "properties": {
+              "tong": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                  }
+                ]
+              },
+              "daTuyen": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "tong",
+              "daTuyen"
+            ],
+            "additionalProperties": true
+          },
+          "doanhThu": {
+            "type": "object",
+            "properties": {
+              "goiTin": {
+                "type": "number"
+              },
+              "goiXemCv": {
+                "type": "number"
+              },
+              "tong": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "goiTin",
+              "goiXemCv",
+              "tong"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "khoangThoiGian",
+          "nguoiDung",
+          "congTy",
+          "tinTuyenDung",
+          "hoSoUngTuyen",
+          "doanhThu"
+        ],
+        "additionalProperties": true
+      },
+      "ReportTimeseries": {
+        "type": "object",
+        "properties": {
+          "tinTuyenDung": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ngay": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ngay",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "nguoiDungMoi": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ngay": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ngay",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "doanhThu": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ngay": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  ]
+                },
+                "tien": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "ngay",
+                "tien"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "hoSoUngTuyen": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ngay": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ngay",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "tinTuyenDung",
+          "nguoiDungMoi",
+          "doanhThu",
+          "hoSoUngTuyen"
+        ],
+        "additionalProperties": true
+      },
+      "ReportDistribution": {
+        "type": "object",
+        "properties": {
+          "theoNganhNghe": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ten": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ten",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "theoTinhThanh": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ten": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ten",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "theoMucLuong": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ten": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ten",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "theoVaiTro": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ten": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ten",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "theoNganhNghe",
+          "theoTinhThanh",
+          "theoMucLuong",
+          "theoVaiTro"
+        ],
+        "additionalProperties": true
+      },
+      "ReportFunnel": {
+        "type": "object",
+        "properties": {
+          "pheu": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stage": {
+                  "type": "string",
+                  "enum": [
+                    "moi_ung_tuyen",
+                    "dang_xem_xet",
+                    "phong_van",
+                    "de_nghi",
+                    "nhan_viec",
+                    "tu_choi"
+                  ]
+                },
+                "ten": {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                "soLuong": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "stage",
+                "ten",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "tong": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "tyLeTuyen": {
+            "type": "number"
+          },
+          "topCongTy": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "congTyId": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,15}$",
+                          "format": "jobfind-id"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "soHoSo": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "daTuyen": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "congTyId",
+                "soHoSo",
+                "daTuyen"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "pheu",
+          "tong",
+          "tyLeTuyen",
+          "topCongTy"
+        ],
+        "additionalProperties": true
+      },
+      "ReportActivity": {
+        "type": "object",
+        "properties": {
+          "theoLoai": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ten": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ten",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "theoService": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ten": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ten",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "theoNgay": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ngay": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  ]
+                },
+                "soLuong": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "ngay",
+                "soLuong"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "theoLoai",
+          "theoService",
+          "theoNgay"
+        ],
+        "additionalProperties": true
+      },
+      "SyncResult": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "imported": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "error": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        },
+        "required": [
+          "total",
+          "imported"
+        ],
+        "additionalProperties": true
+      },
+      "ReindexResponse": {
+        "type": "object",
+        "properties": {
+          "errCode": {
+            "const": 0
+          },
+          "indexed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reconciliation": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "changed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "deleted": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "total",
+              "changed",
+              "deleted"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "errCode",
+          "indexed",
+          "reconciliation"
+        ],
+        "additionalProperties": true
+      }
+    }
+  }
+}

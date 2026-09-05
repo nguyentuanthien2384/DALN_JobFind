@@ -19,6 +19,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=dependencies --chown=node:node /app /app
 COPY --chown=node:node shared/ shared/
+COPY --chown=node:node contracts/ contracts/
 COPY --chown=node:node api-gateway/ api-gateway/
 COPY --chown=node:node identity-service/ identity-service/
 COPY --chown=node:node job-core-service/ job-core-service/

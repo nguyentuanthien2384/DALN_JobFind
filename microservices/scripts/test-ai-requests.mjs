@@ -265,7 +265,8 @@ try {
     process.env.INTERNAL_SECRET = token;
     const app = express();
     let dropAcceptedResponse = false;
-    app.use(express.json({ limit: '50mb' }));
+    const { jsonBodies, safeHttpError } = await import('../shared/httpBoundary.js');
+    app.use(jsonBodies(express));
     app.use(requireTrustedGateway, requireServicePermission(PERMISSIONS.AI_CANDIDATE_USE));
     app.use((_req, res, next) => {
         const json = res.json.bind(res);
@@ -279,9 +280,11 @@ try {
         };
         next();
     });
-    app.post('/ai/parse-resume', parseResume);
-    app.post('/ai/match-cv', matchCv);
-    app.post('/ai/cover-letter', coverLetter);
+    const { contractRoute } = await import('../shared/requestContract.js');
+    contractRoute(app, 'aiParseResume', parseResume);
+    contractRoute(app, 'aiMatchCv', matchCv);
+    contractRoute(app, 'aiCoverLetter', coverLetter);
+    app.use(safeHttpError);
     await new Promise((resolve) => { httpServer = app.listen(0, '127.0.0.1', resolve); });
     const http = async (path, body, key, user = '9') => {
         const result = await fetch(`http://127.0.0.1:${httpServer.address().port}${path}`, {
@@ -299,6 +302,20 @@ try {
         ['/ai/cover-letter', { resumeText: 'Synthetic CV', jobId: 1, language: 'en' }]
     ];
     const keyed = [];
+
+    await check('HTTP schema failures leave no request key, AI task or outbox event in real MySQL', async () => {
+        const before = await totals();
+        for (const [path, body] of [
+            ['/ai/parse-resume', { fileBase64: { $ne: null } }],
+            ['/ai/parse-resume', { fileBase64: 'test', fileName: 'x'.repeat(256) }],
+            ['/ai/match-cv', { resumeText: 'CV', jobId: [1] }],
+            ['/ai/match-cv', { resumeText: 'CV', jobId: 1, userId: 10 }],
+            ['/ai/cover-letter', { resumeText: 'CV', jobId: 1, language: { nested: 'invalid' } }]
+        ]) {
+            assert.equal((await http(path, body, randomUUID())).status, 400);
+            assert.deepEqual(await totals(), before);
+        }
+    });
 
     await check('20 concurrent HTTP copies per endpoint create exactly one key, task and outbox record', async () => {
         for (const [path, body] of keyedCases) {

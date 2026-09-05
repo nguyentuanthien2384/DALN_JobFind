@@ -56,7 +56,9 @@ describe('operations endpoints over real HTTP', () => {
         expect(response.status).toBe(200);
         expect(metrics).toContain('route="/jobs/:id"');
         expect(metrics).toMatch(/jobfind_http_requests_total\{[^\n]+\} 2/);
-        expect(metrics).not.toMatch(/54321|99999|private@example.com/);
+        // Inspect labels only; floating-point durations may coincidentally contain 99999.
+        const labels = (metrics.match(/\{[^}]*\}/g) || []).join('\n');
+        expect(labels).not.toMatch(/54321|99999|private@example\.com/);
         expect(metrics).toMatch(/jobfind_http_active\{[^\n]+\} 0/);
     });
     it('fails closed with an unconfigured metrics credential', async () => {

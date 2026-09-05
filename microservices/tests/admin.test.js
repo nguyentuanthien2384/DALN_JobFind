@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { chain, makeReq, makeRes } from './helpers.js';
+import { expectResponseContract } from './contractAssertions.js';
 
 const mocks = vi.hoisted(() => ({
     mysqlPool: { query: vi.fn() },
@@ -20,6 +21,15 @@ beforeEach(() => {
 });
 
 describe('admin audit controller', () => {
+    it('treats an audit name as literal text, never a user-controlled regular expression', async () => {
+        mocks.AuditLog.find.mockReturnValue(chain([]));
+        mocks.AuditLog.countDocuments.mockResolvedValue(0);
+        const { listLogs } = await import('../admin-service/src/controllers/auditController.js');
+        await listLogs(makeReq({ query: { name: '(a+)+$.*[x]' } }), makeRes());
+        const filter = mocks.AuditLog.find.mock.calls[0][0].name;
+        expect(filter.test('(a+)+$.*[x]')).toBe(true);
+        expect(filter.test('aaaaaaaaaaaaaaaaax')).toBe(false);
+    });
     it.each([
         [{ jobId: 1 }, 'job', '1'],
         [{ applicationId: 2 }, 'application', '2'],
@@ -199,6 +209,7 @@ describe('master-data tag controller', () => {
         const res = makeRes();
         await aliasMap(makeReq(), res);
         expect(res.body.data['node js']).toEqual({ code: 'IT', type: 'JOBTYPE', name: 'Tech' });
+        expectResponseContract('aliasMap', res);
         expect(res.body.count).toBe(2);
         const bad = { select: vi.fn(() => bad), lean: vi.fn().mockRejectedValue(new Error('db')) };
         mocks.Tag.find.mockReturnValue(bad);
@@ -222,6 +233,7 @@ describe('admin reporting controller', () => {
             doanhThu: { goiTin: 100.5, goiXemCv: 20, tong: 120.5 }
         });
         expect(mocks.mysqlPool.query.mock.calls[1][1]).toEqual(['2026-01-01 00:00:00', '2026-01-31 00:00:00']);
+        expectResponseContract('reportOverview', res);
     });
 
     it('degrades only application metrics when PostgreSQL is down and maps MySQL failure to 500', async () => {
@@ -300,6 +312,7 @@ describe('admin reporting controller', () => {
             theoService: [{ ten: 'job', soLuong: 3 }],
             theoNgay: [{ ngay: '2026-01-01', soLuong: 4 }]
         });
+        expectResponseContract('reportActivity', res);
         mocks.AuditLog.aggregate.mockRejectedValue(new Error('db'));
         const failed = makeRes();
         await activity(makeReq(), failed);

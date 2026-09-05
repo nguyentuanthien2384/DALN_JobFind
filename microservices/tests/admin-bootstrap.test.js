@@ -33,7 +33,7 @@ describe('Admin startup requires the idempotency index', () => {
         await vi.waitFor(() => expect(mocks.app.listen).toHaveBeenCalledOnce());
         expect(mocks.startAuditConsumer).toHaveBeenCalledOnce();
         expect(mocks.ensureAuditIndexes.mock.invocationCallOrder[0]).toBeLessThan(mocks.testSources.mock.invocationCallOrder[0]);
-        expect(mocks.app.get).toHaveBeenCalledWith('/audit', expect.any(Function), expect.any(Function));
+        expect(mocks.app.get).toHaveBeenCalledWith('/audit', expect.any(Function), expect.any(Function), expect.any(Function));
     });
 
     it('fails startup if the uniqueness index cannot be created; no destructive repair', async () => {

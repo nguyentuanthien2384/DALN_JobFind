@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
+import { expectResponseContract } from './contractAssertions.js';
 
 const mocks = vi.hoisted(() => ({
     pool: { query: vi.fn() },
@@ -64,6 +65,7 @@ describe('application pipeline controller', () => {
         expect(res.body.data.columns).toHaveLength(6);
         expect(res.body.data.columns[0]).toMatchObject({ stage: 'moi_ung_tuyen', count: 2 });
         expect(res.body.data.columns[1]).toMatchObject({ stage: 'dang_xem_xet', count: 0 });
+        expectResponseContract('applicationBoard', res);
     });
 
     it('allows admins an unscoped board and maps DB failures to 500', async () => {

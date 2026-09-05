@@ -1,4 +1,6 @@
 import express from 'express';
+import { contractRoute } from '../../shared/requestContract.js';
+import { jsonBodies, safeHttpError } from '../../shared/httpBoundary.js';
 import { createServiceRuntime } from '../../shared/serviceRuntime.js';
 import { isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import mongoose from 'mongoose';
@@ -25,7 +27,7 @@ runtime.onClose(() => mongoose.disconnect());
 runtime.onClose(() => mysqlPool.end());
 runtime.onClose(() => pgPool.end());
 
-app.use(express.json({ limit: '5mb' }));
+app.use(jsonBodies(express));
 
 
 app.use(requireTrustedGateway);
@@ -34,32 +36,29 @@ const canReadAdmin = requireServicePermission(PERMISSIONS.ADMIN_READ);
 const canWriteAdmin = requireServicePermission(PERMISSIONS.ADMIN_WRITE);
 
 // --- Bao cao & bieu do ---
-app.get('/reports/overview', canReadAdmin, overview);
-app.get('/reports/timeseries', canReadAdmin, timeseries);
-app.get('/reports/distribution', canReadAdmin, distribution);
-app.get('/reports/funnel', canReadAdmin, recruitmentFunnel);
-app.get('/reports/activity', canReadAdmin, activity);
+contractRoute(app, 'reportOverview', canReadAdmin, overview);
+contractRoute(app, 'reportTimeseries', canReadAdmin, timeseries);
+contractRoute(app, 'reportDistribution', canReadAdmin, distribution);
+contractRoute(app, 'reportFunnel', canReadAdmin, recruitmentFunnel);
+contractRoute(app, 'reportActivity', canReadAdmin, activity);
 
 // --- Nhat ky hoat dong ---
-app.get('/audit', canReadAdmin, listLogs);
-app.get('/audit/target/:type/:id', canReadAdmin, targetHistory);
+contractRoute(app, 'auditList', canReadAdmin, listLogs);
+contractRoute(app, 'auditTarget', canReadAdmin, targetHistory);
 
 // --- Master data ---
-app.get('/master-data', canReadAdmin, listMasterData);
-app.post('/master-data', canWriteAdmin, upsertTag);
-app.delete('/master-data/:id', canWriteAdmin, deleteTag);
+contractRoute(app, 'masterList', canReadAdmin, listMasterData);
+contractRoute(app, 'masterSave', canWriteAdmin, upsertTag);
+contractRoute(app, 'masterDelete', canWriteAdmin, deleteTag);
 
 // --- Noi bo ---
 // Gateway day thao tac cua nguoi dung vao day.
-app.post('/internal/audit-action', ingestAction);
+contractRoute(app, 'auditIngest', ingestAction);
 // Search Service co the doc bang tu dong nghia.
-app.get('/internal/alias-map', aliasMap);
+contractRoute(app, 'aliasMap', aliasMap);
 
 // eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-    logger.error('loi khong bat duoc', { error: err.message, url: req.originalUrl });
-    res.status(500).json({ errCode: -1, errMessage: 'Lỗi hệ thống' });
-});
+app.use(safeHttpError);
 
 const connectMongo = async (attempt = 1) => {
     try {

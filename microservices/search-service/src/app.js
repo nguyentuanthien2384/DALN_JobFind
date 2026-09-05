@@ -1,4 +1,6 @@
 import express from 'express';
+import { contractRoute } from '../../shared/requestContract.js';
+import { jsonBodies, safeHttpError } from '../../shared/httpBoundary.js';
 import { createServiceRuntime, periodicTask } from '../../shared/serviceRuntime.js';
 import { isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import { createLogger } from '../../shared/logger.js';
@@ -16,20 +18,20 @@ runtime.onStop(() => drainConsumers());
 runtime.onClose(() => closeConnection());
 runtime.onClose(() => es.close());
 
-app.use(express.json());
+app.use(jsonBodies(express));
 
 
 // Search cong khai tai Gateway, khong dong nghia voi viec cong khai cong service.
 app.use(requireTrustedGateway);
 
-app.get('/search/jobs', searchJobs);
-app.get('/search/suggest', suggest);
-app.get('/search/facets', facets);
-app.get('/search/related/:id', related);
+contractRoute(app, 'searchJobs', searchJobs);
+contractRoute(app, 'searchSuggest', suggest);
+contractRoute(app, 'searchFacets', facets);
+contractRoute(app, 'searchRelated', related);
 
 // Cho phep dung lai index thu cong khi can (vi du sau khi sua du lieu truc tiep
 // trong MySQL, luc do khong co su kien nao duoc phat ra).
-app.post('/internal/reindex', async (req, res) => {
+contractRoute(app, 'searchReindex', async (req, res) => {
     try {
         const reconciliation = await rebuildIndex();
         const count = await es.count({ index: INDEX, query: liveIndexQuery });
@@ -39,6 +41,8 @@ app.post('/internal/reindex', async (req, res) => {
         res.status(503).json({ errCode: -1, errMessage: 'Chưa đối chiếu đầy đủ dữ liệu tìm kiếm' });
     }
 });
+
+app.use(safeHttpError);
 
 const start = async () => {
     await waitForElastic();
