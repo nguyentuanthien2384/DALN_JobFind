@@ -22,14 +22,14 @@ describe('CommonUtils', () => {
     const { encodeToken } = require('../../src/utils/CommonUtils');
     expect(encodeToken(12, 'ADMIN', 9)).toBe('signed-token');
     expect(mockSign).toHaveBeenCalledWith(expect.objectContaining({
-      iss: 'Tai Nguyen', sub: 12, roleCode: 'ADMIN', companyId: 9
-    }), TEST_JWT_SECRET, { expiresIn: '3d' });
+      sub: 12, roleCode: 'ADMIN', companyId: 9
+    }), TEST_JWT_SECRET, { algorithm: 'HS256', issuer: 'jobfind-auth', audience: 'jobfind-api', expiresIn: 900 });
     const claims = mockSign.mock.calls[0][0];
     expect(claims).not.toHaveProperty('iat');
     expect(claims).not.toHaveProperty('exp');
   });
 
-  test('creates NumericDate claims in seconds with an exact three-day lifetime', () => {
+  test('creates NumericDate claims in seconds with an exact fifteen-minute lifetime', () => {
     const realJwt = jest.requireActual('jsonwebtoken');
     mockSign.mockImplementation((...args) => realJwt.sign(...args));
     const before = Math.floor(Date.now() / 1000);
@@ -40,7 +40,9 @@ describe('CommonUtils', () => {
 
     expect(claims.iat).toBeGreaterThanOrEqual(before);
     expect(claims.iat).toBeLessThanOrEqual(after);
-    expect(claims.exp - claims.iat).toBe(3 * 24 * 60 * 60);
+    expect(claims.exp - claims.iat).toBe(900);
+    expect(claims.iss).toBe('jobfind-auth');
+    expect(claims.aud).toBe('jobfind-api');
   });
 
   test('extracts PDF data from a base64 data URI', async () => {

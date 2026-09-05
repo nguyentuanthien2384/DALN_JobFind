@@ -71,10 +71,10 @@ describe('socket realtime layer', () => {
     expect(next.mock.calls[0][0]).toEqual(new Error('UNAUTHORIZED'));
 
     socket.handshake.auth.token = 'Bearer valid';
-    mockJwtVerify.mockReturnValueOnce({ sub: 7 });
+    mockJwtVerify.mockReturnValueOnce({ sub: 7, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
     next = jest.fn();
     await authMiddleware(socket, next);
-    expect(mockJwtVerify).toHaveBeenCalledWith('valid', expect.anything());
+    expect(mockJwtVerify).toHaveBeenCalledWith('valid', expect.anything(), expect.objectContaining({ algorithms: ['HS256'] }));
     expect(mockFindAccount).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId: 7, statusCode: 'S1' },
       raw: true
@@ -98,7 +98,7 @@ describe('socket realtime layer', () => {
     socketModule.initSocket({});
     authMiddleware = mockIo.use.mock.calls[0][0];
     socket.handshake.auth.token = 'valid';
-    mockJwtVerify.mockReturnValue({ sub: 7 });
+    mockJwtVerify.mockReturnValue({ sub: 7, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
 
     mockFindAccount.mockResolvedValueOnce(null);
     let next = jest.fn();

@@ -127,6 +127,7 @@ const buildForwardHeaders = (req, { includeInternalSecret = true } = {}) => {
 // la duong dan day du - nhan ca req de moi route tu quyet dinh, khong doan mo.
 export const createProxy = (serviceKey, buildPath = (req) => req.path) => {
     return async (req, res, next) => {
+        req.metricRoute = `proxy:${serviceKey}`;
         const service = getService(serviceKey);
         if (!service) return next(new Error(`Khong tim thay service ${serviceKey}`));
 

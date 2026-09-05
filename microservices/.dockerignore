@@ -1,0 +1,10 @@
+**/node_modules
+**/.env
+**/.env.*
+.secrets
+**/*.log
+coverage
+tmp
+tests
+docs
+.git

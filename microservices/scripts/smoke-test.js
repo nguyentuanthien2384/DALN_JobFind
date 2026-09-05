@@ -52,14 +52,14 @@ const login = async (creds) => {
 // Gateway cap nhat health theo chu ky 15 giay. Khi backend hoac Docker vua duoc
 // khoi dong, /health cua Gateway co the da san sang trong khi /status van giu
 // ket qua probe cu. Cho health registry hoi tu de smoke test khong bao loi gia.
-const waitForHealthyServices = async ({ attempts = 12, delayMs = 2000 } = {}) => {
-    let status = await req('/status');
+const waitForHealthyServices = async (headers, { attempts = 12, delayMs = 2000 } = {}) => {
+    let status = await req('/status', { headers });
     for (let attempt = 1; attempt < attempts; attempt += 1) {
         if (status.body.services?.length && status.body.services.every((service) => service.healthy)) {
             return status;
         }
         await sleep(delayMs);
-        status = await req('/status');
+        status = await req('/status', { headers });
     }
     return status;
 };
@@ -88,7 +88,9 @@ const run = async () => {
     const health = await req('/health');
     check('Gateway phản hồi', health.body.status === 'ok');
 
-    const status = await waitForHealthyServices();
+    check('Status không công khai', (await req('/status')).status === 401);
+    const adminToken = await login(ADMIN);
+    const status = await waitForHealthyServices({ Authorization: `Bearer ${adminToken}` });
     check('Tất cả service đang sống',
         status.body.services?.every((s) => s.healthy),
         `${status.body.services?.length ?? 0} service`);
@@ -113,7 +115,6 @@ const run = async () => {
 
     const employerToken = await login(EMPLOYER);
     const candidateToken = await login(CANDIDATE);
-    const adminToken = await login(ADMIN);
     const auth = { Authorization: `Bearer ${employerToken}`, 'Content-Type': 'application/json' };
     const candidateAuth = { Authorization: `Bearer ${candidateToken}`, 'Content-Type': 'application/json' };
     const adminAuth2 = { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };

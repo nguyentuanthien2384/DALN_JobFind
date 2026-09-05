@@ -34,19 +34,19 @@ describe('JWT middleware', () => {
     ['verifyTokenUser'],
     ['verifyTokenAdmin']
   ])('%s rejects an invalid token', async (method) => {
-    mockVerify.mockImplementation((token, secret, callback) => callback(new Error('bad')));
+    mockVerify.mockImplementation((token, secret, options, callback) => callback(new Error('bad')));
     const req = createRequest({ headers: { authorization: 'Bearer broken' } });
     const res = createResponse();
     const next = jest.fn();
     middleware[method](req, res, next);
     await flush();
-    expect(mockVerify).toHaveBeenCalledWith('broken', expect.anything(), expect.any(Function));
+    expect(mockVerify).toHaveBeenCalledWith('broken', expect.anything(), expect.objectContaining({ algorithms: ['HS256'] }), expect.any(Function));
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ refresh: true }));
   });
 
   test('verifyTokenUser loads the current user and continues', async () => {
-    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 42 }));
+    mockVerify.mockImplementation((token, secret, options, callback) => callback(null, { sub: 42, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 }));
     const user = { id: 42, companyId: 8, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } };
     mockFindUser.mockResolvedValue(user);
     const req = createRequest({ headers: { authorization: 'Bearer valid' } });
@@ -60,7 +60,7 @@ describe('JWT middleware', () => {
   });
 
   test('verifyTokenUser rejects a token for a deleted user', async () => {
-    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 99 }));
+    mockVerify.mockImplementation((token, secret, options, callback) => callback(null, { sub: 99, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 }));
     mockFindUser.mockResolvedValue(null);
     const res = createResponse();
     const next = jest.fn();
@@ -74,7 +74,7 @@ describe('JWT middleware', () => {
     ['verifyTokenUser', 'CANDIDATE'],
     ['verifyTokenAdmin', 'ADMIN']
   ])('%s rejects a token after the account is disabled', async (method, roleCode) => {
-    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 42 }));
+    mockVerify.mockImplementation((token, secret, options, callback) => callback(null, { sub: 42, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 }));
     mockFindUser.mockResolvedValue({
       id: 42,
       userAccountData: { roleCode, statusCode: 'S2' }
@@ -95,7 +95,7 @@ describe('JWT middleware', () => {
     ['verifyTokenUser'],
     ['verifyTokenAdmin']
   ])('%s returns a controlled error when account lookup fails', async (method) => {
-    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 42 }));
+    mockVerify.mockImplementation((token, secret, options, callback) => callback(null, { sub: 42, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 }));
     mockFindUser.mockRejectedValue(new Error('db down'));
     const res = createResponse();
     const next = jest.fn();
@@ -107,7 +107,7 @@ describe('JWT middleware', () => {
   });
 
   test('verifyTokenAdmin permits admins and rejects non-admin users', async () => {
-    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 1 }));
+    mockVerify.mockImplementation((token, secret, options, callback) => callback(null, { sub: 1, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 }));
     const req = createRequest({ headers: { authorization: 'Bearer valid' } });
     const admin = { id: 1, userAccountData: { roleCode: 'ADMIN', statusCode: 'S1' } };
     mockFindUser.mockResolvedValueOnce(admin);
@@ -128,7 +128,7 @@ describe('JWT middleware', () => {
   });
 
   test('verifyTokenAdmin rejects a deleted admin account', async () => {
-    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 1 }));
+    mockVerify.mockImplementation((token, secret, options, callback) => callback(null, { sub: 1, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 }));
     mockFindUser.mockResolvedValue(null);
     const res = createResponse();
     middleware.verifyTokenAdmin(createRequest({ headers: { authorization: 'Bearer valid' } }), res, jest.fn());
@@ -146,12 +146,12 @@ describe('JWT middleware', () => {
     middleware.verifyTokenOptional(createRequest({ headers: { authorization: 'Bearer' } }), createResponse(), nextMalformed);
     expect(nextMalformed).toHaveBeenCalled();
 
-    mockVerify.mockImplementationOnce((token, secret, callback) => callback(new Error('bad')));
+    mockVerify.mockImplementationOnce((token, secret, options, callback) => callback(new Error('bad')));
     const nextInvalid = jest.fn();
     middleware.verifyTokenOptional(createRequest({ headers: { authorization: 'Bearer bad' } }), createResponse(), nextInvalid);
     expect(nextInvalid).toHaveBeenCalled();
 
-    mockVerify.mockImplementationOnce((token, secret, callback) => callback(null, { sub: 3 }));
+    mockVerify.mockImplementationOnce((token, secret, options, callback) => callback(null, { sub: 3, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 }));
     mockFindUser.mockResolvedValueOnce(null);
     const nextMissing = jest.fn();
     middleware.verifyTokenOptional(createRequest({ headers: { authorization: 'Bearer ok' } }), createResponse(), nextMissing);
@@ -160,7 +160,7 @@ describe('JWT middleware', () => {
   });
 
   test('verifyTokenOptional attaches a valid user and tolerates database errors', async () => {
-    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 3 }));
+    mockVerify.mockImplementation((token, secret, options, callback) => callback(null, { sub: 3, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 }));
     const user = { id: 3, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } };
     mockFindUser.mockResolvedValueOnce(user);
     const req = createRequest({ headers: { authorization: 'Bearer ok' }, user: undefined });
@@ -178,7 +178,7 @@ describe('JWT middleware', () => {
   });
 
   test('verifyTokenOptional treats a disabled account as an anonymous visitor', async () => {
-    mockVerify.mockImplementation((token, secret, callback) => callback(null, { sub: 3 }));
+    mockVerify.mockImplementation((token, secret, options, callback) => callback(null, { sub: 3, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 }));
     mockFindUser.mockResolvedValue({
       id: 3,
       userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S2' }

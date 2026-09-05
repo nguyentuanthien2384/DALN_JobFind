@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken')
 import db from "../models/index";
-import { getJwtSecret } from '../utils/securityConfig';
+import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../utils/securityConfig';
 require('dotenv').config();
 
 const isActiveAccount = (user) => (
@@ -33,8 +33,8 @@ const middlewareControllers = {
         const token = req.headers.authorization
         if (token) {
             const accessToken = token.split(' ')[1]
-            jwt.verify(accessToken, getJwtSecret(), async (err, payload) => {
-                if (err) {
+            jwt.verify(accessToken, getJwtSecret(), getJwtVerifyOptions(), async (err, payload) => {
+                if (err || !hasAccessTokenClaims(payload)) {
                     return res.status(403).json({
                         status: false,
                         errMessage: 'Token is not valid!',
@@ -82,8 +82,8 @@ const middlewareControllers = {
         const accessToken = token.split(' ')[1]
         if (!accessToken) return next()
 
-        jwt.verify(accessToken, getJwtSecret(), async (err, payload) => {
-            if (err) return next()
+        jwt.verify(accessToken, getJwtSecret(), getJwtVerifyOptions(), async (err, payload) => {
+            if (err || !hasAccessTokenClaims(payload)) return next()
             try {
                 const user = await db.User.findOne({
                     where: { id: payload.sub },
@@ -103,8 +103,8 @@ const middlewareControllers = {
         const token = req.headers.authorization
         if (token) {
             const accessToken = token.split(' ')[1]
-            jwt.verify(accessToken, getJwtSecret(), async (err, payload) => {
-                if (err) {
+            jwt.verify(accessToken, getJwtSecret(), getJwtVerifyOptions(), async (err, payload) => {
+                if (err || !hasAccessTokenClaims(payload)) {
                     return res.status(403).json({
                         status: false,
                         errMessage: 'Token is not valid!',

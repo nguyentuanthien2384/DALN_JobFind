@@ -64,7 +64,7 @@ describe('gateway authentication', () => {
     });
 
     it('optionally attaches a normalized JWT identity', async () => {
-        mocks.verify.mockReturnValue({ sub: 9, roleCode: 'ADMIN', companyId: 4 });
+        mocks.verify.mockReturnValue({ sub: 9, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900, roleCode: 'ADMIN', companyId: 4 });
         const { optionalAuth } = await import('../api-gateway/src/middlewares/auth.js');
         const req = makeReq({ headers: { authorization: 'Bearer token' } });
         const next = vi.fn();
@@ -89,13 +89,13 @@ describe('gateway authentication', () => {
         }
     });
 
-    it('requires login and supports tokens using id', async () => {
+    it('requires login and a standard subject claim', async () => {
         const { requireAuth } = await import('../api-gateway/src/middlewares/auth.js');
         const denied = makeRes();
         await requireAuth(makeReq(), denied, vi.fn());
         expect(denied.statusCode).toBe(401);
 
-        mocks.verify.mockReturnValue({ id: 12 });
+        mocks.verify.mockReturnValue({ sub: 12, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
         mocks.resolveCurrentIdentity.mockResolvedValue({
             id: 12, roleCode: 'CANDIDATE', companyId: null, statusCode: 'S1'
         });
@@ -111,7 +111,7 @@ describe('gateway authentication', () => {
 
     it('uses current DB role/company instead of stale JWT claims', async () => {
         mocks.verify.mockReturnValue({
-            sub: 9, roleCode: 'ADMIN', companyId: 999
+            sub: 9, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900, roleCode: 'ADMIN', companyId: 999
         });
         mocks.resolveCurrentIdentity.mockResolvedValue({
             id: 9, roleCode: 'EMPLOYER', companyId: 7, statusCode: 'S1',
@@ -128,7 +128,7 @@ describe('gateway authentication', () => {
     });
 
     it('rejects inactive/unknown accounts and fails closed when identity DB is unavailable', async () => {
-        mocks.verify.mockReturnValue({ sub: 9 });
+        mocks.verify.mockReturnValue({ sub: 9, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
         const { requireAuth } = await import('../api-gateway/src/middlewares/auth.js');
 
         mocks.resolveCurrentIdentity.mockResolvedValueOnce({
@@ -295,6 +295,21 @@ describe('Redis rate limiter', () => {
         await createRateLimiter({ name: 'public', windowSeconds: 60, max: 2 })(makeReq(), makeRes(), next);
         expect(next).toHaveBeenCalledOnce();
         expect(redis.incr).not.toHaveBeenCalled();
+    });
+
+    it('fails closed for sensitive routes when Redis disconnects or a command fails', async () => {
+        const limiter = createRateLimiter({ name: 'ai', windowSeconds: 60, max: 2, failClosed: true });
+        redis.handlers.close();
+        const next = vi.fn();
+        const offline = makeRes();
+        await limiter(makeReq(), offline, next);
+        expect(offline.statusCode).toBe(503);
+        redis.handlers.ready();
+        redis.incr.mockRejectedValueOnce(new Error('offline'));
+        const failed = makeRes();
+        await limiter(makeReq(), failed, next);
+        expect(failed.statusCode).toBe(503);
+        expect(next).not.toHaveBeenCalled();
     });
 
     it('counts by user, sets headers, and expires a new key', async () => {

@@ -1,4 +1,6 @@
 import express from 'express';
+import { createServiceRuntime } from '../../shared/serviceRuntime.js';
+import { closeConnection } from '../../shared/rabbitmq.js';
 import mongoose from 'mongoose';
 import { createLogger } from '../../shared/logger.js';
 import {
@@ -12,17 +14,13 @@ import {
 const logger = createLogger('identity-service');
 const app = express();
 const PORT = Number(process.env.PORT || 4001);
+const runtime = createServiceRuntime(app, { service: 'identity-service', logger,
+    checks: { mongo: () => mongoose.connection.readyState === 1 && mongoose.connection.db.command({ ping: 1 }) } });
+runtime.onClose(() => mongoose.disconnect());
+runtime.onClose(() => closeConnection());
 
 app.use(express.json({ limit: '10mb' }));
 
-app.get('/health', (req, res) => {
-    const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-    res.json({
-        status: mongoose.connection.readyState === 1 ? 'ok' : 'degraded',
-        service: 'identity-service',
-        mongo: states[mongoose.connection.readyState]
-    });
-});
 
 app.use(requireTrustedGateway);
 
@@ -61,7 +59,7 @@ const connectMongo = async (attempt = 1) => {
 
 const start = async () => {
     await connectMongo();
-    app.listen(PORT, () => logger.info(`Identity Service dang chay tren cong ${PORT}`));
+    runtime.attach(app.listen(PORT, () => logger.info(`Identity Service dang chay tren cong ${PORT}`)));
 };
 
 start().catch((error) => {

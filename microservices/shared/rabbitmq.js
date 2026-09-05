@@ -12,6 +12,8 @@ let connection = null;
 let channel = null;
 let connecting = null;
 let stopping = false;
+let draining = false;
+const inFlight = new Set();
 let reconnectTimer = null;
 const closedChannels = new WeakSet();
 
@@ -29,7 +31,7 @@ const log = (msg, extra = '') => console.log(`[rabbitmq] ${msg}`, extra);
 
 // Dang ky lai tat ca cac hang doi sau khi ket noi lai duoc.
 const resubscribeAll = async () => {
-    if (resubscribing || subscriptions.length === 0) return;
+    if (draining || stopping || resubscribing || subscriptions.length === 0) return;
     resubscribing = true;
     try {
         for (const sub of subscriptions) {
@@ -45,7 +47,7 @@ const resubscribeAll = async () => {
 };
 
 const scheduleReconnect = () => {
-    if (stopping || reconnectTimer || subscriptions.length === 0) return;
+    if (stopping || draining || reconnectTimer || subscriptions.length === 0) return;
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         getChannel().then(() => resubscribeAll()).catch((error) => {
@@ -132,6 +134,7 @@ export const publish = async (routingKey, payload) => {
 // Dang ky mot hang doi len ket noi hien tai. Tach rieng de goi lai duoc sau khi
 // ket noi lai, khong phai khoi dong lai ca service.
 const attachConsumer = async (sub) => {
+    if (draining || stopping) throw new Error('RabbitMQ consumer is draining');
     const { queueName, patterns, handler, prefetch, retry } = sub;
     const ch = await getChannel();
     if (sub.channel === ch) return;
@@ -154,14 +157,18 @@ const attachConsumer = async (sub) => {
             channel: ch, queueName, handler, retry,
             isActive: () => !stopping && !closedChannels.has(ch)
         });
-        await ch.consume(queueName, async (msg) => {
+        if (draining || stopping) throw new Error('RabbitMQ consumer is draining');
+        const consumer = await ch.consume(queueName, async (msg) => {
             if (!msg) {
                 // Broker cancelled this consumer (for example its queue was deleted).
                 try { await ch.close(); } catch { /* Connection recovery owns the next attempt. */ }
                 return;
             }
-            await callback(msg);
+            const work = callback(msg);
+            inFlight.add(work);
+            try { await work; } finally { inFlight.delete(work); }
         });
+        sub.consumerTag = consumer?.consumerTag;
         if (closedChannels.has(ch) || stopping) throw new Error('RabbitMQ consumer channel closed');
         sub.channel = ch;
     })();
@@ -193,4 +200,22 @@ export const closeConnection = async () => {
     connection = null;
     try { if (ch) await ch.close(); } catch { /* Already closed. */ }
     try { if (conn) await conn.close(); } catch { /* Already closed. */ }
+};
+
+export const isConsumerReady = () => !stopping && !draining && Boolean(channel)
+    && subscriptions.length > 0 && subscriptions.every((sub) => sub.channel === channel && !closedChannels.has(channel));
+
+// Cancel delivery first; in-flight handlers must still ACK on the open channel.
+// The service runtime owns the timeout. Timed-out/unacked work is redelivered.
+export const drainConsumers = async () => {
+    draining = true;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    await Promise.all(subscriptions.map(async (sub) => {
+        if (sub.attaching) await sub.attaching.promise.catch(() => {});
+        if (sub.consumerTag && sub.channel && !closedChannels.has(sub.channel)) {
+            await sub.channel.cancel(sub.consumerTag);
+        }
+    }));
+    await Promise.allSettled([...inFlight]);
 };

@@ -1,4 +1,6 @@
 import express from 'express';
+import { createServiceRuntime, periodicTask } from '../../shared/serviceRuntime.js';
+import { isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import { createLogger } from '../../shared/logger.js';
 import { waitForElastic, ensureIndex, es, INDEX, liveIndexQuery } from './libs/elastic.js';
 import { startIndexer, rebuildIndex } from './consumers/jobIndexer.js';
@@ -8,17 +10,14 @@ import { requireTrustedGateway } from '../../shared/accessControl.js';
 const logger = createLogger('search-service');
 const app = express();
 const PORT = Number(process.env.PORT || 4003);
+const runtime = createServiceRuntime(app, { service: 'search-service', logger,
+    checks: { elasticsearch: () => es.ping(), rabbitmq: () => isConsumerReady() } });
+runtime.onStop(() => drainConsumers());
+runtime.onClose(() => closeConnection());
+runtime.onClose(() => es.close());
 
 app.use(express.json());
 
-app.get('/health', async (req, res) => {
-    try {
-        const count = await es.count({ index: INDEX, query: liveIndexQuery });
-        res.json({ status: 'ok', service: 'search-service', indexed: count.count });
-    } catch (error) {
-        res.status(503).json({ status: 'degraded', error: error.message });
-    }
-});
 
 // Search cong khai tai Gateway, khong dong nghia voi viec cong khai cong service.
 app.use(requireTrustedGateway);
@@ -58,14 +57,11 @@ const start = async () => {
     //
     // Reconciliation and event updates share the same source reread + CAS path.
     const intervalMinutes = Number(process.env.RECONCILE_MINUTES || 10);
-    const timer = setInterval(() => {
-        rebuildIndex().catch((error) =>
-            logger.warn('doi chieu dinh ky that bai', { error: error.message }));
-    }, intervalMinutes * 60 * 1000);
-    timer.unref();
+    runtime.onStop(periodicTask(rebuildIndex, intervalMinutes * 60 * 1000,
+        (error) => logger.warn('doi chieu dinh ky that bai', { error: error.message })));
     logger.info(`se doi chieu lai index moi ${intervalMinutes} phut`);
 
-    app.listen(PORT, () => logger.info(`Search Service dang chay tren cong ${PORT}`));
+    runtime.attach(app.listen(PORT, () => logger.info(`Search Service dang chay tren cong ${PORT}`)));
 };
 
 start().catch((error) => {

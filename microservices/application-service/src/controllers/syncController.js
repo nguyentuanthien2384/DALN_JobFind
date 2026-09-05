@@ -21,6 +21,7 @@ const mysqlPool = mysql.createPool({
     connectionLimit: 5,
     charset: 'utf8mb4_general_ci'
 });
+export const closeLegacySource = () => mysqlPool.end();
 
 export const syncFromLegacy = async () => {
     try {

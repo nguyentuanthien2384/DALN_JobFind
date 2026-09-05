@@ -102,7 +102,8 @@ export const startOutboxRelay = () => {
     return timer;
 };
 
-export const stopOutboxRelay = () => {
+export const stopOutboxRelay = async () => {
     clearInterval(timer);
     timer = null;
+    while (running) await new Promise((resolve) => setTimeout(resolve, 20));
 };

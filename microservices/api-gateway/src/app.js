@@ -1,15 +1,17 @@
 import express from 'express';
 import http from 'node:http';
 import cors from 'cors';
-import crypto from 'node:crypto';
+import { createServiceRuntime } from '../../shared/serviceRuntime.js';
+import { requestBodies, safeHttpError } from '../../shared/httpBoundary.js';
+import { checkAccountStore, closeAccountStore } from './libs/accountStore.js';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { createLogger } from '../../shared/logger.js';
 import { listServices, startHealthPolling } from './libs/registry.js';
 import { createProxy, getBreakerStats } from './middlewares/proxy.js';
-import { optionalAuth, requirePermission } from './middlewares/auth.js';
+import { optionalAuth, requireAuth, requireRole, requirePermission } from './middlewares/auth.js';
 import { PERMISSIONS } from '../../shared/accessControl.js';
-import { assertSecureJwtSecret } from '../../shared/securityConfig.js';
-import { createRateLimiter } from './middlewares/rateLimit.js';
+import { assertSecureJwtSecret, getJwtPolicy } from '../../shared/securityConfig.js';
+import { createRateLimiter, checkRedis, closeRedis } from './middlewares/rateLimit.js';
 import { auditMiddleware } from './middlewares/audit.js';
 import {
     applySocketCorsHeaders,
@@ -23,9 +25,14 @@ import {
 
 const logger = createLogger('api-gateway');
 assertSecureJwtSecret(process.env.JWT_SECRET);
+getJwtPolicy();
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 const allowedOrigins = parseAllowedOrigins(process.env.CORS_ORIGIN);
+const runtime = createServiceRuntime(app, { service: 'api-gateway', logger,
+    checks: { mysql: () => checkAccountStore(), redis: () => checkRedis() } });
+runtime.onClose(() => closeAccountStore());
+runtime.onClose(() => closeRedis());
 
 // Mac dinh false: bo qua hoan toan X-Forwarded-For do client tu gui. Neu co
 // reverse proxy, TRUST_PROXY phai la IP/CIDR cu the cua proxy do.
@@ -58,16 +65,8 @@ const socketProxy = createProxyMiddleware({
 });
 app.use(socketProxy);
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(requestBodies(express));
 
-// Moi request duoc gan mot ma de lan vet xuyen suot cac service. Neu client da
-// gui san thi giu nguyen, nho vay mot chuoi goi qua nhieu service van chung ma.
-app.use((req, res, next) => {
-    req.correlationId = req.headers['x-correlation-id'] || crypto.randomUUID();
-    res.setHeader('x-correlation-id', req.correlationId);
-    next();
-});
 
 app.use((req, res, next) => {
     const start = Date.now();
@@ -75,11 +74,10 @@ app.use((req, res, next) => {
         const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
         logger[level]('request', {
             method: req.method,
-            url: req.originalUrl,
+            route: req.route?.path || req.metricRoute || 'unmatched',
             status: res.statusCode,
             durationMs: Date.now() - start,
-            requestId: req.correlationId,
-            userId: req.user?.id ?? null
+            requestId: req.correlationId
         });
     });
     next();
@@ -91,12 +89,12 @@ app.use(auditMiddleware);
 
 // ===================== HAN MUC GOI =====================
 const loginLimiter = createRateLimiter({
-    name: 'login', windowSeconds: 900, max: 10, countOnlyFailures: true
+    name: 'login', windowSeconds: 900, max: 10, countOnlyFailures: true, failClosed: true
 });
 const publicLimiter = createRateLimiter({ name: 'public', windowSeconds: 60, max: 120 });
 const writeLimiter = createRateLimiter({ name: 'write', windowSeconds: 60, max: 30 });
 // AI ton kem nen siet chat hon han cac API thuong.
-const aiLimiter = createRateLimiter({ name: 'ai', windowSeconds: 3600, max: 30 });
+const aiLimiter = createRateLimiter({ name: 'ai', windowSeconds: 3600, max: 30, failClosed: true });
 
 // Route nay tiep tuc roi xuong proxy legacy o cuoi file sau khi vuot qua limiter.
 // Dat rieng tai day de moi IP co toi da 10 lan dang nhap that bai / 15 phut.
@@ -116,12 +114,9 @@ app.get('/', (req, res) => {
     });
 });
 
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', service: 'api-gateway', time: new Date().toISOString() });
-});
 
 // Cho biet service nao dang song va circuit breaker dang o trang thai nao.
-app.get('/status', (req, res) => {
+app.get('/status', requireAuth, requireRole('ADMIN'), (req, res) => {
     res.json({
         gateway: 'ok',
         services: listServices(),
@@ -199,13 +194,7 @@ app.use((req, res) => {
 });
 
 // eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-    logger.error('loi khong bat duoc', { error: err.message, url: req.originalUrl });
-    res.status(err.status || 500).json({
-        errCode: err.status || 500,
-        errMessage: err.message || 'Lỗi hệ thống'
-    });
-});
+app.use(safeHttpError);
 
 // Tu tao http server thay vi dung app.listen(): can bat su kien 'upgrade' de
 // WebSocket bat tay duoc: Express khong xu ly su kien nay.
@@ -223,5 +212,7 @@ server.listen(PORT, () => {
     }
     logger.info('  chuyen tiep WebSocket /socket.io -> backend cu');
     // Do suc khoe dinh ky de /status luon phan anh dung thuc te.
-    startHealthPolling();
+    const timer = startHealthPolling();
+    runtime.onStop(() => clearInterval(timer));
 });
+runtime.attach(server);

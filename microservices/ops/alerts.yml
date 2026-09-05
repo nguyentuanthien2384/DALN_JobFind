@@ -1,0 +1,38 @@
+groups:
+  - name: jobfind-local
+    rules:
+      - alert: JobFindOutboxBacklogOld
+        expr: jobfind_outbox_oldest_seconds > 60
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.service }} has unpublished events older than 60 seconds"
+          description: "Check RabbitMQ connectivity, confirm failures and DB locks. Never delete pending outbox rows."
+      - alert: JobFindAiTaskStalled
+        expr: jobfind_ai_oldest_pending_seconds > 300
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "AI tasks have remained pending for more than five minutes"
+          description: "Inspect worker readiness and durable task ledger before any replay; do not blindly repeat paid work."
+      - alert: JobFindServiceUnreachable
+        expr: up{job="jobfind"} == 0
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "Cannot scrape {{ $labels.instance }}"
+          description: "Check container status and metrics credential. See docs/local-compose.md."
+      - alert: JobFindServiceNotReady
+        expr: jobfind_ready == 0
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.service }} is not ready"
+          description: "Check /readyz and the owning database/broker; avoid restarting every dependency."
+      - alert: JobFindHighHttpErrorRate
+        expr: sum by (service) (rate(jobfind_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum by (service) (rate(jobfind_http_requests_total[5m])), 0.001) > 0.02
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.service }} HTTP 5xx rate exceeds 2%"
+          description: "Inspect bounded route/status metrics and request IDs in service logs."

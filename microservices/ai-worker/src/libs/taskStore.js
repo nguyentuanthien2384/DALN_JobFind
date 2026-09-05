@@ -79,6 +79,11 @@ const getStore = () => {
 };
 
 export const ensureTaskStore = async () => { await getStore(); };
+export const checkTaskStore = async () => {
+    if (!client) return false;
+    await client.db().command({ ping: 1 });
+    return true;
+};
 export const taskStore = Object.fromEntries(['claim', 'complete', 'markPublished'].map((method) => [
     method, async (...args) => (await getStore())[method](...args)
 ]));

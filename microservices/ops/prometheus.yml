@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+rule_files:
+  - /etc/prometheus/alerts.yml
+scrape_configs:
+  - job_name: jobfind
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/metrics_token
+    static_configs:
+      - targets:
+          - api-gateway:4000
+          - identity-service:4001
+          - job-core-service:4002
+          - search-service:4003
+          - application-service:4004
+          - notification-service:4005
+          - admin-service:4006
+          - ai-worker:4007

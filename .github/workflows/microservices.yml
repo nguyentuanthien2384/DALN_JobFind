@@ -1,0 +1,57 @@
+name: Microservices quality
+on:
+  push:
+    paths: ['microservices/**', 'backend/**', '.github/workflows/microservices.yml']
+  pull_request:
+    paths: ['microservices/**', 'backend/**', '.github/workflows/microservices.yml']
+permissions:
+  contents: read
+concurrency:
+  group: microservices-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      JOBFIND_IMAGE: jobfind-microservices:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            microservices/package-lock.json
+            backend/package-lock.json
+      - run: npm ci --ignore-scripts
+        working-directory: microservices
+      - run: npm test
+        working-directory: microservices
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: microservices
+      - run: npm ci --ignore-scripts
+        working-directory: backend
+      - run: npm test
+        working-directory: backend
+      - name: Validate local Compose without production credentials
+        working-directory: microservices
+        env:
+          JWT_SECRET: ci-only-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+          INTERNAL_SECRET: ci-only-internal-0123456789-abcdefghijklmnopqrstuvwxyz
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+          RABBITMQ_USER: ci_user
+          RABBITMQ_PASSWORD: ci_password
+        run: docker compose -f docker-compose.yml -f compose.local.yml --profile monitoring config --quiet
+      - name: Build immutable commit image
+        working-directory: microservices
+        run: docker build -t "$JOBFIND_IMAGE" .
+      - name: Exercise packaged gateway with no external network
+        working-directory: microservices
+        run: node scripts/test-image.mjs
+      - name: Validate monitoring rules
+        working-directory: microservices
+        run: |
+          node scripts/prepare-local.mjs
+          docker run --rm --user "$(id -u):$(id -g)" --entrypoint promtool -v "$PWD/ops:/etc/prometheus:ro" -v "$PWD/.secrets/metrics-token:/run/secrets/metrics_token:ro" prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml

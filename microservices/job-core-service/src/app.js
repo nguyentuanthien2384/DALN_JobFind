@@ -1,11 +1,15 @@
 import express from 'express';
+import { createServiceRuntime } from '../../shared/serviceRuntime.js';
+import { jsonBodies, safeHttpError } from '../../shared/httpBoundary.js';
+import { registerOutboxMetrics, registerAiTaskMetrics } from '../../shared/operationalMetrics.js';
+import { closeOutboxPublisher } from '../../shared/outboxPublisher.js';
 import { createLogger } from '../../shared/logger.js';
-import { testConnection } from './libs/db.js';
-import { ensureOutboxTable, startOutboxRelay } from './libs/outbox.js';
+import { testConnection, pool } from './libs/db.js';
+import { ensureOutboxTable, startOutboxRelay, stopOutboxRelay } from './libs/outbox.js';
 import { ensureAiResultTables } from './libs/moderationState.js';
 import { ensureAiRequestTable } from './libs/aiTaskRequest.js';
 import { aiResultRetry } from './libs/aiResultRetry.js';
-import { consume } from '../../shared/rabbitmq.js';
+import { consume, isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import { EVENTS, QUEUES } from '../../shared/events.js';
 import {
     PERMISSIONS, requireServicePermission, requireTrustedGateway
@@ -20,10 +24,24 @@ import {
 const logger = createLogger('job-core-service');
 const app = express();
 const PORT = Number(process.env.PORT || 4002);
+const runtime = createServiceRuntime(app, { service: 'job-core-service', logger,
+    checks: { mysql: () => pool.query('SELECT 1'), rabbitmq: () => isConsumerReady() } });
+runtime.onStop(() => stopOutboxRelay());
+runtime.onStop(() => drainConsumers());
+runtime.onClose(() => closeConnection());
+runtime.onClose(() => closeOutboxPublisher());
+runtime.onClose(() => pool.end());
+registerOutboxMetrics(runtime.registry, async () => {
+    const [[row]] = await pool.query('SELECT COUNT(*) AS pending, MIN(createdAt) AS oldest FROM outbox_events WHERE publishedAt IS NULL');
+    return row;
+});
+registerAiTaskMetrics(runtime.registry, async () => {
+    const [rows] = await pool.query('SELECT status, COUNT(*) AS total, MIN(createdAt) AS oldest FROM ai_tasks GROUP BY status');
+    return rows;
+});
 
-app.use(express.json({ limit: '50mb' }));
+app.use(jsonBodies(express));
 
-app.get('/health', (req, res) => res.json({ status: 'ok', service: 'job-core-service' }));
 
 // Moi API nghiep vu chi nhan request da duoc Gateway ky bang khoa noi bo.
 // Health check duoc de cong khai cho Docker/orchestrator.
@@ -46,6 +64,7 @@ app.get('/ai/tasks/:taskId', canUseCandidateAi, getTask);
 // --- Noi bo: Search Service goi de dung lai index tu dau ---
 app.get('/internal/jobs', listJobsForReindex);
 app.get('/internal/jobs/:id', getJobForIndex);
+app.use(safeHttpError);
 
 const start = async () => {
     await testConnection();
@@ -62,7 +81,7 @@ const start = async () => {
 
     startOutboxRelay();
 
-    app.listen(PORT, () => logger.info(`Job Core Service dang chay tren cong ${PORT}`));
+    runtime.attach(app.listen(PORT, () => logger.info(`Job Core Service dang chay tren cong ${PORT}`)));
 };
 
 start().catch((error) => {

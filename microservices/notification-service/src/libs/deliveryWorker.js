@@ -85,6 +85,7 @@ export const runDeliveryOnce = async ({ stats } = {}) => {
 export const startDeliveryWorker = ({ stats, intervalMs = 1000 } = {}) => {
     let stopped = false;
     let timer;
+    let active;
     const tick = async () => {
         try {
             // One sender per process; additional replicas coordinate through database row locks.
@@ -95,11 +96,11 @@ export const startDeliveryWorker = ({ stats, intervalMs = 1000 } = {}) => {
             logger.error('xu ly hang doi thong bao that bai', { error: error.message });
         } finally {
             if (!stopped) {
-                timer = setTimeout(tick, intervalMs);
+                timer = setTimeout(() => { active = tick(); }, intervalMs);
                 timer.unref();
             }
         }
     };
-    void tick();
-    return () => { stopped = true; clearTimeout(timer); };
+    active = tick();
+    return async () => { stopped = true; clearTimeout(timer); await active; };
 };

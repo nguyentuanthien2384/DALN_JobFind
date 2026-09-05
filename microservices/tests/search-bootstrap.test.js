@@ -102,7 +102,7 @@ describe('Search/Job Core projection wiring', () => {
         await vi.waitFor(() => expect(mocks.app.listen).toHaveBeenCalledOnce());
         expect(mocks.ensureIndex.mock.invocationCallOrder[0]).toBeLessThan(mocks.startIndexer.mock.invocationCallOrder[0]);
         expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 600000);
-        await setInterval.mock.calls[0][0]();
+        await setInterval.mock.calls.find(([, ms]) => ms === 600000)[0]();
         expect(mocks.rebuildIndex).toHaveBeenCalledTimes(2);
     });
 
@@ -123,7 +123,7 @@ describe('Search/Job Core projection wiring', () => {
         expect(ok.body).toEqual({ errCode: 0, indexed: 3, reconciliation: { total: 5, changed: 2, deleted: 2 } });
         const health = mocks.app.get.mock.calls.find(([path]) => path === '/health')[1];
         await health(makeReq(), makeRes());
-        expect(mocks.count).toHaveBeenCalledTimes(2);
+        expect(mocks.count).toHaveBeenCalledTimes(1);
         for (const [request] of mocks.count.mock.calls) expect(request.query).toEqual({ bool: { must_not: [{ term: { searchDeleted: true } }] } });
     });
 

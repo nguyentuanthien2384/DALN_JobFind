@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Thu vien dung chung: RabbitMQ, logger, danh muc su kien",
   "dependencies": {
-    "amqplib": "^0.10.4"
+    "amqplib": "^0.10.4",
+    "@prometheus-io/client": "0.16.1"
   }
 }

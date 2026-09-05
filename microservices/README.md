@@ -1,5 +1,9 @@
 # AI Job Portal — Hệ thống Microservices
 
+Hướng dẫn bản Compose đóng gói: [Chạy local an toàn](docs/local-compose.md).
+Những yêu cầu PDF đã làm và còn thiếu: [Tiến độ triển khai](docs/implementation-progress.md).
+Chưa coi toàn bộ checklist PDF/production là hoàn tất.
+
 Kiến trúc microservices xây trên nền dự án JobFind hiện có. Backend monolith cũ
 (`../backend`) **vẫn chạy bình thường** — các tính năng chưa tách ra được API
 Gateway định tuyến ngược về đó, nên hệ thống chuyển dần từng phần thay vì phải
@@ -14,7 +18,7 @@ cố tình đặt tên khác để phân biệt.
 |---|---|---|
 | `backend/src/services/` | Lớp nghiệp vụ **bên trong** monolith. Mỗi file gọi Sequelize (`import db from "../models/index"`). | Cùng **một tiến trình** Node với backend, cổng 5000 |
 | `frontend/src/service/` | Lớp gọi API bằng axios (`axios.get(...)`). | Trong **trình duyệt** |
-| `microservices/` | **6 ứng dụng độc lập**, mỗi cái có `package.json`, `node_modules` và CSDL riêng. | **6 tiến trình** Node trong **6 container** Docker |
+| `microservices/` | **8 ứng dụng độc lập** có entrypoint riêng; còn một số phụ thuộc DB legacy đang di chuyển. | **8 tiến trình** Node trong **8 container** Docker |
 
 Không thể gộp thư mục này vào `backend/src/services/`: mỗi service cần bộ thư viện
 khác nhau (`mysql2`, `@elastic/elasticsearch`, `pg`, `@anthropic-ai/sdk`) và một CSDL
@@ -42,9 +46,12 @@ nhân bản riêng từng phần.
         │         ▼         │
         │   ┌──────────────────────┐
         └──▶│  RabbitMQ  :5673     │◀── AI Worker (Claude)
-            │  jobportal.events    │     không mở cổng HTTP
+            │  jobportal.events    │     chỉ HTTP vận hành nội bộ :4007
             └──────────────────────┘
 ```
+
+Sơ đồ trên minh họa luồng CQRS ban đầu; hệ thống còn có Application :4004 (PostgreSQL),
+Notification :4005 (MySQL/delivery ledger) và Admin :4006 (MongoDB audit + nguồn báo cáo).
 
 ## CQRS: tách Ghi và Đọc
 
@@ -128,6 +135,7 @@ bảo đảm SMTP giao thư đúng một lần.
 docker compose up -d --no-deps --force-recreate application-service job-core-service
 docker compose logs --tail=100 application-service job-core-service
 ```
+
 
 Không cần nạp lại database mẫu hoặc thêm biến môi trường. Có thể xem backlog bằng
 truy vấn chỉ đọc sau trong PostgreSQL `application_db`:

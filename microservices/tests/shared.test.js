@@ -25,6 +25,17 @@ describe('shared event catalogue', () => {
 describe('shared logger', () => {
     beforeEach(() => vi.resetModules());
 
+    it('redacts nested credentials/PII and connection strings without breaking cyclic logs', async () => {
+        const { redactLog } = await import('../shared/logger.js');
+        const value = { password: '123', nested: { email: 'person@company.com', api_key: 'abc' },
+            error: 'amqp://user:password@broker:5672 failed for person@company.com' };
+        value.circular = value;
+        const result = JSON.stringify(redactLog(value));
+        expect(result).not.toMatch(/123|person@company.com|user:password|abc/);
+        expect(result).toContain('[REDACTED]');
+        expect(result).toContain('[TRUNCATED]');
+    });
+
     it('writes structured info/error logs and merges metadata', async () => {
         vi.stubEnv('LOG_LEVEL', 'debug');
         const log = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -90,6 +101,30 @@ describe('RabbitMQ wrapper', () => {
             close: vi.fn().mockResolvedValue(undefined)
         });
         mq.connect.mockImplementation(async (url, options) => options ? transferConnection : connection);
+    });
+
+    it('cancels consumers and waits for the in-flight ACK before closing the channel', async () => {
+        let complete;
+        const handler = vi.fn(() => new Promise((resolve) => { complete = resolve; }));
+        channel.consume.mockResolvedValue({ consumerTag: 'test-consumer' });
+        channel.cancel = vi.fn().mockResolvedValue(undefined);
+        const { consume, drainConsumers, isConsumerReady, closeConnection } = await import('../shared/rabbitmq.js');
+        await consume('drain-test', ['test.created'], handler);
+        expect(isConsumerReady()).toBe(true);
+        const delivery = channel.consume.mock.calls[0][1]({
+            content: Buffer.from('{}'), fields: { routingKey: 'test.created' }, properties: {}
+        });
+        await vi.waitFor(() => expect(handler).toHaveBeenCalledOnce());
+        const draining = drainConsumers();
+        expect(isConsumerReady()).toBe(false);
+        expect(channel.cancel).toHaveBeenCalledWith('test-consumer');
+        expect(channel.ack).not.toHaveBeenCalled();
+        expect(channel.close).not.toHaveBeenCalled();
+        complete();
+        await Promise.all([delivery, draining]);
+        expect(channel.ack).toHaveBeenCalledOnce();
+        await closeConnection();
+        expect(channel.close).toHaveBeenCalledOnce();
     });
 
     it('shares one connection across concurrent callers and declares the exchange', async () => {

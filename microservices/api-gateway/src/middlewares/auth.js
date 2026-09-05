@@ -6,7 +6,7 @@ import {
     isKnownRole,
     ROLES
 } from '../../../shared/accessControl.js';
-import { getJwtSecret } from '../../../shared/securityConfig.js';
+import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../../../shared/securityConfig.js';
 
 // Xac thuc tap trung tai Gateway.
 //
@@ -21,7 +21,8 @@ const decodeUserId = (req) => {
     const token = header.startsWith('Bearer ') ? header.slice(7) : header;
     if (!token) return null;
     try {
-        const payload = jwt.verify(token, getJwtSecret());
+        const payload = jwt.verify(token, getJwtSecret(), getJwtVerifyOptions());
+        if (!hasAccessTokenClaims(payload)) return null;
         const id = Number(payload.sub ?? payload.id);
         return Number.isInteger(id) && id > 0 ? id : null;
     } catch {

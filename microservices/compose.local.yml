@@ -1,0 +1,125 @@
+# Overlay for the current PC. Requires Docker Compose >= 2.24.4.
+# docker compose -f docker-compose.yml -f compose.local.yml up -d --build
+# Preserves existing data volumes and loopback host ports. Not an Internet deployment.
+x-runtime: &runtime
+  image: ${JOBFIND_IMAGE:-jobfind-microservices:local}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  command: ["node", "src/app.js"]
+  init: true
+  user: node
+  read_only: true
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  stop_grace_period: 40s
+  mem_limit: 512m
+  cpus: 1.0
+  pids_limit: 128
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+  secrets: [metrics_token]
+
+services:
+  deps-installer:
+    profiles: [dev-tools]
+
+  api-gateway:
+    <<: *runtime
+    volumes: !reset []
+    environment:
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    depends_on: !override
+      redis: { condition: service_healthy }
+
+  identity-service:
+    <<: *runtime
+    volumes: !reset []
+    environment:
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    depends_on: !override
+      mongo: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  job-core-service:
+    <<: *runtime
+    volumes: !reset []
+    environment:
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    depends_on: !override
+      rabbitmq: { condition: service_healthy }
+
+  search-service:
+    <<: *runtime
+    volumes: !reset []
+    environment:
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    depends_on: !override
+      elasticsearch: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  application-service:
+    <<: *runtime
+    volumes: !reset []
+    environment:
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    depends_on: !override
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  notification-service:
+    <<: *runtime
+    volumes: !reset []
+    environment:
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    depends_on: !override
+      rabbitmq: { condition: service_healthy }
+
+  admin-service:
+    <<: *runtime
+    volumes: !reset []
+    environment:
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    depends_on: !override
+      mongo: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  ai-worker:
+    <<: *runtime
+    volumes: !reset []
+    stop_grace_period: 70s
+    mem_limit: 768m
+    environment:
+      PORT: 4007
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    depends_on: !override
+      mongo: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [monitoring]
+    restart: unless-stopped
+    ports: ["127.0.0.1:9091:9090"]
+    volumes:
+      - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    secrets: [metrics_token]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d", "--storage.tsdb.retention.size=1GB"]
+    mem_limit: 512m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+secrets:
+  metrics_token:
+    file: ./.secrets/metrics-token
+
+volumes:
+  prometheus-data:

@@ -47,3 +47,4 @@ export const resolveCurrentIdentity = async (userId) => {
 export const closeAccountStore = async () => {
     await pool.end();
 };
+export const checkAccountStore = () => pool.query('SELECT 1');

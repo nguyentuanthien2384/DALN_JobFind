@@ -9,6 +9,7 @@
     "dev": "node --watch src/app.js"
   },
   "dependencies": {
+    "express": "^4.21.2",
     "@anthropic-ai/sdk": "^0.115.0",
     "amqplib": "^0.10.4",
     "mongodb": "^6.20.0"

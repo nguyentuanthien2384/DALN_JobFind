@@ -41,7 +41,7 @@ const services = {
 
 const health = {};
 for (const key of Object.keys(services)) {
-    health[key] = { healthy: true, lastCheck: null, lastError: null };
+    health[key] = { healthy: false, lastCheck: null, lastError: null };
 }
 
 export const getService = (key) => services[key];
@@ -74,15 +74,18 @@ export const markHealth = (key, healthy, error = null) => {
 export const startHealthPolling = (intervalMs = 15000) => {
     const probe = async () => {
         await Promise.all(Object.entries(services).map(async ([key, svc]) => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 4000);
             try {
-                const controller = new AbortController();
-                const timer = setTimeout(() => controller.abort(), 4000);
-                const res = await fetch(`${svc.baseUrl}/health`, { signal: controller.signal });
-                clearTimeout(timer);
+                const path = key === 'legacy' ? '/health' : '/readyz';
+                const res = await fetch(`${svc.baseUrl}${path}`, { signal: controller.signal });
+                if (res.body) await res.body.cancel();
                 const healthy = res.status >= 200 && res.status < 400;
                 markHealth(key, healthy, healthy ? null : `HTTP ${res.status}`);
             } catch (error) {
                 markHealth(key, false, error.message);
+            } finally {
+                clearTimeout(timer);
             }
         }));
     };

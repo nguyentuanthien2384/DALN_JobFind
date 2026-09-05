@@ -181,8 +181,8 @@ export const startOutboxRelay = ({ intervalMs = 1000 } = {}) => {
     return relayTimer;
 };
 
-export const stopOutboxRelay = () => {
-    if (!relayTimer) return;
+export const stopOutboxRelay = async () => {
     clearInterval(relayTimer);
     relayTimer = null;
+    while (relayRunning) await new Promise((resolve) => setTimeout(resolve, 20));
 };

@@ -1,13 +1,17 @@
 import express from 'express';
+import { createServiceRuntime, periodicTask } from '../../shared/serviceRuntime.js';
+import { isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
+import { closeOutboxPublisher } from '../../shared/outboxPublisher.js';
+import { registerOutboxMetrics } from '../../shared/operationalMetrics.js';
 import { createLogger } from '../../shared/logger.js';
 import { testConnection, initSchema, pool, STAGES, STAGE_LABELS } from './libs/db.js';
-import { ensureOutboxTable, startOutboxRelay } from './libs/outbox.js';
+import { ensureOutboxTable, startOutboxRelay, stopOutboxRelay } from './libs/outbox.js';
 import {
     getBoard, listApplications, getApplication, moveStage,
     sendDecisionNotification, rateApplication, addNote, getFunnel, myApplications
 } from './controllers/applicationController.js';
 import { savedCandidates, saveCandidate, removeCandidate } from './controllers/talentPoolController.js';
-import { syncFromLegacy, syncEndpoint } from './controllers/syncController.js';
+import { syncFromLegacy, syncEndpoint, closeLegacySource } from './controllers/syncController.js';
 import { startSubmissionConsumer } from './consumers/submissionConsumer.js';
 import {
     PERMISSIONS, requireServicePermission, requireTrustedGateway
@@ -16,17 +20,21 @@ import {
 const logger = createLogger('application-service');
 const app = express();
 const PORT = Number(process.env.PORT || 4004);
+const runtime = createServiceRuntime(app, { service: 'application-service', logger,
+    checks: { postgres: () => pool.query('SELECT 1'), rabbitmq: () => isConsumerReady() } });
+runtime.onStop(() => stopOutboxRelay());
+runtime.onStop(() => drainConsumers());
+runtime.onClose(() => closeConnection());
+runtime.onClose(() => closeOutboxPublisher());
+runtime.onClose(() => pool.end());
+runtime.onClose(() => closeLegacySource());
+registerOutboxMetrics(runtime.registry, async () => {
+    const { rows } = await pool.query('SELECT COUNT(*) AS pending, MIN(created_at) AS oldest FROM outbox_events WHERE published_at IS NULL');
+    return rows[0];
+});
 
 app.use(express.json({ limit: '10mb' }));
 
-app.get('/health', async (req, res) => {
-    try {
-        const { rows } = await pool.query('SELECT COUNT(*)::int AS total FROM applications');
-        res.json({ status: 'ok', service: 'application-service', applications: rows[0].total });
-    } catch (error) {
-        res.status(503).json({ status: 'degraded', error: error.message });
-    }
-});
 
 app.use(requireTrustedGateway);
 
@@ -93,14 +101,11 @@ const start = async () => {
     // ung vien. Dong bo dung rang buoc UNIQUE tren legacy_cv_id nen chay lai bao
     // nhieu lan cung khong nhan ban.
     const intervalMinutes = Number(process.env.RECONCILE_MINUTES || 10);
-    const timer = setInterval(() => {
-        syncFromLegacy().catch((error) =>
-            logger.warn('doi chieu dinh ky that bai', { error: error.message }));
-    }, intervalMinutes * 60 * 1000);
-    timer.unref();
+    runtime.onStop(periodicTask(syncFromLegacy, intervalMinutes * 60 * 1000,
+        (error) => logger.warn('doi chieu dinh ky that bai', { error: error.message })));
     logger.info(`se doi chieu lai ho so moi ${intervalMinutes} phut`);
 
-    app.listen(PORT, () => logger.info(`Application Service dang chay tren cong ${PORT}`));
+    runtime.attach(app.listen(PORT, () => logger.info(`Application Service dang chay tren cong ${PORT}`)));
 };
 
 start().catch((error) => {

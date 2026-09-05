@@ -24,6 +24,8 @@ redis.on('error', (err) => {
     if (redisReady) logger.warn('mat ket noi Redis', { error: err.message });
     redisReady = false;
 });
+redis.on('close', () => { redisReady = false; });
+redis.on('end', () => { redisReady = false; });
 redis.connect().catch((err) => logger.warn('chua ket noi duoc Redis', { error: err.message }));
 
 const clientKey = (req) => {
@@ -33,11 +35,14 @@ const clientKey = (req) => {
     return `ip:${req.ip}`;
 };
 
-export const createRateLimiter = ({ windowSeconds, max, name, countOnlyFailures = false }) => {
+export const createRateLimiter = ({ windowSeconds, max, name, countOnlyFailures = false, failClosed = false }) => {
     return async (req, res, next) => {
         // Redis chet thi cho request di qua. Chan het nguoi dung chi vi mat Redis
         // la tu bien mot su co phu thanh su co toan he thong.
-        if (!redisReady) return next();
+        const unavailable = () => failClosed
+            ? res.status(503).json({ errCode: 503, errMessage: 'Rate limiter unavailable; retry later' })
+            : next();
+        if (!redisReady) return unavailable();
 
         const key = `ratelimit:${name}:${clientKey(req)}`;
 
@@ -53,7 +58,7 @@ export const createRateLimiter = ({ windowSeconds, max, name, countOnlyFailures 
 
             if (count > max) {
                 res.setHeader('Retry-After', ttl > 0 ? ttl : windowSeconds);
-                logger.warn('chan vi vuot han muc', { key, count, max });
+                logger.warn('chan vi vuot han muc', { limiter: name, count, max });
                 return res.status(429).json({
                     errCode: 429,
                     errMessage: `Bạn thao tác quá nhanh, vui lòng thử lại sau ${ttl > 0 ? ttl : windowSeconds} giây`
@@ -73,10 +78,11 @@ export const createRateLimiter = ({ windowSeconds, max, name, countOnlyFailures 
 
             return next();
         } catch (error) {
-            logger.warn('rate limit loi, cho request di tiep', { error: error.message });
-            return next();
+            logger.warn('rate limit unavailable', { limiter: name, failClosed });
+            return unavailable();
         }
     };
 };
 
 export const closeRedis = () => redis.quit().catch(() => {});
+export const checkRedis = async () => redisReady && await redis.ping() === 'PONG';

@@ -1,9 +1,11 @@
 import express from 'express';
+import { createServiceRuntime } from '../../shared/serviceRuntime.js';
+import { isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import mongoose from 'mongoose';
 import { createLogger } from '../../shared/logger.js';
 import { startAuditConsumer } from './consumers/auditConsumer.js';
 import { ensureAuditIndexes } from './models/AuditLog.js';
-import { testSources } from './libs/sources.js';
+import { testSources, mysqlPool, pgPool } from './libs/sources.js';
 import { overview, timeseries, distribution, recruitmentFunnel, activity } from './controllers/reportController.js';
 import { listLogs, targetHistory, ingestAction } from './controllers/auditController.js';
 import { listMasterData, upsertTag, deleteTag, aliasMap } from './controllers/tagController.js';
@@ -14,17 +16,17 @@ import {
 const logger = createLogger('admin-service');
 const app = express();
 const PORT = Number(process.env.PORT || 4006);
+const runtime = createServiceRuntime(app, { service: 'admin-service', logger,
+    checks: { mongo: () => mongoose.connection.readyState === 1 && mongoose.connection.db.command({ ping: 1 }),
+        mysql: () => mysqlPool.query('SELECT 1'), postgres: () => pgPool.query('SELECT 1'), rabbitmq: () => isConsumerReady() } });
+runtime.onStop(() => drainConsumers());
+runtime.onClose(() => closeConnection());
+runtime.onClose(() => mongoose.disconnect());
+runtime.onClose(() => mysqlPool.end());
+runtime.onClose(() => pgPool.end());
 
 app.use(express.json({ limit: '5mb' }));
 
-app.get('/health', (req, res) => {
-    const states = ['disconnected', 'connected', 'connecting', 'disconnecting'];
-    res.json({
-        status: mongoose.connection.readyState === 1 ? 'ok' : 'degraded',
-        service: 'admin-service',
-        mongo: states[mongoose.connection.readyState]
-    });
-});
 
 app.use(requireTrustedGateway);
 
@@ -85,7 +87,7 @@ const start = async () => {
     // de khong phai xu ly nhung thu khong lien quan.
     await startAuditConsumer();
 
-    app.listen(PORT, () => logger.info(`Admin & Reporting Service dang chay tren cong ${PORT}`));
+    runtime.attach(app.listen(PORT, () => logger.info(`Admin & Reporting Service dang chay tren cong ${PORT}`)));
 };
 
 start().catch((error) => {

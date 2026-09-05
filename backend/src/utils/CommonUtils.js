@@ -1,20 +1,16 @@
 import JWT from 'jsonwebtoken'
-import { getJwtSecret } from './securityConfig';
+import { getJwtSecret, getJwtSignOptions } from './securityConfig';
 require('dotenv').config();
 const PDFExtract = require('pdf.js-extract').PDFExtract;
 const pdfExtract = new PDFExtract();
 const keywordExtractor = require("keyword-extractor");
-// roleCode va companyId duoc nhung vao token de API Gateway cua he thong
-// microservice phan quyen ngay tai cua ngo, khong phai truy CSDL moi request.
-// Backend nay chi doc `sub` nen them truong moi khong anh huong gi; token cu
-// van dung binh thuong cho toi khi het han.
+// Role/company claims are hints only; authorization rereads the current account.
 let encodeToken = (userId, roleCode = null, companyId = null) =>{
     return JWT.sign({
-        iss: 'Tai Nguyen',
         sub: userId,
         roleCode: roleCode,
         companyId: companyId
-    }, getJwtSecret(), { expiresIn: '3d' })
+    }, getJwtSecret(), getJwtSignOptions())
 }
 
 let pdfToString = async(file) => {
