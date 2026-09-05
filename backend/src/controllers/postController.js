@@ -59,11 +59,15 @@ let handleUpdatePost = async (req, res) => {
         }
         let data = await postService.handleUpdatePost({
             ...req.body,
+            id: postId,
             userId: req.user.id
+        }, {
+            roleCode: req.user.userAccountData?.roleCode,
+            companyId: req.user.companyId
         });
         // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
         // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
-        if (data.errCode === 0) {
+        if (data.errCode === 0 && data.changed !== false) {
             const changedId = req.body.id ?? req.body.postId;
             if (changedId) emitJobUpdated(changedId);
         }

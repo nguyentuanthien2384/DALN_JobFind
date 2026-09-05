@@ -24,6 +24,8 @@ Có thể import JSON vào công cụ đọc OpenAPI chạy trên máy. Không c
 
 Tên audit `name` là tìm kiếm chuỗi literal không phân biệt hoa/thường, không phải biểu thức chính quy do client điều khiển.
 
+Đợt đồng bộ 2b bổ sung `genderPostCode` và `timeEnd` tùy chọn cho `JobUpdate`. `timeEnd` chỉ dùng để gửi lại giá trị đang lưu (số mili giây/chuỗi số theo schema); thay đổi ngày trả 409 và phải dùng Đăng lại, không gia hạn qua sửa tin. Trường không gửi giữ nguyên, nullable gửi null được xóa giá trị, `descriptionMarkdown: ""` là chuỗi rỗng. `isHot`/`userId`/`statusCode` không được gửi. Sửa không đổi dữ liệu không tạo event/AI; thay đổi tên/HTML phải duyệt lại. Xem `client-sync.md` về snapshot riêng, current read, giới hạn form/kiểm duyệt legacy và kiểm thử `npm run test:job-writes:integration`.
+
 ## Phân quyền và lỗi
 
 Client dùng JWT Bearer qua Gateway. Gateway xác thực tài khoản hiện tại, xóa header danh tính do client giả mạo rồi đặt lại. Service yêu cầu `x-internal-secret`; route có quyền tiếp tục kiểm tra vai trò và công ty đang hoạt động/đã duyệt trước schema validation. Kiểm tra quyền sở hữu bản ghi trong controller vẫn giữ nguyên. Body parser có thể từ chối dữ liệu hỏng/quá lớn trước lớp quyền; schema validation không thay thế xác thực.

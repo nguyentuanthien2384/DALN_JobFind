@@ -99,23 +99,27 @@ describe('postService', () => {
     expect((await service.handleReupPost(validPost())).errCode).toBe(2);
   });
 
-  test('update edits an unshared detail row or forks a shared detail row', async () => {
+  test('update always forks changed detail, preserves author and holds locks in one transaction', async () => {
     mockDb.Post.findOne.mockResolvedValueOnce(null);
     expect((await service.handleUpdatePost(validPost())).errCode).toBe(2);
 
-    const post = { id: 10, detailPostId: 20, save: jest.fn() };
-    const detail = { id: 20, save: jest.fn() };
-    mockDb.Post.findOne.mockResolvedValueOnce(post).mockResolvedValueOnce(null);
+    const post = { id: 10, userId: 8, statusCode: 'PS1', timeEnd: validPost().timeEnd, detailPostId: 20, save: jest.fn() };
+    const detail = { ...validPost(), id: 20, name: 'Old', save: jest.fn() };
+    mockDb.User.findAll.mockResolvedValue([{ id: 7, companyId: 4 }, { id: 8, companyId: 4 }]);
+    mockDb.Company.findOne.mockResolvedValue({ statusCode: 'S1', censorCode: 'CS1' });
+    mockDb.Post.findOne.mockResolvedValue(post);
     mockDb.DetailPost.findOne.mockResolvedValueOnce(detail);
-    expect((await service.handleUpdatePost(validPost())).errCode).toBe(0);
-    expect(detail.name).toBe('Node Engineer');
-    expect(post.statusCode).toBe('PS3');
-
-    const sharedPost = { id: 10, detailPostId: 20, save: jest.fn() };
-    mockDb.Post.findOne.mockResolvedValueOnce(sharedPost).mockResolvedValueOnce({ id: 11 });
     mockDb.DetailPost.create.mockResolvedValueOnce({ id: 21 });
-    await service.handleUpdatePost(validPost());
-    expect(sharedPost.detailPostId).toBe(21);
+    expect((await service.handleUpdatePost(validPost())).errCode).toBe(0);
+    expect(detail.name).toBe('Old');
+    expect(detail.save).not.toHaveBeenCalled();
+    expect(post.detailPostId).toBe(21);
+    expect(post.userId).toBe(8);
+    expect(post.statusCode).toBe('PS3');
+    expect(post.save).toHaveBeenCalledWith({ transaction: mockTransaction, fields: ['detailPostId', 'statusCode', 'updatedAt'] });
+    expect(mockDb.DetailPost.create).toHaveBeenCalledWith(expect.objectContaining({ genderPostCode: 'G1', amount: 2 }), { transaction: mockTransaction });
+    expect(mockDb.User.findAll).toHaveBeenCalledWith(expect.objectContaining({ transaction: mockTransaction, lock: 'UPDATE', order: [['id', 'ASC']] }));
+    expect(mockDb.Company.findOne).toHaveBeenCalledWith(expect.objectContaining({ transaction: mockTransaction, lock: 'UPDATE' }));
   });
 
   test.each([['0', 0], ['1', 1], [false, 0], [true, 1]])('normalizes legacy hot flag %s to %s', async (isHot, expected) => {

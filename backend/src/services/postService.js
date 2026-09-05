@@ -1,5 +1,6 @@
 import db from "../models/index";
 import { PostingQuotaError, normalizePostHot, lockPostingCompany, consumeLockedPostingQuota } from '../utils/postingQuota';
+import { updateLegacyPost } from '../utils/jobEdit';
 const { Op } = require("sequelize");
 require('dotenv').config();
 var nodemailer = require('nodemailer');
@@ -107,84 +108,14 @@ let handleReupPost = async (data) => {
         };
     });
 };
-let handleUpdatePost = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            if (!data.name || !data.categoryJobCode || !data.addressCode || !data.salaryJobCode || !data.amount || !data.timeEnd || !data.categoryJoblevelCode
-                || !data.categoryWorktypeCode || !data.experienceJobCode || !data.genderPostCode || !data.descriptionHTML
-                || !data.descriptionMarkdown || !data.id || !data.userId
-            ) {
-                resolve({
-                    errCode: 1,
-                    errMessage: 'Missing required parameters !'
-                })
-            } else {
-                let post = await db.Post.findOne({
-                    where: { id: data.id },
-                    raw: false
-                })
-                if (post) {
-                    let otherPost = await db.Post.findOne({
-                        where: {detailPostId: post.detailPostId,id: {
-                            [Op.ne]: post.id
-                        }}
-                    })
-                    if (otherPost) {
-                        let newDetailPost = await db.DetailPost.create({
-                            name: data.name,
-                            descriptionHTML: data.descriptionHTML,
-                            descriptionMarkdown: data.descriptionMarkdown,
-                            categoryJobCode: data.categoryJobCode,
-                            addressCode: data.addressCode,
-                            salaryJobCode: data.salaryJobCode,
-                            amount: data.amount,
-                            categoryJoblevelCode: data.categoryJoblevelCode,
-                            categoryWorktypeCode: data.categoryWorktypeCode,
-                            experienceJobCode: data.experienceJobCode,
-                            genderPostCode: data.genderPostCode,
-                        })
-                        post.detailPostId = newDetailPost.id
-                    }
-                    else {
-                        let detailPost = await db.DetailPost.findOne({
-                            where: {id: post.detailPostId},
-                            attributes: {
-                                exclude: ['statusCode']
-                            },
-                            raw: false
-                        })
-                        detailPost.name =  data.name,
-                        detailPost.descriptionHTML =  data.descriptionHTML,
-                        detailPost.descriptionMarkdown =  data.descriptionMarkdown,
-                        detailPost.categoryJobCode =  data.categoryJobCode,
-                        detailPost.addressCode =  data.addressCode,
-                        detailPost.salaryJobCode =  data.salaryJobCode,
-                        detailPost.amount =  data.amount,
-                        detailPost.categoryJoblevelCode =  data.categoryJoblevelCode,
-                        detailPost.categoryWorktypeCode =  data.categoryWorktypeCode,
-                        detailPost.experienceJobCode =  data.experienceJobCode,
-                        detailPost.genderPostCode =  data.genderPostCode,
-                        await detailPost.save()
-                    }
-                    post.userId = data.userId
-                    post.statusCode = 'PS3'
-                    await post.save()
-                    resolve({
-                        errCode: 0,
-                        errMessage: 'Đã chỉnh sửa bài viết thành công hãy chờ quản trị viên duyệt'
-                    })
-                } else {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Bài đăng không tồn tại !'
-                    })
-                }
-            }
-        } catch (error) {
-            reject(error)
-        }
-    })
-}
+let handleUpdatePost = async (data, identity) => {
+    if (!data.name || !data.categoryJobCode || !data.addressCode || !data.salaryJobCode || !data.amount || !data.timeEnd || !data.categoryJoblevelCode
+        || !data.categoryWorktypeCode || !data.experienceJobCode || !data.genderPostCode || !data.descriptionHTML
+        || !data.descriptionMarkdown || !data.id || !data.userId) {
+        return { errCode: 1, errMessage: 'Missing required parameters !' };
+    }
+    return updateLegacyPost(data, identity);
+};
 let handleBanPost = (data) => {
     return new Promise(async (resolve, reject) => {
         try {

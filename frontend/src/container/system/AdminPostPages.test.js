@@ -315,6 +315,8 @@ describe("post editor", () => {
         getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: detailPost });
         const { container } = render(<AddPost />);
         expect(await screen.findByText("Cập nhật bài đăng")).toBeInTheDocument();
+        expect(screen.getByLabelText('Ngày kết thúc')).toBeDisabled();
+        expect(screen.getByText('Ngày hết hạn giữ nguyên khi sửa tin. Muốn gia hạn, hãy dùng Đăng lại.')).toBeInTheDocument();
         await waitFor(() => expect(container.querySelector('input[name="name"]')).toHaveValue("Bài cũ"));
         fireEvent.change(container.querySelector('input[name="name"]'), { target: { name: "name", value: "Bài mới" } });
         fireEvent.click(screen.getByRole("button", { name: "Lưu" }));

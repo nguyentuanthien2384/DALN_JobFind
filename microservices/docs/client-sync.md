@@ -78,9 +78,40 @@ Khi áp dụng, cập nhật/restart **backend legacy trước**, rồi mới c�
 
 Mốc hồi quy ngày 05-09-2026 của đợt 2a: 823 test microservices (50 file), 516 test backend (30 suite), 677 test frontend (49 suite) đều qua; HTTP/event contracts không lệch. Đã dựng lại image `jobfind-microservices:local` và kiểm thử Gateway trong container không mạng ngoài. Không đổi mã frontend trong đợt 2a; bản build frontend của đợt 1 vẫn giữ nguyên. Không cập nhật container ứng dụng/DB thật, không push Git hoặc chạy workflow GitHub.
 
+## Đợt 2b: sửa tin độc lập và giữ đúng ngày hết hạn
+
+Đã cập nhật backend legacy, Job Core, schema HTTP và lời giải thích trên màn hình sửa tin. **Chưa chuyển URL nghiệp vụ frontend sang Job Core và chưa thay các container đang chạy.**
+
+### Ngày hết hạn và các trường được sửa
+
+- Đối chiếu `AddPost`: giao diện vốn khóa DatePicker khi sửa và chỉ mở chức năng Đăng lại cho tin hết hạn. Vì vậy đợt này **không mở gia hạn miễn phí bằng API sửa tin**. Cả hai writer nhận lại ngày cũ nhưng từ chối đổi ngày, yêu cầu dùng Đăng lại. Job Core nhận `timeEnd` là số mili giây hoặc chuỗi số theo schema; giá trị phải bằng ngày đang lưu, kể cả ngày đó đã hết hạn. Không âm thầm bỏ qua yêu cầu đổi ngày.
+- Job Core bổ sung `genderPostCode`; trường không gửi giữ nguyên, trường nullable gửi `null` được xóa giá trị, `descriptionMarkdown: ""` được lưu chuỗi rỗng. `amount` nhận số/chuỗi số hợp lệ và so sánh theo giá trị số. `isHot`, `userId`, `statusCode` vẫn không phải trường chỉnh sửa của API này.
+- Frontend giữ khóa ngày hết hạn và có thông báo giải thích việc gia hạn qua Đăng lại. Backend vẫn giữ response legacy, bổ sung `changed` để phân biệt có thay đổi hay không; controller tiếp nhận cả `id`/`postId` và luôn dùng danh tính từ phiên đăng nhập, không từ body.
+
+### Giao dịch, nội dung dùng chung và kiểm duyệt
+
+- Khi chi tiết thực sự thay đổi, cả hai writer tạo một dòng `detailposts` mới rồi đổi liên kết của **chính tin đang sửa** trong transaction. Không sửa tại chỗ dòng cũ, ngay cả khi tạm thời chưa thấy tin nào dùng chung: kiểm tra “chưa chia sẻ” rồi UPDATE vẫn có thể đua với thao tác đăng lại.
+- Tin đăng lại khác giữ nguyên nội dung; không chuyển `posts.userId` sang người vừa sửa, không đổi loại tin, ngày đăng/ngày hết hạn hoặc trừ thêm lượt. Dòng chi tiết cũ được giữ lại; **chưa có màn hình lịch sử phiên bản hoặc tác vụ dọn snapshot không còn tham chiếu**. Không tự xóa dữ liệu cũ để giảm số dòng.
+- Các writer kiểm tra bảng dùng InnoDB, khóa người sửa/tác giả theo ID tăng dần, rồi công ty, tin và chi tiết. Quyền công ty được kiểm tra lại dưới khóa; tác giả đổi sau lần đọc sơ bộ thì từ chối và yêu cầu tải lại. ADMIN vẫn được sửa tin khác công ty mà không thay tác giả; tin PS4 không được phục hồi chỉ bằng lệnh sửa.
+- Job Core so sánh nội dung thực tế: đổi tên hoặc HTML mới tạo request kiểm duyệt mới và đưa tin về PS3; sửa thông tin ngoài hai trường được AI kiểm duyệt không tự thay quyết định/trạng thái đang có. Nội dung mới, tin, `job.updated`, request kiểm duyệt và outbox được commit cùng nhau. Kết quả AI cũ không được áp dụng vào request mới.
+- Lưu lại nội dung y hệt không tạo snapshot/event/request AI hoặc đổi timestamp/trạng thái. Job Core đọc kết quả bằng current locking read để phản hồi và payload không dùng snapshot cũ của repeatable-read sau khi chờ một writer khác. Đã tái hiện và sửa lỗi này bằng 20 lệnh sửa đồng thời trên MySQL thật trong fixture.
+- Backend legacy giữ chính sách cũ: thay đổi thực sự đưa tin về PS3 để duyệt theo luồng legacy, chưa chuyển sang outbox/kiểm duyệt tự động của Job Core. Lưu y hệt trả `changed: false` và controller không phát event. Publisher legacy khi có thay đổi vẫn best-effort sau commit.
+
+### Giới hạn và kiểm chứng
+
+Đây **không phải HTTP idempotency cho đăng mới/đăng lại**, cũng chưa có ETag/If-Match để phát hiện form cũ: hai nội dung khác nhau sửa cùng một trường vẫn theo lần ghi sau. Cập nhật từng phần từ Job Core giữ các trường không gửi; form legacy gửi đầy đủ vẫn có thể ghi đè trường do người khác đã chỉnh. Còn adapter cho cấu trúc dữ liệu/Allcode của màn hình, API đăng lại ở Job Core và chuyển luồng duyệt trước khi đổi endpoint.
+
+`npm run test:job-writes:integration` (alias cũ `test:posting-quota:integration` vẫn dùng được) chạy **38 nhóm kiểm tra**: 19 nhóm hạn mức của đợt 2a và 19 nhóm sửa tin mới. Bao gồm snapshot dùng chung, nullable/giá trị bỏ trống, ngày hết hạn không đổi, no-op, quyền/đổi công ty/tác giả khi đang chờ khóa, rollback tại các bước ghi, cạnh tranh sửa/đăng lại, trường cập nhật từng phần, kết quả AI cũ và engine không hỗ trợ transaction. Dùng HTTP Job Core/Sequelize/handler kết quả AI thật với dữ liệu tổng hợp, **không gọi mô hình AI, SMTP hay PayPal**. Chỉ container MySQL tạm có nhãn sở hữu khớp bị dọn.
+
+Ngày 05-09-2026: 851 test microservices (51 file), 517 test backend (30 suite), 677 test frontend (49 suite) và 38 nhóm tích hợp đều qua. Frontend production build thành công; HTTP/event contracts khớp nguồn. CI đã được cấu hình chạy bộ tích hợp mở rộng, nhưng **chưa push hoặc thực thi workflow trên GitHub** trong đợt này.
+
+Image `jobfind-microservices:local` đã dựng lại và qua kiểm thử Gateway cách ly, gồm contract mới đóng gói và dừng tiến trình sạch. Các kiểm thử không thay container ứng dụng đang phục vụ hoặc dữ liệu thật; frontend mới được build nhưng chưa được triển khai để phục vụ người dùng.
+
+Khi áp dụng: cập nhật backend trước để không còn writer sửa trực tiếp chi tiết dùng chung, sau đó Job Core và frontend. Không recreate DB/broker, chuyển engine, xóa volume hoặc dọn chi tiết cũ bằng thao tác triển khai này. Sao lưu/kiểm tra dữ liệu lịch sử vẫn là bước riêng trước rollout thật.
+
 ## Thứ tự các đợt còn lại
 
-1. Tiếp tục nghiệp vụ Job Core trước khi đổi API đăng tin: trường cập nhật/ngày hết hạn/giới tính, sửa tin dùng chung chi tiết sau đăng lại, phản hồi tương thích, luồng đăng lại/kiểm duyệt và chống gửi POST lặp theo ý định. Hạn mức/cạnh tranh đã xử lý ở đợt 2a, nhưng không có nghĩa mọi nghiệp vụ đã tương đương. Không chỉ đổi `/api/create-new-post` thành `/api/jobs` hoặc xóa trường mà UI đang cho người dùng chỉnh.
+1. Tiếp tục nghiệp vụ Job Core trước khi đổi API đăng tin: API đăng lại và chống gửi POST lặp theo ý định, adapter phản hồi/Allcode cho form, chuyển luồng kiểm duyệt và xử lý xung đột form cũ. Hạn mức đã xử lý ở đợt 2a; sửa độc lập, giới tính và quy tắc giữ ngày hết hạn đã xử lý ở đợt 2b. Chưa có nghĩa mọi nghiệp vụ đã tương đương; không chỉ đổi `/api/create-new-post` thành `/api/jobs`.
 2. Hoàn thiện outbox cho publisher legacy và kế hoạch chuyển quyền sở hữu luồng ghi. Schema event đúng không tự bảo đảm gửi không mất; không phát hai event độc lập cho cùng một thao tác để “đồng bộ”.
 3. Nối màn hình AI/CV và chuyển luồng tìm kiếm/đăng tin theo từng màn hình khi phía server đủ nghiệp vụ. Hiện màn hình Kanban/báo cáo và gợi ý tìm kiếm đã có gọi microservice; danh sách tìm kiếm chính/đăng tin vẫn còn API legacy. Không coi helper API đã có là giao diện tính năng đã hoàn tất.
 4. Nghiệm thu các vai trò trên stack mới, hạn mức và thao tác lặp, token hết hạn, dịch vụ gián đoạn/phục hồi, dữ liệu cập nhật chậm giữa dịch vụ. Các mục kiến trúc/vận hành khác của PDF tiếp tục theo `implementation-progress.md`.

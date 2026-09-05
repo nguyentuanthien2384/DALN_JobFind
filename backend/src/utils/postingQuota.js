@@ -15,7 +15,7 @@ export const normalizePostHot = (value) => {
     throw new PostingQuotaError('Loại tin tuyển dụng không hợp lệ');
 };
 
-export const lockPostingCompany = async (userId, transaction) => {
+export const assertTransactionalPostingTables = async (transaction) => {
     const required = ['users', 'companies', 'posts', 'detailposts'];
     const [tables] = await db.sequelize.query(`SELECT TABLE_NAME AS name, ENGINE AS engine
         FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()
@@ -23,6 +23,10 @@ export const lockPostingCompany = async (userId, transaction) => {
     if (required.some((name) => !tables.some((table) => table.name === name && table.engine === 'InnoDB'))) {
         throw new PostingQuotaError('Chưa thể đăng tin: cấu hình giao dịch dữ liệu chưa sẵn sàng');
     }
+};
+
+export const lockPostingCompany = async (userId, transaction) => {
+    await assertTransactionalPostingTables(transaction);
     // Keep this lock order consistent with Job Core and hold both locks until
     // the post commits. A stale membership read must not charge another company.
     const user = await db.User.findOne({

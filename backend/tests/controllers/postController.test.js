@@ -32,7 +32,7 @@ const request = (roleCode = 'EMPLOYER') => createRequest({
 const cases = [
   ['handleCreateNewPost', 'handleCreateNewPost', (r) => ({ ...r.body, userId: r.user.id })],
   ['handleReupPost', 'handleReupPost', (r) => ({ ...r.body, userId: r.user.id })],
-  ['handleUpdatePost', 'handleUpdatePost', (r) => ({ ...r.body, userId: r.user.id })],
+  ['handleUpdatePost', 'handleUpdatePost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode, companyId: r.user.companyId }]],
   ['handleBanPost', 'handleBanPost', (r) => ({ ...r.body, userId: r.user.id })],
   ['handleAcceptPost', 'handleAcceptPost', (r) => ({ ...r.body, userId: r.user.id })],
   ['getListPostByAdmin', 'getListPostByAdmin', (r) => ({ ...r.query, companyId: 11 })],
@@ -153,6 +153,7 @@ describe('postController', () => {
     const postIdReq = request();
     delete postIdReq.body.id;
     await controller.handleUpdatePost(postIdReq, createResponse());
+    expect(mockService.handleUpdatePost).toHaveBeenCalledWith(expect.objectContaining({ id: 18, userId: 7 }), { roleCode: 'EMPLOYER', companyId: 11 });
     expect(mockEmitJobUpdated).toHaveBeenCalledWith(18);
 
     mockEmitJobUpdated.mockClear();
@@ -163,6 +164,15 @@ describe('postController', () => {
     delete noIdReq.body.postId;
     mockService.handleUpdatePost.mockResolvedValueOnce({ errCode: 0 });
     await controller.handleUpdatePost(noIdReq, createResponse());
+    expect(mockEmitJobUpdated).not.toHaveBeenCalled();
+  });
+
+  test('unchanged edits do not emit an event and body cannot override trusted edit identity', async () => {
+    mockService.handleUpdatePost.mockResolvedValueOnce({ errCode: 0, changed: false });
+    const req = request();
+    Object.assign(req.body, { roleCode: 'ADMIN', companyId: 999, userId: 999 });
+    await controller.handleUpdatePost(req, createResponse());
+    expect(mockService.handleUpdatePost).toHaveBeenCalledWith(expect.objectContaining({ userId: 7 }), { roleCode: 'EMPLOYER', companyId: 11 });
     expect(mockEmitJobUpdated).not.toHaveBeenCalled();
   });
 });

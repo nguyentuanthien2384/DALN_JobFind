@@ -9322,6 +9322,31 @@
                 "type": "null"
               }
             ]
+          },
+          "genderPostCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeEnd": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8640000000000000
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
           }
         },
         "required": [],

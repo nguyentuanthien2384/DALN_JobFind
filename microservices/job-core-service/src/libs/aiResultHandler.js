@@ -38,7 +38,8 @@ const applyTaskResult = async (conn, payload, identity) => {
 };
 
 const applyModerationResult = async (conn, payload, enqueue) => {
-    // All Job Core job writers lock posts first. These are current locking reads,
+    // Job writers lock posts before moderation/detail (auth locks can precede
+    // the post lock). These are current locking reads,
     // not a repeatable-read snapshot from before a concurrent edit committed.
     const [[post]] = await conn.query('SELECT id, detailPostId, statusCode, userId FROM posts WHERE id = ? FOR UPDATE', [payload.jobId]);
     if (!post) return 'stale';

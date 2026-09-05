@@ -40,8 +40,11 @@ export const schemas = {
         timeEnd: { anyOf: [integer(1, 8640000000000000), { type: 'string', pattern: '^[1-9][0-9]{0,15}$', format: 'jobfind-id' }] },
         isHot: { anyOf: [{ type: 'boolean' }, { type: 'integer', enum: [0, 1] }] }
     }, ['name', 'descriptionHTML', 'categoryJobCode']),
-    // Only fields actually written by updateJob are accepted. No ignored isHot/timeEnd/statusCode.
-    JobUpdate: { ...object(jobFields), minProperties: 1 },
+    // Deadline may be resent unchanged by the editor; changing it is a business
+    // conflict (use re-posting). isHot/userId/statusCode remain server-controlled.
+    JobUpdate: { ...object({ ...jobFields, genderPostCode: optionalText(64),
+        timeEnd: { anyOf: [integer(1, 8640000000000000), { type: 'string', pattern: '^[1-9][0-9]{0,15}$', format: 'jobfind-id' }] }
+    }), minProperties: 1 },
     ParseResume: object({ fileBase64: nonblank(8 * 1024 * 1024), fileName: optionalText(255) }, ['fileBase64']),
     MatchCv: object({ resumeText: nonblank(500000), jobId: id }, ['resumeText', 'jobId']),
     CoverLetter: object({ resumeText: nonblank(500000), jobId: id, language: optionalText(32) }, ['resumeText', 'jobId']),

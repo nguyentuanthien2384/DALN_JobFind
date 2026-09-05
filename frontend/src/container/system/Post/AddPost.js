@@ -424,6 +424,11 @@ const AddPost = () => {
                                                     }
                                                     selected={timeEnd}
                                                 />
+                                                {!inputValues.isActionADD && (
+                                                    <small className="text-muted d-block mt-1">
+                                                        Ngày hết hạn giữ nguyên khi sửa tin. Muốn gia hạn, hãy dùng Đăng lại.
+                                                    </small>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

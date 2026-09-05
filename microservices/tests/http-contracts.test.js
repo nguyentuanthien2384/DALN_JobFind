@@ -17,7 +17,7 @@ import * as adminClient from '../../frontend/src/service/adminReportService.js';
 const cvId = '507f1f77bcf86cd799439011';
 const bodyExamples = {
     JobCreate: { name: 'Lập trình viên', descriptionHTML: '<p>Phát triển ứng dụng</p>', categoryJobCode: 'IT', amount: '2' },
-    JobUpdate: { name: 'Developer', amount: 2 },
+    JobUpdate: { name: 'Developer', amount: '2', genderPostCode: 'G1', timeEnd: '1700000000000' },
     ParseResume: { fileBase64: 'c3ludGhldGljIENW', fileName: 'cv.pdf' },
     MatchCv: { resumeText: 'Kỹ sư phần mềm', jobId: '1' },
     CoverLetter: { resumeText: 'Kỹ sư phần mềm', jobId: 1, language: 'vi' },
@@ -120,6 +120,10 @@ describe('real HTTP request contracts', () => {
         ['jobCreate', { body: { ...bodyExamples.JobCreate, isHot: 'false' } }],
         ['jobCreate', { body: { ...bodyExamples.JobCreate, amount: -1 } }],
         ['jobUpdate', { body: { statusCode: 'PS1' } }], ['jobUpdate', { body: {} }],
+        ['jobUpdate', { body: { isHot: 1 } }], ['jobUpdate', { body: { userId: 999 } }],
+        ['jobUpdate', { body: { timeEnd: null } }], ['jobUpdate', { body: { timeEnd: '2027-01-01' } }],
+        ['jobUpdate', { body: { timeEnd: -1 } }], ['jobUpdate', { body: { timeEnd: true } }],
+        ['jobUpdate', { body: { genderPostCode: {} } }], ['jobUpdate', { body: { amount: 0 } }],
         ['profileUpdate', { body: { roleCode: 'ADMIN' } }],
         ['profileUpdate', { body: { jobPreference: { isFindJob: 'false' } } }],
         ['profileUpdate', { body: { skills: ['JS', { $ne: null }] } }],

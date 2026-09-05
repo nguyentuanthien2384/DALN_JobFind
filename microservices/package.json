@@ -34,6 +34,7 @@
     "test:ai-requests:integration": "node scripts/test-ai-requests.mjs",
     "test:event-contracts:integration": "node scripts/test-event-contracts.mjs",
     "test:posting-quota:integration": "node scripts/test-posting-quota.mjs",
+    "test:job-writes:integration": "node scripts/test-posting-quota.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

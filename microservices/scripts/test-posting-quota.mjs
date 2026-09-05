@@ -59,7 +59,7 @@ try {
     legacyDb = legacyRequire('./src/models/index.js');
     assert.equal((await legacyDb.sequelize.query('SELECT DATABASE() AS name'))[0][0].name, database);
     const legacy = legacyRequire('./src/services/postService.js');
-    const { createJob } = await import('../job-core-service/src/controllers/jobController.js');
+    const { createJob, updateJob } = await import('../job-core-service/src/controllers/jobController.js');
     const { ensureAiTaskTable } = await import('../job-core-service/src/controllers/aiController.js');
     const { ensureOutboxTable } = await import('../job-core-service/src/libs/outbox.js');
     const { ensureAiResultTables } = await import('../job-core-service/src/libs/moderationState.js');
@@ -69,6 +69,7 @@ try {
     const { operationById } = await import('../shared/contracts/operations.js');
     const { PERMISSIONS, requireTrustedGateway, requireServicePermission } = await import('../shared/accessControl.js');
     const validSuccess = createContractValidator().compile(responseValidationSchema(operationById.jobCreate));
+    const validEdit = createContractValidator().compile(responseValidationSchema(operationById.jobUpdate));
     const validError = createContractValidator().compile(schemas.Error);
 
     await pool.query(`CREATE TABLE companies (id INT PRIMARY KEY, name VARCHAR(255), thumbnail VARCHAR(255),
@@ -90,6 +91,7 @@ try {
     const app = express();
     app.use(express.json(), requireTrustedGateway);
     contractRoute(app, 'jobCreate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), createJob);
+    contractRoute(app, 'jobUpdate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), updateJob);
     server = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
     const url = `http://127.0.0.1:${server.address().port}/jobs`;
     const body = (isHot = 0) => ({ name: 'Synthetic developer', descriptionHTML: '<p>Test only</p>', descriptionMarkdown: 'Test only',
@@ -109,6 +111,16 @@ try {
     const oldCreate = async (isHot = 0, userId = 7) => {
         const data = await legacy.handleCreateNewPost({ ...body(isHot), userId });
         return { body: data, ok: data.errCode === 0, id: data.postId };
+    };
+    const edit = async (id, patch, userId = 7, headers = {}) => {
+        const response = await fetch(`${url}/${id}`, { method: 'PUT', signal: AbortSignal.timeout(15000), headers: {
+            'content-type': 'application/json', 'x-internal-secret': token, 'x-user-id': String(userId),
+            'x-user-role': 'COMPANY', 'x-company-id': '3', 'x-company-status': 'S1', 'x-company-censor': 'CS1', ...headers
+        }, body: JSON.stringify(patch) });
+        const data = await response.json();
+        const validate = response.status === 200 ? validEdit : validError;
+        assert.ok(validate(data), JSON.stringify(validate.errors));
+        return { status: response.status, body: data };
     };
     const oldReup = async (postId, userId = 7) => {
         const data = await legacy.handleReupPost({ postId, userId, timeEnd: body().timeEnd });
@@ -336,7 +348,9 @@ try {
             assert.deepEqual(await balance(), [5, 5]);
         } finally { await pool.query('ALTER TABLE companies ENGINE=InnoDB'); }
     });
-    console.log(`Posting quota integration: ${passed} checks passed; disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
+    const { runJobEditChecks } = await import('./job-edit-checks.mjs');
+    await runJobEditChecks({ pool, check, core, edit, legacy, oldReup, counts, balance, waitForRowWait });
+    console.log(`Posting writes integration: ${passed} checks passed (quotas + edits); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
     const closed = await Promise.allSettled([

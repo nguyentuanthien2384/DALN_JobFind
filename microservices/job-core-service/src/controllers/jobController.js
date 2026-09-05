@@ -4,6 +4,7 @@ import { createLogger } from '../../../shared/logger.js';
 import { enqueueOutboxEvent } from '../libs/outbox.js';
 import { requestJobModeration, cancelJobModeration } from '../libs/moderationState.js';
 import { consumePostingQuota, PostingQuotaError } from '../libs/postingQuota.js';
+import { DETAIL_FIELDS, JobEditError, lockJobForEdit, assertUnchangedDeadline, editedDetail } from '../libs/jobEdit.js';
 
 const logger = createLogger('job-core-service');
 
@@ -17,7 +18,7 @@ const identity = (req) => ({
 
 // Shared primary-source snapshot for event payloads and Search refreshes.
 // Search rereads this snapshot until all source writers support domain versions.
-const loadJobForEvent = async (postId, db = pool) => {
+const loadJobForEvent = async (postId, db = pool, { current = false } = {}) => {
     const [rows] = await db.query(
         `SELECT p.id, p.statusCode, p.timePost, p.timeEnd, p.isHot, p.userId,
                 d.name, d.descriptionHTML, d.descriptionMarkdown, d.amount,
@@ -32,7 +33,7 @@ const loadJobForEvent = async (postId, db = pool) => {
          JOIN detailposts d ON d.id = p.detailPostId
          LEFT JOIN users u ON u.id = p.userId
          LEFT JOIN companies c ON c.id = u.companyId
-         WHERE p.id = ?`,
+         WHERE p.id = ?${current ? ' LOCK IN SHARE MODE' : ''}`,
         [postId]
     );
     return rows[0] || null;
@@ -83,7 +84,7 @@ export const createJob = async (req, res) => {
                     now, now
                 ]
             );
-            const createdJob = await loadJobForEvent(post.insertId, conn);
+            const createdJob = await loadJobForEvent(post.insertId, conn, { current: true });
             if (!createdJob) throw new Error('Không đọc được tin vừa tạo');
 
             await enqueueOutboxEvent(conn, {
@@ -129,39 +130,31 @@ export const updateJob = async (req, res) => {
         }
 
         const job = await withTransaction(async (conn) => {
-            const [[locked]] = await conn.query('SELECT id, statusCode FROM posts WHERE id = ? FOR UPDATE', [postId]);
-            if (!locked || locked.statusCode === 'PS4') {
-                throw Object.assign(new Error('Tin đã được gỡ hoặc không còn tồn tại'), { statusCode: 409 });
-            }
-            const needsModeration = b.name != null || b.descriptionHTML != null;
-            await conn.query(
-                `UPDATE detailposts SET
-                   name = COALESCE(?, name),
-                   descriptionHTML = COALESCE(?, descriptionHTML),
-                   descriptionMarkdown = COALESCE(?, descriptionMarkdown),
-                   categoryJobCode = COALESCE(?, categoryJobCode),
-                   addressCode = COALESCE(?, addressCode),
-                   salaryJobCode = COALESCE(?, salaryJobCode),
-                   amount = COALESCE(?, amount),
-                   categoryJoblevelCode = COALESCE(?, categoryJoblevelCode),
-                   categoryWorktypeCode = COALESCE(?, categoryWorktypeCode),
-                   experienceJobCode = COALESCE(?, experienceJobCode)
-                 WHERE id = (SELECT detailPostId FROM posts WHERE id = ?)`,
-                [
-                    b.name ?? null, b.descriptionHTML ?? null, b.descriptionMarkdown ?? null,
-                    b.categoryJobCode ?? null, b.addressCode ?? null, b.salaryJobCode ?? null,
-                    b.amount ?? null, b.categoryJoblevelCode ?? null,
-                    b.categoryWorktypeCode ?? null, b.experienceJobCode ?? null,
-                    postId
-                ]
-            );
-            if (needsModeration) {
-                await conn.query("UPDATE posts SET statusCode = 'PS3', updatedAt = ? WHERE id = ?", [new Date(), postId]);
-            } else {
-                await conn.query('UPDATE posts SET updatedAt = ? WHERE id = ?', [new Date(), postId]);
+            const post = await lockJobForEdit(conn, existing, { userId, roleCode, companyId });
+            assertUnchangedDeadline(post, b);
+            const [[currentDetail]] = await conn.query('SELECT * FROM detailposts WHERE id = ? FOR UPDATE', [post.detailPostId]);
+            if (!currentDetail) throw new JobEditError('Không tìm thấy nội dung tin, vui lòng tải lại trang');
+            const { detail, changed, needsModeration } = editedDetail(currentDetail, b);
+            // Repeatable-read may retain a snapshot from before waiting on the
+            // author/company lock. Responses and events must use a current read,
+            // including a no-op that observed another writer's committed edit.
+            if (!changed) {
+                const unchangedJob = await loadJobForEvent(postId, conn, { current: true });
+                if (!unchangedJob) throw new Error('Không đọc được tin hiện tại');
+                return unchangedJob;
             }
 
-            const updatedJob = await loadJobForEvent(postId, conn);
+            // Always copy on a real detail edit. A check-then-update of an
+            // "unshared" row races with legacy re-posting and changes siblings.
+            // Keep the old snapshot; its lifecycle belongs to a retention job.
+            const [inserted] = await conn.query(
+                `INSERT INTO detailposts (${DETAIL_FIELDS.join(',')}) VALUES (${DETAIL_FIELDS.map(() => '?').join(',')})`,
+                DETAIL_FIELDS.map(field => detail[field])
+            );
+            await conn.query('UPDATE posts SET detailPostId = ?, statusCode = ?, updatedAt = ? WHERE id = ?',
+                [inserted.insertId, needsModeration ? 'PS3' : post.statusCode, new Date(), postId]);
+
+            const updatedJob = await loadJobForEvent(postId, conn, { current: true });
             if (!updatedJob) throw new Error('Không đọc được tin vừa cập nhật');
 
             await enqueueOutboxEvent(conn, {
@@ -179,8 +172,10 @@ export const updateJob = async (req, res) => {
         logger.info('da cap nhat tin', { postId, userId });
         return res.json({ errCode: 0, data: job });
     } catch (error) {
+        if (error instanceof JobEditError || error instanceof PostingQuotaError) {
+            return res.status(error.statusCode).json({ errCode: error.statusCode === 403 ? 3 : 4, errMessage: error.message });
+        }
         logger.error('cap nhat tin that bai', { error: error.message, postId });
-        if (error.statusCode === 409) return res.status(409).json({ errCode: 4, errMessage: error.message });
         return res.status(500).json({ errCode: -1, errMessage: 'Không cập nhật được tin' });
     }
 };

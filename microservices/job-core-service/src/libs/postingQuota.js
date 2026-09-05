@@ -8,14 +8,7 @@ export class PostingQuotaError extends Error {
     }
 }
 
-export const consumePostingQuota = async (conn, { userId, companyId, isHot }) => {
-    if (![undefined, false, true, 0, 1].includes(isHot)) {
-        throw new PostingQuotaError('Loại tin tuyển dụng không hợp lệ', 400);
-    }
-    if (!Number.isSafeInteger(userId) || userId <= 0
-        || !Number.isSafeInteger(companyId) || companyId <= 0) {
-        throw new PostingQuotaError('Người dùng không thuộc công ty hợp lệ', 403);
-    }
+export const assertTransactionalPostingTables = async (conn) => {
     // Fail before any mutation if legacy tables cannot roll back. Do not silently
     // convert tables, and do not cache this check across deployment/migrations.
     const required = ['users', 'companies', 'posts', 'detailposts'];
@@ -25,6 +18,17 @@ export const consumePostingQuota = async (conn, { userId, companyId, isHot }) =>
     if (required.some((name) => !tables.some((table) => table.name === name && table.engine === 'InnoDB'))) {
         throw new PostingQuotaError('Chưa thể đăng tin: cấu hình giao dịch dữ liệu chưa sẵn sàng', 503);
     }
+};
+
+export const consumePostingQuota = async (conn, { userId, companyId, isHot }) => {
+    if (![undefined, false, true, 0, 1].includes(isHot)) {
+        throw new PostingQuotaError('Loại tin tuyển dụng không hợp lệ', 400);
+    }
+    if (!Number.isSafeInteger(userId) || userId <= 0
+        || !Number.isSafeInteger(companyId) || companyId <= 0) {
+        throw new PostingQuotaError('Người dùng không thuộc công ty hợp lệ', 403);
+    }
+    await assertTransactionalPostingTables(conn);
     const [[user]] = await conn.query('SELECT id, companyId FROM users WHERE id = ? FOR UPDATE', [userId]);
     if (!user || Number(user.companyId) !== companyId) {
         throw new PostingQuotaError('Thông tin công ty đã thay đổi, vui lòng tải lại trang', 403);

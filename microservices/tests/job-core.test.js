@@ -86,6 +86,7 @@ describe('job write controller', () => {
         expect(conn.query.mock.calls[3][0]).toContain('allowHotPost = allowHotPost - 1');
         expect(conn.query.mock.calls[4][1][6]).toBe(1);
         expect(conn.query.mock.calls[5][1][0]).toBe('PS3');
+        expect(conn.query.mock.calls[6][0]).toContain('LOCK IN SHARE MODE');
         expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(1, conn, expect.objectContaining({
             aggregateType: 'job', aggregateId: 20, eventType: 'job.created', payload: { job }
         }));
@@ -119,13 +120,17 @@ describe('job write controller', () => {
     });
 
     it('updates owned jobs and re-moderates only when content changed', async () => {
-        const old = { id: 4, companyId: 2, name: 'Old', descriptionHTML: 'Old desc' };
+        const old = { id: 4, userId: 5, companyId: 2, name: 'Old', descriptionHTML: 'Old desc', amount: 2 };
         const changed = { ...old, name: 'New', descriptionHTML: 'New desc', statusCode: 'PS3' };
         mocks.pool.query.mockResolvedValueOnce([[old]]);
         const conn = {
             query: vi.fn()
-                .mockResolvedValueOnce([[{ id: 4, statusCode: 'PS1' }]])
-                .mockResolvedValueOnce(undefined)
+                .mockResolvedValueOnce([['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))])
+                .mockResolvedValueOnce([[{ id: 1, companyId: 2 }, { id: 5, companyId: 2 }]])
+                .mockResolvedValueOnce([[{ id: 2, statusCode: 'S1', censorCode: 'CS1' }]])
+                .mockResolvedValueOnce([[{ id: 4, userId: 5, detailPostId: 10, statusCode: 'PS1' }]])
+                .mockResolvedValueOnce([[old]])
+                .mockResolvedValueOnce([{ insertId: 11 }])
                 .mockResolvedValueOnce(undefined)
                 .mockResolvedValueOnce([[changed]])
         };
@@ -134,11 +139,12 @@ describe('job write controller', () => {
         const res = makeRes();
         await updateJob(makeReq({
             headers: { 'x-user-id': '1', 'x-company-id': '2', 'x-user-role': 'COMPANY' },
-            params: { id: '4' }, body: { name: 'New', amount: 0 }
+            params: { id: '4' }, body: { name: 'New', amount: 3 }
         }), res);
-        expect(conn.query).toHaveBeenCalledTimes(5);
-        expect(conn.query.mock.calls[0][0]).toContain('FOR UPDATE');
-        expect(conn.query.mock.calls[2][0]).toContain("statusCode = 'PS3'");
+        expect(conn.query).toHaveBeenCalledTimes(9);
+        expect(conn.query.mock.calls[1][0]).toContain('ORDER BY id FOR UPDATE');
+        expect(conn.query.mock.calls[6][1]).toEqual([11, 'PS3', expect.any(Date), 4]);
+        expect(conn.query.mock.calls[7][0]).toContain('LOCK IN SHARE MODE');
         expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(1, conn, expect.objectContaining({
             eventType: 'job.updated', payload: { job: changed }
         }));
@@ -150,12 +156,17 @@ describe('job write controller', () => {
         mocks.enqueueOutboxEvent.mockClear();
         mocks.pool.query.mockResolvedValueOnce([[old]]);
         conn.query.mockReset()
-            .mockResolvedValueOnce([[{ id: 4, statusCode: 'PS1' }]])
-            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce([['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))])
+            .mockResolvedValueOnce([[{ id: 1, companyId: 2 }, { id: 5, companyId: 2 }]])
+            .mockResolvedValueOnce([[{ id: 2, statusCode: 'S1', censorCode: 'CS1' }]])
+            .mockResolvedValueOnce([[{ id: 4, userId: 5, detailPostId: 10, statusCode: 'PS1' }]])
+            .mockResolvedValueOnce([[old]])
+            .mockResolvedValueOnce([{ insertId: 12 }])
             .mockResolvedValueOnce(undefined)
             .mockResolvedValueOnce([[old]]);
-        await updateJob(makeReq({ headers: { 'x-user-role': 'ADMIN' }, params: { id: '4' }, body: { amount: 3 } }), makeRes());
+        await updateJob(makeReq({ headers: { 'x-user-id': '1', 'x-user-role': 'ADMIN' }, params: { id: '4' }, body: { amount: 3 } }), makeRes());
         expect(mocks.enqueueOutboxEvent).toHaveBeenCalledOnce();
+        expect(conn.query.mock.calls[6][1][1]).toBe('PS1');
     });
 
     it('maps update exceptions to 500', async () => {
@@ -167,14 +178,18 @@ describe('job write controller', () => {
     });
 
     it('rejects an edit after a concurrent deletion without enqueuing moderation', async () => {
-        mocks.pool.query.mockResolvedValueOnce([[{ id: 4, companyId: 2 }]]);
-        const conn = { query: vi.fn().mockResolvedValueOnce([[{ id: 4, statusCode: 'PS4' }]]) };
+        mocks.pool.query.mockResolvedValueOnce([[{ id: 4, userId: 1, companyId: 2 }]]);
+        const conn = { query: vi.fn()
+            .mockResolvedValueOnce([['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))])
+            .mockResolvedValueOnce([[{ id: 1, companyId: 2 }]])
+            .mockResolvedValueOnce([[{ id: 2 }]])
+            .mockResolvedValueOnce([[{ id: 4, statusCode: 'PS4' }]]) };
         mocks.withTransaction.mockImplementation((work) => work(conn));
         const { updateJob } = await import('../job-core-service/src/controllers/jobController.js');
         const res = makeRes();
-        await updateJob(makeReq({ headers: { 'x-user-role': 'ADMIN' }, params: { id: '4' }, body: { name: 'edit' } }), res);
+        await updateJob(makeReq({ headers: { 'x-user-id': '1', 'x-user-role': 'ADMIN' }, params: { id: '4' }, body: { name: 'edit' } }), res);
         expect(res.statusCode).toBe(409);
-        expect(conn.query).toHaveBeenCalledOnce();
+        expect(conn.query).toHaveBeenCalledTimes(4);
         expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
     });
 
