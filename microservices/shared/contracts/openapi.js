@@ -19,7 +19,7 @@ export const buildOpenApi = (service = 'gateway') => {
         const parameters = ['params', 'query', 'headers'].flatMap((kind) => Object.entries(op[kind].properties).map(([name, schema]) => ({
             name, in: { params: 'path', query: 'query', headers: 'header' }[kind],
             required: kind === 'params' || op[kind].required.includes(name), schema: toOpenApi(schema),
-            ...(name === 'idempotency-key' && { description: 'Optional. Same user + key + canonical input returns the original task; changed input returns 409. Reuse for retries; a new key requests new work.' })
+            ...(name === 'idempotency-key' && { description: `${op.idempotencyRequired ? 'Required' : 'Optional'}. Same user + key + canonical input returns the original accepted result; changed input or operation returns 409. Reuse for retries; a new key requests new work.` })
         })));
         if (publicApi) parameters.push({ name: 'X-Correlation-ID', in: 'header', required: false, schema: { type: 'string', maxLength: 128 }, description: 'Invalid/missing values are replaced by the gateway. Not an authentication token.' });
         if (!publicApi && op.permission) {
@@ -43,6 +43,8 @@ export const buildOpenApi = (service = 'gateway') => {
                 op.internal ? 'Service-to-service only. Never exposed through the public gateway.' : 'Modern microservice endpoint; legacy fallback routes are outside this contract.',
                 op.permission ? `Requires permission ${op.permission}; resource ownership checks still apply.` : 'No end-user login required.',
                 op.companyRequired ? 'Non-admin callers must belong to an active, approved company.' : '',
+                ['jobCreate', 'jobRepost'].includes(op.id) ? 'Paid posting requires a current active, approved company even for ADMIN. With an Idempotency-Key, quota, new post, events and original response are committed atomically. Replay returns the initial 201 snapshot, not current moderation state, and rechecks current company membership/approval without spending quota. Keys must not be deleted while retries are possible. A new deadline must be in the future; omitted create deadline defaults to 30 days on the first accepted attempt.' : '',
+                op.id === 'jobRepost' ? 'Only expired, non-removed source posts in the caller company may be reposted. Copies the current detail into a new PS3 post, retaining the source featured flag and charging the matching quota. Original post is unchanged; new post requires moderation. Replays do not reread mutable source content.' : '',
                 op.searchWindow ? 'offset + effective limit must not exceed 10000; limit=0 uses the default of 12.' : '',
                 Object.hasOwn(op.query.properties, 'fromDate') ? 'fromDate must not be after toDate. Accepts an ISO date or timestamp.' : ''
             ].filter(Boolean).join(' '),

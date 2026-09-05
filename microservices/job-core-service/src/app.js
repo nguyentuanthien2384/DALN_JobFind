@@ -9,6 +9,7 @@ import { testConnection, pool } from './libs/db.js';
 import { ensureOutboxTable, startOutboxRelay, stopOutboxRelay } from './libs/outbox.js';
 import { ensureAiResultTables } from './libs/moderationState.js';
 import { ensureAiRequestTable } from './libs/aiTaskRequest.js';
+import { ensureJobRequestTable } from './libs/jobRequest.js';
 import { aiResultRetry } from './libs/aiResultRetry.js';
 import { consume, isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import { EVENTS, QUEUES } from '../../shared/events.js';
@@ -16,7 +17,7 @@ import {
     PERMISSIONS, requireServicePermission, requireTrustedGateway
 } from '../../shared/accessControl.js';
 import {
-    createJob, updateJob, deleteJob, getJob, listJobsForReindex, getJobForIndex
+    createJob, repostJob, updateJob, deleteJob, getJob, listJobsForReindex, getJobForIndex
 } from './controllers/jobController.js';
 import {
     ensureAiTaskTable, parseResume, matchCv, coverLetter, getTask, handleAiResult
@@ -51,6 +52,7 @@ app.use(requireTrustedGateway);
 // --- Ben Ghi (Command) ---
 const canManageJobs = requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true });
 contractRoute(app, 'jobCreate', canManageJobs, createJob);
+contractRoute(app, 'jobRepost', canManageJobs, repostJob);
 contractRoute(app, 'jobUpdate', canManageJobs, updateJob);
 contractRoute(app, 'jobDelete', canManageJobs, deleteJob);
 contractRoute(app, 'jobGet', getJob);
@@ -73,6 +75,7 @@ const start = async () => {
     await ensureOutboxTable();
     await ensureAiResultTables();
     await ensureAiRequestTable();
+    await ensureJobRequestTable();
 
     // Lang nghe ket qua tra ve tu AI Worker.
     await consume(QUEUES.AI_RESULT_HANDLER, [EVENTS.AI_RESULT], async (payload, _routingKey, metadata) => {

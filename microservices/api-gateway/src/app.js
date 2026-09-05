@@ -156,6 +156,9 @@ app.use('/api/search', publicLimiter, createProxy('search', sub('/search')));
 app.post('/api/jobs', writeLimiter,
     requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
     createProxy('jobs', () => '/jobs'));
+app.post('/api/jobs/:id/repost', writeLimiter,
+    requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
+    createProxy('jobs', (req) => `/jobs/${req.params.id}/repost`));
 app.put('/api/jobs/:id', writeLimiter,
     requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
     createProxy('jobs', (req) => `/jobs/${req.params.id}`));

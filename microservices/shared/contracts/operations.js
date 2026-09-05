@@ -10,7 +10,8 @@ const jobParams = object({ id: idString }, ['id']);
 const cvParams = object({ cvId: mongoId }, ['cvId']);
 const company = { companyRequired: true };
 export const operations = [
-    op('jobCreate', 'jobs', 'post', '/jobs', P.JOB_MANAGE, { body: 'JobCreate', response: 'Job', status: 201, ...company }),
+    op('jobCreate', 'jobs', 'post', '/jobs', P.JOB_MANAGE, { body: 'JobCreate', response: 'Job', status: 201, idempotency: true, ...company }),
+    op('jobRepost', 'jobs', 'post', '/jobs/:id/repost', P.JOB_MANAGE, { params: jobParams, body: 'JobRepost', response: 'Job', status: 201, idempotency: true, idempotencyRequired: true, ...company }),
     op('jobUpdate', 'jobs', 'put', '/jobs/:id', P.JOB_MANAGE, { params: jobParams, body: 'JobUpdate', response: 'Job', ...company }),
     op('jobDelete', 'jobs', 'delete', '/jobs/:id', P.JOB_MANAGE, { params: jobParams, response: 'Ack', ...company }),
     op('jobGet', 'jobs', 'get', '/jobs/:id', null, { params: jobParams, response: 'Job' }),
@@ -56,7 +57,7 @@ export const operations = [
     op('masterDelete', 'admin', 'delete', '/master-data/:id', P.ADMIN_WRITE, { params: object({ id: mongoId }, ['id']), response: 'Ack' }),
     op('auditIngest', 'admin', 'post', '/internal/audit-action', null, { internal: true, body: 'AuditAction', response: 'Ack' }),
     op('aliasMap', 'admin', 'get', '/internal/alias-map', null, { internal: true })
-].map((operation) => ({ ...operation, headers: operation.idempotency ? object({ 'idempotency-key': requestKey }, [], true) : object({}, [], true) }));
+].map((operation) => ({ ...operation, headers: operation.idempotency ? object({ 'idempotency-key': requestKey }, operation.idempotencyRequired ? ['idempotency-key'] : [], true) : object({}, [], true) }));
 
 export const operationById = Object.fromEntries(operations.map((operation) => [operation.id, operation]));
 export const publicPath = (operation) => `/api${operation.service === 'admin' ? '/admin' : ''}${operation.path}`;

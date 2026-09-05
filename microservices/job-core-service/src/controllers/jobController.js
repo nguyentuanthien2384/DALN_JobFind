@@ -3,7 +3,8 @@ import { EVENTS } from '../../../shared/events.js';
 import { createLogger } from '../../../shared/logger.js';
 import { enqueueOutboxEvent } from '../libs/outbox.js';
 import { requestJobModeration, cancelJobModeration } from '../libs/moderationState.js';
-import { consumePostingQuota, PostingQuotaError } from '../libs/postingQuota.js';
+import { consumePostingQuota, consumeLockedPostingQuota, PostingQuotaError } from '../libs/postingQuota.js';
+import { runJobRequest, normalizeJobCreate, futureJobDeadline, JobRequestError } from '../libs/jobRequest.js';
 import { DETAIL_FIELDS, JobEditError, lockJobForEdit, assertUnchangedDeadline, editedDetail } from '../libs/jobEdit.js';
 
 const logger = createLogger('job-core-service');
@@ -39,66 +40,45 @@ const loadJobForEvent = async (postId, db = pool, { current = false } = {}) => {
     return rows[0] || null;
 };
 
+// A new/reposted job is always a new pending-review post and detail snapshot.
+const insertPendingJob = async (conn, { userId, isHot, timeEnd, detail }) => {
+    const [insertedDetail] = await conn.query(
+        `INSERT INTO detailposts (${DETAIL_FIELDS.join(',')}) VALUES (${DETAIL_FIELDS.map(() => '?').join(',')})`,
+        DETAIL_FIELDS.map(field => detail[field] ?? null)
+    );
+    const now = new Date();
+    const [post] = await conn.query(
+        `INSERT INTO posts
+         (statusCode, timeEnd, userId, isHot, timePost, detailPostId, createdAt, updatedAt)
+         VALUES (?,?,?,?,?,?,?,?)`,
+        ['PS3', timeEnd, userId, isHot, String(now.getTime()), insertedDetail.insertId, now, now]
+    );
+    const job = await loadJobForEvent(post.insertId, conn, { current: true });
+    if (!job) throw new Error('Không đọc được tin vừa tạo');
+    await enqueueOutboxEvent(conn, {
+        aggregateType: 'job', aggregateId: post.insertId,
+        eventType: EVENTS.JOB_CREATED, payload: { job }
+    });
+    await requestJobModeration(conn, job);
+    return { postId: post.insertId, job };
+};
+
 export const createJob = async (req, res) => {
     const { userId, companyId } = identity(req);
     const b = req.body || {};
-
     if (!b.name || !b.descriptionHTML || !b.categoryJobCode) {
-        return res.status(400).json({
-            errCode: 1,
-            errMessage: 'Thiếu tên tin, mô tả hoặc ngành nghề'
-        });
+        return res.status(400).json({ errCode: 1, errMessage: 'Thiếu tên tin, mô tả hoặc ngành nghề' });
     }
-
     try {
-        const { postId, job } = await withTransaction(async (conn) => {
+        const input = normalizeJobCreate(b);
+        const { postId, job } = await withTransaction(conn => runJobRequest(conn, {
+            userId, companyId, key: req.headers['idempotency-key'], operation: 'create', input
+        }, async () => {
+            const timeEnd = futureJobDeadline(input.timeEnd);
             await consumePostingQuota(conn, { userId, companyId, isHot: b.isHot });
-            const [detail] = await conn.query(
-                `INSERT INTO detailposts
-                 (name, descriptionHTML, descriptionMarkdown, categoryJobCode, addressCode,
-                  salaryJobCode, amount, categoryJoblevelCode, categoryWorktypeCode,
-                  experienceJobCode, genderPostCode)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-                [
-                    b.name, b.descriptionHTML, b.descriptionMarkdown || '',
-                    b.categoryJobCode, b.addressCode || null, b.salaryJobCode || null,
-                    b.amount || 1, b.categoryJoblevelCode || null,
-                    b.categoryWorktypeCode || null, b.experienceJobCode || null,
-                    b.genderPostCode || null
-                ]
-            );
-
-            const now = new Date();
-            const [post] = await conn.query(
-                `INSERT INTO posts
-                 (statusCode, timeEnd, userId, isHot, timePost, detailPostId, createdAt, updatedAt)
-                 VALUES (?,?,?,?,?,?,?,?)`,
-                [
-                    // PS3 = cho kiem duyet. Tin chi hien ra sau khi AI duyet xong.
-                    'PS3',
-                    b.timeEnd || String(Date.now() + 30 * 24 * 3600 * 1000),
-                    userId,
-                    b.isHot ? 1 : 0,
-                    String(Date.now()),
-                    detail.insertId,
-                    now, now
-                ]
-            );
-            const createdJob = await loadJobForEvent(post.insertId, conn, { current: true });
-            if (!createdJob) throw new Error('Không đọc được tin vừa tạo');
-
-            await enqueueOutboxEvent(conn, {
-                aggregateType: 'job',
-                aggregateId: post.insertId,
-                eventType: EVENTS.JOB_CREATED,
-                payload: { job: createdJob }
-            });
-            await requestJobModeration(conn, createdJob);
-
-            return { postId: post.insertId, job: createdJob };
-        });
-
-        logger.info('da tao tin tuyen dung', { postId, userId, companyId });
+            return insertPendingJob(conn, { userId, isHot: input.isHot, timeEnd, detail: input });
+        }));
+        logger.info('da chap nhan tin tuyen dung', { postId, userId, companyId });
         return res.status(201).json({ errCode: 0, data: job });
     } catch (error) {
         if (error instanceof PostingQuotaError) {
@@ -106,6 +86,44 @@ export const createJob = async (req, res) => {
         }
         logger.error('tao tin that bai', { error: error.message });
         return res.status(500).json({ errCode: -1, errMessage: 'Không tạo được tin tuyển dụng' });
+    }
+};
+
+export const repostJob = async (req, res) => {
+    const { userId, companyId } = identity(req);
+    const sourceId = Number(req.params.id);
+    const input = { sourceId, timeEnd: String(req.body?.timeEnd ?? '') };
+    try {
+        if (!Number.isSafeInteger(sourceId) || sourceId <= 0 || !input.timeEnd) {
+            throw new JobRequestError('Thiếu tin nguồn hoặc ngày hết hạn mới', 400);
+        }
+        const { postId, job } = await withTransaction(conn => runJobRequest(conn, {
+            userId, companyId, key: req.headers['idempotency-key'], operation: 'repost', input, required: true
+        }, async () => {
+            const timeEnd = futureJobDeadline(input.timeEnd);
+            // Only a hint for locking the author. Revalidate ownership, source
+            // status, deadline and detail pointer with current reads under lock.
+            const [[initial]] = await conn.query('SELECT id, userId FROM posts WHERE id = ?', [sourceId]);
+            if (!initial) throw new JobRequestError('Không tìm thấy tin tuyển dụng', 404);
+            // Even ADMIN must use their own approved company's paid slots.
+            const source = await lockJobForEdit(conn, initial, { userId, companyId, roleCode: 'COMPANY' });
+            if (!Number.isSafeInteger(Number(source.timeEnd)) || Number(source.timeEnd) <= 0
+                || Number(source.timeEnd) > Date.now()) {
+                throw new JobRequestError('Chỉ có thể đăng lại tin đã hết hạn');
+            }
+            const [[detail]] = await conn.query('SELECT * FROM detailposts WHERE id = ? FOR UPDATE', [source.detailPostId]);
+            if (!detail) throw new JobRequestError('Không tìm thấy nội dung tin nguồn');
+            await consumeLockedPostingQuota(conn, { companyId, isHot: source.isHot });
+            return insertPendingJob(conn, { userId, isHot: source.isHot, timeEnd, detail });
+        }));
+        logger.info('da chap nhan dang lai tin', { postId, sourceId, userId, companyId });
+        return res.status(201).json({ errCode: 0, data: job });
+    } catch (error) {
+        if (error instanceof PostingQuotaError || error instanceof JobEditError) {
+            return res.status(error.statusCode).json({ errCode: 2, errMessage: error.message });
+        }
+        logger.error('dang lai tin that bai', { error: error.message, sourceId });
+        return res.status(500).json({ errCode: -1, errMessage: 'Không đăng lại được tin tuyển dụng' });
     }
 };
 

@@ -36,6 +36,9 @@ const jobFields = {
 export const queryNumber = (max) => ({ type: 'string', pattern: '^(0|[1-9][0-9]*)$', maxLength: String(max).length, format: `jobfind-uint-${max}` });
 export const schemas = {
     Empty: object(),
+    JobRepost: object({
+        timeEnd: { anyOf: [integer(1, 8640000000000000), { type: 'string', pattern: '^[1-9][0-9]{0,15}$', format: 'jobfind-id' }] }
+    }, ['timeEnd']),
     JobCreate: object({ ...jobFields, genderPostCode: optionalText(64),
         timeEnd: { anyOf: [integer(1, 8640000000000000), { type: 'string', pattern: '^[1-9][0-9]{0,15}$', format: 'jobfind-id' }] },
         isHot: { anyOf: [{ type: 'boolean' }, { type: 'integer', enum: [0, 1] }] }

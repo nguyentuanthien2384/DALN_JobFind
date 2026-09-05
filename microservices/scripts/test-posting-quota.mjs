@@ -59,7 +59,8 @@ try {
     legacyDb = legacyRequire('./src/models/index.js');
     assert.equal((await legacyDb.sequelize.query('SELECT DATABASE() AS name'))[0][0].name, database);
     const legacy = legacyRequire('./src/services/postService.js');
-    const { createJob, updateJob } = await import('../job-core-service/src/controllers/jobController.js');
+    const { createJob, updateJob, repostJob } = await import('../job-core-service/src/controllers/jobController.js');
+    const { ensureJobRequestTable } = await import('../job-core-service/src/libs/jobRequest.js');
     const { ensureAiTaskTable } = await import('../job-core-service/src/controllers/aiController.js');
     const { ensureOutboxTable } = await import('../job-core-service/src/libs/outbox.js');
     const { ensureAiResultTables } = await import('../job-core-service/src/libs/moderationState.js');
@@ -87,10 +88,17 @@ try {
     await ensureAiTaskTable();
     await ensureOutboxTable();
     await ensureAiResultTables();
+    await ensureJobRequestTable();
 
     const app = express();
     app.use(express.json(), requireTrustedGateway);
+    app.use((req, res, next) => {
+        // Test-only response loss AFTER controller commit, never a production hook.
+        if (req.headers['x-test-drop-response'] === '1') res.json = () => res.destroy();
+        next();
+    });
     contractRoute(app, 'jobCreate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), createJob);
+    contractRoute(app, 'jobRepost', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), repostJob);
     contractRoute(app, 'jobUpdate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), updateJob);
     server = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
     const url = `http://127.0.0.1:${server.address().port}/jobs`;
@@ -111,6 +119,17 @@ try {
     const oldCreate = async (isHot = 0, userId = 7) => {
         const data = await legacy.handleCreateNewPost({ ...body(isHot), userId });
         return { body: data, ok: data.errCode === 0, id: data.postId };
+    };
+    const repost = async (id, key, timeEnd = String(Date.now() + 86400000), userId = 7, headers = {}, overrides = {}) => {
+        const response = await fetch(`${url}/${id}/repost`, { method: 'POST', signal: AbortSignal.timeout(15000), headers: {
+            'content-type': 'application/json', 'x-internal-secret': token, 'x-user-id': String(userId),
+            'x-user-role': 'COMPANY', 'x-company-id': '3', 'x-company-status': 'S1', 'x-company-censor': 'CS1',
+            ...(key !== undefined && { 'idempotency-key': key }), ...headers
+        }, body: JSON.stringify({ timeEnd, ...overrides }) });
+        const data = await response.json();
+        const validate = response.status === 201 ? validSuccess : validError;
+        assert.ok(validate(data), JSON.stringify(validate.errors));
+        return { status: response.status, body: data, ok: data.errCode === 0, id: data.data?.id };
     };
     const edit = async (id, patch, userId = 7, headers = {}) => {
         const response = await fetch(`${url}/${id}`, { method: 'PUT', signal: AbortSignal.timeout(15000), headers: {
@@ -350,7 +369,9 @@ try {
     });
     const { runJobEditChecks } = await import('./job-edit-checks.mjs');
     await runJobEditChecks({ pool, check, core, edit, legacy, oldReup, counts, balance, waitForRowWait });
-    console.log(`Posting writes integration: ${passed} checks passed (quotas + edits); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
+    const { runJobRequestChecks } = await import('./job-request-checks.mjs');
+    await runJobRequestChecks({ pool, check, core, repost, edit, counts, balance, waitForRowWait });
+    console.log(`Posting writes integration: ${passed} checks passed (quotas + edits + idempotent create/repost); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
     const closed = await Promise.allSettled([

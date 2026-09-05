@@ -20,10 +20,7 @@ export const assertTransactionalPostingTables = async (conn) => {
     }
 };
 
-export const consumePostingQuota = async (conn, { userId, companyId, isHot }) => {
-    if (![undefined, false, true, 0, 1].includes(isHot)) {
-        throw new PostingQuotaError('Loại tin tuyển dụng không hợp lệ', 400);
-    }
+export const lockPostingCompany = async (conn, { userId, companyId }) => {
     if (!Number.isSafeInteger(userId) || userId <= 0
         || !Number.isSafeInteger(companyId) || companyId <= 0) {
         throw new PostingQuotaError('Người dùng không thuộc công ty hợp lệ', 403);
@@ -39,6 +36,15 @@ export const consumePostingQuota = async (conn, { userId, companyId, isHot }) =>
     if (!company || company.statusCode !== 'S1' || company.censorCode !== 'CS1') {
         throw new PostingQuotaError('Công ty chưa được duyệt, đã bị khóa hoặc không tồn tại', 403);
     }
+};
+
+// Caller already holds the current user/company locks (or lockJobForEdit with
+// no admin bypass). Separating authorization from debit also permits safe replay
+// when the previously accepted request spent the last slot.
+export const consumeLockedPostingQuota = async (conn, { companyId, isHot }) => {
+    if (![undefined, false, true, 0, 1].includes(isHot)) {
+        throw new PostingQuotaError('Loại tin tuyển dụng không hợp lệ', 400);
+    }
     // Field names come only from this fixed allowlist, never from a request.
     const hot = isHot === true || isHot === 1;
     const field = hot ? 'allowHotPost' : 'allowPost';
@@ -50,4 +56,12 @@ export const consumePostingQuota = async (conn, { userId, companyId, isHot }) =>
             ? 'Công ty bạn đã hết số lần đăng bài viết nổi bật'
             : 'Công ty bạn đã hết số lần đăng bài viết bình thường');
     }
+};
+
+export const consumePostingQuota = async (conn, context) => {
+    if (![undefined, false, true, 0, 1].includes(context.isHot)) {
+        throw new PostingQuotaError('Loại tin tuyển dụng không hợp lệ', 400);
+    }
+    await lockPostingCompany(conn, context);
+    await consumeLockedPostingQuota(conn, context);
 };

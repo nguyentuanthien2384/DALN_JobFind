@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => {
     const express = Object.assign(vi.fn(() => app), { json: vi.fn() });
     return { app, express, waitForElastic: vi.fn(), ensureIndex: vi.fn(), startIndexer: vi.fn(),
         rebuildIndex: vi.fn(), count: vi.fn(), testConnection: vi.fn(), consume: vi.fn(),
-        getJobForIndex: vi.fn(), ensureAiResultTables: vi.fn(), ensureAiRequestTable: vi.fn(), handleAiResult: vi.fn(), timer: { unref: vi.fn() } };
+        getJobForIndex: vi.fn(), ensureAiResultTables: vi.fn(), ensureAiRequestTable: vi.fn(), ensureJobRequestTable: vi.fn(), handleAiResult: vi.fn(), timer: { unref: vi.fn() } };
 });
 vi.mock('express', () => ({ default: mocks.express }));
 vi.mock('../search-service/src/libs/elastic.js', () => ({
@@ -20,8 +20,9 @@ vi.mock('../job-core-service/src/libs/db.js', () => ({ testConnection: mocks.tes
 vi.mock('../job-core-service/src/libs/outbox.js', () => ({ ensureOutboxTable: vi.fn(), startOutboxRelay: vi.fn() }));
 vi.mock('../job-core-service/src/libs/moderationState.js', () => ({ ensureAiResultTables: mocks.ensureAiResultTables }));
 vi.mock('../job-core-service/src/libs/aiTaskRequest.js', () => ({ ensureAiRequestTable: mocks.ensureAiRequestTable }));
+vi.mock('../job-core-service/src/libs/jobRequest.js', () => ({ ensureJobRequestTable: mocks.ensureJobRequestTable }));
 vi.mock('../job-core-service/src/controllers/jobController.js', () => ({
-    createJob: vi.fn(), updateJob: vi.fn(), deleteJob: vi.fn(), getJob: vi.fn(), listJobsForReindex: vi.fn(), getJobForIndex: mocks.getJobForIndex
+    createJob: vi.fn(), repostJob: vi.fn(), updateJob: vi.fn(), deleteJob: vi.fn(), getJob: vi.fn(), listJobsForReindex: vi.fn(), getJobForIndex: mocks.getJobForIndex
 }));
 vi.mock('../job-core-service/src/controllers/aiController.js', () => ({
     ensureAiTaskTable: vi.fn(), parseResume: vi.fn(), matchCv: vi.fn(), coverLetter: vi.fn(), getTask: vi.fn(), handleAiResult: mocks.handleAiResult
@@ -36,6 +37,7 @@ beforeEach(() => {
     mocks.count.mockResolvedValue({ count: 3 });
     mocks.ensureAiResultTables.mockResolvedValue(undefined);
     mocks.ensureAiRequestTable.mockResolvedValue(undefined);
+    mocks.ensureJobRequestTable.mockResolvedValue(undefined);
     mocks.handleAiResult.mockResolvedValue({ outcome: 'applied' });
     vi.spyOn(globalThis, 'setInterval').mockReturnValue(mocks.timer);
     vi.stubEnv('INTERNAL_SECRET', 'internal-bootstrap-secret');
@@ -48,6 +50,7 @@ describe('Search/Job Core projection wiring', () => {
         await vi.waitFor(() => expect(mocks.app.listen).toHaveBeenCalledOnce());
         expect(mocks.ensureAiResultTables.mock.invocationCallOrder[0]).toBeLessThan(mocks.consume.mock.invocationCallOrder[0]);
         expect(mocks.ensureAiRequestTable.mock.invocationCallOrder[0]).toBeLessThan(mocks.consume.mock.invocationCallOrder[0]);
+        expect(mocks.ensureJobRequestTable.mock.invocationCallOrder[0]).toBeLessThan(mocks.consume.mock.invocationCallOrder[0]);
         const [queue, patterns, callback, options] = mocks.consume.mock.calls[0];
         expect(queue).toBe('job-core-service.ai-results');
         expect(patterns).toEqual(['ai.result']);
@@ -95,6 +98,15 @@ describe('Search/Job Core projection wiring', () => {
         expect(next).not.toHaveBeenCalled();
         requireTrustedGateway(makeReq({ headers: { 'x-internal-secret': 'internal-bootstrap-secret' } }), makeRes(), next);
         expect(next).toHaveBeenCalledOnce();
+    });
+
+    it('does not start consumers or writes when the posting ledger cannot be ensured', async () => {
+        const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined);
+        mocks.ensureJobRequestTable.mockRejectedValueOnce(new Error('nontransactional posting ledger'));
+        await import('../job-core-service/src/app.js');
+        await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(1));
+        expect(mocks.consume).not.toHaveBeenCalled();
+        expect(mocks.app.listen).not.toHaveBeenCalled();
     });
 
     it('serves the existing index if initial reconciliation fails and schedules another attempt', async () => {

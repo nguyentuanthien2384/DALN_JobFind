@@ -28,7 +28,7 @@ export const lockJobForEdit = async (conn, initial, { userId, companyId, roleCod
             throw new JobEditError('Công ty chưa được duyệt, đã bị khóa hoặc không tồn tại', 403);
         }
     }
-    const [[post]] = await conn.query('SELECT id, userId, detailPostId, statusCode, timeEnd FROM posts WHERE id = ? FOR UPDATE', [initial.id]);
+    const [[post]] = await conn.query('SELECT id, userId, detailPostId, statusCode, timeEnd, isHot FROM posts WHERE id = ? FOR UPDATE', [initial.id]);
     if (!post || post.statusCode === 'PS4') throw new JobEditError('Tin đã được gỡ hoặc không còn tồn tại');
     if (post.userId !== initial.userId) throw new JobEditError('Người đăng tin đã thay đổi, vui lòng tải lại trang');
     return post;

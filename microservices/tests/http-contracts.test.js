@@ -13,9 +13,11 @@ vi.mock('../../frontend/src/axios.js', () => ({ default: frontendHttp }));
 import * as aiClient from '../../frontend/src/service/aiSearchService.js';
 import * as applicationClient from '../../frontend/src/service/applicationService.js';
 import * as adminClient from '../../frontend/src/service/adminReportService.js';
+import * as jobClient from '../../frontend/src/service/jobPostingService.js';
 
 const cvId = '507f1f77bcf86cd799439011';
 const bodyExamples = {
+    JobRepost: { timeEnd: '2000000000000' },
     JobCreate: { name: 'Lập trình viên', descriptionHTML: '<p>Phát triển ứng dụng</p>', categoryJobCode: 'IT', amount: '2' },
     JobUpdate: { name: 'Developer', amount: '2', genderPostCode: 'G1', timeEnd: '1700000000000' },
     ParseResume: { fileBase64: 'c3ludGhldGljIENW', fileName: 'cv.pdf' },
@@ -46,8 +48,9 @@ const pathFor = (op) => op.path.replace(/:cvId\b/g, cvId).replace(/:taskId\b/g, 
 const send = (id, { body, raw, query = '', path, headers = {}, omitIdentity = false, ...options } = {}) => {
     const op = operationById[id];
     const payload = raw ?? (body === undefined ? undefined : JSON.stringify(body));
+    const defaultKey = op.idempotencyRequired && !Object.keys(headers).some(name => name.toLowerCase() === 'idempotency-key');
     return fetch(origins[op.service] + (path || pathFor(op)) + query, {
-        method: op.method.toUpperCase(), headers: { ...(omitIdentity ? {} : trusted), ...(payload !== undefined && { 'content-type': 'application/json' }), ...headers },
+        method: op.method.toUpperCase(), headers: { ...(omitIdentity ? {} : trusted), ...(defaultKey && { 'idempotency-key': 'contract-request' }), ...(payload !== undefined && { 'content-type': 'application/json' }), ...headers },
         ...(payload !== undefined && { body: payload }), ...options
     });
 };
@@ -78,6 +81,8 @@ afterAll(async () => {
 
 describe('real HTTP request contracts', () => {
     it.each([
+        ['jobCreate', jobClient.createJob, [bodyExamples.JobCreate, { idempotencyKey: 'create-test' }]],
+        ['jobRepost', jobClient.repostJob, [7, bodyExamples.JobRepost.timeEnd, { idempotencyKey: 'repost-test' }]],
         ['searchJobs', aiClient.searchJobs, [{ q: 'Node', limit: 12, offset: 0, isHot: false, categoryJobCode: 'IT' }]],
         ['searchRelated', aiClient.getRelatedJobs, [7]],
         ['profileUpdate', aiClient.updateMyProfile, [{ headline: 'Engineer', jobPreference: { isTakeMail: true } }]],
@@ -119,6 +124,14 @@ describe('real HTTP request contracts', () => {
         ['cvDelete', { path: '/profile/cvs/not-a-mongo-id' }], ['aiTaskGet', { path: '/ai/tasks/bad%20id' }],
         ['jobCreate', { body: { ...bodyExamples.JobCreate, isHot: 'false' } }],
         ['jobCreate', { body: { ...bodyExamples.JobCreate, amount: -1 } }],
+        ['jobCreate', { body: bodyExamples.JobCreate, headers: { 'idempotency-key': 'bad key' } }],
+        ['jobRepost', { body: {} }],
+        ['jobRepost', { body: { timeEnd: null } }],
+        ['jobRepost', { body: { timeEnd: '2027-01-01' } }],
+        ['jobRepost', { body: { ...bodyExamples.JobRepost, isHot: 1 } }],
+        ['jobRepost', { body: { ...bodyExamples.JobRepost, userId: 99 } }],
+        ['jobRepost', { body: { ...bodyExamples.JobRepost, statusCode: 'PS1' } }],
+        ['jobRepost', { body: bodyExamples.JobRepost, headers: { 'idempotency-key': '' } }],
         ['jobUpdate', { body: { statusCode: 'PS1' } }], ['jobUpdate', { body: {} }],
         ['jobUpdate', { body: { isHot: 1 } }], ['jobUpdate', { body: { userId: 999 } }],
         ['jobUpdate', { body: { timeEnd: null } }], ['jobUpdate', { body: { timeEnd: '2027-01-01' } }],

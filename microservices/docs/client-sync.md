@@ -109,9 +109,39 @@ Image `jobfind-microservices:local` đã dựng lại và qua kiểm thử Gatew
 
 Khi áp dụng: cập nhật backend trước để không còn writer sửa trực tiếp chi tiết dùng chung, sau đó Job Core và frontend. Không recreate DB/broker, chuyển engine, xóa volume hoặc dọn chi tiết cũ bằng thao tác triển khai này. Sao lưu/kiểm tra dữ liệu lịch sử vẫn là bước riêng trước rollout thật.
 
+## Đợt 2c: đăng lại và chống gửi trùng trong Job Core
+
+Đã bổ sung mã nguồn, hợp đồng HTTP và helper frontend. **Chưa chuyển màn hình đăng tin khỏi API legacy, chưa thay container ứng dụng và chưa chạy DDL trên dữ liệu thật.** Các mốc 2a/2b ở trên là lịch sử; giới hạn idempotency của Job Core đã được cập nhật trong đợt này.
+
+### Nghiệp vụ và chống gửi trùng
+
+- `POST /api/jobs/:id/repost` nhận duy nhất `{timeEnd}` và bắt buộc `Idempotency-Key`. Tin nguồn phải thuộc công ty hiện tại, đã hết hạn và chưa bị gỡ (`PS4`). Cả ADMIN cũng phải thuộc đúng công ty hoạt động/đã duyệt; không dùng quyền ADMIN để đăng lại tin của công ty khác hoặc bỏ qua trả lượt.
+- Đăng lại tạo ID mới, sao chép chi tiết hiện tại vào snapshot mới, giữ loại thường/nổi bật của nguồn, trừ một lượt đúng loại, tạo `job.created` và yêu cầu kiểm duyệt mới cùng transaction. Tin mới luôn `PS3`; không sửa tin gốc, không tự hoàn lượt. Tin hết hạn từng bị từ chối cũng phải qua kiểm duyệt mới, không được tự công khai.
+- `POST /api/jobs` hỗ trợ key tùy chọn để giữ tương thích client modern cũ. Khi đăng mới/đăng lại, ngày hết hạn mới phải trong tương lai; đăng mới không gửi ngày thì tính 30 ngày khi thực hiện lần đầu. Lặp lại yêu cầu đã được chấp nhận sau khi hết hạn vẫn trả kết quả cũ, không tạo tin mới.
+- Bảng InnoDB `job_request_keys` lưu namespace **người dùng + key phân biệt hoa/thường**, loại thao tác, hash ý định, công ty, ID tin và phản hồi ban đầu. Claim key, trừ lượt, tin/chi tiết, outbox, trạng thái duyệt và lưu phản hồi nằm trong cùng transaction. Bất kỳ bước ghi nào lỗi đều rollback. Startup bảo đảm bảng trước khi mở ghi; request có key kiểm tra engine trước mutation.
+- Cùng người dùng/key/nội dung trả lại đúng phản hồi 201 ban đầu, kể cả lượt còn lại bằng 0 hoặc mạng ngắt ngay sau commit. Tạo mới và đăng lại dùng chung namespace: đổi loại thao tác, tin nguồn hoặc nội dung/ngày sẽ trả 409. Giá trị số tương đương của form được chuẩn hóa; hash không lấy thời gian hiện tại hoặc nội dung nguồn có thể thay đổi. Key mới là ý định đăng thêm và có thể trừ lượt mới.
+- Khi replay, kiểm tra lại quyền công ty hiện tại dưới khóa. Chuyển công ty, công ty bị khóa/chưa duyệt trả 403; mapping hỏng, tin đã xóa cứng hoặc đổi tác giả không được tự tạo lại. Phản hồi replay là **snapshot lúc chấp nhận**, không phải trạng thái duyệt hiện tại; tin đã gỡ không được phục hồi. Đọc hiện trạng là thao tác riêng.
+- Lock key trước các khóa người dùng/công ty/tin. Duplicate chờ commit rồi đọc hiện trạng bằng khóa chia sẻ, không nâng khóa key để tránh cạnh tranh giữa các lần gửi lại. Đăng lại khóa người đăng/nguồn theo ID tăng dần rồi công ty/tin/chi tiết, kiểm tra lại dữ liệu sau khi chờ khóa.
+
+### Frontend và phạm vi chưa chuyển
+
+`src/service/jobPostingService.js` cung cấp `createJobRequestOptions`, `createJob` và `repostJob` qua Gateway. Caller phải tạo options **trước khi gửi**, giữ options cùng payload không đổi cho mọi lần thử lại của một thao tác. Helper có timeout 15 giây/AbortSignal, giữ key trên kết quả lỗi/thành công, không tự POST lại và không fallback sang writer legacy. Thiếu key hoặc mã tin nguồn không hợp lệ bị từ chối trước khi gửi mạng.
+
+Chưa nối các helper này vào màn hình AddPost/Đăng lại. Các API legacy đăng mới/đăng lại **vẫn chưa có idempotency và outbox bền**; gửi key vào legacy không nhận bảo đảm mới. Không coi helper đã có là tính năng UI đã hoàn tất. Còn adapter form/Allcode/phản hồi, luồng kiểm duyệt, trạng thái tin của chủ sở hữu và xử lý form cũ trước khi chuyển từng màn hình. Không có ETag/If-Match hoặc tự phục hồi draft sau reload/đăng nhập.
+
+Không có TTL/dọn key tự động: xóa key rồi retry có thể tạo tin và trừ lượt lần nữa. Phải sao lưu ledger cùng dữ liệu tin; retention/redaction cho snapshot và migration có version là phần riêng, không tự xóa bảng để rollback ứng dụng. Có thể rollback code tương thích và để nguyên bảng; không trộn nhiều phiên bản writer có/không hiểu key khi client đã sử dụng tính năng này.
+
+### Kiểm chứng và áp dụng
+
+Ngày 05-09-2026: **894 test microservices (52 file), 517 test backend (30 suite), 695 test frontend (50 suite)** qua; frontend production build, HTTP/event contracts và image Docker cách ly đều qua. Hợp đồng hiện có 49 thao tác (43 public/6 nội bộ), 18 trường hợp serialize helper frontend qua HTTP thực.
+
+`npm run test:job-writes:integration` hiện chạy **61 nhóm kiểm tra**: 38 nhóm cũ + 23 nhóm create/repost có key, gồm 20 request trùng/lượt cuối cho cả tin thường và nổi bật, ngắt socket sau commit, replay sau hết hạn/đổi nội dung/duyệt/gỡ tin, namespace user/key, xung đột ý định, thay đổi quyền, lỗi từng bước/ledger, MyISAM, bản sao chi tiết và thay tác giả/công ty/gỡ nguồn khi đang chờ khóa. CI hiện có tự chạy bộ tích hợp mở rộng; chưa push/chạy workflow GitHub trong đợt này.
+
+Chỉ MySQL tạm cùng dữ liệu tổng hợp do test tạo bị dọn; không gọi AI/SMTP/PayPal và không dùng fixture sửa hạn mức dự án thật. Image `jobfind-microservices:local` đã dựng lại, chưa được đưa vào container đang phục vụ. Khi rollout sau sao lưu/đối chiếu schema: giữ các bản sửa backend 2a/2b, cập nhật Job Core trước Gateway và chỉ bật client mới khi toàn bộ writer phục vụ route đã hỗ trợ key. Không recreate DB/broker hoặc xóa volume.
+
 ## Thứ tự các đợt còn lại
 
-1. Tiếp tục nghiệp vụ Job Core trước khi đổi API đăng tin: API đăng lại và chống gửi POST lặp theo ý định, adapter phản hồi/Allcode cho form, chuyển luồng kiểm duyệt và xử lý xung đột form cũ. Hạn mức đã xử lý ở đợt 2a; sửa độc lập, giới tính và quy tắc giữ ngày hết hạn đã xử lý ở đợt 2b. Chưa có nghĩa mọi nghiệp vụ đã tương đương; không chỉ đổi `/api/create-new-post` thành `/api/jobs`.
+1. Tiếp tục đồng bộ trước khi đổi API đăng tin: adapter phản hồi/Allcode cho form, đọc trạng thái tin của chủ sở hữu, chuyển luồng kiểm duyệt và xử lý xung đột form cũ. Hạn mức đã xử lý ở đợt 2a; sửa độc lập/giữ ngày hết hạn ở 2b; API đăng lại và idempotency của writer modern ở 2c. Chưa có nghĩa mọi nghiệp vụ đã tương đương; không chỉ đổi `/api/create-new-post` thành `/api/jobs`.
 2. Hoàn thiện outbox cho publisher legacy và kế hoạch chuyển quyền sở hữu luồng ghi. Schema event đúng không tự bảo đảm gửi không mất; không phát hai event độc lập cho cùng một thao tác để “đồng bộ”.
 3. Nối màn hình AI/CV và chuyển luồng tìm kiếm/đăng tin theo từng màn hình khi phía server đủ nghiệp vụ. Hiện màn hình Kanban/báo cáo và gợi ý tìm kiếm đã có gọi microservice; danh sách tìm kiếm chính/đăng tin vẫn còn API legacy. Không coi helper API đã có là giao diện tính năng đã hoàn tất.
 4. Nghiệm thu các vai trò trên stack mới, hạn mức và thao tác lặp, token hết hạn, dịch vụ gián đoạn/phục hồi, dữ liệu cập nhật chậm giữa dịch vụ. Các mục kiến trúc/vận hành khác của PDF tiếp tục theo `implementation-progress.md`.

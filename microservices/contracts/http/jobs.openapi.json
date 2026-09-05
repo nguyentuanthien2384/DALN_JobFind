@@ -25,7 +25,7 @@
           "jobs"
         ],
         "summary": "POST /jobs",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission job:manage; resource ownership checks still apply. Non-admin callers must belong to an active, approved company.",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission job:manage; resource ownership checks still apply. Non-admin callers must belong to an active, approved company. Paid posting requires a current active, approved company even for ADMIN. With an Idempotency-Key, quota, new post, events and original response are committed atomically. Replay returns the initial 201 snapshot, not current moderation state, and rechecks current company membership/approval without spending quota. Keys must not be deleted while retries are possible. A new deadline must be in the future; omitted create deadline defaults to 30 days on the first accepted attempt.",
         "x-jobfind-permission": "job:manage",
         "x-jobfind-internal": false,
         "x-jobfind-company-required": true,
@@ -36,6 +36,17 @@
           }
         ],
         "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+            },
+            "description": "Optional. Same user + key + canonical input returns the original accepted result; changed input or operation returns 409. Reuse for retries; a new key requests new work."
+          },
           {
             "name": "x-user-id",
             "in": "header",
@@ -94,6 +105,279 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/JobCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Job"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{id}/repost": {
+      "post": {
+        "operationId": "jobRepost",
+        "tags": [
+          "jobs"
+        ],
+        "summary": "POST /jobs/:id/repost",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission job:manage; resource ownership checks still apply. Non-admin callers must belong to an active, approved company. Paid posting requires a current active, approved company even for ADMIN. With an Idempotency-Key, quota, new post, events and original response are committed atomically. Replay returns the initial 201 snapshot, not current moderation state, and rechecks current company membership/approval without spending quota. Keys must not be deleted while retries are possible. A new deadline must be in the future; omitted create deadline defaults to 30 days on the first accepted attempt. Only expired, non-removed source posts in the caller company may be reposted. Copies the current detail into a new PS3 post, retaining the source featured flag and charging the matching quota. Original post is unchanged; new post requires moderation. Replays do not reread mutable source content.",
+        "x-jobfind-permission": "job:manage",
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": true,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          },
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+            },
+            "description": "Required. Same user + key + canonical input returns the original accepted result; changed input or operation returns 409. Reuse for retries; a new key requests new work."
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "description": "Authenticated identity forwarded by the trusted gateway only."
+          },
+          {
+            "name": "x-user-role",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ADMIN",
+                "COMPANY",
+                "EMPLOYER"
+              ]
+            }
+          },
+          {
+            "name": "x-company-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "description": "Required for non-admin callers; derived from the current account/company store by the gateway."
+          },
+          {
+            "name": "x-company-status",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "S1"
+            },
+            "description": "Required for non-admin callers; derived from the current account/company store by the gateway."
+          },
+          {
+            "name": "x-company-censor",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "const": "CS1"
+            },
+            "description": "Required for non-admin callers; derived from the current account/company store by the gateway."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobRepost"
               }
             }
           }
@@ -978,7 +1262,7 @@
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
             },
-            "description": "Optional. Same user + key + canonical input returns the original task; changed input returns 409. Reuse for retries; a new key requests new work."
+            "description": "Optional. Same user + key + canonical input returns the original accepted result; changed input or operation returns 409. Reuse for retries; a new key requests new work."
           },
           {
             "name": "x-user-id",
@@ -1182,7 +1466,7 @@
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
             },
-            "description": "Optional. Same user + key + canonical input returns the original task; changed input returns 409. Reuse for retries; a new key requests new work."
+            "description": "Optional. Same user + key + canonical input returns the original accepted result; changed input or operation returns 409. Reuse for retries; a new key requests new work."
           },
           {
             "name": "x-user-id",
@@ -1386,7 +1670,7 @@
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
             },
-            "description": "Optional. Same user + key + canonical input returns the original task; changed input returns 409. Reuse for retries; a new key requests new work."
+            "description": "Optional. Same user + key + canonical input returns the original accepted result; changed input or operation returns 409. Reuse for retries; a new key requests new work."
           },
           {
             "name": "x-user-id",
@@ -2195,6 +2479,29 @@
         "type": "object",
         "properties": {},
         "required": [],
+        "additionalProperties": false
+      },
+      "JobRepost": {
+        "type": "object",
+        "properties": {
+          "timeEnd": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 8640000000000000
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          }
+        },
+        "required": [
+          "timeEnd"
+        ],
         "additionalProperties": false
       },
       "JobCreate": {

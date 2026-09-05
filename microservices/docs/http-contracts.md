@@ -2,7 +2,7 @@
 
 ## Phạm vi đã gắn vào ứng dụng
 
-48 thao tác HTTP nghiệp vụ của Job Core, Identity/CV, Search, Application/Talent Pool và Admin đã đăng ký qua `contractRoute`. Trong đó 42 thao tác được Gateway mở cho client, 6 thao tác chỉ dành cho giao tiếp nội bộ. Không thay đổi tên URL, quyền truy cập hay hình dạng phản hồi thành công đang dùng.
+49 thao tác HTTP nghiệp vụ của Job Core, Identity/CV, Search, Application/Talent Pool và Admin đã đăng ký qua `contractRoute`. Trong đó 43 thao tác được Gateway mở cho client, 6 thao tác chỉ dành cho giao tiếp nội bộ. Đợt 2c thêm route đăng lại; giữ tên URL và hình dạng phản hồi thành công của các route đã có.
 
 - `contracts/http/gateway.openapi.json`: OpenAPI 3.1.1 cho client, URL local `http://localhost:4000`.
 - `contracts/http/{jobs,identity,search,applications,admin}.openapi.json`: đường dẫn trực tiếp từng service trong mạng Compose, bao gồm API nội bộ; không công bố các cổng này ra Internet.
@@ -21,6 +21,8 @@ Có thể import JSON vào công cụ đọc OpenAPI chạy trên máy. Không c
 6. CV lồng nhau kiểm tra skills/languages/experiences/educations và giới hạn số phần tử/độ dài. Import nhận `{parsed, fileName}` theo kết quả Resume Parser, experiences dùng `duration`; CV chỉnh tay dùng `from`/`to`.
 7. `Idempotency-Key` của ba API AI không bắt buộc để giữ tương thích. Client nên tạo một key cho một ý định gửi, dùng lại khi mất phản hồi; cùng key nhưng đổi nội dung trả 409. 202 chỉ có nghĩa task/outbox đã lưu, không có nghĩa AI xử lý xong. Poll `/api/ai/tasks/{taskId}`.
 8. Gateway không cho method/đường dẫn chưa khai báo trong namespace mới rơi xuống backend legacy. API legacy ngoài các namespace này và Socket.IO vẫn giữ đường đi cũ. HEAD theo route GET; preflight CORS vẫn do Gateway xử lý.
+9. Job Core đăng mới `POST /api/jobs` hỗ trợ key tùy chọn; đăng lại `POST /api/jobs/:id/repost` bắt buộc key và chỉ nhận `{timeEnd}`. Cùng người dùng/key/ý định trả lại 201 với snapshot ban đầu; đổi thao tác/nguồn/nội dung trả 409. Replay kiểm tra quyền công ty hiện tại và không trừ lượt. Client chuẩn bị/giữ key cùng payload trước khi gửi, không tự fallback legacy hoặc dùng mã mới sau timeout. Key không có TTL; backup/retention phải giữ chống gửi trùng.
+10. Ngày hết hạn mới phải trong tương lai (đăng mới bỏ trống mặc định 30 ngày); replay đã chấp nhận không tính lại ngày. Đăng lại chỉ nhận nguồn hết hạn/chưa gỡ trong công ty hiện tại, giữ loại tin nguồn, tạo snapshot riêng và tin mới PS3 với kiểm duyệt mới. ADMIN cũng cần công ty hoạt động/đã duyệt và đủ lượt. Chưa chuyển màn hình AddPost/Đăng lại; writer legacy không có bảo đảm idempotency này. Xem `client-sync.md` đợt 2c.
 
 Tên audit `name` là tìm kiếm chuỗi literal không phân biệt hoa/thường, không phải biểu thức chính quy do client điều khiển.
 
@@ -46,7 +48,7 @@ npm run test:ai-requests:integration
 npm run test:image
 ```
 
-`contracts:check` và test CI phát hiện tài liệu lệch nguồn, tham chiếu schema hỏng, thiếu/trùng route và API nội bộ xuất hiện trong danh sách public. Test HTTP thực kiểm tra toàn bộ 48 route với dữ liệu mẫu hợp lệ, các đầu vào xấu và thứ tự kiểm tra quyền. 16 trường hợp còn gọi chính helper frontend, serialize URL/body/header rồi gửi vào bộ kiểm tra HTTP. Một số test controller đối chiếu phản hồi JSON thực tế với schema. Test tích hợp dùng MySQL/RabbitMQ tạm chứng minh đầu vào AI không hợp lệ không tạo key/task/outbox, và không làm hỏng idempotency khi gửi đồng thời.
+`contracts:check` và test CI phát hiện tài liệu lệch nguồn, tham chiếu schema hỏng, thiếu/trùng route và API nội bộ xuất hiện trong danh sách public. Test HTTP thực kiểm tra toàn bộ 49 route với dữ liệu mẫu hợp lệ, các đầu vào xấu và thứ tự kiểm tra quyền. 18 trường hợp còn gọi chính helper frontend, serialize URL/body/header rồi gửi vào bộ kiểm tra HTTP. Một số test controller đối chiếu phản hồi JSON thực tế với schema. Test tích hợp dùng MySQL/RabbitMQ tạm chứng minh đầu vào AI không hợp lệ không tạo key/task/outbox, và không làm hỏng idempotency khi gửi đồng thời. Bộ `test:job-writes:integration` có thêm đăng lại/create có key, rollback và mất socket sau commit; không dùng dữ liệu dự án thật.
 
 Validator phản hồi chỉ dùng trong kiểm thử, không sửa/chặn phản hồi sau khi DB đã commit (tránh khiến client gửi lại một lệnh đã thành công). Response schema cho phép trường bổ sung trong quá trình chuyển đổi legacy; đây chưa phải contract test E2E cho mọi dữ liệu lịch sử và mọi trang frontend.
 
