@@ -3,6 +3,7 @@ import { makeReq, makeRes } from './helpers.js';
 
 const mocks = vi.hoisted(() => ({
     pool: { query: vi.fn(), getConnection: vi.fn() },
+    conn: { query: vi.fn() },
     withTransaction: vi.fn(),
     publish: vi.fn(),
     enqueueOutboxEvent: vi.fn()
@@ -14,7 +15,8 @@ vi.mock('../job-core-service/src/libs/outbox.js', () => ({ enqueueOutboxEvent: m
 
 beforeEach(() => {
     mocks.pool.query.mockReset();
-    mocks.withTransaction.mockReset();
+    mocks.conn.query.mockReset().mockResolvedValue([{ affectedRows: 1 }]);
+    mocks.withTransaction.mockReset().mockImplementation((work) => work(mocks.conn));
     mocks.publish.mockReset().mockResolvedValue(undefined);
     mocks.enqueueOutboxEvent.mockReset().mockResolvedValue('event-id');
 });
@@ -250,8 +252,13 @@ describe('AI task controller', () => {
         mocks.pool.query.mockResolvedValue(undefined);
         const ok = makeRes();
         await parseResume(makeReq({ headers: { 'x-user-id': '5' }, body: { fileBase64: 'PDF', fileName: 'cv.pdf' } }), ok);
-        expect(mocks.pool.query.mock.calls[0][1]).toEqual(expect.arrayContaining(['parse_resume', 'pending', 5]));
-        expect(mocks.publish).toHaveBeenCalledWith('ai.parse_resume', expect.objectContaining({ taskId: expect.any(String), fileBase64: 'PDF', fileName: 'cv.pdf' }));
+        expect(mocks.conn.query.mock.calls[0][1]).toEqual(expect.arrayContaining(['parse_resume', 'pending', 5]));
+        expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(mocks.conn, expect.objectContaining({
+            eventId: ok.body.taskId, aggregateType: 'ai_task', aggregateId: ok.body.taskId,
+            eventType: 'ai.parse_resume', payload: { taskId: ok.body.taskId, fileBase64: 'PDF', fileName: 'cv.pdf' }
+        }));
+        expect(mocks.pool.query).not.toHaveBeenCalled();
+        expect(mocks.publish).not.toHaveBeenCalled();
         expect(ok.statusCode).toBe(202);
     });
 
@@ -269,7 +276,11 @@ describe('AI task controller', () => {
         await matchCv(makeReq({ headers: { 'x-user-id': '2' }, body: { resumeText: 'CV', jobId: 1 } }), ok);
         expect(mocks.pool.query.mock.calls[0][0]).toContain("p.statusCode = 'PS1'");
         expect(mocks.pool.query.mock.calls[0][0]).toContain("c.censorCode = 'CS1'");
-        expect(mocks.publish).toHaveBeenCalledWith('ai.match_cv', expect.objectContaining({ resumeText: 'CV', jobTitle: 'Dev', jobDescription: 'Build' }));
+        expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(mocks.conn, expect.objectContaining({
+            eventId: ok.body.taskId, aggregateId: ok.body.taskId, eventType: 'ai.match_cv',
+            payload: { taskId: ok.body.taskId, resumeText: 'CV', jobTitle: 'Dev', jobDescription: 'Build' }
+        }));
+        expect(mocks.publish).not.toHaveBeenCalled();
         expect(ok.statusCode).toBe(202);
     });
 
@@ -287,7 +298,11 @@ describe('AI task controller', () => {
         await coverLetter(makeReq({ body: { resumeText: 'CV', jobId: 1 } }), ok);
         expect(mocks.pool.query.mock.calls[0][0]).toContain("p.statusCode = 'PS1'");
         expect(mocks.pool.query.mock.calls[0][0]).toContain("c.censorCode = 'CS1'");
-        expect(mocks.publish).toHaveBeenCalledWith('ai.cover_letter', expect.objectContaining({ companyName: 'the company', language: 'en' }));
+        expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(mocks.conn, expect.objectContaining({
+            eventId: ok.body.taskId, aggregateId: ok.body.taskId, eventType: 'ai.cover_letter',
+            payload: expect.objectContaining({ taskId: ok.body.taskId, companyName: 'the company', language: 'en' })
+        }));
+        expect(mocks.publish).not.toHaveBeenCalled();
     });
 
     it('protects task results and parses stored JSON', async () => {

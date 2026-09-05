@@ -116,6 +116,8 @@ có thể được phát lại. Hai outbox đã dùng envelope v1; Notification/
 trùng cho sự kiện có ID, Search đã bảo vệ kết quả đồng bộ như phần bên dưới.
 AI Worker cũng đã có ledger chống gọi lại tác vụ có ID và phát kết quả có confirm.
 Job Core nhận kết quả AI bằng inbox + giao dịch và phát `job.moderated` qua outbox.
+Ba endpoint CV cũng ghi `ai_tasks` + yêu cầu AI vào cùng giao dịch outbox, như
+phần "Job Core: lưu bền vững yêu cầu AI từ CV" bên dưới.
 Các publisher trực tiếp còn lại vẫn là các bước kế tiếp. DLQ/retry đã dùng confirms
 như phần hướng dẫn bên dưới; chưa có
 bảo đảm SMTP giao thư đúng một lần.
@@ -528,8 +530,8 @@ Phạm vi nhận diện:
 
 - Ưu tiên `eventId` của tin đầu vào. Outbox Job Core đã cấp ID cho các yêu cầu
   `ai.moderate_job` mới. Hai ID khác nhau là hai yêu cầu khác nhau, kể cả cùng job.
-- Ba tác vụ CV/độ khớp/thư ứng tuyển hiện publish legacy nhưng có `taskId` ổn định;
-  khi không có event ID, dùng cặp routing key + taskId làm khóa.
+- Ba tác vụ CV/độ khớp/thư ứng tuyển mới dùng outbox với `eventId = taskId`.
+  Tin legacy đã tồn tại không có event ID vẫn dùng cặp routing key + taskId làm khóa.
 - Kiểm duyệt legacy không có cả event ID lẫn task ID vẫn tương thích luồng cũ,
   có cảnh báo và **chưa chống trùng**. Không suy đoán danh tính từ jobId hoặc hash
   nội dung, vì một tin có thể được sửa và kiểm duyệt nhiều lần.
@@ -583,7 +585,8 @@ Giới hạn quan trọng:
   được bổ sung inbox/giao dịch và mã lượt kiểm duyệt như phần bên dưới. Điều này
   không tự bật replay DLQ hoặc retry việc gọi model.
 - `published` xác nhận broker nhận tin, không chứng minh Job Core xử lý xong.
-  Phát yêu cầu AI từ các endpoint CV của Job Core vẫn là publish legacy trực tiếp.
+  Endpoint CV của Job Core đã dùng outbox ở phần bên dưới; việc lưu yêu cầu không
+  đồng nghĩa model đã chạy hoặc kết quả đã đến người dùng.
 - Không backfill tác vụ đã chạy bằng worker cũ. Phải giữ ledger bền vững và cùng
   database cho mọi replica; xóa ledger hoặc đổi ID/cách đóng gói khi replay có thể
   gây gọi lại. Chưa có chính sách xóa khóa lịch sử.
@@ -746,8 +749,104 @@ container/volume tạm. Không đọc cấu hình MySQL của dự án, không g
 SMTP thật. Mất phản hồi được mô phỏng phía client, chưa phải thử failover hay
 kiểm thử end-to-end; retry/wiring/echo token được kiểm tra bằng unit test.
 
-Phần tiếp theo: chuyển các yêu cầu AI từ endpoint CV của Job Core sang transactional
-outbox; không gộp thêm luồng này hoặc công cụ replay vào lần bổ sung hiện tại.
+## Job Core: lưu bền vững yêu cầu AI từ CV
+
+Ba endpoint `POST /ai/parse-resume`, `/ai/match-cv`, `/ai/cover-letter` dùng
+`libs/aiTaskRequest.js` để lưu tác vụ và ý định gửi AI trong **cùng một giao dịch
+MySQL**. Tái sử dụng `ai_tasks` và `outbox_events` đã có, không thêm bảng/migration
+hoặc đổi schema ở bước này. Kiểm tra InnoDB tại startup của bước trước vẫn áp dụng.
+
+Luồng nhận yêu cầu:
+
+1. Kiểm tra trường bắt buộc/kiểu dữ liệu. Match/thư vẫn chỉ đọc tin `PS1` thuộc
+   công ty `S1`/`CS1`; không tìm thấy hoặc không công khai trả 404.
+2. Tạo `taskId` UUID mới, đóng gói toàn bộ đầu vào worker rồi kiểm tra kích thước.
+3. Cùng connection: insert `ai_tasks` ở trạng thái `pending`, sau đó insert outbox
+   có `aggregateType = ai_task`, `aggregateId = taskId`, `eventId = taskId`.
+4. Chỉ trả HTTP 202 cùng `{ errCode: 0, taskId, errMessage }` sau khi commit được
+   xác nhận. Giao diện tiếp tục hỏi `/ai/tasks/:taskId` như trước.
+
+Handler HTTP không mở kết nối RabbitMQ. Nếu Job Core đang chạy mà đường gửi tới
+broker gặp lỗi, yêu cầu vẫn được nhận khi MySQL hoạt động; relay giữ bản ghi chờ
+và thử gửi lại. Startup Job Core vẫn cần kết nối consumer RabbitMQ trước khi mở
+cổng HTTP, nên thay đổi này không cho phép khởi động toàn service khi broker tắt.
+Relay dùng publisher confirm + mandatory routing đã có; không đánh dấu đã gửi
+nếu không có queue phù hợp. Retry giữ nguyên event ID, thời điểm và payload đã lưu.
+
+Với match/thư, tiêu đề, mô tả và tên công ty là snapshot tại lần đọc tin hợp lệ
+trong request. Relay không đọc lại tin khi gửi: thay đổi sau đó không làm một
+event ID mang hai nội dung khác nhau. Đây không phải khóa ngăn tin/công ty thay
+đổi đồng thời với lúc nhận yêu cầu, cũng không phải tự hủy tác vụ nếu tin bị gỡ sau đó.
+
+### Giới hạn đầu vào và lỗi
+
+- Payload gửi worker tối đa **8 MiB JSON UTF-8**, tính cả base64, Unicode, ký tự
+  escape và metadata. File PDF gốc phải nhỏ hơn khoảng 6 MiB để còn chỗ cho tên
+  file/metadata. Vượt giới hạn trả 413 trước khi mở giao dịch, không cắt nội dung.
+- `fileBase64`/`resumeText` phải là chuỗi không rỗng; `fileName`/`language` nếu có
+  phải là chuỗi hoặc null; `jobId` là số nguyên dương an toàn hoặc chuỗi số tương
+  ứng. Chưa thêm bước xác thực nội dung PDF/base64 hay đổi giới hạn/prompt của model.
+- `ai_tasks.input` chỉ giữ metadata (`fileName` hoặc `jobId`/`language`), lưu JSON
+  nguyên vẹn thay vì cắt ở 60.000 ký tự. Không tự sửa JSON cũ đã hỏng.
+- Lỗi ghi task/outbox làm rollback cả giao dịch. Handler trả 500, không trả 202
+  hoặc mã tác vụ khi chưa xác nhận commit; log chỉ loại tác vụ/mã lỗi, không đưa
+  SQL hay nội dung CV từ lỗi MySQL vào phản hồi/log của handler.
+
+**Chưa chống trùng giữa các lần gửi HTTP.** Hai lần POST, kể cả cùng nội dung, tạo
+hai tác vụ độc lập và có thể gọi AI hai lần. Nếu commit đã thành công nhưng phản
+hồi bị mất, task/outbox vẫn có thể tồn tại dù client gặp 500/timeout. Handler không
+tự retry giao dịch; không thể coi 500 là bằng chứng chắc chắn chưa lưu. Cơ chế
+chống trùng ở worker bảo vệ các lần relay gửi lại **cùng event ID**, không bảo vệ
+việc người dùng gửi POST mới. Phần tiếp theo sẽ bổ sung khóa chống trùng cho HTTP.
+
+### Dữ liệu lưu giữ và áp dụng
+
+Outbox giờ chứa toàn bộ CV base64/nội dung CV và snapshot tin cần cho worker.
+Payload vẫn được giữ sau `publishedAt`, theo cách lưu của outbox hiện tại; chưa
+thêm TTL, mã hóa ứng dụng hoặc tự xóa. Cần giới hạn quyền đọc outbox và bảo vệ
+database/backup như dữ liệu CV. `ai_tasks.input` không giữ thêm một bản CV gốc.
+Chính sách lưu giữ/xóa cần xét cả outbox, RabbitMQ/DLQ, kết quả và backup.
+
+Nâng Job Core sau khi AI Worker đã có ledger hỗ trợ envelope v1 từ bước trước.
+Giữ queue/binding bền vững và cấu hình MySQL/RabbitMQ đã có. Không cần thay đổi
+frontend, cài thêm thư viện hoặc restart database. Lần bổ sung này **chưa triển khai**.
+
+Không backfill task `pending` cũ thiếu outbox: metadata cũ không đủ khôi phục CV và
+không chứng minh AI chưa chạy. Giữ nguyên metadata khi xử lý tin legacy; tự thêm
+event ID cho tin đã dùng khóa `task:<routingKey>:<taskId>` sẽ đổi khóa ledger sang
+`event:<eventId>` và có thể làm AI chạy lại. Không có replay DLQ hoặc tự gọi lại
+model trong thay đổi này.
+
+Kiểm tra chỉ đọc, không lấy payload CV:
+
+```sql
+SELECT t.id, t.type, t.status, t.createdAt, e.attempts,
+       e.nextAttemptAt, e.publishedAt
+FROM ai_tasks t
+LEFT JOIN outbox_events e ON e.id = t.id AND e.aggregateType = 'ai_task'
+ORDER BY t.createdAt DESC LIMIT 50;
+```
+
+### Kiểm thử
+
+```powershell
+npm test
+npm run test:ai-requests:integration
+```
+
+Script có 10 kiểm tra dùng MySQL 8.0 và RabbitMQ 4 tạm: cả ba endpoint lưu dữ liệu
+khi transport lỗi, snapshot ổn định, rollback sau insert outbox thật, lỗi insert
+task, dữ liệu quá lớn/không hợp lệ/tin không công khai, retry sau mất kết nối,
+mandatory routing, phục hồi gửi thật, lỗi đánh dấu DB sau broker confirm và nhận
+kết quả/hỏi trạng thái bằng đúng task ID. Unit test kiểm tra thêm chờ commit,
+commit không xác định, biên 8 MiB và tính byte Unicode/JSON escape.
+
+Script chỉ dùng image có sẵn, cổng localhost ngẫu nhiên và thông tin kết nối tạm
+do nó tạo, không đọc cấu hình database dự án. SQL trigger gây lỗi chỉ tồn tại
+trong database thử; kiểm tra nhãn sở hữu trước khi dọn từng container/volume.
+Không gọi Claude/SMTP; chưa thử failover database, AI Worker/MongoDB hoặc toàn
+luồng HTTP qua Gateway trong script này. Dừng giữa chừng có thể cần dọn container
+mang nhãn `jobfind.ai-requests-test` sau khi xác minh đúng phiên thử.
 
 ## Bốn tính năng AI
 
