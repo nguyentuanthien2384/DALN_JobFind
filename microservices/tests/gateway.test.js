@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
+import { normalizeApiError } from '../../frontend/src/service/apiError.js';
 
 const mocks = vi.hoisted(() => {
     const axios = vi.fn();
@@ -55,6 +56,25 @@ afterEach(() => {
 });
 
 describe('gateway authentication', () => {
+    it.each([
+        ['invalid', null, 401, 'authentication'],
+        ['inactive', { id: 9, statusCode: 'S2', roleCode: 'CANDIDATE' }, 403, 'authentication'],
+        ['unavailable', null, 503, 'unavailable'],
+        ['wrong-role', { id: 9, statusCode: 'S1', roleCode: 'CANDIDATE' }, 403, 'forbidden']
+    ])('the frontend understands the actual %s Gateway response', async (scenario, identity, status, type) => {
+        const { optionalAuth, requireAuth, requireRole } = await import('../api-gateway/src/middlewares/auth.js');
+        mocks.verify.mockReturnValue({ sub: 9, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
+        if (scenario === 'unavailable') mocks.resolveCurrentIdentity.mockRejectedValueOnce(new Error('DB unavailable'));
+        else mocks.resolveCurrentIdentity.mockResolvedValueOnce(identity);
+        const req = makeReq({ headers: { authorization: 'Bearer synthetic' } });
+        const res = makeRes();
+        await optionalAuth(req, res, vi.fn());
+        if (scenario === 'wrong-role') requireRole('ADMIN')(req, res, vi.fn());
+        else await requireAuth(req, res, vi.fn());
+        expect(res.statusCode).toBe(status);
+        expect(normalizeApiError({ response: { status: res.statusCode, data: JSON.parse(JSON.stringify(res.body)) } }))
+            .toMatchObject({ errorType: type, httpStatus: status });
+    });
     beforeEach(() => {
         mocks.verify.mockReset();
         mocks.resolveCurrentIdentity.mockReset().mockResolvedValue({
@@ -137,6 +157,7 @@ describe('gateway authentication', () => {
         const inactive = makeRes();
         await requireAuth(makeReq({ headers: { authorization: 'Bearer token' } }), inactive, vi.fn());
         expect(inactive.statusCode).toBe(403);
+        expect(inactive.body).toMatchObject({ refresh: true, authReason: 'inactive' });
 
         mocks.resolveCurrentIdentity.mockResolvedValueOnce(null);
         const deleted = makeRes();
@@ -147,6 +168,7 @@ describe('gateway authentication', () => {
         const unavailable = makeRes();
         await requireAuth(makeReq({ headers: { authorization: 'Bearer token' } }), unavailable, vi.fn());
         expect(unavailable.statusCode).toBe(503);
+        expect(unavailable.body.refresh).not.toBe(true);
     });
 
     it('enforces roles after authentication', async () => {
@@ -158,6 +180,7 @@ describe('gateway authentication', () => {
         const wrong = makeRes();
         middleware(makeReq({ user: { roleCode: 'CANDIDATE' } }), wrong, vi.fn());
         expect(wrong.statusCode).toBe(403);
+        expect(wrong.body.refresh).not.toBe(true);
         const next = vi.fn();
         middleware(makeReq({ user: { roleCode: 'ADMIN' } }), makeRes(), next);
         expect(next).toHaveBeenCalledOnce();

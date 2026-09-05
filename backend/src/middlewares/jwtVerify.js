@@ -10,6 +10,7 @@ const isActiveAccount = (user) => (
 const sendInactiveAccount = (res) => res.status(403).json({
     status: false,
     errMessage: 'Account is not active',
+    authReason: 'inactive',
     refresh: true,
 })
 
@@ -135,7 +136,7 @@ const middlewareControllers = {
                         return res.status(403).json({
                             status: false,
                             errMessage: 'Permission denied',
-                            refresh: true,
+                            refresh: false,
                         })
                     }
                     req.user = user

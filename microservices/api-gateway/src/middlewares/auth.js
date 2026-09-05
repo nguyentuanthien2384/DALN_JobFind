@@ -82,6 +82,8 @@ const denyAuthentication = (req, res) => {
     if (req.authFailure === 'inactive') {
         return res.status(403).json({
             errCode: 403,
+            refresh: true,
+            authReason: 'inactive',
             errMessage: 'Tài khoản đã bị khóa hoặc chưa kích hoạt'
         });
     }

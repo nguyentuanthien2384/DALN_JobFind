@@ -24,6 +24,7 @@ import RouteGuard from "./auth/RouteGuard";
 import { PERMISSIONS } from "./auth/accessControl";
 import { getCurrentAuthorizationService } from "./service/userService";
 import SessionContext from "./auth/SessionContext";
+import { SESSION_ENDED_EVENT } from "./auth/sessionExpiry";
 
 // Khu quan tri va khu ung vien keo theo nhieu bieu do, trinh sua va form lon.
 // Chi tai cac goi nay khi nguoi dung thuc su vao dung khu vuc.
@@ -42,7 +43,7 @@ function App() {
         hasToken: Boolean(localStorage.getItem("token_user")),
     });
     const [userData, setUserData] = useState(initialSession.current.user);
-    const hasToken = initialSession.current.hasToken;
+    const [hasToken, setHasToken] = useState(initialSession.current.hasToken);
     const legacyCompanySession = Boolean(
         hasToken
         && userData
@@ -53,8 +54,15 @@ function App() {
     const [authorizationReady, setAuthorizationReady] = useState(!legacyCompanySession);
 
     useEffect(() => {
+        const ended = () => { setUserData(null); setHasToken(false); setAuthorizationReady(true); };
+        window.addEventListener(SESSION_ENDED_EVENT, ended);
+        return () => window.removeEventListener(SESSION_ENDED_EVENT, ended);
+    }, []);
+
+    useEffect(() => {
         let active = true;
         const storedUser = initialSession.current.user;
+        const requestToken = localStorage.getItem('token_user');
 
         if (!initialSession.current.hasToken || !storedUser) {
             setAuthorizationReady(true);
@@ -64,7 +72,7 @@ function App() {
         const refreshAuthorization = async () => {
             try {
                 const response = await getCurrentAuthorizationService();
-                if (!active) return;
+                if (!active || localStorage.getItem('token_user') !== requestToken) return;
 
                 if (response?.errCode === 0 && response.data) {
                     const refreshedUser = {

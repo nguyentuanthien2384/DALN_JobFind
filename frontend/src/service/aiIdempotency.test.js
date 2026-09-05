@@ -14,7 +14,7 @@ test.each([
     const responses = await Promise.all([handler(...args, options), handler(...args, options)]);
     const later = await handler(...args, options);
     expect(axios.post).toHaveBeenCalledTimes(3);
-    for (const call of axios.post.mock.calls) expect(call).toEqual([path, body, { headers: { "Idempotency-Key": options.idempotencyKey } }]);
+    for (const call of axios.post.mock.calls) expect(call).toEqual([path, body, { headers: { "Idempotency-Key": options.idempotencyKey }, timeout: 15000 }]);
     for (const result of [...responses, later]) expect(result).toEqual({ errCode: 0, taskId: "task-1", idempotencyKey: options.idempotencyKey });
 });
 
@@ -35,6 +35,16 @@ test("preserves a key on rejected calls without silently retrying", async () => 
     axios.post.mockRejectedValueOnce(failure);
     await expect(matchCvAi("CV", 7, options)).rejects.toMatchObject({ idempotencyKey: options.idempotencyKey });
     expect(axios.post).toHaveBeenCalledTimes(1);
+});
+
+test('cancelling or timing out submission preserves its key and never automatically POSTs again', async () => {
+    const controller = new AbortController();
+    const options = { ...createAiRequestOptions(), signal: controller.signal };
+    axios.post.mockResolvedValueOnce({ errCode: -1, httpStatus: 0, errorType: 'cancelled' });
+    const result = await parseResumeAi('PDF', 'cv.pdf', options);
+    expect(result).toMatchObject({ idempotencyKey: options.idempotencyKey, errorType: 'cancelled' });
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(axios.post.mock.calls[0][2].signal).toBe(controller.signal);
 });
 
 test("keeps intentional new submissions distinct without remembering CV content", async () => {

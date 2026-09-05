@@ -1,5 +1,6 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import { SESSION_ENDED_EVENT } from './auth/sessionExpiry';
 import App from "./App";
 
 const mockGetCurrentAuthorizationService = jest.fn();
@@ -60,6 +61,21 @@ const renderAt = (path, user) => {
 };
 
 describe("application routes", () => {
+    it('removes protected UI immediately and ignores a late auth/me success after expiry', async () => {
+        let resolve;
+        mockGetCurrentAuthorizationService.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+        renderAt('/chat', { id: 1, roleCode: 'CANDIDATE' });
+        expect(screen.getByText('chat-page')).toBeInTheDocument();
+        act(() => {
+            localStorage.removeItem('token_user');
+            localStorage.removeItem('userData');
+            window.dispatchEvent(new Event(SESSION_ENDED_EVENT));
+        });
+        expect(screen.getByText('navigate-/login')).toBeInTheDocument();
+        await act(async () => resolve({ errCode: 0, data: { userId: 1, roleCode: 'CANDIDATE' } }));
+        expect(localStorage.getItem('userData')).toBeNull();
+        expect(screen.queryByText('chat-page')).not.toBeInTheDocument();
+    });
     beforeEach(() => {
         jest.clearAllMocks();
         mockGetCurrentAuthorizationService.mockResolvedValue({ errCode: -1 });

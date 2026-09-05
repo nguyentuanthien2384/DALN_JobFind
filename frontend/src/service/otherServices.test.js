@@ -101,7 +101,7 @@ describe("aiSearchService", () => {
             resumeText: "resume",
             jobId: 8,
             language: "en",
-        }, { headers: { "Idempotency-Key": expect.any(String) } });
+        }, { headers: { "Idempotency-Key": expect.any(String) }, timeout: 15000 });
     });
 
     it("returns a completed AI task result", async () => {

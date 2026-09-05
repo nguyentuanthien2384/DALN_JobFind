@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { handleLoginService } from "../../service/userService";
 import { toast } from "react-toastify";
+import { safeReturnPath } from '../../auth/sessionExpiry';
 const Login = () => {
     const [inputValues, setInputValues] = useState({
         password: "",
@@ -25,6 +26,8 @@ const Login = () => {
             if (res && res.errCode === 0) {
                 localStorage.setItem("userData", JSON.stringify(res.user));
                 localStorage.setItem("token_user", res.token);
+                const lastUrl = safeReturnPath(localStorage.getItem("lastUrl"), window.location.origin);
+                localStorage.removeItem("lastUrl");
                 if (
                     res.user.roleCode === "ADMIN" ||
                     res.user.roleCode === "EMPLOYER" ||
@@ -32,9 +35,7 @@ const Login = () => {
                 ) {
                     window.location.href = "/admin/";
                 } else {
-                    const lastUrl = localStorage.getItem("lastUrl");
                     if (lastUrl) {
-                        localStorage.removeItem("lastUrl");
                         window.location.href = lastUrl;
                     } else {
                         window.location.href = "/";
@@ -43,6 +44,8 @@ const Login = () => {
             } else {
                 toast.error(res?.errMessage || "Dang nhap that bai. Vui long thu lai.");
             }
+        } catch {
+            toast.error('Không gửi được yêu cầu đăng nhập. Vui lòng thử lại.');
         } finally {
             setIsSubmitting(false);
         }
@@ -69,6 +72,13 @@ const Login = () => {
                                     <h6 className="font-weight-light">
                                         Đăng nhập để tiếp tục.
                                     </h6>
+                                    {['expired', 'inactive'].includes(new URLSearchParams(window.location.search).get('reason')) && (
+                                        <p role="status">
+                                            {new URLSearchParams(window.location.search).get('reason') === 'inactive'
+                                                ? 'Tài khoản đã bị khóa hoặc chưa kích hoạt. Vui lòng liên hệ quản trị viên.'
+                                                : 'Phiên đăng nhập đã hết hạn hoặc không còn hợp lệ. Vui lòng đăng nhập lại.'}
+                                        </p>
+                                    )}
                                     <form className="pt-3" onSubmit={handleSubmit}>
                                         <div className="form-group">
                                             <input

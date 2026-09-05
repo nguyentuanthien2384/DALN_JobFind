@@ -19,6 +19,8 @@ Nguồn đối chiếu: “Báo cáo đánh giá chuyên sâu kiến trúc Micro
 
 ## Chưa hoàn tất — thứ tự tiếp tục
 
+Đồng bộ client theo yêu cầu tiếp theo: đợt 1 đã bổ sung xử lý phiên/lỗi xuyên backend–Gateway–frontend và polling AI có hủy/timeout/backoff, giữ key khi gửi không chắc chắn. CI bổ sung test/build frontend. Chưa chuyển API đăng tin hoặc tạo màn hình AI/CV. Xem `client-sync.md` về cách áp dụng, giới hạn và thứ tự tiếp tục.
+
 1. **Phần hợp đồng còn lại:** HTTP của 5 service và 13 event hiện tại đã có schema/validator cùng kiểm thử consumer. Còn các route monolith/Socket.IO, kiểm tra pending dữ liệu thật trước rollout và quản lý nhiều phiên bản service triển khai độc lập (chưa có Pact broker/cổng can-deploy). Chưa nghiệm thu mọi trang frontend hoặc mọi dữ liệu lịch sử. Kiểm tra kiểu/độ dài `fileBase64` không thay thế kiểm tra nội dung PDF an toàn.
 2. **Tracing và phần giám sát còn lại:** lưu bền trace/correlation/causation trong Job Core outbox; OTel xuyên HTTP–outbox–RabbitMQ; metric publish/consume/DLQ, độ trễ Search, notification delivery và breaker; Grafana dashboard, Alertmanager/routing cảnh báo.
 3. **Migration và lưu giữ dữ liệu:** tách DDL khỏi startup, version/lock migration, bộ test nâng cấp từ schema cũ; volume RabbitMQ có chiến lược phục hồi; backup/restore drill trên bản sao, retention inbox/outbox/AI/PII. Chưa thay đổi dữ liệu/schema/volume thật để đánh dấu những mục này hoàn tất.

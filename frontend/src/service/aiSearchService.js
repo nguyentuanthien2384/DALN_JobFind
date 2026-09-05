@@ -1,4 +1,6 @@
+/* global globalThis */
 import axios from "../axios";
+import { pollAiTask } from './aiTaskPolling';
 
 // Cac API moi do he thong microservice cung cap, goi qua API Gateway.
 // Cac ham cu trong userService.js / cvService.js van giu nguyen: Gateway dinh tuyen
@@ -51,7 +53,7 @@ const postAi = async (path, body, options = createAiRequestOptions()) => {
         throw new Error("Mã gửi lại yêu cầu không hợp lệ");
     }
     try {
-        const result = await axios.post(path, body, { headers: { "Idempotency-Key": idempotencyKey } });
+        const result = await axios.post(path, body, { headers: { "Idempotency-Key": idempotencyKey }, timeout: 15000, ...(options.signal && { signal: options.signal }) });
         // The shared Axios adapter returns errors as data. Include the key on both
         // success and failure so callers can retry after an uncertain response.
         return { ...result, idempotencyKey };
@@ -74,24 +76,13 @@ const coverLetterAi = (resumeText, jobId, language = "en", options) =>
     postAi(`/api/ai/cover-letter`, { resumeText, jobId, language }, options);
 
 // Hoi ket qua cua mot tac vu AI.
-const getAiTask = (taskId) => axios.get(`/api/ai/tasks/${taskId}`);
+const getAiTask = (taskId, options) => options
+    ? axios.get(`/api/ai/tasks/${encodeURIComponent(taskId)}`, options)
+    : axios.get(`/api/ai/tasks/${encodeURIComponent(taskId)}`);
 
 // Hoi lai theo chu ky cho toi khi co ket qua. Tra ve ket qua hoac nem loi khi
 // het thoi gian cho.
-const waitForAiTask = async (taskId, { intervalMs = 2000, timeoutMs = 120000 } = {}) => {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-        const res = await getAiTask(taskId);
-        if (res && res.errCode === 0) {
-            if (res.data.status === "done") return res.data.result;
-            if (res.data.status === "failed") {
-                throw new Error(res.data.error || "Xử lý AI thất bại");
-            }
-        }
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
-    throw new Error("Quá thời gian chờ kết quả AI");
-};
+const waitForAiTask = (taskId, options) => pollAiTask(getAiTask, taskId, options);
 
 //================== HO SO & CV BUILDER (Identity Service - MongoDB) ==================
 const getMyProfile = () => axios.get(`/api/profile`);

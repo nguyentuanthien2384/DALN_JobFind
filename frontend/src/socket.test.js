@@ -29,6 +29,17 @@ describe("shared Socket.IO client", () => {
         expect(io).not.toHaveBeenCalled();
     });
 
+    it('closes the previous authenticated connection when storage no longer has a token', () => {
+        const socket = makeSocket();
+        socket.auth = { token: 'old-token' };
+        io.mockReturnValue(socket);
+        localStorage.setItem('token_user', 'old-token');
+        getSocket();
+        localStorage.removeItem('token_user');
+        expect(getSocket()).toBeNull();
+        expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    });
+
     it("connects with the token and resilient transport options", () => {
         const socket = makeSocket();
         socket.auth = { token: "token-a" };

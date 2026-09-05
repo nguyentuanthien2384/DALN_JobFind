@@ -41,6 +41,7 @@ app.set('trust proxy', parseTrustedProxies(process.env.TRUST_PROXY));
 
 app.use(cors({
     origin: allowedOrigins,
+    exposedHeaders: ['Retry-After', 'X-Correlation-Id'],
     credentials: true
 }));
 // Chan path traversal truoc moi route/proxy va truoc ca body parser.

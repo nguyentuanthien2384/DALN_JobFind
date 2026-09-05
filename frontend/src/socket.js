@@ -15,7 +15,7 @@ let socket = null;
 
 export const getSocket = () => {
     const token = localStorage.getItem("token_user");
-    if (!token) return null;
+    if (!token) { disconnectSocket(); return null; }
 
     if (socket && socket.auth && socket.auth.token === token) {
         return socket;

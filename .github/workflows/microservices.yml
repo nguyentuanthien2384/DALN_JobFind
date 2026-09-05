@@ -1,9 +1,9 @@
 name: Microservices quality
 on:
   push:
-    paths: ['microservices/**', 'backend/**', 'frontend/src/service/**', 'frontend/src/axios.js', '.github/workflows/microservices.yml']
+    paths: ['microservices/**', 'backend/**', 'frontend/**', '.github/workflows/microservices.yml']
   pull_request:
-    paths: ['microservices/**', 'backend/**', 'frontend/src/service/**', 'frontend/src/axios.js', '.github/workflows/microservices.yml']
+    paths: ['microservices/**', 'backend/**', 'frontend/**', '.github/workflows/microservices.yml']
 permissions:
   contents: read
 concurrency:
@@ -24,6 +24,7 @@ jobs:
           cache-dependency-path: |
             microservices/package-lock.json
             backend/package-lock.json
+            frontend/package-lock.json
       - run: npm ci --ignore-scripts
         working-directory: microservices
       - run: npm test
@@ -36,6 +37,12 @@ jobs:
         working-directory: backend
       - run: npm test
         working-directory: backend
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: npm run test:unit
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
       - name: Validate local Compose without production credentials
         working-directory: microservices
         env:

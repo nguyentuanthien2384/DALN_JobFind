@@ -26,6 +26,18 @@ const fillAndSubmit = (phone = "0912345678", password = "secret1") => {
 };
 
 describe("Login", () => {
+    it('explains an expired session on the login page', () => {
+        window.history.replaceState({}, '', '/login?reason=expired');
+        renderLogin();
+        expect(screen.getByRole('status')).toHaveTextContent('Phiên đăng nhập đã hết hạn');
+    });
+    it('handles a rejected login request without leaving the submit button stuck', async () => {
+        handleLoginService.mockRejectedValueOnce(new Error('network failure'));
+        renderLogin();
+        fillAndSubmit();
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Không gửi được yêu cầu đăng nhập. Vui lòng thử lại.'));
+        expect(screen.getByRole('button', { name: 'Đăng nhập' })).toBeEnabled();
+    });
     beforeEach(() => {
         localStorage.clear();
         jest.clearAllMocks();

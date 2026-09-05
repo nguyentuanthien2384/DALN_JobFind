@@ -82,14 +82,15 @@ describe("configured axios client", () => {
         const { responseFailure } = loadClient(undefined);
         expect(responseFailure(new Error("offline"))).toEqual({
             errCode: -1,
-            errMessage: "Không kết nối được máy chủ. Vui lòng kiểm tra lại backend.",
+            errMessage: "Không kết nối được máy chủ. Vui lòng kiểm tra lại kết nối.",
+            httpStatus: 0, errorType: 'network',
         });
     });
 
     it.each([
-        [{ errCode: 7, errMessage: "Specific" }, 503, { errCode: 7, errMessage: "Specific" }],
-        [{ message: "Generic" }, 400, { errCode: -1, errMessage: "Generic" }],
-        [{}, 502, { errCode: -1, errMessage: "Lỗi máy chủ (502)" }],
+        [{ errCode: 7, errMessage: "Specific" }, 503, { errCode: 7, errMessage: "Specific", httpStatus: 503, errorType: 'unavailable' }],
+        [{ message: "Generic" }, 400, { errCode: -1, errMessage: "Generic", httpStatus: 400, errorType: 'validation' }],
+        [{}, 502, { errCode: -1, errMessage: "Dịch vụ đang tạm gián đoạn. Vui lòng thử lại sau.", httpStatus: 502, errorType: 'unavailable' }],
     ])("normalizes an HTTP response %#", (data, status, expected) => {
         const { responseFailure } = loadClient(undefined);
         expect(responseFailure({ response: { data, status } })).toEqual(expected);
@@ -99,13 +100,14 @@ describe("configured axios client", () => {
         window.history.replaceState({}, "", "/admin/dashboard?tab=cv");
         localStorage.setItem("userData", "user");
         localStorage.setItem("token_user", "token");
-        const previousUrl = window.location.href;
+        const previousUrl = window.location.pathname + window.location.search;
         const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
         const { responseFailure } = loadClient(undefined);
 
-        expect(responseFailure({ response: { status: 401, data: { refresh: true, message: "Expired" } } })).toEqual({
+        expect(responseFailure({ config: { headers: { authorization: 'Bearer token' } }, response: { status: 401, data: { refresh: true, message: "Expired" } } })).toEqual({
             errCode: -1,
             errMessage: "Expired",
+            httpStatus: 401, errorType: 'authentication',
         });
         expect(localStorage.getItem("userData")).toBeNull();
         expect(localStorage.getItem("token_user")).toBeNull();
@@ -113,14 +115,40 @@ describe("configured axios client", () => {
         consoleError.mockRestore();
     });
 
-    it("does not clear storage again when already on the login page", () => {
+    it("clears stale session storage even on login without overwriting the return URL", () => {
         window.history.replaceState({}, "", "/login");
         localStorage.setItem("userData", "user");
         localStorage.setItem("token_user", "token");
         const { responseFailure } = loadClient(undefined);
-        responseFailure({ response: { status: 401, data: { refresh: true } } });
-        expect(localStorage.getItem("userData")).toBe("user");
-        expect(localStorage.getItem("token_user")).toBe("token");
+        responseFailure({ config: { headers: { authorization: 'Bearer token' } }, response: { status: 401, data: { refresh: true } } });
+        expect(localStorage.getItem("userData")).toBeNull();
+        expect(localStorage.getItem("token_user")).toBeNull();
         expect(localStorage.getItem("lastUrl")).toBeNull();
+    });
+
+    it('handles Gateway 401 without the old refresh flag', () => {
+        window.history.replaceState({}, '', '/login');
+        localStorage.setItem('token_user', 'current');
+        const { requestSuccess, responseFailure } = loadClient();
+        const config = requestSuccess({ url: '/api/my-applications', headers: {} });
+        expect(responseFailure({ config, response: { status: 401, data: { errCode: 401 } } })).toMatchObject({ errorType: 'authentication' });
+        expect(localStorage.getItem('token_user')).toBeNull();
+    });
+    it.each([403, 429, 502, 503])('does not log out a valid session for HTTP %s', (status) => {
+        localStorage.setItem('token_user', 'current');
+        const { requestSuccess, responseFailure } = loadClient();
+        const config = requestSuccess({ url: '/api/applications', headers: {} });
+        responseFailure({ config, response: { status, data: { errCode: status } } });
+        expect(localStorage.getItem('token_user')).toBe('current');
+    });
+    it('does not invalidate a newer login or redirect anonymous/login failures', () => {
+        const { requestSuccess, responseFailure } = loadClient();
+        localStorage.setItem('token_user', 'old');
+        const config = requestSuccess({ url: '/api/my-applications', headers: {} });
+        localStorage.setItem('token_user', 'new');
+        responseFailure({ config, response: { status: 401, data: {} } });
+        responseFailure({ config: { url: '/api/login', headers: { authorization: 'Bearer new' } }, response: { status: 401, data: {} } });
+        responseFailure({ config: {}, response: { status: 401, data: {} } });
+        expect(localStorage.getItem('token_user')).toBe('new');
     });
 });

@@ -6,6 +6,7 @@ Phạm vi: một máy phát triển, chỉ công bố cổng trên `127.0.0.1`. 
 
 - Backend đăng nhập, Gateway và Socket.IO dùng cùng `JWT_SECRET`, `JWT_ISSUER=jobfind-auth`, `JWT_AUDIENCE=jobfind-api`, `JWT_ACCESS_TTL_SECONDS=900`. Có thể cấu hình tuổi token từ 60 đến 3600 giây, nhưng phải giống nhau ở backend và Gateway.
 - Token cũ thiếu audience/khác issuer không còn dùng được. Cập nhật backend và Gateway trong cùng đợt rồi **đăng nhập lại**. Chưa có cơ chế refresh token; hết phiên cần đăng nhập lại. Không bật chế độ chấp nhận token cũ để bỏ qua kiểm tra.
+- Frontend mới xử lý lỗi phiên của cả Gateway/legacy, phân biệt thiếu quyền với gián đoạn và hỗ trợ dừng chờ AI. Cập nhật backend để bỏ cờ logout trên lỗi ADMIN thiếu quyền trước khi phục vụ frontend mới; xem `client-sync.md`. Đợt này không tự chuyển API đăng tin sang Job Core hoặc bổ sung refresh token.
 - `/status` yêu cầu tài khoản ADMIN đang hoạt động. `/metrics` dùng Bearer token riêng, không nhận JWT đăng nhập hay khóa giao tiếp nội bộ.
 - `/health` và `/healthz` chỉ báo tiến trình HTTP còn sống. `/readyz` trả 503 khi chưa sẵn sàng, dependency lỗi hoặc đang dừng. Không dùng liveness để kết luận DB/broker tốt.
 - AI Worker mở cổng vận hành 4007 **bên trong Docker**, không có API nhận việc và không công bố cổng ra máy chủ. Thiếu API key thì readiness thất bại; không thể coi tác vụ AI đã được kiểm chứng chỉ vì container chạy.

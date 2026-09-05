@@ -124,7 +124,7 @@ describe('JWT middleware', () => {
     middleware.verifyTokenAdmin(createRequest({ headers: { authorization: 'Bearer valid' } }), deniedRes, deniedNext);
     await flush();
     expect(deniedRes.status).toHaveBeenCalledWith(403);
-    expect(deniedRes.json).toHaveBeenCalledWith(expect.objectContaining({ errMessage: 'Permission denied' }));
+    expect(deniedRes.json).toHaveBeenCalledWith(expect.objectContaining({ errMessage: 'Permission denied', refresh: false }));
   });
 
   test('verifyTokenAdmin rejects a deleted admin account', async () => {
