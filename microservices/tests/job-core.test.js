@@ -66,6 +66,10 @@ describe('job write controller', () => {
     it('creates job and outbox records atomically', async () => {
         const conn = {
             query: vi.fn()
+                .mockResolvedValueOnce([['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))])
+                .mockResolvedValueOnce([[{ id: 7, companyId: 3 }]])
+                .mockResolvedValueOnce([[{ id: 3, statusCode: 'S1', censorCode: 'CS1' }]])
+                .mockResolvedValueOnce([{ affectedRows: 1 }])
                 .mockResolvedValueOnce([{ insertId: 10 }])
                 .mockResolvedValueOnce([{ insertId: 20 }])
                 .mockResolvedValueOnce([[{ id: 20, name: 'Node Dev', descriptionHTML: '<p>Build</p>', companyId: 3 }]])
@@ -78,9 +82,10 @@ describe('job write controller', () => {
             headers: { 'x-user-id': '7', 'x-company-id': '3' },
             body: { name: 'Node Dev', descriptionHTML: '<p>Build</p>', categoryJobCode: 'IT', amount: 0, isHot: true }
         }), res);
-        expect(conn.query).toHaveBeenCalledTimes(4);
-        expect(conn.query.mock.calls[0][1][6]).toBe(1);
-        expect(conn.query.mock.calls[1][1][0]).toBe('PS3');
+        expect(conn.query).toHaveBeenCalledTimes(8);
+        expect(conn.query.mock.calls[3][0]).toContain('allowHotPost = allowHotPost - 1');
+        expect(conn.query.mock.calls[4][1][6]).toBe(1);
+        expect(conn.query.mock.calls[5][1][0]).toBe('PS3');
         expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(1, conn, expect.objectContaining({
             aggregateType: 'job', aggregateId: 20, eventType: 'job.created', payload: { job }
         }));
@@ -89,7 +94,7 @@ describe('job write controller', () => {
             payload: { jobId: 20, name: 'Node Dev', descriptionHTML: '<p>Build</p>', moderationRequestId: expect.any(String) }
         }));
         expect(mocks.enqueueOutboxEvent.mock.calls[1][1].eventId).toBe(mocks.enqueueOutboxEvent.mock.calls[1][1].payload.moderationRequestId);
-        expect(conn.query.mock.calls[3][0]).toContain('INSERT INTO job_moderation_state');
+        expect(conn.query.mock.calls[7][0]).toContain('INSERT INTO job_moderation_state');
         expect(res.statusCode).toBe(201);
     });
 

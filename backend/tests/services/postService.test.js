@@ -7,8 +7,9 @@ const mockDb = {
   FollowCompany: model(), Notification: model(), UserSkill: model(), Skill: model(), UserSetting: model(),
   Allcode: {},
   Sequelize: { where: jest.fn(() => 'where') },
-  sequelize: { col: jest.fn(() => 'col'), fn: jest.fn(() => 'fn'), literal: jest.fn(() => 'literal') }
+  sequelize: { col: jest.fn(() => 'col'), fn: jest.fn(() => 'fn'), literal: jest.fn(() => 'literal'), query: jest.fn(), transaction: jest.fn() }
 };
+const mockTransaction = { LOCK: { UPDATE: 'UPDATE' } };
 const mockSendMail = jest.fn();
 
 jest.mock('../../src/models/index', () => mockDb);
@@ -24,6 +25,8 @@ const reset = () => {
   mockDb.sequelize.col.mockReturnValue('col');
   mockDb.sequelize.fn.mockReturnValue('fn');
   mockDb.sequelize.literal.mockReturnValue('literal');
+  mockDb.sequelize.query.mockResolvedValue([['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))]);
+  mockDb.sequelize.transaction.mockImplementation(work => work(mockTransaction));
   mockSendMail.mockReset();
 };
 
@@ -54,14 +57,19 @@ describe('postService', () => {
     [0, 'allowPost'], [1, 'allowHotPost']
   ])('creates a pending post and consumes the matching allowance (isHot=%s)', async (isHot, allowance) => {
     mockDb.User.findOne.mockResolvedValue({ companyId: 4 });
-    const company = { statusCode: 'S1', allowPost: 2, allowHotPost: 2, save: jest.fn() };
+    const company = { id: 4, statusCode: 'S1', censorCode: 'CS1', allowPost: 2, allowHotPost: 2, save: jest.fn() };
     mockDb.Company.findOne.mockResolvedValue(company);
     mockDb.DetailPost.create.mockResolvedValue({ id: 20 });
     mockDb.Post.create.mockResolvedValue({ id: 30 });
     const result = await service.handleCreateNewPost(validPost({ isHot }));
     expect(result).toEqual(expect.objectContaining({ errCode: 0, postId: 30 }));
     expect(company[allowance]).toBe(1);
-    expect(mockDb.Post.create).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 'PS3', detailPostId: 20, isHot }));
+    expect(mockDb.Post.create).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 'PS3', detailPostId: 20, isHot }), { transaction: mockTransaction });
+    expect(mockDb.DetailPost.create).toHaveBeenCalledWith(expect.any(Object), { transaction: mockTransaction });
+    expect(company.save).toHaveBeenCalledWith({ transaction: mockTransaction, fields: [allowance], silent: true });
+    for (const model of [mockDb.User, mockDb.Company]) {
+      expect(model.findOne).toHaveBeenCalledWith(expect.objectContaining({ transaction: mockTransaction, lock: 'UPDATE' }));
+    }
   });
 
   test('create handles missing/banned companies and exhausted quotas', async () => {
@@ -70,15 +78,15 @@ describe('postService', () => {
     expect((await service.handleCreateNewPost(validPost())).errCode).toBe(2);
     mockDb.Company.findOne.mockResolvedValueOnce({ statusCode: 'S2' });
     expect((await service.handleCreateNewPost(validPost())).errCode).toBe(2);
-    mockDb.Company.findOne.mockResolvedValueOnce({ statusCode: 'S1', allowPost: 0 });
+    mockDb.Company.findOne.mockResolvedValueOnce({ statusCode: 'S1', censorCode: 'CS1', allowPost: 0 });
     expect((await service.handleCreateNewPost(validPost())).errCode).toBe(2);
-    mockDb.Company.findOne.mockResolvedValueOnce({ statusCode: 'S1', allowHotPost: 0 });
+    mockDb.Company.findOne.mockResolvedValueOnce({ statusCode: 'S1', censorCode: 'CS1', allowHotPost: 0 });
     expect((await service.handleCreateNewPost(validPost({ isHot: 1 }))).errCode).toBe(2);
   });
 
   test('re-ups an existing post and consumes normal/hot allowance', async () => {
     mockDb.User.findOne.mockResolvedValue({ companyId: 4 });
-    const company = { allowPost: 1, allowHotPost: 1, save: jest.fn() };
+    const company = { id: 4, statusCode: 'S1', censorCode: 'CS1', allowPost: 1, allowHotPost: 1, save: jest.fn() };
     mockDb.Company.findOne.mockResolvedValue(company);
     mockDb.Post.findOne.mockResolvedValueOnce(null);
     expect((await service.handleReupPost(validPost())).errCode).toBe(2);
@@ -108,6 +116,61 @@ describe('postService', () => {
     mockDb.DetailPost.create.mockResolvedValueOnce({ id: 21 });
     await service.handleUpdatePost(validPost());
     expect(sharedPost.detailPostId).toBe(21);
+  });
+
+  test.each([['0', 0], ['1', 1], [false, 0], [true, 1]])('normalizes legacy hot flag %s to %s', async (isHot, expected) => {
+    mockDb.User.findOne.mockResolvedValue({ companyId: 4 });
+    const company = { id: 4, statusCode: 'S1', censorCode: 'CS1', allowPost: 2, allowHotPost: 2, save: jest.fn() };
+    mockDb.Company.findOne.mockResolvedValue(company);
+    mockDb.DetailPost.create.mockResolvedValue({ id: 20 });
+    mockDb.Post.create.mockResolvedValue({ id: 30 });
+    expect((await service.handleCreateNewPost(validPost({ isHot }))).errCode).toBe(0);
+    expect(mockDb.Post.create).toHaveBeenCalledWith(expect.objectContaining({ isHot: expected }), { transaction: mockTransaction });
+    expect(company[expected ? 'allowPost' : 'allowHotPost']).toBe(2);
+  });
+
+  test.each(['handleCreateNewPost', 'handleReupPost'])('%s rejects unapproved companies, absent users and unsafe tables before writes', async method => {
+    mockDb.User.findOne.mockResolvedValueOnce(null);
+    expect((await service[method](validPost())).errCode).toBe(2);
+    mockDb.User.findOne.mockResolvedValue({ companyId: 4 });
+    mockDb.Company.findOne.mockResolvedValue({ statusCode: 'S1', censorCode: 'CS2' });
+    expect((await service[method](validPost())).errCode).toBe(2);
+    mockDb.sequelize.query.mockResolvedValueOnce([[{ name: 'companies', engine: 'MyISAM' }]]);
+    expect((await service[method](validPost())).errCode).toBe(2);
+    expect(mockDb.Post.create).not.toHaveBeenCalled();
+    expect(mockDb.DetailPost.create).not.toHaveBeenCalled();
+  });
+
+  test.each([null, 'false', 'true', -1, 2, {}])('refuses malformed hot flag %s without a charge', async isHot => {
+    expect((await service.handleCreateNewPost(validPost({ isHot }))).errCode).toBe(2);
+    expect(mockDb.User.findOne).not.toHaveBeenCalled();
+    expect(mockDb.Post.create).not.toHaveBeenCalled();
+  });
+
+  test.each([0, -1, null, undefined])('refuses unavailable remaining quota %s', async allowPost => {
+    mockDb.User.findOne.mockResolvedValue({ companyId: 4 });
+    const company = { id: 4, statusCode: 'S1', censorCode: 'CS1', allowPost, save: jest.fn() };
+    mockDb.Company.findOne.mockResolvedValue(company);
+    expect((await service.handleCreateNewPost(validPost())).errCode).toBe(2);
+    expect(company.save).not.toHaveBeenCalled();
+    expect(mockDb.DetailPost.create).not.toHaveBeenCalled();
+  });
+
+  test.each(['quota', 'detail', 'post', 'commit'])('does not report success when %s fails in the transaction', async stage => {
+    mockDb.User.findOne.mockResolvedValue({ companyId: 4 });
+    const company = { id: 4, statusCode: 'S1', censorCode: 'CS1', allowPost: 2, save: jest.fn() };
+    mockDb.Company.findOne.mockResolvedValue(company);
+    mockDb.DetailPost.create.mockResolvedValue({ id: 20 });
+    mockDb.Post.create.mockResolvedValue({ id: 30 });
+    const failure = new Error('transaction failure');
+    if (stage === 'quota') company.save.mockRejectedValueOnce(failure);
+    if (stage === 'detail') mockDb.DetailPost.create.mockRejectedValueOnce(failure);
+    if (stage === 'post') mockDb.Post.create.mockRejectedValueOnce(failure);
+    if (stage === 'commit') mockDb.sequelize.transaction.mockImplementationOnce(async work => {
+      await work(mockTransaction);
+      throw failure;
+    });
+    await expect(service.handleCreateNewPost(validPost())).rejects.toBe(failure);
   });
 
   test.each([

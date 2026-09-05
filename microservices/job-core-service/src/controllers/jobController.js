@@ -3,6 +3,7 @@ import { EVENTS } from '../../../shared/events.js';
 import { createLogger } from '../../../shared/logger.js';
 import { enqueueOutboxEvent } from '../libs/outbox.js';
 import { requestJobModeration, cancelJobModeration } from '../libs/moderationState.js';
+import { consumePostingQuota, PostingQuotaError } from '../libs/postingQuota.js';
 
 const logger = createLogger('job-core-service');
 
@@ -50,6 +51,7 @@ export const createJob = async (req, res) => {
 
     try {
         const { postId, job } = await withTransaction(async (conn) => {
+            await consumePostingQuota(conn, { userId, companyId, isHot: b.isHot });
             const [detail] = await conn.query(
                 `INSERT INTO detailposts
                  (name, descriptionHTML, descriptionMarkdown, categoryJobCode, addressCode,
@@ -98,6 +100,9 @@ export const createJob = async (req, res) => {
         logger.info('da tao tin tuyen dung', { postId, userId, companyId });
         return res.status(201).json({ errCode: 0, data: job });
     } catch (error) {
+        if (error instanceof PostingQuotaError) {
+            return res.status(error.statusCode).json({ errCode: error.errCode, errMessage: error.message });
+        }
         logger.error('tao tin that bai', { error: error.message });
         return res.status(500).json({ errCode: -1, errMessage: 'Không tạo được tin tuyển dụng' });
     }

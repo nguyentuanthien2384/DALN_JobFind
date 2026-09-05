@@ -1,4 +1,5 @@
 import db from "../models/index";
+import { PostingQuotaError, normalizePostHot, lockPostingCompany, consumeLockedPostingQuota } from '../utils/postingQuota';
 const { Op } = require("sequelize");
 require('dotenv').config();
 var nodemailer = require('nodemailer');
@@ -36,190 +37,76 @@ let sendmail = (note, userMail, link = null) => {
         }
     });
 }
-let handleCreateNewPost = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            if (!data.name || !data.categoryJobCode || !data.addressCode || !data.salaryJobCode || !data.amount || !data.timeEnd || !data.categoryJoblevelCode || !data.userId
-                || !data.categoryWorktypeCode || !data.experienceJobCode || !data.genderPostCode || !data.descriptionHTML || !data.descriptionMarkdown || data.isHot === ''
-            ) {
-                resolve({
-                    errCode: 1,
-                    errMessage: 'Missing required parameters !'
-                })
-            } else {
-                let user = await db.User.findOne({
-                    where: { id: data.userId },
-                    attributes: {
-                        exclude: ['userId']
-                    }
-                })
-                let company = await db.Company.findOne({
-                    where: { id: user.companyId },
-                    raw: false
-                })
-                if (!company) {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Người dùng không thuộc công ty'
-                    })
-                    return
-                }
-                else {
-                    if (company.statusCode == "S1") {
-                        if (data.isHot == '1') {
-                            if (company.allowHotPost > 0) {
-                                company.allowHotPost -= 1
-                                await company.save({silent: true})
-                            }
-                            else {
-                                resolve({
-                                    errCode: 2,
-                                    errMessage: 'Công ty bạn đã hết số lần đăng bài viết nổi bật'
-                                })
-                                return
-                            }
-                        }
-                        else {
-                            if (company.allowPost > 0) {
-                                company.allowPost -= 1
-                                await company.save({silent: true})
-                            }
-                            else {
-                                resolve({
-                                    errCode: 2,
-                                    errMessage: 'Công ty bạn đã hết số lần đăng bài viết bình thường'
-                                })
-                                return
-                            }
-                        }
-                        let detailPost = await db.DetailPost.create({
-                            name: data.name,
-                            descriptionHTML: data.descriptionHTML,
-                            descriptionMarkdown: data.descriptionMarkdown,
-                            categoryJobCode: data.categoryJobCode,
-                            addressCode: data.addressCode,
-                            salaryJobCode: data.salaryJobCode,
-                            amount: data.amount,
-                            categoryJoblevelCode: data.categoryJoblevelCode,
-                            categoryWorktypeCode: data.categoryWorktypeCode,
-                            experienceJobCode: data.experienceJobCode,
-                            genderPostCode: data.genderPostCode,
-                        })
-                        let newPost = await db.Post.create({
-                            statusCode: 'PS3',
-                            timeEnd: data.timeEnd,
-                            userId: data.userId,
-                            isHot: data.isHot,
-                            detailPostId: detailPost.id
-                        })
-                        resolve({
-                            errCode: 0,
-                            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',
-                            // Tra them id de controller phat su kien sang Search Service.
-                            postId: newPost.id
-                        })
-                    }
-                    else {
-                        resolve({
-                            errCode: 2,
-                            errMessage: 'Công ty bạn đã bị chặn không thể đăng bài'
-                        })
-                    }
-                }
-            }
-        } catch (error) {
-            reject(error)
-        }
-    })
-}
-let handleReupPost = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            if (!data.userId || !data.postId || !data.timeEnd) {
-                resolve({
-                    errCode: 1,
-                    errMessage: 'Missing required parameters !'
-                })
-            } else {
-                let user = await db.User.findOne({
-                    where: { id: data.userId },
-                    attributes: {
-                        exclude: ['userId']
-                    }
-                })
-                let company = await db.Company.findOne({
-                    where: { id: user.companyId },
-                    raw: false
-                })
-                if (!company) {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Người dùng không thuộc công ty'
-                    })
-                    return
-                }
-                else {
-                    let post = await db.Post.findOne({
-                        where: {id: data.postId}
-                    })
-                    if (!post)
-                    {
-                        resolve({
-                            errCode: 2,
-                            errMessage: 'Bài viết không tồn tại'
-                        })
-                        return
-                    }
-                    else {
-                        if (post.isHot == '1') {
-                            if (company.allowHotPost > 0) {
-                                company.allowHotPost -= 1
-                                await company.save()
-                            }
-                            else {
-                                resolve({
-                                    errCode: 2,
-                                    errMessage: 'Công ty bạn đã hết số lần đăng bài viết nổi bật'
-                                })
-                                return
-                            }
-                        }
-                        else {
-                            if (company.allowPost > 0) {
-                                company.allowPost -= 1
-                                await company.save()
-                            }
-                            else {
-                                resolve({
-                                    errCode: 2,
-                                    errMessage: 'Công ty bạn đã hết số lần đăng bài viết bình thường'
-                                })
-                                return
-                            }
-                        }
-                        let reupPost = await db.Post.create({
-                            statusCode: 'PS3',
-                            timeEnd: data.timeEnd,
-                            userId: data.userId,
-                            isHot: post.isHot,
-                            detailPostId: post.detailPostId
-                        })
-                        resolve({
-                            errCode: 0,
-                            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',
-                            // Dang lai tao ra mot tin MOI (id khac), khong phai sua tin cu.
-                            // Tra id moi de controller phat dung su kien "tin moi".
-                            postId: reupPost.id
-                        })
+// Business failures throw inside the managed transaction so every write rolls
+// back; only convert them to the legacy response shape AFTER rollback.
+const withPostingTransaction = async (work) => {
+    try {
+        return await db.sequelize.transaction(work);
+    } catch (error) {
+        if (error instanceof PostingQuotaError) return { errCode: 2, errMessage: error.message };
+        throw error;
+    }
+};
 
-                    }
-                }
-            }
-        } catch (error) {
-            reject(error)
-        }
-    })
-}
+let handleCreateNewPost = async (data) => {
+    if (!data.name || !data.categoryJobCode || !data.addressCode || !data.salaryJobCode || !data.amount || !data.timeEnd || !data.categoryJoblevelCode || !data.userId
+        || !data.categoryWorktypeCode || !data.experienceJobCode || !data.genderPostCode || !data.descriptionHTML || !data.descriptionMarkdown || data.isHot === '') {
+        return { errCode: 1, errMessage: 'Missing required parameters !' };
+    }
+    return withPostingTransaction(async (transaction) => {
+        const isHot = normalizePostHot(data.isHot);
+        const company = await lockPostingCompany(data.userId, transaction);
+        await consumeLockedPostingQuota(company, isHot, transaction);
+        const detailPost = await db.DetailPost.create({
+            name: data.name,
+            descriptionHTML: data.descriptionHTML,
+            descriptionMarkdown: data.descriptionMarkdown,
+            categoryJobCode: data.categoryJobCode,
+            addressCode: data.addressCode,
+            salaryJobCode: data.salaryJobCode,
+            amount: data.amount,
+            categoryJoblevelCode: data.categoryJoblevelCode,
+            categoryWorktypeCode: data.categoryWorktypeCode,
+            experienceJobCode: data.experienceJobCode,
+            genderPostCode: data.genderPostCode
+        }, { transaction });
+        const newPost = await db.Post.create({
+            statusCode: 'PS3', timeEnd: data.timeEnd, userId: data.userId,
+            isHot, detailPostId: detailPost.id
+        }, { transaction });
+        return {
+            errCode: 0,
+            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',
+            postId: newPost.id
+        };
+    });
+};
+
+let handleReupPost = async (data) => {
+    if (!data.userId || !data.postId || !data.timeEnd) {
+        return { errCode: 1, errMessage: 'Missing required parameters !' };
+    }
+    return withPostingTransaction(async (transaction) => {
+        const company = await lockPostingCompany(data.userId, transaction);
+        // Ownership is checked by the authenticated controller. Lock the source
+        // here to keep its charged category/detail reference stable until commit.
+        const post = await db.Post.findOne({
+            where: { id: data.postId }, transaction, lock: transaction.LOCK.UPDATE, raw: false
+        });
+        if (!post) throw new PostingQuotaError('Bài viết không tồn tại');
+        const isHot = normalizePostHot(post.isHot);
+        await consumeLockedPostingQuota(company, isHot, transaction);
+        const reupPost = await db.Post.create({
+            statusCode: 'PS3', timeEnd: data.timeEnd, userId: data.userId,
+            isHot, detailPostId: post.detailPostId
+        }, { transaction });
+        return {
+            errCode: 0,
+            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',
+            postId: reupPost.id
+        };
+    });
+};
 let handleUpdatePost = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
