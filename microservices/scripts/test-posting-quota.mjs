@@ -109,6 +109,11 @@ try {
         if (!Object.hasOwn(methods, req.params.action)) return res.status(404).end();
         return legacyController[methods[req.params.action]](req, res);
     });
+    app.put('/test/legacy-edit', (req, res) => {
+        req.user = { id: 7, companyId: 3, userAccountData: { roleCode: 'COMPANY' },
+            userCompanyData: { id: 3, statusCode: 'S1', censorCode: 'CS1' } };
+        return legacyController.handleUpdatePost(req, res);
+    });
     contractRoute(app, 'jobCreate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), createJob);
     contractRoute(app, 'jobRepost', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), repostJob);
     contractRoute(app, 'jobUpdate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), updateJob);
@@ -130,6 +135,15 @@ try {
         categoryJobCode: 'IT', addressCode: 'HN', salaryJobCode: 'SAL1', amount: 1,
         categoryJoblevelCode: 'JL1', categoryWorktypeCode: 'WT1', experienceJobCode: 'EXP1', genderPostCode: 'G1',
         timeEnd: String(Date.now() + 86400000), isHot });
+    const legacyEditHttp = async (job, { drop = false, ...patch } = {}) => {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/test/legacy-edit`, {
+            method: 'PUT', signal: AbortSignal.timeout(15000), headers: { 'content-type': 'application/json',
+                'x-internal-secret': token, ...(drop && { 'x-test-drop-response': '1' }) },
+            body: JSON.stringify({ ...job, id: job.id, postId: 999999, userId: 99, companyId: 4, roleCode: 'ADMIN',
+                expectedRevision: job.editRevision, ...patch })
+        });
+        return { status: response.status, body: await response.json() };
+    };
     const core = async (isHot = 0, userId = 7, headers = {}, overrides = {}) => {
         const response = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(15000), headers: {
             'content-type': 'application/json', 'x-internal-secret': token, 'x-user-id': String(userId),
@@ -411,7 +425,9 @@ try {
     await runJobConcurrencyChecks({ pool, check, core, managed, edit, legacy, counts, balance, waitForRowWait });
     const { runManualModerationChecks } = await import('./manual-moderation-checks.mjs');
     await runManualModerationChecks({ pool, check, core, managed, edit, legacy, moderateLegacyPost, manualHttp, counts, balance, waitForRowWait });
-    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private reads + concurrency + manual/AI moderation); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
+    const { runLegacyEditOutboxChecks } = await import('./legacy-edit-outbox-checks.mjs');
+    await runLegacyEditOutboxChecks({ pool, check, core, managed, legacyEditHttp, counts, balance, waitForRowWait });
+    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private reads + concurrency + manual/AI moderation + legacy edit outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
     const closed = await Promise.allSettled([

@@ -11,7 +11,7 @@ export const assertTransactionalLegacyOutbox = async transaction => {
     const [tables] = await db.sequelize.query(`SELECT ENGINE AS engine FROM information_schema.TABLES
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'outbox_events'`, { transaction });
     if (tables.length !== 1 || tables[0].engine?.toUpperCase() !== 'INNODB') {
-        throw new PostingQuotaError('Chưa thể kiểm duyệt: nơi lưu yêu cầu đồng bộ chưa sẵn sàng');
+        throw new PostingQuotaError('Chưa thể lưu tin: nơi lưu yêu cầu đồng bộ chưa sẵn sàng');
     }
 };
 
@@ -21,7 +21,7 @@ const DETAIL_FIELDS = ['name', 'descriptionHTML', 'descriptionMarkdown', 'amount
     'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode'];
 const pick = (row, fields) => Object.fromEntries(fields.map(field => [field, row[field] ?? null]));
 
-// Inputs are the current rows already locked by the manual writer, AFTER save.
+// Inputs are current rows already locked by the moderation/edit writer, AFTER save.
 // An ORM instance/body spread can leak private fields or overwrite post.id with
 // detail.id. This allowlist matches the old job.updated payload explicitly.
 export const enqueueLegacyJobUpdated = async ({ post, detail, owner, company }, transaction) => {

@@ -167,8 +167,7 @@ describe('postController', () => {
     mockEmitJobUpdated.mockClear(); mockEmitDashboardChanged.mockClear();
     mockService[method].mockResolvedValueOnce({ errCode: 0, changed: true, postId: 123 });
     await controller[method](request(), createResponse());
-    if (method === 'handleUpdatePost') expect(mockEmitJobUpdated).toHaveBeenCalledWith(17);
-    else expect(mockEmitJobUpdated).not.toHaveBeenCalled(); // writer already saved exact job ID in outbox
+    expect(mockEmitJobUpdated).not.toHaveBeenCalled(); // writer already saved exact job ID in outbox
     if (changesDashboard) expect(mockEmitDashboardChanged).toHaveBeenCalledWith('post');
   });
 
@@ -183,13 +182,13 @@ describe('postController', () => {
     }
   });
 
-  test('updated post falls back to postId and emits nothing on failure/missing id', async () => {
+  test('updated post falls back to postId but never publishes directly on success/failure/missing id', async () => {
     mockService.handleUpdatePost.mockResolvedValue({ errCode: 0 });
     const postIdReq = request();
     delete postIdReq.body.id;
     await controller.handleUpdatePost(postIdReq, createResponse());
     expect(mockService.handleUpdatePost).toHaveBeenCalledWith(expect.objectContaining({ id: 18, userId: 7 }), { roleCode: 'EMPLOYER', companyId: 11 });
-    expect(mockEmitJobUpdated).toHaveBeenCalledWith(18);
+    expect(mockEmitJobUpdated).not.toHaveBeenCalled();
 
     mockEmitJobUpdated.mockClear();
     mockService.handleUpdatePost.mockResolvedValueOnce({ errCode: 1 });

@@ -217,17 +217,19 @@ try {
         }
     });
 
-    // Manual outbox still uses the existing job.updated contract. Decode the
+    // Manual/edit outbox still uses the existing job.updated contract. Decode the
     // exact envelope used by its relay, then call the real Search consumer.
-    const manualSignal = (id, statusCode, eventId) => {
+    const legacySignal = (snapshot, eventId) => {
+        const id = snapshot.id;
         const event = createEventEnvelope({ eventId, eventType: 'job.updated', aggregateId: id,
             occurredAt: '2026-09-06T00:00:00Z', producer: 'legacy-backend', payloadVersion: 1,
-            data: { job: { ...job(id, 'Historical manual snapshot'), statusCode } } });
+            data: { job: snapshot } });
         const { payload, metadata } = readEventMessage({ content: Buffer.from(JSON.stringify(event.data)),
             properties: eventProperties(event), fields: { routingKey: 'job.updated' } });
         assert.equal(metadata.producer, 'legacy-backend');
         return handleSearchEvent(payload, 'job.updated', metadata);
     };
+    const manualSignal = (id, statusCode, eventId) => legacySignal({ ...job(id, 'Historical manual snapshot'), statusCode }, eventId);
     const isPublic = async id => {
         await es.indices.refresh({ index: INDEX });
         const res = response(); await searchJobs({ query: {} }, res);
@@ -276,6 +278,41 @@ try {
         jobs.set('23', { ...job(23), statusCode: 'PS4' });
         try { await manualSignal(23, 'PS4', 'manual-ban-23'); } finally { gate.release.resolve(); }
         await delayed; assert.equal((await read(23)).searchDeleted, true); assert.equal(await isPublic(23), false);
+    });
+
+    await check('legacy edit signals project the latest PS3 content and raw codes; older approval/edit cannot restore stale content or status', async () => {
+        const approved = job(24, 'Originally approved'), firstEdit = { ...job(24, 'First draft'), statusCode: 'PS3', amount: 2 };
+        jobs.set('24', approved); await legacySignal(approved, 'approve-24');
+        const latest = { ...firstEdit, name: 'Latest draft', descriptionHTML: '<p>Newest content</p>', amount: 9, categoryJobCode: 'OTHER', addressCode: 'HCM' };
+        jobs.set('24', latest);
+        await legacySignal(firstEdit, 'edit-24-first'); await legacySignal(approved, 'approve-24');
+        const current = await read(24);
+        assert.equal(current.name, latest.name); assert.equal(current.description, 'Newest content');
+        assert.equal(current.amount, 9); assert.equal(current.categoryJobCode, 'OTHER'); assert.equal(current.addressCode, 'HCM');
+        assert.equal(current.statusCode, 'PS3'); assert.equal(await isPublic(24), false);
+        jobs.set('24', { ...latest, statusCode: 'PS1' }); // a later manual decision
+        await legacySignal(firstEdit, 'edit-24-first');
+        assert.equal((await read(24)).name, latest.name); assert.equal(await isPublic(24), true);
+    });
+    await check('retrying a saved legacy edit after source recovery applies new content/PS3 without treating outage as deletion', async () => {
+        const original = job(25), edited = { ...job(25, 'Saved while source down'), statusCode: 'PS3' };
+        jobs.set('25', original); await legacySignal(original, 'approve-25'); const before = await read(25);
+        jobs.set('25', edited); sourceFailure = 503;
+        try { await assert.rejects(legacySignal(edited, 'edit-25')); assert.deepEqual(await read(25), before); }
+        finally { sourceFailure = null; }
+        await legacySignal(edited, 'edit-25'); const saved = await read(25);
+        assert.equal(saved.name, edited.name); assert.equal(saved.statusCode, 'PS3'); assert.equal(await isPublic(25), false);
+        await Promise.all([legacySignal(edited, 'edit-25'), legacySignal(edited, 'edit-25')]);
+        assert.equal((await read(25)).indexedAt, saved.indexedAt); assert.equal((await read(25)).searchSync.hash, saved.searchSync.hash);
+    });
+    await check('a paused legacy edit loses CAS against a newer edit and rereads current content', async () => {
+        const original = job(26), older = { ...job(26, 'Older edit'), statusCode: 'PS3' }, newer = { ...older, name: 'Newer edit', amount: 7 };
+        jobs.set('26', original); await legacySignal(original, 'approve-26'); jobs.set('26', older);
+        const gate = pauseNextRead(26), delayed = legacySignal(older, 'edit-26-old'); await gate.entered.promise;
+        jobs.set('26', newer);
+        try { await legacySignal(newer, 'edit-26-new'); } finally { gate.release.resolve(); }
+        await delayed;
+        assert.equal((await read(26)).name, newer.name); assert.equal((await read(26)).amount, 7); assert.equal(await isPublic(26), false);
     });
 
     await check('real scroll scans past 10000 IDs and leaves no open search contexts', async () => {

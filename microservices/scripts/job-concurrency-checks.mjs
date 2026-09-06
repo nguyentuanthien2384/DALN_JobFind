@@ -88,7 +88,7 @@ export const runJobConcurrencyChecks = async ({ pool, check, core, managed, edit
                 const accepted = results.findIndex(result => result.ok), after = await read(id);
                 assert.equal(after.name, `Concurrent intent ${accepted}`); assert.equal(after.editRevision, results[accepted].revision);
                 assert.equal(after.userId, 8);
-                assert.deepEqual((await counts()).map((n, i) => n - before[i]), [0, 1, kinds[accepted] === 'core' ? 2 : 0, 0]);
+                assert.deepEqual((await counts()).map((n, i) => n - before[i]), [0, 1, kinds[accepted] === 'core' ? 2 : 1, 0]);
                 assert.deepEqual(await balance(), quota);
             } finally { await blocker.rollback(); blocker.release(); await Promise.allSettled(pending); }
         });

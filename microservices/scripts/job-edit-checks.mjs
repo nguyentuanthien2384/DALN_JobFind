@@ -121,7 +121,7 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
         assert.equal(post.statusCode, 'PS3');
         assert.deepEqual(await snapshot(sibling), siblingBefore);
         assert.equal((await snapshot(id)).genderPostCode, 'G2');
-        assert.deepEqual(await delta(before), [0, 1, 0, 0]);
+        assert.deepEqual(await delta(before), [0, 1, 1, 0]);
         assert.deepEqual(await balance(), quota);
     });
 
@@ -174,10 +174,11 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
                 assert.deepEqual(await read(id), oldPost);
                 assert.deepEqual(await state(id), oldState);
                 await sameWrites(before, quota);
-                if (['detailposts', 'posts'].includes(table)) {
+                if (['detailposts', 'posts', 'outbox_events', 'job_moderation_state'].includes(table)) {
                     await assert.rejects(legacyEdit(id, { name: 'Must roll back' }), /synthetic edit failure/);
                     assert.deepEqual(await snapshot(id), original);
                     assert.deepEqual(await read(id), oldPost);
+                    assert.deepEqual(await state(id), oldState);
                     await sameWrites(before, quota);
                 }
             } finally { await pool.query('DROP TRIGGER fail_edit'); }

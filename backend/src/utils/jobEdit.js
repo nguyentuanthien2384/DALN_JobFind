@@ -2,6 +2,7 @@ import db from '../models/index';
 import { assertTransactionalPostingTables, PostingQuotaError } from './postingQuota';
 import { isJobRevision, jobRevision } from './jobRevision';
 import { cancelLegacyModeration } from './moderationFence';
+import { enqueueLegacyJobUpdated } from './legacyOutbox';
 
 const fields = [
     'name', 'descriptionHTML', 'descriptionMarkdown', 'categoryJobCode', 'addressCode',
@@ -29,8 +30,9 @@ export const updateLegacyPost = async (data, identity = {}) => {
                 || (identity.companyId !== undefined && Number(identity.companyId) !== actor.companyId)))) {
                 throw new PostingQuotaError('Bạn không có quyền sửa tin hoặc thông tin công ty đã thay đổi');
             }
+            let company = null;
             if (owner?.companyId) {
-                const company = await db.Company.findOne({ where: { id: owner.companyId }, attributes: ['id', 'statusCode', 'censorCode'],
+                company = await db.Company.findOne({ where: { id: owner.companyId }, attributes: ['id', 'name', 'thumbnail', 'statusCode', 'censorCode'],
                     transaction, lock: transaction.LOCK.UPDATE, raw: true });
                 if (!admin && (!company || company.statusCode !== 'S1' || company.censorCode !== 'CS1')) {
                     throw new PostingQuotaError('Công ty chưa được duyệt, đã bị khóa hoặc không tồn tại');
@@ -60,8 +62,15 @@ export const updateLegacyPost = async (data, identity = {}) => {
             post.detailPostId = detail.id;
             post.statusCode = 'PS3'; // Preserve the legacy manual review policy.
             await post.save({ transaction, fields: ['detailPostId', 'statusCode', 'updatedAt'] });
+            // Read our inserted row in the SAME transaction. The wire snapshot
+            // and returned revision must reflect persisted DB values (not ORM
+            // input coercion or a stale joined read). No-op never reaches here.
+            const savedDetail = await db.DetailPost.findOne({ where: { id: detail.id },
+                transaction, lock: transaction.LOCK.UPDATE, raw: true });
+            if (!savedDetail) throw new PostingQuotaError('Không đọc được nội dung vừa lưu, vui lòng thử lại');
+            await enqueueLegacyJobUpdated({ post, detail: savedDetail, owner, company }, transaction);
             return { errCode: 0, errMessage: 'Đã chỉnh sửa bài viết thành công hãy chờ quản trị viên duyệt', changed: true,
-                editRevision: jobRevision(post, next) };
+                editRevision: jobRevision(post, savedDetail) };
         });
     } catch (error) {
         if (error instanceof PostingQuotaError) return { errCode: 2, errMessage: error.message };

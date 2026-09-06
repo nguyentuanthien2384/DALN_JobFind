@@ -292,9 +292,38 @@ Giữ điều kiện sao lưu, schema/quyền và binding notification 2g. Tạm
 
 Khi rollback: dừng quyết định mới, giữ relay/consumer hiểu row mới cho đến khi đối chiếu hết backlog, không bật thêm direct emit song song với writer mới; không rewrite ID/producer/payload của event đã phát, không xóa pending/inbox hoặc đánh dấu marker bằng tay. Không recreate DB/broker/queue/volume. **Chưa thực hiện rollout/migration trên môi trường thật**; image microservices mới không bao gồm backend legacy trên host.
 
+## Đợt 2i: lưu bền cập nhật tìm kiếm khi sửa tin trên AddPost
+
+Ngày 06-09-2026, chuyển **`job.updated` của `/api/update-post` legacy** sang outbox trong transaction sửa tin. Đây là bước nối tiếp 2h, chưa chuyển tạo/đăng lại tin hoặc endpoint giao diện sang Job Core. Không thêm bảng/cột/event; catalog vẫn **50 thao tác HTTP và 14 event**. Chưa cập nhật tiến trình phục vụ hay dữ liệu/schema thật.
+
+### Nội dung đã lưu và yêu cầu đồng bộ đi cùng nhau
+
+- Giữ khóa/quyền, `expectedRevision`, kiểm tra ngày hết hạn và copy-on-write của 2b/2e/2f. Khi có thay đổi thực sự, writer hủy request AI cũ, tạo chi tiết mới, chuyển tin về PS3 và INSERT đúng **một** `job.updated` trong cùng transaction. Lỗi bất kỳ bước nào làm toàn bộ rollback. Không đổi tác giả, ngày đăng/hết hạn, cờ nổi bật hay hạn mức; không sửa nội dung của bản đăng lại dùng chung chi tiết cũ. Sửa metadata cũng theo chính sách PS3 thủ công, không tạo request AI hoặc intent thông báo mới.
+- Đọc lại chi tiết vừa INSERT trong transaction; cả revision trả về và snapshot sự kiện dùng giá trị đã lưu trong DB, không dùng body/giá trị đầu vào ORM. Post/owner/company là các dòng hiện tại đã khóa; công ty đổi trong lúc chờ khóa phải được kiểm tra lại. Serializer allowlist 2h giữ đúng ID tin, mã phân loại gốc và ngữ cảnh công ty, không lấy actor/role/company từ body hay mang theo dữ liệu riêng tư ngoài contract.
+- Sự kiện dùng marker `legacy-job`, UUID/thời điểm đã lưu, producer `legacy-backend` và relay 2h hiện có. Controller bỏ emit `job.updated` trực tiếp sau commit: không có lần publish thứ hai với ID mới hoặc ID khác trong body. Broker không nằm trên đường phản hồi HTTP; pending giữ nguyên payload qua confirm/retry như 2h.
+- Lưu y hệt không tạo snapshot/event, không hủy AI và không cần kiểm tra outbox. Revision cũ bị từ chối trước no-op/ghi; sau khi mất phản hồi, retry với revision cũ trả 409, tải lại rồi lưu y hệt không nhân đôi event. Server vẫn nhận client cũ không gửi revision: khóa giúp 20 yêu cầu **giống hệt nhau** hội tụ về một lần ghi trong fixture, nhưng không ngăn mọi ghi đè khi nội dung khác nhau và không phải HTTP idempotency cho mọi edit.
+
+### Tương thích frontend và vận hành
+
+Giữ nguyên phản hồi legacy: thành công có `changed`/`editRevision`; conflict HTTP 409; lỗi đã xác định như outbox thiếu/sai engine trả HTTP 200 với `errCode: 2`; lỗi transaction/commit bất ngờ vẫn HTTP 200 với `errCode: -1` và thông báo chung. **Không áp dụng mô tả HTTP 503 của endpoint manual 2h cho endpoint sửa tin.** Backend chỉ trả mã 2 sau khi transaction đã rollback, không fallback publish hoặc tự sửa schema. Quyền/khả năng đọc metadata, outbox InnoDB và dữ liệu hợp contract vẫn là điều kiện để sửa thực sự.
+
+AddPost đã xử lý được các phản hồi này, không cần đổi mã giao diện/endpoint. Bổ sung kiểm thử: mã 2 giữ nháp/revision và chỉ gửi lại khi người dùng bấm Lưu; mã -1 không có `errorType` vẫn giữ nháp, khóa Lưu và yêu cầu tải lại đối chiếu như timeout. Không tự retry, bỏ precondition hoặc ép ghi đè. Khi lưu thành công, dùng revision mới cho lần kế tiếp. Việc đọc lại dòng DB không thêm tự gộp nội dung hay lịch sử phiên bản trên UI.
+
+Search tiếp tục coi `job.updated` là tín hiệu đọc nguồn hiện tại/CAS, không áp dụng snapshot lịch sử. Bản sửa PS3 không công khai sau khi đồng bộ; sự kiện duyệt/sửa cũ không phục hồi nội dung cũ, một sự kiện PS3 đến trễ cũng không được ẩn tin đã được duyệt lại. Nguồn lỗi giữ index cũ và retry, không suy thành xóa. Đây vẫn là **đồng bộ bất đồng bộ**: trước khi xử lý/refresh hoặc khi dependency lỗi, Search có thể còn kết quả cũ; không có giao dịch chung MySQL–Elasticsearch hoặc cam kết ẩn tức thời.
+
+Trước áp dụng: tạm dừng cả sửa tin và quyết định manual trong cửa sổ cập nhật; giữ các điều kiện 2g–2h, xác nhận **toàn bộ relay đã hiểu `legacy-job` trước backend mới**, Search/Notification/Admin và binding sẵn sàng, nguồn nội bộ Job Core đọc cùng MySQL. Backend legacy chạy trên host, không nằm trong image microservices. Kiểm tra dữ liệu lịch sử trên bản sao, không nới contract/chỉnh dữ liệu thật để vượt lỗi. Khi rollback dừng writer mới, giữ relay/consumer để đối chiếu pending; không bật direct emit song song, đổi ID/payload, purge backlog hoặc recreate DB/broker/volume. Đây vẫn là adapter DB chung, chưa database-per-service.
+
+### Kiểm chứng
+
+**2.371 test qua**: 591 backend (34 suite), 977 microservices (54 file), 803 frontend (51 suite); kiểm tra hợp đồng qua. Không thay mã chạy frontend/microservices, không build lại image/frontend, không push/chạy workflow GitHub ở đợt này.
+
+- MySQL tạm: **134 nhóm**, gồm 12 nhóm mới cho đường HTTP sửa legacy thực, rollback outbox/engine thiếu, mất phản hồi sau commit, nội dung DB khác đầu vào, công ty thay đổi trong lúc chờ khóa và 20 yêu cầu lặp. Bổ sung kiểm tra rollback hàng rào AI/outbox trong bài sửa cũ; cập nhật số event cho các bài cạnh tranh và chuỗi duyệt → sửa → chặn. Fixture chỉ gán danh tính COMPANY tổng hợp ở route riêng được bảo vệ, không phải kiểm thử đăng nhập toàn stack.
+- Elasticsearch tạm: **18 nhóm**, thêm bản sửa nội dung/mã/số lượng, sự kiện sai thứ tự, phục hồi nguồn và cạnh tranh hai bản sửa. RabbitMQ tạm: **6 nhóm** hợp đồng/confirm/retry/DLQ/producer legacy qua. Không đổi relay/consumer production; các bài này kiểm tra từng ranh giới, không phải E2E chạy đồng thời tất cả service.
+- Hai script tích hợp đã nằm trong CI; phần kiểm thử bổ sung được gọi tự động. Không đọc `.env` thật, gửi AI/mail/thanh toán, reindex dữ liệu thật hay khởi động Socket.IO người dùng; chỉ dọn container/volume thử có nhãn sở hữu.
+
 ## Thứ tự các đợt còn lại
 
-1. Tiếp tục outbox legacy cho **sửa nội dung tin đang dùng trên AddPost**, sau đó tạo/đăng lại tin và những publisher còn lại. Ý định thông báo manual đã lưu cùng quyết định ở 2g; `job.updated` manual đã bền ở 2h. Dashboard Socket.IO vẫn best-effort, không đồng nghĩa mọi event legacy đã bền. Sau đó mới chuyển quyền sở hữu từng luồng ghi và thống nhất thông báo nghiệp vụ giữa các đường cũ/mới.
+1. Tiếp tục outbox legacy cho **tạo tin/đăng lại tin trên AddPost** và những publisher còn lại. Ý định thông báo manual đã lưu cùng quyết định ở 2g; `job.updated` manual ở 2h và sửa tin ở 2i đã cùng transaction. Dashboard Socket.IO vẫn best-effort, không đồng nghĩa mọi event legacy đã bền. Sau đó mới chuyển quyền sở hữu từng luồng ghi và thống nhất thông báo nghiệp vụ giữa các đường cũ/mới; giữ chính sách duyệt/hạn mức hiện tại khi bổ sung từng writer.
 2. Chuyển từng màn hình khi đủ nghiệp vụ: vòng đời UI giữ payload/key, phản hồi đăng thành công, danh sách/note, các client chưa gửi revision và nghiệm thu quyền. Hạn mức 2a; snapshot/ngày hết hạn 2b; đăng lại/idempotency modern 2c; adapter/đọc quản lý 2d; sửa tin có precondition 2e; duyệt legacy có precondition/hàng rào AI 2f đã triển khai trong mã nguồn. Còn các giới hạn/rollout nêu trên; không chỉ đổi `/api/create-new-post` thành `/api/jobs`.
 3. Nối màn hình AI/CV và chuyển luồng tìm kiếm/đăng tin theo từng màn hình khi phía server đủ nghiệp vụ. Hiện màn hình Kanban/báo cáo và gợi ý tìm kiếm đã có gọi microservice; danh sách tìm kiếm chính/đăng tin vẫn còn API legacy. Không coi helper API đã có là giao diện tính năng đã hoàn tất.
 4. Nghiệm thu các vai trò trên stack mới, hạn mức và thao tác lặp, token hết hạn, dịch vụ gián đoạn/phục hồi, dữ liệu cập nhật chậm giữa dịch vụ. Các mục kiến trúc/vận hành khác của PDF tiếp tục theo `implementation-progress.md`.

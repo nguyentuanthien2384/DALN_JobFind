@@ -47,9 +47,11 @@ export const runManualSearchOutboxChecks = async ({ pool, check, make, read, pos
         const [approved] = await updates(id); const before = JSON.parse(approved.payload);
         assert.equal((await legacyEdit(await read(id), { name: 'Later edited title', amount: 9 })).changed, true);
         await decide(await read(id), 'ban');
-        const rows = await updates(id); assert.equal(rows.length, 2);
+        const rows = await updates(id); assert.equal(rows.length, 3);
         assert.deepEqual(rows.find(row => row.id === approved.id), approved);
-        const banned = rows.find(row => row.id !== approved.id);
+        const banned = rows.find(row => JSON.parse(row.payload).job.statusCode === 'PS4');
+        const edited = rows.find(row => JSON.parse(row.payload).job.statusCode === 'PS3');
+        assert.equal(JSON.parse(edited.payload).job.name, 'Later edited title');
         assert.equal(JSON.parse(banned.payload).job.name, 'Later edited title');
         assert.equal(JSON.parse(banned.payload).job.statusCode, 'PS4');
         assert.equal(before.job.statusCode, 'PS1'); assert.equal(before.job.name, 'Synthetic developer');

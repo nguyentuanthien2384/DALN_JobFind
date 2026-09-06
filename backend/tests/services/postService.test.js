@@ -26,7 +26,8 @@ const reset = () => {
   mockDb.sequelize.col.mockReturnValue('col');
   mockDb.sequelize.fn.mockReturnValue('fn');
   mockDb.sequelize.literal.mockReturnValue('literal');
-  mockDb.sequelize.query.mockResolvedValue([['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))]);
+  mockDb.sequelize.query.mockImplementation(sql => Promise.resolve(sql.includes("TABLE_NAME = 'outbox_events'")
+    ? [[{ engine: 'InnoDB' }]] : [['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))]));
   mockDb.sequelize.transaction.mockImplementation(work => work(mockTransaction));
   mockSendMail.mockReset();
 };
@@ -133,12 +134,12 @@ describe('postService', () => {
     mockDb.Post.findOne.mockResolvedValueOnce(null);
     expect((await service.handleUpdatePost(validPost())).errCode).toBe(2);
 
-    const post = { id: 10, userId: 8, statusCode: 'PS1', timeEnd: validPost().timeEnd, detailPostId: 20, save: jest.fn() };
+    const post = { id: 10, userId: 8, statusCode: 'PS1', timeEnd: validPost().timeEnd, isHot: 0, detailPostId: 20, save: jest.fn() };
     const detail = { ...validPost(), id: 20, name: 'Old', save: jest.fn() };
     mockDb.User.findAll.mockResolvedValue([{ id: 7, companyId: 4 }, { id: 8, companyId: 4 }]);
     mockDb.Company.findOne.mockResolvedValue({ statusCode: 'S1', censorCode: 'CS1' });
     mockDb.Post.findOne.mockResolvedValue(post);
-    mockDb.DetailPost.findOne.mockResolvedValueOnce(detail);
+    mockDb.DetailPost.findOne.mockResolvedValueOnce(detail).mockResolvedValueOnce({ ...validPost(), id: 21 });
     mockDb.DetailPost.create.mockResolvedValueOnce({ id: 21 });
     expect((await service.handleUpdatePost(validPost())).errCode).toBe(0);
     expect(detail.name).toBe('Old');
@@ -150,6 +151,10 @@ describe('postService', () => {
     expect(mockDb.DetailPost.create).toHaveBeenCalledWith(expect.objectContaining({ genderPostCode: 'G1', amount: 2 }), { transaction: mockTransaction });
     expect(mockDb.User.findAll).toHaveBeenCalledWith(expect.objectContaining({ transaction: mockTransaction, lock: 'UPDATE', order: [['id', 'ASC']] }));
     expect(mockDb.Company.findOne).toHaveBeenCalledWith(expect.objectContaining({ transaction: mockTransaction, lock: 'UPDATE' }));
+    const inserts = mockDb.sequelize.query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO outbox_events'));
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0][1].transaction).toBe(mockTransaction);
+    expect(JSON.parse(inserts[0][1].replacements[4]).job).toMatchObject({ id: 10, userId: 8, statusCode: 'PS3', name: 'Node Engineer' });
   });
 
   test.each([['0', 0], ['1', 1], [false, 0], [true, 1]])('normalizes legacy hot flag %s to %s', async (isHot, expected) => {

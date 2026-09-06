@@ -1,5 +1,5 @@
 import postService from '../services/postService';
-import { emitJobCreated, emitJobUpdated } from '../utils/eventBus';
+import { emitJobCreated } from '../utils/eventBus';
 import { emitDashboardChanged } from '../config/socket';
 import { canAccessPostApplicants } from '../utils/authorization';
 
@@ -74,12 +74,8 @@ let handleUpdatePost = async (req, res) => {
             roleCode: req.user.userAccountData?.roleCode,
             companyId: req.user.companyId
         });
-        // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
-        // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
-        if (data.errCode === 0 && data.changed !== false) {
-            const changedId = req.body.id ?? req.body.postId;
-            if (changedId) emitJobUpdated(changedId);
-        }
+        // job.updated already committed with the edit; do not reread/publish a
+        // second event after commit or infer its ID from another body field.
         return res.status(data.conflict === true ? 409 : 200).json(data);
     } catch (error) {
         console.log(error)

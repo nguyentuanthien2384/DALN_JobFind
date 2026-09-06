@@ -335,7 +335,7 @@ describe("post editor", () => {
     it.each([
         { errCode: 4, conflict: true }, { errCode: -1, errorType: 'conflict', httpStatus: 409 },
         { errCode: -1, errorType: 'network' }, { errCode: -1, errorType: 'timeout' },
-        { errCode: -1, errorType: 'server' }, { errCode: 0 }, null
+        { errCode: -1, errorType: 'server' }, { errCode: -1, errMessage: 'Error from server' }, { errCode: 0 }, null
     ])('keeps draft and blocks retries after conflict/uncertain result or missing success revision: %j', async response => {
         updatePostService.mockResolvedValueOnce(response);
         const { name, save } = await loadEditor();
@@ -408,10 +408,17 @@ describe("post editor", () => {
         save(); expect(updatePostService).not.toHaveBeenCalled();
     });
 
-    it('keeps edits enabled after a definite validation rejection and retains the original revision', async () => {
-        updatePostService.mockResolvedValueOnce({ errCode: 1, errMessage: 'Missing required parameters' });
-        const { save } = await loadEditor();
+    it.each([
+        { errCode: 1, errMessage: 'Missing required parameters' },
+        { errCode: 2, errMessage: 'Chưa thể lưu tin: nơi lưu yêu cầu đồng bộ chưa sẵn sàng' }
+    ])('retains draft/revision after a definite validation/outbox rejection; retries only on a new click: %j', async response => {
+        updatePostService.mockResolvedValueOnce(response);
+        const { save, name } = await loadEditor();
         save(); await waitFor(() => expect(toast.error).toHaveBeenCalled());
+        expect(toast.error).toHaveBeenCalledWith(response.errMessage);
+        expect(name).toHaveValue('Bản nháp cần giữ');
+        expect(updatePostService).toHaveBeenCalledTimes(1);
+        expect(getDetailPostByIdService).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('button', { name: 'Lưu' })).toBeEnabled();
         save(); await waitFor(() => expect(updatePostService).toHaveBeenCalledTimes(2));
         expect(updatePostService).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: detailPost.editRevision }), {});
