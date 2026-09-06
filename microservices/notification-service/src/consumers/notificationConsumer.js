@@ -157,6 +157,10 @@ export const handlers = {
     [EVENTS.JOB_CREATED]: async (payload, metadata = {}) => {
         const job = payload.job;
         if (!job?.companyId) return;
+        // Legacy creation is manual PS3. A saved creation event may arrive after
+        // approval: the dedicated manual-approval intent owns that notification,
+        // not this historical PS3 snapshot. Keep unmarked backlog compatibility.
+        if (metadata.producer === 'legacy-backend' && job.statusCode !== 'PS1') return;
 
         const followers = await getCompanyFollowers(job.companyId);
         if (!followers.length) return;

@@ -23,12 +23,12 @@ let handleCreateNewPost = async (req, res) => {
             ...req.body,
             userId: req.user.id
         });
-        // Bao cho Search Service biet co tin moi. Neu thieu buoc nay, tin dang
-        // qua man hinh nay se khong bao gio vao Elasticsearch - nguoi dung tim
-        // khong ra. Da tung xay ra that.
-        if (data.errCode === 0 && data.postId) emitJobCreated(data.postId);
+        // job.created is already committed with the post/quota. No direct emit.
         // Bai dang moi lam doi bieu do "top linh vuc" -> bao cho dashboard tu tai lai.
-        if (data.errCode === 0) emitDashboardChanged('post');
+        if (data.errCode === 0) {
+            try { await emitDashboardChanged('post'); }
+            catch { console.log('Create post dashboard refresh failed after commit'); }
+        }
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

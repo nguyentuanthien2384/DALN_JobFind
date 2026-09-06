@@ -3,6 +3,7 @@ import { PostingQuotaError, normalizePostHot, lockPostingCompany, consumeLockedP
 import { updateLegacyPost } from '../utils/jobEdit';
 import { jobRevision } from '../utils/jobRevision';
 import { moderateLegacyPost } from '../utils/jobModeration';
+import { enqueueLegacyJobCreated } from '../utils/legacyOutbox';
 const { Op } = require("sequelize");
 require('dotenv').config();
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
@@ -48,6 +49,15 @@ let handleCreateNewPost = async (data) => {
             statusCode: 'PS3', timeEnd: data.timeEnd, userId: data.userId,
             isHot, detailPostId: detailPost.id
         }, { transaction });
+        // Read our inserted rows, including DB defaults/coercions, before commit.
+        // The actor and company remain locked by lockPostingCompany; never join
+        // an old consistent-read snapshot or publish a body-derived ID afterward.
+        const post = await db.Post.findOne({ where: { id: newPost.id }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
+        const detail = await db.DetailPost.findOne({ where: { id: detailPost.id }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
+        if (!post || !detail || Number(post.userId) !== Number(data.userId) || post.detailPostId !== detail.id || post.statusCode !== 'PS3') {
+            throw new PostingQuotaError('Không đọc được tin vừa tạo, vui lòng thử lại');
+        }
+        await enqueueLegacyJobCreated({ post, detail, owner: { companyId: company.id }, company }, transaction);
         return {
             errCode: 0,
             errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',

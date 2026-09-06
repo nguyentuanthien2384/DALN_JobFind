@@ -80,6 +80,18 @@ try {
             }
         }
     });
+    await check('legacy PS3 creation keeps stable identity, source and payload on repeated confirmed transport', async () => {
+        const data = { job: { id: 29, name: 'New pending post', statusCode: 'PS3', timePost: null, companyId: 3 } };
+        const id = randomUUID();
+        for (let i = 0; i < 2; i += 1) {
+            await publishOutboxEvent('job.created', data, { messageId: id, aggregateId: '29', occurredAt: '2026-09-06T00:00:00.000Z', producer: 'legacy-backend' });
+            const msg = await get(queue), decoded = readEventMessage(msg);
+            assert.deepEqual(decoded.payload, data); assert.equal(decoded.metadata.producer, 'legacy-backend');
+            assert.equal(decoded.metadata.eventId, id); assert.equal(decoded.metadata.aggregateId, '29');
+            assert.equal(decoded.metadata.payloadVersion, 1); assert.equal(msg.properties.deliveryMode, 2);
+            channel.ack(msg);
+        }
+    });
     const valid = createEventEnvelope({ eventId: randomUUID(), eventType: 'job.deleted', aggregateId: 7,
         occurredAt: '2026-09-05T01:02:03Z', producer: 'job-core-service', payloadVersion: 1, data: { jobId: 7 } });
     let calls = 0;

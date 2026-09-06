@@ -114,6 +114,10 @@ try {
             userCompanyData: { id: 3, statusCode: 'S1', censorCode: 'CS1' } };
         return legacyController.handleUpdatePost(req, res);
     });
+    app.post('/test/legacy-create', (req, res) => {
+        req.user = { id: 7, companyId: 3, userAccountData: { roleCode: 'COMPANY' } };
+        return legacyController.handleCreateNewPost(req, res);
+    });
     contractRoute(app, 'jobCreate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), createJob);
     contractRoute(app, 'jobRepost', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), repostJob);
     contractRoute(app, 'jobUpdate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), updateJob);
@@ -141,6 +145,14 @@ try {
                 'x-internal-secret': token, ...(drop && { 'x-test-drop-response': '1' }) },
             body: JSON.stringify({ ...job, id: job.id, postId: 999999, userId: 99, companyId: 4, roleCode: 'ADMIN',
                 expectedRevision: job.editRevision, ...patch })
+        });
+        return { status: response.status, body: await response.json() };
+    };
+    const legacyCreateHttp = async ({ drop = false, ...patch } = {}) => {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/test/legacy-create`, {
+            method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'content-type': 'application/json',
+                'x-internal-secret': token, ...(drop && { 'x-test-drop-response': '1' }) },
+            body: JSON.stringify({ ...body(), id: 99999, postId: 99999, userId: 99, companyId: 4, statusCode: 'PS1', timePost: 1, ...patch })
         });
         return { status: response.status, body: await response.json() };
     };
@@ -237,7 +249,7 @@ try {
             assert.deepEqual(unchanged, original);
         }
         assert.deepEqual(await balance(), [3, 3]);
-        assert.deepEqual(await delta(before), [4, 2, 0, 0]);
+        assert.deepEqual(await delta(before), [4, 2, 2, 0]);
     });
 
     await check('zero, negative and NULL quota reject all writers without rows or charges', async () => {
@@ -338,7 +350,7 @@ try {
             assert.ok(results.filter(r => !r.ok).every(r => r.body.errCode === 2));
             assert.deepEqual(await balance(), hot ? [4, 0] : [0, 4]);
             const coreCount = successes.filter(r => r.kind === 0).length;
-            assert.deepEqual(await delta(before), [4, successes.filter(r => r.kind !== 2).length, coreCount * 2, coreCount]);
+            assert.deepEqual(await delta(before), [4, successes.filter(r => r.kind !== 2).length, coreCount * 2 + successes.filter(r => r.kind === 1).length, coreCount]);
         });
     }
 
@@ -427,7 +439,9 @@ try {
     await runManualModerationChecks({ pool, check, core, managed, edit, legacy, moderateLegacyPost, manualHttp, counts, balance, waitForRowWait });
     const { runLegacyEditOutboxChecks } = await import('./legacy-edit-outbox-checks.mjs');
     await runLegacyEditOutboxChecks({ pool, check, core, managed, legacyEditHttp, counts, balance, waitForRowWait });
-    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private reads + concurrency + manual/AI moderation + legacy edit outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
+    const { runLegacyCreateOutboxChecks } = await import('./legacy-create-outbox-checks.mjs');
+    await runLegacyCreateOutboxChecks({ pool, check, legacyCreateHttp, counts, balance, waitForRowWait });
+    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private reads + concurrency + manual/AI moderation + legacy create/edit outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
     const closed = await Promise.allSettled([

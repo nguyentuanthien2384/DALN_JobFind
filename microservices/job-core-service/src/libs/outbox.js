@@ -141,10 +141,10 @@ export const runOutboxOnce = async () => {
                     messageId: event.id,
                     aggregateId: event.aggregateId,
                     occurredAt: event.createdAt,
-                    // Reserved legacy discriminator is persisted with job.updated.
+                    // Reserved legacy discriminator is persisted with created/updated.
                     // Missing/ordinary 'job' markers preserve all older core rows.
                     producer: event.eventType === 'notification.manual_moderation_requested' ||
-                        (event.eventType === 'job.updated' && event.aggregateType === 'legacy-job')
+                        (['job.created', 'job.updated'].includes(event.eventType) && event.aggregateType === 'legacy-job')
                         ? 'legacy-backend' : 'job-core-service'
                 });
                 await markPublished(event);

@@ -29,6 +29,8 @@ const reset = () => {
   mockDb.sequelize.query.mockImplementation(sql => Promise.resolve(sql.includes("TABLE_NAME = 'outbox_events'")
     ? [[{ engine: 'InnoDB' }]] : [['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))]));
   mockDb.sequelize.transaction.mockImplementation(work => work(mockTransaction));
+  mockDb.Post.findOne.mockResolvedValue({ id: 30, userId: 7, detailPostId: 20, statusCode: 'PS3', isHot: 0, timeEnd: validPost().timeEnd });
+  mockDb.DetailPost.findOne.mockResolvedValue({ ...validPost(), id: 20 });
   mockSendMail.mockReset();
 };
 

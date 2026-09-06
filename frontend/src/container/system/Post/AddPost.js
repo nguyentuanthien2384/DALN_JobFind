@@ -161,26 +161,31 @@ const AddPost = () => {
                 toast.error("Ngày kết thúc phải hơn ngày hiện tại");
                 setIsLoading(false);
             } else {
-                let res = await createPostService({
-                    name: inputValues.name,
-                    descriptionHTML: inputValues.descriptionHTML,
-                    descriptionMarkdown: inputValues.descriptionMarkdown,
-                    categoryJobCode: inputValues.categoryJobCode,
-                    addressCode: inputValues.addressCode,
-                    salaryJobCode: inputValues.salaryJobCode,
-                    amount: inputValues.amount,
-                    timeEnd: new Date(timeEnd).getTime(),
-                    categoryJoblevelCode: inputValues.categoryJoblevelCode,
-                    categoryWorktypeCode: inputValues.categoryWorktypeCode,
-                    experienceJobCode: inputValues.experienceJobCode,
-                    genderPostCode: inputValues.genderCode,
-                    userId: user.id,
-                    isHot: inputValues.isHot,
-                });
-                setTimeout(() => {
-                    setIsLoading(false);
+                const epoch = viewEpoch.current;
+                const attempt = {};
+                editAttempt.current = attempt;
+                const uncertain = () => setEditWarning('Chưa xác định được tin đã tạo hay chưa. Bản nháp được giữ lại; hãy sao chép nội dung và kiểm tra danh sách tin trước khi tạo thêm để tránh trừ lượt hai lần.');
+                try {
+                    const res = await createPostService({
+                        name: inputValues.name,
+                        descriptionHTML: inputValues.descriptionHTML,
+                        descriptionMarkdown: inputValues.descriptionMarkdown,
+                        categoryJobCode: inputValues.categoryJobCode,
+                        addressCode: inputValues.addressCode,
+                        salaryJobCode: inputValues.salaryJobCode,
+                        amount: inputValues.amount,
+                        timeEnd: new Date(timeEnd).getTime(),
+                        categoryJoblevelCode: inputValues.categoryJoblevelCode,
+                        categoryWorktypeCode: inputValues.categoryWorktypeCode,
+                        experienceJobCode: inputValues.experienceJobCode,
+                        genderPostCode: inputValues.genderCode,
+                        userId: user.id,
+                        isHot: inputValues.isHot,
+                    });
+                    if (epoch !== viewEpoch.current) return;
                     if (res && res.errCode === 0) {
-                        fetchCompany(user.id);
+                        // A quota refresh failure must not reinterpret a committed creation.
+                        fetchCompany(user.id).catch(() => {});
                         toast.success(res.errMessage);
                         setInputValues({
                             ...inputValues,
@@ -200,9 +205,16 @@ const AddPost = () => {
                         });
                         settimeEnd(new Date());
                     } else {
-                        toast.error(res.errMessage);
+                        toast.error(res?.errMessage || 'Không tạo được tin');
+                        if (!res || ![1, 2, 3].includes(res.errCode) || res.httpStatus >= 500 ||
+                            ['network', 'timeout', 'cancelled', 'unavailable', 'server', 'unknown'].includes(res.errorType)) uncertain();
                     }
-                }, 1000);
+                } catch {
+                    if (epoch === viewEpoch.current) uncertain();
+                } finally {
+                    if (editAttempt.current === attempt) editAttempt.current = null;
+                    if (epoch === viewEpoch.current) setIsLoading(false);
+                }
             }
         } else {
             const epoch = viewEpoch.current;

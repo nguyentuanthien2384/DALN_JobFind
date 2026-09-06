@@ -199,6 +199,20 @@ describe('notification event consumer', () => {
         expect(mocks.saveNotification).not.toHaveBeenCalled();
     });
 
+    it.each(['PS3', 'PS2', 'PS4', undefined])('does not notify followers of a marked legacy creation snapshot in %s even on replay', async statusCode => {
+        const { handlers } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        for (let i = 0; i < 2; i += 1) await handlers['job.created']({ job: { id: 7, companyId: 3, statusCode } }, { producer: 'legacy-backend', eventId: 'creation-7' });
+        expect(mocks.getCompanyFollowers).not.toHaveBeenCalled(); expect(mocks.saveNotification).not.toHaveBeenCalled();
+        expect(mocks.queueNotification).not.toHaveBeenCalled();
+    });
+
+    it.each([{ producer: 'legacy-backend', statusCode: 'PS1' }, { producer: 'job-core-service', statusCode: 'PS3' }, { statusCode: 'PS3' }])('keeps existing approved legacy/Core/unmarked backlog notification behavior: %j', async ({ producer, statusCode }) => {
+        mocks.getCompanyFollowers.mockResolvedValue([4]);
+        const { handlers } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        await handlers['job.created']({ job: { id: 7, companyId: 3, statusCode } }, { producer, eventId: 'creation-7' });
+        expect(mocks.getCompanyFollowers).toHaveBeenCalledWith(3); expect(mocks.queueNotification).toHaveBeenCalledTimes(1);
+    });
+
     it('ignores unknown events and rethrows handler failures for RabbitMQ nack', async () => {
         const { handleNotificationEvent, stats } = await import('../notification-service/src/consumers/notificationConsumer.js');
         await expect(handleNotificationEvent({}, 'unknown')).resolves.toBeUndefined();

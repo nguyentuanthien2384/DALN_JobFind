@@ -484,6 +484,48 @@ describe("post editor", () => {
         expect(createPostService).not.toHaveBeenCalled();
     });
 
+    const loadCreator = async () => {
+        const rendered = render(<AddPost />);
+        await screen.findByText('3 bài bình thường');
+        const name = rendered.container.querySelector('input[name="name"]');
+        fireEvent.change(name, { target: { name: 'name', value: 'Nháp tin mới' } });
+        fireEvent.change(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2030-01-02' } });
+        return { ...rendered, name, save: () => fireEvent.click(screen.getByRole('button', { name: 'Lưu' })) };
+    };
+    it.each([null, { errCode: -1 }, { errCode: -1, errorType: 'timeout' }, { errCode: -1, errorType: 'network' },
+        { errCode: 2, httpStatus: 503 }, { errCode: 9 }])('preserves the new-post draft and blocks another POST when outcome is uncertain: %j', async response => {
+        createPostService.mockResolvedValueOnce(response);
+        const { name, save } = await loadCreator(); save();
+        expect(await screen.findByRole('alert')).toHaveTextContent('kiểm tra danh sách tin');
+        expect(name).toHaveValue('Nháp tin mới'); expect(screen.getByRole('button', { name: 'Lưu' })).toBeDisabled();
+        save(); await act(async () => jest.advanceTimersByTime(2000));
+        expect(createPostService).toHaveBeenCalledTimes(1); expect(getDetailCompanyByUserId).toHaveBeenCalledTimes(1);
+    });
+    it.each([1, 2, 3])('keeps creation draft after a definite rejection (%s) and only retries on an explicit click', async errCode => {
+        createPostService.mockResolvedValueOnce({ errCode, errMessage: 'Không lưu được tin' });
+        const { name, save } = await loadCreator(); save();
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Không lưu được tin'));
+        expect(name).toHaveValue('Nháp tin mới'); expect(screen.getByRole('button', { name: 'Lưu' })).toBeEnabled();
+        expect(createPostService).toHaveBeenCalledTimes(1); save();
+        await waitFor(() => expect(createPostService).toHaveBeenCalledTimes(2));
+    });
+    it('prevents overlapping creation calls and retains draft after a thrown transport failure', async () => {
+        let reject;
+        createPostService.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail; }));
+        const { name, save } = await loadCreator(); save(); save(); expect(createPostService).toHaveBeenCalledTimes(1);
+        await act(async () => reject(new Error('transport')));
+        expect(name).toHaveValue('Nháp tin mới'); expect(screen.getByRole('button', { name: 'Lưu' })).toBeDisabled();
+    });
+    it('ignores a late creation response after navigating to an existing post', async () => {
+        let finish;
+        createPostService.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        const { name, save, rerender } = await loadCreator(); save();
+        mockParams = { id: '55' }; getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: detailPost });
+        rerender(<AddPost />); await waitFor(() => expect(name).toHaveValue('Bài cũ'));
+        await act(async () => finish({ errCode: 0, postId: 999 }));
+        expect(name).toHaveValue('Bài cũ'); expect(toast.success).not.toHaveBeenCalled();
+    });
+
     it("loads and updates an existing post, then re-publishes an expired one", async () => {
         mockParams = { id: "55" };
         getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: detailPost });

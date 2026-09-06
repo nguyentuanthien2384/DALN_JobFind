@@ -25,7 +25,9 @@ beforeEach(() => {
 describe('Job Core transactional outbox', () => {
     it.each([
         ['job.updated', 'legacy-job', 'legacy-backend'], ['job.updated', 'job', 'job-core-service'],
-        ['job.updated', undefined, 'job-core-service'], ['job.created', 'legacy-job', 'job-core-service'],
+        ['job.updated', undefined, 'job-core-service'], ['job.created', 'legacy-job', 'legacy-backend'],
+        ['job.created', 'job', 'job-core-service'], ['job.created', undefined, 'job-core-service'],
+        ['job.deleted', 'legacy-job', 'job-core-service'],
         ['notification.manual_moderation_requested', 'manual-moderation-notification', 'legacy-backend']
     ])('preserves producer for %s with persisted aggregate marker %s', async (eventType, aggregateType, producer) => {
         const row = { id: 'stable-id', aggregateId: '7', aggregateType, eventType, createdAt: new Date(), payload: '{"job":{"id":7}}', attempts: 0 };
@@ -36,8 +38,8 @@ describe('Job Core transactional outbox', () => {
         expect(query.mock.calls[0][0]).toContain('aggregateType');
         expect(mocks.publish).toHaveBeenCalledWith(eventType, JSON.parse(row.payload), { messageId: row.id, aggregateId: '7', occurredAt: row.createdAt, producer });
     });
-    it('retries a legacy job update with identical payload, ID and origin after confirm or DB-marker loss', async () => {
-        const row = { id: 'stable-update', aggregateId: '7', aggregateType: 'legacy-job', eventType: 'job.updated',
+    it.each(['job.created', 'job.updated'])('retries legacy %s with identical payload, ID and origin after confirm or DB-marker loss', async eventType => {
+        const row = { id: 'stable-update', aggregateId: '7', aggregateType: 'legacy-job', eventType,
             createdAt: new Date(), payload: '{"job":{"id":7,"name":"Approved snapshot","statusCode":"PS1"}}', attempts: 0 };
         mocks.withTransaction.mockImplementation(work => work({ query: vi.fn().mockResolvedValue([[row]]) }));
         const { runOutboxOnce } = await import('../job-core-service/src/libs/outbox.js');
@@ -47,7 +49,7 @@ describe('Job Core transactional outbox', () => {
         mocks.pool.query.mockRejectedValueOnce(new Error('marker lost'));
         expect(await runOutboxOnce()).toBe(0); expect(await runOutboxOnce()).toBe(1);
         expect(mocks.publish).toHaveBeenCalledTimes(3);
-        for (const call of mocks.publish.mock.calls) expect(call).toEqual(['job.updated', JSON.parse(row.payload), {
+        for (const call of mocks.publish.mock.calls) expect(call).toEqual([eventType, JSON.parse(row.payload), {
             messageId: row.id, aggregateId: '7', occurredAt: row.createdAt, producer: 'legacy-backend'
         }]);
     });

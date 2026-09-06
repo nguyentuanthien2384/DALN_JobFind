@@ -35,7 +35,7 @@ export const lockPostingCompany = async (userId, transaction) => {
     });
     if (!user?.companyId) throw new PostingQuotaError('Người dùng không thuộc công ty');
     const company = await db.Company.findOne({
-        where: { id: user.companyId }, attributes: ['id', 'statusCode', 'censorCode', 'allowPost', 'allowHotPost'],
+        where: { id: user.companyId }, attributes: ['id', 'name', 'thumbnail', 'statusCode', 'censorCode', 'allowPost', 'allowHotPost'],
         transaction, lock: transaction.LOCK.UPDATE, raw: false
     });
     if (!company || company.statusCode !== 'S1' || company.censorCode !== 'CS1') {

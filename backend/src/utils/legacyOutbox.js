@@ -21,23 +21,26 @@ const DETAIL_FIELDS = ['name', 'descriptionHTML', 'descriptionMarkdown', 'amount
     'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode'];
 const pick = (row, fields) => Object.fromEntries(fields.map(field => [field, row[field] ?? null]));
 
-// Inputs are current rows already locked by the moderation/edit writer, AFTER save.
+// Inputs are current rows already locked by the create/moderation/edit writer, AFTER save.
 // An ORM instance/body spread can leak private fields or overwrite post.id with
-// detail.id. This allowlist matches the old job.updated payload explicitly.
-export const enqueueLegacyJobUpdated = async ({ post, detail, owner, company }, transaction) => {
+// detail.id. This allowlist matches the old job.created/updated payload explicitly.
+const enqueueLegacyJob = async (eventType, { post, detail, owner, company }, transaction) => {
     await assertTransactionalLegacyOutbox(transaction);
     const job = { ...pick(post, POST_FIELDS), ...pick(detail, DETAIL_FIELDS),
         companyId: owner?.companyId ?? null, companyName: company?.name ?? null,
         companyLogo: company?.thumbnail ?? null, companyStatusCode: company?.statusCode ?? null,
         companyCensorCode: company?.censorCode ?? null };
-    const { json, aggregateId } = serializeEventPayload('job.updated', { job }, { aggregateId: post.id });
+    const { json, aggregateId } = serializeEventPayload(eventType, { job }, { aggregateId: post.id });
     const eventId = randomUUID();
     await db.sequelize.query(`INSERT INTO outbox_events
         (id, aggregateType, aggregateId, eventType, payload, createdAt)
         VALUES (?, ?, ?, ?, ?, ?)`, {
         // Reserved discriminator, not a new domain aggregate or authorization.
         // Old rows retain their existing producer; no pending payload is rewritten.
-        replacements: [eventId, 'legacy-job', aggregateId, 'job.updated', json, new Date()], transaction
+        replacements: [eventId, 'legacy-job', aggregateId, eventType, json, new Date()], transaction
     });
     return eventId;
 };
+
+export const enqueueLegacyJobUpdated = (rows, transaction) => enqueueLegacyJob('job.updated', rows, transaction);
+export const enqueueLegacyJobCreated = (rows, transaction) => enqueueLegacyJob('job.created', rows, transaction);

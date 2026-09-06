@@ -140,10 +140,10 @@ describe('postController', () => {
     expect(mockService[serviceMethod]).not.toHaveBeenCalled();
   });
 
-  test('create and re-up emit job-created only when a new post id exists', async () => {
+  test('create uses committed outbox while re-up retains direct job-created for its new ID', async () => {
     mockService.handleCreateNewPost.mockResolvedValueOnce({ errCode: 0, postId: 101 });
     await controller.handleCreateNewPost(request(), createResponse());
-    expect(mockEmitJobCreated).toHaveBeenCalledWith(101);
+    expect(mockEmitJobCreated).not.toHaveBeenCalled();
     expect(mockEmitDashboardChanged).toHaveBeenCalledWith('post');
 
     mockService.handleReupPost.mockResolvedValueOnce({ errCode: 0, postId: 102 });
@@ -156,6 +156,17 @@ describe('postController', () => {
     await controller.handleCreateNewPost(request(), createResponse());
     expect(mockEmitJobCreated).not.toHaveBeenCalled();
     expect(mockEmitDashboardChanged).not.toHaveBeenCalled();
+  });
+
+  test('created post returns committed success despite synchronous or asynchronous dashboard failure', async () => {
+    for (const failure of [() => { throw new Error('socket'); }, () => Promise.reject(new Error('socket'))]) {
+      mockEmitJobCreated.mockClear(); mockEmitDashboardChanged.mockImplementationOnce(failure);
+      const data = { errCode: 0, postId: 101 };
+      mockService.handleCreateNewPost.mockResolvedValueOnce(data);
+      const res = createResponse(); await controller.handleCreateNewPost(request(), res);
+      expect(res.json).toHaveBeenCalledWith(data); expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockEmitJobCreated).not.toHaveBeenCalled();
+    }
   });
 
   test.each([

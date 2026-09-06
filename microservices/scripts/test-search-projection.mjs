@@ -71,16 +71,28 @@ try {
     process.env.ELASTICSEARCH_URL = `http://127.0.0.1:${port}`;
     process.env.JOB_CORE_URL = `http://127.0.0.1:${source.address().port}`;
     process.env.INTERNAL_SECRET = token;
+    // Wait on bounded, fresh HTTP connections BEFORE constructing the SDK pool.
+    // A pool first used while Docker's port is not ready can retain a dead
+    // connection/backoff long after a fresh loopback connection succeeds.
+    const readyBy = Date.now() + 120000;
+    for (;;) {
+        try {
+            const probe = await fetch(process.env.ELASTICSEARCH_URL, { signal: AbortSignal.timeout(1500) });
+            const info = await probe.json();
+            if (!probe.ok || info.version?.number !== '8.15.0') throw new Error('Disposable Elasticsearch not ready');
+            break;
+        } catch (error) {
+            if (Date.now() >= readyBy) throw new Error('Disposable Elasticsearch startup timed out', { cause: error });
+            await delay(500);
+        }
+    }
     const elastic = await import('../search-service/src/libs/elastic.js');
     es = elastic.es;
     const { INDEX, ensureIndex, liveIndexQuery } = elastic;
     const { synchronizeJob, createJobSynchronizer } = await import('../search-service/src/libs/jobProjection.js');
     const { handleSearchEvent, rebuildIndex, listIndexedIds } = await import('../search-service/src/consumers/jobIndexer.js');
     const { searchJobs, suggest, facets } = await import('../search-service/src/controllers/searchController.js');
-    for (let attempt = 0; ; attempt += 1) {
-        try { await es.ping({}, { requestTimeout: 1500, maxRetries: 0 }); break; }
-        catch (error) { if (attempt === 59) throw error; await delay(500); }
-    }
+    await es.ping({}, { requestTimeout: 1500, maxRetries: 0 });
     const read = async (id) => (await es.get({ index: INDEX, id: String(id) }))._source;
     const signal = (id, eventId = token) => handleSearchEvent({ job: { id, name: 'stale payload', statusCode: 'PS1' } }, 'job.updated', { eventId, aggregateId: String(id) });
     const response = () => ({ statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
@@ -217,17 +229,17 @@ try {
         }
     });
 
-    // Manual/edit outbox still uses the existing job.updated contract. Decode the
+    // Legacy outbox uses the existing job.created/updated contracts. Decode the
     // exact envelope used by its relay, then call the real Search consumer.
-    const legacySignal = (snapshot, eventId) => {
+    const legacySignal = (snapshot, eventId, eventType = 'job.updated') => {
         const id = snapshot.id;
-        const event = createEventEnvelope({ eventId, eventType: 'job.updated', aggregateId: id,
+        const event = createEventEnvelope({ eventId, eventType, aggregateId: id,
             occurredAt: '2026-09-06T00:00:00Z', producer: 'legacy-backend', payloadVersion: 1,
             data: { job: snapshot } });
         const { payload, metadata } = readEventMessage({ content: Buffer.from(JSON.stringify(event.data)),
-            properties: eventProperties(event), fields: { routingKey: 'job.updated' } });
+            properties: eventProperties(event), fields: { routingKey: eventType } });
         assert.equal(metadata.producer, 'legacy-backend');
-        return handleSearchEvent(payload, 'job.updated', metadata);
+        return handleSearchEvent(payload, eventType, metadata);
     };
     const manualSignal = (id, statusCode, eventId) => legacySignal({ ...job(id, 'Historical manual snapshot'), statusCode }, eventId);
     const isPublic = async id => {
@@ -313,6 +325,30 @@ try {
         try { await legacySignal(newer, 'edit-26-new'); } finally { gate.release.resolve(); }
         await delayed;
         assert.equal((await read(26)).name, newer.name); assert.equal((await read(26)).amount, 7); assert.equal(await isPublic(26), false);
+    });
+
+    await check('saved legacy creation remains private in PS3; duplicate/late creation reads current approval, edit or deletion', async () => {
+        const created = { ...job(27, 'Created pending'), statusCode: 'PS3', amount: 2 };
+        jobs.set('27', created); await legacySignal(created, 'create-27', 'job.created');
+        assert.equal((await read(27)).name, created.name); assert.equal(await isPublic(27), false);
+        const first = await read(27); await legacySignal(created, 'create-27', 'job.created');
+        assert.equal((await read(27)).indexedAt, first.indexedAt);
+        jobs.set('27', { ...job(27, 'Approved latest'), amount: 5 });
+        await legacySignal(created, 'create-27', 'job.created');
+        assert.equal((await read(27)).name, 'Approved latest'); assert.equal(await isPublic(27), true);
+        jobs.set('27', { ...created, name: 'Later edited', amount: 9 });
+        await legacySignal(created, 'create-27', 'job.created');
+        assert.equal((await read(27)).amount, 9); assert.equal(await isPublic(27), false);
+        jobs.delete('27'); await legacySignal(created, 'create-27', 'job.created');
+        assert.equal((await read(27)).searchDeleted, true); assert.equal(await isPublic(27), false);
+    });
+    await check('first legacy creation projection retries after source failure without indexing the event snapshot', async () => {
+        const created = { ...job(28, 'Created during outage'), statusCode: 'PS3' };
+        jobs.set('28', created); sourceFailure = 503;
+        try { await assert.rejects(legacySignal(created, 'create-28', 'job.created')); assert.equal(await es.exists({ index: INDEX, id: '28' }), false); }
+        finally { sourceFailure = null; }
+        await legacySignal(created, 'create-28', 'job.created');
+        assert.equal((await read(28)).name, created.name); assert.equal(await isPublic(28), false);
     });
 
     await check('real scroll scans past 10000 IDs and leaves no open search contexts', async () => {
