@@ -30,7 +30,7 @@ const request = (roleCode = 'EMPLOYER') => createRequest({
 });
 
 const cases = [
-  ['handleCreateNewPost', 'handleCreateNewPost', (r) => ({ ...r.body, userId: r.user.id })],
+  ['handleCreateNewPost', 'handleCreateNewPost', (r) => [{ ...r.body, userId: r.user.id }, { companyId: r.user.companyId, roleCode: r.user.userAccountData.roleCode, idempotencyKey: undefined }]],
   ['handleReupPost', 'handleReupPost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode, companyId: r.user.companyId }]],
   ['handleUpdatePost', 'handleUpdatePost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode, companyId: r.user.companyId }]],
   ['handleBanPost', 'handleBanPost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode }]],
@@ -47,6 +47,21 @@ const cases = [
 ];
 
 describe('postController', () => {
+  test('create trusts header/identity only and suppresses dashboard hints on replay', async () => {
+    const req = request(); req.headers = { 'idempotency-key': 'create-123' };
+    Object.assign(req.body, { idempotencyKey: 'spoof', companyId: 999, roleCode: 'ADMIN', userId: 999 });
+    mockService.handleCreateNewPost.mockResolvedValueOnce({ errCode: 0, postId: 101, replayed: true });
+    const res = createResponse(); await controller.handleCreateNewPost(req, res);
+    expect(mockService.handleCreateNewPost).toHaveBeenLastCalledWith(expect.objectContaining({ userId: 7 }), {
+      companyId: 11, roleCode: 'EMPLOYER', idempotencyKey: 'create-123'
+    });
+    expect(mockEmitDashboardChanged).not.toHaveBeenCalled(); expect(mockEmitJobCreated).not.toHaveBeenCalled();
+  });
+  test.each([400, 403, 409, 503])('create preserves idempotency HTTP status %s', async httpStatus => {
+    mockService.handleCreateNewPost.mockResolvedValueOnce({ errCode: 4, httpStatus });
+    const res = createResponse(); await controller.handleCreateNewPost(request(), res);
+    expect(res.status).toHaveBeenCalledWith(httpStatus);
+  });
   test.each(['handleBanPost', 'handleAcceptPost', 'handleActivePost'])('%s forwards trusted role and never emits on conflict/no-op', async method => {
     const req = request('ADMIN'); req.body.roleCode = 'EMPLOYER'; req.body.userId = 999;
     for (const result of [{ errCode: 4, httpStatus: 409, conflict: true }, { errCode: 0, changed: false }, { errCode: 1, httpStatus: 428 }]) {

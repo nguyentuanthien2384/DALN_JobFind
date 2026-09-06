@@ -12,6 +12,18 @@ jest.mock("../axios", () => ({
 }));
 
 describe("userService", () => {
+    test('keyed legacy creation sends a bounded request without retries or fallback', async () => {
+        const signal = new AbortController().signal, body = { name: 'Engineer' };
+        axios.post.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });
+        expect(await service.createPostService(body, { idempotencyKey: 'create-123', signal })).toMatchObject({ errorType: 'timeout' });
+        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(axios.post).toHaveBeenCalledWith('/api/create-new-post', body,
+            { timeout: 15000, headers: { 'Idempotency-Key': 'create-123' }, signal });
+    });
+    test.each([{}, { idempotencyKey: '' }, { idempotencyKey: 'bad key' }])('does not downgrade invalid keyed create options %j', async options => {
+        await expect(service.createPostService({}, options)).rejects.toThrow();
+        expect(axios.post).not.toHaveBeenCalled();
+    });
     test.each([
         ['banPostService', '/api/ban-post'], ['activePostService', '/api/active-post'], ['acceptPostService', '/api/accept-post']
     ])('%s supports bounded cancellable moderation without retries', async (name, path) => {

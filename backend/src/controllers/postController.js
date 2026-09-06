@@ -21,16 +21,21 @@ let handleCreateNewPost = async (req, res) => {
         let data = await postService.handleCreateNewPost({
             ...req.body,
             userId: req.user.id
+        }, {
+            companyId: req.user.companyId,
+            roleCode: req.user.userAccountData?.roleCode,
+            idempotencyKey: req.headers?.['idempotency-key']
         });
         // job.created is already committed with the post/quota. No direct emit.
         // Bai dang moi lam doi bieu do "top linh vuc" -> bao cho dashboard tu tai lai.
-        if (data.errCode === 0) {
+        if (data.errCode === 0 && data.replayed !== true) {
             try { await emitDashboardChanged('post'); }
             catch { console.log('Create post dashboard refresh failed after commit'); }
         }
-        return res.status(200).json(data);
+        return res.status(data.httpStatus || 200).json(data);
     } catch (error) {
-        console.log(error)
+        // ORM errors can contain SQL, submitted descriptions and request keys.
+        console.log('Create post transaction failed');
         return res.status(200).json({
             errCode: -1,
             errMessage: 'Error from server'

@@ -153,11 +153,13 @@ try {
         });
         return { status: response.status, body: await response.json() };
     };
-    const legacyCreateHttp = async ({ drop = false, ...patch } = {}) => {
+    const legacyCreateHttp = async ({ drop = false, key, ...patch } = {}) => {
         const response = await fetch(`http://127.0.0.1:${server.address().port}/test/legacy-create`, {
             method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'content-type': 'application/json',
                 'x-internal-secret': token, ...(drop && { 'x-test-drop-response': '1' }) },
-            body: JSON.stringify({ ...body(), id: 99999, postId: 99999, userId: 99, companyId: 4, statusCode: 'PS1', timePost: 1, ...patch })
+            body: JSON.stringify({ ...body(), id: 99999, postId: 99999, userId: 99, companyId: 4, statusCode: 'PS1', timePost: 1, ...patch }),
+            ...(key !== undefined && { headers: { 'content-type': 'application/json', 'x-internal-secret': token,
+                'idempotency-key': key, ...(drop && { 'x-test-drop-response': '1' }) } })
         });
         return { status: response.status, body: await response.json() };
     };
@@ -457,6 +459,8 @@ try {
     await runLegacyCreateOutboxChecks({ pool, check, legacyCreateHttp, counts, balance, waitForRowWait });
     const { runLegacyRepostChecks } = await import('./legacy-repost-checks.mjs');
     await runLegacyRepostChecks({ pool, check, core, managed, legacyReupHttp, edit, counts, balance, waitForRowWait });
+    const { runLegacyCreateRequestChecks } = await import('./legacy-create-request-checks.mjs');
+    await runLegacyCreateRequestChecks({ pool, check, core, legacyCreateHttp, counts, balance, waitForRowWait });
     console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent Core create/repost + private reads + concurrency + manual/AI moderation + legacy create/edit/repost outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();

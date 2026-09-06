@@ -115,6 +115,7 @@ describe('legacy backend bootstrap', () => {
     );
     expect(allowedResponse.setHeader).toHaveBeenCalledWith('Vary', 'Origin');
     expect(allowedResponse.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Credentials', true);
+    expect(allowedResponse.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Headers', expect.stringContaining('Idempotency-Key'));
     expect(next).toHaveBeenCalledTimes(1);
 
     const blockedResponse = { setHeader: jest.fn(), sendStatus: jest.fn() };

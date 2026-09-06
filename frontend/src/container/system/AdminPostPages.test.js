@@ -492,9 +492,12 @@ describe("post editor", () => {
         jest.clearAllMocks();
         localStorage.clear();
         localStorage.setItem("userData", JSON.stringify({ id: 8, roleCode: "EMPLOYER", companyId: 9 }));
+        sessionStorage.clear();
+        Object.defineProperty(window, 'crypto', { configurable: true, value: require('crypto').webcrypto });
         mockParams = {};
         getDetailCompanyByUserId.mockResolvedValue({ errCode: 0, data: { allowPost: 3, allowHotPost: 1 } });
-        createPostService.mockResolvedValue({ errCode: 0, errMessage: "Đã tạo bài" });
+        createPostService.mockReset().mockImplementation(async (body, options) => ({ errCode: 0, postId: 101,
+            idempotencyKey: options?.idempotencyKey, replayed: false, errMessage: "Đã tạo bài" }));
         updatePostService.mockReset().mockResolvedValue({ errCode: 0, errMessage: "Đã sửa bài", changed: true, editRevision: 'jv1-' + 'b'.repeat(64) });
         reupPostService.mockResolvedValue({ errCode: 0, errMessage: "Đã đăng lại" });
     });
@@ -530,7 +533,7 @@ describe("post editor", () => {
             genderPostCode: "GENDERPOST-1",
             userId: 8,
             isHot: 1,
-        });
+        }, { idempotencyKey: expect.stringMatching(/^[a-f0-9]{32}$/) });
         await act(async () => {
             jest.advanceTimersByTime(1000);
             await Promise.resolve();
@@ -587,6 +590,90 @@ describe("post editor", () => {
         rerender(<AddPost />); await waitFor(() => expect(name).toHaveValue('Bài cũ'));
         await act(async () => finish({ errCode: 0, postId: 999 }));
         expect(name).toHaveValue('Bài cũ'); expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it('restores a lost-response attempt after remount and explicitly retries the exact key, content and date', async () => {
+        createPostService.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });
+        const first = await loadCreator(); first.save();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đối chiếu / gửi lại cùng mã' })).toBeEnabled());
+        const original = createPostService.mock.calls[0];
+        fireEvent.change(first.name, { target: { name: 'name', value: 'Must not replace submitted draft' } });
+        fireEvent.change(screen.getByLabelText('Mô tả công việc'), { target: { value: 'Must not change' } });
+        expect(first.name).toHaveValue('Nháp tin mới'); first.unmount();
+        const restored = render(<AddPost />);
+        const retry = await screen.findByRole('button', { name: 'Đối chiếu / gửi lại cùng mã' });
+        expect(restored.container.querySelector('input[name="name"]')).toHaveValue('Nháp tin mới');
+        expect(screen.getByLabelText('Ngày kết thúc')).toHaveValue('2030-01-02');
+        expect(createPostService).toHaveBeenCalledTimes(1);
+        fireEvent.click(retry); fireEvent.click(retry);
+        await screen.findByRole('button', { name: 'Xem tin đã tạo' });
+        expect(createPostService).toHaveBeenCalledTimes(2);
+        expect(createPostService.mock.calls[1]).toEqual(original);
+        expect(restored.container.querySelector('input[name="name"]')).toHaveValue('Nháp tin mới');
+    });
+    it('retains the confirmed receipt on refresh and only starts a new key after explicit Tạo tin khác', async () => {
+        const first = await loadCreator(); first.save();
+        await screen.findByRole('button', { name: 'Tạo tin khác' });
+        const originalKey = createPostService.mock.calls[0][1].idempotencyKey; first.unmount();
+        const next = render(<AddPost />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Xem tin đã tạo' }));
+        expect(mockNavigate).toHaveBeenCalledWith('/admin/edit-post/101/');
+        expect(createPostService).toHaveBeenCalledTimes(1);
+        fireEvent.click(screen.getByRole('button', { name: 'Tạo tin khác' }));
+        expect(next.container.querySelector('input[name="name"]')).toHaveValue('');
+        fireEvent.change(next.container.querySelector('input[name="name"]'), { target: { name: 'name', value: 'A separate post' } });
+        fireEvent.change(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2030-01-03' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+        await screen.findByRole('button', { name: 'Tạo tin khác' });
+        expect(createPostService.mock.calls[1][1].idempotencyKey).not.toBe(originalKey);
+    });
+    it('keeps the original key when correcting a rejected draft so a prior acceptance conflicts instead of charging twice', async () => {
+        createPostService.mockResolvedValueOnce({ errCode: 1, errMessage: 'Invalid draft' })
+            .mockResolvedValueOnce({ errCode: 4, httpStatus: 409, errorType: 'conflict' });
+        const { name, save } = await loadCreator(); save();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Lưu' })).toBeEnabled());
+        const originalKey = createPostService.mock.calls[0][1].idempotencyKey;
+        fireEvent.change(name, { target: { name: 'name', value: 'Corrected' } }); save();
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Mã thao tác hoặc phản hồi không khớp'));
+        expect(createPostService.mock.calls[1][0].name).toBe('Corrected');
+        expect(createPostService.mock.calls[1][1].idempotencyKey).toBe(originalKey);
+        expect(screen.queryByRole('button', { name: 'Tạo tin khác' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Lưu' })).toBeDisabled();
+    });
+    it('will not clear/retry a legacy success lacking key acknowledgement, including after remount', async () => {
+        createPostService.mockResolvedValueOnce({ errCode: 0, postId: 101 });
+        const view = await loadCreator(); view.save();
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('phản hồi không khớp'));
+        expect(toast.success).not.toHaveBeenCalled(); view.unmount(); render(<AddPost />);
+        expect(await screen.findByRole('alert')).toHaveTextContent('phản hồi không khớp');
+        expect(screen.queryByRole('button', { name: 'Đối chiếu / gửi lại cùng mã' })).not.toBeInTheDocument();
+        expect(createPostService).toHaveBeenCalledTimes(1);
+    });
+    it('fails before sending when session storage cannot persist the request, and retains the form', async () => {
+        const { name, save } = await loadCreator();
+        const setter = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Storage full'); });
+        try { save(); expect(await screen.findByRole('alert')).toHaveTextContent('Storage full'); }
+        finally { setter.mockRestore(); }
+        expect(createPostService).not.toHaveBeenCalled(); expect(name).toHaveValue('Nháp tin mới');
+    });
+    it('does not send a restored payload under a different logged-in account', async () => {
+        createPostService.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });
+        const { save } = await loadCreator(); save();
+        const retry = await screen.findByRole('button', { name: 'Đối chiếu / gửi lại cùng mã' });
+        await waitFor(() => expect(retry).toBeEnabled());
+        localStorage.setItem('userData', JSON.stringify({ id: 99, companyId: 9, roleCode: 'EMPLOYER' }));
+        fireEvent.click(retry);
+        expect(screen.getAllByRole('alert').some(element => element.textContent.includes('Tài khoản hoặc công ty đã thay đổi'))).toBe(true);
+        expect(createPostService).toHaveBeenCalledTimes(1);
+    });
+    it('allows receipt lookup with the original deadline even after the deadline passes', async () => {
+        createPostService.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });
+        const { save } = await loadCreator(); save();
+        const retry = await screen.findByRole('button', { name: 'Đối chiếu / gửi lại cùng mã' });
+        await waitFor(() => expect(retry).toBeEnabled());
+        jest.setSystemTime(new Date('2031-01-01'));
+        fireEvent.click(retry); await screen.findByRole('button', { name: 'Xem tin đã tạo' });
+        expect(createPostService.mock.calls[1]).toEqual(createPostService.mock.calls[0]);
     });
 
     it("loads and updates an existing post, then re-publishes an expired one", async () => {

@@ -5,6 +5,7 @@ import { jobRevision } from '../utils/jobRevision';
 import { moderateLegacyPost } from '../utils/jobModeration';
 import { enqueueLegacyJobCreated } from '../utils/legacyOutbox';
 import { repostLegacyPost } from '../utils/jobRepost';
+import { LegacyJobRequestError, runLegacyCreateRequest } from '../utils/legacyJobRequest';
 const { Op } = require("sequelize");
 require('dotenv').config();
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
@@ -19,51 +20,63 @@ const withPostingTransaction = async (work) => {
     try {
         return await db.sequelize.transaction(work);
     } catch (error) {
+        if (error instanceof LegacyJobRequestError) return { errCode: error.errCode, errMessage: error.message,
+            httpStatus: error.httpStatus, ...(error.httpStatus === 409 && { conflict: true }) };
         if (error instanceof PostingQuotaError) return { errCode: 2, errMessage: error.message };
         throw error;
     }
 };
 
-let handleCreateNewPost = async (data) => {
+let handleCreateNewPost = async (data, identity = {}) => {
     if (!data.name || !data.categoryJobCode || !data.addressCode || !data.salaryJobCode || !data.amount || !data.timeEnd || !data.categoryJoblevelCode || !data.userId
         || !data.categoryWorktypeCode || !data.experienceJobCode || !data.genderPostCode || !data.descriptionHTML || !data.descriptionMarkdown || data.isHot === '') {
         return { errCode: 1, errMessage: 'Missing required parameters !' };
     }
     return withPostingTransaction(async (transaction) => {
-        const isHot = normalizePostHot(data.isHot);
-        const company = await lockPostingCompany(data.userId, transaction);
-        await consumeLockedPostingQuota(company, isHot, transaction);
-        const detailPost = await db.DetailPost.create({
-            name: data.name,
-            descriptionHTML: data.descriptionHTML,
-            descriptionMarkdown: data.descriptionMarkdown,
-            categoryJobCode: data.categoryJobCode,
-            addressCode: data.addressCode,
-            salaryJobCode: data.salaryJobCode,
-            amount: data.amount,
-            categoryJoblevelCode: data.categoryJoblevelCode,
-            categoryWorktypeCode: data.categoryWorktypeCode,
-            experienceJobCode: data.experienceJobCode,
-            genderPostCode: data.genderPostCode
-        }, { transaction });
-        const newPost = await db.Post.create({
-            statusCode: 'PS3', timeEnd: data.timeEnd, userId: data.userId,
-            isHot, detailPostId: detailPost.id
-        }, { transaction });
-        // Read our inserted rows, including DB defaults/coercions, before commit.
-        // The actor and company remain locked by lockPostingCompany; never join
-        // an old consistent-read snapshot or publish a body-derived ID afterward.
-        const post = await db.Post.findOne({ where: { id: newPost.id }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
-        const detail = await db.DetailPost.findOne({ where: { id: detailPost.id }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
-        if (!post || !detail || Number(post.userId) !== Number(data.userId) || post.detailPostId !== detail.id || post.statusCode !== 'PS3') {
-            throw new PostingQuotaError('Không đọc được tin vừa tạo, vui lòng thử lại');
-        }
-        await enqueueLegacyJobCreated({ post, detail, owner: { companyId: company.id }, company }, transaction);
-        return {
-            errCode: 0,
-            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',
-            postId: newPost.id
+        const write = async (data) => {
+            const isHot = normalizePostHot(data.isHot);
+            const company = await lockPostingCompany(data.userId, transaction);
+            if (identity.companyId !== undefined && Number(company.id) !== Number(identity.companyId)) {
+                throw new LegacyJobRequestError('Công ty của người đăng đã thay đổi; vui lòng đăng nhập lại', 403);
+            }
+            if (identity.idempotencyKey !== undefined && Number(data.timeEnd) <= Date.now()) {
+                throw new LegacyJobRequestError('Ngày hết hạn phải nằm trong tương lai', 400);
+            }
+            await consumeLockedPostingQuota(company, isHot, transaction);
+            const detailPost = await db.DetailPost.create({
+                name: data.name,
+                descriptionHTML: data.descriptionHTML,
+                descriptionMarkdown: data.descriptionMarkdown,
+                categoryJobCode: data.categoryJobCode,
+                addressCode: data.addressCode,
+                salaryJobCode: data.salaryJobCode,
+                amount: data.amount,
+                categoryJoblevelCode: data.categoryJoblevelCode,
+                categoryWorktypeCode: data.categoryWorktypeCode,
+                experienceJobCode: data.experienceJobCode,
+                genderPostCode: data.genderPostCode
+            }, { transaction });
+            const newPost = await db.Post.create({
+                statusCode: 'PS3', timeEnd: data.timeEnd, userId: data.userId,
+                isHot, detailPostId: detailPost.id
+            }, { transaction });
+            // Read our inserted rows, including DB defaults/coercions, before commit.
+            // The actor and company remain locked by lockPostingCompany; never join
+            // an old consistent-read snapshot or publish a body-derived ID afterward.
+            const post = await db.Post.findOne({ where: { id: newPost.id }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
+            const detail = await db.DetailPost.findOne({ where: { id: detailPost.id }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
+            if (!post || !detail || Number(post.userId) !== Number(data.userId) || post.detailPostId !== detail.id || post.statusCode !== 'PS3') {
+                throw new PostingQuotaError('Không đọc được tin vừa tạo, vui lòng thử lại');
+            }
+            await enqueueLegacyJobCreated({ post, detail, owner: { companyId: company.id }, company }, transaction);
+            return {
+                errCode: 0,
+                errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',
+                postId: newPost.id
+            };
         };
+        return identity.idempotencyKey === undefined ? write(data)
+            : runLegacyCreateRequest(transaction, { data, identity, key: identity.idempotencyKey }, write);
     });
 };
 

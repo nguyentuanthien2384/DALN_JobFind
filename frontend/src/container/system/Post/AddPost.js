@@ -18,6 +18,8 @@ import { Spinner, Modal } from "reactstrap";
 import { jobToForm, jobDeadlineDate, jobClassificationOptions, jobStatusLabel, isJobRevision } from "../../../service/jobFormAdapter";
 import "../../../components/modal/modal.css";
 import ReupPostModal from "../../../components/modal/ReupPostModal";
+import { readLegacyCreateAttempt, prepareLegacyCreateAttempt, settleLegacyCreateAttempt,
+    clearSuccessfulLegacyCreate, assertLegacyCreateIdentity, assertPendingLegacyCreate, isLegacyCreateReceipt } from '../../../service/legacyCreateAttempt';
 const emptyPostForm = () => ({
     name: "",
     categoryJobCode: "",
@@ -69,6 +71,9 @@ const AddPost = () => {
     const reupBlocked = useRef(false);
     const [reupWarning, setReupWarning] = useState('');
     const [reupCreatedId, setReupCreatedId] = useState(null);
+    const [createAttempt, setCreateAttempt] = useState(null);
+    const [createError, setCreateError] = useState('');
+    const createLocked = !id && (!!createError || (!!createAttempt && createAttempt.status !== 'rejected') || isLoading);
     useEffect(() => { reupBlocked.current = false; setReupWarning(''); setReupCreatedId(null); }, [id]);
     const viewEpoch = useRef(0);
     const readyToEdit = !id || (!inputValues.isActionADD && String(inputValues.id) === String(id));
@@ -84,6 +89,8 @@ const AddPost = () => {
         try { userData = JSON.parse(localStorage.getItem("userData")) || {}; } catch { userData = {}; }
         setUser(userData);
         setLoadError('');
+        setCreateAttempt(null);
+        setCreateError('');
         setisChangeDate(false);
         setPropsModal({ isActive: false, handlePost: () => {} });
         if (userData.id && userData.roleCode !== "ADMIN" && !id) {
@@ -108,6 +115,18 @@ const AddPost = () => {
         } else {
             setInputValues(emptyPostForm());
             settimeEnd(new Date());
+            if (userData.id) {
+                try {
+                    const saved = readLegacyCreateAttempt(userData);
+                    if (saved) {
+                        setCreateAttempt(saved);
+                        setInputValues({ ...emptyPostForm(), ...saved.payload, genderCode: saved.payload.genderPostCode });
+                        settimeEnd(new Date(saved.payload.timeEnd));
+                    }
+                } catch {
+                    setCreateError('Không đọc được thao tác đăng tin đã lưu. Hãy giữ nội dung và liên hệ hỗ trợ trước khi tạo thêm.');
+                }
+            }
         }
         return () => { active = false; viewEpoch.current += 1; };
     }, [fetchCompany, id, reloadVersion]);
@@ -135,16 +154,19 @@ const AddPost = () => {
         inputValues.genderCode, inputValues.categoryJobCode, inputValues.categoryJoblevelCode,
         inputValues.salaryJobCode, inputValues.experienceJobCode, inputValues.categoryWorktypeCode, inputValues.addressCode]);
     const handleOnChange = (event) => {
+        if (createLocked) return;
         const { name, value } = event.target;
         setInputValues({ ...inputValues, [name]: value });
     };
     let handleIsHot = (e) => {
+        if (createLocked) return;
         setInputValues({
             ...inputValues,
             isHot: e.target.checked ? 1 : 0,
         });
     };
     let handleEditorChange = ({ html, text }) => {
+        if (createLocked) return;
         setInputValues({
             ...inputValues,
             "descriptionMarkdown": text,
@@ -152,25 +174,59 @@ const AddPost = () => {
         });
     };
     let handleOnChangeDatePicker = (date) => {
+        if (createLocked) return;
         settimeEnd(date);
         setisChangeDate(true);
+    };
+    const sendCreateAttempt = async (sent) => {
+        if (editAttempt.current || createError || !sent || sent.status !== 'pending') return;
+        try { assertPendingLegacyCreate(user, sent); }
+        catch (error) { setCreateError(error.message); return; }
+        const epoch = viewEpoch.current, attempt = {};
+        editAttempt.current = attempt;
+        setIsLoading(true);
+        try {
+            assertLegacyCreateIdentity(user);
+            const res = await createPostService(sent.payload, { idempotencyKey: sent.key });
+            let patch;
+            if (isLegacyCreateReceipt(res, sent)) patch = { status: 'succeeded', postId: Number(res.postId) };
+            else if (res?.errCode === 0 || res?.httpStatus === 409 || res?.conflict || res?.errorType === 'conflict') patch = { status: 'blocked' };
+            else if ([1, 2, 3].includes(res?.errCode) && !(res.httpStatus >= 500) &&
+                !['network', 'timeout', 'cancelled', 'unavailable', 'server', 'unknown'].includes(res.errorType)) patch = { status: 'rejected' };
+            else patch = { status: 'pending' };
+            const saved = settleLegacyCreateAttempt(user, sent, patch);
+            if (epoch !== viewEpoch.current) return;
+            assertLegacyCreateIdentity(user);
+            setCreateAttempt(saved);
+            if (saved.status === 'succeeded') {
+                fetchCompany(user.id).catch(() => {});
+                toast.success(res?.errMessage || 'Đã tạo tin; không trừ thêm lượt khi đối chiếu');
+            } else toast.error(res?.errMessage || 'Chưa xác nhận được kết quả tạo tin');
+        } catch (error) {
+            if (epoch === viewEpoch.current) {
+                // A thrown transport error leaves the already-persisted payload/key
+                // untouched. No automatic retry and no clearing of the draft.
+                try { assertLegacyCreateIdentity(user); readLegacyCreateAttempt(user); }
+                catch { setCreateError('Không đối chiếu được tài khoản hoặc mã đã lưu. Hãy tải lại trang và liên hệ hỗ trợ nếu lỗi còn tiếp diễn.'); }
+                toast.error('Chưa xác nhận được kết quả; giữ nguyên mã thao tác để đối chiếu.');
+            }
+        } finally {
+            if (editAttempt.current === attempt) editAttempt.current = null;
+            if (epoch === viewEpoch.current) setIsLoading(false);
+        }
     };
     let handleSavePost = async () => {
         if (!readyToEdit || isLoading || loadError || editWarning || editAttempt.current || inputValues.statusCode === 'PS4') return;
         if (id && !isJobRevision(inputValues.editRevision)) return;
         if (id && !validDeadline) { toast.error('Ngày hết hạn đang lưu không hợp lệ; vui lòng liên hệ quản trị viên'); return; }
-        setIsLoading(true);
         if (inputValues.isActionADD === true) {
-            if (new Date().getTime() > new Date(timeEnd).getTime()) {
+            if (createLocked) return;
+            if (!Number.isFinite(new Date(timeEnd).getTime()) || Date.now() >= new Date(timeEnd).getTime()) {
                 toast.error("Ngày kết thúc phải hơn ngày hiện tại");
-                setIsLoading(false);
             } else {
-                const epoch = viewEpoch.current;
-                const attempt = {};
-                editAttempt.current = attempt;
-                const uncertain = () => setEditWarning('Chưa xác định được tin đã tạo hay chưa. Bản nháp được giữ lại; hãy sao chép nội dung và kiểm tra danh sách tin trước khi tạo thêm để tránh trừ lượt hai lần.');
                 try {
-                    const res = await createPostService({
+                    assertLegacyCreateIdentity(user);
+                    const saved = prepareLegacyCreateAttempt(user, {
                         name: inputValues.name,
                         descriptionHTML: inputValues.descriptionHTML,
                         descriptionMarkdown: inputValues.descriptionMarkdown,
@@ -185,42 +241,15 @@ const AddPost = () => {
                         genderPostCode: inputValues.genderCode,
                         userId: user.id,
                         isHot: inputValues.isHot,
-                    });
-                    if (epoch !== viewEpoch.current) return;
-                    if (res && res.errCode === 0) {
-                        // A quota refresh failure must not reinterpret a committed creation.
-                        fetchCompany(user.id).catch(() => {});
-                        toast.success(res.errMessage);
-                        setInputValues({
-                            ...inputValues,
-                            "name": "",
-                            "descriptionHTML": "",
-                            "descriptionMarkdown": "",
-                            "categoryJobCode": "",
-                            "addressCode": "",
-                            "salaryJobCode": "",
-                            "amount": "",
-                            "timeEnd": "",
-                            "categoryJoblevelCode": "",
-                            "categoryWorktypeCode": "",
-                            "experienceJobCode": "",
-                            "genderCode": "",
-                            "isHot": 0,
-                        });
-                        settimeEnd(new Date());
-                    } else {
-                        toast.error(res?.errMessage || 'Không tạo được tin');
-                        if (!res || ![1, 2, 3].includes(res.errCode) || res.httpStatus >= 500 ||
-                            ['network', 'timeout', 'cancelled', 'unavailable', 'server', 'unknown'].includes(res.errorType)) uncertain();
-                    }
-                } catch {
-                    if (epoch === viewEpoch.current) uncertain();
-                } finally {
-                    if (editAttempt.current === attempt) editAttempt.current = null;
-                    if (epoch === viewEpoch.current) setIsLoading(false);
+                    }, createAttempt);
+                    setCreateAttempt(saved);
+                    await sendCreateAttempt(saved);
+                } catch (error) {
+                    setCreateError(error.message || 'Không lưu được mã thao tác. Tin chưa được gửi.');
                 }
             }
         } else {
+            setIsLoading(true);
             const epoch = viewEpoch.current;
             const attempt = {};
             editAttempt.current = attempt;
@@ -342,6 +371,23 @@ const AddPost = () => {
                             {id && readyToEdit && <p>Trạng thái lúc tải: {jobStatusLabel(inputValues.statusCode)}</p>}
                             {id && readyToEdit && !isJobRevision(inputValues.editRevision) && <p role="alert">Chưa có thông tin phiên bản của tin. Vui lòng tải lại hoặc liên hệ quản trị viên để sửa an toàn.</p>}
                             {editWarning && <p role="alert">{editWarning}</p>}
+                            {!id && createError && <p role="alert">{createError}</p>}
+                            {!id && createAttempt?.status === 'pending' && <div role="alert">
+                                <p>Đã giữ mã và nội dung gửi trong tab này. Nếu chưa rõ kết quả, hãy đối chiếu bằng cùng mã hoặc kiểm tra danh sách tin. Không mở thao tác mới để gửi lại cùng tin.</p>
+                                <button type="button" disabled={isLoading || !!createError} onClick={() => sendCreateAttempt(createAttempt)}>Đối chiếu / gửi lại cùng mã</button>
+                            </div>}
+                            {!id && createAttempt?.status === 'blocked' && <p role="alert">Mã thao tác hoặc phản hồi không khớp. Nội dung được giữ lại; hãy kiểm tra danh sách tin và liên hệ hỗ trợ. Không gửi bằng mã mới.</p>}
+                            {!id && createAttempt?.status === 'rejected' && <p role="status">Yêu cầu bị từ chối. Bạn có thể sửa nội dung rồi lưu; mã thao tác vẫn được giữ để tránh tạo trùng.</p>}
+                            {!id && createAttempt?.status === 'succeeded' && <div role="status">
+                                <p>Đã tạo tin #{createAttempt.postId}. Nội dung được giữ lại; gửi lại cùng mã không trừ thêm lượt.</p>
+                                <button type="button" onClick={() => navigate(`/admin/edit-post/${createAttempt.postId}/`)}>Xem tin đã tạo</button>
+                                <button type="button" disabled={!!createError} onClick={() => {
+                                    try {
+                                        assertLegacyCreateIdentity(user); clearSuccessfulLegacyCreate(user);
+                                        setCreateAttempt(null); setInputValues(emptyPostForm()); settimeEnd(new Date());
+                                    } catch (error) { setCreateError(error.message); }
+                                }}>Tạo tin khác</button>
+                            </div>}
                             {reupWarning && <p role="status">{reupWarning}</p>}
                             {reupCreatedId && <button type="button" onClick={() => navigate(`/admin/edit-post/${reupCreatedId}/`)}>Xem tin đăng lại</button>}
                             {id && (editWarning || loadError || (readyToEdit && !isJobRevision(inputValues.editRevision))) &&
@@ -353,6 +399,7 @@ const AddPost = () => {
                             </div>}
                             {id && readyToEdit && !validDeadline && <p role="alert">Ngày hết hạn đang lưu không hợp lệ; vui lòng liên hệ quản trị viên.</p>}
                             <form className="form-sample">
+                                <fieldset disabled={createLocked}>
                                 <div className="row">
                                     <div className="col-md-6">
                                         <div className="form-group row">
@@ -803,10 +850,11 @@ const AddPost = () => {
                                         </div>
                                     </div>
                                 </div>
+                                </fieldset>
                                 {user.roleCode !== "ADMIN" && (
                                     <>
                                         <button
-                                            disabled={!readyToEdit || !!loadError || !!editWarning || isLoading || inputValues.statusCode === 'PS4' || (!!id && (!validDeadline || !isJobRevision(inputValues.editRevision)))}
+                                            disabled={createLocked || !readyToEdit || !!loadError || !!editWarning || isLoading || inputValues.statusCode === 'PS4' || (!!id && (!validDeadline || !isJobRevision(inputValues.editRevision)))}
                                             onClick={() => handleSavePost()}
                                             type="button"
                                             className="btn1 btn1-primary1 btn1-icon-text"
