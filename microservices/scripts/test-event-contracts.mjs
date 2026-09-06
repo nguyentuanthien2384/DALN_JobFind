@@ -92,6 +92,21 @@ try {
             channel.ack(msg);
         }
     });
+    await check('approval policy and frozen follower intents keep bytes and identity across reordered repeated delivery', async () => {
+        const creation = { ...eventExamples['job.created'], notificationPolicy: 'approval-v1' };
+        const approval = eventExamples['notification.job_approved_requested'];
+        const creationId = randomUUID(), approvalId = randomUUID();
+        for (const [key, data, id] of [
+            ['notification.job_approved_requested', approval, approvalId], ['job.created', creation, creationId],
+            ['job.created', creation, creationId], ['notification.job_approved_requested', approval, approvalId]
+        ]) {
+            await publishOutboxEvent(key, data, { messageId: id, aggregateId: '7', occurredAt: '2026-09-06T00:00:00Z', producer: 'job-core-service' });
+            const msg = await get(queue), decoded = readEventMessage(msg);
+            assert.deepEqual(decoded.payload, data); assert.equal(decoded.metadata.eventId, id);
+            assert.equal(decoded.metadata.producer, 'job-core-service'); assert.equal(decoded.metadata.payloadVersion, 1);
+            assert.equal(msg.properties.deliveryMode, 2); channel.ack(msg);
+        }
+    });
     const valid = createEventEnvelope({ eventId: randomUUID(), eventType: 'job.deleted', aggregateId: 7,
         occurredAt: '2026-09-05T01:02:03Z', producer: 'job-core-service', payloadVersion: 1, data: { jobId: 7 } });
     let calls = 0;

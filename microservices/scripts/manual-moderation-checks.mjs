@@ -7,10 +7,10 @@ import { runManualSearchOutboxChecks } from './manual-search-outbox-checks.mjs';
 
 // Only runs inside the owned disposable fixture. Calls the real transactional
 // legacy writer directly; notifications are only enqueued, never sent to providers.
-export const runManualModerationChecks = async ({ pool, check, core, managed, edit, legacy, moderateLegacyPost, manualHttp, counts, balance, waitForRowWait }) => {
+export const runManualModerationChecks = async ({ pool, check, core, repost, managed, edit, legacy, moderateLegacyPost, manualHttp, counts, balance, waitForRowWait }) => {
     await pool.query(`CREATE TABLE notes (id INT AUTO_INCREMENT PRIMARY KEY, postId INT, userId INT,
         note VARCHAR(255), createdAt DATETIME, updatedAt DATETIME) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-    await pool.query(`CREATE TABLE followcompanies (id INT AUTO_INCREMENT PRIMARY KEY, companyId INT, userId INT,
+    await pool.query(`CREATE TABLE IF NOT EXISTS followcompanies (id INT AUTO_INCREMENT PRIMARY KEY, companyId INT, userId INT,
         createdAt DATETIME, updatedAt DATETIME) ENGINE=InnoDB`);
     await pool.query('UPDATE companies SET allowPost = 100, allowHotPost = 100 WHERE id = 3');
     const make = async () => { const r = await core(0, 8); assert.equal(r.status, 201); return r.id; };
@@ -263,5 +263,8 @@ export const runManualModerationChecks = async ({ pool, check, core, managed, ed
             const [[email]] = await pool.query("SELECT payload FROM notification_deliveries WHERE eventId = ? AND channel = 'email'", [row.id]);
             assert.ok(JSON.parse(email.payload).text.includes(title));
         });
+        const { runCoreApprovalNotificationChecks } = await import('./core-approval-notification-checks.mjs');
+        await runCoreApprovalNotificationChecks({ pool, check, make, read, decide, state, post, repost, edit,
+            handleNotificationEvent, receive, deliveryCounts, waitForRowWait });
     } finally { await mysqlPool.end(); }
 };

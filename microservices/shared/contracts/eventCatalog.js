@@ -10,6 +10,7 @@ const token = { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$',
 const taskId = { ...token, maxLength: 64 };
 const requestId = { type: 'string', pattern: '^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$' };
 const bool = { type: 'boolean' };
+const notificationPolicy = { const: 'approval-v1' };
 const date = { anyOf: [{ type: 'string', format: 'date-time' }, { type: 'string', format: 'date' }] };
 const optionalText = nullable(string());
 const stages = ['moi_ung_tuyen', 'dang_xem_xet', 'phong_van', 'de_nghi', 'nhan_viec', 'tu_choi'];
@@ -51,7 +52,7 @@ const base = { jobId: 7, candidateId: 9, candidateName: 'Ứng viên mẫu', can
 const moderationRequestId = '11111111-1111-4111-8111-111111111111';
 
 export const eventCatalog = {
-    'job.created': metadata(object({ job }, ['job']), 'job.id', ['job-core-service', 'legacy-backend'], ['search-service.indexer', 'notification-service.events']),
+    'job.created': metadata(object({ job, notificationPolicy }, ['job']), 'job.id', ['job-core-service', 'legacy-backend'], ['search-service.indexer', 'notification-service.events']),
     'job.updated': metadata(object({ job }, ['job']), 'job.id', ['job-core-service', 'legacy-backend'], ['search-service.indexer']),
     'job.deleted': metadata(object({ jobId: id }, ['jobId']), 'jobId', ['job-core-service'], ['search-service.indexer']),
     'company.updated': metadata(object({ companyId: id, companyStatusCode: nullable(string(64)), companyCensorCode: nullable(string(64)) }, ['companyId']), 'companyId', ['legacy-backend'], ['search-service.indexer']),
@@ -64,10 +65,13 @@ export const eventCatalog = {
             then: { properties: { action: { const: 'approve' }, note: { type: 'null' } } },
             else: { properties: { note: { type: 'string', minLength: 1, maxLength: 255 } } } }]
     }, 'jobId', ['legacy-backend'], ['notification-service.events'], 16 * 1024),
+    'notification.job_approved_requested': metadata(object({ decisionId: requestId, jobId: id, recipientId: id,
+        jobTitle: nullable(string(255)), companyName: nullable(string(255))
+    }, ['decisionId', 'jobId', 'recipientId', 'jobTitle', 'companyName']), 'jobId', ['job-core-service'], ['notification-service.events'], 16 * 1024),
     'job.moderated': metadata({ ...object({ jobId: id, posterId: nullable(id), jobTitle: optionalText, approved: bool, statusCode: { enum: ['PS1', 'PS2'] }, reason: optionalText, moderationRequestId: requestId }, ['jobId', 'approved', 'statusCode']),
         allOf: [{ if: { properties: { approved: { const: true } }, required: ['approved'] }, then: { properties: { statusCode: { const: 'PS1' } } }, else: { properties: { statusCode: { const: 'PS2' } } } }]
     }, 'jobId', ['job-core-service'], ['search-service.indexer', 'notification-service.events']),
-    'ai.moderate_job': metadata(object({ jobId: id, taskId: { type: 'null' }, name: string(), descriptionHTML: string(), moderationRequestId: requestId }, ['jobId', 'name', 'descriptionHTML', 'moderationRequestId']), 'jobId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
+    'ai.moderate_job': metadata(object({ jobId: id, taskId: { type: 'null' }, name: string(), descriptionHTML: string(), moderationRequestId: requestId, notificationPolicy }, ['jobId', 'name', 'descriptionHTML', 'moderationRequestId']), 'jobId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
     'ai.parse_resume': metadata(object({ taskId, jobId: nullable(id), fileBase64: { ...string(8 * 1024 * 1024), minLength: 1, pattern: '\\S' }, fileName: nullable(string()) }, ['taskId', 'fileBase64']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
     'ai.match_cv': metadata(object({ taskId, jobId: nullable(id), resumeText: string(), jobTitle: string(), jobDescription: string() }, ['taskId', 'resumeText', 'jobTitle', 'jobDescription']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
     'ai.cover_letter': metadata(object({ taskId, jobId: nullable(id), resumeText: string(), jobTitle: string(), jobDescription: string(), companyName: optionalText, language: string(32) }, ['taskId', 'resumeText', 'jobTitle', 'jobDescription']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
@@ -89,6 +93,7 @@ export const eventExamples = {
     'notification.manual_moderation_requested': { decisionId: moderationRequestId, jobId: 7, recipientId: 5,
         audience: 'author', action: 'approve', jobTitle: 'Developer', companyName: 'Example', note: 'Đã duyệt bài thành công' },
     'job.moderated': { jobId: 7, posterId: 5, jobTitle: 'Developer', approved: true, statusCode: 'PS1', reason: 'OK', moderationRequestId },
+    'notification.job_approved_requested': { decisionId: moderationRequestId, jobId: 7, recipientId: 9, jobTitle: 'Developer', companyName: 'Example' },
     'ai.moderate_job': { jobId: 7, name: 'Developer', descriptionHTML: '<p>Build services</p>', moderationRequestId },
     'ai.parse_resume': { taskId: 'task-1', fileBase64: 'c3ludGhldGlj', fileName: 'example.pdf' },
     'ai.match_cv': { taskId: 'task-1', resumeText: 'Synthetic CV', jobTitle: 'Developer', jobDescription: 'Build services' },

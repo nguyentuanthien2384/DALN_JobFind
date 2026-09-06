@@ -3,6 +3,7 @@ import { enqueueOutboxEvent } from './outbox.js';
 import { moderationContentHash } from './moderationState.js';
 import { validateAiResult, aiResultError } from './aiResultValidation.js';
 import { EVENTS } from '../../../shared/events.js';
+import { enqueueApprovalNotifications } from './approvalNotifications.js';
 
 const claimResult = async (conn, payload, identity) => {
     if (!identity.eventId) return false;
@@ -41,7 +42,7 @@ const applyModerationResult = async (conn, payload, enqueue) => {
     // Job writers lock posts before moderation/detail (auth locks can precede
     // the post lock). These are current locking reads,
     // not a repeatable-read snapshot from before a concurrent edit committed.
-    const [[post]] = await conn.query('SELECT id, detailPostId, statusCode, userId FROM posts WHERE id = ? FOR UPDATE', [payload.jobId]);
+    const [[post]] = await conn.query('SELECT id, detailPostId, statusCode, userId, timeEnd FROM posts WHERE id = ? FOR UPDATE', [payload.jobId]);
     if (!post) return 'stale';
     const [[request]] = await conn.query('SELECT requestId, contentHash, state FROM job_moderation_state WHERE jobId = ? FOR UPDATE', [payload.jobId]);
     if (!request || request.requestId !== payload.moderationRequestId || request.state !== 'pending') return 'stale';
@@ -70,6 +71,7 @@ const applyModerationResult = async (conn, payload, enqueue) => {
             moderationRequestId: payload.moderationRequestId
         }
     });
+    if (payload.result.approved) await enqueueApprovalNotifications(conn, post, detail, payload.moderationRequestId);
     return 'applied';
 };
 

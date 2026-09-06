@@ -7,6 +7,7 @@ import { consumePostingQuota, consumeLockedPostingQuota, PostingQuotaError } fro
 import { runJobRequest, normalizeJobCreate, futureJobDeadline, JobRequestError } from '../libs/jobRequest.js';
 import { DETAIL_FIELDS, JobEditError, lockJobForEdit, assertUnchangedDeadline, editedDetail, assertJobRevision } from '../libs/jobEdit.js';
 import { jobRevision } from '../../../shared/jobRevision.js';
+import { APPROVAL_NOTIFICATION_POLICY } from '../../../shared/jobNotificationPolicy.js';
 
 const logger = createLogger('job-core-service');
 
@@ -58,7 +59,7 @@ const insertPendingJob = async (conn, { userId, isHot, timeEnd, detail }) => {
     if (!job) throw new Error('Không đọc được tin vừa tạo');
     await enqueueOutboxEvent(conn, {
         aggregateType: 'job', aggregateId: post.insertId,
-        eventType: EVENTS.JOB_CREATED, payload: { job }
+        eventType: EVENTS.JOB_CREATED, payload: { job, notificationPolicy: APPROVAL_NOTIFICATION_POLICY }
     });
     await requestJobModeration(conn, job);
     return { postId: post.insertId, job };

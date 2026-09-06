@@ -35,6 +35,14 @@ const { eventCatalog, eventExamples } = await import('/app/shared/contracts/even
 const { assertEventPayload } = await import('/app/shared/eventContract.js');
 assert.deepEqual(JSON.parse(await readFile('/app/contracts/events/catalog.v1.json', 'utf8')).events, eventCatalog);
 for (const [key, example] of Object.entries(eventExamples)) assertEventPayload(key, example);
+const { APPROVAL_NOTIFICATION_POLICY } = await import('/app/shared/jobNotificationPolicy.js');
+assert.equal(APPROVAL_NOTIFICATION_POLICY, 'approval-v1');
+const { enqueueApprovalNotifications } = await import('/app/job-core-service/src/libs/approvalNotifications.js');
+assert.equal(typeof enqueueApprovalNotifications, 'function');
+const { handlers } = await import('/app/notification-service/src/consumers/notificationConsumer.js');
+assert.equal(typeof handlers['notification.job_approved_requested'], 'function');
+// Suppression must not open a DB or provider connection in this offline image.
+await handlers['job.created']({ ...eventExamples['job.created'], notificationPolicy: APPROVAL_NOTIFICATION_POLICY });
 console.log('PASS image: non-root, isolated HTTP, readiness, protected status/metrics, payload limit, contract guard and packaged HTTP/event contracts');
 process.kill(process.pid, 'SIGTERM');
 `;

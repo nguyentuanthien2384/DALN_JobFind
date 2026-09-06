@@ -2,7 +2,7 @@
 
 ## Phạm vi
 
-14 loại sự kiện hiện khai báo trong `shared/events.js` đã có JSON Schema 2020-12: nhóm job/company, bốn yêu cầu AI và kết quả AI, ba sự kiện application và intent thông báo manual thêm ở 2g. `contracts/events/catalog.v1.json` liệt kê producer, queue nhận, trường định danh đối tượng và giới hạn byte của từng loại. Danh sách producer mô tả mã nguồn hiện tại, **không phải** cơ chế xác thực hoặc phân quyền RabbitMQ.
+15 loại sự kiện hiện khai báo trong `shared/events.js` đã có JSON Schema 2020-12: nhóm job/company, bốn yêu cầu AI và kết quả AI, ba sự kiện application, intent thông báo manual 2g và follower sau duyệt Core 2n. `contracts/events/catalog.v1.json` liệt kê producer, queue nhận, trường định danh đối tượng và giới hạn byte của từng loại. Danh sách producer mô tả mã nguồn hiện tại, **không phải** cơ chế xác thực hoặc phân quyền RabbitMQ.
 
 Nguồn chỉnh sửa là `shared/contracts/eventCatalog.js` và `shared/contracts/eventValidator.cjs`. Các file `contracts/events/*.payload.v1.schema.json`, catalog và bản sao validator/catalog trong `backend/src/contracts` được sinh tự động. Backend chạy độc lập, không cần import trực tiếp workspace microservices. Không sửa các bản sao bằng tay.
 
@@ -16,9 +16,11 @@ Schema chỉ bắt buộc các trường cốt lõi, kiểm tra kiểu của nh�
 
 Ví dụ: trạng thái ứng tuyển phải dùng enum của Application; quyết định accepted/rejected phải khớp trạng thái đích; kết quả kiểm duyệt boolean phải khớp PS1/PS2. `ai.result` phân biệt bốn loại nhiệm vụ và kết quả thành công/thất bại, không cho cùng lúc có result và error; điểm matching là số nguyên 0–100. Các trường định danh được worker truyền tiếp cũng được kiểm tra ở đầu vào.
 
-Giới hạn tính theo JSON đã serialize thành UTF-8: yêu cầu AI 8 MiB, kết quả AI 1 MiB, intent thông báo manual 16 KiB, các nhóm còn lại 64 MiB để còn tương thích snapshot/logo legacy. Một số trường có giới hạn nhỏ hơn. Đây là trần validator, **không phải** cam kết broker/DB/client chấp nhận message lớn đến mức đó; giới hạn thực tế còn phụ thuộc cấu hình từng tầng. Chưa chuyển file/logo lớn sang object storage và chưa xác minh nội dung PDF an toàn.
+Giới hạn tính theo JSON đã serialize thành UTF-8: yêu cầu AI 8 MiB, kết quả AI 1 MiB, intent thông báo manual/Core approval 16 KiB, các nhóm còn lại 64 MiB để còn tương thích snapshot/logo legacy. Một số trường có giới hạn nhỏ hơn. Đây là trần validator, **không phải** cam kết broker/DB/client chấp nhận message lớn đến mức đó; giới hạn thực tế còn phụ thuộc cấu hình từng tầng. Chưa chuyển file/logo lớn sang object storage và chưa xác minh nội dung PDF an toàn.
 
 ## Điểm kiểm tra và xử lý lỗi
+
+Từ 2n, `job.created` và `ai.moderate_job` có trường tùy chọn `notificationPolicy` (nếu có chỉ nhận `approval-v1`); writer Core mới lưu marker, không sửa backlog. Notification bỏ qua creation có marker. AI result handler lấy policy từ request outbox gốc (không từ AI result), chỉ khi áp dụng PS1 mới lưu từng `notification.job_approved_requested` cùng transaction. Event mới có decisionId UUID, jobId/recipientId, jobTitle/companyName nullable tối đa 255 ký tự; không có reason/note/email trong payload writer. Producer Core, consumer Notification và Admin audit. Notification bắt buộc eventId, dùng inbox/delivery hiện có, follower in-app only. Request outbox mất/hỏng thì rollback; không tự đoán policy cũ/mới. Catalog/schema đã sinh lại cả backend độc lập. Cập nhật tất cả Notification/binding và Admin trước Core writer/result-handler/relay; giữ row request làm bằng chứng khi còn có thể áp dụng kết quả. Xem `client-sync.md` 2n về rollout/rollback và giới hạn backlog/manual eligibility. Các mốc dưới mô tả lịch sử từng đợt.
 
 Từ 2h, **`job.updated` của quyết định kiểm duyệt manual** cũng được validate/INSERT cùng transaction. Không thêm event hay đổi payload v1; backend tạo snapshot theo allowlist từ post/detail/owner/company đã khóa. Outbox lưu discriminator `aggregateType=legacy-job`; relay Job Core giữ producer `legacy-backend` cho đúng `job.updated` này, giữ ID/thời điểm qua retry; row Core cũ không đổi nguồn. Search nhận event chỉ để đọc lại nguồn hiện tại, không áp dụng snapshot cũ. Ba controller manual bỏ emit trực tiếp; các đường sửa/tạo/đăng lại legacy khác chưa đổi. Cập nhật relay trước writer, giữ cả Search/Notification/Admin consumer phù hợp; xem `client-sync.md` 2h.
 
@@ -57,7 +59,7 @@ docker build -t jobfind-microservices:local .
 npm run test:image
 ```
 
-Bài tích hợp event cần image `rabbitmq:4-management-alpine` có sẵn; nếu thiếu, tải image đó trước khi chạy. Script tạo broker riêng với cổng loopback ngẫu nhiên, không đọc `.env`, không chạm queue thật. Nó kiểm tra cả 14 loại qua publish có confirm, schema/version sai vào DLQ, backlog cũ, targeted retry và replay AI cũ; chỉ xóa container cùng dữ liệu tạm do chính nó tạo sau khi kiểm tra nhãn sở hữu.
+Bài tích hợp event cần image `rabbitmq:4-management-alpine` có sẵn; nếu thiếu, tải image đó trước khi chạy. Script tạo broker riêng với cổng loopback ngẫu nhiên, không đọc `.env`, không chạm queue thật. Nó kiểm tra cả 15 loại qua publish có confirm, marker creation/intent approval giao đảo thứ tự và lặp, schema/version sai vào DLQ, backlog cũ, targeted retry và replay AI cũ; chỉ xóa container cùng dữ liệu tạm do chính nó tạo sau khi kiểm tra nhãn sở hữu.
 
 Test consumer dùng bộ xử lý thật của Search, Notification, Application, Admin, AI Worker và AI Result, với DB/SMTP/AI được mô phỏng. Chúng kiểm tra dữ liệu và ID vào đúng nhánh nghiệp vụ; không thay thế E2E mọi vai trò hoặc mọi dữ liệu lịch sử. CI kiểm tra bản sinh không lệch, unit/consumer contracts, broker cách ly và các contract đóng gói trong image. Chưa có Pact broker hay cổng triển khai đối chiếu từng phiên bản service độc lập.
 

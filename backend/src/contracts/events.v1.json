@@ -203,6 +203,9 @@
               "statusCode"
             ],
             "additionalProperties": true
+          },
+          "notificationPolicy": {
+            "const": "approval-v1"
           }
         },
         "required": [
@@ -677,6 +680,86 @@
       ],
       "maxBytes": 16384
     },
+    "notification.job_approved_requested": {
+      "payloadVersion": 1,
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "decisionId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "recipientId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "jobTitle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "companyName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "decisionId",
+          "jobId",
+          "recipientId",
+          "jobTitle",
+          "companyName"
+        ],
+        "additionalProperties": true
+      },
+      "aggregateField": "jobId",
+      "producers": [
+        "job-core-service"
+      ],
+      "consumers": [
+        "notification-service.events",
+        "admin-service.audit"
+      ],
+      "maxBytes": 16384
+    },
     "job.moderated": {
       "payloadVersion": 1,
       "schema": {
@@ -834,6 +917,9 @@
           "moderationRequestId": {
             "type": "string",
             "pattern": "^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$"
+          },
+          "notificationPolicy": {
+            "const": "approval-v1"
           }
         },
         "required": [

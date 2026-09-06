@@ -33,6 +33,65 @@ beforeEach(async () => {
 });
 
 describe('notification event consumer', () => {
+    const approvalType = 'notification.job_approved_requested';
+    it.each([true, false])('keeps delayed AI decisions historical and bounds Unicode author previews (approved=%s)', async approved => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const data = { ...eventExamples['job.moderated'], approved, statusCode: approved ? 'PS1' : 'PS2',
+            jobTitle: '🧑'.repeat(255), reason: '<script>private</script>\n' + 'x'.repeat(300) };
+        await handleNotificationEvent(data, 'job.moderated', { eventId: 'author' });
+        const template = mocks.queueNotification.mock.calls[0][0].template;
+        expect(Array.from(template.content)).toHaveLength(255);
+        expect(template.content).not.toMatch(/[\uD800-\uDFFF]/u);
+        expect(template.link).toBe('/admin/list-post/');
+        expect(template.email.text).toContain('trạng thái mới nhất');
+        expect(template.email.text).not.toContain('đang hiển thị');
+        expect(template.email.text).toContain(data.jobTitle);
+        expect(template.email.html).not.toContain('<script>');
+    });
+    it('uses the same in-app template as manual approval, without reading followers or sending email', async () => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const { manualApprovalFollowerTemplate } = await import('../notification-service/src/templates.js');
+        const data = { ...eventExamples[approvalType], jobTitle: '🧑'.repeat(255), companyName: '🏢'.repeat(255) };
+        const decoded = decodeEventFixture(approvalType, data);
+        await handleNotificationEvent(decoded.payload, approvalType, decoded.metadata);
+        expect(mocks.queueNotification).toHaveBeenCalledWith({ userId: 9, eventId: decoded.metadata.eventId,
+            template: manualApprovalFollowerTemplate(data), recipientEmail: undefined });
+        const template = mocks.queueNotification.mock.calls[0][0].template;
+        expect(Array.from(template.content)).toHaveLength(255); expect(template.email).toBeUndefined();
+        expect(mocks.getCompanyFollowers).not.toHaveBeenCalled(); expect(mocks.getUserEmail).not.toHaveBeenCalled();
+        expect(mocks.sendEmail).not.toHaveBeenCalled(); expect(mocks.pushRealtime).not.toHaveBeenCalled();
+    });
+    it.each([[{}, {}], [{ recipientId: 0 }, { eventId: 'e' }], [{ decisionId: 'bad' }, { eventId: 'e' }],
+        [{}, { eventId: 'e', aggregateId: '8' }], [{ jobTitle: 'x'.repeat(256) }, { eventId: 'e' }]])
+    ('rejects unsafe approval intents without direct-delivery fallback %#', async (patch, metadata) => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        await expect(handleNotificationEvent({ ...eventExamples[approvalType], ...patch }, approvalType, metadata)).rejects.toThrow();
+        expect(mocks.queueNotification).not.toHaveBeenCalled(); expect(mocks.saveNotification).not.toHaveBeenCalled();
+        expect(mocks.sendEmail).not.toHaveBeenCalled();
+    });
+    it.each(['PS1', 'PS2', 'PS3', 'PS4'])('never fans out policy-marked creation %s, even after approval or without metadata', async statusCode => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const data = { ...eventExamples['job.created'], notificationPolicy: 'approval-v1' };
+        data.job = { ...data.job, statusCode };
+        for (const metadata of [undefined, { eventId: 'created', producer: 'job-core-service' }]) {
+            await handleNotificationEvent(data, 'job.created', metadata);
+        }
+        expect(mocks.queueNotification).not.toHaveBeenCalled(); expect(mocks.saveNotification).not.toHaveBeenCalled();
+        expect(mocks.getCompanyFollowers).not.toHaveBeenCalled();
+    });
+    it('propagates a durable approval write failure, and reuses identity on retry', async () => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        mocks.queueNotification.mockRejectedValueOnce(new Error('db'));
+        await expect(handleNotificationEvent(eventExamples[approvalType], approvalType, { eventId: 'fixed' })).rejects.toThrow('db');
+        await handleNotificationEvent(eventExamples[approvalType], approvalType, { eventId: 'fixed' });
+        expect(mocks.queueNotification.mock.calls[0]).toEqual(mocks.queueNotification.mock.calls[1]);
+        expect(mocks.sendEmail).not.toHaveBeenCalled();
+    });
+    it.each([null, 'unknown', false])('fails closed on an unknown creation policy %s even for unmarked transport', async notificationPolicy => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        await expect(handleNotificationEvent({ ...eventExamples['job.created'], notificationPolicy }, 'job.created')).rejects.toThrow('policy');
+        expect(mocks.getCompanyFollowers).not.toHaveBeenCalled();
+    });
     const manualType = 'notification.manual_moderation_requested';
     it.each([['approve', 'POST_APPROVED'], ['reject', 'POST_REJECTED'], ['ban', 'POST_BANNED'], ['reopen', 'POST_REOPENED']])
     ('durably queues manual %s with safe historical text and no direct provider calls', async (action, typeCode) => {

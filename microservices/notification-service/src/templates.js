@@ -195,26 +195,29 @@ export const applicationDecisionTemplate = ({
 export const jobModeratedTemplate = ({ approved, jobTitle, reason }) => {
     const job = displayText(jobTitle, 'tin tuyển dụng');
     const rejectionReason = displayMultilineText(reason);
+    // A durable decision can arrive after another edit, ban or expiration.
+    // Describe acceptance/rejection, not a promise of current public visibility.
+    const content = notificationPreview(approved
+        ? `Tin tuyển dụng "${job}" đã được duyệt theo kết quả kiểm duyệt`
+        : `Tin tuyển dụng "${job}" bị từ chối${rejectionReason ? `: ${rejectionReason.replace(/\s+/g, ' ')}` : ''}`);
     const subject = sanitizeSubject(approved
         ? `Tin tuyển dụng đã được duyệt — ${job}`
         : `Tin tuyển dụng chưa được duyệt — ${job}`);
     const email = renderNotificationEmail({
         subject,
-        preheader: approved ? `Tin ${job} đã hiển thị với ứng viên` : `Tin ${job} cần được chỉnh sửa`,
+        preheader: content,
         eyebrow: 'KIỂM DUYỆT TIN TUYỂN DỤNG',
         status: approved ? 'Đã được duyệt' : 'Cần chỉnh sửa',
-        headline: approved ? 'Tin tuyển dụng đã sẵn sàng' : 'Tin tuyển dụng chưa qua kiểm duyệt',
+        headline: approved ? 'Tin tuyển dụng đã được duyệt' : 'Tin tuyển dụng chưa qua kiểm duyệt',
         icon: approved ? '&#10003;' : '!',
         accent: approved ? '#15803d' : '#92400e',
         softAccent: approved ? '#ecfdf3' : '#fffbeb',
         body: [approved
-            ? 'Tin tuyển dụng của bạn đã qua kiểm duyệt và đang hiển thị với ứng viên trên Job Finder.'
+            ? 'Tin tuyển dụng của bạn đã được chấp nhận theo kết quả kiểm duyệt này.'
             : 'Tin tuyển dụng của bạn chưa qua kiểm duyệt. Bạn có thể chỉnh sửa nội dung rồi gửi duyệt lại.'],
         details: [{ label: 'Tin tuyển dụng', value: job }],
-        nextStep: approved
-            ? 'Kiểm tra trang tin để bảo đảm thông tin hiển thị đúng như mong muốn.'
-            : 'Xem lý do kiểm duyệt, cập nhật nội dung và đăng lại khi đã sẵn sàng.',
-        ctaLabel: approved ? 'Xem tin tuyển dụng' : 'Chỉnh sửa tin',
+        nextStep: 'Mở danh sách quản lý để kiểm tra trạng thái mới nhất. Thông báo có thể đến sau một thay đổi khác.',
+        ctaLabel: 'Xem trạng thái hiện tại',
         ctaPath: '/admin/list-post/',
         customMessage: approved ? null : rejectionReason,
         customMessageLabel: 'LÝ DO KIỂM DUYỆT'
@@ -222,9 +225,7 @@ export const jobModeratedTemplate = ({ approved, jobTitle, reason }) => {
 
     return {
         typeCode: approved ? 'POST_APPROVED' : 'POST_REJECTED',
-        content: approved
-            ? `Tin tuyển dụng "${job}" đã được duyệt và đang hiển thị`
-            : `Tin tuyển dụng "${job}" bị từ chối${rejectionReason ? `: ${rejectionReason.replace(/\s+/g, ' ')}` : ''}`,
+        content,
         link: '/admin/list-post/',
         email
     };
@@ -250,12 +251,13 @@ export const manualModerationTemplate = ({ action, jobTitle, note }) => {
     }) };
 };
 
-// Legacy manual approval notified followers in-app only, never by email.
-export const manualApprovalFollowerTemplate = ({ jobId, jobTitle, companyName }) => ({
+// Both manual and policy-marked Core approval notify followers in-app only.
+export const approvedJobFollowerTemplate = ({ jobId, jobTitle, companyName }) => ({
     typeCode: 'NEW_POST',
     content: notificationPreview(`${displayText(companyName, 'Công ty bạn theo dõi')} vừa có tin được duyệt: ${displayText(jobTitle, 'tin tuyển dụng mới')}`),
     link: safeJobPath(jobId)
 });
+export const manualApprovalFollowerTemplate = approvedJobFollowerTemplate;
 
 export const newApplicationTemplate = ({ candidateName, jobTitle }) => {
     const candidate = displayText(candidateName, 'Một ứng viên');

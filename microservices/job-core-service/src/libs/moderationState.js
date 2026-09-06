@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { pool } from './db.js';
 import { enqueueOutboxEvent } from './outbox.js';
 import { EVENTS } from '../../../shared/events.js';
+import { APPROVAL_NOTIFICATION_POLICY } from '../../../shared/jobNotificationPolicy.js';
 
 // Hash exactly the fields reviewed by moderation, not a timestamp or event order.
 export const moderationContentHash = (job) => createHash('sha256')
@@ -47,7 +48,8 @@ export const requestJobModeration = async (conn, job) => {
     [job.id, requestId, contentHash, now, requestId, contentHash, now]);
     await enqueueOutboxEvent(conn, {
         eventId: requestId, aggregateType: 'job', aggregateId: job.id, eventType: EVENTS.AI_MODERATE_JOB,
-        payload: { jobId: job.id, name: job.name, descriptionHTML: job.descriptionHTML, moderationRequestId: requestId }
+        payload: { jobId: job.id, name: job.name, descriptionHTML: job.descriptionHTML, moderationRequestId: requestId,
+            notificationPolicy: APPROVAL_NOTIFICATION_POLICY }
     });
     return requestId;
 };

@@ -377,6 +377,27 @@ try {
         const stats = await es.indices.stats({ index: INDEX, metric: 'search' });
         assert.equal(stats.indices[INDEX].total.search.open_contexts, 0);
     });
+    await check('approval notification policy does not bypass Search visibility or apply delayed creation snapshots', async () => {
+        jobs.set('61', { ...job(61), statusCode: 'PS3' });
+        const payload = { job: { ...job(61), statusCode: 'PS3' }, notificationPolicy: 'approval-v1' };
+        const event = createEventEnvelope({ eventId: 'policy-create-61', eventType: 'job.created', aggregateId: '61',
+            occurredAt: '2026-09-06T00:00:00Z', producer: 'job-core-service', payloadVersion: 1, data: payload });
+        const decoded = readEventMessage({ content: Buffer.from(JSON.stringify(payload)), fields: { routingKey: 'job.created' }, properties: eventProperties(event) });
+        await handleSearchEvent(decoded.payload, 'job.created', decoded.metadata);
+        assert.equal((await read(61)).statusCode, 'PS3');
+        assert.equal(await isPublic(61), false);
+        jobs.set('61', job(61, 'Approved current title'));
+        await handleSearchEvent({ jobId: 61, approved: true, statusCode: 'PS1' }, 'job.moderated', { eventId: 'approved-61' });
+        await handleSearchEvent(decoded.payload, 'job.created', decoded.metadata);
+        assert.equal((await read(61)).name, 'Approved current title');
+        assert.equal(await isPublic(61), true);
+        jobs.set('61', { ...job(61), statusCode: 'PS4' });
+        await handleSearchEvent(decoded.payload, 'job.created', decoded.metadata);
+        // Removed jobs retain only a tombstone, not public status/content.
+        assert.equal((await read(61)).searchDeleted, true);
+        assert.equal((await read(61)).name, undefined);
+        assert.equal(await isPublic(61), false);
+    });
     console.log(`Search projection integration: ${passed} checks passed.`);
 } finally {
     for (const gate of gates) gate.release.resolve();

@@ -27,6 +27,7 @@ describe('Job Core transactional outbox', () => {
         ['job.updated', 'legacy-job', 'legacy-backend'], ['job.updated', 'job', 'job-core-service'],
         ['job.updated', undefined, 'job-core-service'], ['job.created', 'legacy-job', 'legacy-backend'],
         ['job.created', 'job', 'job-core-service'], ['job.created', undefined, 'job-core-service'],
+        ['notification.job_approved_requested', 'job-approval-notification', 'job-core-service'],
         ['job.deleted', 'legacy-job', 'job-core-service'],
         ['notification.manual_moderation_requested', 'manual-moderation-notification', 'legacy-backend']
     ])('preserves producer for %s with persisted aggregate marker %s', async (eventType, aggregateType, producer) => {

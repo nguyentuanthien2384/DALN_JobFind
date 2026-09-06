@@ -2,6 +2,7 @@ import { createLogger } from '../../../shared/logger.js';
 import { consume } from '../../../shared/rabbitmq.js';
 import { EVENTS } from '../../../shared/events.js';
 import { assertEventPayload } from '../../../shared/eventContract.js';
+import { APPROVAL_NOTIFICATION_POLICY } from '../../../shared/jobNotificationPolicy.js';
 import { queueNotification } from '../libs/deliveryStore.js';
 import { notificationRetry } from '../libs/eventRetry.js';
 import {
@@ -9,7 +10,7 @@ import {
 } from '../libs/channels.js';
 import {
     applicationStageTemplate, applicationDecisionTemplate, jobModeratedTemplate,
-    newJobFromFollowedCompanyTemplate, newApplicationTemplate, manualModerationTemplate, manualApprovalFollowerTemplate
+    newJobFromFollowedCompanyTemplate, newApplicationTemplate, manualModerationTemplate, manualApprovalFollowerTemplate, approvedJobFollowerTemplate
 } from '../templates.js';
 
 const logger = createLogger('notification-service');
@@ -78,6 +79,11 @@ export const deliver = async ({ userId, template, recipientEmail, eventId }) => 
 };
 
 export const handlers = {
+    [EVENTS.JOB_APPROVAL_NOTIFICATION_REQUESTED]: async (payload, metadata = {}) => {
+        if (!metadata.eventId) throw new Error('Job approval notification requires eventId');
+        assertEventPayload(EVENTS.JOB_APPROVAL_NOTIFICATION_REQUESTED, payload, { aggregateId: metadata.aggregateId });
+        await deliver({ userId: payload.recipientId, template: approvedJobFollowerTemplate(payload), eventId: metadata.eventId });
+    },
     [EVENTS.MANUAL_MODERATION_NOTIFICATION_REQUESTED]: async (payload, metadata = {}) => {
         // This is a new durable-only path: never fall back to direct SMTP when
         // a malformed/unmarked message is missing its persistent event identity.
@@ -155,6 +161,12 @@ export const handlers = {
     },
 
     [EVENTS.JOB_CREATED]: async (payload, metadata = {}) => {
+        // This immutable marker suppresses creation even if delivered AFTER the
+        // approval intent. Unmarked historical Core events retain old behavior.
+        if (Object.hasOwn(payload, 'notificationPolicy')) {
+            if (payload.notificationPolicy !== APPROVAL_NOTIFICATION_POLICY) throw new Error('Unknown job notification policy');
+            return;
+        }
         const job = payload.job;
         if (!job?.companyId) return;
         // Legacy creation is manual PS3. A saved creation event may arrive after

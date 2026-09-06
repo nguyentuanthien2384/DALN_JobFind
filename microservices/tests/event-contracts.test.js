@@ -33,6 +33,10 @@ describe('frozen payload v1 contracts', () => {
     });
     it.each([
         ['job.created', { job: { id: 1 } }],
+        ['job.created', { ...eventExamples['job.created'], notificationPolicy: 'unknown' }],
+        ['ai.moderate_job', { ...eventExamples['ai.moderate_job'], notificationPolicy: null }],
+        ['notification.job_approved_requested', { ...eventExamples['notification.job_approved_requested'], decisionId: 'invalid' }],
+        ['notification.job_approved_requested', { ...eventExamples['notification.job_approved_requested'], recipientId: 0 }],
         ['job.updated', { job: { id: '9007199254740992', name: 'X', statusCode: 'PS1' } }],
         ['job.deleted', { jobId: [1] }], ['company.updated', { companyId: { $ne: null } }],
         ['job.moderated', { jobId: 7, approved: 'false', statusCode: 'PS2' }],

@@ -88,11 +88,11 @@ describe('job write controller', () => {
         expect(conn.query.mock.calls[5][1][0]).toBe('PS3');
         expect(conn.query.mock.calls[6][0]).toContain('LOCK IN SHARE MODE');
         expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(1, conn, expect.objectContaining({
-            aggregateType: 'job', aggregateId: 20, eventType: 'job.created', payload: { job }
+            aggregateType: 'job', aggregateId: 20, eventType: 'job.created', payload: { job, notificationPolicy: 'approval-v1' }
         }));
         expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(2, conn, expect.objectContaining({
             aggregateType: 'job', aggregateId: 20, eventType: 'ai.moderate_job',
-            payload: { jobId: 20, name: 'Node Dev', descriptionHTML: '<p>Build</p>', moderationRequestId: expect.any(String) }
+            payload: { jobId: 20, name: 'Node Dev', descriptionHTML: '<p>Build</p>', moderationRequestId: expect.any(String), notificationPolicy: 'approval-v1' }
         }));
         expect(mocks.enqueueOutboxEvent.mock.calls[1][1].eventId).toBe(mocks.enqueueOutboxEvent.mock.calls[1][1].payload.moderationRequestId);
         expect(conn.query.mock.calls[7][0]).toContain('INSERT INTO job_moderation_state');

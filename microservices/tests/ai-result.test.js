@@ -18,6 +18,8 @@ const makeFixture = ({ post = { id: 7, detailPostId: 3, statusCode: 'PS3', userI
         if (sql.startsWith('SELECT requestId')) return [request ? [request] : []];
         if (sql.startsWith('SELECT name')) return [source ? [source] : []];
         if (sql.startsWith('SELECT id, type')) return [task ? [task] : []];
+        if (sql.startsWith('SELECT payload FROM outbox_events')) return [[{ payload: { jobId: 7, name: detail.name,
+            descriptionHTML: detail.descriptionHTML, moderationRequestId: requestId } }]];
         return [{ affectedRows: 1 }];
     }) };
     const enqueue = vi.fn().mockResolvedValue('outbox-id');

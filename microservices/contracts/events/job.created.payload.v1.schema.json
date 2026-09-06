@@ -198,6 +198,9 @@
         "statusCode"
       ],
       "additionalProperties": true
+    },
+    "notificationPolicy": {
+      "const": "approval-v1"
     }
   },
   "required": [

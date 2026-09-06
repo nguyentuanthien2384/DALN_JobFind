@@ -17,6 +17,8 @@ export const EVENTS = {
     JOB_MODERATED: 'job.moderated',
     // One durable recipient intent per accepted legacy manual decision.
     MANUAL_MODERATION_NOTIFICATION_REQUESTED: 'notification.manual_moderation_requested',
+    // One frozen follower intent per accepted, policy-marked Core approval.
+    JOB_APPROVAL_NOTIFICATION_REQUESTED: 'notification.job_approved_requested',
 
     // Yeu cau gui cho AI Worker.
     AI_MODERATE_JOB: 'ai.moderate_job',

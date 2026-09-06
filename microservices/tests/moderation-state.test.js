@@ -26,7 +26,7 @@ describe('moderation request fence', () => {
         const second = await requestJobModeration(conn, job);
         expect(first).not.toBe(second);
         expect(conn.query.mock.calls[0][1]).toEqual([7, first, moderationContentHash(job), expect.any(Date), first, moderationContentHash(job), expect.any(Date)]);
-        expect(mocks.enqueue).toHaveBeenCalledWith(conn, expect.objectContaining({ eventId: first, payload: { jobId: 7, name: job.name, descriptionHTML: job.descriptionHTML, moderationRequestId: first } }));
+        expect(mocks.enqueue).toHaveBeenCalledWith(conn, expect.objectContaining({ eventId: first, payload: { jobId: 7, name: job.name, descriptionHTML: job.descriptionHTML, moderationRequestId: first, notificationPolicy: 'approval-v1' } }));
         expect(conn.query.mock.invocationCallOrder[0]).toBeLessThan(mocks.enqueue.mock.invocationCallOrder[0]);
     });
     it('cancels outstanding moderation inside the delete transaction', async () => {

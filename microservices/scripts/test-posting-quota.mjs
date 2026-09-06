@@ -81,6 +81,8 @@ try {
         statusCode VARCHAR(10), censorCode VARCHAR(10), allowPost INT, allowHotPost INT,
         createdAt DATETIME, updatedAt DATETIME) ENGINE=InnoDB`);
     await pool.query('CREATE TABLE users (id INT PRIMARY KEY, companyId INT) ENGINE=InnoDB');
+    await pool.query(`CREATE TABLE followcompanies (id INT AUTO_INCREMENT PRIMARY KEY, companyId INT, userId INT,
+        createdAt DATETIME, updatedAt DATETIME) ENGINE=InnoDB`);
     await pool.query(`CREATE TABLE detailposts (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255),
         descriptionHTML LONGTEXT, descriptionMarkdown LONGTEXT, categoryJobCode VARCHAR(64), addressCode VARCHAR(64),
         salaryJobCode VARCHAR(64), amount INT, categoryJoblevelCode VARCHAR(64), categoryWorktypeCode VARCHAR(64),
@@ -452,7 +454,7 @@ try {
     const { runJobConcurrencyChecks } = await import('./job-concurrency-checks.mjs');
     await runJobConcurrencyChecks({ pool, check, core, managed, edit, legacy, counts, balance, waitForRowWait });
     const { runManualModerationChecks } = await import('./manual-moderation-checks.mjs');
-    await runManualModerationChecks({ pool, check, core, managed, edit, legacy, moderateLegacyPost, manualHttp, counts, balance, waitForRowWait });
+    await runManualModerationChecks({ pool, check, core, repost, managed, edit, legacy, moderateLegacyPost, manualHttp, counts, balance, waitForRowWait });
     const { runLegacyEditOutboxChecks } = await import('./legacy-edit-outbox-checks.mjs');
     await runLegacyEditOutboxChecks({ pool, check, core, managed, legacyEditHttp, counts, balance, waitForRowWait });
     const { runLegacyCreateOutboxChecks } = await import('./legacy-create-outbox-checks.mjs');
