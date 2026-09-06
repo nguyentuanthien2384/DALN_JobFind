@@ -191,9 +191,13 @@ const createPostService = (data, options) => {
     return axios.post(`/api/create-new-post`, data, { timeout: 15000,
         headers: { 'Idempotency-Key': options.idempotencyKey }, ...(options.signal && { signal: options.signal }) });
 }
-const reupPostService = (data) => {
-    return axios.post(`/api/create-reup-post`, data)
-
+const reupPostService = (data, options) => {
+    if (options === undefined) return axios.post(`/api/create-reup-post`, data);
+    if (typeof options?.idempotencyKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(options.idempotencyKey)) {
+        return Promise.reject(new Error('Cần giữ mã thao tác trước khi đăng lại'));
+    }
+    return axios.post(`/api/create-reup-post`, data, { timeout: 15000,
+        headers: { 'Idempotency-Key': options.idempotencyKey }, ...(options.signal && { signal: options.signal }) });
 }
 const updatePostService = (data, options) => {
     return options ? axios.put(`/api/update-post`, data, { timeout: 15000, ...(options.signal && { signal: options.signal }) })

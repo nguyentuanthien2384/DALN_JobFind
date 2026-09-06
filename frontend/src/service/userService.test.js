@@ -12,6 +12,17 @@ jest.mock("../axios", () => ({
 }));
 
 describe("userService", () => {
+    test('repost forwards the stable key with bounded transport and never retries a lost response', async () => {
+        const signal = new AbortController().signal, payload = { postId: 55, timeEnd: 1924992000000 };
+        axios.post.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });
+        expect(await service.reupPostService(payload, { idempotencyKey: 'repost-123', signal })).toMatchObject({ errorType: 'timeout' });
+        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(axios.post).toHaveBeenCalledWith('/api/create-reup-post', payload,
+            { timeout: 15000, headers: { 'Idempotency-Key': 'repost-123' }, signal });
+    });
+    test.each([null, {}, { idempotencyKey: '' }, { idempotencyKey: 'bad key' }])('does not downgrade invalid repost options %j', async options => {
+        await expect(service.reupPostService({}, options)).rejects.toThrow(); expect(axios.post).not.toHaveBeenCalled();
+    });
     test('keyed legacy creation sends a bounded request without retries or fallback', async () => {
         const signal = new AbortController().signal, body = { name: 'Engineer' };
         axios.post.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });

@@ -20,6 +20,8 @@ import "../../../components/modal/modal.css";
 import ReupPostModal from "../../../components/modal/ReupPostModal";
 import { readLegacyCreateAttempt, prepareLegacyCreateAttempt, settleLegacyCreateAttempt,
     clearSuccessfulLegacyCreate, assertLegacyCreateIdentity, assertPendingLegacyCreate, isLegacyCreateReceipt } from '../../../service/legacyCreateAttempt';
+import { readLegacyRepostAttempt, prepareLegacyRepostAttempt, assertPendingLegacyRepost,
+    settleLegacyRepostAttempt, isLegacyRepostReceipt } from '../../../service/legacyRepostAttempt';
 const emptyPostForm = () => ({
     name: "",
     categoryJobCode: "",
@@ -51,7 +53,6 @@ const AddPost = () => {
     const [inputValues, setInputValues] = useState(() => ({ ...emptyPostForm(), isActionADD: !id }));
     const [propsModal, setPropsModal] = useState({
         isActive: false,
-        handlePost: () => {},
     });
     const fetchCompany = useCallback(async (userId, companyId = null) => {
         let res = await getDetailCompanyByUserId(userId, companyId);
@@ -68,13 +69,16 @@ const AddPost = () => {
     const [confirmReload, setConfirmReload] = useState(false);
     const [reloadVersion, setReloadVersion] = useState(0);
     const editAttempt = useRef(null);
-    const reupBlocked = useRef(false);
-    const [reupWarning, setReupWarning] = useState('');
-    const [reupCreatedId, setReupCreatedId] = useState(null);
+    const [repostAttempt, setRepostAttempt] = useState(null);
+    const [repostError, setRepostError] = useState('');
+    const reupWarning = repostAttempt?.status === 'pending'
+        ? 'Chưa xác định được kết quả đăng lại. Mã, phiên bản và ngày đã gửi được giữ; hãy đối chiếu cùng mã hoặc kiểm tra danh sách tin. Tải lại tin gốc không xác nhận kết quả này.'
+        : repostAttempt?.status === 'blocked' ? 'Phản hồi đăng lại không khớp mã/tin gốc. Hãy giữ thông tin và liên hệ hỗ trợ; không gửi bằng mã mới.'
+        : repostAttempt?.status === 'succeeded' ? 'Đã đăng lại thành công. Tin gốc và phần đang nhập được giữ nguyên; hãy sao chép phần cần giữ trước khi mở tin mới.' : '';
+    const reupCreatedId = repostAttempt?.status === 'succeeded' ? repostAttempt.postId : null;
     const [createAttempt, setCreateAttempt] = useState(null);
     const [createError, setCreateError] = useState('');
     const createLocked = !id && (!!createError || (!!createAttempt && createAttempt.status !== 'rejected') || isLoading);
-    useEffect(() => { reupBlocked.current = false; setReupWarning(''); setReupCreatedId(null); }, [id]);
     const viewEpoch = useRef(0);
     const readyToEdit = !id || (!inputValues.isActionADD && String(inputValues.id) === String(id));
     const validDeadline = jobDeadlineDate(inputValues.timeEnd);
@@ -91,12 +95,18 @@ const AddPost = () => {
         setLoadError('');
         setCreateAttempt(null);
         setCreateError('');
+        setRepostAttempt(null);
+        setRepostError('');
         setisChangeDate(false);
-        setPropsModal({ isActive: false, handlePost: () => {} });
+        setPropsModal({ isActive: false });
         if (userData.id && userData.roleCode !== "ADMIN" && !id) {
             fetchCompany(userData.id, userData.companyId);
         }
         if (id) {
+            if (userData.id && userData.companyId) {
+                try { setRepostAttempt(readLegacyRepostAttempt(userData, id)); }
+                catch { setRepostError('Không đọc được thao tác đăng lại đã lưu. Hãy liên hệ hỗ trợ trước khi đăng lại.'); }
+            }
             setInputValues({ ...emptyPostForm(), isActionADD: false });
             const load = async () => {
                 try {
@@ -296,38 +306,59 @@ const AddPost = () => {
             }
         }
     };
-    let handleReupPost = async (timeEnd) => {
-        if (!id || !readyToEdit || loadError || editWarning || isLoading || editAttempt.current || reupBlocked.current
-            || inputValues.statusCode === 'PS4' || !validDeadline || !isJobRevision(inputValues.editRevision)) return false;
+    const sendRepostAttempt = async sent => {
+        if (!id || !sent || sent.status !== 'pending' || editAttempt.current || isLoading || repostError) return false;
+        try { assertPendingLegacyRepost(user, id, sent); }
+        catch (error) { setRepostError(error.message); return false; }
         const epoch = viewEpoch.current, attempt = {};
         editAttempt.current = attempt;
-        const uncertain = () => {
-            reupBlocked.current = true;
-            setReupWarning('Chưa xác định được tin đã đăng lại hay chưa. Hãy giữ nội dung, ngày đã chọn và kiểm tra danh sách tin trước khi đăng lại để tránh trừ lượt hai lần. Tải lại tin gốc không xác nhận được kết quả này.');
-        };
+        setIsLoading(true);
         try {
-            const res = await reupPostService({ userId: user.id, postId: id, timeEnd,
-                expectedRevision: inputValues.editRevision });
+            // Replay intentionally ignores the newly loaded source revision or
+            // deadline. The server decides whether this is a receipt or a write.
+            const res = await reupPostService(sent.payload, { idempotencyKey: sent.key });
+            const conflict = res?.conflict || res?.httpStatus === 409 || res?.errorType === 'conflict';
+            let patch;
+            if (isLegacyRepostReceipt(res, sent)) patch = { status: 'succeeded', postId: Number(res.postId) };
+            else if (res?.errCode === 0) patch = { status: 'blocked' };
+            else if (conflict || ([1, 2, 3].includes(res?.errCode) && !(res.httpStatus >= 500)
+                && !['network', 'timeout', 'cancelled', 'unavailable', 'server', 'unknown'].includes(res.errorType))) patch = { status: 'rejected' };
+            else patch = { status: 'pending' };
+            const saved = settleLegacyRepostAttempt(user, id, sent, patch);
             if (epoch !== viewEpoch.current) return false;
-            if (res?.errCode === 0) {
-                reupBlocked.current = true;
-                setReupWarning('Đã đăng lại thành công. Tin gốc và phần đang nhập được giữ nguyên. Hãy sao chép phần cần giữ trước khi mở tin mới.');
+            assertLegacyCreateIdentity(user);
+            setRepostAttempt(saved);
+            if (saved.status === 'succeeded') {
                 toast.success(res.errMessage || 'Đã đăng lại tin');
-                const newId = Number(res.postId);
-                if (Number.isSafeInteger(newId) && newId > 0 && newId !== Number(id)) setReupCreatedId(newId);
                 return true;
             }
             toast.error(res?.errMessage || 'Không đăng lại được tin');
-            if (res?.conflict || res?.httpStatus === 409 || res?.errorType === 'conflict') {
-                setEditWarning('Tin gốc đã thay đổi. Hãy giữ nội dung cần thiết và tải lại trước khi đăng lại.');
-            } else if (!res || ![1, 2, 3].includes(res.errCode) || res.httpStatus >= 500 ||
-                ['network', 'timeout', 'cancelled', 'unavailable', 'server', 'unknown'].includes(res.errorType)) uncertain();
+            if (conflict) setEditWarning('Tin gốc hoặc mã thao tác đã thay đổi. Hãy giữ nội dung và tải lại trước khi thử tiếp; vẫn dùng mã cũ để tránh tạo trùng.');
             return false;
         } catch {
-            if (epoch === viewEpoch.current) uncertain();
+            if (epoch === viewEpoch.current) {
+                try { assertPendingLegacyRepost(user, id, sent); }
+                catch { setRepostError('Không đối chiếu được tài khoản hoặc mã đã lưu. Hãy tải lại và liên hệ hỗ trợ nếu lỗi còn tiếp diễn.'); }
+                toast.error('Chưa xác nhận được kết quả đăng lại; giữ nguyên mã thao tác để đối chiếu.');
+            }
             return false;
         } finally {
             if (editAttempt.current === attempt) editAttempt.current = null;
+            if (epoch === viewEpoch.current) setIsLoading(false);
+        }
+    };
+    let handleReupPost = async (timeEnd) => {
+        if (!id || !readyToEdit || loadError || editWarning || isLoading || editAttempt.current || reupWarning || repostError
+            || inputValues.statusCode === 'PS4' || !validDeadline || !isJobRevision(inputValues.editRevision)) return false;
+        if (!Number.isSafeInteger(timeEnd) || timeEnd <= Date.now()) return false;
+        try {
+            const saved = prepareLegacyRepostAttempt(user, id, { userId: user.id, postId: id, timeEnd,
+                expectedRevision: inputValues.editRevision }, repostAttempt);
+            setRepostAttempt(saved);
+            return await sendRepostAttempt(saved);
+        } catch (error) {
+            setRepostError(error.message || 'Không lưu được mã thao tác; chưa gửi yêu cầu đăng lại');
+            return false;
         }
     };
     const navigate = useNavigate();
@@ -389,6 +420,11 @@ const AddPost = () => {
                                 }}>Tạo tin khác</button>
                             </div>}
                             {reupWarning && <p role="status">{reupWarning}</p>}
+                            {repostError && <p role="alert">{repostError}</p>}
+                            {id && repostAttempt && <p>Ngày kết thúc đã gửi khi đăng lại: {new Date(repostAttempt.payload.timeEnd).toLocaleString('vi-VN')}</p>}
+                            {id && repostAttempt?.status === 'pending' && <button type="button" disabled={isLoading || !!repostError}
+                                onClick={() => sendRepostAttempt(repostAttempt)}>Đối chiếu đăng lại cùng mã</button>}
+                            {id && repostAttempt?.status === 'rejected' && <p role="status">Yêu cầu đăng lại bị từ chối. Ngày đã gửi và mã cũ được giữ; lần sửa ngày/phiên bản tiếp theo vẫn dùng cùng mã.</p>}
                             {reupCreatedId && <button type="button" onClick={() => navigate(`/admin/edit-post/${reupCreatedId}/`)}>Xem tin đăng lại</button>}
                             {id && (editWarning || loadError || (readyToEdit && !isJobRevision(inputValues.editRevision))) &&
                                 <button type="button" onClick={() => setConfirmReload(true)}>Tải lại tin</button>}
@@ -870,13 +906,11 @@ const AddPost = () => {
                                         new Date(timeEnd).getTime() && (
                                         <>
                                             <button
-                                                disabled={!!editWarning || !!reupWarning || isLoading || !isJobRevision(inputValues.editRevision)}
+                                                disabled={!!editWarning || !!reupWarning || !!repostError || isLoading || !isJobRevision(inputValues.editRevision)}
                                                 onClick={() =>
                                                     setPropsModal({
                                                         ...propsModal,
                                                         isActive: true,
-                                                        handlePost:
-                                                            handleReupPost,
                                                     })
                                                 }
                                                 type="button"
@@ -892,7 +926,7 @@ const AddPost = () => {
                     </div>
                 </div>
             </div>
-            {isLoading && (
+            {isLoading && !propsModal.isActive && (
                 <Modal isOpen="true" centered contentClassName="closeBorder">
                     <div
                         style={{
@@ -909,16 +943,16 @@ const AddPost = () => {
             <ReupPostModal
                 key={id || 'create'}
                 isOpen={propsModal.isActive}
-                blocked={!!editWarning || !!reupWarning}
-                feedback={reupWarning || editWarning}
+                blocked={!!editWarning || !!reupWarning || !!repostError}
+                feedback={repostError || reupWarning || editWarning}
+                initialTimeEnd={repostAttempt?.payload.timeEnd}
                 onHide={() =>
                     setPropsModal({
                         ...propsModal,
                         isActive: false,
                     })
                 }
-                id={propsModal.postId}
-                handleFunc={propsModal.handlePost}
+                handleFunc={handleReupPost}
             />
         </>
     );

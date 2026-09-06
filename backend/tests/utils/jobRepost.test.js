@@ -51,6 +51,14 @@ test('stale source revision fails before charging or writing even when only the 
   expect(await repost(body, identity)).toMatchObject({ errCode: 4, conflict: true });
   expect(company.save).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(0);
 });
+test('keeps the submitted revision stable while an in-process caller reuses its request object', async () => {
+  let start;
+  mockDb.sequelize.transaction.mockImplementation(work => new Promise(resolve => { start = () => resolve(work(transaction)); }));
+  const pending = repost(body, identity);
+  body.expectedRevision = 'jv1-' + '0'.repeat(64);
+  start();
+  expect(await pending).toMatchObject({ errCode: 0, postId: 30 });
+});
 test.each(['missingActor', 'missingOwner', 'differentCompany', 'staleScope', 'PS4', 'missingDetail', 'ownerChanged', 'unapproved'])('fails closed on %s without charging', async problem => {
   let trusted = identity;
   if (problem === 'missingActor') mockDb.User.findAll.mockResolvedValue([{ id: 8, companyId: 3 }]);

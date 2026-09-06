@@ -89,6 +89,21 @@ describe("NoteModal", () => {
 });
 
 describe("ReupPostModal", () => {
+    it('restores the submitted date after remount and keeps it on a rejection instead of resetting to tomorrow', async () => {
+        const deadline = new Date('2031-01-02T00:00:00').getTime(), onHide = jest.fn(), handleFunc = jest.fn().mockResolvedValue(false);
+        const first = render(<ReupPostModal isOpen initialTimeEnd={deadline} handleFunc={handleFunc} onHide={onHide} />);
+        expect(screen.getByLabelText('Ngày kết thúc').value).toBe(new Date(deadline).toISOString().slice(0, 10));
+        first.unmount(); render(<ReupPostModal isOpen initialTimeEnd={deadline} handleFunc={handleFunc} onHide={onHide} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' })); await screen.findByRole('alert');
+        expect(handleFunc).toHaveBeenCalledWith(deadline); expect(onHide).not.toHaveBeenCalled();
+        expect(screen.getByLabelText('Ngày kết thúc').value).toBe(new Date(deadline).toISOString().slice(0, 10));
+    });
+    it('does not confirm a restored past date or a parent-blocked unresolved attempt', async () => {
+        const handleFunc = jest.fn(); const { rerender } = render(<ReupPostModal isOpen initialTimeEnd={1577836800000} handleFunc={handleFunc} onHide={jest.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' })); expect(handleFunc).not.toHaveBeenCalled();
+        rerender(<ReupPostModal isOpen initialTimeEnd={1924992000000} blocked feedback="Đối chiếu cùng mã" handleFunc={handleFunc} onHide={jest.fn()} />);
+        expect(screen.getByRole('button', { name: 'Hoàn thành' })).toBeDisabled(); expect(screen.getByRole('alert')).toHaveTextContent('Đối chiếu cùng mã');
+    });
     it('awaits submission, blocks two clicks and retains the selected date on a definite failure', async () => {
         let finish; const handleFunc = jest.fn(() => new Promise(resolve => { finish = resolve; })); const onHide = jest.fn();
         render(<ReupPostModal isOpen handleFunc={handleFunc} onHide={onHide} />);

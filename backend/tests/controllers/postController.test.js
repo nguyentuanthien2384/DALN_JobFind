@@ -193,6 +193,24 @@ describe('postController', () => {
     expect(res.status).toHaveBeenCalledWith(409); expect(res.json).toHaveBeenCalledWith(result);
     expect(mockEmitJobCreated).not.toHaveBeenCalled();
   });
+  test('keyed repost delegates source-or-receipt authorization to the transactional writer and trusts only header/identity', async () => {
+    const req = request(); req.headers = { 'idempotency-key': 'repost-123' };
+    Object.assign(req.body, { userId: 999, companyId: 999, roleCode: 'ADMIN', idempotencyKey: 'spoof' });
+    mockCanAccessPostApplicants.mockResolvedValue(false);
+    mockService.handleReupPost.mockResolvedValueOnce({ errCode: 0, postId: 101, sourcePostId: 18, replayed: true });
+    const res = createResponse(); await controller.handleReupPost(req, res);
+    expect(mockCanAccessPostApplicants).not.toHaveBeenCalled();
+    expect(mockService.handleReupPost).toHaveBeenLastCalledWith(expect.objectContaining({ userId: 7 }),
+      { roleCode: 'EMPLOYER', companyId: 11, idempotencyKey: 'repost-123' });
+    expect(res.status).toHaveBeenCalledWith(200); expect(mockEmitJobCreated).not.toHaveBeenCalled();
+    expect(mockEmitDashboardChanged).not.toHaveBeenCalled();
+  });
+  test.each([400, 403, 409, 503])('keyed repost preserves HTTP status %s without emitting', async httpStatus => {
+    const req = request(); req.headers = { 'idempotency-key': 'key' };
+    mockService.handleReupPost.mockResolvedValueOnce({ errCode: -1, httpStatus });
+    const res = createResponse(); await controller.handleReupPost(req, res);
+    expect(res.status).toHaveBeenCalledWith(httpStatus); expect(mockEmitJobCreated).not.toHaveBeenCalled();
+  });
 
   test.each([
     ['handleUpdatePost', false],

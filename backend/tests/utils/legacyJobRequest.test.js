@@ -6,7 +6,7 @@ jest.mock('../../src/utils/postingQuota', () => ({
     normalizePostHot: value => value === true || value === 1 || value === '1' ? 1 : 0,
     lockPostingCompany: (...args) => mockLock(...args)
 }));
-const { runLegacyCreateRequest, normalizeLegacyCreate } = require('../../src/utils/legacyJobRequest');
+const { runLegacyCreateRequest, normalizeLegacyCreate, runLegacyRepostRequest, normalizeLegacyRepost, LegacyJobRequestError } = require('../../src/utils/legacyJobRequest');
 const crypto = require('crypto');
 const transaction = { id: 'only-transaction' }, key = 'request-123';
 const data = { userId: 7, name: 'Engineer', descriptionHTML: '<p>Job</p>', descriptionMarkdown: 'Job',
@@ -112,4 +112,58 @@ test.each(['missing-primary', 'wrong-order', 'case-insensitive', 'short-key'])('
             keyLength: problem === 'short-key' ? 64 : 128 }]]);
     await expect(run()).rejects.toMatchObject({ httpStatus: 503 }); expect(work).not.toHaveBeenCalled();
     expect(mockDb.sequelize.query.mock.calls.some(([sql]) => sql.includes('INSERT'))).toBe(false);
+});
+
+describe('legacy repost requests share the ledger without changing create receipt semantics', () => {
+    const body = { userId: 7, postId: '10', timeEnd: '1900000000000', expectedRevision: 'jv1-' + 'a'.repeat(64) };
+    const response = { ...receipt, sourcePostId: 10 };
+    const repost = (extra = {}) => runLegacyRepostRequest(transaction, { data: body, identity, key, ...extra }, work);
+    const savedRepost = (input = body) => ({ ...savedRow(), operation: 'legacy-repost', responseJson: JSON.stringify(response),
+        requestHash: crypto.createHash('sha256').update(JSON.stringify({ version: 1, operation: 'legacy-repost', input: normalizeLegacyRepost(input) })).digest('hex') });
+    test('claims before work and saves a receipt bound to the source and copy IDs in the same transaction', async () => {
+        expect(await repost()).toEqual(response);
+        expect(work).toHaveBeenCalledWith({ ...normalizeLegacyRepost(body), userId: 7 });
+        const calls = mockDb.sequelize.query.mock.calls;
+        expect(calls[3][1].replacements).toEqual([7, key, 'legacy-repost', savedRepost().requestHash, 3]);
+        expect(calls[4][1].replacements).toEqual([15, JSON.stringify(response), 7, key]);
+        expect(calls.every(([, options]) => options.transaction === transaction)).toBe(true);
+    });
+    test('replay authorizes the current company/copy but never invokes source-reading or posting work', async () => {
+        duplicate = true; saved = savedRepost();
+        expect(await repost()).toEqual({ ...response, replayed: true });
+        expect(work).not.toHaveBeenCalled(); expect(mockLock).toHaveBeenCalledWith(7, transaction);
+        expect(mockDb.sequelize.query).toHaveBeenCalledWith('SELECT id, userId FROM posts WHERE id = ? LOCK IN SHARE MODE',
+            { replacements: [15], transaction });
+    });
+    test('expired original deadline and equivalent number/string values still replay; body overrides are not intent', async () => {
+        const input = { ...body, timeEnd: '1' }; duplicate = true; saved = savedRepost(input);
+        expect(await repost({ data: { ...input, postId: 10, timeEnd: 1, name: 'unsaved', isHot: 1, companyId: 999 } }))
+            .toEqual({ ...response, replayed: true });
+        expect(work).not.toHaveBeenCalled();
+    });
+    test.each([{ postId: 11 }, { timeEnd: '1900000000001' }, { expectedRevision: 'jv1-' + 'b'.repeat(64) }])('changed repost intent %j conflicts', async patch => {
+        duplicate = true; saved = savedRepost();
+        await expect(repost({ data: { ...body, ...patch } })).rejects.toMatchObject({ httpStatus: 409 });
+        expect(work).not.toHaveBeenCalled();
+    });
+    test.each([{ expectedRevision: undefined }, { expectedRevision: null }, { expectedRevision: 'bad' },
+        { postId: true }, { timeEnd: {} }, { timeEnd: '9000000000000000' }])('rejects malformed keyed repost %j before claiming', async patch => {
+        await expect(repost({ data: { ...body, ...patch } })).rejects.toMatchObject({ httpStatus: 400 });
+        expect(mockDb.sequelize.query).not.toHaveBeenCalled(); expect(work).not.toHaveBeenCalled();
+    });
+    test.each(['operation', 'source-id', 'copy-equals-source', 'missing-copy', 'reassigned-copy', 'corrupt-json'])('rejects inconsistent repost receipt: %s', async problem => {
+        duplicate = true; saved = savedRepost();
+        if (problem === 'operation') saved.operation = 'legacy-create';
+        if (problem === 'source-id') saved.responseJson = JSON.stringify({ ...response, sourcePostId: 11 });
+        if (problem === 'copy-equals-source') { saved.postId = 10; saved.responseJson = JSON.stringify({ ...response, postId: 10 }); post.id = 10; }
+        if (problem === 'missing-copy') post = null;
+        if (problem === 'reassigned-copy') post.userId = 8;
+        if (problem === 'corrupt-json') saved.responseJson = 'bad';
+        await expect(repost()).rejects.toMatchObject({ httpStatus: 409 }); expect(work).not.toHaveBeenCalled();
+    });
+    test('source conflict from new work propagates to rollback without finalizing a pending receipt', async () => {
+        work.mockRejectedValueOnce(new LegacyJobRequestError('Source changed'));
+        await expect(repost()).rejects.toMatchObject({ httpStatus: 409 });
+        expect(mockDb.sequelize.query.mock.calls.some(([sql]) => sql.startsWith('UPDATE'))).toBe(false);
+    });
 });

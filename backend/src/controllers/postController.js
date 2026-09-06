@@ -44,7 +44,10 @@ let handleCreateNewPost = async (req, res) => {
 }
 let handleReupPost = async (req, res) => {
     try {
-        if (!await canAccessPostApplicants(req, req.body.postId)) {
+        const key = req.headers?.['idempotency-key'];
+        // Keyed writes authorize under row locks; replays authorize the stored
+        // copy, not the possibly edited/deleted source. Route auth still runs.
+        if (key === undefined && !await canAccessPostApplicants(req, req.body.postId)) {
             return forbidden(res, 'Bạn không có quyền đăng lại tin tuyển dụng này');
         }
         let data = await postService.handleReupPost({
@@ -52,12 +55,13 @@ let handleReupPost = async (req, res) => {
             userId: req.user.id
         }, {
             roleCode: req.user.userAccountData?.roleCode,
-            companyId: req.user.companyId
+            companyId: req.user.companyId,
+            idempotencyKey: key
         });
         // The NEW post ID and job.created already committed with the quota.
-        return res.status(data.conflict === true ? 409 : 200).json(data);
+        return res.status(data.httpStatus || (data.conflict === true ? 409 : 200)).json(data);
     } catch (error) {
-        console.log(error)
+        console.log('Repost transaction failed');
         return res.status(200).json({
             errCode: -1,
             errMessage: 'Error from server'

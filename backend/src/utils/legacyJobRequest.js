@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import db from '../models/index';
 import { PostingQuotaError, normalizePostHot, lockPostingCompany } from './postingQuota';
+import { isJobRevision } from './jobRevision';
 
 export class LegacyJobRequestError extends PostingQuotaError {
     constructor(message, httpStatus = 409) {
@@ -27,6 +28,16 @@ export const normalizeLegacyCreate = body => {
         amount: Number(body.amount), timeEnd: String(Number(body.timeEnd)), isHot: normalizePostHot(body.isHot) };
 };
 
+export const normalizeLegacyRepost = body => {
+    if (!positiveId(body.postId) || !positiveId(body.timeEnd) || Number(body.timeEnd) > 8640000000000000
+        || !isJobRevision(body.expectedRevision)) {
+        throw new LegacyJobRequestError('Cần mã tin gốc, phiên bản đã tải và ngày kết thúc hợp lệ để đăng lại', 400);
+    }
+    // Never reread/recalculate intent during replay. Source content is fenced by
+    // its revision only when creating the copy, not when returning a receipt.
+    return { postId: Number(body.postId), timeEnd: String(Number(body.timeEnd)), expectedRevision: body.expectedRevision };
+};
+
 const assertLedger = async transaction => {
     const [rows] = await db.sequelize.query(`SELECT ENGINE AS engine FROM information_schema.TABLES
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'job_request_keys'`, { transaction });
@@ -49,7 +60,7 @@ const assertLedger = async transaction => {
 // No startup DDL, expiry, direct-publish fallback or separate commit is allowed.
 // Claim BEFORE user/company locks, matching Core. Duplicate INSERT holds a
 // shared key lock: use a current shared read, never upgrade it to FOR UPDATE.
-export const runLegacyCreateRequest = async (transaction, { data, identity, key }, work) => {
+const runLegacyJobRequest = async (transaction, { data, identity, key }, operation, normalize, work) => {
     if (typeof key !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(key)) {
         throw new LegacyJobRequestError('Mã thao tác đăng tin không hợp lệ', 400);
     }
@@ -58,7 +69,8 @@ export const runLegacyCreateRequest = async (transaction, { data, identity, key 
         throw new LegacyJobRequestError('Không có quyền đăng tin cho công ty này', 403);
     }
     const userId = Number(data.userId), companyId = Number(identity.companyId);
-    const input = normalizeLegacyCreate(data), operation = 'legacy-create';
+    const input = normalize(data);
+    const repost = operation === 'legacy-repost';
     const hash = createHash('sha256').update(JSON.stringify({ version: 1, operation, input })).digest('hex');
     await assertLedger(transaction);
     try {
@@ -86,18 +98,22 @@ export const runLegacyCreateRequest = async (transaction, { data, identity, key 
         if (!posts[0] || Number(posts[0].userId) !== userId || !positiveId(saved.postId)
             || response?.errCode !== 0 || response?.postId !== Number(saved.postId)
             || response?.idempotencyKey !== key || response?.replayed !== false
-            || typeof response?.errMessage !== 'string') {
+            || typeof response?.errMessage !== 'string'
+            || (repost && (response?.sourcePostId !== input.postId || Number(saved.postId) === input.postId))) {
             throw new LegacyJobRequestError('Không đối chiếu được tin đã đăng; vui lòng liên hệ quản trị viên');
         }
         // Receipt of original acceptance, not current content or moderation.
         // Missing/reassigned posts never cause recreation or a second charge.
         return { errCode: 0, errMessage: response.errMessage, postId: response.postId,
-            idempotencyKey: key, replayed: true };
+            idempotencyKey: key, replayed: true, ...(repost && { sourcePostId: input.postId }) };
     }
     // Time-dependent validation belongs AFTER replay: a valid old receipt must
     // still work after its deadline, but a fresh request cannot create expired jobs.
-    const response = { ...await work({ ...input, userId }), idempotencyKey: key, replayed: false };
-    if (response.errCode !== 0 || !positiveId(response.postId)) throw new Error('Invalid creation receipt');
+    const response = { ...await work({ ...input, userId }), idempotencyKey: key, replayed: false,
+        ...(repost && { sourcePostId: input.postId }) };
+    if (response.errCode !== 0 || !positiveId(response.postId) || (repost && response.postId === input.postId)) {
+        throw new Error('Invalid creation receipt');
+    }
     const [, affected] = await db.sequelize.query(`UPDATE job_request_keys SET postId = ?, responseJson = ?
         WHERE userId = ? AND requestKey = ? AND postId IS NULL`, {
         replacements: [response.postId, JSON.stringify(response), userId, key], transaction
@@ -105,3 +121,8 @@ export const runLegacyCreateRequest = async (transaction, { data, identity, key 
     if (affected !== 1 && affected?.affectedRows !== 1) throw new Error('Cannot finalize legacy posting request');
     return response;
 };
+
+export const runLegacyCreateRequest = (transaction, options, work) =>
+    runLegacyJobRequest(transaction, options, 'legacy-create', normalizeLegacyCreate, work);
+export const runLegacyRepostRequest = (transaction, options, work) =>
+    runLegacyJobRequest(transaction, options, 'legacy-repost', normalizeLegacyRepost, work);

@@ -77,12 +77,18 @@ jest.mock("../../components/modal/NoteModal", () => ({ isOpen, id, handleFunc, o
         <button type="button" onClick={onHide}>Đóng</button>
     </div>
 ) : null);
-jest.mock("../../components/modal/ReupPostModal", () => ({ isOpen, handleFunc, onHide, blocked }) => isOpen ? (
-    <div role="dialog" aria-label="Đăng lại bài">
-        <button type="button" disabled={blocked} onClick={() => handleFunc(Date.parse("2031-01-01T00:00:00Z"))}>Xác nhận đăng lại</button>
-        <button type="button" onClick={onHide}>Đóng</button>
-    </div>
-) : null);
+jest.mock("../../components/modal/ReupPostModal", () => {
+    const React = require('react');
+    return ({ isOpen, handleFunc, onHide, blocked, initialTimeEnd }) => {
+        const [date, setDate] = React.useState(Date.parse('2031-01-01T00:00:00Z'));
+        React.useEffect(() => { if (initialTimeEnd) setDate(initialTimeEnd); }, [initialTimeEnd]);
+        return isOpen ? <div role="dialog" aria-label="Đăng lại bài">
+            <input aria-label="Ngày kết thúc đăng lại" value={date} disabled={blocked} onChange={event => setDate(Number(event.target.value))} />
+            <button type="button" disabled={blocked} onClick={() => handleFunc(date)}>Xác nhận đăng lại</button>
+            <button type="button" onClick={onHide}>Đóng</button>
+        </div> : null;
+    };
+});
 jest.mock("antd", () => {
     const React = require("react");
     const Search = ({ onSearch, placeholder }) => {
@@ -433,9 +439,11 @@ describe("post editor", () => {
         reupPostService.mockResolvedValueOnce(result);
         const { name, confirm } = await loadReposter(); confirm();
         await screen.findByText(/Tải lại tin gốc không xác nhận/);
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đối chiếu đăng lại cùng mã' })).toBeEnabled());
         expect(name).toHaveValue('Bản nháp cần giữ'); expect(screen.getByRole('button', { name: 'Đăng lại' })).toBeDisabled();
         confirm(); expect(reupPostService).toHaveBeenCalledTimes(1);
-        expect(reupPostService).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: detailPost.editRevision }));
+        expect(reupPostService).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: detailPost.editRevision }),
+            { idempotencyKey: expect.stringMatching(/^[a-f0-9]{32}$/) });
         expect(createPostService).not.toHaveBeenCalled();
     });
     it.each([1, 2, 3])('definite repost rejection (%s) keeps source and permits only an explicit new attempt', async errCode => {
@@ -456,11 +464,13 @@ describe("post editor", () => {
         fireEvent.click(screen.getByRole('button', { name: 'Bỏ phần chưa lưu và tải lại' }));
         await waitFor(() => expect(name).toHaveValue('Bài cũ'));
         fireEvent.click(screen.getByRole('button', { name: 'Đăng lại' })); confirm();
-        await waitFor(() => expect(reupPostService).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: revision })));
+        await waitFor(() => expect(reupPostService).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: revision }),
+            { idempotencyKey: reupPostService.mock.calls[0][1].idempotencyKey }));
     });
     it('source reread after an uncertain repost does not clear its repeat guard', async () => {
         reupPostService.mockResolvedValueOnce({ errCode: -1 }); updatePostService.mockResolvedValueOnce({ errCode: 4, conflict: true });
         const { name, confirm, save } = await loadReposter(); confirm(); await screen.findByText(/Tải lại tin gốc không xác nhận/);
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đối chiếu đăng lại cùng mã' })).toBeEnabled());
         save(); await screen.findByRole('alert');
         fireEvent.click(screen.getByRole('button', { name: 'Tải lại tin' }));
         fireEvent.click(screen.getByRole('button', { name: 'Bỏ phần chưa lưu và tải lại' }));
@@ -468,7 +478,8 @@ describe("post editor", () => {
         expect(screen.getByRole('button', { name: 'Đăng lại' })).toBeDisabled(); expect(reupPostService).toHaveBeenCalledTimes(1);
     });
     it('successful repost keeps unsaved draft, blocks another copy and opens the new ID only on explicit click', async () => {
-        reupPostService.mockResolvedValueOnce({ errCode: 0, postId: 101, errMessage: 'Đã đăng lại' });
+        reupPostService.mockImplementationOnce(async (body, options) => ({ errCode: 0, postId: 101, sourcePostId: Number(body.postId),
+            idempotencyKey: options.idempotencyKey, replayed: false, errMessage: 'Đã đăng lại' }));
         const { name, confirm } = await loadReposter(); confirm();
         const link = await screen.findByRole('button', { name: 'Xem tin đăng lại' });
         expect(name).toHaveValue('Bản nháp cần giữ'); expect(mockNavigate).not.toHaveBeenCalled();
@@ -487,6 +498,87 @@ describe("post editor", () => {
         expect(mockNavigate).not.toHaveBeenCalled(); expect(toast.success).not.toHaveBeenCalled();
     });
 
+    it.each(['changed', 'PS4', 'missing'])('remount restores original repost intent and can recover a receipt despite source %s', async change => {
+        reupPostService.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });
+        const first = await loadReposter();
+        const deadline = Date.parse('2031-02-03T00:00:00Z');
+        fireEvent.change(screen.getByLabelText('Ngày kết thúc đăng lại'), { target: { value: String(deadline) } }); first.confirm();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đối chiếu đăng lại cùng mã' })).toBeEnabled());
+        const original = reupPostService.mock.calls[0]; expect(original[0].timeEnd).toBe(deadline);
+        expect(first.name).toHaveValue('Bản nháp cần giữ'); first.unmount();
+        getDetailPostByIdService.mockResolvedValueOnce(change === 'missing' ? { errCode: 2, errMessage: 'Tin đã gỡ' }
+            : { errCode: 0, data: { ...detailPost, statusCode: change === 'PS4' ? 'PS4' : 'PS1', editRevision: 'jv1-' + 'c'.repeat(64) } });
+        render(<AddPost />);
+        const retry = await screen.findByRole('button', { name: 'Đối chiếu đăng lại cùng mã' });
+        expect(screen.getByText(/Ngày kết thúc đã gửi khi đăng lại/)).toHaveTextContent(new Date(deadline).toLocaleString('vi-VN'));
+        expect(reupPostService).toHaveBeenCalledTimes(1);
+        jest.setSystemTime(new Date('2032-01-01')); // Lookup is not a fresh deadline selection.
+        fireEvent.click(retry); fireEvent.click(retry);
+        await screen.findByRole('button', { name: 'Xem tin đăng lại' });
+        expect(reupPostService).toHaveBeenCalledTimes(2); expect(reupPostService.mock.calls[1]).toEqual(original);
+        expect(createPostService).not.toHaveBeenCalled(); expect(mockNavigate).not.toHaveBeenCalled();
+    });
+    it('persists receipt through remount without another copy; another source has its own independent intent', async () => {
+        const first = await loadReposter(); first.confirm(); await screen.findByRole('button', { name: 'Xem tin đăng lại' });
+        const key = reupPostService.mock.calls[0][1].idempotencyKey; first.unmount();
+        const next = render(<AddPost />); await screen.findByRole('button', { name: 'Xem tin đăng lại' });
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng lại' })).toBeDisabled());
+        expect(reupPostService).toHaveBeenCalledTimes(1);
+        mockParams = { id: '56' }; getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...detailPost, id: 56 } });
+        next.rerender(<AddPost />);
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng lại' })).toBeEnabled());
+        expect(screen.queryByRole('button', { name: 'Xem tin đăng lại' })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Đăng lại' })); fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đăng lại' }));
+        await screen.findByRole('button', { name: 'Xem tin đăng lại' });
+        expect(reupPostService.mock.calls[1][0].postId).toBe('56'); expect(reupPostService.mock.calls[1][1].idempotencyKey).not.toBe(key);
+    });
+    it('correcting the date after rejection keeps the key and uses the current modal handler', async () => {
+        reupPostService.mockResolvedValueOnce({ errCode: 2, errMessage: 'Hết lượt' });
+        const { confirm, name } = await loadReposter(); confirm();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Xác nhận đăng lại' })).toBeEnabled());
+        const initial = reupPostService.mock.calls[0];
+        fireEvent.change(screen.getByLabelText('Ngày kết thúc đăng lại'), { target: { value: String(initial[0].timeEnd + 86400000) } });
+        confirm(); await screen.findByRole('button', { name: 'Xem tin đăng lại' });
+        expect(reupPostService.mock.calls[1][1]).toEqual(initial[1]);
+        expect(reupPostService.mock.calls[1][0]).toEqual({ ...initial[0], timeEnd: initial[0].timeEnd + 86400000 });
+        expect(name).toHaveValue('Bản nháp cần giữ'); expect(updatePostService).not.toHaveBeenCalled();
+    });
+    it('restores the last submitted date into the modal after a rejected request and refresh', async () => {
+        reupPostService.mockResolvedValueOnce({ errCode: 2, errMessage: 'Hết lượt' });
+        const first = await loadReposter(), deadline = Date.parse('2031-03-04');
+        fireEvent.change(screen.getByLabelText('Ngày kết thúc đăng lại'), { target: { value: String(deadline) } }); first.confirm();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Xác nhận đăng lại' })).toBeEnabled()); first.unmount();
+        render(<AddPost />); await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng lại' })).toBeEnabled());
+        fireEvent.click(screen.getByRole('button', { name: 'Đăng lại' }));
+        expect(screen.getByLabelText('Ngày kết thúc đăng lại')).toHaveValue(String(deadline));
+        expect(reupPostService).toHaveBeenCalledTimes(1);
+    });
+    it.each([null, { sourcePostId: 56 }, { postId: 55 }, { idempotencyKey: 'wrong' }])('blocks ambiguous repost success %j across refresh without retry or clearing the draft', async patch => {
+        reupPostService.mockImplementationOnce(async (body, options) => patch === null ? { errCode: 0, postId: 101 }
+            : { errCode: 0, postId: 101, sourcePostId: Number(body.postId), idempotencyKey: options.idempotencyKey, replayed: false, ...patch });
+        const first = await loadReposter(); first.confirm(); await screen.findByText(/Phản hồi đăng lại không khớp/);
+        expect(first.name).toHaveValue('Bản nháp cần giữ'); expect(toast.success).not.toHaveBeenCalled(); first.unmount();
+        render(<AddPost />); await screen.findByText(/Phản hồi đăng lại không khớp/);
+        expect(screen.queryByRole('button', { name: 'Đối chiếu đăng lại cùng mã' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Xem tin đăng lại' })).not.toBeInTheDocument(); expect(reupPostService).toHaveBeenCalledTimes(1);
+    });
+    it('does not dispatch a repost when the browser cannot save the key and retains the edit draft', async () => {
+        const { name, confirm } = await loadReposter();
+        const setter = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Storage full'); });
+        try { confirm(); expect(await screen.findByRole('alert')).toHaveTextContent('Storage full'); }
+        finally { setter.mockRestore(); }
+        expect(reupPostService).not.toHaveBeenCalled(); expect(name).toHaveValue('Bản nháp cần giữ');
+    });
+    it('blocks a pending repost lookup when the logged-in account has changed', async () => {
+        reupPostService.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });
+        const { confirm } = await loadReposter(); confirm();
+        const retry = await screen.findByRole('button', { name: 'Đối chiếu đăng lại cùng mã' });
+        await waitFor(() => expect(retry).toBeEnabled());
+        localStorage.setItem('userData', JSON.stringify({ id: 99, companyId: 9 })); fireEvent.click(retry);
+        expect(await screen.findByRole('alert')).toHaveTextContent('Tài khoản hoặc công ty đã thay đổi');
+        expect(reupPostService).toHaveBeenCalledTimes(1);
+    });
+
     beforeEach(() => {
         jest.useFakeTimers();
         jest.clearAllMocks();
@@ -499,7 +591,8 @@ describe("post editor", () => {
         createPostService.mockReset().mockImplementation(async (body, options) => ({ errCode: 0, postId: 101,
             idempotencyKey: options?.idempotencyKey, replayed: false, errMessage: "Đã tạo bài" }));
         updatePostService.mockReset().mockResolvedValue({ errCode: 0, errMessage: "Đã sửa bài", changed: true, editRevision: 'jv1-' + 'b'.repeat(64) });
-        reupPostService.mockResolvedValue({ errCode: 0, errMessage: "Đã đăng lại" });
+        reupPostService.mockReset().mockImplementation(async (body, options) => ({ errCode: 0, postId: 101, sourcePostId: Number(body.postId),
+            idempotencyKey: options?.idempotencyKey, replayed: false, errMessage: "Đã đăng lại" }));
     });
 
     afterEach(() => {
@@ -697,7 +790,7 @@ describe("post editor", () => {
         fireEvent.click(screen.getByRole("button", { name: "Xác nhận đăng lại" }));
         await waitFor(() => expect(reupPostService).toHaveBeenCalledWith({
             userId: 8, postId: "55", timeEnd: Date.parse("2031-01-01T00:00:00Z"), expectedRevision: 'jv1-' + 'b'.repeat(64),
-        }));
+        }, { idempotencyKey: expect.stringMatching(/^[a-f0-9]{32}$/) }));
     });
 
     it("renders an existing post read-only for an administrator", async () => {

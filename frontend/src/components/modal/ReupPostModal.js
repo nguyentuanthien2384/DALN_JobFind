@@ -1,14 +1,19 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Modal, ModalFooter, ModalBody, Button, Spinner } from 'reactstrap';
 import DatePicker from 'react-datepicker';
 import './modal.css';
 
-function ReupPostModal({ isOpen, handleFunc, onHide, blocked = false, feedback = '' }) {
+function ReupPostModal({ isOpen, handleFunc, onHide, blocked = false, feedback = '', initialTimeEnd }) {
     const [timeEnd, setTimeEnd] = useState(() => new Date(Date.now() + 86400000));
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const inFlight = useRef(false);
     const [uncertain, setUncertain] = useState(false);
+    useEffect(() => {
+        if (Number.isSafeInteger(initialTimeEnd) && initialTimeEnd > 0 && initialTimeEnd <= 8640000000000000) {
+            setTimeEnd(new Date(initialTimeEnd));
+        }
+    }, [initialTimeEnd]);
     const handlePost = async () => {
         if (inFlight.current || blocked || uncertain) return;
         const deadline = timeEnd instanceof Date ? timeEnd.getTime() : NaN;
