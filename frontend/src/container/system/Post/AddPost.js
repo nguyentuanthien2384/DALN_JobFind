@@ -349,7 +349,8 @@ const AddPost = () => {
     };
     let handleReupPost = async (timeEnd) => {
         if (!id || !readyToEdit || loadError || editWarning || isLoading || editAttempt.current || reupWarning || repostError
-            || inputValues.statusCode === 'PS4' || !validDeadline || !isJobRevision(inputValues.editRevision)) return false;
+            || !['PS1', 'PS2', 'PS3'].includes(inputValues.statusCode) || !validDeadline
+            || validDeadline.getTime() > Date.now() || !isJobRevision(inputValues.editRevision)) return false;
         if (!Number.isSafeInteger(timeEnd) || timeEnd <= Date.now()) return false;
         try {
             const saved = prepareLegacyRepostAttempt(user, id, { userId: user.id, postId: id, timeEnd,
@@ -550,7 +551,7 @@ const AddPost = () => {
                                                 />
                                                 {!inputValues.isActionADD && (
                                                     <small className="text-muted d-block mt-1">
-                                                        Ngày hết hạn giữ nguyên khi sửa tin. Muốn gia hạn, hãy dùng Đăng lại.
+                                                        Ngày hết hạn giữ nguyên khi sửa tin. Khi tin đã hết hạn, dùng Đăng lại trong cùng công ty để tạo bản mới và trừ một lượt đăng.
                                                     </small>
                                                 )}
                                             </div>
@@ -900,10 +901,9 @@ const AddPost = () => {
                                         </button>
                                     </>
                                 )}
-                                {id && readyToEdit && !loadError && validDeadline && inputValues.statusCode !== 'PS4' &&
+                                {id && readyToEdit && !loadError && validDeadline && ['PS1', 'PS2', 'PS3'].includes(inputValues.statusCode) &&
                                     user.roleCode !== "ADMIN" &&
-                                    new Date().getTime() >
-                                        new Date(timeEnd).getTime() && (
+                                    Date.now() >= validDeadline.getTime() && (
                                         <>
                                             <button
                                                 disabled={!!editWarning || !!reupWarning || !!repostError || isLoading || !isJobRevision(inputValues.editRevision)}

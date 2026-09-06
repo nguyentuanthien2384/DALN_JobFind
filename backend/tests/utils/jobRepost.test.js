@@ -71,10 +71,37 @@ test.each(['missingActor', 'missingOwner', 'differentCompany', 'staleScope', 'PS
   if (problem === 'unapproved') company.censorCode = 'CS2';
   expect((await repost(body, trusted)).errCode).toBe(2); expect(company.save).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(0);
 });
-test('ADMIN cross-company repost still charges its own approved company, never transfers the source author', async () => {
+test('ADMIN cannot repost another company content even with its own approved quota', async () => {
   mockDb.User.findAll.mockResolvedValue([{ id: 7, companyId: 3 }, { id: 8, companyId: 4 }]);
-  expect((await repost(body, { roleCode: 'ADMIN' })).errCode).toBe(0);
-  expect(JSON.parse(inserts()[0][1].replacements[4]).job).toMatchObject({ companyId: 3, userId: 7 }); expect(source.userId).toBe(8);
+  expect((await repost(body, { roleCode: 'ADMIN', companyId: 3 })).errCode).toBe(2);
+  expect(company.save).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(0); expect(source.userId).toBe(8);
+});
+
+test.each(['COMPANY', 'EMPLOYER', 'ADMIN'])('same-company %s can repost an expired source', async roleCode => {
+  expect(await repost(body, { roleCode, companyId: 3 })).toMatchObject({ errCode: 0, postId: 30 });
+});
+test.each([null, undefined, '', true, 'bad', '1e3', ' 1700000000000 ', '0', '-1', '1700000000000.0', '8640000000000001', String(Date.now() + 86400000)])
+('rejects an invalid/unexpired stored source deadline %j without charging', async timeEnd => {
+  source.timeEnd = timeEnd; body.expectedRevision = jobRevision(source, detail);
+  expect((await repost(body, identity)).errCode).toBe(2);
+  expect(company.save).not.toHaveBeenCalled(); expect(mockDb.Post.create).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(0);
+});
+test.each(['PS0', '', null, undefined])('rejects unknown source status %j', async statusCode => {
+  source.statusCode = statusCode;
+  expect((await repost(body, identity)).errCode).toBe(2); expect(company.save).not.toHaveBeenCalled();
+});
+test.each([{ roleCode: 'ADMIN', companyId: 4 }, { roleCode: 'CANDIDATE', companyId: 3 }])('rejects trusted scope/role mismatch even without a key: %j', async trusted => {
+  expect((await repost(body, trusted)).errCode).toBe(2); expect(company.save).not.toHaveBeenCalled();
+});
+test('accepts a source expiring exactly now and rejects one extended while waiting for its row', async () => {
+  const now = Date.now(), clock = jest.spyOn(Date, 'now').mockReturnValue(now);
+  try {
+    source.timeEnd = String(now); body.expectedRevision = jobRevision(source, detail);
+    expect((await repost(body, identity)).errCode).toBe(0);
+    company.save.mockClear();
+    mockDb.Post.findOne.mockResolvedValueOnce({ ...source }).mockResolvedValueOnce({ ...source, timeEnd: String(now + 1000) });
+    expect((await repost(body, identity)).errCode).toBe(2); expect(company.save).not.toHaveBeenCalled();
+  } finally { clock.mockRestore(); }
 });
 test('deadline expiring while waiting for rows fails without quota writes', async () => {
   const now = Date.now(); body.timeEnd = String(now + 100);

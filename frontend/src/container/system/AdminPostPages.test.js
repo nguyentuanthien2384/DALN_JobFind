@@ -310,6 +310,7 @@ describe("post notes", () => {
 
 const detailPost = {
     id: 55,
+    statusCode: 'PS1',
     editRevision: 'jv1-' + 'a'.repeat(64),
     timeEnd: Date.parse("2020-01-01T00:00:00Z"),
     postDetailData: {
@@ -434,6 +435,26 @@ describe("post editor", () => {
         const editor = await loadEditor(); fireEvent.click(screen.getByRole('button', { name: 'Đăng lại' }));
         return { ...editor, confirm: () => fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đăng lại' })) };
     };
+    it.each(['PS4', 'PS0', '', null, undefined])('hides fresh repost for non-repostable source status %s', async statusCode => {
+        await loadEditor({ ...detailPost, statusCode });
+        expect(screen.queryByRole('button', { name: 'Đăng lại' })).not.toBeInTheDocument();
+        expect(reupPostService).not.toHaveBeenCalled();
+    });
+    it('hides fresh repost before expiry and permits it exactly at expiry', async () => {
+        const deadline = Date.parse('2030-01-02'); jest.setSystemTime(deadline - 60000);
+        const first = await loadEditor({ ...detailPost, timeEnd: String(deadline) });
+        expect(screen.queryByRole('button', { name: 'Đăng lại' })).not.toBeInTheDocument();
+        jest.setSystemTime(deadline); first.rerender(<AddPost />);
+        expect(screen.getByRole('button', { name: 'Đăng lại' })).toBeEnabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Đăng lại' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đăng lại' }));
+        await screen.findByRole('button', { name: 'Xem tin đăng lại' }); expect(reupPostService).toHaveBeenCalledTimes(1);
+    });
+    it('rechecks source expiry in the modal handler if the clock moves backwards', async () => {
+        jest.setSystemTime(new Date('2030-01-01')); const { confirm } = await loadReposter();
+        jest.setSystemTime(new Date('2019-01-01')); confirm();
+        expect(reupPostService).not.toHaveBeenCalled();
+    });
     it.each([null, { errCode: -1 }, { errCode: -1, errorType: 'network' }, { errCode: -1, errorType: 'timeout' },
         { errCode: 2, httpStatus: 503 }, { errCode: 9 }])('keeps repost draft and blocks repetition after uncertain result: %j', async result => {
         reupPostService.mockResolvedValueOnce(result);
@@ -498,7 +519,7 @@ describe("post editor", () => {
         expect(mockNavigate).not.toHaveBeenCalled(); expect(toast.success).not.toHaveBeenCalled();
     });
 
-    it.each(['changed', 'PS4', 'missing'])('remount restores original repost intent and can recover a receipt despite source %s', async change => {
+    it.each(['changed', 'PS4', 'missing', 'extended'])('remount restores original repost intent and can recover a receipt despite source %s', async change => {
         reupPostService.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });
         const first = await loadReposter();
         const deadline = Date.parse('2031-02-03T00:00:00Z');
@@ -507,7 +528,9 @@ describe("post editor", () => {
         const original = reupPostService.mock.calls[0]; expect(original[0].timeEnd).toBe(deadline);
         expect(first.name).toHaveValue('Bản nháp cần giữ'); first.unmount();
         getDetailPostByIdService.mockResolvedValueOnce(change === 'missing' ? { errCode: 2, errMessage: 'Tin đã gỡ' }
-            : { errCode: 0, data: { ...detailPost, statusCode: change === 'PS4' ? 'PS4' : 'PS1', editRevision: 'jv1-' + 'c'.repeat(64) } });
+            : { errCode: 0, data: { ...detailPost, statusCode: change === 'PS4' ? 'PS4' : 'PS1',
+                timeEnd: change === 'extended' ? String(Date.parse('2035-01-01')) : detailPost.timeEnd,
+                editRevision: 'jv1-' + 'c'.repeat(64) } });
         render(<AddPost />);
         const retry = await screen.findByRole('button', { name: 'Đối chiếu đăng lại cùng mã' });
         expect(screen.getByText(/Ngày kết thúc đã gửi khi đăng lại/)).toHaveTextContent(new Date(deadline).toLocaleString('vi-VN'));
@@ -775,7 +798,7 @@ describe("post editor", () => {
         const { container } = render(<AddPost />);
         expect(await screen.findByText("Cập nhật bài đăng")).toBeInTheDocument();
         expect(screen.getByLabelText('Ngày kết thúc')).toBeDisabled();
-        expect(screen.getByText('Ngày hết hạn giữ nguyên khi sửa tin. Muốn gia hạn, hãy dùng Đăng lại.')).toBeInTheDocument();
+        expect(screen.getByText(/Khi tin đã hết hạn, dùng Đăng lại trong cùng công ty/)).toBeInTheDocument();
         await waitFor(() => expect(container.querySelector('input[name="name"]')).toHaveValue("Bài cũ"));
         fireEvent.change(container.querySelector('input[name="name"]'), { target: { name: "name", value: "Bài mới" } });
         fireEvent.click(screen.getByRole("button", { name: "Lưu" }));

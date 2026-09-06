@@ -30,6 +30,7 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
 
     await check('editing shared content changes only the target, preserves author/paid fields and writes the new snapshot to the outbox', async () => {
         const id = await make();
+        await pool.query("UPDATE posts SET timeEnd = '1700000000000' WHERE id = ?", [id]);
         const sibling = (await oldReup(id, 9)).id;
         const original = await read(id);
         const originalDetail = await details(original.detailPostId);
@@ -107,6 +108,7 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
 
     await check('legacy edit forks content atomically, preserves the original author and cannot modify a re-post sibling', async () => {
         const id = await make();
+        await pool.query("UPDATE posts SET timeEnd = '1700000000000' WHERE id = ?", [id]);
         const sibling = (await oldReup(id, 9)).id;
         const original = await read(id);
         const siblingBefore = await snapshot(sibling);
@@ -209,6 +211,7 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
     await check('concurrent re-post/edit sees a whole old or new snapshot, and later edits never change the new sibling', async () => {
         for (const writer of ['core', 'legacy']) {
             const id = await make();
+            await pool.query("UPDATE posts SET timeEnd = '1700000000000' WHERE id = ?", [id]);
             const previous = await snapshot(id);
             const patch = { name: 'Phase one', descriptionHTML: '<p>Phase one</p>' };
             const [updated, sibling] = await Promise.all([

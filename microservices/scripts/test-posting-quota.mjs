@@ -121,7 +121,11 @@ try {
         return legacyController.handleCreateNewPost(req, res);
     });
     app.post('/test/legacy-repost', (req, res) => {
-        req.user = { id: 7, companyId: 3, userAccountData: { roleCode: 'COMPANY' },
+        // Fixture-only role selection, behind the random internal test secret.
+        // Production still obtains identity from its authentication middleware.
+        const role = req.headers['x-test-actor-role'] || 'COMPANY';
+        if (!['COMPANY', 'EMPLOYER', 'ADMIN'].includes(role)) return res.status(403).end();
+        req.user = { id: 7, companyId: 3, userAccountData: { roleCode: role },
             userCompanyData: { id: 3, statusCode: 'S1', censorCode: 'CS1' } };
         return legacyController.handleReupPost(req, res);
     });
@@ -214,10 +218,11 @@ try {
         const data = await legacy.handleReupPost({ postId, userId, timeEnd: body().timeEnd });
         return { body: data, ok: data.errCode === 0, id: data.postId };
     };
-    const legacyReupHttp = async (job, { drop = false, key, ...patch } = {}) => {
+    const legacyReupHttp = async (job, { drop = false, key, actorRole = 'COMPANY', ...patch } = {}) => {
         const response = await fetch(`http://127.0.0.1:${server.address().port}/test/legacy-repost`, {
             method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'content-type': 'application/json',
-                'x-internal-secret': token, ...(key !== undefined && { 'idempotency-key': key }), ...(drop && { 'x-test-drop-response': '1' }) },
+                'x-internal-secret': token, 'x-test-actor-role': actorRole,
+                ...(key !== undefined && { 'idempotency-key': key }), ...(drop && { 'x-test-drop-response': '1' }) },
             body: JSON.stringify({ postId: job.id, expectedRevision: job.editRevision, timeEnd: body().timeEnd,
                 id: 99999, userId: 99, companyId: 4, roleCode: 'ADMIN', isHot: Number(job.isHot) ? 0 : 1, name: 'Ignored body', ...patch })
         });
@@ -237,6 +242,8 @@ try {
     const sourceNormal = (await oldCreate(0)).id;
     const sourceHot = (await oldCreate(1)).id;
     assert.ok(sourceNormal && sourceHot);
+    // Repost fixtures model genuinely expired paid sources (2o policy).
+    await pool.query("UPDATE posts SET timeEnd = '1700000000000' WHERE id IN (?, ?)", [sourceNormal, sourceHot]);
 
     await check('Job Core creates PS3, charges one correct slot and saves both outbox records + moderation state', async () => {
         await setQuota(3, 3);
@@ -465,6 +472,8 @@ try {
     await runLegacyCreateRequestChecks({ pool, check, core, legacyCreateHttp, counts, balance, waitForRowWait });
     const { runLegacyRepostRequestChecks } = await import('./legacy-repost-request-checks.mjs');
     await runLegacyRepostRequestChecks({ pool, check, core, managed, edit, legacyReupHttp, legacyCreateHttp, counts, balance, waitForRowWait });
+    const { runRepostPolicyChecks } = await import('./repost-policy-checks.mjs');
+    await runRepostPolicyChecks({ pool, check, core, managed, repost, edit, legacyReupHttp, counts, balance, waitForRowWait });
     console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent Core create/repost + private reads + concurrency + manual/AI moderation + legacy create/edit/repost outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();

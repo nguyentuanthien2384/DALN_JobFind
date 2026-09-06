@@ -38,6 +38,7 @@ export const queryNumber = (max) => ({ type: 'string', pattern: '^(0|[1-9][0-9]*
 export const schemas = {
     Empty: object(),
     JobRepost: object({
+        expectedRevision: editRevision,
         timeEnd: { anyOf: [integer(1, 8640000000000000), { type: 'string', pattern: '^[1-9][0-9]{0,15}$', format: 'jobfind-id' }] }
     }, ['timeEnd']),
     JobCreate: object({ ...jobFields, genderPostCode: optionalText(64),

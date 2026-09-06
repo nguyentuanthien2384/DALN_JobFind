@@ -1122,6 +1122,12 @@
       "JobRepost": {
         "type": "object",
         "properties": {
+          "expectedRevision": {
+            "type": "string",
+            "pattern": "^jv1-[a-f0-9]{64}$",
+            "minLength": 68,
+            "maxLength": 68
+          },
           "timeEnd": {
             "anyOf": [
               {

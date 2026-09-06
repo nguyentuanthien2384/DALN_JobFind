@@ -11,7 +11,7 @@ export const repostLegacyPost = async (data, identity = {}) => {
     const actorId = Number(data.userId), sourceId = Number(data.postId), deadline = Number(data.timeEnd);
     if (![data.userId, data.postId].every(id => ['number', 'string'].includes(typeof id))
         || ![actorId, sourceId].every(id => Number.isSafeInteger(id) && id > 0)
-        || !['number', 'string'].includes(typeof data.timeEnd) || !Number.isSafeInteger(deadline)
+        || !['number', 'string'].includes(typeof data.timeEnd) || !/^[1-9][0-9]*$/.test(String(data.timeEnd)) || !Number.isSafeInteger(deadline)
         || !Number.isFinite(new Date(deadline).getTime()) || deadline <= 0 || (!keyed && deadline <= Date.now())
         || (Object.hasOwn(data, 'expectedRevision') && !isJobRevision(data.expectedRevision))) {
         return { errCode: 1, errMessage: 'Thông tin đăng lại không hợp lệ; ngày kết thúc phải sau thời điểm hiện tại' };
@@ -35,14 +35,14 @@ export const repostLegacyPost = async (data, identity = {}) => {
                 const users = await db.User.findAll({ where: { id: ids }, attributes: ['id', 'companyId'], order: [['id', 'ASC']],
                     transaction, lock: transaction.LOCK.UPDATE, raw: true });
                 const actor = users.find(user => user.id === actorId), owner = users.find(user => user.id === initial.userId);
-                const admin = identity.roleCode === 'ADMIN';
-                if (!actor?.companyId || (!admin && (actor.companyId !== owner?.companyId
+                // Reposting is a paid company operation, not an administrative
+                // moderation action. ADMIN cannot copy another tenant's content.
+                if (!actor?.companyId || actor.companyId !== owner?.companyId
                     || (identity.companyId !== undefined && Number(identity.companyId) !== actor.companyId)
-                    || (identity.roleCode !== undefined && !['EMPLOYER', 'COMPANY'].includes(identity.roleCode))))) {
+                    || (identity.roleCode !== undefined && !['EMPLOYER', 'COMPANY', 'ADMIN'].includes(identity.roleCode))) {
                     throw new PostingQuotaError('Bạn không có quyền đăng lại tin hoặc thông tin công ty đã thay đổi');
                 }
-                // ADMIN still needs its own approved company and quota as before;
-                // copying another company's source never charges that source company.
+                // All roles need their current approved company's paid quota.
                 const company = await lockPostingCompany(actorId, transaction);
                 if (keyed && Number(company.id) !== Number(identity.companyId)) {
                     throw new LegacyJobRequestError('Công ty của người đăng đã thay đổi; vui lòng đăng nhập lại', 403);
@@ -50,6 +50,11 @@ export const repostLegacyPost = async (data, identity = {}) => {
                 const source = await db.Post.findOne({ where: { id: sourceId }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
                 if (!source || !['PS1', 'PS2', 'PS3'].includes(source.statusCode)) throw new PostingQuotaError('Tin đã được gỡ hoặc không còn tồn tại');
                 if (source.userId !== initial.userId) throw new PostingQuotaError('Người đăng tin đã thay đổi, vui lòng tải lại');
+                const sourceDeadline = Number(source.timeEnd);
+                if (!['number', 'string'].includes(typeof source.timeEnd) || !/^[1-9][0-9]*$/.test(String(source.timeEnd))
+                    || !Number.isSafeInteger(sourceDeadline) || sourceDeadline > 8640000000000000 || sourceDeadline > Date.now()) {
+                    throw new PostingQuotaError('Chỉ có thể đăng lại tin đã hết hạn và có ngày hết hạn hợp lệ');
+                }
                 const detail = await db.DetailPost.findOne({ where: { id: source.detailPostId }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
                 if (!detail) throw new PostingQuotaError('Không tìm thấy nội dung tin gốc');
                 if (submitted.expectedRevision !== undefined && submitted.expectedRevision !== jobRevision(source, detail)) {

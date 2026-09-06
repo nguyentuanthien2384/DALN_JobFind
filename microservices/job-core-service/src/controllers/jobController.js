@@ -94,7 +94,10 @@ export const createJob = async (req, res) => {
 export const repostJob = async (req, res) => {
     const { userId, companyId } = identity(req);
     const sourceId = Number(req.params.id);
-    const input = { sourceId, timeEnd: String(req.body?.timeEnd ?? '') };
+    // Keep the pre-2o hash byte-for-byte when revision is absent, so existing
+    // accepted receipts still replay. Never infer a new revision during retry.
+    const input = { sourceId, timeEnd: String(req.body?.timeEnd ?? ''),
+        ...(Object.hasOwn(req.body || {}, 'expectedRevision') && { expectedRevision: req.body.expectedRevision }) };
     try {
         if (!Number.isSafeInteger(sourceId) || sourceId <= 0 || !input.timeEnd) {
             throw new JobRequestError('Thiếu tin nguồn hoặc ngày hết hạn mới', 400);
@@ -109,12 +112,18 @@ export const repostJob = async (req, res) => {
             if (!initial) throw new JobRequestError('Không tìm thấy tin tuyển dụng', 404);
             // Even ADMIN must use their own approved company's paid slots.
             const source = await lockJobForEdit(conn, initial, { userId, companyId, roleCode: 'COMPANY' });
-            if (!Number.isSafeInteger(Number(source.timeEnd)) || Number(source.timeEnd) <= 0
+            if (!['PS1', 'PS2', 'PS3'].includes(source.statusCode)) throw new JobRequestError('Trạng thái tin nguồn không hợp lệ');
+            if (!['number', 'string'].includes(typeof source.timeEnd) || !/^[1-9][0-9]*$/.test(String(source.timeEnd))
+                || !Number.isSafeInteger(Number(source.timeEnd)) || Number(source.timeEnd) > 8640000000000000
                 || Number(source.timeEnd) > Date.now()) {
-                throw new JobRequestError('Chỉ có thể đăng lại tin đã hết hạn');
+                throw new JobRequestError('Chỉ có thể đăng lại tin đã hết hạn và có ngày hết hạn hợp lệ');
             }
             const [[detail]] = await conn.query('SELECT * FROM detailposts WHERE id = ? FOR UPDATE', [source.detailPostId]);
             if (!detail) throw new JobRequestError('Không tìm thấy nội dung tin nguồn');
+            assertJobRevision(source, detail, input);
+            // A deadline validated before waiting for locks may now be expired.
+            // Replay returned above; only a NEW copy is checked against the clock.
+            futureJobDeadline(input.timeEnd);
             await consumeLockedPostingQuota(conn, { companyId, isHot: source.isHot });
             return insertPendingJob(conn, { userId, isHot: source.isHot, timeEnd, detail });
         }));
@@ -122,7 +131,8 @@ export const repostJob = async (req, res) => {
         return res.status(201).json({ errCode: 0, data: job });
     } catch (error) {
         if (error instanceof PostingQuotaError || error instanceof JobEditError) {
-            return res.status(error.statusCode).json({ errCode: 2, errMessage: error.message });
+            return res.status(error.statusCode).json({ errCode: 2, errMessage: error.message,
+                ...(error.conflict && { conflict: true }) });
         }
         logger.error('dang lai tin that bai', { error: error.message, sourceId });
         return res.status(500).json({ errCode: -1, errMessage: 'Không đăng lại được tin tuyển dụng' });

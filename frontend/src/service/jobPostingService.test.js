@@ -80,3 +80,15 @@ test('retains key on rejected calls, and new user actions receive distinct immut
     await expect(createJob({}, options)).rejects.toMatchObject({ idempotencyKey: options.idempotencyKey });
     expect(axios.post).toHaveBeenCalledTimes(1);
 });
+
+test('preserves an explicit source revision and original deadline/key on modern repost retries', async () => {
+    const options = { ...createJobRequestOptions(), expectedRevision: 'jv1-' + 'c'.repeat(64) };
+    await repostJob(7, '1700000000000', options); await repostJob(7, '1700000000000', options);
+    expect(axios.post.mock.calls[0]).toEqual(['/api/jobs/7/repost', { timeEnd: '1700000000000', expectedRevision: options.expectedRevision },
+        { headers: { 'Idempotency-Key': options.idempotencyKey }, timeout: 15000 }]);
+    expect(axios.post.mock.calls[1]).toEqual(axios.post.mock.calls[0]);
+});
+test.each([undefined, null, '', 'bad', 'jv1-' + 'A'.repeat(64), {}])('does not silently drop an invalid explicitly supplied repost revision %j', async expectedRevision => {
+    await expect(repostJob(7, '2000000000000', { ...createJobRequestOptions(), expectedRevision })).rejects.toThrow('phiên bản');
+    expect(axios.post).not.toHaveBeenCalled();
+});

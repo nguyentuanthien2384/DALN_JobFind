@@ -46,5 +46,8 @@ export const repostJob = (sourceId, timeEnd, options) => {
     if (!validJobId(sourceId)) {
         return Promise.reject(new Error('Mã tin nguồn không hợp lệ'));
     }
-    return postJob(`/api/jobs/${sourceId}/repost`, { timeEnd }, options);
+    const guarded = options && Object.prototype.hasOwnProperty.call(options, 'expectedRevision');
+    if (guarded && !isJobRevision(options.expectedRevision)) return Promise.reject(new Error('Cần tải lại phiên bản tin trước khi đăng lại'));
+    return postJob(`/api/jobs/${sourceId}/repost`, { timeEnd,
+        ...(guarded && { expectedRevision: options.expectedRevision }) }, options);
 };

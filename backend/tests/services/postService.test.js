@@ -124,7 +124,7 @@ describe('postService', () => {
     mockDb.Company.findOne.mockResolvedValue(company);
     mockDb.Post.findOne.mockResolvedValueOnce(null);
     expect((await service.handleReupPost(validPost())).errCode).toBe(2);
-    const source = { id: 10, userId: 7, statusCode: 'PS1', isHot: 0, detailPostId: 20 };
+    const source = { id: 10, userId: 7, statusCode: 'PS1', isHot: 0, detailPostId: 20, timeEnd: '1700000000000' };
     mockDb.Post.findOne.mockResolvedValueOnce(source).mockResolvedValueOnce(source)
       .mockResolvedValueOnce({ ...source, id: 31, statusCode: 'PS3', timeEnd: validPost().timeEnd });
     mockDb.Post.create.mockResolvedValueOnce({ id: 31 });
