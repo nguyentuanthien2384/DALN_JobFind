@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeEventFixture } from './contractAssertions.js';
-import { eventCatalog } from '../shared/contracts/eventCatalog.js';
+import { eventCatalog, eventExamples } from '../shared/contracts/eventCatalog.js';
 
 const mocks = vi.hoisted(() => ({
     consume: vi.fn(),
@@ -33,6 +33,45 @@ beforeEach(async () => {
 });
 
 describe('notification event consumer', () => {
+    const manualType = 'notification.manual_moderation_requested';
+    it.each([['approve', 'POST_APPROVED'], ['reject', 'POST_REJECTED'], ['ban', 'POST_BANNED'], ['reopen', 'POST_REOPENED']])
+    ('durably queues manual %s with safe historical text and no direct provider calls', async (action, typeCode) => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const payload = { ...eventExamples[manualType], action, jobTitle: '<script>private</script>', note: '<img onerror="bad">\nReason' };
+        await handleNotificationEvent(payload, manualType, { eventId: 'manual-1', aggregateId: '7' });
+        const queued = mocks.queueNotification.mock.calls[0][0];
+        expect(queued).toMatchObject({ eventId: 'manual-1', userId: 5, template: { typeCode, link: '/admin/list-post/' } });
+        expect(queued.template.email.html).not.toContain('<script>'); expect(queued.template.email.html).not.toContain('<img onerror');
+        expect(queued.template.email.html).toContain('&lt;script&gt;'); expect(queued.template.email.text).toContain('Reason');
+        expect(queued.template.email.text).toContain('trạng thái mới nhất');
+        expect(mocks.sendEmail).not.toHaveBeenCalled(); expect(mocks.saveNotification).not.toHaveBeenCalled();
+    });
+    it('queues only the snapshotted follower, in-app only, without rereading followers or emailing', async () => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        await handleNotificationEvent({ ...eventExamples[manualType], audience: 'follower', recipientId: 12, note: null }, manualType, { eventId: 'f1' });
+        expect(mocks.queueNotification).toHaveBeenCalledWith(expect.objectContaining({ userId: 12, template: {
+            typeCode: 'NEW_POST', content: expect.any(String), link: '/detail-job/7'
+        } }));
+        expect(mocks.getCompanyFollowers).not.toHaveBeenCalled(); expect(mocks.getUserEmail).not.toHaveBeenCalled();
+    });
+    it.each(['author', 'follower'])('bounds Unicode %s notification previews to the legacy column without splitting characters', async audience => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        await handleNotificationEvent({ ...eventExamples[manualType], audience, jobTitle: '🧑'.repeat(255), companyName: '🏢'.repeat(255),
+            note: audience === 'author' ? 'Reason' : null }, manualType, { eventId: 'long-1' });
+        const { content } = mocks.queueNotification.mock.calls[0][0].template;
+        expect(Array.from(content)).toHaveLength(255); expect(content.endsWith('…')).toBe(true);
+        expect(content).not.toMatch(/[\uD800-\uDFFF]/u);
+    });
+    it.each([
+        [{}, {}], [{ audience: 'follower', action: 'ban', note: null }, { eventId: 'x' }],
+        [{ audience: 'follower', note: 'PRIVATE_NOTE' }, { eventId: 'x' }], [{ action: 'invalid' }, { eventId: 'x' }],
+        [{ recipientId: null }, { eventId: 'x' }], [{}, { eventId: 'x', aggregateId: 'other' }]
+    ])('rejects unsafe manual notification without a non-durable fallback: %j', async (patch, metadata) => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        await expect(handleNotificationEvent({ ...eventExamples[manualType], ...patch }, manualType, metadata)).rejects.toThrow();
+        expect(mocks.queueNotification).not.toHaveBeenCalled(); expect(mocks.sendEmail).not.toHaveBeenCalled();
+        expect(mocks.saveNotification).not.toHaveBeenCalled();
+    });
     it.each(Object.keys(eventCatalog).filter((key) => eventCatalog[key].consumers.includes('notification-service.events')))
     ('accepts the published %s contract into the durable delivery path', async (key) => {
         mocks.getCompanyFollowers.mockResolvedValue([9]);

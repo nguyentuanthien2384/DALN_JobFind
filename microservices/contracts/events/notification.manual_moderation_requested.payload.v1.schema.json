@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$"
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "recipientId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "audience": {
+      "enum": [
+        "author",
+        "follower"
+      ]
+    },
+    "action": {
+      "enum": [
+        "approve",
+        "reject",
+        "ban",
+        "reopen"
+      ]
+    },
+    "jobTitle": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 255
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companyName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 255
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 255
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "decisionId",
+    "jobId",
+    "recipientId",
+    "audience",
+    "action",
+    "jobTitle",
+    "companyName",
+    "note"
+  ],
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "audience": {
+            "const": "follower"
+          }
+        },
+        "required": [
+          "audience"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "const": "approve"
+          },
+          "note": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        }
+      }
+    }
+  ],
+  "title": "notification.manual_moderation_requested payload v1",
+  "examples": [
+    {
+      "decisionId": "11111111-1111-4111-8111-111111111111",
+      "jobId": 7,
+      "recipientId": 5,
+      "audience": "author",
+      "action": "approve",
+      "jobTitle": "Developer",
+      "companyName": "Example",
+      "note": "Đã duyệt bài thành công"
+    }
+  ]
+}

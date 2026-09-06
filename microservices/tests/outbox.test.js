@@ -23,6 +23,22 @@ beforeEach(() => {
 });
 
 describe('Job Core transactional outbox', () => {
+    it('relays legacy recipient intents with their persisted identity and producer across confirm/mark failure', async () => {
+        const row = { id: 'stable-manual-1', aggregateId: '12', createdAt: new Date(),
+            eventType: 'notification.manual_moderation_requested', payload: '{"jobId":12}', attempts: 0 };
+        mocks.withTransaction.mockImplementation(work => work({ query: vi.fn().mockResolvedValue([[row]]) }));
+        const { runOutboxOnce } = await import('../job-core-service/src/libs/outbox.js');
+        mocks.publish.mockRejectedValueOnce(new Error('confirm lost'));
+        await expect(runOutboxOnce()).resolves.toBe(0);
+        expect(mocks.pool.query.mock.calls.some(([sql]) => sql.includes('SET publishedAt'))).toBe(false);
+        mocks.pool.query.mockRejectedValueOnce(new Error('DB mark failed'));
+        await expect(runOutboxOnce()).resolves.toBe(0);
+        await expect(runOutboxOnce()).resolves.toBe(1);
+        expect(mocks.publish).toHaveBeenCalledTimes(3);
+        for (const call of mocks.publish.mock.calls) expect(call).toEqual([row.eventType, { jobId: 12 }, {
+            messageId: row.id, aggregateId: '12', occurredAt: row.createdAt, producer: 'legacy-backend'
+        }]);
+    });
     it('refuses invalid payloads before any outbox INSERT', async () => {
         const { enqueueOutboxEvent } = await import('../job-core-service/src/libs/outbox.js');
         const conn = { query: vi.fn() };

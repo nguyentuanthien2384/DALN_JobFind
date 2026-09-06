@@ -5,41 +5,12 @@ import { jobRevision } from '../utils/jobRevision';
 import { moderateLegacyPost } from '../utils/jobModeration';
 const { Op } = require("sequelize");
 require('dotenv').config();
-var nodemailer = require('nodemailer');
-const { getFrontendLink } = require('../utils/frontendUrl');
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
 const PUBLIC_COMPANY_ATTRIBUTES = [
     'id', 'name', 'thumbnail', 'coverimage', 'descriptionHTML',
     'website', 'address', 'phonenumber', 'amountEmployer'
 ];
 const APPROVED_COMPANY_WHERE = { statusCode: 'S1', censorCode: 'CS1' };
-let sendmail = (note, userMail, link = null) => {
-    var transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-            user: process.env.EMAIL_APP,
-            pass: process.env.EMAIL_APP_PASSWORD,
-        }
-    });
-
-    var mailOptions = {
-        from: process.env.EMAIL_APP,
-        to: userMail,
-        subject: 'Thông báo từ trang Job Finder',
-        html: note
-    };
-    if (link)
-    {
-        mailOptions.html = note + ` <br>
-        xem thông tin bài viết <a href='${getFrontendLink(link)}'>Tại đây</a> `
-    }
-
-    transporter.sendMail(mailOptions, function (error, info) {
-        if (error) {
-        } else {
-        }
-    });
-}
 // Business failures throw inside the managed transaction so every write rolls
 // back; only convert them to the legacy response shape AFTER rollback.
 const withPostingTransaction = async (work) => {
@@ -118,34 +89,7 @@ let handleUpdatePost = async (data, identity) => {
     }
     return updateLegacyPost(data, identity);
 };
-// Side effects remain best-effort AFTER commit. Never retry the state change
-// because email/follower delivery failed; a durable legacy outbox is a later phase.
-const notifyManualModeration = async ({ action, postId, posterId, companyId, companyName, jobTitle, note }) => {
-    try {
-        const user = await db.User.findOne({ where: { id: posterId }, attributes: ['email'], raw: true });
-        if (user?.email) {
-            const message = action === 'approve' ? note : action === 'reject'
-                ? `Bài viết #${postId} của bạn đã bị từ chối`
-                : action === 'ban' ? `Bài viết #${postId} của bạn đã bị chặn vì ${note}`
-                : `Bài viết #${postId} của bạn đã được mở lại vì: ${note}`;
-            sendmail(message, user.email, action === 'approve' ? `detail-job/${postId}` : `admin/list-post/${postId}`);
-        }
-    } catch { console.log('Manual moderation author notification failed after commit'); }
-    if (action !== 'approve' || !companyId) return;
-    try {
-        const followers = await db.FollowCompany.findAll({ where: { companyId }, raw: true });
-        if (followers?.length) await db.Notification.bulkCreate(followers.map(item => ({
-            userId: item.userId, typeCode: 'NEW_POST', isChecked: 0,
-            content: `${companyName || 'Công ty bạn theo dõi'} vừa đăng tin: ${jobTitle || 'tin tuyển dụng mới'}`,
-            link: `/detail-job/${postId}`, createdAt: new Date(), updatedAt: new Date()
-        })));
-    } catch { console.log('Manual moderation follower notification failed after commit'); }
-};
-const manualModeration = async (data, action, identity) => {
-    const { notification, ...result } = await moderateLegacyPost(data, action, identity);
-    if (result.errCode === 0 && result.changed && notification) await notifyManualModeration(notification);
-    return result;
-};
+const manualModeration = (data, action, identity) => moderateLegacyPost(data, action, identity);
 const handleBanPost = (data, identity) => manualModeration(data, 'ban', identity);
 const handleActivePost = (data, identity) => manualModeration(data, 'reopen', identity);
 const handleAcceptPost = (data, identity) => manualModeration(data,

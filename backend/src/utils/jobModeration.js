@@ -2,6 +2,7 @@ import db from '../models/index';
 import { assertTransactionalPostingTables, PostingQuotaError } from './postingQuota';
 import { isJobRevision, jobRevision } from './jobRevision';
 import { cancelLegacyModeration } from './moderationFence';
+import { enqueueManualModerationNotifications } from './manualModerationOutbox';
 
 const fail = (httpStatus, errMessage, conflict = false) => ({ errCode: httpStatus === 403 ? 3 : conflict ? 4 : 1,
     httpStatus, errMessage, ...(conflict && { conflict: true }) });
@@ -14,7 +15,7 @@ const transitions = {
 };
 
 // Role comes from authenticated middleware via a separate argument, never body.
-// notification is an internal post-commit intent; the service strips it from HTTP.
+// Status, note, AI fence and recipient intents commit or roll back together.
 export const moderateLegacyPost = async (data, action, identity = {}) => {
     if (identity.roleCode !== 'ADMIN') return fail(403, 'Chỉ quản trị viên được kiểm duyệt tin');
     const rule = Object.hasOwn(transitions, action) ? transitions[action] : null;
@@ -58,9 +59,10 @@ export const moderateLegacyPost = async (data, action, identity = {}) => {
             if (action === 'approve') { post.timePost = Date.now(); fields.push('timePost'); }
             await post.save({ transaction, fields });
             await db.Note.create({ postId: post.id, note, userId: Number(data.userId) }, { transaction });
-            return { errCode: 0, changed: true, postId: post.id, statusCode: post.statusCode, editRevision: jobRevision(post, detail), errMessage: rule.message,
-                notification: { action, postId: post.id, posterId: post.userId, companyId: owner?.companyId ?? null,
-                    companyName: company?.name ?? null, jobTitle: detail.name, note } };
+            await enqueueManualModerationNotifications({ action, postId: post.id, posterId: post.userId,
+                companyId: owner?.companyId ?? null, companyName: company?.name ?? null, jobTitle: detail.name, note }, transaction);
+            return { errCode: 0, changed: true, postId: post.id, statusCode: post.statusCode,
+                editRevision: jobRevision(post, detail), errMessage: rule.message };
         });
     } catch (error) {
         if (error instanceof PostingQuotaError) return fail(503, error.message);

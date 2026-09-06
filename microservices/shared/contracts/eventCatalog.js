@@ -55,6 +55,15 @@ export const eventCatalog = {
     'job.updated': metadata(object({ job }, ['job']), 'job.id', ['job-core-service', 'legacy-backend'], ['search-service.indexer']),
     'job.deleted': metadata(object({ jobId: id }, ['jobId']), 'jobId', ['job-core-service'], ['search-service.indexer']),
     'company.updated': metadata(object({ companyId: id, companyStatusCode: nullable(string(64)), companyCensorCode: nullable(string(64)) }, ['companyId']), 'companyId', ['legacy-backend'], ['search-service.indexer']),
+    'notification.manual_moderation_requested': metadata({
+        ...object({ decisionId: requestId, jobId: id, recipientId: id,
+            audience: { enum: ['author', 'follower'] }, action: { enum: ['approve', 'reject', 'ban', 'reopen'] },
+            jobTitle: nullable(string(255)), companyName: nullable(string(255)), note: nullable(string(255))
+        }, ['decisionId', 'jobId', 'recipientId', 'audience', 'action', 'jobTitle', 'companyName', 'note']),
+        allOf: [{ if: { properties: { audience: { const: 'follower' } }, required: ['audience'] },
+            then: { properties: { action: { const: 'approve' }, note: { type: 'null' } } },
+            else: { properties: { note: { type: 'string', minLength: 1, maxLength: 255 } } } }]
+    }, 'jobId', ['legacy-backend'], ['notification-service.events'], 16 * 1024),
     'job.moderated': metadata({ ...object({ jobId: id, posterId: nullable(id), jobTitle: optionalText, approved: bool, statusCode: { enum: ['PS1', 'PS2'] }, reason: optionalText, moderationRequestId: requestId }, ['jobId', 'approved', 'statusCode']),
         allOf: [{ if: { properties: { approved: { const: true } }, required: ['approved'] }, then: { properties: { statusCode: { const: 'PS1' } } }, else: { properties: { statusCode: { const: 'PS2' } } } }]
     }, 'jobId', ['job-core-service'], ['search-service.indexer', 'notification-service.events']),
@@ -77,6 +86,8 @@ export const eventExamples = {
     'job.created': { job: { id: 7, name: 'Developer', statusCode: 'PS3', companyId: 3, companyName: 'Example' } },
     'job.updated': { job: { id: 7, name: 'Developer', statusCode: 'PS1', companyId: 3 } },
     'job.deleted': { jobId: 7 }, 'company.updated': { companyId: 3, companyStatusCode: 'S1', companyCensorCode: 'CS1' },
+    'notification.manual_moderation_requested': { decisionId: moderationRequestId, jobId: 7, recipientId: 5,
+        audience: 'author', action: 'approve', jobTitle: 'Developer', companyName: 'Example', note: 'Đã duyệt bài thành công' },
     'job.moderated': { jobId: 7, posterId: 5, jobTitle: 'Developer', approved: true, statusCode: 'PS1', reason: 'OK', moderationRequestId },
     'ai.moderate_job': { jobId: 7, name: 'Developer', descriptionHTML: '<p>Build services</p>', moderationRequestId },
     'ai.parse_resume': { taskId: 'task-1', fileBase64: 'c3ludGhldGlj', fileName: 'example.pdf' },

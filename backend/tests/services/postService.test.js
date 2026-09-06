@@ -214,6 +214,7 @@ describe('postService', () => {
     mockDb.User.findAll.mockResolvedValue([{ id: 1, companyId: null }, { id: 7, companyId: 4 }]);
     mockDb.User.findOne.mockResolvedValue({ email: 'author@example.com' });
     mockDb.Company.findOne.mockResolvedValue({ id: 4, name: 'Acme' });
+    mockDb.FollowCompany.findAll.mockResolvedValue([]);
     mockDb.sequelize.query.mockImplementation(sql => Promise.resolve(sql.includes('TABLE_NAME IN')
       ? [['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))]
       : [[{ engine: 'InnoDB' }]]));
@@ -223,7 +224,7 @@ describe('postService', () => {
   test.each([
     ['handleBanPost', 'PS1', 'PS4'], ['handleActivePost', 'PS4', 'PS3'],
     ['handleAcceptPost', 'PS3', 'PS1'], ['handleAcceptPost', 'PS3', 'PS2']
-  ])('%s changes %s to %s with a transactional note/fence and post-commit author email', async (method, from, statusCode) => {
+  ])('%s changes %s to %s with transactional note/fence/notification and no direct email', async (method, from, statusCode) => {
     const { post, payload } = moderationFixture(from);
     const result = await service[method]({ ...payload, statusCode }, { roleCode: 'ADMIN' });
     expect(result).toMatchObject({ errCode: 0, changed: true, statusCode });
@@ -234,8 +235,11 @@ describe('postService', () => {
     expect(mockDb.Note.create).toHaveBeenCalledWith(expect.objectContaining({ postId: 10, userId: 1 }), { transaction: mockTransaction });
     expect(mockDb.sequelize.query).toHaveBeenCalledWith(expect.stringContaining("SET state = 'cancelled'"),
       expect.objectContaining({ transaction: mockTransaction }));
-    expect(mockSendMail).toHaveBeenCalled();
-    expect(mockSendMail.mock.invocationCallOrder[0]).toBeGreaterThan(mockDb.Note.create.mock.invocationCallOrder[0]);
+    expect(mockSendMail).not.toHaveBeenCalled();
+    expect(mockDb.sequelize.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO outbox_events'),
+      expect.objectContaining({ transaction: mockTransaction, replacements: expect.arrayContaining([
+        expect.stringContaining('"audience":"author"')
+      ]) }));
   });
 
   test('approval preserves its old timestamp/follower behavior but sends nothing on a stale repeat or matching no-op', async () => {
@@ -243,15 +247,18 @@ describe('postService', () => {
     mockDb.FollowCompany.findAll.mockResolvedValue([{ userId: 2 }, { userId: 3 }]);
     const result = await service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' });
     expect(post.timePost).toEqual(expect.any(Number));
-    expect(mockDb.Notification.bulkCreate).toHaveBeenCalledWith([
-      expect.objectContaining({ userId: 2, typeCode: 'NEW_POST', link: '/detail-job/10' }),
-      expect.objectContaining({ userId: 3, typeCode: 'NEW_POST', link: '/detail-job/10' })
+    const inserts = () => mockDb.sequelize.query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO outbox_events'));
+    expect(inserts()).toHaveLength(1);
+    expect(inserts()[0][1].replacements.filter((_, index) => index % 6 === 4).map(JSON.parse)).toEqual([
+      expect.objectContaining({ recipientId: 7, audience: 'author' }),
+      expect.objectContaining({ recipientId: 2, audience: 'follower', note: null }),
+      expect.objectContaining({ recipientId: 3, audience: 'follower', note: null })
     ]);
     expect((await service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' })).httpStatus).toBe(409);
     expect(await service.handleAcceptPost({ ...payload, expectedRevision: result.editRevision, statusCode: 'PS1' }, { roleCode: 'ADMIN' }))
       .toMatchObject({ errCode: 0, changed: false });
-    expect(mockDb.Note.create).toHaveBeenCalledTimes(1); expect(mockSendMail).toHaveBeenCalledTimes(1);
-    expect(mockDb.Notification.bulkCreate).toHaveBeenCalledTimes(1);
+    expect(mockDb.Note.create).toHaveBeenCalledTimes(1); expect(mockSendMail).not.toHaveBeenCalled();
+    expect(mockDb.Notification.bulkCreate).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(1);
   });
 
   test.each(['note', 'commit'])('a failed %s never emails or notifies followers', async stage => {
@@ -262,11 +269,12 @@ describe('postService', () => {
     expect(mockSendMail).not.toHaveBeenCalled(); expect(mockDb.Notification.bulkCreate).not.toHaveBeenCalled();
   });
 
-  test('post-commit mail/follower failure never reports that the committed approval failed', async () => {
+  test('follower snapshot failure rejects the transaction, never a post-commit partial success', async () => {
     const { payload } = moderationFixture();
     mockDb.User.findOne.mockRejectedValueOnce(new Error('email lookup'));
     mockDb.FollowCompany.findAll.mockRejectedValueOnce(new Error('followers'));
-    expect((await service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' })).errCode).toBe(0);
+    await expect(service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' })).rejects.toThrow('followers');
+    expect(mockDb.User.findOne).not.toHaveBeenCalled();
     expect(mockDb.Note.create).toHaveBeenCalledTimes(1);
   });
 

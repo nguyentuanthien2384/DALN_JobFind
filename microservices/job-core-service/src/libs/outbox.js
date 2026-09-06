@@ -141,7 +141,10 @@ export const runOutboxOnce = async () => {
                     messageId: event.id,
                     aggregateId: event.aggregateId,
                     occurredAt: event.createdAt,
-                    producer: 'job-core-service'
+                    // During the shared-DB transition the legacy writer stores
+                    // only this recipient-intent type in our confirmed outbox.
+                    producer: event.eventType === 'notification.manual_moderation_requested'
+                        ? 'legacy-backend' : 'job-core-service'
                 });
                 await markPublished(event);
                 published += 1;

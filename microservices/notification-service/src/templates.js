@@ -230,6 +230,33 @@ export const jobModeratedTemplate = ({ approved, jobTitle, reason }) => {
     };
 };
 
+// A manual decision is a historical fact, not a promise that a delayed message
+// still describes the public state. Always link the author to management.
+export const manualModerationTemplate = ({ action, jobTitle, note }) => {
+    const labels = { approve: ['POST_APPROVED', 'được duyệt'], reject: ['POST_REJECTED', 'bị từ chối'],
+        ban: ['POST_BANNED', 'bị chặn'], reopen: ['POST_REOPENED', 'được mở lại để chờ duyệt'] };
+    if (!Object.hasOwn(labels, action)) throw new Error('Invalid manual moderation action');
+    const [typeCode, status] = labels[action];
+    const job = displayText(jobTitle, 'tin tuyển dụng');
+    const content = notificationPreview(`Tin tuyển dụng “${job}” đã ${status} theo quyết định kiểm duyệt`);
+    return { typeCode, content, link: '/admin/list-post/', email: renderNotificationEmail({
+        subject: sanitizeSubject(`Tin tuyển dụng đã ${status} — ${job}`), preheader: content,
+        eyebrow: 'KIỂM DUYỆT THỦ CÔNG', status: 'Quyết định kiểm duyệt', headline: `Tin tuyển dụng đã ${status}`,
+        icon: 'i', accent: '#2563eb', softAccent: '#eff6ff', body: [content],
+        details: [{ label: 'Tin tuyển dụng', value: job }],
+        nextStep: 'Mở danh sách quản lý để kiểm tra trạng thái mới nhất. Thông báo có thể đến sau một thay đổi khác.',
+        ctaLabel: 'Xem trạng thái hiện tại', ctaPath: '/admin/list-post/',
+        customMessage: displayMultilineText(note), customMessageLabel: 'GHI CHÚ KIỂM DUYỆT'
+    }) };
+};
+
+// Legacy manual approval notified followers in-app only, never by email.
+export const manualApprovalFollowerTemplate = ({ jobId, jobTitle, companyName }) => ({
+    typeCode: 'NEW_POST',
+    content: notificationPreview(`${displayText(companyName, 'Công ty bạn theo dõi')} vừa có tin được duyệt: ${displayText(jobTitle, 'tin tuyển dụng mới')}`),
+    link: safeJobPath(jobId)
+});
+
 export const newApplicationTemplate = ({ candidateName, jobTitle }) => {
     const candidate = displayText(candidateName, 'Một ứng viên');
     const job = displayText(jobTitle, 'tin tuyển dụng của bạn');
@@ -518,6 +545,13 @@ function safeJobPath(jobId) {
 
 function sanitizeSubject(value) {
     return displayText(value, 'Thông báo từ Job Finder').slice(0, 180);
+}
+
+// The legacy notifications.content column is VARCHAR(255). Do not split a
+// surrogate pair; full title/reason remain in the author's email and saved intent.
+function notificationPreview(value) {
+    const points = Array.from(value);
+    return points.length > 255 ? `${points.slice(0, 254).join('')}…` : value;
 }
 
 function displayText(value, fallback = '') {

@@ -15,6 +15,8 @@ export const EVENTS = {
 
     // AI Worker phat ra sau khi kiem duyet xong noi dung tin.
     JOB_MODERATED: 'job.moderated',
+    // One durable recipient intent per accepted legacy manual decision.
+    MANUAL_MODERATION_NOTIFICATION_REQUESTED: 'notification.manual_moderation_requested',
 
     // Yeu cau gui cho AI Worker.
     AI_MODERATE_JOB: 'ai.moderate_job',

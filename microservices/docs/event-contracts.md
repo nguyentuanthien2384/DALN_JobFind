@@ -2,7 +2,7 @@
 
 ## Phạm vi
 
-13 loại sự kiện hiện khai báo trong `shared/events.js` đã có JSON Schema 2020-12: nhóm job/company, bốn yêu cầu AI và kết quả AI, ba sự kiện application. `contracts/events/catalog.v1.json` liệt kê producer, queue nhận, trường định danh đối tượng và giới hạn byte của từng loại. Danh sách producer mô tả mã nguồn hiện tại, **không phải** cơ chế xác thực hoặc phân quyền RabbitMQ.
+14 loại sự kiện hiện khai báo trong `shared/events.js` đã có JSON Schema 2020-12: nhóm job/company, bốn yêu cầu AI và kết quả AI, ba sự kiện application và intent thông báo manual thêm ở 2g. `contracts/events/catalog.v1.json` liệt kê producer, queue nhận, trường định danh đối tượng và giới hạn byte của từng loại. Danh sách producer mô tả mã nguồn hiện tại, **không phải** cơ chế xác thực hoặc phân quyền RabbitMQ.
 
 Nguồn chỉnh sửa là `shared/contracts/eventCatalog.js` và `shared/contracts/eventValidator.cjs`. Các file `contracts/events/*.payload.v1.schema.json`, catalog và bản sao validator/catalog trong `backend/src/contracts` được sinh tự động. Backend chạy độc lập, không cần import trực tiếp workspace microservices. Không sửa các bản sao bằng tay.
 
@@ -16,12 +16,14 @@ Schema chỉ bắt buộc các trường cốt lõi, kiểm tra kiểu của nh�
 
 Ví dụ: trạng thái ứng tuyển phải dùng enum của Application; quyết định accepted/rejected phải khớp trạng thái đích; kết quả kiểm duyệt boolean phải khớp PS1/PS2. `ai.result` phân biệt bốn loại nhiệm vụ và kết quả thành công/thất bại, không cho cùng lúc có result và error; điểm matching là số nguyên 0–100. Các trường định danh được worker truyền tiếp cũng được kiểm tra ở đầu vào.
 
-Giới hạn tính theo JSON đã serialize thành UTF-8: yêu cầu AI 8 MiB, kết quả AI 1 MiB, các nhóm còn lại 64 MiB để còn tương thích snapshot/logo legacy. Một số trường có giới hạn nhỏ hơn. Đây là trần validator, **không phải** cam kết broker/DB/client chấp nhận message lớn đến mức đó; giới hạn thực tế còn phụ thuộc cấu hình từng tầng. Chưa chuyển file/logo lớn sang object storage và chưa xác minh nội dung PDF an toàn.
+Giới hạn tính theo JSON đã serialize thành UTF-8: yêu cầu AI 8 MiB, kết quả AI 1 MiB, intent thông báo manual 16 KiB, các nhóm còn lại 64 MiB để còn tương thích snapshot/logo legacy. Một số trường có giới hạn nhỏ hơn. Đây là trần validator, **không phải** cam kết broker/DB/client chấp nhận message lớn đến mức đó; giới hạn thực tế còn phụ thuộc cấu hình từng tầng. Chưa chuyển file/logo lớn sang object storage và chưa xác minh nội dung PDF an toàn.
 
 ## Điểm kiểm tra và xử lý lỗi
 
+Ngoại lệ legacy bền từ 2g: `notification.manual_moderation_requested` được validate/INSERT vào outbox trong transaction kiểm duyệt và relay Job Core gửi với producer `legacy-backend`, giữ UUID/thời điểm. Mỗi recipient/audience một event; `decisionId` chung, aggregate là jobId. Follower chỉ approve/note null; author đủ bốn action/note bắt buộc; tên/note tối đa 255 ký tự, tổng 16 KiB. Consumer đường này luôn cần eventId, không fallback direct email. Consumer/binding mới phải sẵn sàng trước writer; xem `client-sync.md` 2g. Các emit legacy khác mô tả dưới đây chưa được chuyển.
+
 - Job Core/Application kiểm tra trước khi ghi outbox trên connection của transaction; dữ liệu sai ném lỗi để transaction có thể rollback. Relay kiểm tra lại trước khi mở kết nối/publish có confirm.
-- Backend legacy kiểm tra trước khi publish, bổ sung ID cho từng lần tạo message. Đường legacy vẫn best-effort, chưa transactional outbox/confirm; gọi lại hàm emit là một event mới, không phải retry giữ nguyên ID. Không suy ra bảo đảm không mất/trùng cho legacy từ việc có schema.
+- Các hàm emit trực tiếp của backend legacy kiểm tra trước khi publish, bổ sung ID cho từng lần tạo message. Ngoài intent manual 2g nêu trên, các đường này vẫn best-effort, chưa transactional outbox/confirm; gọi lại hàm emit là một event mới, không phải retry giữ nguyên ID. Không suy ra bảo đảm không mất/trùng cho mọi publisher legacy từ việc có schema.
 - Consumer kiểm tra message có đánh dấu trước bộ xử lý nghiệp vụ. JSON sai, schema sai, version không hỗ trợ hoặc sai định danh được chuyển sang DLQ qua publisher có confirm, không tự thử lại nghiệp vụ. ACK bản gốc chỉ sau khi chuyển thành công; nếu chưa confirm, giữ khả năng broker giao lại bản gốc. Retry của lỗi nghiệp vụ tạm thời vẫn giữ byte, ID, routing key gốc và version.
 - Lỗi JSON/schema dùng thông báo cố định, không đính kèm nội dung CV/email hay chi tiết giá trị lỗi vào log/header lỗi. DLQ vẫn chứa **toàn bộ bản gốc**, gồm dữ liệu cá nhân: phải hạn chế quyền đọc và có chính sách lưu giữ riêng.
 - Với yêu cầu AI có đánh dấu v1, kết quả mô hình sai cấu trúc trở thành một kết quả thất bại được lưu bền. Gửi lại kết quả đã lưu không gọi mô hình lần nữa. Không thay đổi chính sách cách ly tác vụ đã bắt đầu nhưng chưa biết kết quả.
@@ -49,7 +51,7 @@ docker build -t jobfind-microservices:local .
 npm run test:image
 ```
 
-Bài tích hợp event cần image `rabbitmq:4-management-alpine` có sẵn; nếu thiếu, tải image đó trước khi chạy. Script tạo broker riêng với cổng loopback ngẫu nhiên, không đọc `.env`, không chạm queue thật. Nó kiểm tra cả 13 loại qua publish có confirm, schema/version sai vào DLQ, backlog cũ, targeted retry và replay AI cũ; chỉ xóa container cùng dữ liệu tạm do chính nó tạo sau khi kiểm tra nhãn sở hữu.
+Bài tích hợp event cần image `rabbitmq:4-management-alpine` có sẵn; nếu thiếu, tải image đó trước khi chạy. Script tạo broker riêng với cổng loopback ngẫu nhiên, không đọc `.env`, không chạm queue thật. Nó kiểm tra cả 14 loại qua publish có confirm, schema/version sai vào DLQ, backlog cũ, targeted retry và replay AI cũ; chỉ xóa container cùng dữ liệu tạm do chính nó tạo sau khi kiểm tra nhãn sở hữu.
 
 Test consumer dùng bộ xử lý thật của Search, Notification, Application, Admin, AI Worker và AI Result, với DB/SMTP/AI được mô phỏng. Chúng kiểm tra dữ liệu và ID vào đúng nhánh nghiệp vụ; không thay thế E2E mọi vai trò hoặc mọi dữ liệu lịch sử. CI kiểm tra bản sinh không lệch, unit/consumer contracts, broker cách ly và các contract đóng gói trong image. Chưa có Pact broker hay cổng triển khai đối chiếu từng phiên bản service độc lập.
 

@@ -53,7 +53,7 @@ try {
         channel.publish('jobportal.events', 'job.deleted', body, { persistent: true, contentType: 'application/json', ...properties });
         await channel.waitForConfirms();
     };
-    await check('all 13 payload contracts survive confirmed RabbitMQ transport with unchanged IDs and bodies', async () => {
+    await check(`all ${Object.keys(eventCatalog).length} payload contracts survive confirmed RabbitMQ transport with unchanged IDs and bodies`, async () => {
         for (const [key, data] of Object.entries(eventExamples)) {
             const id = randomUUID();
             const aggregateId = assertEventPayload(key, data);

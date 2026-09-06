@@ -1,6 +1,7 @@
 import { createLogger } from '../../../shared/logger.js';
 import { consume } from '../../../shared/rabbitmq.js';
 import { EVENTS } from '../../../shared/events.js';
+import { assertEventPayload } from '../../../shared/eventContract.js';
 import { queueNotification } from '../libs/deliveryStore.js';
 import { notificationRetry } from '../libs/eventRetry.js';
 import {
@@ -8,7 +9,7 @@ import {
 } from '../libs/channels.js';
 import {
     applicationStageTemplate, applicationDecisionTemplate, jobModeratedTemplate,
-    newJobFromFollowedCompanyTemplate, newApplicationTemplate
+    newJobFromFollowedCompanyTemplate, newApplicationTemplate, manualModerationTemplate, manualApprovalFollowerTemplate
 } from '../templates.js';
 
 const logger = createLogger('notification-service');
@@ -77,6 +78,14 @@ export const deliver = async ({ userId, template, recipientEmail, eventId }) => 
 };
 
 export const handlers = {
+    [EVENTS.MANUAL_MODERATION_NOTIFICATION_REQUESTED]: async (payload, metadata = {}) => {
+        // This is a new durable-only path: never fall back to direct SMTP when
+        // a malformed/unmarked message is missing its persistent event identity.
+        if (!metadata.eventId) throw new Error('Manual moderation notification requires eventId');
+        assertEventPayload(EVENTS.MANUAL_MODERATION_NOTIFICATION_REQUESTED, payload, { aggregateId: metadata.aggregateId });
+        const template = payload.audience === 'author' ? manualModerationTemplate(payload) : manualApprovalFollowerTemplate(payload);
+        await deliver({ userId: payload.recipientId, template, eventId: metadata.eventId });
+    },
     [EVENTS.APPLICATION_STAGE_CHANGED]: async (payload, metadata = {}) => {
         const template = applicationStageTemplate({
             toStage: payload.toStage,
