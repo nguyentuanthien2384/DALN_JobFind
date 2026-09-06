@@ -1,5 +1,6 @@
 import { pool } from '../libs/db.js';
 import { createLogger } from '../../../shared/logger.js';
+import { jobRevision } from '../../../shared/jobRevision.js';
 
 const logger = createLogger('job-core-service');
 
@@ -24,7 +25,7 @@ export const getManagedJob = async (req, res) => {
     try {
         // Only explicitly selected job fields. Never return identity secrets,
         // company documents, quota, moderation request IDs, prompts or AI output.
-        const [[job]] = await pool.query(`SELECT p.id, p.statusCode, p.timePost, p.timeEnd, p.isHot, p.userId,
+        const [[job]] = await pool.query(`SELECT p.id, p.detailPostId, p.statusCode, p.timePost, p.timeEnd, p.isHot, p.userId,
                 d.name, d.descriptionHTML, d.descriptionMarkdown, d.amount,
                 d.categoryJobCode, d.addressCode, d.salaryJobCode, d.categoryJoblevelCode,
                 d.categoryWorktypeCode, d.experienceJobCode, d.genderPostCode,
@@ -37,7 +38,8 @@ export const getManagedJob = async (req, res) => {
         admin ? [userId, id] : [userId, id, companyId]);
         // Same response for unknown IDs and records outside the current tenant.
         if (!job) return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy tin trong phạm vi quản lý' });
-        return res.json({ errCode: 0, data: job });
+        const { detailPostId, ...data } = job;
+        return res.json({ errCode: 0, data: { ...data, editRevision: jobRevision(job) } });
     } catch (error) {
         logger.error('doc tin quan ly that bai', { error: error.message, postId: id });
         return res.status(500).json({ errCode: -1, errMessage: 'Không đọc được thông tin tin tuyển dụng' });

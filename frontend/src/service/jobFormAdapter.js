@@ -12,6 +12,7 @@ export const JOB_CLASSIFICATIONS = Object.freeze([
 ].map(Object.freeze));
 const own = (object, field) => Object.prototype.hasOwnProperty.call(object, field);
 const strings = ['name', 'descriptionHTML', 'descriptionMarkdown'];
+export const isJobRevision = value => typeof value === 'string' && /^jv1-[a-f0-9]{64}$/.test(value);
 
 export const jobDeadlineDate = value => {
     if (!['string', 'number'].includes(typeof value) || !/^[1-9][0-9]*$/.test(String(value))) return null;
@@ -40,7 +41,8 @@ export const jobToForm = job => {
         })),
         amount: detail.amount == null ? '' : String(detail.amount),
         timeEnd: job.timeEnd ?? '', id: job.id, isHot: hotFlag(job.isHot),
-        statusCode: job.statusCode ?? job.statusPostData?.code ?? null, isActionADD: false
+        statusCode: job.statusCode ?? job.statusPostData?.code ?? null, isActionADD: false,
+        editRevision: isJobRevision(job.editRevision) ? job.editRevision : null
     };
 };
 
@@ -90,7 +92,8 @@ export const buildJobCreate = (form, deadline = form.timeEnd) => {
 };
 
 // Diff against the loaded form, not the latest server data. No change -> null,
-// so callers skip PUT. This reduces full-form overwrites, but is NOT If-Match.
+// so callers skip PUT. The server checks the body precondition under locks;
+// never refresh it automatically to force a stale form through.
 export const buildJobUpdate = (form, initial) => {
     if (!initial || !['string', 'number'].includes(typeof initial.id) || !/^[1-9][0-9]*$/.test(String(initial.id))
         || !Number.isSafeInteger(Number(initial.id)) || String(form.id) !== String(initial.id)) throw new Error('Cần tải lại tin trước khi sửa');
@@ -100,5 +103,8 @@ export const buildJobUpdate = (form, initial) => {
     const next = formDetail(form), previous = formDetail(initial);
     const changes = Object.entries(next).filter(([field, value]) => field === 'amount'
         ? String(value) !== String(previous[field]) : value !== previous[field]);
-    return changes.length ? Object.freeze(Object.fromEntries(changes.map(([field, value]) => [field, validateField(field, value)]))) : null;
+    if (!changes.length) return null;
+    if (!isJobRevision(initial.editRevision)) throw new Error('Cần tải lại phiên bản tin trước khi sửa');
+    return Object.freeze({ ...Object.fromEntries(changes.map(([field, value]) => [field, validateField(field, value)])),
+        expectedRevision: initial.editRevision });
 };

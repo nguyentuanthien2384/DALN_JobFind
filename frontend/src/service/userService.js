@@ -191,8 +191,9 @@ const reupPostService = (data) => {
     return axios.post(`/api/create-reup-post`, data)
 
 }
-const updatePostService = (data) => {
-    return axios.put(`/api/update-post`, data)
+const updatePostService = (data, options) => {
+    return options ? axios.put(`/api/update-post`, data, { timeout: 15000, ...(options.signal && { signal: options.signal }) })
+        : axios.put(`/api/update-post`, data)
 
 }
 const activePostService = (data) => {

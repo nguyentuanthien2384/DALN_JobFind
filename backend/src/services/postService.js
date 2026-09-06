@@ -1,6 +1,7 @@
 import db from "../models/index";
 import { PostingQuotaError, normalizePostHot, lockPostingCompany, consumeLockedPostingQuota } from '../utils/postingQuota';
 import { updateLegacyPost } from '../utils/jobEdit';
+import { jobRevision } from '../utils/jobRevision';
 const { Op } = require("sequelize");
 require('dotenv').config();
 var nodemailer = require('nodemailer');
@@ -518,6 +519,7 @@ let getDetailPostById = (id, { includeNonPublic = false } = {}) => {
                     ]
                 })
                 if (post) {
+                    post.editRevision = jobRevision(post, post.postDetailData || {});
                     let user = await db.User.findOne({
                         where: { id: post.userId },
                         attributes: PUBLIC_USER_ATTRIBUTES

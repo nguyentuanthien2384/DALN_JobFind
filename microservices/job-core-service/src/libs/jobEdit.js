@@ -1,4 +1,5 @@
 import { assertTransactionalPostingTables } from './postingQuota.js';
+import { isJobRevision, jobRevision } from '../../../shared/jobRevision.js';
 
 export const DETAIL_FIELDS = Object.freeze([
     'name', 'descriptionHTML', 'descriptionMarkdown', 'categoryJobCode', 'addressCode',
@@ -8,6 +9,18 @@ export const DETAIL_FIELDS = Object.freeze([
 export class JobEditError extends Error {
     constructor(message, statusCode = 409) { super(message); this.statusCode = statusCode; }
 }
+
+// Optional only for old API clients. New editors must always send a revision.
+// Check after post + detail locks and BEFORE no-op detection or any mutation.
+export const assertJobRevision = (post, detail, patch) => {
+    if (!Object.hasOwn(patch, 'expectedRevision')) return;
+    if (!isJobRevision(patch.expectedRevision)) throw new JobEditError('Mã phiên bản tin không hợp lệ', 400);
+    if (patch.expectedRevision !== jobRevision(post, detail)) {
+        const error = new JobEditError('Tin đã thay đổi từ khi bạn mở biểu mẫu. Vui lòng tải lại trước khi lưu');
+        error.conflict = true;
+        throw error;
+    }
+};
 
 // Current locking reads, in the same user -> company -> post order as posting.
 // The preliminary snapshot is ONLY a hint for which author row to lock.

@@ -4,6 +4,8 @@ Phạm vi: một máy phát triển, chỉ công bố cổng trên `127.0.0.1`. 
 
 ## Thay đổi tương thích cần biết
 
+- Đợt 2e: cập nhật các backend legacy/Job Core có kiểm tra `expectedRevision` trước frontend. AddPost mới khóa Lưu nếu phản hồi đọc thiếu `editRevision`, giữ draft khi 409/timeout và chỉ bỏ bản nháp khi xác nhận tải lại. Không trộn writer cũ bỏ qua precondition; server còn cho phép client không gửi mã để tương thích nên các client đó chưa được bảo vệ. Không thêm schema; chưa rollout vào tiến trình/container thật. Khi rollback backend, rollback/dừng giao diện sửa tương ứng, không bỏ precondition để ép lưu. Xem `client-sync.md` đợt 2e; 88 nhóm tích hợp dùng MySQL riêng, không fixture sửa dữ liệu thật.
+
 - Backend đăng nhập, Gateway và Socket.IO dùng cùng `JWT_SECRET`, `JWT_ISSUER=jobfind-auth`, `JWT_AUDIENCE=jobfind-api`, `JWT_ACCESS_TTL_SECONDS=900`. Có thể cấu hình tuổi token từ 60 đến 3600 giây, nhưng phải giống nhau ở backend và Gateway.
 - Token cũ thiếu audience/khác issuer không còn dùng được. Cập nhật backend và Gateway trong cùng đợt rồi **đăng nhập lại**. Chưa có cơ chế refresh token; hết phiên cần đăng nhập lại. Không bật chế độ chấp nhận token cũ để bỏ qua kiểm tra.
 - Frontend mới xử lý lỗi phiên của cả Gateway/legacy, phân biệt thiếu quyền với gián đoạn và hỗ trợ dừng chờ AI. Cập nhật backend để bỏ cờ logout trên lỗi ADMIN thiếu quyền trước khi phục vụ frontend mới; xem `client-sync.md`. Đợt này không tự chuyển API đăng tin sang Job Core hoặc bổ sung refresh token.

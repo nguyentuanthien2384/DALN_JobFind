@@ -16,6 +16,7 @@ jest.mock('../../src/models/index', () => mockDb);
 jest.mock('nodemailer', () => ({ createTransport: jest.fn(() => ({ sendMail: mockSendMail })) }));
 
 const service = require('../../src/services/postService');
+const { jobRevision } = require('../../src/utils/jobRevision');
 
 const reset = () => {
   for (const item of Object.values(mockDb)) {
@@ -39,6 +40,35 @@ const validPost = (extra = {}) => ({
 });
 
 describe('postService', () => {
+  test('legacy detail read returns the revision of the same joined content used by the update writer', async () => {
+    const post = { id: 10, userId: 7, statusCode: 'PS1', timeEnd: '1700000000000', isHot: 0,
+      postDetailData: { ...validPost(), id: 20 } };
+    mockDb.Post.findOne.mockResolvedValue(post);
+    mockDb.User.findOne.mockResolvedValue({ id: 7, companyId: 4 });
+    mockDb.Company.findOne.mockResolvedValue({ id: 4, statusCode: 'S1', censorCode: 'CS1' });
+    const result = await service.getDetailPostById(10, { includeNonPublic: true });
+    expect(result.data.editRevision).toBe(jobRevision({ ...post, detailPostId: 20 }, post.postDetailData));
+    expect(result.data.editRevision).toMatch(/^jv1-[a-f0-9]{64}$/);
+    expect(mockDb.Post.findOne).toHaveBeenCalledTimes(1);
+  });
+  test('checks a supplied revision under detail lock before no-op detection or writes', async () => {
+    const post = { id: 10, detailPostId: 20, userId: 7, statusCode: 'PS1', timeEnd: validPost().timeEnd, isHot: 0, save: jest.fn() };
+    const detail = { ...validPost(), id: 20 };
+    mockDb.User.findAll.mockResolvedValue([{ id: 7, companyId: 4 }]);
+    mockDb.Company.findOne.mockResolvedValue({ statusCode: 'S1', censorCode: 'CS1' });
+    mockDb.Post.findOne.mockResolvedValue(post); mockDb.DetailPost.findOne.mockResolvedValue(detail);
+    const expectedRevision = jobRevision(post, detail);
+    expect(await service.handleUpdatePost(validPost({ expectedRevision }))).toMatchObject({ errCode: 0, changed: false, editRevision: expectedRevision });
+    expect(await service.handleUpdatePost(validPost({ expectedRevision: 'jv1-' + '0'.repeat(64) })))
+      .toMatchObject({ errCode: 4, conflict: true });
+    expect(mockDb.DetailPost.findOne).toHaveBeenCalledWith(expect.objectContaining({ transaction: mockTransaction, lock: 'UPDATE' }));
+    expect(mockDb.DetailPost.create).not.toHaveBeenCalled(); expect(post.save).not.toHaveBeenCalled();
+  });
+
+  test.each([null, '', {}, 'jv2-' + 'a'.repeat(64)])('rejects malformed legacy revision %j before starting a transaction', async expectedRevision => {
+    expect((await service.handleUpdatePost(validPost({ expectedRevision }))).errCode).toBe(1);
+    expect(mockDb.sequelize.transaction).not.toHaveBeenCalled();
+  });
   beforeAll(() => jest.spyOn(console, 'log').mockImplementation(() => {}));
   afterAll(() => console.log.mockRestore());
   beforeEach(reset);

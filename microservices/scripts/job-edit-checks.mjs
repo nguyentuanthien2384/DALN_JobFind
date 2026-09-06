@@ -46,7 +46,9 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
         assert.equal(result.body.data.genderPostCode, 'G2');
         assert.equal(result.body.data.userId, 8);
         const [[event]] = await pool.query("SELECT payload FROM outbox_events WHERE aggregateId = ? AND eventType = 'job.updated'", [String(id)]);
-        assert.deepEqual(JSON.parse(event.payload).job, result.body.data);
+        const { editRevision, ...eventJob } = result.body.data;
+        assert.match(editRevision, /^jv1-[a-f0-9]{64}$/);
+        assert.deepEqual(JSON.parse(event.payload).job, eventJob);
         assert.deepEqual(await delta(before), [0, 1, 2, 0]);
         assert.deepEqual(await balance(), quota);
     });

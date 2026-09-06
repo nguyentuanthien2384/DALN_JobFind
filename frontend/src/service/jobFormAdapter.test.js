@@ -4,10 +4,10 @@ import { JOB_CLASSIFICATIONS, jobToForm, jobDeadlineDate, jobClassificationOptio
 const flat = () => ({ id: 12, name: 'Developer', descriptionHTML: '<p>Work</p>', descriptionMarkdown: 'Work', amount: 2,
     categoryJobCode: 'IT', addressCode: 'HN', genderPostCode: null, salaryJobCode: null,
     categoryJoblevelCode: null, categoryWorktypeCode: null, experienceJobCode: null,
-    timeEnd: '1700000000000', statusCode: 'PS3', isHot: 1 });
+    timeEnd: '1700000000000', statusCode: 'PS3', isHot: 1, editRevision: 'jv1-' + 'a'.repeat(64) });
 const future = () => new Date(Date.now() + 86400000);
 test('maps flat and nested legacy records to exactly the same form without mutating either', () => {
-    const job = flat(), nested = { id: job.id, timeEnd: job.timeEnd, isHot: job.isHot, statusCode: job.statusCode,
+    const job = flat(), nested = { id: job.id, timeEnd: job.timeEnd, isHot: job.isHot, statusCode: job.statusCode, editRevision: job.editRevision,
         postDetailData: { name: job.name, descriptionHTML: job.descriptionHTML, descriptionMarkdown: job.descriptionMarkdown, amount: job.amount,
             ...Object.fromEntries(JOB_CLASSIFICATIONS.map(([, raw, association]) => [association, job[raw] ? { code: job[raw] } : null])) } };
     const before = JSON.stringify(nested);
@@ -64,8 +64,8 @@ test('only sends changed fields, handles explicit clear and skips no-op even for
     const initial = jobToForm(flat());
     expect(buildJobUpdate({ ...initial, amount: 2 }, initial)).toBeNull();
     expect(buildJobUpdate({ ...initial, descriptionMarkdown: '', addressCode: '', genderCode: 'G1' }, initial))
-        .toEqual({ descriptionMarkdown: '', addressCode: null, genderPostCode: 'G1' });
-    expect(buildJobUpdate({ ...initial, name: 'Changed', userId: 99, statusCode: 'PS1' }, initial)).toEqual({ name: 'Changed' });
+        .toEqual({ descriptionMarkdown: '', addressCode: null, genderPostCode: 'G1', expectedRevision: initial.editRevision });
+    expect(buildJobUpdate({ ...initial, name: 'Changed', userId: 99, statusCode: 'PS1' }, initial)).toEqual({ name: 'Changed', expectedRevision: initial.editRevision });
 });
 test.each([{ timeEnd: '2000000000000' }, { isHot: 0 }, { id: 13 }])('rejects paid-field or loaded-record mismatch %j', patch => {
     const initial = jobToForm(flat());
@@ -76,5 +76,13 @@ test('requires a valid loaded baseline and validates changed fields without rewr
     const initial = jobToForm(flat());
     expect(() => buildJobUpdate({ ...initial, amount: '0' }, initial)).toThrow();
     expect(() => buildJobCreate({ ...initial, name: 'x'.repeat(256) }, future())).toThrow();
-    expect(buildJobUpdate({ ...initial, name: ' Text ' }, initial)).toEqual({ name: ' Text ' });
+    expect(buildJobUpdate({ ...initial, name: ' Text ' }, initial)).toEqual({ name: ' Text ', expectedRevision: initial.editRevision });
+});
+
+test.each([undefined, null, '', 'jv1-' + 'A'.repeat(64), 'jv2-' + 'a'.repeat(64), {}])('blocks changed edits without a valid loaded revision: %j', editRevision => {
+    const initial = jobToForm({ ...flat(), editRevision });
+    expect(initial.editRevision).toBeNull();
+    expect(buildJobUpdate(initial, initial)).toBeNull();
+    expect(() => buildJobUpdate({ ...initial, name: 'Changed', editRevision: flat().editRevision }, initial)).toThrow('phiên bản');
+    expect(buildJobCreate(initial, future())).not.toHaveProperty('editRevision');
 });

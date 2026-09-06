@@ -71,7 +71,7 @@ let handleUpdatePost = async (req, res) => {
             const changedId = req.body.id ?? req.body.postId;
             if (changedId) emitJobUpdated(changedId);
         }
-        return res.status(200).json(data);
+        return res.status(data.conflict === true ? 409 : 200).json(data);
     } catch (error) {
         console.log(error)
         return res.status(200).json({

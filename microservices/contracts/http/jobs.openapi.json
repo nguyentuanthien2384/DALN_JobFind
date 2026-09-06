@@ -561,7 +561,7 @@
           "jobs"
         ],
         "summary": "PUT /jobs/:id",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission job:manage; resource ownership checks still apply. Non-admin callers must belong to an active, approved company.",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission job:manage; resource ownership checks still apply. Non-admin callers must belong to an active, approved company. New editors must submit expectedRevision from jobManageGet.editRevision. Server checks it under post/detail locks before writes and before no-op detection; mismatch returns 409 with conflict=true and no write/events. Success returns data.editRevision for the accepted state. Optional only for compatibility with old clients, which remain unprotected. This body precondition is not HTTP If-Match or an idempotency key; never retry by silently refreshing the revision.",
         "x-jobfind-permission": "job:manage",
         "x-jobfind-internal": false,
         "x-jobfind-company-required": true,
@@ -1242,7 +1242,7 @@
           "jobs"
         ],
         "summary": "GET /jobs/:id/manage",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission job:manage; resource ownership checks still apply. Non-admin callers must belong to an active, approved company. Private current job read, including PS1/PS2/PS3/PS4. Non-admin access is restricted to the current approved company, rechecked with the job in one database statement; out-of-scope and missing IDs both return 404. ADMIN may inspect other companies. Returns raw classification codes, not Allcode labels or AI internals. PS3 means awaiting review, not proof a worker is processing. Cache-Control: private, no-store. Does not change the public jobGet visibility policy.",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission job:manage; resource ownership checks still apply. Non-admin callers must belong to an active, approved company. Private current job read, including PS1/PS2/PS3/PS4. Non-admin access is restricted to the current approved company, rechecked with the job in one database statement; out-of-scope and missing IDs both return 404. ADMIN may inspect other companies. Returns raw classification codes and an opaque editRevision for guarded updates, not Allcode labels or AI internals. Missing/null revision means the client must not submit a guarded edit. PS3 means awaiting review, not proof a worker is processing. Cache-Control: private, no-store. Does not change the public jobGet visibility policy.",
         "x-jobfind-permission": "job:manage",
         "x-jobfind-internal": false,
         "x-jobfind-company-required": true,
@@ -2999,6 +2999,12 @@
                 "type": "null"
               }
             ]
+          },
+          "expectedRevision": {
+            "type": "string",
+            "pattern": "^jv1-[a-f0-9]{64}$",
+            "minLength": 68,
+            "maxLength": 68
           },
           "timeEnd": {
             "anyOf": [
@@ -4798,6 +4804,9 @@
             "type": "string",
             "maxLength": 128,
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "conflict": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -4996,6 +5005,19 @@
               {
                 "type": "string",
                 "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "editRevision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^jv1-[a-f0-9]{64}$",
+                "minLength": 68,
+                "maxLength": 68
               },
               {
                 "type": "null"
@@ -5493,6 +5515,19 @@
               {
                 "type": "string",
                 "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "editRevision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^jv1-[a-f0-9]{64}$",
+                "minLength": 68,
+                "maxLength": 68
               },
               {
                 "type": "null"

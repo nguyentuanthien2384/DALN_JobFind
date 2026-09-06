@@ -6,11 +6,16 @@ beforeAll(() => { Object.defineProperty(globalThis, 'crypto', { value: require('
 beforeEach(() => axios.post.mockReset().mockResolvedValue({ errCode: 0, data: { id: 12, statusCode: 'PS3' } }));
 beforeEach(() => { axios.get.mockReset(); axios.put.mockReset(); });
 
+test.each([undefined, null, '', {}, 'jv1-' + 'A'.repeat(64)])('refuses unguarded modern edit with revision %j before HTTP', async expectedRevision => {
+    await expect(updateJob(12, { name: 'Changed', expectedRevision })).rejects.toThrow('phiên bản');
+    expect(axios.put).not.toHaveBeenCalled();
+});
+
 test('reads current management state and sends explicit partial edits with bounded cancellable HTTP', async () => {
     const signal = new AbortController().signal;
     await getManagedJob(12, { signal });
     expect(axios.get).toHaveBeenCalledWith('/api/jobs/12/manage', { timeout: 15000, signal });
-    const patch = { genderPostCode: null, amount: 2 };
+    const patch = { genderPostCode: null, amount: 2, expectedRevision: 'jv1-' + 'a'.repeat(64) };
     await updateJob('12', patch, { signal });
     expect(axios.put).toHaveBeenCalledWith('/api/jobs/12', patch, { timeout: 15000, signal });
     expect(axios.post).not.toHaveBeenCalled();
@@ -28,7 +33,7 @@ test('does not retry failed management reads/edits or fall back to legacy', asyn
     axios.get.mockRejectedValueOnce(new Error('offline'));
     axios.put.mockRejectedValueOnce(new Error('offline'));
     await expect(getManagedJob(12)).rejects.toThrow('offline');
-    await expect(updateJob(12, { name: 'Changed' })).rejects.toThrow('offline');
+    await expect(updateJob(12, { name: 'Changed', expectedRevision: 'jv1-' + 'a'.repeat(64) })).rejects.toThrow('offline');
     expect(axios.get).toHaveBeenCalledTimes(1); expect(axios.put).toHaveBeenCalledTimes(1);
     expect(axios.post).not.toHaveBeenCalled();
 });

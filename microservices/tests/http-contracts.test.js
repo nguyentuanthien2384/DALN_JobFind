@@ -17,6 +17,7 @@ import * as jobClient from '../../frontend/src/service/jobPostingService.js';
 import { jobToForm, buildJobCreate, buildJobUpdate } from '../../frontend/src/service/jobFormAdapter.js';
 
 const cvId = '507f1f77bcf86cd799439011';
+const editRevision = 'jv1-' + 'a'.repeat(64);
 const bodyExamples = {
     JobRepost: { timeEnd: '2000000000000' },
     JobCreate: { name: 'Lập trình viên', descriptionHTML: '<p>Phát triển ứng dụng</p>', categoryJobCode: 'IT', amount: '2' },
@@ -83,7 +84,7 @@ afterAll(async () => {
 describe('real HTTP request contracts', () => {
     it.each([
         ['jobManageGet', jobClient.getManagedJob, [7]],
-        ['jobUpdate', jobClient.updateJob, [7, { genderPostCode: null, amount: 3 }]],
+        ['jobUpdate', jobClient.updateJob, [7, { genderPostCode: null, amount: 3, expectedRevision: editRevision }]],
         ['jobCreate', jobClient.createJob, [bodyExamples.JobCreate, { idempotencyKey: 'create-test' }]],
         ['jobRepost', jobClient.repostJob, [7, bodyExamples.JobRepost.timeEnd, { idempotencyKey: 'repost-test' }]],
         ['searchJobs', aiClient.searchJobs, [{ q: 'Node', limit: 12, offset: 0, isHot: false, categoryJobCode: 'IT' }]],
@@ -123,11 +124,11 @@ describe('real HTTP request contracts', () => {
     });
     it('accepts actual create/edit form adapters without UI, identity or unchanged fields', async () => {
         const initial = jobToForm({ id: 7, statusCode: 'PS3', name: 'Developer', descriptionHTML: '<p>Work</p>', amount: 2,
-            categoryJobCode: 'IT', genderPostCode: null, timeEnd: '1700000000000' });
+            categoryJobCode: 'IT', genderPostCode: null, timeEnd: '1700000000000', editRevision });
         const create = buildJobCreate(initial, new Date(Date.now() + 86400000));
         expect((await send('jobCreate', { body: create })).status).toBe(201);
         const patch = buildJobUpdate({ ...initial, name: 'Changed', genderCode: 'G1' }, initial);
-        expect(patch).toEqual({ name: 'Changed', genderPostCode: 'G1' });
+        expect(patch).toEqual({ name: 'Changed', genderPostCode: 'G1', expectedRevision: editRevision });
         expect((await send('jobUpdate', { body: patch })).status).toBe(200);
         expect(buildJobUpdate(initial, initial)).toBeNull();
     });
@@ -147,6 +148,8 @@ describe('real HTTP request contracts', () => {
         ['jobRepost', { body: { ...bodyExamples.JobRepost, statusCode: 'PS1' } }],
         ['jobRepost', { body: bodyExamples.JobRepost, headers: { 'idempotency-key': '' } }],
         ['jobUpdate', { body: { statusCode: 'PS1' } }], ['jobUpdate', { body: {} }],
+        ...[null, '', 'jv1-' + 'A'.repeat(64), 'jv2-' + 'a'.repeat(64), {}, [editRevision]]
+            .map(expectedRevision => ['jobUpdate', { body: { name: 'Changed', expectedRevision } }]),
         ['jobUpdate', { body: { isHot: 1 } }], ['jobUpdate', { body: { userId: 999 } }],
         ['jobUpdate', { body: { timeEnd: null } }], ['jobUpdate', { body: { timeEnd: '2027-01-01' } }],
         ['jobUpdate', { body: { timeEnd: -1 } }], ['jobUpdate', { body: { timeEnd: true } }],

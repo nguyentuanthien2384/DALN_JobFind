@@ -47,6 +47,17 @@ const cases = [
 ];
 
 describe('postController', () => {
+  test('returns HTTP 409 for a stale edit without emitting job or dashboard events', async () => {
+    mockCanAccessPostApplicants.mockResolvedValueOnce(true);
+    mockEmitJobUpdated.mockClear(); mockEmitDashboardChanged.mockClear();
+    const result = { errCode: 4, conflict: true, errMessage: 'Tin đã thay đổi' };
+    mockService.handleUpdatePost.mockResolvedValueOnce(result);
+    const res = createResponse();
+    await controller.handleUpdatePost(request(), res);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(result);
+    expect(mockEmitJobUpdated).not.toHaveBeenCalled(); expect(mockEmitDashboardChanged).not.toHaveBeenCalled();
+  });
   beforeAll(() => jest.spyOn(console, 'log').mockImplementation(() => {}));
   afterAll(() => console.log.mockRestore());
   beforeEach(() => {

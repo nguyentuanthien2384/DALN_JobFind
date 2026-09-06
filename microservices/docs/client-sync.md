@@ -167,9 +167,36 @@ Ngày 05-09-2026: 916 test microservices (53 file), 517 backend (30 suite), 763 
 
 Không gọi AI/SMTP/PayPal, không push/chạy workflow GitHub; chỉ dọn MySQL tạm có nhãn sở hữu của bài test. Image mới đã được dựng nhưng chưa rollout. Khi áp dụng theo từng bước: backend bổ sung mã gốc trước frontend; Job Core trước Gateway trước khi dùng helper mới. Không recreate DB/broker, xóa volume hoặc sửa Allcode lịch sử để “làm test qua”. Các điều kiện rollout/sao lưu ở đợt 2c và `local-compose.md` vẫn còn áp dụng.
 
+## Đợt 2e: phát hiện biểu mẫu cũ khi sửa tin
+
+Ngày 06-09-2026, đã bổ sung kiểm tra phiên bản cho backend legacy, Job Core và **nút Lưu đang dùng của AddPost**. Màn hình vẫn gọi API legacy; các helper modern được chuẩn bị nhưng chưa đổi luồng đăng mới/đăng lại/kiểm duyệt. Đợt này bổ sung bảo vệ form cũ còn thiếu tại mốc 2b/2d, không phải triển khai hết roadmap PDF.
+
+### Hợp đồng phiên bản và giao dịch
+
+- Đọc chi tiết legacy trả `editRevision` cùng bản ghi; đọc riêng tư modern trả `data.editRevision`. Client gửi lại giá trị đó trong body `expectedRevision` khi sửa. Backend legacy thành công trả `editRevision` ở cấp ngoài, Job Core trả `data.editRevision`; no-op giữ nguyên mã. Không lấy mã từ public projection Search hoặc snapshot phản hồi đăng mới có idempotency.
+- Định dạng `jv1-` + 64 ký tự SHA-256 chữ thường, băm theo thứ tự cố định: ID tin/chi tiết bất biến/tác giả, trạng thái, ngày hết hạn, loại tin và 11 trường chi tiết. Chuẩn hóa số/chuỗi từ driver nhưng phân biệt null và chuỗi rỗng. Hai bản module có kiểm thử buộc giống nhau; không dùng timestamp có độ chính xác thấp. Không thêm bảng/cột hoặc chạy migration.
+- Mã là dấu vân tay trạng thái, **không phải token phân quyền, số thứ tự sự kiện hay HTTP ETag/If-Match**. Quyền/tình trạng công ty vẫn kiểm tra lại trong transaction. So sánh dưới khóa tin và chi tiết, trước xác định no-op hoặc ghi dữ liệu. Mã cũ trả HTTP 409 với `conflict: true`; legacy dùng `errCode: 4`. Không tạo snapshot/event/AI, không trừ lượt hoặc thay tin khi xung đột. Lỗi quyền/tin đã gỡ vẫn có thể được từ chối trước phép so sánh.
+- Copy-on-write ở 2b làm mã thay đổi ngay cả khi nội dung A → B → A. Tuy nhiên đây không phải lịch sử đơn điệu của mọi mutation: trạng thái bị đổi rồi khôi phục nguyên trạng hoặc writer sửa trực tiếp rồi khôi phục cùng dòng chi tiết có thể trả cùng dấu vân tay. Chưa có hàng rào phiên bản cho thao tác duyệt/chặn/mở lại; đó là đợt tiếp theo.
+- `expectedRevision` **tùy chọn ở server chỉ để giữ tương thích API cũ**. Client không gửi vẫn không được bảo vệ khỏi lost update, và một writer cũ ghi sau vẫn có thể ghi đè. Mã đúng không giúp vượt quyền công ty. Bảo đảm “chỉ một người lưu” áp dụng khi các lệnh cùng xuất phát từ một phiên bản và đều gửi precondition hợp lệ; không tuyên bố mọi writer đã được chuyển.
+
+### Biểu mẫu và tình huống kết nối không chắc chắn
+
+- AddPost bắt buộc có phiên bản hợp lệ từ lần tải tin; thiếu mã thì hiện thông báo và khóa Lưu, không âm thầm gửi thiếu precondition. `buildJobUpdate` lấy mã từ baseline đã tải, không từ form đang sửa; `updateJob` modern cũng từ chối thiếu/sai mã trước HTTP. Payload tạo mới không mang mã chỉnh sửa.
+- Lưu legacy từ màn hình có timeout 15 giây, chặn bấm trùng khi đang chờ. Thành công dùng phiên bản phản hồi cho lần sửa tiếp, không tự GET rồi ghi lại. Phản hồi muộn sau khi đổi route/unmount bị bỏ qua.
+- HTTP 409, lỗi mạng/timeout/máy chủ, hoặc phản hồi thành công thiếu phiên bản: giữ draft trong bộ nhớ và khóa Lưu; không retry/fallback tự động. Nút **Tải lại tin** phải qua xác nhận bỏ phần chưa lưu; có thể chọn **Giữ biểu mẫu** để sao chép nội dung trước. Lỗi validation xác định giữ mã cũ để người dùng sửa dữ liệu và gửi lại.
+- Mất phản hồi sau commit không có nghĩa thao tác chưa lưu; retry bằng mã cũ nhận xung đột, GET dùng để đối chiếu. Đây không phải HTTP idempotency của PUT hoặc cơ chế tự merge. Draft không được lưu bền qua refresh/đăng xuất, không có trang so sánh lịch sử, không tự áp dụng bảo vệ này cho nút Đăng lại/kiểm duyệt legacy.
+
+### Kiểm chứng và thứ tự áp dụng
+
+950 test microservices (54 file), 524 backend (30 suite), 786 frontend (51 suite) qua: **2.260 test**. Production build frontend, image Docker local và bài thử image cách ly, HTTP/event contracts qua. Vẫn 50 thao tác HTTP (44 public/6 nội bộ), không thêm endpoint. Chưa nghiệm thu E2E trình duyệt trên stack thật.
+
+`npm run test:job-writes:integration` qua **88 nhóm**: 72 cũ + 16 nhóm phiên bản, gồm đồng thời core/core, core/legacy, legacy/core, legacy/legacy; quyền của đồng nghiệp/công ty khác; no-op/stale no-op; token sau chờ khóa; trạng thái kiểm duyệt thay đổi; A→B→A; rollback outbox; mất phản hồi sau commit và tương thích writer không gửi mã. Dùng MySQL tạm, HTTP và Sequelize thật, không gọi AI/SMTP/PayPal. Chỉ dọn container và dữ liệu tạm có nhãn sở hữu khớp.
+
+Đã dựng image nhưng **chưa thay container đang chạy, backend đang phục vụ hoặc schema/dữ liệu thật; chưa push/chạy workflow GitHub**. Trước áp dụng, giữ snapshot copy-on-write 2b và kiểm tra các điều kiện sao lưu/schema ở 2c. Cập nhật toàn bộ backend legacy/Job Core phục vụ sửa tin trước frontend, cập nhật Gateway cùng hợp đồng nếu sử dụng helper modern. Không trộn writer cũ bỏ qua `expectedRevision` với client được coi là đã bảo vệ. Khi rollback backend cũ, dừng giao diện sửa mới hoặc rollback đồng bộ; không “sửa” bằng bỏ precondition. Không recreate DB/broker, xóa volume hoặc khởi tạo lại bảng tin.
+
 ## Thứ tự các đợt còn lại
 
-1. Tiếp tục xử lý xung đột khi nhiều người sửa cùng tin và đồng bộ luồng kiểm duyệt trước khi chuyển từng màn hình. Hạn mức đã xử lý ở 2a; sửa độc lập/ngày hết hạn ở 2b; API đăng lại và idempotency modern ở 2c; adapter biểu mẫu/Allcode và đọc quản lý ở 2d. Còn vòng đời UI giữ payload/key, xử lý phản hồi đăng thành công, danh sách/note/duyệt legacy và nghiệm thu quyền. Không chỉ đổi `/api/create-new-post` thành `/api/jobs`.
+1. Đồng bộ luồng kiểm duyệt legacy với Job Core trước khi chuyển từng màn hình: duyệt/chặn/mở lại phải thao tác trên đúng nội dung và không đua với kết quả AI hoặc lệnh sửa. Hạn mức ở 2a; snapshot/ngày hết hạn ở 2b; API đăng lại/idempotency modern ở 2c; adapter/đọc quản lý ở 2d; precondition cho lệnh sửa và AddPost ở 2e. Còn vòng đời UI giữ payload/key, phản hồi đăng thành công, danh sách/note, chuyển các client không gửi revision và nghiệm thu quyền. Không chỉ đổi `/api/create-new-post` thành `/api/jobs`.
 2. Hoàn thiện outbox cho publisher legacy và kế hoạch chuyển quyền sở hữu luồng ghi. Schema event đúng không tự bảo đảm gửi không mất; không phát hai event độc lập cho cùng một thao tác để “đồng bộ”.
 3. Nối màn hình AI/CV và chuyển luồng tìm kiếm/đăng tin theo từng màn hình khi phía server đủ nghiệp vụ. Hiện màn hình Kanban/báo cáo và gợi ý tìm kiếm đã có gọi microservice; danh sách tìm kiếm chính/đăng tin vẫn còn API legacy. Không coi helper API đã có là giao diện tính năng đã hoàn tất.
 4. Nghiệm thu các vai trò trên stack mới, hạn mức và thao tác lặp, token hết hạn, dịch vụ gián đoạn/phục hồi, dữ liệu cập nhật chậm giữa dịch vụ. Các mục kiến trúc/vận hành khác của PDF tiếp tục theo `implementation-progress.md`.

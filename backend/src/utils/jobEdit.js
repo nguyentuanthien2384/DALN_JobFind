@@ -1,5 +1,6 @@
 import db from '../models/index';
 import { assertTransactionalPostingTables, PostingQuotaError } from './postingQuota';
+import { isJobRevision, jobRevision } from './jobRevision';
 
 const fields = [
     'name', 'descriptionHTML', 'descriptionMarkdown', 'categoryJobCode', 'addressCode',
@@ -9,6 +10,9 @@ const fields = [
 // Called only after controller authorization. The second argument is trusted
 // req.user metadata, never roleCode/companyId copied from the submitted body.
 export const updateLegacyPost = async (data, identity = {}) => {
+    if (Object.prototype.hasOwnProperty.call(data, 'expectedRevision') && !isJobRevision(data.expectedRevision)) {
+        return { errCode: 1, errMessage: 'Mã phiên bản tin không hợp lệ' };
+    }
     const initial = await db.Post.findOne({ where: { id: data.id }, attributes: ['id', 'userId'], raw: true });
     if (!initial) return { errCode: 2, errMessage: 'Bài đăng không tồn tại !' };
     try {
@@ -34,14 +38,17 @@ export const updateLegacyPost = async (data, identity = {}) => {
             const post = await db.Post.findOne({ where: { id: data.id }, transaction, lock: transaction.LOCK.UPDATE, raw: false });
             if (!post || post.statusCode === 'PS4') throw new PostingQuotaError('Tin đã được gỡ hoặc không còn tồn tại');
             if (post.userId !== initial.userId) throw new PostingQuotaError('Người đăng tin đã thay đổi, vui lòng tải lại trang');
+            const current = await db.DetailPost.findOne({ where: { id: post.detailPostId }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
+            if (!current) throw new PostingQuotaError('Không tìm thấy nội dung tin, vui lòng tải lại trang');
+            if (data.expectedRevision !== undefined && data.expectedRevision !== jobRevision(post, current)) {
+                return { errCode: 4, conflict: true, errMessage: 'Tin đã thay đổi từ khi bạn mở biểu mẫu. Vui lòng tải lại trước khi lưu' };
+            }
             if (String(data.timeEnd) !== String(post.timeEnd)) {
                 throw new PostingQuotaError('Không thể đổi ngày hết hạn khi sửa tin; vui lòng dùng chức năng Đăng lại');
             }
-            const current = await db.DetailPost.findOne({ where: { id: post.detailPostId }, transaction, lock: transaction.LOCK.UPDATE, raw: true });
-            if (!current) throw new PostingQuotaError('Không tìm thấy nội dung tin, vui lòng tải lại trang');
             const next = Object.fromEntries(fields.map(field => [field, field === 'amount' ? Number(data[field]) : data[field]]));
             if (fields.every(field => next[field] === current[field])) {
-                return { errCode: 0, errMessage: 'Nội dung tin không thay đổi', changed: false };
+                return { errCode: 0, errMessage: 'Nội dung tin không thay đổi', changed: false, editRevision: jobRevision(post, current) };
             }
             // A new snapshot even when apparently unshared: re-posting may start
             // concurrently. Never modify a sibling's content or transfer authorship.
@@ -49,7 +56,8 @@ export const updateLegacyPost = async (data, identity = {}) => {
             post.detailPostId = detail.id;
             post.statusCode = 'PS3'; // Preserve the legacy manual review policy.
             await post.save({ transaction, fields: ['detailPostId', 'statusCode', 'updatedAt'] });
-            return { errCode: 0, errMessage: 'Đã chỉnh sửa bài viết thành công hãy chờ quản trị viên duyệt', changed: true };
+            return { errCode: 0, errMessage: 'Đã chỉnh sửa bài viết thành công hãy chờ quản trị viên duyệt', changed: true,
+                editRevision: jobRevision(post, next) };
         });
     } catch (error) {
         if (error instanceof PostingQuotaError) return { errCode: 2, errMessage: error.message };

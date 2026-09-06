@@ -387,7 +387,9 @@ try {
     await runJobRequestChecks({ pool, check, core, repost, edit, counts, balance, waitForRowWait });
     const { runJobManagementChecks } = await import('./job-management-checks.mjs');
     await runJobManagementChecks({ pool, check, core, managed, edit, counts, balance });
-    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private management reads); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
+    const { runJobConcurrencyChecks } = await import('./job-concurrency-checks.mjs');
+    await runJobConcurrencyChecks({ pool, check, core, managed, edit, legacy, counts, balance, waitForRowWait });
+    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private reads + edit concurrency); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
     const closed = await Promise.allSettled([

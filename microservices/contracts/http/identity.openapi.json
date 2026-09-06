@@ -1822,6 +1822,12 @@
               }
             ]
           },
+          "expectedRevision": {
+            "type": "string",
+            "pattern": "^jv1-[a-f0-9]{64}$",
+            "minLength": 68,
+            "maxLength": 68
+          },
           "timeEnd": {
             "anyOf": [
               {
@@ -3620,6 +3626,9 @@
             "type": "string",
             "maxLength": 128,
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "conflict": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -3818,6 +3827,19 @@
               {
                 "type": "string",
                 "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "editRevision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^jv1-[a-f0-9]{64}$",
+                "minLength": 68,
+                "maxLength": 68
               },
               {
                 "type": "null"
@@ -4315,6 +4337,19 @@
               {
                 "type": "string",
                 "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "editRevision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^jv1-[a-f0-9]{64}$",
+                "minLength": 68,
+                "maxLength": 68
               },
               {
                 "type": "null"

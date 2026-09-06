@@ -10,6 +10,7 @@ export const id = { anyOf: [integer(1), idString] };
 export const mongoId = { type: 'string', pattern: '^[a-fA-F0-9]{24}$' };
 export const eventId = { ...text(128), pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$' };
 export const requestKey = { ...text(128), pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' };
+export const editRevision = { type: 'string', pattern: '^jv1-[a-f0-9]{64}$', minLength: 68, maxLength: 68 };
 export const taskId = { ...eventId, maxLength: 64 };
 export const date = { anyOf: [{ type: 'string', format: 'date' }, { type: 'string', format: 'date-time' }] };
 export const stage = { type: 'string', enum: ['moi_ung_tuyen', 'dang_xem_xet', 'phong_van', 'de_nghi', 'nhan_viec', 'tu_choi'] };
@@ -46,6 +47,7 @@ export const schemas = {
     // Deadline may be resent unchanged by the editor; changing it is a business
     // conflict (use re-posting). isHot/userId/statusCode remain server-controlled.
     JobUpdate: { ...object({ ...jobFields, genderPostCode: optionalText(64),
+        expectedRevision: editRevision,
         timeEnd: { anyOf: [integer(1, 8640000000000000), { type: 'string', pattern: '^[1-9][0-9]{0,15}$', format: 'jobfind-id' }] }
     }), minProperties: 1 },
     ParseResume: object({ fileBase64: nonblank(8 * 1024 * 1024), fileName: optionalText(255) }, ['fileBase64']),
@@ -79,14 +81,14 @@ export const schemas = {
         targetId: eventId, correlationId: requestKey, eventId, fromDate: date, toDate: date, limit: queryNumber(200), offset: queryNumber(1000000)
     }),
     RangeQuery: object({ fromDate: date, toDate: date }),
-    Error: object({ errCode: { type: 'integer' }, errMessage: text(1000), requestId: requestKey }, ['errCode'], true),
+    Error: object({ errCode: { type: 'integer' }, errMessage: text(1000), requestId: requestKey, conflict: { type: 'boolean' } }, ['errCode'], true),
     Ack: object({ errCode: { const: 0 }, errMessage: text(1000) }, ['errCode'], true),
     AcceptedTask: object({ errCode: { const: 0 }, taskId, errMessage: text(1000) }, ['errCode', 'taskId']),
     Task: object({ id: taskId, type: { type: 'string', enum: ['parse_resume', 'match_cv', 'cover_letter'] },
         status: { type: 'string', enum: ['pending', 'done', 'failed'] }, result: {}, error: optionalText(20000), createdAt: date, updatedAt: date
     }, ['id', 'type', 'status', 'result', 'error', 'createdAt', 'updatedAt']),
     Job: object({ id, name: text(255), descriptionHTML: text(200000), statusCode: { type: 'string', enum: ['PS1', 'PS2', 'PS3', 'PS4'] },
-        userId: nullable(id), companyId: nullable(id), companyName: optionalText(255) }, ['id', 'name', 'statusCode'], true),
+        userId: nullable(id), companyId: nullable(id), companyName: optionalText(255), editRevision: nullable(editRevision) }, ['id', 'name', 'statusCode'], true),
     Cv: object({ ...cvFields, _id: mongoId, createdAt: date, updatedAt: date }, ['_id'], true),
     Profile: object({ legacyUserId: id, roleCode: text(32), companyId: nullable(id), cvs: { type: 'array', items: { $ref: '#/$defs/Cv' } } }, ['legacyUserId'], true),
     Application: object({ id, job_id: id, candidate_id: id, company_id: id, stage, rating: nullable(integer(1, 5)) }, ['id', 'stage'], true),

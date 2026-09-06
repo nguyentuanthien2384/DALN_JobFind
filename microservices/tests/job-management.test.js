@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
 import { getManagedJob } from '../job-core-service/src/controllers/jobManagementController.js';
+import { jobRevision } from '../shared/jobRevision.js';
 const mocks = vi.hoisted(() => ({ query: vi.fn() }));
 vi.mock('../job-core-service/src/libs/db.js', () => ({ pool: { query: mocks.query } }));
 const request = (headers = {}, id = '12') => makeReq({ params: { id }, headers: {
@@ -9,11 +10,13 @@ const request = (headers = {}, id = '12') => makeReq({ params: { id }, headers: 
 beforeEach(() => mocks.query.mockReset());
 
 it.each(['PS1', 'PS2', 'PS3', 'PS4'])('reads managed %s jobs with tenant/content in one query and no writes', async statusCode => {
-    const job = { id: 12, name: 'Private job', statusCode };
+    const job = { id: 12, detailPostId: 21, name: 'Private job', statusCode };
     mocks.query.mockResolvedValueOnce([[job]]);
     const res = makeRes();
     await getManagedJob(request(), res);
-    expect(res.body).toEqual({ errCode: 0, data: job });
+    const { detailPostId, ...publicFields } = job;
+    expect(res.body).toEqual({ errCode: 0, data: { ...publicFields, editRevision: jobRevision(job) } });
+    expect(res.body.data).not.toHaveProperty('detailPostId');
     expect(res.headers['Cache-Control']).toBe('private, no-store');
     expect(mocks.query).toHaveBeenCalledOnce();
     const [sql, params] = mocks.query.mock.calls[0];

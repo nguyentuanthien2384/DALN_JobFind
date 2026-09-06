@@ -31,6 +31,8 @@ Tên audit `name` là tìm kiếm chuỗi literal không phân biệt hoa/thư�
 
 ## Phân quyền và lỗi
 
+Đợt 2e: `JobUpdate.expectedRevision` nhận mã `jv1-` + 64 hex thường từ lần đọc quản lý (`data.editRevision`). Mismatch dưới khóa trả 409/`conflict: true`, trước no-op hoặc ghi; thành công trả phiên bản mới trong `data.editRevision`, no-op giữ nguyên. Schema có khai báo mã ở `Job`/`ManagedJob`, cho phép thiếu/null để mô tả phiên bản server cũ; editor mới phải chặn lưu nếu không có mã hợp lệ. Precondition ở body, không HTTP If-Match/ETag, không idempotency/merge. Trường gửi tùy chọn chỉ cho tương thích server với client cũ không được bảo vệ. Xem đợt 2e trong `client-sync.md` về hai writer và không tự refresh mã rồi retry. API tạo/đăng lại và event không được bổ sung mã này vào snapshot đã chấp nhận.
+
 Client dùng JWT Bearer qua Gateway. Gateway xác thực tài khoản hiện tại, xóa header danh tính do client giả mạo rồi đặt lại. Service yêu cầu `x-internal-secret`; route có quyền tiếp tục kiểm tra vai trò và công ty đang hoạt động/đã duyệt trước schema validation. Kiểm tra quyền sở hữu bản ghi trong controller vẫn giữ nguyên. Body parser có thể từ chối dữ liệu hỏng/quá lớn trước lớp quyền; schema validation không thay thế xác thực.
 
 OpenAPI nội bộ ghi các header danh tính để mô tả giao tiếp giữa các service, không phải hướng dẫn cho frontend gửi các header đó. Không đưa secret thật vào tài liệu/example.

@@ -1,5 +1,6 @@
 /* global globalThis */
 import axios from '../axios';
+import { isJobRevision } from './jobFormAdapter';
 
 // Prepare once BEFORE sending, retain with an immutable payload for every retry.
 // No automatic POST retries and no fallback to the non-idempotent legacy writer.
@@ -38,6 +39,7 @@ export const updateJob = (id, patch, options = {}) => {
     if (!patch || typeof patch !== 'object' || Array.isArray(patch) || !Object.keys(patch).length) {
         return Promise.reject(new Error('Không có thay đổi để gửi'));
     }
+    if (!isJobRevision(patch.expectedRevision)) return Promise.reject(new Error('Cần tải lại phiên bản tin trước khi sửa'));
     return axios.put(`/api/jobs/${id}`, patch, { timeout: 15000, ...(options.signal && { signal: options.signal }) });
 };
 export const repostJob = (sourceId, timeEnd, options) => {

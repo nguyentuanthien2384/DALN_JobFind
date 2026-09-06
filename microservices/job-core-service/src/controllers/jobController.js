@@ -5,7 +5,8 @@ import { enqueueOutboxEvent } from '../libs/outbox.js';
 import { requestJobModeration, cancelJobModeration } from '../libs/moderationState.js';
 import { consumePostingQuota, consumeLockedPostingQuota, PostingQuotaError } from '../libs/postingQuota.js';
 import { runJobRequest, normalizeJobCreate, futureJobDeadline, JobRequestError } from '../libs/jobRequest.js';
-import { DETAIL_FIELDS, JobEditError, lockJobForEdit, assertUnchangedDeadline, editedDetail } from '../libs/jobEdit.js';
+import { DETAIL_FIELDS, JobEditError, lockJobForEdit, assertUnchangedDeadline, editedDetail, assertJobRevision } from '../libs/jobEdit.js';
+import { jobRevision } from '../../../shared/jobRevision.js';
 
 const logger = createLogger('job-core-service');
 
@@ -149,9 +150,10 @@ export const updateJob = async (req, res) => {
 
         const job = await withTransaction(async (conn) => {
             const post = await lockJobForEdit(conn, existing, { userId, roleCode, companyId });
-            assertUnchangedDeadline(post, b);
             const [[currentDetail]] = await conn.query('SELECT * FROM detailposts WHERE id = ? FOR UPDATE', [post.detailPostId]);
             if (!currentDetail) throw new JobEditError('Không tìm thấy nội dung tin, vui lòng tải lại trang');
+            assertJobRevision(post, currentDetail, b);
+            assertUnchangedDeadline(post, b);
             const { detail, changed, needsModeration } = editedDetail(currentDetail, b);
             // Repeatable-read may retain a snapshot from before waiting on the
             // author/company lock. Responses and events must use a current read,
@@ -159,7 +161,7 @@ export const updateJob = async (req, res) => {
             if (!changed) {
                 const unchangedJob = await loadJobForEvent(postId, conn, { current: true });
                 if (!unchangedJob) throw new Error('Không đọc được tin hiện tại');
-                return unchangedJob;
+                return { ...unchangedJob, editRevision: jobRevision(post, currentDetail) };
             }
 
             // Always copy on a real detail edit. A check-then-update of an
@@ -184,14 +186,16 @@ export const updateJob = async (req, res) => {
 
             if (needsModeration) await requestJobModeration(conn, updatedJob);
 
-            return updatedJob;
+            return { ...updatedJob, editRevision: jobRevision({ ...post, detailPostId: inserted.insertId,
+                statusCode: needsModeration ? 'PS3' : post.statusCode }, detail) };
         });
 
         logger.info('da cap nhat tin', { postId, userId });
         return res.json({ errCode: 0, data: job });
     } catch (error) {
         if (error instanceof JobEditError || error instanceof PostingQuotaError) {
-            return res.status(error.statusCode).json({ errCode: error.statusCode === 403 ? 3 : 4, errMessage: error.message });
+            return res.status(error.statusCode).json({ errCode: error.statusCode === 403 ? 3 : 4, errMessage: error.message,
+                ...(error.conflict && { conflict: true }) });
         }
         logger.error('cap nhat tin that bai', { error: error.message, postId });
         return res.status(500).json({ errCode: -1, errMessage: 'Không cập nhật được tin' });

@@ -1,5 +1,5 @@
 import React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { toast } from "react-toastify";
 import DatePicker from "react-datepicker";
 import {
@@ -15,7 +15,7 @@ import "react-markdown-editor-lite/lib/index.css";
 import { useFetchAllcode } from "../../../util/fetch";
 import { useNavigate, useParams } from "react-router-dom";
 import { Spinner, Modal } from "reactstrap";
-import { jobToForm, jobDeadlineDate, jobClassificationOptions, jobStatusLabel } from "../../../service/jobFormAdapter";
+import { jobToForm, jobDeadlineDate, jobClassificationOptions, jobStatusLabel, isJobRevision } from "../../../service/jobFormAdapter";
 import "../../../components/modal/modal.css";
 import ReupPostModal from "../../../components/modal/ReupPostModal";
 const emptyPostForm = () => ({
@@ -62,10 +62,20 @@ const AddPost = () => {
     }, []);
 
     const [loadError, setLoadError] = useState('');
+    const [editWarning, setEditWarning] = useState('');
+    const [confirmReload, setConfirmReload] = useState(false);
+    const [reloadVersion, setReloadVersion] = useState(0);
+    const editAttempt = useRef(null);
+    const viewEpoch = useRef(0);
     const readyToEdit = !id || (!inputValues.isActionADD && String(inputValues.id) === String(id));
     const validDeadline = jobDeadlineDate(inputValues.timeEnd);
     useEffect(() => {
         let active = true;
+        viewEpoch.current += 1;
+        editAttempt.current = null;
+        setIsLoading(false);
+        setEditWarning('');
+        setConfirmReload(false);
         let userData;
         try { userData = JSON.parse(localStorage.getItem("userData")) || {}; } catch { userData = {}; }
         setUser(userData);
@@ -95,8 +105,8 @@ const AddPost = () => {
             setInputValues(emptyPostForm());
             settimeEnd(new Date());
         }
-        return () => { active = false; };
-    }, [fetchCompany, id]);
+        return () => { active = false; viewEpoch.current += 1; };
+    }, [fetchCompany, id, reloadVersion]);
 
     const { data: dataGenderPost } = useFetchAllcode("GENDERPOST");
     const { data: dataJobType } = useFetchAllcode("JOBTYPE");
@@ -142,7 +152,8 @@ const AddPost = () => {
         setisChangeDate(true);
     };
     let handleSavePost = async () => {
-        if (!readyToEdit || isLoading || loadError || inputValues.statusCode === 'PS4') return;
+        if (!readyToEdit || isLoading || loadError || editWarning || editAttempt.current || inputValues.statusCode === 'PS4') return;
+        if (id && !isJobRevision(inputValues.editRevision)) return;
         if (id && !validDeadline) { toast.error('Ngày hết hạn đang lưu không hợp lệ; vui lòng liên hệ quản trị viên'); return; }
         setIsLoading(true);
         if (inputValues.isActionADD === true) {
@@ -194,33 +205,50 @@ const AddPost = () => {
                 }, 1000);
             }
         } else {
-            let res = await updatePostService({
-                name: inputValues.name,
-                descriptionHTML: inputValues.descriptionHTML,
-                descriptionMarkdown: inputValues.descriptionMarkdown,
-                categoryJobCode: inputValues.categoryJobCode,
-                addressCode: inputValues.addressCode,
-                salaryJobCode: inputValues.salaryJobCode,
-                amount: inputValues.amount,
-                timeEnd:
-                    isChangeDate === false
-                        ? inputValues.timeEnd
-                        : new Date(timeEnd).getTime(),
-                categoryJoblevelCode: inputValues.categoryJoblevelCode,
-                categoryWorktypeCode: inputValues.categoryWorktypeCode,
-                experienceJobCode: inputValues.experienceJobCode,
-                genderPostCode: inputValues.genderCode,
-                id: inputValues.id,
-                userId: user.id,
-            });
-            setTimeout(() => {
-                setIsLoading(false);
-                if (res && res.errCode === 0) {
-                    toast.success(res.errMessage);
+            const epoch = viewEpoch.current;
+            const attempt = {};
+            editAttempt.current = attempt;
+            try {
+                const res = await updatePostService({
+                    name: inputValues.name,
+                    descriptionHTML: inputValues.descriptionHTML,
+                    descriptionMarkdown: inputValues.descriptionMarkdown,
+                    categoryJobCode: inputValues.categoryJobCode,
+                    addressCode: inputValues.addressCode,
+                    salaryJobCode: inputValues.salaryJobCode,
+                    amount: inputValues.amount,
+                    timeEnd: isChangeDate === false ? inputValues.timeEnd : new Date(timeEnd).getTime(),
+                    categoryJoblevelCode: inputValues.categoryJoblevelCode,
+                    categoryWorktypeCode: inputValues.categoryWorktypeCode,
+                    experienceJobCode: inputValues.experienceJobCode,
+                    genderPostCode: inputValues.genderCode,
+                    id: inputValues.id,
+                    userId: user.id,
+                    expectedRevision: inputValues.editRevision,
+                }, {});
+                if (epoch !== viewEpoch.current) return;
+                if (res?.errCode === 0) {
+                    toast.success(res.errMessage || 'Đã lưu tin');
+                    if (isJobRevision(res.editRevision)) {
+                        setInputValues(current => ({ ...current, editRevision: res.editRevision,
+                            statusCode: res.changed === false ? current.statusCode : 'PS3' }));
+                    } else {
+                        setEditWarning('Tin đã lưu nhưng chưa nhận được phiên bản mới. Hãy tải lại trước khi sửa tiếp.');
+                    }
                 } else {
-                    toast.error(res.errMessage);
+                    toast.error(res?.errMessage || 'Không lưu được tin');
+                    if (res?.conflict || res?.errorType === 'conflict' || res?.httpStatus === 409) {
+                        setEditWarning('Tin đã thay đổi. Phần bạn đang nhập được giữ nguyên; hãy sao chép nội dung cần giữ trước khi tải lại.');
+                    } else if (!res || ['network', 'timeout', 'cancelled', 'unavailable', 'server', 'unknown'].includes(res.errorType) || res.httpStatus >= 500 || res.errCode === -1) {
+                        setEditWarning('Chưa xác định được tin đã lưu hay chưa. Phần đang nhập vẫn được giữ; hãy tải lại để đối chiếu trước khi lưu tiếp.');
+                    }
                 }
-            }, 1000);
+            } catch {
+                if (epoch === viewEpoch.current) setEditWarning('Chưa xác định được tin đã lưu hay chưa. Hãy giữ lại nội dung cần thiết và tải lại để đối chiếu.');
+            } finally {
+                if (editAttempt.current === attempt) editAttempt.current = null;
+                if (epoch === viewEpoch.current) setIsLoading(false);
+            }
         }
     };
     let handleReupPost = async (timeEnd) => {
@@ -275,6 +303,15 @@ const AddPost = () => {
                             {id && !readyToEdit && !loadError && <p role="status">Đang tải thông tin tin...</p>}
                             {loadError && <p role="alert">{loadError}. Vui lòng tải lại trang.</p>}
                             {id && readyToEdit && <p>Trạng thái lúc tải: {jobStatusLabel(inputValues.statusCode)}</p>}
+                            {id && readyToEdit && !isJobRevision(inputValues.editRevision) && <p role="alert">Chưa có thông tin phiên bản của tin. Vui lòng tải lại hoặc liên hệ quản trị viên để sửa an toàn.</p>}
+                            {editWarning && <p role="alert">{editWarning}</p>}
+                            {id && (editWarning || loadError || (readyToEdit && !isJobRevision(inputValues.editRevision))) &&
+                                <button type="button" onClick={() => setConfirmReload(true)}>Tải lại tin</button>}
+                            {confirmReload && <div role="alertdialog" aria-label="Xác nhận tải lại tin">
+                                <p>Tải lại sẽ bỏ phần chưa lưu trên biểu mẫu. Bạn nên sao chép nội dung cần giữ trước khi tiếp tục.</p>
+                                <button type="button" onClick={() => setReloadVersion(value => value + 1)}>Bỏ phần chưa lưu và tải lại</button>
+                                <button type="button" onClick={() => setConfirmReload(false)}>Giữ biểu mẫu</button>
+                            </div>}
                             {id && readyToEdit && !validDeadline && <p role="alert">Ngày hết hạn đang lưu không hợp lệ; vui lòng liên hệ quản trị viên.</p>}
                             <form className="form-sample">
                                 <div className="row">
@@ -730,7 +767,7 @@ const AddPost = () => {
                                 {user.roleCode !== "ADMIN" && (
                                     <>
                                         <button
-                                            disabled={!readyToEdit || !!loadError || isLoading || inputValues.statusCode === 'PS4' || (!!id && !validDeadline)}
+                                            disabled={!readyToEdit || !!loadError || !!editWarning || isLoading || inputValues.statusCode === 'PS4' || (!!id && (!validDeadline || !isJobRevision(inputValues.editRevision)))}
                                             onClick={() => handleSavePost()}
                                             type="button"
                                             className="btn1 btn1-primary1 btn1-icon-text"

@@ -151,7 +151,7 @@ describe('job write controller', () => {
         expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(2, conn, expect.objectContaining({
             eventType: 'ai.moderate_job', payload: expect.objectContaining({ jobId: 4, name: 'New' })
         }));
-        expect(res.body.data).toEqual(changed);
+        expect(res.body.data).toEqual({ ...changed, editRevision: expect.stringMatching(/^jv1-[a-f0-9]{64}$/) });
 
         mocks.enqueueOutboxEvent.mockClear();
         mocks.pool.query.mockResolvedValueOnce([[old]]);

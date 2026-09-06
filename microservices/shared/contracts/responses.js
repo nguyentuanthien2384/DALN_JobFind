@@ -1,4 +1,4 @@
-import { schemas, object, text, nullable, integer, id, mongoId, date, stage } from './schemas.js';
+import { schemas, object, text, nullable, integer, id, mongoId, date, stage, editRevision } from './schemas.js';
 
 const ref = (name) => ({ $ref: `#/$defs/${name}` });
 const list = (items) => ({ type: 'array', items });
@@ -17,6 +17,7 @@ export const responseDefinitions = {
     ...schemas,
     ManagedJob: object({
         ...schemas.Job.properties,
+        editRevision: nullable(editRevision),
         descriptionMarkdown: nullable(text(200000)), amount: nullable(integer(1, 100000)),
         timePost: nullable(text(32)), timeEnd: nullable(text(32)), isHot: { type: 'integer', enum: [0, 1] },
         companyLogo: nullable(text(200000)),

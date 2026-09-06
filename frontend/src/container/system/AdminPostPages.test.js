@@ -233,6 +233,7 @@ describe("post notes", () => {
 
 const detailPost = {
     id: 55,
+    editRevision: 'jv1-' + 'a'.repeat(64),
     timeEnd: Date.parse("2020-01-01T00:00:00Z"),
     postDetailData: {
         name: "Bài cũ",
@@ -250,6 +251,101 @@ const detailPost = {
 };
 
 describe("post editor", () => {
+    const loadEditor = async (data = detailPost) => {
+        mockParams = { id: '55' };
+        getDetailPostByIdService.mockReset().mockResolvedValue({ errCode: 0, data });
+        const rendered = render(<AddPost />);
+        await waitFor(() => expect(rendered.container.querySelector('input[name="name"]')).toHaveValue('Bài cũ'));
+        const name = rendered.container.querySelector('input[name="name"]');
+        fireEvent.change(name, { target: { name: 'name', value: 'Bản nháp cần giữ' } });
+        return { ...rendered, name, save: () => fireEvent.click(screen.getByRole('button', { name: 'Lưu' })) };
+    };
+
+    it.each([
+        { errCode: 4, conflict: true }, { errCode: -1, errorType: 'conflict', httpStatus: 409 },
+        { errCode: -1, errorType: 'network' }, { errCode: -1, errorType: 'timeout' },
+        { errCode: -1, errorType: 'server' }, { errCode: 0 }, null
+    ])('keeps draft and blocks retries after conflict/uncertain result or missing success revision: %j', async response => {
+        updatePostService.mockResolvedValueOnce(response);
+        const { name, save } = await loadEditor();
+        save();
+        await screen.findByRole('alert');
+        expect(name).toHaveValue('Bản nháp cần giữ');
+        expect(screen.getByRole('button', { name: 'Lưu' })).toBeDisabled();
+        save();
+        expect(updatePostService).toHaveBeenCalledTimes(1);
+        expect(getDetailPostByIdService).toHaveBeenCalledTimes(1);
+        expect(createPostService).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Tải lại tin' }));
+        expect(screen.getByRole('alertdialog', { name: 'Xác nhận tải lại tin' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Giữ biểu mẫu' }));
+        expect(name).toHaveValue('Bản nháp cần giữ');
+        expect(getDetailPostByIdService).toHaveBeenCalledTimes(1);
+    });
+
+    it('reloads only after explicit discard confirmation and saves with the newly read revision', async () => {
+        updatePostService.mockResolvedValueOnce({ errCode: -1, errorType: 'conflict' });
+        const { name, save } = await loadEditor();
+        save(); await screen.findByRole('alert');
+        const revision = 'jv1-' + 'c'.repeat(64);
+        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...detailPost, editRevision: revision,
+            postDetailData: { ...detailPost.postDetailData, name: 'Nội dung người khác đã lưu' } } });
+        fireEvent.click(screen.getByRole('button', { name: 'Tải lại tin' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Bỏ phần chưa lưu và tải lại' }));
+        await waitFor(() => expect(name).toHaveValue('Nội dung người khác đã lưu'));
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        save();
+        await waitFor(() => expect(updatePostService).toHaveBeenCalledTimes(2));
+        expect(updatePostService).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: revision }), {});
+    });
+
+    it('uses the revision returned by a successful save and prevents overlapping requests', async () => {
+        let finish;
+        updatePostService.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        const { save } = await loadEditor();
+        save(); save();
+        expect(updatePostService).toHaveBeenCalledTimes(1);
+        const revision = 'jv1-' + 'd'.repeat(64);
+        await act(async () => finish({ errCode: 0, changed: false, editRevision: revision }));
+        save();
+        await waitFor(() => expect(updatePostService).toHaveBeenCalledTimes(2));
+        expect(updatePostService).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: revision }), {});
+        expect(getDetailPostByIdService).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores an old save response after switching to a different job', async () => {
+        let finish;
+        updatePostService.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        const { save, rerender, name } = await loadEditor();
+        save();
+        mockParams = { id: '56' };
+        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...detailPost, id: 56,
+            postDetailData: { ...detailPost.postDetailData, name: 'Tin khác' } } });
+        rerender(<AddPost />);
+        await waitFor(() => expect(name).toHaveValue('Tin khác'));
+        await act(async () => finish({ errCode: -1, errorType: 'conflict' }));
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(name).toHaveValue('Tin khác');
+        save();
+        await waitFor(() => expect(updatePostService).toHaveBeenLastCalledWith(expect.objectContaining({ id: 56,
+            expectedRevision: detailPost.editRevision }), {}));
+    });
+
+    it('never silently submits an unguarded edit when an old backend omits revision', async () => {
+        const { save } = await loadEditor({ ...detailPost, editRevision: undefined });
+        expect(screen.getByRole('alert')).toHaveTextContent('Chưa có thông tin phiên bản');
+        save(); expect(updatePostService).not.toHaveBeenCalled();
+    });
+
+    it('keeps edits enabled after a definite validation rejection and retains the original revision', async () => {
+        updatePostService.mockResolvedValueOnce({ errCode: 1, errMessage: 'Missing required parameters' });
+        const { save } = await loadEditor();
+        save(); await waitFor(() => expect(toast.error).toHaveBeenCalled());
+        expect(screen.getByRole('button', { name: 'Lưu' })).toBeEnabled();
+        save(); await waitFor(() => expect(updatePostService).toHaveBeenCalledTimes(2));
+        expect(updatePostService).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: detailPost.editRevision }), {});
+    });
+
     beforeEach(() => {
         jest.useFakeTimers();
         jest.clearAllMocks();
@@ -258,7 +354,7 @@ describe("post editor", () => {
         mockParams = {};
         getDetailCompanyByUserId.mockResolvedValue({ errCode: 0, data: { allowPost: 3, allowHotPost: 1 } });
         createPostService.mockResolvedValue({ errCode: 0, errMessage: "Đã tạo bài" });
-        updatePostService.mockResolvedValue({ errCode: 0, errMessage: "Đã sửa bài" });
+        updatePostService.mockReset().mockResolvedValue({ errCode: 0, errMessage: "Đã sửa bài", changed: true, editRevision: 'jv1-' + 'b'.repeat(64) });
         reupPostService.mockResolvedValue({ errCode: 0, errMessage: "Đã đăng lại" });
     });
 
@@ -322,8 +418,8 @@ describe("post editor", () => {
         fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
         await act(async () => Promise.resolve());
         expect(updatePostService).toHaveBeenCalledWith(expect.objectContaining({
-            id: 55, userId: 8, name: "Bài mới", timeEnd: detailPost.timeEnd,
-        }));
+            id: 55, userId: 8, name: "Bài mới", timeEnd: detailPost.timeEnd, expectedRevision: detailPost.editRevision,
+        }), {});
         act(() => jest.advanceTimersByTime(1000));
         expect(toast.success).toHaveBeenCalledWith("Đã sửa bài");
 
