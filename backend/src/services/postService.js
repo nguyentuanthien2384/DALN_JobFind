@@ -4,6 +4,7 @@ import { updateLegacyPost } from '../utils/jobEdit';
 import { jobRevision } from '../utils/jobRevision';
 import { moderateLegacyPost } from '../utils/jobModeration';
 import { enqueueLegacyJobCreated } from '../utils/legacyOutbox';
+import { repostLegacyPost } from '../utils/jobRepost';
 const { Op } = require("sequelize");
 require('dotenv').config();
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
@@ -66,30 +67,11 @@ let handleCreateNewPost = async (data) => {
     });
 };
 
-let handleReupPost = async (data) => {
+let handleReupPost = async (data, identity) => {
     if (!data.userId || !data.postId || !data.timeEnd) {
         return { errCode: 1, errMessage: 'Missing required parameters !' };
     }
-    return withPostingTransaction(async (transaction) => {
-        const company = await lockPostingCompany(data.userId, transaction);
-        // Ownership is checked by the authenticated controller. Lock the source
-        // here to keep its charged category/detail reference stable until commit.
-        const post = await db.Post.findOne({
-            where: { id: data.postId }, transaction, lock: transaction.LOCK.UPDATE, raw: false
-        });
-        if (!post) throw new PostingQuotaError('Bài viết không tồn tại');
-        const isHot = normalizePostHot(post.isHot);
-        await consumeLockedPostingQuota(company, isHot, transaction);
-        const reupPost = await db.Post.create({
-            statusCode: 'PS3', timeEnd: data.timeEnd, userId: data.userId,
-            isHot, detailPostId: post.detailPostId
-        }, { transaction });
-        return {
-            errCode: 0,
-            errMessage: 'Tạo bài tuyển dụng thành công hãy chờ quản trị viên duyệt',
-            postId: reupPost.id
-        };
-    });
+    return repostLegacyPost(data, identity);
 };
 let handleUpdatePost = async (data, identity) => {
     if (!data.name || !data.categoryJobCode || !data.addressCode || !data.salaryJobCode || !data.amount || !data.timeEnd || !data.categoryJoblevelCode

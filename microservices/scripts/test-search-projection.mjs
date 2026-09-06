@@ -351,6 +351,20 @@ try {
         assert.equal((await read(28)).name, created.name); assert.equal(await isPublic(28), false);
     });
 
+    await check('legacy repost indexes the new ID independently; old source changes/deletion cannot overwrite the pending copy', async () => {
+        const sourceJob = job(50, 'Original source'), copy = { ...job(51, 'Copied snapshot'), statusCode: 'PS3' };
+        jobs.set('50', sourceJob); jobs.set('51', copy);
+        await legacySignal(sourceJob, 'source-50'); await legacySignal(copy, 'repost-51', 'job.created');
+        assert.equal((await read(50)).name, sourceJob.name); assert.equal((await read(51)).name, copy.name);
+        assert.equal(await isPublic(51), false);
+        jobs.delete('50'); await legacySignal(sourceJob, 'source-50');
+        assert.equal((await read(50)).searchDeleted, true); assert.equal((await read(51)).name, copy.name);
+        jobs.set('51', { ...copy, name: 'Copy later approved', statusCode: 'PS1' });
+        await legacySignal(copy, 'repost-51', 'job.created');
+        assert.equal((await read(51)).name, 'Copy later approved'); assert.equal(await isPublic(51), true);
+        assert.equal((await read(50)).searchDeleted, true);
+    });
+
     await check('real scroll scans past 10000 IDs and leaves no open search contexts', async () => {
         const operations = Array.from({ length: 10005 }, (_, i) => [
             { index: { _index: INDEX, _id: String(i + 1000) } }, { id: i + 1000, searchDeleted: true }

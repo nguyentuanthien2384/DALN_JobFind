@@ -118,6 +118,11 @@ try {
         req.user = { id: 7, companyId: 3, userAccountData: { roleCode: 'COMPANY' } };
         return legacyController.handleCreateNewPost(req, res);
     });
+    app.post('/test/legacy-repost', (req, res) => {
+        req.user = { id: 7, companyId: 3, userAccountData: { roleCode: 'COMPANY' },
+            userCompanyData: { id: 3, statusCode: 'S1', censorCode: 'CS1' } };
+        return legacyController.handleReupPost(req, res);
+    });
     contractRoute(app, 'jobCreate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), createJob);
     contractRoute(app, 'jobRepost', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), repostJob);
     contractRoute(app, 'jobUpdate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), updateJob);
@@ -205,6 +210,15 @@ try {
         const data = await legacy.handleReupPost({ postId, userId, timeEnd: body().timeEnd });
         return { body: data, ok: data.errCode === 0, id: data.postId };
     };
+    const legacyReupHttp = async (job, { drop = false, ...patch } = {}) => {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/test/legacy-repost`, {
+            method: 'POST', signal: AbortSignal.timeout(15000), headers: { 'content-type': 'application/json',
+                'x-internal-secret': token, ...(drop && { 'x-test-drop-response': '1' }) },
+            body: JSON.stringify({ postId: job.id, expectedRevision: job.editRevision, timeEnd: body().timeEnd,
+                id: 99999, userId: 99, companyId: 4, roleCode: 'ADMIN', isHot: Number(job.isHot) ? 0 : 1, name: 'Ignored body', ...patch })
+        });
+        return { status: response.status, body: await response.json() };
+    };
     const counts = async () => {
         const values = await Promise.all(['posts', 'detailposts', 'outbox_events', 'job_moderation_state'].map(async table =>
             (await pool.query(`SELECT COUNT(*) AS n FROM ${table}`))[0][0].n));
@@ -249,7 +263,7 @@ try {
             assert.deepEqual(unchanged, original);
         }
         assert.deepEqual(await balance(), [3, 3]);
-        assert.deepEqual(await delta(before), [4, 2, 2, 0]);
+        assert.deepEqual(await delta(before), [4, 2, 4, 0]);
     });
 
     await check('zero, negative and NULL quota reject all writers without rows or charges', async () => {
@@ -350,7 +364,7 @@ try {
             assert.ok(results.filter(r => !r.ok).every(r => r.body.errCode === 2));
             assert.deepEqual(await balance(), hot ? [4, 0] : [0, 4]);
             const coreCount = successes.filter(r => r.kind === 0).length;
-            assert.deepEqual(await delta(before), [4, successes.filter(r => r.kind !== 2).length, coreCount * 2 + successes.filter(r => r.kind === 1).length, coreCount]);
+            assert.deepEqual(await delta(before), [4, successes.filter(r => r.kind !== 2).length, coreCount + successes.length, coreCount]);
         });
     }
 
@@ -441,7 +455,9 @@ try {
     await runLegacyEditOutboxChecks({ pool, check, core, managed, legacyEditHttp, counts, balance, waitForRowWait });
     const { runLegacyCreateOutboxChecks } = await import('./legacy-create-outbox-checks.mjs');
     await runLegacyCreateOutboxChecks({ pool, check, legacyCreateHttp, counts, balance, waitForRowWait });
-    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private reads + concurrency + manual/AI moderation + legacy create/edit outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
+    const { runLegacyRepostChecks } = await import('./legacy-repost-checks.mjs');
+    await runLegacyRepostChecks({ pool, check, core, managed, legacyReupHttp, edit, counts, balance, waitForRowWait });
+    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent Core create/repost + private reads + concurrency + manual/AI moderation + legacy create/edit/repost outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
     const closed = await Promise.allSettled([

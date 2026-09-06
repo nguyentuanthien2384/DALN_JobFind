@@ -66,6 +66,10 @@ const AddPost = () => {
     const [confirmReload, setConfirmReload] = useState(false);
     const [reloadVersion, setReloadVersion] = useState(0);
     const editAttempt = useRef(null);
+    const reupBlocked = useRef(false);
+    const [reupWarning, setReupWarning] = useState('');
+    const [reupCreatedId, setReupCreatedId] = useState(null);
+    useEffect(() => { reupBlocked.current = false; setReupWarning(''); setReupCreatedId(null); }, [id]);
     const viewEpoch = useRef(0);
     const readyToEdit = !id || (!inputValues.isActionADD && String(inputValues.id) === String(id));
     const validDeadline = jobDeadlineDate(inputValues.timeEnd);
@@ -264,16 +268,37 @@ const AddPost = () => {
         }
     };
     let handleReupPost = async (timeEnd) => {
-        if (!readyToEdit || loadError || inputValues.statusCode === 'PS4' || !validDeadline) return;
-        let res = await reupPostService({
-            userId: user.id,
-            postId: id,
-            timeEnd: timeEnd,
-        });
-        if (res && res.errCode === 0) {
-            toast.success(res.errMessage);
-        } else {
-            toast.error(res.errMessage);
+        if (!id || !readyToEdit || loadError || editWarning || isLoading || editAttempt.current || reupBlocked.current
+            || inputValues.statusCode === 'PS4' || !validDeadline || !isJobRevision(inputValues.editRevision)) return false;
+        const epoch = viewEpoch.current, attempt = {};
+        editAttempt.current = attempt;
+        const uncertain = () => {
+            reupBlocked.current = true;
+            setReupWarning('Chưa xác định được tin đã đăng lại hay chưa. Hãy giữ nội dung, ngày đã chọn và kiểm tra danh sách tin trước khi đăng lại để tránh trừ lượt hai lần. Tải lại tin gốc không xác nhận được kết quả này.');
+        };
+        try {
+            const res = await reupPostService({ userId: user.id, postId: id, timeEnd,
+                expectedRevision: inputValues.editRevision });
+            if (epoch !== viewEpoch.current) return false;
+            if (res?.errCode === 0) {
+                reupBlocked.current = true;
+                setReupWarning('Đã đăng lại thành công. Tin gốc và phần đang nhập được giữ nguyên. Hãy sao chép phần cần giữ trước khi mở tin mới.');
+                toast.success(res.errMessage || 'Đã đăng lại tin');
+                const newId = Number(res.postId);
+                if (Number.isSafeInteger(newId) && newId > 0 && newId !== Number(id)) setReupCreatedId(newId);
+                return true;
+            }
+            toast.error(res?.errMessage || 'Không đăng lại được tin');
+            if (res?.conflict || res?.httpStatus === 409 || res?.errorType === 'conflict') {
+                setEditWarning('Tin gốc đã thay đổi. Hãy giữ nội dung cần thiết và tải lại trước khi đăng lại.');
+            } else if (!res || ![1, 2, 3].includes(res.errCode) || res.httpStatus >= 500 ||
+                ['network', 'timeout', 'cancelled', 'unavailable', 'server', 'unknown'].includes(res.errorType)) uncertain();
+            return false;
+        } catch {
+            if (epoch === viewEpoch.current) uncertain();
+            return false;
+        } finally {
+            if (editAttempt.current === attempt) editAttempt.current = null;
         }
     };
     const navigate = useNavigate();
@@ -317,6 +342,8 @@ const AddPost = () => {
                             {id && readyToEdit && <p>Trạng thái lúc tải: {jobStatusLabel(inputValues.statusCode)}</p>}
                             {id && readyToEdit && !isJobRevision(inputValues.editRevision) && <p role="alert">Chưa có thông tin phiên bản của tin. Vui lòng tải lại hoặc liên hệ quản trị viên để sửa an toàn.</p>}
                             {editWarning && <p role="alert">{editWarning}</p>}
+                            {reupWarning && <p role="status">{reupWarning}</p>}
+                            {reupCreatedId && <button type="button" onClick={() => navigate(`/admin/edit-post/${reupCreatedId}/`)}>Xem tin đăng lại</button>}
                             {id && (editWarning || loadError || (readyToEdit && !isJobRevision(inputValues.editRevision))) &&
                                 <button type="button" onClick={() => setConfirmReload(true)}>Tải lại tin</button>}
                             {confirmReload && <div role="alertdialog" aria-label="Xác nhận tải lại tin">
@@ -795,6 +822,7 @@ const AddPost = () => {
                                         new Date(timeEnd).getTime() && (
                                         <>
                                             <button
+                                                disabled={!!editWarning || !!reupWarning || isLoading || !isJobRevision(inputValues.editRevision)}
                                                 onClick={() =>
                                                     setPropsModal({
                                                         ...propsModal,
@@ -831,7 +859,10 @@ const AddPost = () => {
                 </Modal>
             )}
             <ReupPostModal
+                key={id || 'create'}
                 isOpen={propsModal.isActive}
+                blocked={!!editWarning || !!reupWarning}
+                feedback={reupWarning || editWarning}
                 onHide={() =>
                     setPropsModal({
                         ...propsModal,

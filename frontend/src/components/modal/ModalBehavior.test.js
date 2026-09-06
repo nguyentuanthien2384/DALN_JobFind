@@ -89,14 +89,44 @@ describe("NoteModal", () => {
 });
 
 describe("ReupPostModal", () => {
-    it("submits the selected end-date timestamp and closes", () => {
-        const handleFunc = jest.fn();
+    it('awaits submission, blocks two clicks and retains the selected date on a definite failure', async () => {
+        let finish; const handleFunc = jest.fn(() => new Promise(resolve => { finish = resolve; })); const onHide = jest.fn();
+        render(<ReupPostModal isOpen handleFunc={handleFunc} onHide={onHide} />);
+        const date = screen.getByLabelText('Ngày kết thúc'); fireEvent.change(date, { target: { value: '2030-01-02' } });
+        const chosen = date.value;
+        fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' })); fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' }));
+        expect(handleFunc).toHaveBeenCalledTimes(1); expect(screen.getByRole('button', { name: 'Hủy' })).toBeDisabled();
+        await act(async () => finish(false)); expect(date.value).toBe(chosen); expect(onHide).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Hoàn thành' })).toBeEnabled();
+    });
+    it('keeps the modal and blocks another call on a thrown uncertain failure', async () => {
+        const handleFunc = jest.fn().mockRejectedValue(new Error('transport')), onHide = jest.fn();
+        render(<ReupPostModal isOpen handleFunc={handleFunc} onHide={onHide} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' })); await screen.findByRole('alert');
+        expect(screen.getByRole('button', { name: 'Hoàn thành' })).toBeDisabled(); expect(onHide).not.toHaveBeenCalled();
+    });
+    it.each([undefined, null, {}])('does not interpret an unexpected completion %j as a safe-to-retry rejection', async result => {
+        const onHide = jest.fn(); render(<ReupPostModal isOpen handleFunc={jest.fn().mockResolvedValue(result)} onHide={onHide} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' })); await screen.findByRole('alert');
+        expect(screen.getByRole('button', { name: 'Hoàn thành' })).toBeDisabled(); expect(onHide).not.toHaveBeenCalled();
+    });
+    it('rejects a past deadline locally and respects a parent conflict/outcome guard', async () => {
+        const handleFunc = jest.fn(), onHide = jest.fn(); const { rerender } = render(<ReupPostModal isOpen handleFunc={handleFunc} onHide={onHide} />);
+        fireEvent.change(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2020-01-01' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' })); expect(handleFunc).not.toHaveBeenCalled();
+        expect(screen.getByRole('alert')).toHaveTextContent('sau thời điểm hiện tại');
+        rerender(<ReupPostModal isOpen blocked feedback='Tin gốc đã thay đổi' handleFunc={handleFunc} onHide={onHide} />);
+        expect(screen.getByRole('alert')).toHaveTextContent('Tin gốc đã thay đổi');
+        expect(screen.getByRole('button', { name: 'Hoàn thành' })).toBeDisabled();
+    });
+    it("submits the selected end-date timestamp and closes after confirmed success", async () => {
+        const handleFunc = jest.fn().mockResolvedValue(true);
         const onHide = jest.fn();
         render(<ReupPostModal isOpen handleFunc={handleFunc} onHide={onHide} />);
         fireEvent.change(screen.getByLabelText("Ngày kết thúc"), { target: { value: "2030-01-02" } });
         fireEvent.click(screen.getByRole("button", { name: "Hoàn thành" }));
         expect(handleFunc).toHaveBeenCalledWith(new Date("2030-01-02T00:00:00").getTime());
-        expect(onHide).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(onHide).toHaveBeenCalledTimes(1));
     });
 
     it("supports cancelling", () => {

@@ -1,5 +1,4 @@
 import postService from '../services/postService';
-import { emitJobCreated } from '../utils/eventBus';
 import { emitDashboardChanged } from '../config/socket';
 import { canAccessPostApplicants } from '../utils/authorization';
 
@@ -46,12 +45,12 @@ let handleReupPost = async (req, res) => {
         let data = await postService.handleReupPost({
             ...req.body,
             userId: req.user.id
+        }, {
+            roleCode: req.user.userAccountData?.roleCode,
+            companyId: req.user.companyId
         });
-        // Dang lai sinh ra mot tin MOI chu khong sua tin cu, nen phai phat
-        // "tin moi" voi id moi. Neu phat "cap nhat" kem id cu thi tin dang lai
-        // se khong bao gio vao Elasticsearch.
-        if (data.errCode === 0 && data.postId) emitJobCreated(data.postId);
-        return res.status(200).json(data);
+        // The NEW post ID and job.created already committed with the quota.
+        return res.status(data.conflict === true ? 409 : 200).json(data);
     } catch (error) {
         console.log(error)
         return res.status(200).json({

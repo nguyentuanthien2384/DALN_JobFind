@@ -31,7 +31,7 @@ const request = (roleCode = 'EMPLOYER') => createRequest({
 
 const cases = [
   ['handleCreateNewPost', 'handleCreateNewPost', (r) => ({ ...r.body, userId: r.user.id })],
-  ['handleReupPost', 'handleReupPost', (r) => ({ ...r.body, userId: r.user.id })],
+  ['handleReupPost', 'handleReupPost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode, companyId: r.user.companyId }]],
   ['handleUpdatePost', 'handleUpdatePost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode, companyId: r.user.companyId }]],
   ['handleBanPost', 'handleBanPost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode }]],
   ['handleAcceptPost', 'handleAcceptPost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode }]],
@@ -140,7 +140,7 @@ describe('postController', () => {
     expect(mockService[serviceMethod]).not.toHaveBeenCalled();
   });
 
-  test('create uses committed outbox while re-up retains direct job-created for its new ID', async () => {
+  test('create and re-up use committed outbox with no direct job-created event', async () => {
     mockService.handleCreateNewPost.mockResolvedValueOnce({ errCode: 0, postId: 101 });
     await controller.handleCreateNewPost(request(), createResponse());
     expect(mockEmitJobCreated).not.toHaveBeenCalled();
@@ -148,7 +148,7 @@ describe('postController', () => {
 
     mockService.handleReupPost.mockResolvedValueOnce({ errCode: 0, postId: 102 });
     await controller.handleReupPost(request(), createResponse());
-    expect(mockEmitJobCreated).toHaveBeenCalledWith(102);
+    expect(mockEmitJobCreated).not.toHaveBeenCalled();
 
     mockEmitJobCreated.mockClear();
     mockEmitDashboardChanged.mockClear();
@@ -167,6 +167,16 @@ describe('postController', () => {
       expect(res.json).toHaveBeenCalledWith(data); expect(res.status).toHaveBeenCalledWith(200);
       expect(mockEmitJobCreated).not.toHaveBeenCalled();
     }
+  });
+
+  test('re-up ignores spoofed identity and returns a stale-source conflict without publishing', async () => {
+    const req = request(); Object.assign(req.body, { userId: 999, companyId: 999, roleCode: 'ADMIN' });
+    const result = { errCode: 4, conflict: true };
+    mockService.handleReupPost.mockResolvedValueOnce(result);
+    const res = createResponse(); await controller.handleReupPost(req, res);
+    expect(mockService.handleReupPost).toHaveBeenLastCalledWith(expect.objectContaining({ userId: 7 }), { roleCode: 'EMPLOYER', companyId: 11 });
+    expect(res.status).toHaveBeenCalledWith(409); expect(res.json).toHaveBeenCalledWith(result);
+    expect(mockEmitJobCreated).not.toHaveBeenCalled();
   });
 
   test.each([

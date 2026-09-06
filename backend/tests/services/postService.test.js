@@ -29,6 +29,7 @@ const reset = () => {
   mockDb.sequelize.query.mockImplementation(sql => Promise.resolve(sql.includes("TABLE_NAME = 'outbox_events'")
     ? [[{ engine: 'InnoDB' }]] : [['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))]));
   mockDb.sequelize.transaction.mockImplementation(work => work(mockTransaction));
+  mockDb.User.findAll.mockResolvedValue([{ id: 7, companyId: 4 }]);
   mockDb.Post.findOne.mockResolvedValue({ id: 30, userId: 7, detailPostId: 20, statusCode: 'PS3', isHot: 0, timeEnd: validPost().timeEnd });
   mockDb.DetailPost.findOne.mockResolvedValue({ ...validPost(), id: 20 });
   mockSendMail.mockReset();
@@ -36,7 +37,7 @@ const reset = () => {
 
 const validPost = (extra = {}) => ({
   id: 10, postId: 10, userId: 7, name: 'Node Engineer', categoryJobCode: 'IT', addressCode: 'HN',
-  salaryJobCode: 'SAL1', amount: 2, timeEnd: '2026-12-31', categoryJoblevelCode: 'JL1',
+  salaryJobCode: 'SAL1', amount: 2, timeEnd: '1893456000000', categoryJoblevelCode: 'JL1',
   categoryWorktypeCode: 'WT1', experienceJobCode: 'EXP1', genderPostCode: 'G1',
   descriptionHTML: '<p>job</p>', descriptionMarkdown: 'job', isHot: 0, note: 'note', statusCode: 'PS1',
   ...extra
@@ -123,12 +124,14 @@ describe('postService', () => {
     mockDb.Company.findOne.mockResolvedValue(company);
     mockDb.Post.findOne.mockResolvedValueOnce(null);
     expect((await service.handleReupPost(validPost())).errCode).toBe(2);
-    mockDb.Post.findOne.mockResolvedValueOnce({ id: 10, isHot: 0, detailPostId: 20 });
+    const source = { id: 10, userId: 7, statusCode: 'PS1', isHot: 0, detailPostId: 20 };
+    mockDb.Post.findOne.mockResolvedValueOnce(source).mockResolvedValueOnce(source)
+      .mockResolvedValueOnce({ ...source, id: 31, statusCode: 'PS3', timeEnd: validPost().timeEnd });
     mockDb.Post.create.mockResolvedValueOnce({ id: 31 });
     expect((await service.handleReupPost(validPost())).postId).toBe(31);
     expect(company.allowPost).toBe(0);
     company.allowHotPost = 0;
-    mockDb.Post.findOne.mockResolvedValueOnce({ id: 10, isHot: 1, detailPostId: 20 });
+    mockDb.Post.findOne.mockResolvedValueOnce({ ...source, isHot: 1 }).mockResolvedValueOnce({ ...source, isHot: 1 });
     expect((await service.handleReupPost(validPost())).errCode).toBe(2);
   });
 

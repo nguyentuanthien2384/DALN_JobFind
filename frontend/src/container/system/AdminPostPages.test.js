@@ -77,9 +77,9 @@ jest.mock("../../components/modal/NoteModal", () => ({ isOpen, id, handleFunc, o
         <button type="button" onClick={onHide}>Đóng</button>
     </div>
 ) : null);
-jest.mock("../../components/modal/ReupPostModal", () => ({ isOpen, handleFunc, onHide }) => isOpen ? (
+jest.mock("../../components/modal/ReupPostModal", () => ({ isOpen, handleFunc, onHide, blocked }) => isOpen ? (
     <div role="dialog" aria-label="Đăng lại bài">
-        <button type="button" onClick={() => handleFunc(Date.parse("2031-01-01T00:00:00Z"))}>Xác nhận đăng lại</button>
+        <button type="button" disabled={blocked} onClick={() => handleFunc(Date.parse("2031-01-01T00:00:00Z"))}>Xác nhận đăng lại</button>
         <button type="button" onClick={onHide}>Đóng</button>
     </div>
 ) : null);
@@ -424,6 +424,69 @@ describe("post editor", () => {
         expect(updatePostService).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: detailPost.editRevision }), {});
     });
 
+    const loadReposter = async () => {
+        const editor = await loadEditor(); fireEvent.click(screen.getByRole('button', { name: 'Đăng lại' }));
+        return { ...editor, confirm: () => fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đăng lại' })) };
+    };
+    it.each([null, { errCode: -1 }, { errCode: -1, errorType: 'network' }, { errCode: -1, errorType: 'timeout' },
+        { errCode: 2, httpStatus: 503 }, { errCode: 9 }])('keeps repost draft and blocks repetition after uncertain result: %j', async result => {
+        reupPostService.mockResolvedValueOnce(result);
+        const { name, confirm } = await loadReposter(); confirm();
+        await screen.findByText(/Tải lại tin gốc không xác nhận/);
+        expect(name).toHaveValue('Bản nháp cần giữ'); expect(screen.getByRole('button', { name: 'Đăng lại' })).toBeDisabled();
+        confirm(); expect(reupPostService).toHaveBeenCalledTimes(1);
+        expect(reupPostService).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: detailPost.editRevision }));
+        expect(createPostService).not.toHaveBeenCalled();
+    });
+    it.each([1, 2, 3])('definite repost rejection (%s) keeps source and permits only an explicit new attempt', async errCode => {
+        reupPostService.mockResolvedValueOnce({ errCode, errMessage: 'Không đăng lại được' });
+        const { name, confirm } = await loadReposter(); confirm();
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Không đăng lại được'));
+        expect(name).toHaveValue('Bản nháp cần giữ'); expect(reupPostService).toHaveBeenCalledTimes(1);
+        confirm(); await waitFor(() => expect(reupPostService).toHaveBeenCalledTimes(2));
+    });
+    it('repost conflict requires an explicit source reload before another attempt', async () => {
+        reupPostService.mockResolvedValueOnce({ errCode: 4, conflict: true });
+        const { name, confirm } = await loadReposter(); confirm();
+        await screen.findByRole('alert'); expect(name).toHaveValue('Bản nháp cần giữ');
+        expect(screen.getByRole('button', { name: 'Xác nhận đăng lại' })).toBeDisabled();
+        const revision = 'jv1-' + 'c'.repeat(64);
+        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...detailPost, editRevision: revision } });
+        fireEvent.click(screen.getByRole('button', { name: 'Tải lại tin' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Bỏ phần chưa lưu và tải lại' }));
+        await waitFor(() => expect(name).toHaveValue('Bài cũ'));
+        fireEvent.click(screen.getByRole('button', { name: 'Đăng lại' })); confirm();
+        await waitFor(() => expect(reupPostService).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: revision })));
+    });
+    it('source reread after an uncertain repost does not clear its repeat guard', async () => {
+        reupPostService.mockResolvedValueOnce({ errCode: -1 }); updatePostService.mockResolvedValueOnce({ errCode: 4, conflict: true });
+        const { name, confirm, save } = await loadReposter(); confirm(); await screen.findByText(/Tải lại tin gốc không xác nhận/);
+        save(); await screen.findByRole('alert');
+        fireEvent.click(screen.getByRole('button', { name: 'Tải lại tin' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Bỏ phần chưa lưu và tải lại' }));
+        await waitFor(() => expect(name).toHaveValue('Bài cũ'));
+        expect(screen.getByRole('button', { name: 'Đăng lại' })).toBeDisabled(); expect(reupPostService).toHaveBeenCalledTimes(1);
+    });
+    it('successful repost keeps unsaved draft, blocks another copy and opens the new ID only on explicit click', async () => {
+        reupPostService.mockResolvedValueOnce({ errCode: 0, postId: 101, errMessage: 'Đã đăng lại' });
+        const { name, confirm } = await loadReposter(); confirm();
+        const link = await screen.findByRole('button', { name: 'Xem tin đăng lại' });
+        expect(name).toHaveValue('Bản nháp cần giữ'); expect(mockNavigate).not.toHaveBeenCalled();
+        confirm(); expect(reupPostService).toHaveBeenCalledTimes(1);
+        fireEvent.click(link); expect(mockNavigate).toHaveBeenCalledWith('/admin/edit-post/101/');
+    });
+    it('guards concurrent edit/repost and ignores a late repost success after changing route', async () => {
+        let finish;
+        reupPostService.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        const { confirm, save, rerender, name } = await loadReposter(); confirm(); confirm(); save();
+        expect(reupPostService).toHaveBeenCalledTimes(1); expect(updatePostService).not.toHaveBeenCalled();
+        mockParams = { id: '56' }; getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...detailPost, id: 56 } });
+        rerender(<AddPost />); await waitFor(() => expect(name).toHaveValue('Bài cũ'));
+        await act(async () => finish({ errCode: 0, postId: 999 }));
+        expect(screen.queryByRole('button', { name: 'Xem tin đăng lại' })).not.toBeInTheDocument();
+        expect(mockNavigate).not.toHaveBeenCalled(); expect(toast.success).not.toHaveBeenCalled();
+    });
+
     beforeEach(() => {
         jest.useFakeTimers();
         jest.clearAllMocks();
@@ -546,7 +609,7 @@ describe("post editor", () => {
         fireEvent.click(screen.getByRole("button", { name: "Đăng lại" }));
         fireEvent.click(screen.getByRole("button", { name: "Xác nhận đăng lại" }));
         await waitFor(() => expect(reupPostService).toHaveBeenCalledWith({
-            userId: 8, postId: "55", timeEnd: Date.parse("2031-01-01T00:00:00Z"),
+            userId: 8, postId: "55", timeEnd: Date.parse("2031-01-01T00:00:00Z"), expectedRevision: 'jv1-' + 'b'.repeat(64),
         }));
     });
 
