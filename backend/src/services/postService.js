@@ -2,6 +2,7 @@ import db from "../models/index";
 import { PostingQuotaError, normalizePostHot, lockPostingCompany, consumeLockedPostingQuota } from '../utils/postingQuota';
 import { updateLegacyPost } from '../utils/jobEdit';
 import { jobRevision } from '../utils/jobRevision';
+import { moderateLegacyPost } from '../utils/jobModeration';
 const { Op } = require("sequelize");
 require('dotenv').config();
 var nodemailer = require('nodemailer');
@@ -117,193 +118,38 @@ let handleUpdatePost = async (data, identity) => {
     }
     return updateLegacyPost(data, identity);
 };
-let handleBanPost = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-
-            if (!data.postId || !data.note || !data.userId) {
-                resolve({
-                    errCode: 1,
-                    errMessage: `Missing required parameters !`
-                })
-            } else {
-                let foundPost = await db.Post.findOne({
-                    where: { id: data.postId },
-                    raw: false
-                })
-                if (foundPost) {
-                    foundPost.statusCode = 'PS4'
-                    await foundPost.save()
-                    await db.Note.create({
-                        postId: foundPost.id,
-                        note: data.note,
-                        userId: data.userId
-                    })
-                    let user = await db.User.findOne({
-                        where: { id: foundPost.userId },
-                        attributes: {
-                            exclude: ['userId']
-                        }
-                    })
-                    sendmail(`Bài viết #${foundPost.id} của bạn đã bị chặn vì ${data.note}`, user.email,`admin/list-post/${foundPost.id}`)
-
-                    resolve({
-                        errCode: 0,
-                        errMessage: 'Đã chặn bài viết thành công'
-                    })
-                }
-                else {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Không tồn tại bài viết'
-                    })
-                }
-            }
-
-        } catch (error) {
-            reject(error)
+// Side effects remain best-effort AFTER commit. Never retry the state change
+// because email/follower delivery failed; a durable legacy outbox is a later phase.
+const notifyManualModeration = async ({ action, postId, posterId, companyId, companyName, jobTitle, note }) => {
+    try {
+        const user = await db.User.findOne({ where: { id: posterId }, attributes: ['email'], raw: true });
+        if (user?.email) {
+            const message = action === 'approve' ? note : action === 'reject'
+                ? `Bài viết #${postId} của bạn đã bị từ chối`
+                : action === 'ban' ? `Bài viết #${postId} của bạn đã bị chặn vì ${note}`
+                : `Bài viết #${postId} của bạn đã được mở lại vì: ${note}`;
+            sendmail(message, user.email, action === 'approve' ? `detail-job/${postId}` : `admin/list-post/${postId}`);
         }
-    })
-}
-let handleActivePost = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-
-            if (!data.id || !data.userId || !data.note) {
-                resolve({
-                    errCode: 1,
-                    errMessage: `Missing required parameters !`
-                })
-            } else {
-                let foundPost = await db.Post.findOne({
-                    where: { id: data.id },
-                    raw: false
-                })
-                if (foundPost) {
-                    foundPost.statusCode = 'PS3'
-                    await foundPost.save()
-                    await db.Note.create({
-                        postId: foundPost.id,
-                        note: data.note,
-                        userId: data.userId
-                    })
-                    let user = await db.User.findOne({
-                        where: { id: foundPost.userId },
-                        attributes: {
-                            exclude: ['userId']
-                        }
-                    })
-                    sendmail(`Bài viết #${foundPost.id} của bạn đã được mở lại vì: ${data.note}`, user.email,`admin/list-post/${foundPost.id}`)
-                    resolve({
-                        errCode: 0,
-                        errMessage: 'Đã mở lại trạng thái chờ duyệt'
-                    })
-                }
-                else {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Không tồn tại bài viết'
-                    })
-                }
-            }
-
-        } catch (error) {
-            reject(error)
-        }
-    })
-}
-let handleAcceptPost = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-
-            if (!data.id || !data.statusCode) {
-                resolve({
-                    errCode: 1,
-                    errMessage: `Missing required parameters !`
-                })
-            } else {
-                let foundPost = await db.Post.findOne({
-                    where: { id: data.id },
-                    raw: false
-                })
-                if (foundPost) {
-                    foundPost.statusCode = data.statusCode
-                    if (data.statusCode == "PS1") {
-                        foundPost.timePost = new Date().getTime()
-                    }
-                    await foundPost.save()
-                    let note = data.statusCode == "PS1" ? "Đã duyệt bài thành công" : data.note
-                    await db.Note.create({
-                        postId: foundPost.id,
-                        note: note,
-                        userId: data.userId
-                    })
-                    let user = await db.User.findOne({
-                        where: { id: foundPost.userId },
-                        attributes: {
-                            exclude: ['userId']
-                        }
-                    })
-                    if (data.statusCode == "PS1")
-                    {
-                        sendmail(note, user.email,`detail-job/${foundPost.id}`)
-                        // Gửi thông báo cho những người theo dõi công ty
-                        try {
-                            if (user.companyId) {
-                                let detailPostNoti = await db.DetailPost.findOne({
-                                    where: { id: foundPost.detailPostId },
-                                    attributes: ['name'],
-                                    raw: true
-                                })
-                                let companyNoti = await db.Company.findOne({
-                                    where: { id: user.companyId },
-                                    attributes: ['name'],
-                                    raw: true
-                                })
-                                let listFollower = await db.FollowCompany.findAll({
-                                    where: { companyId: user.companyId },
-                                    raw: true
-                                })
-                                if (listFollower && listFollower.length > 0) {
-                                    let listNotification = listFollower.map(item => {
-                                        return {
-                                            userId: item.userId,
-                                            typeCode: 'NEW_POST',
-                                            isChecked: 0,
-                                            content: `${companyNoti ? companyNoti.name : 'Công ty bạn theo dõi'} vừa đăng tin: ${detailPostNoti ? detailPostNoti.name : 'tin tuyển dụng mới'}`,
-                                            link: `/detail-job/${foundPost.id}`,
-                                            createdAt: new Date(),
-                                            updatedAt: new Date()
-                                        }
-                                    })
-                                    await db.Notification.bulkCreate(listNotification)
-                                }
-                            }
-                        } catch (e) {
-                            console.log('Notify follower error: ', e.message)
-                        }
-                    }
-                    else {
-                        sendmail(`Bài viết #${foundPost.id} của bạn đã bị từ chối`, user.email,`admin/list-post/${foundPost.id}`)
-                    }
-                    resolve({
-                        errCode: 0,
-                        errMessage: data.statusCode == "PS1" ? 'Duyệt bài thành công' : 'Đã từ chối bài thành công'
-                    })
-                }
-                else {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Không tồn tại bài viết'
-                    })
-                }
-            }
-
-        } catch (error) {
-            reject(error)
-        }
-    })
-}
+    } catch { console.log('Manual moderation author notification failed after commit'); }
+    if (action !== 'approve' || !companyId) return;
+    try {
+        const followers = await db.FollowCompany.findAll({ where: { companyId }, raw: true });
+        if (followers?.length) await db.Notification.bulkCreate(followers.map(item => ({
+            userId: item.userId, typeCode: 'NEW_POST', isChecked: 0,
+            content: `${companyName || 'Công ty bạn theo dõi'} vừa đăng tin: ${jobTitle || 'tin tuyển dụng mới'}`,
+            link: `/detail-job/${postId}`, createdAt: new Date(), updatedAt: new Date()
+        })));
+    } catch { console.log('Manual moderation follower notification failed after commit'); }
+};
+const manualModeration = async (data, action, identity) => {
+    const { notification, ...result } = await moderateLegacyPost(data, action, identity);
+    if (result.errCode === 0 && result.changed && notification) await notifyManualModeration(notification);
+    return result;
+};
+const handleBanPost = (data, identity) => manualModeration(data, 'ban', identity);
+const handleActivePost = (data, identity) => manualModeration(data, 'reopen', identity);
+const handleAcceptPost = (data, identity) => manualModeration(data,
+    data.statusCode === 'PS1' ? 'approve' : data.statusCode === 'PS2' ? 'reject' : 'invalid', identity);
 let getListPostByAdmin = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
@@ -346,7 +192,9 @@ let getListPostByAdmin = (data) => {
                         raw: true,
                         include: [
                             {
-                                model: db.DetailPost, as: 'postDetailData', attributes: ['id', 'name', 'descriptionHTML', 'descriptionMarkdown', 'amount'],
+                                model: db.DetailPost, as: 'postDetailData', attributes: ['id', 'name', 'descriptionHTML', 'descriptionMarkdown', 'amount',
+                                'categoryJobCode', 'addressCode', 'salaryJobCode', 'categoryJoblevelCode',
+                                'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode'],
                                 include: [
                                     { model: db.Allcode, as: 'jobTypePostData', attributes: ['value', 'code'] },
                                     { model: db.Allcode, as: 'workTypePostData', attributes: ['value', 'code'] },
@@ -389,7 +237,7 @@ let getListPostByAdmin = (data) => {
                     let post = await db.Post.findAndCountAll(objectFilter)
                     resolve({
                         errCode: 0,
-                        data: post.rows,
+                        data: post.rows.map(row => ({ ...row, editRevision: jobRevision(row, row.postDetailData || {}) })),
                         count: post.count
                     })
                 }
@@ -422,7 +270,9 @@ let getAllPostByAdmin = (data) => {
                     raw: true,
                     include: [
                         {
-                            model: db.DetailPost, as: 'postDetailData', attributes: ['id', 'name', 'descriptionHTML', 'descriptionMarkdown', 'amount'],
+                            model: db.DetailPost, as: 'postDetailData', attributes: ['id', 'name', 'descriptionHTML', 'descriptionMarkdown', 'amount',
+                                'categoryJobCode', 'addressCode', 'salaryJobCode', 'categoryJoblevelCode',
+                                'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode'],
                             include: [
                                 { model: db.Allcode, as: 'jobTypePostData', attributes: ['value', 'code'] },
                                 { model: db.Allcode, as: 'workTypePostData', attributes: ['value', 'code'] },
@@ -469,7 +319,7 @@ let getAllPostByAdmin = (data) => {
                 let post = await db.Post.findAndCountAll(objectFilter)
                 resolve({
                     errCode: 0,
-                    data: post.rows,
+                    data: post.rows.map(row => ({ ...row, editRevision: jobRevision(row, row.postDetailData || {}) })),
                     count: post.count
                 })
             }

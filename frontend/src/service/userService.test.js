@@ -12,6 +12,16 @@ jest.mock("../axios", () => ({
 }));
 
 describe("userService", () => {
+    test.each([
+        ['banPostService', '/api/ban-post'], ['activePostService', '/api/active-post'], ['acceptPostService', '/api/accept-post']
+    ])('%s supports bounded cancellable moderation without retries', async (name, path) => {
+        const signal = new AbortController().signal;
+        const payload = { id: 17, expectedRevision: 'jv1-' + 'a'.repeat(64), note: 'Review' };
+        axios.put.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });
+        expect(await service[name](payload, { signal })).toMatchObject({ errorType: 'timeout' });
+        expect(axios.put).toHaveBeenCalledTimes(1);
+        expect(axios.put).toHaveBeenCalledWith(path, payload, { timeout: 15000, signal });
+    });
     beforeEach(() => {
         jest.clearAllMocks();
         Object.values(axios).forEach((mock) => mock.mockResolvedValue({ errCode: 0 }));

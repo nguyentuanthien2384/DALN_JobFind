@@ -61,6 +61,8 @@ Tài liệu tham khảo: [OpenAPI 3.1.1](https://spec.openapis.org/oas/v3.1.1.ht
 
 ## Phiên bản và phần chưa bao phủ
 
+Đợt 2f chỉ thay đổi ba route monolith **ngoài** catalog modern: `PUT /api/accept-post` (id, statusCode PS1/PS2), `/api/ban-post` (postId), `/api/active-post` (id). Cả ba cần ADMIN và `expectedRevision` từ dòng danh sách quản lý; từ chối/chặn/mở lại cần note 1–255 ký tự. Thiếu phiên bản 428, sai đầu vào 400, xung đột 409/`conflict: true`, thiếu tin 404, chưa đủ điều kiện transaction 503, lỗi bất ngờ 500. No-op thành công `changed: false`, không phát thêm notification; không cho tùy ý đặt mọi status qua accept-post. Giữ envelope errCode/errMessage và có httpStatus trong lỗi. **Breaking change** với client quản trị cũ: cần cửa sổ cập nhật/tạm dừng duyệt như `client-sync.md` đợt 2f, không giả định OpenAPI modern 1.0.0 mô tả những route legacy này. Hợp đồng 50 thao tác modern và 13 event không đổi.
+
 Đây là bản hợp đồng đầu tiên, `info.version=1.0.0`; giữ URL `/api/...` để không phá frontend. Việc siết dữ liệu từng bị bỏ qua là thay đổi hành vi cần thử trước khi chuyển container thật. Từ bản này: thêm response field tùy chọn là thay đổi tương thích; thêm trường bắt buộc, đổi kiểu/enum hoặc thu hẹp đầu vào cần phiên bản lớn, kế hoạch client/rollout và test hồi quy. Không chỉ tăng số version rồi âm thầm thay yêu cầu của client.
 
 - `/health`, `/healthz`, `/readyz`, `/metrics`, `/status`, `/` là API vận hành: xem `local-compose.md`. Socket.IO và toàn bộ route monolith legacy chưa được mô tả bằng OpenAPI trong đợt này.

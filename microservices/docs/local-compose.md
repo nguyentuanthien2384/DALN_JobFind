@@ -4,6 +4,8 @@ Phạm vi: một máy phát triển, chỉ công bố cổng trên `127.0.0.1`. 
 
 ## Thay đổi tương thích cần biết
 
+- Đợt 2f: `accept-post`/`ban-post`/`active-post` legacy bắt buộc `expectedRevision` từ danh sách quản trị mới; client cũ bị 428, mã cũ bị 409. Nâng cấp backend và giao diện quản trị trong cùng cửa sổ, tạm dừng duyệt khi lệch phiên bản. Bảng `notes` phải InnoDB; nếu `job_moderation_state` đã có thì cũng phải InnoDB và backend có quyền đọc metadata/cập nhật request. Không tự đổi schema/engine. Giữ handler Job Core có request/state fence; chặn/mở lại và sửa legacy hủy request cũ trong transaction. Mở lại vẫn PS3 thủ công, không tự gọi AI. Mail/event legacy còn best-effort sau commit, chưa chuyển outbox. 107 nhóm tích hợp chạy trên MySQL tạm, chưa rollout stack thật; xem `client-sync.md` đợt 2f.
+
 - Đợt 2e: cập nhật các backend legacy/Job Core có kiểm tra `expectedRevision` trước frontend. AddPost mới khóa Lưu nếu phản hồi đọc thiếu `editRevision`, giữ draft khi 409/timeout và chỉ bỏ bản nháp khi xác nhận tải lại. Không trộn writer cũ bỏ qua precondition; server còn cho phép client không gửi mã để tương thích nên các client đó chưa được bảo vệ. Không thêm schema; chưa rollout vào tiến trình/container thật. Khi rollback backend, rollback/dừng giao diện sửa tương ứng, không bỏ precondition để ép lưu. Xem `client-sync.md` đợt 2e; 88 nhóm tích hợp dùng MySQL riêng, không fixture sửa dữ liệu thật.
 
 - Backend đăng nhập, Gateway và Socket.IO dùng cùng `JWT_SECRET`, `JWT_ISSUER=jobfind-auth`, `JWT_AUDIENCE=jobfind-api`, `JWT_ACCESS_TTL_SECONDS=900`. Có thể cấu hình tuổi token từ 60 đến 3600 giây, nhưng phải giống nhau ở backend và Gateway.

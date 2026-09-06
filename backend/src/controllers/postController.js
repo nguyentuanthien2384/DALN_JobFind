@@ -85,20 +85,20 @@ let handleBanPost = async (req, res) => {
         let data = await postService.handleBanPost({
             ...req.body,
             userId: req.user.id
-        });
+        }, { roleCode: req.user.userAccountData?.roleCode });
         // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
         // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
-        if (data.errCode === 0) {
-            const changedId = req.body.id ?? req.body.postId;
+        if (data.errCode === 0 && data.changed !== false) {
+            const changedId = data.postId ?? req.body.postId;
             if (changedId) emitJobUpdated(changedId);
         }
         // Bieu do "top linh vuc" chi dem tin dang hoat dong (statusCode PS1), nen
         // khoa/duyet/mo lai tin deu lam so lieu doi theo.
-        if (data.errCode === 0) emitDashboardChanged('post');
-        return res.status(200).json(data);
+        if (data.errCode === 0 && data.changed !== false) emitDashboardChanged('post');
+        return res.status(data.httpStatus || (data.conflict ? 409 : 200)).json(data);
     } catch (error) {
         console.log(error)
-        return res.status(200).json({
+        return res.status(500).json({
             errCode: -1,
             errMessage: 'Error from server'
         })
@@ -110,24 +110,25 @@ let handleAcceptPost = async (req, res) => {
         let data = await postService.handleAcceptPost({
             ...req.body,
             userId: req.user.id
-        });
+        }, { roleCode: req.user.userAccountData?.roleCode });
         // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
         // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
-        if (data.errCode === 0) {
-            const changedId = req.body.id ?? req.body.postId;
+        if (data.errCode === 0 && data.changed !== false) {
+            const changedId = data.postId ?? req.body.id;
             if (changedId) emitJobUpdated(changedId);
         }
-        if (data.errCode === 0) emitDashboardChanged('post');
-        return res.status(200).json(data);
+        if (data.errCode === 0 && data.changed !== false) emitDashboardChanged('post');
+        return res.status(data.httpStatus || (data.conflict ? 409 : 200)).json(data);
     } catch (error) {
         console.log(error)
-        return res.status(200).json({
+        return res.status(500).json({
             errCode: -1,
             errMessage: 'Error from server'
         })
     }
 }
 let getListPostByAdmin = async (req, res) => {
+    res.setHeader('Cache-Control', 'private, no-store');
     try {
         // Nha tuyen dung chi duoc liet ke tin cua chinh cong ty minh; neu nhan
         // companyId tu query thi ho doc duoc ca tin cua doi thu.
@@ -148,6 +149,7 @@ let getListPostByAdmin = async (req, res) => {
 }
 
 let getAllPostByAdmin = async (req, res) => {
+    res.setHeader('Cache-Control', 'private, no-store');
     try {
         let data = await postService.getAllPostByAdmin(req.query);
         return res.status(200).json(data);
@@ -179,18 +181,18 @@ let handleActivePost = async (req, res) => {
         let data = await postService.handleActivePost({
             ...req.body,
             userId: req.user.id
-        });
+        }, { roleCode: req.user.userAccountData?.roleCode });
         // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
         // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
-        if (data.errCode === 0) {
-            const changedId = req.body.id ?? req.body.postId;
+        if (data.errCode === 0 && data.changed !== false) {
+            const changedId = data.postId ?? req.body.id;
             if (changedId) emitJobUpdated(changedId);
         }
-        if (data.errCode === 0) emitDashboardChanged('post');
-        return res.status(200).json(data);
+        if (data.errCode === 0 && data.changed !== false) emitDashboardChanged('post');
+        return res.status(data.httpStatus || (data.conflict ? 409 : 200)).json(data);
     } catch (error) {
         console.log(error)
-        return res.status(200).json({
+        return res.status(500).json({
             errCode: -1,
             errMessage: 'Error from server'
         })

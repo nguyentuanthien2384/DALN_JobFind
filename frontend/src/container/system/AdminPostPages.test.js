@@ -92,8 +92,8 @@ jest.mock("antd", () => {
             <button type="button" onClick={() => onSearch(value)}>Tìm kiếm</button>
         </div>;
     };
-    const Select = ({ options = [], onChange, defaultValue = "" }) => (
-        <select aria-label="Trạng thái bài" defaultValue={defaultValue} onChange={(event) => onChange(event.target.value)}>
+    const Select = ({ options = [], onChange, defaultValue = "", value, disabled }) => (
+        <select aria-label="Trạng thái bài" disabled={disabled} {...(value === undefined ? { defaultValue } : { value })} onChange={(event) => onChange(event.target.value)}>
             {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
     );
@@ -109,6 +109,7 @@ jest.mock("@ant-design/icons", () => ({ ExclamationCircleOutlined: () => null })
 
 const post = (statusCode = "PS3") => ({
     id: 55,
+    editRevision: 'jv1-' + 'a'.repeat(64),
     timeEnd: Date.parse("2030-01-01T00:00:00Z"),
     statusCode,
     statusPostData: {
@@ -148,12 +149,82 @@ describe("post administration", () => {
         await waitFor(() => expect(getAllPostByRoleAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5 })));
     });
 
+    it.each([{ errCode: 4, conflict: true }, { errCode: -1, httpStatus: 409, errorType: 'conflict' },
+        { errCode: 1, httpStatus: 428 }, { errCode: -1, errorType: 'timeout' }, { errCode: -1, errorType: 'network' },
+        { errCode: -1, httpStatus: 502, errorType: 'unavailable' }])('requires explicit reread after moderation conflict/uncertain outcome: %j', async response => {
+        acceptPostService.mockResolvedValueOnce(response);
+        render(<ManagePost />);
+        fireEvent.click(await screen.findByText('Duyệt'));
+        await screen.findByRole('alert');
+        expect(screen.getByRole('button', { name: 'Duyệt' })).toBeDisabled();
+        expect(getAllPostByRoleAdminService).toHaveBeenCalledTimes(1);
+        fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
+        expect(acceptPostService).toHaveBeenCalledTimes(1);
+        const latest = { ...post(), editRevision: 'jv1-' + 'b'.repeat(64) };
+        getAllPostByRoleAdminService.mockResolvedValueOnce({ errCode: 0, count: 1, data: [latest] });
+        fireEvent.click(screen.getByRole('button', { name: 'Tải lại danh sách' }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Duyệt' })).toBeEnabled());
+        expect(acceptPostService).toHaveBeenCalledTimes(1);
+        fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
+        await waitFor(() => expect(acceptPostService).toHaveBeenLastCalledWith(expect.objectContaining({ expectedRevision: latest.editRevision }), {}));
+    });
+
+    it('disables moderation when a server has no revision instead of silently sending an unguarded decision', async () => {
+        getAllPostByRoleAdminService.mockResolvedValueOnce({ errCode: 0, count: 1, data: [{ ...post(), editRevision: undefined }] });
+        render(<ManagePost />);
+        await screen.findByRole('alert');
+        fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
+        expect(acceptPostService).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Từ chối' })).toBeDisabled();
+    });
+
+    it('holds a single in-flight moderation and ignores duplicate confirmation callbacks', async () => {
+        let finish;
+        acceptPostService.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        render(<ManagePost />);
+        fireEvent.click(await screen.findByText('Duyệt'));
+        const confirmation = AntModal.confirm.mock.calls[0][0];
+        await act(async () => confirmation.onOk());
+        expect(acceptPostService).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Duyệt' })).toBeDisabled();
+        await act(async () => finish({ errCode: 0, changed: true }));
+        await waitFor(() => expect(getAllPostByRoleAdminService).toHaveBeenCalledTimes(2));
+        await act(async () => confirmation.onOk());
+        expect(acceptPostService).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores old list and confirmation responses after the filter changes', async () => {
+        AntModal.confirm.mockImplementation(() => {});
+        render(<ManagePost />);
+        fireEvent.click(await screen.findByText('Duyệt'));
+        const confirmation = AntModal.confirm.mock.calls[0][0];
+        let finishOld;
+        getAllPostByRoleAdminService.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+        fireEvent.change(screen.getByLabelText('Trạng thái bài'), { target: { value: 'PS1' } });
+        getAllPostByRoleAdminService.mockResolvedValueOnce({ errCode: 0, count: 1, data: [post('PS4')] });
+        fireEvent.change(screen.getByLabelText('Trạng thái bài'), { target: { value: 'PS4' } });
+        await screen.findByText('Mở lại');
+        await act(async () => finishOld({ errCode: 0, count: 1, data: [post('PS1')] }));
+        await act(async () => confirmation.onOk());
+        expect(screen.getByText('Mở lại')).toBeInTheDocument();
+        expect(screen.queryByText('Chặn')).not.toBeInTheDocument();
+        expect(acceptPostService).not.toHaveBeenCalled();
+    });
+
+    it('failed reload does not leave old rows available for a moderation decision', async () => {
+        getAllPostByRoleAdminService.mockResolvedValueOnce({ errCode: -1, errMessage: 'Không đọc được dữ liệu' });
+        render(<ManagePost />);
+        await screen.findByRole('alert');
+        expect(screen.queryByText('Duyệt')).not.toBeInTheDocument();
+        expect(acceptPostService).not.toHaveBeenCalled();
+    });
+
     it("opens a post-focused route with an exact id and no moderation filter", async () => {
         mockParams = { id: "55" };
         getAllPostByAdminService.mockResolvedValue({ errCode: 0, count: 1, data: [post()] });
         render(<ManagePost />);
         expect(await screen.findByText("Kỹ sư Backend")).toBeInTheDocument();
-        expect(getAllPostByAdminService).toHaveBeenCalledWith({
+        expect(getAllPostByRoleAdminService).toHaveBeenCalledWith({
             limit: 5, offset: 0, search: "55", censorCode: "",
         });
     });
@@ -168,9 +239,9 @@ describe("post administration", () => {
         render(<ManagePost />);
         fireEvent.click(await screen.findByText(action));
         if (action !== "Duyệt") fireEvent.click(screen.getByRole("button", { name: "Gửi ghi chú" }));
-        await waitFor(() => expect(service).toHaveBeenCalledWith(payload));
+        await waitFor(() => expect(service).toHaveBeenCalledWith({ ...payload, expectedRevision: post().editRevision }, {}));
         expect(toast.success).toHaveBeenCalled();
-        expect(getAllPostByRoleAdminService).toHaveBeenCalledTimes(2);
+        await waitFor(() => expect(getAllPostByRoleAdminService).toHaveBeenCalledTimes(2));
     });
 
     it("does not expose the edit action for a blocked post", async () => {

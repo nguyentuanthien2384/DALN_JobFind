@@ -1,6 +1,7 @@
 import db from '../models/index';
 import { assertTransactionalPostingTables, PostingQuotaError } from './postingQuota';
 import { isJobRevision, jobRevision } from './jobRevision';
+import { cancelLegacyModeration } from './moderationFence';
 
 const fields = [
     'name', 'descriptionHTML', 'descriptionMarkdown', 'categoryJobCode', 'addressCode',
@@ -52,6 +53,9 @@ export const updateLegacyPost = async (data, identity = {}) => {
             }
             // A new snapshot even when apparently unshared: re-posting may start
             // concurrently. Never modify a sibling's content or transfer authorship.
+            // Even metadata-only legacy edits enter manual PS3. Cancel the old
+            // AI request so matching name/HTML cannot revive a previous decision.
+            await cancelLegacyModeration(post.id, transaction);
             const detail = await db.DetailPost.create(next, { transaction });
             post.detailPostId = detail.id;
             post.statusCode = 'PS3'; // Preserve the legacy manual review policy.

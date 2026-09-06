@@ -196,15 +196,18 @@ const updatePostService = (data, options) => {
         : axios.put(`/api/update-post`, data)
 
 }
-const activePostService = (data) => {
-    return axios.put(`/api/active-post`, data)
+const activePostService = (data, options) => {
+    return options ? axios.put(`/api/active-post`, data, { timeout: 15000, ...(options.signal && { signal: options.signal }) })
+        : axios.put(`/api/active-post`, data)
 
 }
-const banPostService = (data) => {
-    return axios.put(`/api/ban-post`, data)
+const banPostService = (data, options) => {
+    return options ? axios.put(`/api/ban-post`, data, { timeout: 15000, ...(options.signal && { signal: options.signal }) })
+        : axios.put(`/api/ban-post`, data)
 }
-const acceptPostService = (data) => {
-    return axios.put(`/api/accept-post`, data)
+const acceptPostService = (data, options) => {
+    return options ? axios.put(`/api/accept-post`, data, { timeout: 15000, ...(options.signal && { signal: options.signal }) })
+        : axios.put(`/api/accept-post`, data)
 }
 const getAllPostByAdminService = (data) => {
     return axios.get(`/api/get-list-post-admin?companyId=${data.companyId}&limit=${data.limit}&offset=${data.offset}&search=${data.search}&censorCode=${data.censorCode}`)

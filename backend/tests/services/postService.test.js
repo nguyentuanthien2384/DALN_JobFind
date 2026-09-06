@@ -80,7 +80,7 @@ describe('postService', () => {
       ['getListPostByAdmin', {}], ['getAllPostByAdmin', {}], ['getDetailPostById', null],
       ['getListNoteByPost', {}], ['getRelatedPost', {}], ['getRecommendedPost', {}]
     ];
-    for (const [method, arg] of invalid) expect((await service[method](arg)).errCode).toBe(1);
+    for (const [method, arg] of invalid) expect((await service[method](arg, { roleCode: 'ADMIN' })).errCode).toBe(1);
   });
 
   test.each([
@@ -207,55 +207,79 @@ describe('postService', () => {
     await expect(service.handleCreateNewPost(validPost())).rejects.toBe(failure);
   });
 
+  const moderationFixture = (statusCode = 'PS3') => {
+    const post = { id: 10, userId: 7, detailPostId: 20, statusCode, timeEnd: '1700000000000', isHot: 0, save: jest.fn() };
+    const detail = { ...validPost(), id: 20 };
+    mockDb.Post.findOne.mockResolvedValue(post); mockDb.DetailPost.findOne.mockResolvedValue(detail);
+    mockDb.User.findAll.mockResolvedValue([{ id: 1, companyId: null }, { id: 7, companyId: 4 }]);
+    mockDb.User.findOne.mockResolvedValue({ email: 'author@example.com' });
+    mockDb.Company.findOne.mockResolvedValue({ id: 4, name: 'Acme' });
+    mockDb.sequelize.query.mockImplementation(sql => Promise.resolve(sql.includes('TABLE_NAME IN')
+      ? [['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))]
+      : [[{ engine: 'InnoDB' }]]));
+    return { post, detail, payload: { id: 10, postId: 10, userId: 1, note: 'Lý do', expectedRevision: jobRevision(post, detail) } };
+  };
+
   test.each([
-    ['handleBanPost', { postId: 10, userId: 1, note: 'bad' }, 'PS4'],
-    ['handleActivePost', { id: 10, userId: 1, note: 'fixed' }, 'PS3']
-  ])('%s changes status, records a note and emails the author', async (method, payload, status) => {
-    mockDb.Post.findOne.mockResolvedValueOnce(null);
-    expect((await service[method](payload)).errCode).toBe(2);
-    const post = { id: 10, userId: 7, save: jest.fn() };
-    mockDb.Post.findOne.mockResolvedValueOnce(post);
-    mockDb.User.findOne.mockResolvedValueOnce({ email: 'author@example.com' });
-    expect((await service[method](payload)).errCode).toBe(0);
-    expect(post.statusCode).toBe(status);
-    expect(mockDb.Note.create).toHaveBeenCalledWith(expect.objectContaining({ postId: 10, userId: 1 }));
+    ['handleBanPost', 'PS1', 'PS4'], ['handleActivePost', 'PS4', 'PS3'],
+    ['handleAcceptPost', 'PS3', 'PS1'], ['handleAcceptPost', 'PS3', 'PS2']
+  ])('%s changes %s to %s with a transactional note/fence and post-commit author email', async (method, from, statusCode) => {
+    const { post, payload } = moderationFixture(from);
+    const result = await service[method]({ ...payload, statusCode }, { roleCode: 'ADMIN' });
+    expect(result).toMatchObject({ errCode: 0, changed: true, statusCode });
+    expect(result.editRevision).not.toBe(payload.expectedRevision);
+    expect(result).not.toHaveProperty('notification');
+    expect(post.statusCode).toBe(statusCode);
+    expect(post.save).toHaveBeenCalledWith(expect.objectContaining({ transaction: mockTransaction }));
+    expect(mockDb.Note.create).toHaveBeenCalledWith(expect.objectContaining({ postId: 10, userId: 1 }), { transaction: mockTransaction });
+    expect(mockDb.sequelize.query).toHaveBeenCalledWith(expect.stringContaining("SET state = 'cancelled'"),
+      expect.objectContaining({ transaction: mockTransaction }));
     expect(mockSendMail).toHaveBeenCalled();
+    expect(mockSendMail.mock.invocationCallOrder[0]).toBeGreaterThan(mockDb.Note.create.mock.invocationCallOrder[0]);
   });
 
-  test('accepting an active post timestamps it and notifies company followers', async () => {
-    mockDb.Post.findOne.mockResolvedValueOnce(null);
-    expect((await service.handleAcceptPost({ id: 10, statusCode: 'PS1' })).errCode).toBe(2);
-    const post = { id: 10, userId: 7, detailPostId: 20, save: jest.fn() };
-    mockDb.Post.findOne.mockResolvedValueOnce(post);
-    mockDb.User.findOne.mockResolvedValueOnce({ email: 'a@b.com', companyId: 4 });
-    mockDb.DetailPost.findOne.mockResolvedValueOnce({ name: 'Node' });
-    mockDb.Company.findOne.mockResolvedValueOnce({ name: 'Acme' });
-    mockDb.FollowCompany.findAll.mockResolvedValueOnce([{ userId: 2 }, { userId: 3 }]);
-    const result = await service.handleAcceptPost({ id: 10, statusCode: 'PS1', userId: 1 });
-    expect(result.errCode).toBe(0);
-    expect(post.statusCode).toBe('PS1');
+  test('approval preserves its old timestamp/follower behavior but sends nothing on a stale repeat or matching no-op', async () => {
+    const { post, payload } = moderationFixture();
+    mockDb.FollowCompany.findAll.mockResolvedValue([{ userId: 2 }, { userId: 3 }]);
+    const result = await service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' });
     expect(post.timePost).toEqual(expect.any(Number));
     expect(mockDb.Notification.bulkCreate).toHaveBeenCalledWith([
       expect.objectContaining({ userId: 2, typeCode: 'NEW_POST', link: '/detail-job/10' }),
       expect.objectContaining({ userId: 3, typeCode: 'NEW_POST', link: '/detail-job/10' })
     ]);
+    expect((await service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' })).httpStatus).toBe(409);
+    expect(await service.handleAcceptPost({ ...payload, expectedRevision: result.editRevision, statusCode: 'PS1' }, { roleCode: 'ADMIN' }))
+      .toMatchObject({ errCode: 0, changed: false });
+    expect(mockDb.Note.create).toHaveBeenCalledTimes(1); expect(mockSendMail).toHaveBeenCalledTimes(1);
+    expect(mockDb.Notification.bulkCreate).toHaveBeenCalledTimes(1);
   });
 
-  test('rejecting a post stores the supplied note without follower notifications', async () => {
-    const post = { id: 10, userId: 7, save: jest.fn() };
-    mockDb.Post.findOne.mockResolvedValue(post);
-    mockDb.User.findOne.mockResolvedValue({ email: 'a@b.com' });
-    expect((await service.handleAcceptPost({ id: 10, statusCode: 'PS2', userId: 1, note: 'bad' })).errCode).toBe(0);
-    expect(mockDb.Note.create).toHaveBeenCalledWith(expect.objectContaining({ note: 'bad' }));
-    expect(mockDb.Notification.bulkCreate).not.toHaveBeenCalled();
+  test.each(['note', 'commit'])('a failed %s never emails or notifies followers', async stage => {
+    const { payload } = moderationFixture();
+    if (stage === 'note') mockDb.Note.create.mockRejectedValueOnce(new Error('synthetic note'));
+    else mockDb.sequelize.transaction.mockImplementationOnce(async work => { await work(mockTransaction); throw new Error('synthetic commit'); });
+    await expect(service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' })).rejects.toThrow('synthetic');
+    expect(mockSendMail).not.toHaveBeenCalled(); expect(mockDb.Notification.bulkCreate).not.toHaveBeenCalled();
   });
 
-  test('follower notification failures do not fail post approval', async () => {
-    const post = { id: 10, userId: 7, detailPostId: 20, save: jest.fn() };
-    mockDb.Post.findOne.mockResolvedValue(post);
-    mockDb.User.findOne.mockResolvedValue({ email: 'a@b.com', companyId: 4 });
-    mockDb.DetailPost.findOne.mockRejectedValue(new Error('notify db'));
-    expect((await service.handleAcceptPost({ id: 10, statusCode: 'PS1', userId: 1 })).errCode).toBe(0);
+  test('post-commit mail/follower failure never reports that the committed approval failed', async () => {
+    const { payload } = moderationFixture();
+    mockDb.User.findOne.mockRejectedValueOnce(new Error('email lookup'));
+    mockDb.FollowCompany.findAll.mockRejectedValueOnce(new Error('followers'));
+    expect((await service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' })).errCode).toBe(0);
+    expect(mockDb.Note.create).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    [{ roleCode: 'EMPLOYER' }, {}, 403], [{}, { roleCode: 'ADMIN' }, 403],
+    [{ roleCode: 'ADMIN' }, { expectedRevision: undefined }, 428],
+    [{ roleCode: 'ADMIN' }, { expectedRevision: null }, 400],
+    [{ roleCode: 'ADMIN' }, { note: ' ' }, 400], [{ roleCode: 'ADMIN' }, { note: 'a'.repeat(256) }, 400],
+    [{ roleCode: 'ADMIN' }, { id: '../10' }, 400]
+  ])('rejects unsafe identity/payload before mutation: %j %j', async (identity, patch, httpStatus) => {
+    const { payload, post } = moderationFixture();
+    expect((await service.handleAcceptPost({ ...payload, statusCode: 'PS2', ...patch }, identity)).httpStatus).toBe(httpStatus);
+    expect(post.save).not.toHaveBeenCalled(); expect(mockDb.Note.create).not.toHaveBeenCalled(); expect(mockSendMail).not.toHaveBeenCalled();
   });
 
   test('lists company/admin posts with pagination and filters', async () => {
@@ -263,13 +287,15 @@ describe('postService', () => {
     expect((await service.getListPostByAdmin({ companyId: 4, limit: 5, offset: 0 })).errCode).toBe(2);
     mockDb.Company.findOne.mockResolvedValueOnce({ id: 4 });
     mockDb.User.findAll.mockResolvedValueOnce([{ id: 7 }]);
-    mockDb.Post.findAndCountAll.mockResolvedValue({ rows: ['p'], count: 1 });
+    const row = { id: 10, userId: 7, postDetailData: { ...validPost(), id: 20 } };
+    const expected = { ...row, editRevision: jobRevision(row, row.postDetailData) };
+    mockDb.Post.findAndCountAll.mockResolvedValue({ rows: [row], count: 1 });
     expect(await service.getListPostByAdmin({ companyId: 4, limit: '5', offset: '0', search: 'Node', censorCode: 'PS1' })).toEqual({
-      errCode: 0, data: ['p'], count: 1
+      errCode: 0, data: [expected], count: 1
     });
     expect(mockDb.Post.findAndCountAll).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 5, offset: 0, where: expect.any(Object) }));
     expect(await service.getAllPostByAdmin({ limit: '5', offset: '0', search: 'Node', censorCode: 'PS1' })).toEqual({
-      errCode: 0, data: ['p'], count: 1
+      errCode: 0, data: [expected], count: 1
     });
   });
 
@@ -370,7 +396,9 @@ describe('postService', () => {
     ];
     for (const [method, arg, target, dbMethod] of failures) {
       target[dbMethod].mockRejectedValueOnce(new Error('db'));
-      await expect(service[method](arg)).rejects.toBeTruthy();
+      const data = ['handleBanPost', 'handleActivePost', 'handleAcceptPost'].includes(method)
+        ? { ...arg, expectedRevision: 'jv1-' + 'a'.repeat(64) } : arg;
+      await expect(service[method](data, { roleCode: 'ADMIN' })).rejects.toBeTruthy();
     }
   });
 });

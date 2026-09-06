@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Modal, ModalFooter, ModalBody, Button, Spinner } from 'reactstrap';
 import './modal.css'
 function NoteModal(props) {
     const [isLoading, setIsLoading] = useState(false)
+    const busy = useRef(false)
     const [inputValue, setInputValue] = useState({
         note: '',
     })
@@ -13,11 +14,15 @@ function NoteModal(props) {
             [name]: value
         })
     }
-    const handlePost = () => {
+    const handlePost = async () => {
+        if (busy.current) return;
+        busy.current = true;
         setIsLoading(true)
-        props.handleFunc(props.id,inputValue.note)
-        setIsLoading(false)
-        props.onHide()
+        try {
+            const result = props.handleFunc(props.id,inputValue.note)
+            if (!props.awaitResult || await result === true) props.onHide()
+        } catch { /* Parent supplies feedback; retain the note for review. */ }
+        finally { busy.current = false; setIsLoading(false) }
     }
     return (
         <div>
@@ -26,18 +31,20 @@ function NoteModal(props) {
             >
                 <p className='text-center'>Hãy gửi lời nhắn để nhà tuyển dụng</p>
                 <ModalBody>
+                    {props.feedback && <p role="alert">{props.feedback} Sao chép ghi chú cần giữ, đóng hộp thoại rồi chọn Tải lại danh sách.</p>}
                     Nhập lời giới thiệu gửi đến nhà tuyển dụng
                     <div>
                     <textarea placeholder='Giải thích lý do cho nhà tuyển dụng' 
-                    name='note' className='mt-2' style={{ width: "100%" }} rows='5' onChange={(event) => handleChange(event)}></textarea>
+                    name='note' value={inputValue.note} disabled={props.awaitResult && isLoading}
+                    maxLength={props.awaitResult ? 255 : undefined} className='mt-2' style={{ width: "100%" }} rows='5' onChange={(event) => handleChange(event)}></textarea>
                     </div>
                 </ModalBody>
                 <ModalFooter style={{ justifyContent: 'space-between' }}>
-                    <Button className='me-5' onClick={() => handlePost()}>
+                    <Button className='me-5' disabled={props.awaitResult && (isLoading || !!props.feedback)} onClick={() => handlePost()}>
                         Hoàn thành
                     </Button>
 
-                    <Button onClick={() => {
+                    <Button disabled={props.awaitResult && isLoading} onClick={() => {
                         props.onHide()
                     }}>
                         Hủy

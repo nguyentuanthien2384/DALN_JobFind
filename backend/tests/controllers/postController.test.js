@@ -33,12 +33,12 @@ const cases = [
   ['handleCreateNewPost', 'handleCreateNewPost', (r) => ({ ...r.body, userId: r.user.id })],
   ['handleReupPost', 'handleReupPost', (r) => ({ ...r.body, userId: r.user.id })],
   ['handleUpdatePost', 'handleUpdatePost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode, companyId: r.user.companyId }]],
-  ['handleBanPost', 'handleBanPost', (r) => ({ ...r.body, userId: r.user.id })],
-  ['handleAcceptPost', 'handleAcceptPost', (r) => ({ ...r.body, userId: r.user.id })],
+  ['handleBanPost', 'handleBanPost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode }]],
+  ['handleAcceptPost', 'handleAcceptPost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode }]],
   ['getListPostByAdmin', 'getListPostByAdmin', (r) => ({ ...r.query, companyId: 11 })],
   ['getAllPostByAdmin', 'getAllPostByAdmin', (r) => r.query],
   ['getDetailPostById', 'getDetailPostById', (r) => [r.query.id, { includeNonPublic: true }]],
-  ['handleActivePost', 'handleActivePost', (r) => ({ ...r.body, userId: r.user.id })],
+  ['handleActivePost', 'handleActivePost', (r) => [{ ...r.body, userId: r.user.id }, { roleCode: r.user.userAccountData.roleCode }]],
   ['getFilterPost', 'getFilterPost', (r) => r.query],
   ['getStatisticalTypePost', 'getStatisticalTypePost', (r) => ({ ...r.query, companyId: r.user.companyId })],
   ['getListNoteByPost', 'getListNoteByPost', (r) => r.query],
@@ -47,6 +47,17 @@ const cases = [
 ];
 
 describe('postController', () => {
+  test.each(['handleBanPost', 'handleAcceptPost', 'handleActivePost'])('%s forwards trusted role and never emits on conflict/no-op', async method => {
+    const req = request('ADMIN'); req.body.roleCode = 'EMPLOYER'; req.body.userId = 999;
+    for (const result of [{ errCode: 4, httpStatus: 409, conflict: true }, { errCode: 0, changed: false }, { errCode: 1, httpStatus: 428 }]) {
+      mockEmitJobUpdated.mockClear(); mockEmitDashboardChanged.mockClear();
+      mockService[method].mockResolvedValueOnce(result);
+      const res = createResponse(); await controller[method](req, res);
+      expect(mockService[method]).toHaveBeenLastCalledWith(expect.objectContaining({ userId: 7 }), { roleCode: 'ADMIN' });
+      expect(res.status).toHaveBeenCalledWith(result.httpStatus || 200);
+      expect(mockEmitJobUpdated).not.toHaveBeenCalled(); expect(mockEmitDashboardChanged).not.toHaveBeenCalled();
+    }
+  });
   test('returns HTTP 409 for a stale edit without emitting job or dashboard events', async () => {
     mockCanAccessPostApplicants.mockResolvedValueOnce(true);
     mockEmitJobUpdated.mockClear(); mockEmitDashboardChanged.mockClear();
@@ -155,7 +166,7 @@ describe('postController', () => {
   ])('%s emits update events and the expected dashboard invalidation', async (method, changesDashboard) => {
     mockService[method].mockResolvedValueOnce({ errCode: 0 });
     await controller[method](request(), createResponse());
-    expect(mockEmitJobUpdated).toHaveBeenCalledWith(17);
+    expect(mockEmitJobUpdated).toHaveBeenCalledWith(method === 'handleBanPost' ? 18 : 17);
     if (changesDashboard) expect(mockEmitDashboardChanged).toHaveBeenCalledWith('post');
   });
 

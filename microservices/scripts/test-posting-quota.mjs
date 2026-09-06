@@ -59,6 +59,7 @@ try {
     legacyDb = legacyRequire('./src/models/index.js');
     assert.equal((await legacyDb.sequelize.query('SELECT DATABASE() AS name'))[0][0].name, database);
     const legacy = legacyRequire('./src/services/postService.js');
+    const { moderateLegacyPost } = legacyRequire('./src/utils/jobModeration.js');
     const { createJob, updateJob, repostJob, getJob } = await import('../job-core-service/src/controllers/jobController.js');
     const { getManagedJob } = await import('../job-core-service/src/controllers/jobManagementController.js');
     const { ensureJobRequestTable } = await import('../job-core-service/src/libs/jobRequest.js');
@@ -389,7 +390,9 @@ try {
     await runJobManagementChecks({ pool, check, core, managed, edit, counts, balance });
     const { runJobConcurrencyChecks } = await import('./job-concurrency-checks.mjs');
     await runJobConcurrencyChecks({ pool, check, core, managed, edit, legacy, counts, balance, waitForRowWait });
-    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private reads + edit concurrency); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
+    const { runManualModerationChecks } = await import('./manual-moderation-checks.mjs');
+    await runManualModerationChecks({ pool, check, core, managed, edit, legacy, moderateLegacyPost, counts, balance, waitForRowWait });
+    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private reads + concurrency + manual/AI moderation); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
     const closed = await Promise.allSettled([

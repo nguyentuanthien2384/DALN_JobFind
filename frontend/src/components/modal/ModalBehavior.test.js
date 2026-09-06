@@ -41,6 +41,31 @@ jest.mock("../../util/CommonUtils", () => ({
 }));
 
 describe("NoteModal", () => {
+    it('awaits moderation, blocks duplicate submission and retains the note on failure', async () => {
+        let finish;
+        const handleFunc = jest.fn(() => new Promise(resolve => { finish = resolve; }));
+        const onHide = jest.fn();
+        const { rerender } = render(<NoteModal isOpen awaitResult id={17} handleFunc={handleFunc} onHide={onHide} />);
+        const input = screen.getByPlaceholderText('Giải thích lý do cho nhà tuyển dụng');
+        fireEvent.change(input, { target: { value: 'Lý do cần giữ' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' }));
+        expect(handleFunc).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: 'Hủy' })).toBeDisabled();
+        await act(async () => finish(false));
+        expect(input).toHaveValue('Lý do cần giữ'); expect(onHide).not.toHaveBeenCalled();
+        rerender(<NoteModal isOpen awaitResult feedback='Tin đã thay đổi' id={17} handleFunc={handleFunc} onHide={onHide} />);
+        expect(screen.getByRole('alert')).toHaveTextContent('Sao chép ghi chú');
+        expect(screen.getByRole('button', { name: 'Hoàn thành' })).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Hủy' })); expect(onHide).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes an awaited moderation note only after confirmed success', async () => {
+        const onHide = jest.fn();
+        render(<NoteModal isOpen awaitResult id={17} handleFunc={jest.fn().mockResolvedValue(true)} onHide={onHide} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' }));
+        await waitFor(() => expect(onHide).toHaveBeenCalledTimes(1));
+    });
     it("submits the post id and entered note, then closes", () => {
         const handleFunc = jest.fn();
         const onHide = jest.fn();
