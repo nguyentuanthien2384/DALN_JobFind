@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import db from '../models/index';
 import { serializeEventPayload } from './eventContract';
-import { PostingQuotaError } from './postingQuota';
+import { assertTransactionalLegacyOutbox } from './legacyOutbox';
 
 const EVENT = 'notification.manual_moderation_requested';
 const BATCH_SIZE = 100;
@@ -9,12 +9,7 @@ const BATCH_SIZE = 100;
 // Transitional shared-DB adapter: Job Core's existing confirmed relay owns
 // delivery. Never start a second legacy relay or publish before this TX commits.
 export const enqueueManualModerationNotifications = async (intent, transaction) => {
-    if (!transaction) throw new Error('Manual notification outbox requires the posting transaction');
-    const [tables] = await db.sequelize.query(`SELECT ENGINE AS engine FROM information_schema.TABLES
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'outbox_events'`, { transaction });
-    if (tables.length !== 1 || tables[0].engine?.toUpperCase() !== 'INNODB') {
-        throw new PostingQuotaError('Chưa thể kiểm duyệt: nơi lưu yêu cầu thông báo chưa sẵn sàng');
-    }
+    await assertTransactionalLegacyOutbox(transaction);
     // Freeze recipients with one read inside the decision transaction. Retries
     // never reread the changing follower list. Dedup legacy duplicate follow rows.
     const followers = intent.action === 'approve' && intent.companyId

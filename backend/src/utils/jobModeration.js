@@ -3,6 +3,7 @@ import { assertTransactionalPostingTables, PostingQuotaError } from './postingQu
 import { isJobRevision, jobRevision } from './jobRevision';
 import { cancelLegacyModeration } from './moderationFence';
 import { enqueueManualModerationNotifications } from './manualModerationOutbox';
+import { enqueueLegacyJobUpdated } from './legacyOutbox';
 
 const fail = (httpStatus, errMessage, conflict = false) => ({ errCode: httpStatus === 403 ? 3 : conflict ? 4 : 1,
     httpStatus, errMessage, ...(conflict && { conflict: true }) });
@@ -15,7 +16,7 @@ const transitions = {
 };
 
 // Role comes from authenticated middleware via a separate argument, never body.
-// Status, note, AI fence and recipient intents commit or roll back together.
+// Status, note, AI fence, search event and recipient intents commit or roll back together.
 export const moderateLegacyPost = async (data, action, identity = {}) => {
     if (identity.roleCode !== 'ADMIN') return fail(403, 'Chỉ quản trị viên được kiểm duyệt tin');
     const rule = Object.hasOwn(transitions, action) ? transitions[action] : null;
@@ -40,7 +41,8 @@ export const moderateLegacyPost = async (data, action, identity = {}) => {
             const owner = users.find(user => user.id === initial.userId);
             // Same auth -> company -> post order as create/edit; retain ownership
             // context for notifications, without changing quota or paid fields.
-            const company = owner?.companyId ? await db.Company.findOne({ where: { id: owner.companyId }, attributes: ['id', 'name'],
+            const company = owner?.companyId ? await db.Company.findOne({ where: { id: owner.companyId },
+                attributes: ['id', 'name', 'thumbnail', 'statusCode', 'censorCode'],
                 transaction, lock: transaction.LOCK.UPDATE, raw: true }) : null;
             const post = await db.Post.findOne({ where: { id }, transaction, lock: transaction.LOCK.UPDATE, raw: false });
             if (!post) return { errCode: 2, httpStatus: 404, errMessage: 'Không tồn tại bài viết' };
@@ -59,6 +61,7 @@ export const moderateLegacyPost = async (data, action, identity = {}) => {
             if (action === 'approve') { post.timePost = Date.now(); fields.push('timePost'); }
             await post.save({ transaction, fields });
             await db.Note.create({ postId: post.id, note, userId: Number(data.userId) }, { transaction });
+            await enqueueLegacyJobUpdated({ post, detail, owner, company }, transaction);
             await enqueueManualModerationNotifications({ action, postId: post.id, posterId: post.userId,
                 companyId: owner?.companyId ?? null, companyName: company?.name ?? null, jobTitle: detail.name, note }, transaction);
             return { errCode: 0, changed: true, postId: post.id, statusCode: post.statusCode,

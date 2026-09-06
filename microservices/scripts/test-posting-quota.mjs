@@ -59,6 +59,7 @@ try {
     legacyDb = legacyRequire('./src/models/index.js');
     assert.equal((await legacyDb.sequelize.query('SELECT DATABASE() AS name'))[0][0].name, database);
     const legacy = legacyRequire('./src/services/postService.js');
+    const legacyController = legacyRequire('./src/controllers/postController.js');
     const { moderateLegacyPost } = legacyRequire('./src/utils/jobModeration.js');
     const { createJob, updateJob, repostJob, getJob } = await import('../job-core-service/src/controllers/jobController.js');
     const { getManagedJob } = await import('../job-core-service/src/controllers/jobManagementController.js');
@@ -100,6 +101,14 @@ try {
         if (req.headers['x-test-drop-response'] === '1') res.json = () => res.destroy();
         next();
     });
+    // Fixture-only trusted identity: test the REAL legacy controller, transaction
+    // and lost HTTP response, not authentication. No Socket.IO server is started.
+    app.put('/test/manual/:action', (req, res) => {
+        req.user = { id: 88, companyId: null, userAccountData: { roleCode: 'ADMIN' } };
+        const methods = { approve: 'handleAcceptPost', reject: 'handleAcceptPost', ban: 'handleBanPost', reopen: 'handleActivePost' };
+        if (!Object.hasOwn(methods, req.params.action)) return res.status(404).end();
+        return legacyController[methods[req.params.action]](req, res);
+    });
     contractRoute(app, 'jobCreate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), createJob);
     contractRoute(app, 'jobRepost', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), repostJob);
     contractRoute(app, 'jobUpdate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), updateJob);
@@ -107,6 +116,16 @@ try {
     contractRoute(app, 'jobGet', getJob);
     server = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
     const url = `http://127.0.0.1:${server.address().port}/jobs`;
+    const manualHttp = async (job, action, { drop = false, ...patch } = {}) => {
+        const response = await fetch(`http://127.0.0.1:${server.address().port}/test/manual/${action}`, {
+            method: 'PUT', signal: AbortSignal.timeout(15000), headers: { 'content-type': 'application/json',
+                'x-internal-secret': token, ...(drop && { 'x-test-drop-response': '1' }) },
+            body: JSON.stringify({ id: job.id, postId: job.id, userId: 99999, roleCode: 'EMPLOYER',
+                expectedRevision: job.editRevision, note: 'Synthetic HTTP decision',
+                statusCode: action === 'approve' ? 'PS1' : 'PS2', ...patch })
+        });
+        return { status: response.status, body: await response.json() };
+    };
     const body = (isHot = 0) => ({ name: 'Synthetic developer', descriptionHTML: '<p>Test only</p>', descriptionMarkdown: 'Test only',
         categoryJobCode: 'IT', addressCode: 'HN', salaryJobCode: 'SAL1', amount: 1,
         categoryJoblevelCode: 'JL1', categoryWorktypeCode: 'WT1', experienceJobCode: 'EXP1', genderPostCode: 'G1',
@@ -391,7 +410,7 @@ try {
     const { runJobConcurrencyChecks } = await import('./job-concurrency-checks.mjs');
     await runJobConcurrencyChecks({ pool, check, core, managed, edit, legacy, counts, balance, waitForRowWait });
     const { runManualModerationChecks } = await import('./manual-moderation-checks.mjs');
-    await runManualModerationChecks({ pool, check, core, managed, edit, legacy, moderateLegacyPost, counts, balance, waitForRowWait });
+    await runManualModerationChecks({ pool, check, core, managed, edit, legacy, moderateLegacyPost, manualHttp, counts, balance, waitForRowWait });
     console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent create/repost + private reads + concurrency + manual/AI moderation); disposable MySQL, actual Job Core HTTP and legacy Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();

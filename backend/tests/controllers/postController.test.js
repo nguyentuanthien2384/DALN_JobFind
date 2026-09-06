@@ -163,11 +163,24 @@ describe('postController', () => {
     ['handleBanPost', true],
     ['handleAcceptPost', true],
     ['handleActivePost', true]
-  ])('%s emits update events and the expected dashboard invalidation', async (method, changesDashboard) => {
-    mockService[method].mockResolvedValueOnce({ errCode: 0 });
+  ])('%s keeps only its expected post-commit publications', async (method, changesDashboard) => {
+    mockEmitJobUpdated.mockClear(); mockEmitDashboardChanged.mockClear();
+    mockService[method].mockResolvedValueOnce({ errCode: 0, changed: true, postId: 123 });
     await controller[method](request(), createResponse());
-    expect(mockEmitJobUpdated).toHaveBeenCalledWith(method === 'handleBanPost' ? 18 : 17);
+    if (method === 'handleUpdatePost') expect(mockEmitJobUpdated).toHaveBeenCalledWith(17);
+    else expect(mockEmitJobUpdated).not.toHaveBeenCalled(); // writer already saved exact job ID in outbox
     if (changesDashboard) expect(mockEmitDashboardChanged).toHaveBeenCalledWith('post');
+  });
+
+  test.each(['handleBanPost', 'handleAcceptPost', 'handleActivePost'])('%s returns committed success even when dashboard refresh fails', async method => {
+    for (const failure of [() => { throw new Error('socket throw'); }, () => Promise.reject(new Error('socket reject'))]) {
+      mockEmitJobUpdated.mockClear(); mockEmitDashboardChanged.mockImplementationOnce(failure);
+      const result = { errCode: 0, changed: true, postId: 123, editRevision: 'saved-revision' };
+      mockService[method].mockResolvedValueOnce(result);
+      const res = createResponse(); await controller[method](request('ADMIN'), res);
+      expect(res.status).toHaveBeenCalledWith(200); expect(res.json).toHaveBeenCalledWith(result);
+      expect(mockEmitJobUpdated).not.toHaveBeenCalled();
+    }
   });
 
   test('updated post falls back to postId and emits nothing on failure/missing id', async () => {

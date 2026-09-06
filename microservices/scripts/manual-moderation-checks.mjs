@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { handleAiResult } from '../job-core-service/src/libs/aiResultHandler.js';
 import { DETAIL_FIELDS } from '../job-core-service/src/libs/jobEdit.js';
+import { assertEventPayload } from '../shared/eventContract.js';
+import { runManualSearchOutboxChecks } from './manual-search-outbox-checks.mjs';
 
 // Only runs inside the owned disposable fixture. Calls the real transactional
 // legacy writer directly; notifications are only enqueued, never sent to providers.
-export const runManualModerationChecks = async ({ pool, check, core, managed, edit, legacy, moderateLegacyPost, counts, balance, waitForRowWait }) => {
+export const runManualModerationChecks = async ({ pool, check, core, managed, edit, legacy, moderateLegacyPost, manualHttp, counts, balance, waitForRowWait }) => {
     await pool.query(`CREATE TABLE notes (id INT AUTO_INCREMENT PRIMARY KEY, postId INT, userId INT,
         note VARCHAR(255), createdAt DATETIME, updatedAt DATETIME) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
     await pool.query(`CREATE TABLE followcompanies (id INT AUTO_INCREMENT PRIMARY KEY, companyId INT, userId INT,
@@ -29,7 +31,7 @@ export const runManualModerationChecks = async ({ pool, check, core, managed, ed
     };
 
     for (const [action, target] of [['approve', 'PS1'], ['reject', 'PS2'], ['ban', 'PS4'], ['reopen', 'PS3']]) {
-        await check(`manual ${action} commits status/note/AI fence/author intent atomically without quota/detail changes`, async () => {
+        await check(`manual ${action} commits status/note/AI fence/search event/author intent atomically without quota/detail changes`, async () => {
             const id = await make();
             if (action === 'reopen') assert.equal((await decide(await read(id), 'ban')).errCode, 0);
             const baseline = await read(id), original = await post(id), before = await counts(), quota = await balance(), oldNotes = await notes(id);
@@ -41,12 +43,22 @@ export const runManualModerationChecks = async ({ pool, check, core, managed, ed
             for (const field of ['detailPostId', 'userId', 'timeEnd', 'isHot', 'createdAt']) assert.deepEqual((await post(id))[field], original[field]);
             assert.equal((await notes(id)).length, oldNotes.length + 1);
             assert.equal((await notes(id)).at(-1).userId, 88);
-            assert.deepEqual(await counts(), before.map((value, index) => value + (index === 2 ? 1 : 0)));
+            assert.deepEqual(await counts(), before.map((value, index) => value + (index === 2 ? 2 : 0)));
+            const updates = (await pool.query("SELECT * FROM outbox_events WHERE aggregateId = ? AND aggregateType = 'legacy-job'", [String(id)]))[0];
+            assert.equal(updates.length, action === 'reopen' ? 2 : 1);
+            const update = updates.find(row => JSON.parse(row.payload).job.statusCode === target);
+            assert.equal(update.eventType, 'job.updated'); assert.equal(update.publishedAt, null);
+            const payload = JSON.parse(update.payload);
+            assert.equal(assertEventPayload('job.updated', payload, { aggregateId: update.aggregateId }), String(id));
+            for (const field of [...DETAIL_FIELDS, 'id', 'userId', 'statusCode', 'timeEnd', 'isHot']) assert.deepEqual(payload.job[field], current[field], field);
+            if (action === 'approve') assert.equal(String(payload.job.timePost), String((await post(id)).timePost));
+            assert.equal(payload.job.companyStatusCode, 'S1'); assert.equal(payload.job.companyCensorCode, 'CS1');
             assert.deepEqual(await balance(), quota);
             assert.equal((await decide(baseline, action)).httpStatus, 409);
             const noop = await decide(current, action);
             assert.equal(noop.changed, false); assert.equal(noop.notification, undefined);
             assert.equal((await notes(id)).length, oldNotes.length + 1);
+            assert.deepEqual(await counts(), before.map((value, index) => value + (index === 2 ? 2 : 0)));
         });
     }
     await check('banning then reopening to manual PS3 cannot resurrect an old matching AI request', async () => {
@@ -156,6 +168,8 @@ export const runManualModerationChecks = async ({ pool, check, core, managed, ed
         assert.equal((await read(id)).statusCode, 'PS4'); assert.equal((await notes(id)).length, 1);
     });
 
+    await runManualSearchOutboxChecks({ pool, check, make, read, post, state, notes, decide, legacyEdit, manualHttp, counts, balance, untouched, waitForRowWait });
+
     const eventType = 'notification.manual_moderation_requested';
     const intents = async id => (await pool.query('SELECT * FROM outbox_events WHERE aggregateId = ? AND eventType = ? ORDER BY id', [String(id), eventType]))[0];
     await check('missing outbox fails closed after rollback, without recreating it or falling back to direct delivery', async () => {
@@ -190,7 +204,7 @@ export const runManualModerationChecks = async ({ pool, check, core, managed, ed
         assert.equal(payloads.filter(payload => payload.audience === 'author').length, 1);
         assert.equal(payloads.filter(payload => payload.recipientId === 8).length, 2);
         assert.ok(payloads.filter(payload => payload.audience === 'follower').every(payload => payload.note === null));
-        assert.deepEqual(await counts(), before.map((value, index) => value + (index === 2 ? 207 : 0)));
+        assert.deepEqual(await counts(), before.map((value, index) => value + (index === 2 ? 208 : 0)));
         assert.equal((await decide(baseline, 'approve')).httpStatus, 409);
         assert.equal((await decide(await read(savedId), 'approve')).changed, false);
         assert.deepEqual(await intents(savedId), savedIntents);

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
 import { expectResponseContract, decodeEventFixture } from './contractAssertions.js';
 import { eventCatalog } from '../shared/contracts/eventCatalog.js';
+import { createEventEnvelope, eventProperties, readEventMessage } from '../shared/eventEnvelope.js';
 
 const mocks = vi.hoisted(() => {
     const es = {
@@ -44,6 +45,17 @@ beforeEach(() => {
 });
 
 describe('published search consumer contracts', () => {
+    it.each(['PS1', 'PS2', 'PS3', 'PS4'])('legacy manual %s snapshot is only a refresh signal, never an authoritative overwrite', async statusCode => {
+        const event = createEventEnvelope({ eventId: 'manual-event', eventType: 'job.updated', aggregateId: 7,
+            occurredAt: '2026-09-06T00:00:00Z', producer: 'legacy-backend', payloadVersion: 1,
+            data: { job: { id: 7, name: 'Historical snapshot', statusCode, companyStatusCode: 'S1', companyCensorCode: 'CS1' } } });
+        const { payload, metadata } = readEventMessage({ content: Buffer.from(JSON.stringify(event.data)),
+            properties: eventProperties(event), fields: { routingKey: 'job.updated' } });
+        const { handleSearchEvent } = await import('../search-service/src/consumers/jobIndexer.js');
+        await handleSearchEvent(payload, 'job.updated', metadata);
+        expect(mocks.synchronizeJob).toHaveBeenCalledWith('7', { eventId: 'manual-event' });
+        expect(mocks.es.index).not.toHaveBeenCalled(); expect(mocks.es.update).not.toHaveBeenCalled();
+    });
     it.each(Object.keys(eventCatalog).filter((key) => eventCatalog[key].consumers.includes('search-service.indexer')))
     ('refreshes the correct source for %s without trusting snapshot fields', async (key) => {
         const { handleSearchEvent } = await import('../search-service/src/consumers/jobIndexer.js');

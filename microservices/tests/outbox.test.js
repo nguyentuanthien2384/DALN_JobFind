@@ -23,6 +23,34 @@ beforeEach(() => {
 });
 
 describe('Job Core transactional outbox', () => {
+    it.each([
+        ['job.updated', 'legacy-job', 'legacy-backend'], ['job.updated', 'job', 'job-core-service'],
+        ['job.updated', undefined, 'job-core-service'], ['job.created', 'legacy-job', 'job-core-service'],
+        ['notification.manual_moderation_requested', 'manual-moderation-notification', 'legacy-backend']
+    ])('preserves producer for %s with persisted aggregate marker %s', async (eventType, aggregateType, producer) => {
+        const row = { id: 'stable-id', aggregateId: '7', aggregateType, eventType, createdAt: new Date(), payload: '{"job":{"id":7}}', attempts: 0 };
+        const query = vi.fn().mockResolvedValue([[row]]);
+        mocks.withTransaction.mockImplementation(work => work({ query }));
+        const { runOutboxOnce } = await import('../job-core-service/src/libs/outbox.js');
+        expect(await runOutboxOnce()).toBe(1);
+        expect(query.mock.calls[0][0]).toContain('aggregateType');
+        expect(mocks.publish).toHaveBeenCalledWith(eventType, JSON.parse(row.payload), { messageId: row.id, aggregateId: '7', occurredAt: row.createdAt, producer });
+    });
+    it('retries a legacy job update with identical payload, ID and origin after confirm or DB-marker loss', async () => {
+        const row = { id: 'stable-update', aggregateId: '7', aggregateType: 'legacy-job', eventType: 'job.updated',
+            createdAt: new Date(), payload: '{"job":{"id":7,"name":"Approved snapshot","statusCode":"PS1"}}', attempts: 0 };
+        mocks.withTransaction.mockImplementation(work => work({ query: vi.fn().mockResolvedValue([[row]]) }));
+        const { runOutboxOnce } = await import('../job-core-service/src/libs/outbox.js');
+        mocks.publish.mockRejectedValueOnce(new Error('confirm lost'));
+        expect(await runOutboxOnce()).toBe(0);
+        expect(mocks.pool.query.mock.calls.some(([sql]) => sql.includes('SET publishedAt'))).toBe(false);
+        mocks.pool.query.mockRejectedValueOnce(new Error('marker lost'));
+        expect(await runOutboxOnce()).toBe(0); expect(await runOutboxOnce()).toBe(1);
+        expect(mocks.publish).toHaveBeenCalledTimes(3);
+        for (const call of mocks.publish.mock.calls) expect(call).toEqual(['job.updated', JSON.parse(row.payload), {
+            messageId: row.id, aggregateId: '7', occurredAt: row.createdAt, producer: 'legacy-backend'
+        }]);
+    });
     it('relays legacy recipient intents with their persisted identity and producer across confirm/mark failure', async () => {
         const row = { id: 'stable-manual-1', aggregateId: '12', createdAt: new Date(),
             eventType: 'notification.manual_moderation_requested', payload: '{"jobId":12}', attempts: 0 };

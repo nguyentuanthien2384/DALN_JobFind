@@ -69,6 +69,11 @@ jobs:
         run: |
           docker pull rabbitmq:4-management-alpine
           npm run test:event-contracts:integration
+      - name: Verify search convergence on disposable Elasticsearch
+        working-directory: microservices
+        run: |
+          docker pull docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+          npm run test:search-projection:integration
       - name: Validate monitoring rules
         working-directory: microservices
         run: |

@@ -8,6 +8,15 @@ const forbidden = (res, errMessage) => res.status(403).json({
     errMessage: errMessage || 'Bạn không có quyền thao tác với tin tuyển dụng này'
 });
 
+// Manual job.updated is already committed to the outbox by the writer. This
+// socket hint is still best-effort and must not turn a committed decision into
+// an HTTP failure (or prompt a user to repeat it).
+const notifyModerationDashboard = async data => {
+    if (data.errCode !== 0 || data.changed !== true) return;
+    try { await emitDashboardChanged('post'); }
+    catch { console.log('Manual moderation dashboard refresh failed after commit'); }
+};
+
 let handleCreateNewPost = async (req, res) => {
     try {
         let data = await postService.handleCreateNewPost({
@@ -86,15 +95,7 @@ let handleBanPost = async (req, res) => {
             ...req.body,
             userId: req.user.id
         }, { roleCode: req.user.userAccountData?.roleCode });
-        // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
-        // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
-        if (data.errCode === 0 && data.changed !== false) {
-            const changedId = data.postId ?? req.body.postId;
-            if (changedId) emitJobUpdated(changedId);
-        }
-        // Bieu do "top linh vuc" chi dem tin dang hoat dong (statusCode PS1), nen
-        // khoa/duyet/mo lai tin deu lam so lieu doi theo.
-        if (data.errCode === 0 && data.changed !== false) emitDashboardChanged('post');
+        await notifyModerationDashboard(data);
         return res.status(data.httpStatus || (data.conflict ? 409 : 200)).json(data);
     } catch (error) {
         console.log(error)
@@ -111,13 +112,7 @@ let handleAcceptPost = async (req, res) => {
             ...req.body,
             userId: req.user.id
         }, { roleCode: req.user.userAccountData?.roleCode });
-        // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
-        // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
-        if (data.errCode === 0 && data.changed !== false) {
-            const changedId = data.postId ?? req.body.id;
-            if (changedId) emitJobUpdated(changedId);
-        }
-        if (data.errCode === 0 && data.changed !== false) emitDashboardChanged('post');
+        await notifyModerationDashboard(data);
         return res.status(data.httpStatus || (data.conflict ? 409 : 200)).json(data);
     } catch (error) {
         console.log(error)
@@ -182,13 +177,7 @@ let handleActivePost = async (req, res) => {
             ...req.body,
             userId: req.user.id
         }, { roleCode: req.user.userAccountData?.roleCode });
-        // Doi trang thai/noi dung -> Elasticsearch phai cap nhat theo,
-        // neu khong tin bi tu choi van con hien trong ket qua tim kiem.
-        if (data.errCode === 0 && data.changed !== false) {
-            const changedId = data.postId ?? req.body.id;
-            if (changedId) emitJobUpdated(changedId);
-        }
-        if (data.errCode === 0 && data.changed !== false) emitDashboardChanged('post');
+        await notifyModerationDashboard(data);
         return res.status(data.httpStatus || (data.conflict ? 409 : 200)).json(data);
     } catch (error) {
         console.log(error)

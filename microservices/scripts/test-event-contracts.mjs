@@ -66,6 +66,20 @@ try {
             channel.ack(msg);
         }
     });
+    await check('manual job.updated preserves legacy origin and stable ID on repeated confirmed transport for all four states', async () => {
+        for (const statusCode of ['PS1', 'PS2', 'PS3', 'PS4']) {
+            const data = { job: { id: 7, name: 'Manual snapshot', statusCode, companyId: 3, companyStatusCode: 'S2', companyCensorCode: 'CS2' } };
+            const id = randomUUID();
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                await publishOutboxEvent('job.updated', data, { messageId: id, aggregateId: '7', occurredAt: '2026-09-06T00:00:00.000Z', producer: 'legacy-backend' });
+                const msg = await get(queue), decoded = readEventMessage(msg);
+                assert.equal(msg.properties.deliveryMode, 2); assert.deepEqual(decoded.payload, data);
+                assert.equal(decoded.metadata.eventId, id); assert.equal(decoded.metadata.producer, 'legacy-backend');
+                assert.equal(decoded.metadata.payloadVersion, 1); assert.equal(decoded.metadata.occurredAt, '2026-09-06T00:00:00.000Z');
+                channel.ack(msg);
+            }
+        }
+    });
     const valid = createEventEnvelope({ eventId: randomUUID(), eventType: 'job.deleted', aggregateId: 7,
         occurredAt: '2026-09-05T01:02:03Z', producer: 'job-core-service', payloadVersion: 1, data: { jobId: 7 } });
     let calls = 0;

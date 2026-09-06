@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
+import { createEventEnvelope, eventProperties, readEventMessage } from '../shared/eventEnvelope.js';
 
 // Opt-in, real ES + a controlled HTTP source double. Never connects to project
 // ES/MySQL/RabbitMQ, downloads images, or restarts deployed services.
@@ -214,6 +215,67 @@ try {
             if (handler === facets) assert.deepEqual(res.body.data, { categories: [], provinces: [], salaries: [] });
             else assert.deepEqual(res.body.data, []);
         }
+    });
+
+    // Manual outbox still uses the existing job.updated contract. Decode the
+    // exact envelope used by its relay, then call the real Search consumer.
+    const manualSignal = (id, statusCode, eventId) => {
+        const event = createEventEnvelope({ eventId, eventType: 'job.updated', aggregateId: id,
+            occurredAt: '2026-09-06T00:00:00Z', producer: 'legacy-backend', payloadVersion: 1,
+            data: { job: { ...job(id, 'Historical manual snapshot'), statusCode } } });
+        const { payload, metadata } = readEventMessage({ content: Buffer.from(JSON.stringify(event.data)),
+            properties: eventProperties(event), fields: { routingKey: 'job.updated' } });
+        assert.equal(metadata.producer, 'legacy-backend');
+        return handleSearchEvent(payload, 'job.updated', metadata);
+    };
+    const isPublic = async id => {
+        await es.indices.refresh({ index: INDEX });
+        const res = response(); await searchJobs({ query: {} }, res);
+        assert.equal(res.statusCode, 200);
+        return res.body.data.some(row => row.id === id);
+    };
+    await check('manual approve/ban/reopen/reject events use CURRENT source state; old approval cannot resurrect a hidden job', async () => {
+        jobs.set('20', job(20, 'Current approved title'));
+        await manualSignal(20, 'PS1', 'manual-approved-20');
+        assert.equal((await read(20)).name, 'Current approved title'); assert.equal(await isPublic(20), true);
+        const first = await read(20);
+        await Promise.all([manualSignal(20, 'PS1', 'manual-approved-20'), manualSignal(20, 'PS1', 'manual-approved-20')]);
+        assert.equal((await read(20)).indexedAt, first.indexedAt);
+        for (const status of ['PS4', 'PS3', 'PS2']) {
+            jobs.set('20', { ...job(20), statusCode: status });
+            await manualSignal(20, status, `manual-${status}-20`);
+            await manualSignal(20, 'PS1', 'manual-approved-20');
+            assert.equal(await isPublic(20), false);
+            if (status === 'PS4') { assert.equal((await read(20)).searchDeleted, true); assert.equal((await read(20)).name, undefined); }
+            else assert.equal((await read(20)).statusCode, status);
+        }
+        jobs.set('20', job(20, 'Approved again in source'));
+        await manualSignal(20, 'PS4', 'manual-PS4-20');
+        assert.equal(await isPublic(20), true); assert.equal((await read(20)).name, 'Approved again in source');
+    });
+    await check('a late manual approval cannot bypass current company public policy', async () => {
+        for (const policy of [{ companyStatusCode: 'S2' }, { companyCensorCode: 'CS2' }, { companyId: null, companyStatusCode: null, companyCensorCode: null }]) {
+            jobs.set('21', { ...job(21), ...policy });
+            await manualSignal(21, 'PS1', 'manual-approval-21');
+            assert.equal(await isPublic(21), false);
+        }
+    });
+    await check('source outage leaves the prior projection intact; replaying the saved manual event after recovery applies the ban', async () => {
+        jobs.set('22', job(22)); await manualSignal(22, 'PS1', 'manual-approval-22');
+        const before = await read(22); jobs.set('22', { ...job(22), statusCode: 'PS4' });
+        sourceFailure = 503;
+        try { await assert.rejects(manualSignal(22, 'PS4', 'manual-ban-22')); assert.deepEqual(await read(22), before); }
+        finally { sourceFailure = null; }
+        await manualSignal(22, 'PS4', 'manual-ban-22');
+        assert.equal((await read(22)).searchDeleted, true); assert.equal(await isPublic(22), false);
+    });
+    await check('a paused manual approval loses the CAS race against a later ban and rereads the hidden source', async () => {
+        jobs.set('23', job(23)); await manualSignal(23, 'PS1', 'manual-approval-23');
+        const gate = pauseNextRead(23), delayed = manualSignal(23, 'PS1', 'manual-approval-23');
+        await gate.entered.promise;
+        jobs.set('23', { ...job(23), statusCode: 'PS4' });
+        try { await manualSignal(23, 'PS4', 'manual-ban-23'); } finally { gate.release.resolve(); }
+        await delayed; assert.equal((await read(23)).searchDeleted, true); assert.equal(await isPublic(23), false);
     });
 
     await check('real scroll scans past 10000 IDs and leaves no open search contexts', async () => {

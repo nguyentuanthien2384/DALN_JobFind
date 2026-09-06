@@ -65,7 +65,7 @@ const claimPendingEvents = async (limit = MAX_BATCH_SIZE) => {
 
     return withTransaction(async (conn) => {
         const [rows] = await conn.query(
-            `SELECT id, eventType, payload, attempts, aggregateId, createdAt
+            `SELECT id, eventType, payload, attempts, aggregateId, aggregateType, createdAt
              FROM outbox_events
              WHERE publishedAt IS NULL
                AND (nextAttemptAt IS NULL OR nextAttemptAt <= ?)
@@ -141,9 +141,10 @@ export const runOutboxOnce = async () => {
                     messageId: event.id,
                     aggregateId: event.aggregateId,
                     occurredAt: event.createdAt,
-                    // During the shared-DB transition the legacy writer stores
-                    // only this recipient-intent type in our confirmed outbox.
-                    producer: event.eventType === 'notification.manual_moderation_requested'
+                    // Reserved legacy discriminator is persisted with job.updated.
+                    // Missing/ordinary 'job' markers preserve all older core rows.
+                    producer: event.eventType === 'notification.manual_moderation_requested' ||
+                        (event.eventType === 'job.updated' && event.aggregateType === 'legacy-job')
                         ? 'legacy-backend' : 'job-core-service'
                 });
                 await markPublished(event);

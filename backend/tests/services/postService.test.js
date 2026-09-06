@@ -240,6 +240,12 @@ describe('postService', () => {
       expect.objectContaining({ transaction: mockTransaction, replacements: expect.arrayContaining([
         expect.stringContaining('"audience":"author"')
       ]) }));
+    const searchWrites = mockDb.sequelize.query.mock.calls.filter(([sql, opts]) => sql.includes('INSERT INTO outbox_events') && opts.replacements[3] === 'job.updated');
+    expect(searchWrites).toHaveLength(1);
+    expect(searchWrites[0][1].transaction).toBe(mockTransaction);
+    expect(JSON.parse(searchWrites[0][1].replacements[4]).job).toMatchObject({ id: 10, userId: 7, statusCode, name: 'Node Engineer' });
+    expect(mockDb.Company.findOne).toHaveBeenCalledWith(expect.objectContaining({ transaction: mockTransaction, lock: 'UPDATE',
+      attributes: ['id', 'name', 'thumbnail', 'statusCode', 'censorCode'] }));
   });
 
   test('approval preserves its old timestamp/follower behavior but sends nothing on a stale repeat or matching no-op', async () => {
@@ -248,8 +254,9 @@ describe('postService', () => {
     const result = await service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' });
     expect(post.timePost).toEqual(expect.any(Number));
     const inserts = () => mockDb.sequelize.query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO outbox_events'));
-    expect(inserts()).toHaveLength(1);
-    expect(inserts()[0][1].replacements.filter((_, index) => index % 6 === 4).map(JSON.parse)).toEqual([
+    expect(inserts()).toHaveLength(2);
+    expect(inserts()[0][1].replacements[3]).toBe('job.updated');
+    expect(inserts()[1][1].replacements.filter((_, index) => index % 6 === 4).map(JSON.parse)).toEqual([
       expect.objectContaining({ recipientId: 7, audience: 'author' }),
       expect.objectContaining({ recipientId: 2, audience: 'follower', note: null }),
       expect.objectContaining({ recipientId: 3, audience: 'follower', note: null })
@@ -258,7 +265,7 @@ describe('postService', () => {
     expect(await service.handleAcceptPost({ ...payload, expectedRevision: result.editRevision, statusCode: 'PS1' }, { roleCode: 'ADMIN' }))
       .toMatchObject({ errCode: 0, changed: false });
     expect(mockDb.Note.create).toHaveBeenCalledTimes(1); expect(mockSendMail).not.toHaveBeenCalled();
-    expect(mockDb.Notification.bulkCreate).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(1);
+    expect(mockDb.Notification.bulkCreate).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(2);
   });
 
   test.each(['note', 'commit'])('a failed %s never emails or notifies followers', async stage => {
