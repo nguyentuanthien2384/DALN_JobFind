@@ -14,7 +14,7 @@ import "react-markdown-editor-lite/lib/index.css";
 import { useFetchAllcode } from "../../../util/fetch";
 import { useNavigate, useParams } from "react-router-dom";
 import { Spinner, Modal } from "reactstrap";
-import { jobToForm, jobDeadlineDate, jobClassificationOptions, jobStatusLabel, isJobRevision, buildJobCreate } from "../../../service/jobFormAdapter";
+import { jobToForm, jobDeadlineDate, jobClassificationOptions, jobStatusLabel, isJobRevision, buildJobCreate, buildJobUpdate } from "../../../service/jobFormAdapter";
 import "../../../components/modal/modal.css";
 import ReupPostModal from "../../../components/modal/ReupPostModal";
 import { assertLegacyCreateIdentity } from '../../../service/legacyCreateAttempt';
@@ -22,6 +22,9 @@ import { jobCreateMode, readJobCreateAttempt, prepareJobCreateAttempt, settleJob
     clearSuccessfulJobCreate, assertPendingJobCreate, sendJobCreateAttempt, jobCreateOutcome } from '../../../service/jobCreateAttempt';
 import { readLegacyRepostAttempt, prepareLegacyRepostAttempt, assertPendingLegacyRepost,
     settleLegacyRepostAttempt, isLegacyRepostReceipt } from '../../../service/legacyRepostAttempt';
+import { getManagedJob, updateJob } from '../../../service/jobPostingService';
+import { jobEditMode, assertJobEditorIdentity, readCoreJobSnapshot, readCoreEditPending,
+    prepareCoreEditPending, assertCoreEditPending, clearCoreEditPending, acceptCoreEditResponse } from '../../../service/jobEditSession';
 const emptyPostForm = () => ({
     name: "",
     categoryJobCode: "",
@@ -68,6 +71,10 @@ const AddPost = () => {
     const [editWarning, setEditWarning] = useState('');
     const [confirmReload, setConfirmReload] = useState(false);
     const [reloadVersion, setReloadVersion] = useState(0);
+    const [editMode, setEditMode] = useState(null);
+    const [corePending, setCorePending] = useState(null);
+    const editBaseline = useRef(null);
+    const reloadIntent = useRef(null);
     const editAttempt = useRef(null);
     const [repostAttempt, setRepostAttempt] = useState(null);
     const [repostError, setRepostError] = useState('');
@@ -85,11 +92,16 @@ const AddPost = () => {
     const validDeadline = jobDeadlineDate(inputValues.timeEnd);
     useEffect(() => {
         let active = true;
+        const reloading = reloadIntent.current;
+        reloadIntent.current = null;
         viewEpoch.current += 1;
         editAttempt.current = null;
         setIsLoading(false);
         setEditWarning('');
         setConfirmReload(false);
+        editBaseline.current = null;
+        setEditMode(null);
+        setCorePending(null);
         let userData;
         try { userData = JSON.parse(localStorage.getItem("userData")) || {}; } catch { userData = {}; }
         setUser(userData);
@@ -109,11 +121,36 @@ const AddPost = () => {
                 try { setRepostAttempt(readLegacyRepostAttempt(userData, id)); }
                 catch { setRepostError('Không đọc được thao tác đăng lại đã lưu. Hãy liên hệ hỗ trợ trước khi đăng lại.'); }
             }
-            setInputValues({ ...emptyPostForm(), isActionADD: false });
+            if (!reloading || reloading.mode !== 'core') setInputValues({ ...emptyPostForm(), isActionADD: false });
             const load = async () => {
+                let mode;
                 try {
-                    const res = await getDetailPostByIdService(id);
+                    // Older editors had no persisted PUT intent. New Core edits
+                    // must be reconciled through Core, regardless of the flag.
+                    const pending = userData.id && userData.companyId ? readCoreEditPending(userData, id) : null;
+                    mode = pending ? 'core' : (reloading?.mode || jobEditMode());
+                    setEditMode(mode);
+                    setCorePending(pending);
+                    if (pending && (!reloading || reloading.mode !== 'core')) {
+                        editBaseline.current = pending.base;
+                        setInputValues(pending.draft); settimeEnd(jobDeadlineDate(pending.draft.timeEnd));
+                        setEditWarning('Lần sửa qua Job Core trước chưa được đối chiếu. Nội dung đã gửi được giữ trong tab này; không tự gửi lại. Hãy sao chép phần cần giữ rồi tải lại tin để xem dữ liệu hiện tại.');
+                        return;
+                    }
+                    if (mode === 'core') { assertJobEditorIdentity(userData); setIsLoading(true); }
+                    const res = await (mode === 'core' ? getManagedJob(id) : getDetailPostByIdService(id));
                     if (!active) return;
+                    if (mode === 'core') {
+                        assertJobEditorIdentity(userData);
+                        const snapshot = readCoreJobSnapshot(res, id, userData);
+                        if (reloading?.pending || pending) {
+                            if (!isJobRevision(snapshot.form.editRevision)) throw new Error('Chưa đọc được phiên bản hiện tại; vẫn giữ nội dung đã gửi');
+                            clearCoreEditPending(userData, id, reloading?.pending);
+                        }
+                        editBaseline.current = snapshot; setCorePending(null);
+                        setInputValues(snapshot.form); settimeEnd(jobDeadlineDate(snapshot.form.timeEnd));
+                        return;
+                    }
                     if (!res || res.errCode !== 0 || !res.data) throw new Error(res?.errMessage || 'Không đọc được tin tuyển dụng');
                     const form = jobToForm(res.data);
                     if (String(form.id) !== String(id)) throw new Error('Dữ liệu tin không khớp, vui lòng tải lại');
@@ -121,6 +158,8 @@ const AddPost = () => {
                     settimeEnd(jobDeadlineDate(form.timeEnd));
                 } catch (error) {
                     if (active) setLoadError(error.message || 'Không đọc được tin tuyển dụng');
+                } finally {
+                    if (active && mode === 'core') setIsLoading(false);
                 }
             };
             load();
@@ -171,7 +210,7 @@ const AddPost = () => {
         inputValues.genderCode, inputValues.categoryJobCode, inputValues.categoryJoblevelCode,
         inputValues.salaryJobCode, inputValues.experienceJobCode, inputValues.categoryWorktypeCode, inputValues.addressCode]);
     const handleOnChange = (event) => {
-        if (createLocked) return;
+        if (createLocked || (id && editMode === 'core' && isLoading)) return;
         const { name, value } = event.target;
         setInputValues({ ...inputValues, [name]: value });
     };
@@ -183,7 +222,7 @@ const AddPost = () => {
         });
     };
     let handleEditorChange = ({ html, text }) => {
-        if (createLocked) return;
+        if (createLocked || (id && editMode === 'core' && isLoading)) return;
         setInputValues({
             ...inputValues,
             "descriptionMarkdown": text,
@@ -264,7 +303,36 @@ const AddPost = () => {
                     setCreateError(error.message || 'Không lưu được mã thao tác. Tin chưa được gửi.');
                 }
             }
+        } else if (editMode === 'core') {
+            if (!editBaseline.current || user.roleCode === 'ADMIN' || corePending) return;
+            let sent;
+            try { buildJobUpdate(inputValues, editBaseline.current.form); }
+            catch (error) { toast.error(error.message); return; }
+            try { sent = prepareCoreEditPending(user, editBaseline.current, inputValues); }
+            catch (error) { setEditWarning(error.message); return; }
+            if (!sent) { toast.success('Không có thay đổi để lưu; chưa gửi yêu cầu kiểm duyệt mới.'); return; }
+            const epoch = viewEpoch.current, attempt = {};
+            editAttempt.current = attempt; setCorePending(sent); setIsLoading(true);
+            try {
+                assertCoreEditPending(user, sent);
+                const res = await updateJob(id, sent.patch);
+                const snapshot = acceptCoreEditResponse(res, sent, user);
+                clearCoreEditPending(user, id, sent);
+                if (epoch !== viewEpoch.current) return;
+                assertJobEditorIdentity(user);
+                editBaseline.current = snapshot; setCorePending(null); setInputValues(snapshot.form);
+                toast.success('Đã lưu thay đổi và gửi chờ AI kiểm duyệt.');
+            } catch (error) {
+                if (epoch === viewEpoch.current) setEditWarning(`${error.message || 'Chưa xác nhận được kết quả sửa tin'}. Nội dung được giữ; hãy tải lại để đối chiếu trước khi lưu tiếp. Không tự gửi lại hoặc đổi sang luồng cũ.`);
+            } finally {
+                if (editAttempt.current === attempt) editAttempt.current = null;
+                if (epoch === viewEpoch.current) setIsLoading(false);
+            }
         } else {
+            try {
+                assertJobEditorIdentity(user);
+                if (readCoreEditPending(user, id)) throw new Error('Có lần sửa Job Core chưa được đối chiếu. Hãy giữ nội dung và tải lại; không gửi qua luồng cũ');
+            } catch (error) { setEditWarning(error.message); return; }
             setIsLoading(true);
             const epoch = viewEpoch.current;
             const attempt = {};
@@ -359,6 +427,7 @@ const AddPost = () => {
             || validDeadline.getTime() > Date.now() || !isJobRevision(inputValues.editRevision)) return false;
         if (!Number.isSafeInteger(timeEnd) || timeEnd <= Date.now()) return false;
         try {
+            if (readCoreEditPending(user, id)) throw new Error('Cần đối chiếu lần sửa Job Core trước khi tạo yêu cầu đăng lại mới');
             const saved = prepareLegacyRepostAttempt(user, id, { userId: user.id, postId: id, timeEnd,
                 expectedRevision: inputValues.editRevision }, repostAttempt);
             setRepostAttempt(saved);
@@ -409,6 +478,11 @@ const AddPost = () => {
                             {id && readyToEdit && <p>Trạng thái lúc tải: {jobStatusLabel(inputValues.statusCode)}</p>}
                             {id && readyToEdit && !isJobRevision(inputValues.editRevision) && <p role="alert">Chưa có thông tin phiên bản của tin. Vui lòng tải lại hoặc liên hệ quản trị viên để sửa an toàn.</p>}
                             {editWarning && <p role="alert">{editWarning}</p>}
+                            {id && editMode && <p className="text-muted">
+                                {editMode === 'core'
+                                    ? 'Luồng xem/sửa: Job Core — mỗi thay đổi thực sự sẽ chờ AI kiểm duyệt tiêu đề và mô tả, kể cả tin trước đó duyệt thủ công. Đăng lại hiện vẫn dùng luồng cũ và duyệt thủ công.'
+                                    : 'Luồng xem/sửa: backend cũ — duyệt thủ công.'}
+                            </p>}
                             {!id && createError && <p role="alert">{createError}</p>}
                             {!id && createMode && <p className="text-muted">
                                 {createMode === 'core'
@@ -424,7 +498,7 @@ const AddPost = () => {
                             {!id && createAttempt?.status === 'rejected' && <p role="status">Yêu cầu bị từ chối. Bạn có thể sửa nội dung rồi lưu; mã thao tác vẫn được giữ để tránh tạo trùng. Nếu mã đã gắn với nội dung khác, hãy liên hệ hỗ trợ để đối chiếu.</p>}
                             {!id && createAttempt?.status === 'succeeded' && <div role="status">
                                 <p>Đã tạo tin #{createAttempt.postId}. Nội dung được giữ lại; gửi lại cùng mã không trừ thêm lượt. Đây là xác nhận lúc tạo, không phải trạng thái duyệt hiện tại.</p>
-                                {createAttempt.writer === 'core' && <p>Màn hình xem/sửa và đăng lại hiện vẫn dùng luồng cũ. Sửa nội dung thực sự ở đó sẽ chuyển tin về chờ duyệt thủ công.</p>}
+                                {createAttempt.writer === 'core' && <p>Màn hình xem/sửa có cấu hình riêng; hãy kiểm tra luồng được ghi trên màn hình đó. Sửa qua luồng cũ sẽ về chờ duyệt thủ công. Đăng lại hiện vẫn duyệt thủ công.</p>}
                                 <button type="button" onClick={() => navigate(`/admin/edit-post/${createAttempt.postId}/`)}>Xem tin đã tạo</button>
                                 <button type="button" disabled={!!createError} onClick={() => {
                                     try {
@@ -442,11 +516,14 @@ const AddPost = () => {
                                 onClick={() => sendRepostAttempt(repostAttempt)}>Đối chiếu đăng lại cùng mã</button>}
                             {id && repostAttempt?.status === 'rejected' && <p role="status">Yêu cầu đăng lại bị từ chối. Ngày đã gửi và mã cũ được giữ; lần sửa ngày/phiên bản tiếp theo vẫn dùng cùng mã.</p>}
                             {reupCreatedId && <button type="button" onClick={() => navigate(`/admin/edit-post/${reupCreatedId}/`)}>Xem tin đăng lại</button>}
-                            {id && (editWarning || loadError || (readyToEdit && !isJobRevision(inputValues.editRevision))) &&
-                                <button type="button" onClick={() => setConfirmReload(true)}>Tải lại tin</button>}
+                            {id && (editMode === 'core' || editWarning || loadError || (readyToEdit && !isJobRevision(inputValues.editRevision))) &&
+                                <button type="button" disabled={isLoading} onClick={() => setConfirmReload(true)}>Tải lại tin</button>}
                             {confirmReload && <div role="alertdialog" aria-label="Xác nhận tải lại tin">
                                 <p>Tải lại sẽ bỏ phần chưa lưu trên biểu mẫu. Bạn nên sao chép nội dung cần giữ trước khi tiếp tục.</p>
-                                <button type="button" onClick={() => setReloadVersion(value => value + 1)}>Bỏ phần chưa lưu và tải lại</button>
+                                <button type="button" disabled={isLoading} onClick={() => {
+                                    reloadIntent.current = { mode: editMode, pending: corePending };
+                                    setReloadVersion(value => value + 1);
+                                }}>Bỏ phần chưa lưu và tải lại</button>
                                 <button type="button" onClick={() => setConfirmReload(false)}>Giữ biểu mẫu</button>
                             </div>}
                             {id && readyToEdit && !validDeadline && <p role="alert">Ngày hết hạn đang lưu không hợp lệ; vui lòng liên hệ quản trị viên.</p>}
@@ -454,7 +531,7 @@ const AddPost = () => {
                                 Thay đổi bất kỳ thông tin tuyển dụng nào sẽ đưa tin về chờ duyệt; lưu khi không có thay đổi sẽ giữ nguyên trạng thái.
                             </p>}
                             <form className="form-sample">
-                                <fieldset disabled={createLocked}>
+                                <fieldset disabled={createLocked || (!!id && editMode === 'core' && isLoading)}>
                                 <div className="row">
                                     <div className="col-md-6">
                                         <div className="form-group row">
