@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { toast } from "react-toastify";
 import DatePicker from "react-datepicker";
 import {
-    createPostService,
     updatePostService,
     getDetailPostByIdService,
     reupPostService,
@@ -15,11 +14,12 @@ import "react-markdown-editor-lite/lib/index.css";
 import { useFetchAllcode } from "../../../util/fetch";
 import { useNavigate, useParams } from "react-router-dom";
 import { Spinner, Modal } from "reactstrap";
-import { jobToForm, jobDeadlineDate, jobClassificationOptions, jobStatusLabel, isJobRevision } from "../../../service/jobFormAdapter";
+import { jobToForm, jobDeadlineDate, jobClassificationOptions, jobStatusLabel, isJobRevision, buildJobCreate } from "../../../service/jobFormAdapter";
 import "../../../components/modal/modal.css";
 import ReupPostModal from "../../../components/modal/ReupPostModal";
-import { readLegacyCreateAttempt, prepareLegacyCreateAttempt, settleLegacyCreateAttempt,
-    clearSuccessfulLegacyCreate, assertLegacyCreateIdentity, assertPendingLegacyCreate, isLegacyCreateReceipt } from '../../../service/legacyCreateAttempt';
+import { assertLegacyCreateIdentity } from '../../../service/legacyCreateAttempt';
+import { jobCreateMode, readJobCreateAttempt, prepareJobCreateAttempt, settleJobCreateAttempt,
+    clearSuccessfulJobCreate, assertPendingJobCreate, sendJobCreateAttempt, jobCreateOutcome } from '../../../service/jobCreateAttempt';
 import { readLegacyRepostAttempt, prepareLegacyRepostAttempt, assertPendingLegacyRepost,
     settleLegacyRepostAttempt, isLegacyRepostReceipt } from '../../../service/legacyRepostAttempt';
 const emptyPostForm = () => ({
@@ -78,7 +78,8 @@ const AddPost = () => {
     const reupCreatedId = repostAttempt?.status === 'succeeded' ? repostAttempt.postId : null;
     const [createAttempt, setCreateAttempt] = useState(null);
     const [createError, setCreateError] = useState('');
-    const createLocked = !id && (!!createError || (!!createAttempt && createAttempt.status !== 'rejected') || isLoading);
+    const [createMode, setCreateMode] = useState(null);
+    const createLocked = !id && (!createMode || !!createError || (!!createAttempt && createAttempt.status !== 'rejected') || isLoading);
     const viewEpoch = useRef(0);
     const readyToEdit = !id || (!inputValues.isActionADD && String(inputValues.id) === String(id));
     const validDeadline = jobDeadlineDate(inputValues.timeEnd);
@@ -95,6 +96,7 @@ const AddPost = () => {
         setLoadError('');
         setCreateAttempt(null);
         setCreateError('');
+        setCreateMode(null);
         setRepostAttempt(null);
         setRepostError('');
         setisChangeDate(false);
@@ -127,14 +129,18 @@ const AddPost = () => {
             settimeEnd(new Date());
             if (userData.id) {
                 try {
-                    const saved = readLegacyCreateAttempt(userData);
+                    const saved = readJobCreateAttempt(userData);
+                    setCreateMode(saved?.writer || jobCreateMode());
                     if (saved) {
                         setCreateAttempt(saved);
-                        setInputValues({ ...emptyPostForm(), ...saved.payload, genderCode: saved.payload.genderPostCode });
+                        const restored = saved.writer === 'core'
+                            ? Object.fromEntries(Object.entries(saved.payload).map(([field, value]) => [field, value ?? ''])) : saved.payload;
+                        setInputValues({ ...emptyPostForm(), ...restored, genderCode: restored.genderPostCode,
+                            preserveEmptyCodes: saved.writer === 'core' });
                         settimeEnd(new Date(saved.payload.timeEnd));
                     }
-                } catch {
-                    setCreateError('Không đọc được thao tác đăng tin đã lưu. Hãy giữ nội dung và liên hệ hỗ trợ trước khi tạo thêm.');
+                } catch (error) {
+                    setCreateError(error.message || 'Không đọc được thao tác đăng tin đã lưu. Hãy giữ nội dung và liên hệ hỗ trợ trước khi tạo thêm.');
                 }
             }
         }
@@ -155,6 +161,7 @@ const AddPost = () => {
             categoryJoblevelCode: dataJobLevel, salaryJobCode: dataSalaryType,
             experienceJobCode: dataExpType, categoryWorktypeCode: dataWorkType, addressCode: dataProvince };
         setInputValues(current => {
+            if (current.preserveEmptyCodes) return current; // A stored null is an explicit Core intent, not an unloaded default.
             const changes = Object.fromEntries(Object.entries(defaults)
                 .filter(([field, items]) => current[field] === '' && items?.[0]?.code)
                 .map(([field, items]) => [field, items[0].code]));
@@ -190,33 +197,27 @@ const AddPost = () => {
     };
     const sendCreateAttempt = async (sent) => {
         if (editAttempt.current || createError || !sent || sent.status !== 'pending') return;
-        try { assertPendingLegacyCreate(user, sent); }
+        try { assertPendingJobCreate(user, sent); }
         catch (error) { setCreateError(error.message); return; }
         const epoch = viewEpoch.current, attempt = {};
         editAttempt.current = attempt;
         setIsLoading(true);
         try {
             assertLegacyCreateIdentity(user);
-            const res = await createPostService(sent.payload, { idempotencyKey: sent.key });
-            let patch;
-            if (isLegacyCreateReceipt(res, sent)) patch = { status: 'succeeded', postId: Number(res.postId) };
-            else if (res?.errCode === 0 || res?.httpStatus === 409 || res?.conflict || res?.errorType === 'conflict') patch = { status: 'blocked' };
-            else if ([1, 2, 3].includes(res?.errCode) && !(res.httpStatus >= 500) &&
-                !['network', 'timeout', 'cancelled', 'unavailable', 'server', 'unknown'].includes(res.errorType)) patch = { status: 'rejected' };
-            else patch = { status: 'pending' };
-            const saved = settleLegacyCreateAttempt(user, sent, patch);
+            const res = await sendJobCreateAttempt(user, sent);
+            const saved = settleJobCreateAttempt(user, sent, jobCreateOutcome(res, sent, user));
             if (epoch !== viewEpoch.current) return;
             assertLegacyCreateIdentity(user);
             setCreateAttempt(saved);
             if (saved.status === 'succeeded') {
-                fetchCompany(user.id).catch(() => {});
+                fetchCompany(user.id, user.companyId).catch(() => {});
                 toast.success(res?.errMessage || 'Đã tạo tin; không trừ thêm lượt khi đối chiếu');
             } else toast.error(res?.errMessage || 'Chưa xác nhận được kết quả tạo tin');
         } catch (error) {
             if (epoch === viewEpoch.current) {
                 // A thrown transport error leaves the already-persisted payload/key
                 // untouched. No automatic retry and no clearing of the draft.
-                try { assertLegacyCreateIdentity(user); readLegacyCreateAttempt(user); }
+                try { assertLegacyCreateIdentity(user); readJobCreateAttempt(user); }
                 catch { setCreateError('Không đối chiếu được tài khoản hoặc mã đã lưu. Hãy tải lại trang và liên hệ hỗ trợ nếu lỗi còn tiếp diễn.'); }
                 toast.error('Chưa xác nhận được kết quả; giữ nguyên mã thao tác để đối chiếu.');
             }
@@ -234,9 +235,14 @@ const AddPost = () => {
             if (!Number.isFinite(new Date(timeEnd).getTime()) || Date.now() >= new Date(timeEnd).getTime()) {
                 toast.error("Ngày kết thúc phải hơn ngày hiện tại");
             } else {
+                let corePayload;
+                if (createMode === 'core') {
+                    try { corePayload = buildJobCreate(inputValues, timeEnd); }
+                    catch (error) { toast.error(error.message); return; }
+                }
                 try {
                     assertLegacyCreateIdentity(user);
-                    const saved = prepareLegacyCreateAttempt(user, {
+                    const saved = prepareJobCreateAttempt(user, corePayload || {
                         name: inputValues.name,
                         descriptionHTML: inputValues.descriptionHTML,
                         descriptionMarkdown: inputValues.descriptionMarkdown,
@@ -251,7 +257,7 @@ const AddPost = () => {
                         genderPostCode: inputValues.genderCode,
                         userId: user.id,
                         isHot: inputValues.isHot,
-                    }, createAttempt);
+                    }, createAttempt, createMode);
                     setCreateAttempt(saved);
                     await sendCreateAttempt(saved);
                 } catch (error) {
@@ -404,18 +410,27 @@ const AddPost = () => {
                             {id && readyToEdit && !isJobRevision(inputValues.editRevision) && <p role="alert">Chưa có thông tin phiên bản của tin. Vui lòng tải lại hoặc liên hệ quản trị viên để sửa an toàn.</p>}
                             {editWarning && <p role="alert">{editWarning}</p>}
                             {!id && createError && <p role="alert">{createError}</p>}
+                            {!id && createMode && <p className="text-muted">
+                                {createMode === 'core'
+                                    ? 'Luồng tạo tin: Job Core — AI kiểm duyệt tiêu đề và mô tả. Tạo thành công chưa có nghĩa là tin đã được công khai.'
+                                    : 'Luồng tạo tin: backend cũ — duyệt thủ công.'}
+                                {createAttempt && ' Mã và luồng đã gửi được giữ cố định khi tải lại hoặc thay đổi cấu hình.'}
+                            </p>}
                             {!id && createAttempt?.status === 'pending' && <div role="alert">
                                 <p>Đã giữ mã và nội dung gửi trong tab này. Nếu chưa rõ kết quả, hãy đối chiếu bằng cùng mã hoặc kiểm tra danh sách tin. Không mở thao tác mới để gửi lại cùng tin.</p>
                                 <button type="button" disabled={isLoading || !!createError} onClick={() => sendCreateAttempt(createAttempt)}>Đối chiếu / gửi lại cùng mã</button>
                             </div>}
                             {!id && createAttempt?.status === 'blocked' && <p role="alert">Mã thao tác hoặc phản hồi không khớp. Nội dung được giữ lại; hãy kiểm tra danh sách tin và liên hệ hỗ trợ. Không gửi bằng mã mới.</p>}
-                            {!id && createAttempt?.status === 'rejected' && <p role="status">Yêu cầu bị từ chối. Bạn có thể sửa nội dung rồi lưu; mã thao tác vẫn được giữ để tránh tạo trùng.</p>}
+                            {!id && createAttempt?.status === 'rejected' && <p role="status">Yêu cầu bị từ chối. Bạn có thể sửa nội dung rồi lưu; mã thao tác vẫn được giữ để tránh tạo trùng. Nếu mã đã gắn với nội dung khác, hãy liên hệ hỗ trợ để đối chiếu.</p>}
                             {!id && createAttempt?.status === 'succeeded' && <div role="status">
-                                <p>Đã tạo tin #{createAttempt.postId}. Nội dung được giữ lại; gửi lại cùng mã không trừ thêm lượt.</p>
+                                <p>Đã tạo tin #{createAttempt.postId}. Nội dung được giữ lại; gửi lại cùng mã không trừ thêm lượt. Đây là xác nhận lúc tạo, không phải trạng thái duyệt hiện tại.</p>
+                                {createAttempt.writer === 'core' && <p>Màn hình xem/sửa và đăng lại hiện vẫn dùng luồng cũ. Sửa nội dung thực sự ở đó sẽ chuyển tin về chờ duyệt thủ công.</p>}
                                 <button type="button" onClick={() => navigate(`/admin/edit-post/${createAttempt.postId}/`)}>Xem tin đã tạo</button>
                                 <button type="button" disabled={!!createError} onClick={() => {
                                     try {
-                                        assertLegacyCreateIdentity(user); clearSuccessfulLegacyCreate(user);
+                                        const nextMode = jobCreateMode();
+                                        clearSuccessfulJobCreate(user, createAttempt);
+                                        setCreateMode(nextMode);
                                         setCreateAttempt(null); setInputValues(emptyPostForm()); settimeEnd(new Date());
                                     } catch (error) { setCreateError(error.message); }
                                 }}>Tạo tin khác</button>
