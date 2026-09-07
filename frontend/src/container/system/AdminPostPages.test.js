@@ -339,6 +339,26 @@ describe("post editor", () => {
         return { ...rendered, name, save: () => fireEvent.click(screen.getByRole('button', { name: 'Lưu' })) };
     };
 
+    it.each(['PS1', 'PS2', 'PS3'])('explains all-field review and shows pending after a metadata-only save from %s', async statusCode => {
+        const { container, name, save } = await loadEditor({ ...detailPost, statusCode });
+        expect(screen.getByText(/Thay đổi bất kỳ thông tin tuyển dụng nào/)).toHaveTextContent('lưu khi không có thay đổi sẽ giữ nguyên trạng thái');
+        fireEvent.change(name, { target: { name: 'name', value: 'Bài cũ' } });
+        fireEvent.change(container.querySelector('input[name="amount"]'), { target: { name: 'amount', value: '4' } });
+        save(); await screen.findByText('Trạng thái lúc tải: Chờ kiểm duyệt');
+        await waitFor(() => expect(updatePostService).toHaveBeenCalledTimes(1));
+        expect(updatePostService).toHaveBeenCalledWith(expect.objectContaining({ name: 'Bài cũ', amount: '4', expectedRevision: detailPost.editRevision }), {});
+        expect(createPostService).not.toHaveBeenCalled(); expect(reupPostService).not.toHaveBeenCalled();
+    });
+    it.each([['PS1', 'Đã duyệt'], ['PS2', 'Bị từ chối'], ['PS3', 'Chờ kiểm duyệt']])
+    ('preserves %s after a confirmed no-op and does not automatically submit another review', async (statusCode, label) => {
+        updatePostService.mockResolvedValueOnce({ errCode: 0, changed: false, editRevision: detailPost.editRevision });
+        const { name, save } = await loadEditor({ ...detailPost, statusCode });
+        fireEvent.change(name, { target: { name: 'name', value: 'Bài cũ' } });
+        save(); await waitFor(() => expect(toast.success).toHaveBeenCalled());
+        expect(screen.getByText(`Trạng thái lúc tải: ${label}`)).toBeInTheDocument();
+        expect(updatePostService).toHaveBeenCalledTimes(1); expect(getDetailPostByIdService).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
         { errCode: 4, conflict: true }, { errCode: -1, errorType: 'conflict', httpStatus: 409 },
         { errCode: -1, errorType: 'network' }, { errCode: -1, errorType: 'timeout' },

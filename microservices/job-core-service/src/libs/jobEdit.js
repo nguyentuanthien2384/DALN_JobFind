@@ -62,6 +62,9 @@ export const editedDetail = (current, patch) => {
             : current[field] ?? null
     ]));
     const changed = DETAIL_FIELDS.some(field => detail[field] !== (current[field] ?? null));
-    const needsModeration = detail.name !== current.name || detail.descriptionHTML !== current.descriptionHTML;
+    // Every real editable-field change starts a new review generation, including
+    // metadata. Never carry a previous approval or pending request across edits.
+    // A normalized no-op stays unchanged and must not request (or charge for) AI.
+    const needsModeration = changed;
     return { detail, changed, needsModeration };
 };

@@ -398,6 +398,20 @@ try {
         assert.equal((await read(61)).name, undefined);
         assert.equal(await isPublic(61), false);
     });
+    await check('Core metadata-only edit hides the job until current reapproval; old approval events cannot publish pending metadata', async () => {
+        const approved = { ...job(62), amount: 1, salaryJobCode: 'SAL1' };
+        jobs.set('62', approved); await signal(62, 'before-metadata-edit-62');
+        assert.equal(await isPublic(62), true);
+        const pending = { ...approved, statusCode: 'PS3', amount: 4, salaryJobCode: 'SAL2' };
+        jobs.set('62', pending); await signal(62, 'metadata-edit-62');
+        assert.equal((await read(62)).amount, 4); assert.equal((await read(62)).salaryJobCode, 'SAL2');
+        assert.equal(await isPublic(62), false);
+        await handleSearchEvent({ jobId: 62, approved: true, statusCode: 'PS1' }, 'job.moderated', { eventId: 'old-approval-62' });
+        assert.equal((await read(62)).statusCode, 'PS3'); assert.equal(await isPublic(62), false);
+        jobs.set('62', { ...pending, statusCode: 'PS1' });
+        await handleSearchEvent({ jobId: 62, approved: true, statusCode: 'PS1' }, 'job.moderated', { eventId: 'current-approval-62' });
+        assert.equal(await isPublic(62), true); assert.equal((await read(62)).amount, 4);
+    });
     console.log(`Search projection integration: ${passed} checks passed.`);
 } finally {
     for (const gate of gates) gate.release.resolve();

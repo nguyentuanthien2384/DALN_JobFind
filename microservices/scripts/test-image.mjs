@@ -28,6 +28,11 @@ assert.equal(privateRead.status, 401, 'management read must require login');
 assert.equal(privateRead.headers.get('cache-control'), 'private, no-store');
 const { normalizeJobCreate } = await import('/app/job-core-service/src/libs/jobRequest.js');
 assert.equal(normalizeJobCreate({ amount: '2' }).amount, 2, 'posting request helper must be packaged');
+const { editedDetail } = await import('/app/job-core-service/src/libs/jobEdit.js');
+assert.equal(editedDetail({ name: 'Job', descriptionHTML: 'Content', amount: 1 }, { amount: 2 }).needsModeration, true,
+    'metadata changes must start a new review generation in the packaged image');
+assert.equal(editedDetail({ name: 'Job', descriptionHTML: 'Content', amount: 1 }, { amount: '1' }).needsModeration, false,
+    'a normalized no-op must not enqueue AI');
 const { readFile } = await import('node:fs/promises');
 const { buildOpenApi } = await import('/app/shared/contracts/openapi.js');
 assert.deepEqual(JSON.parse(await readFile('/app/contracts/http/gateway.openapi.json', 'utf8')), buildOpenApi());

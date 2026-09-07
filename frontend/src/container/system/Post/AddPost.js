@@ -435,6 +435,9 @@ const AddPost = () => {
                                 <button type="button" onClick={() => setConfirmReload(false)}>Giữ biểu mẫu</button>
                             </div>}
                             {id && readyToEdit && !validDeadline && <p role="alert">Ngày hết hạn đang lưu không hợp lệ; vui lòng liên hệ quản trị viên.</p>}
+                            {id && readyToEdit && !loadError && <p className="text-muted">
+                                Thay đổi bất kỳ thông tin tuyển dụng nào sẽ đưa tin về chờ duyệt; lưu khi không có thay đổi sẽ giữ nguyên trạng thái.
+                            </p>}
                             <form className="form-sample">
                                 <fieldset disabled={createLocked}>
                                 <div className="row">

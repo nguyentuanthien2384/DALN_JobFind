@@ -8,7 +8,7 @@ describe('job edit value semantics', () => {
         const result = editedDetail(detail, { [field]: value });
         expect(result.detail).toEqual({ ...detail, [field]: value });
         expect(result.changed).toBe(true);
-        expect(result.needsModeration).toBe(['name', 'descriptionHTML'].includes(field));
+        expect(result.needsModeration).toBe(true);
         expect(detail[field]).not.toBe(value);
     });
     it('normalizes numeric strings and treats an identical full form as a no-op', () => {
@@ -18,7 +18,7 @@ describe('job edit value semantics', () => {
         const result = editedDetail(detail, { addressCode: null, genderPostCode: null, descriptionMarkdown: '' });
         expect(result.detail).toEqual({ ...detail, addressCode: null, genderPostCode: null, descriptionMarkdown: '' });
         expect(result.changed).toBe(true);
-        expect(result.needsModeration).toBe(false);
+        expect(result.needsModeration).toBe(true);
     });
     it('ignores transport metadata in the detail snapshot', () => {
         expect(editedDetail(detail, { timeEnd: 1, userId: 999, isHot: 1, statusCode: 'PS1' }).changed).toBe(false);

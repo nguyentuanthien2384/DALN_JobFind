@@ -44,10 +44,14 @@ test.each(['PS1', 'PS2', 'PS3'])('a real edit from %s commits one PS3 update wit
     attributes: ['id', 'name', 'thumbnail', 'statusCode', 'censorCode'] }));
   expect(mockDb.sequelize.query).toHaveBeenCalledWith(expect.stringContaining("SET state = 'cancelled'"), expect.objectContaining({ transaction }));
 });
-test('metadata-only change still creates one update and cancels AI, without a new moderation or notification request', async () => {
-  expect((await edit({ ...body, amount: 4 }, identity)).changed).toBe(true);
-  expect(inserts()).toHaveLength(1); expect(payload()).toMatchObject({ name: detail.name, descriptionHTML: detail.descriptionHTML, amount: 4, statusCode: 'PS3' });
+test.each(['name', 'descriptionHTML', 'descriptionMarkdown', 'categoryJobCode', 'addressCode', 'salaryJobCode', 'amount',
+  'categoryJoblevelCode', 'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode'])
+('changing only %s enters manual PS3 and cancels AI, without a new moderation or notification request', async field => {
+  const value = field === 'amount' ? 4 : 'Changed value';
+  expect((await edit({ ...body, [field]: value }, identity)).changed).toBe(true);
+  expect(inserts()).toHaveLength(1); expect(payload()).toMatchObject({ [field]: value, statusCode: 'PS3' });
   expect(inserts()[0][1].replacements[3]).toBe('job.updated');
+  expect(mockDb.sequelize.query).toHaveBeenCalledWith(expect.stringContaining("SET state = 'cancelled'"), expect.objectContaining({ transaction }));
 });
 test.each(['PS1', 'PS2', 'PS3'])('matching no-op from %s never forks, cancels AI, checks outbox or emits', async statusCode => {
   post.statusCode = statusCode; body.expectedRevision = jobRevision(post, detail);

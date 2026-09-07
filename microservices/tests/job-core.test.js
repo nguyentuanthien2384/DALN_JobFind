@@ -119,7 +119,7 @@ describe('job write controller', () => {
         expect(denied.statusCode).toBe(403);
     });
 
-    it('updates owned jobs and re-moderates only when content changed', async () => {
+    it('updates owned jobs and re-moderates both content and metadata changes, including ADMIN edits', async () => {
         const old = { id: 4, userId: 5, companyId: 2, name: 'Old', descriptionHTML: 'Old desc', amount: 2 };
         const changed = { ...old, name: 'New', descriptionHTML: 'New desc', statusCode: 'PS3' };
         mocks.pool.query.mockResolvedValueOnce([[old]]);
@@ -163,10 +163,13 @@ describe('job write controller', () => {
             .mockResolvedValueOnce([[old]])
             .mockResolvedValueOnce([{ insertId: 12 }])
             .mockResolvedValueOnce(undefined)
-            .mockResolvedValueOnce([[old]]);
+            .mockResolvedValueOnce([[{ ...old, amount: 3, statusCode: 'PS3' }]]);
         await updateJob(makeReq({ headers: { 'x-user-id': '1', 'x-user-role': 'ADMIN' }, params: { id: '4' }, body: { amount: 3 } }), makeRes());
-        expect(mocks.enqueueOutboxEvent).toHaveBeenCalledOnce();
-        expect(conn.query.mock.calls[6][1][1]).toBe('PS1');
+        expect(mocks.enqueueOutboxEvent).toHaveBeenCalledTimes(2);
+        expect(conn.query.mock.calls[6][1][1]).toBe('PS3');
+        expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(2, conn, expect.objectContaining({
+            eventType: 'ai.moderate_job', payload: expect.objectContaining({ jobId: 4, name: 'Old', notificationPolicy: 'approval-v1' })
+        }));
     });
 
     it('maps update exceptions to 500', async () => {

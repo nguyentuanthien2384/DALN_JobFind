@@ -54,7 +54,7 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
         assert.deepEqual(await balance(), quota);
     });
 
-    await check('metadata edits clear nullable fields, preserve omitted fields and do not restart moderation', async () => {
+    await check('metadata edits clear nullable fields, preserve omitted fields and start a new pending review generation', async () => {
         const id = await make();
         const previousState = await state(id);
         const original = await snapshot(id);
@@ -66,8 +66,10 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
         assert.equal(result.body.data.addressCode, null);
         assert.equal(result.body.data.descriptionMarkdown, '');
         for (const field of ['name', 'descriptionHTML', 'salaryJobCode', 'categoryJobCode']) assert.equal(result.body.data[field], original[field]);
-        assert.deepEqual(await state(id), previousState);
-        assert.deepEqual(await delta(before), [0, 1, 1, 0]);
+        assert.notEqual((await state(id)).requestId, previousState.requestId);
+        assert.equal((await state(id)).state, 'pending');
+        assert.equal(result.body.data.statusCode, 'PS3');
+        assert.deepEqual(await delta(before), [0, 1, 2, 0]);
     });
 
     await check('an identical full form including an expired deadline is a true no-op', async () => {
@@ -227,7 +229,7 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
         }
     });
 
-    await check('old AI results cannot approve changed content; current result can, metadata edits retain that decision', async () => {
+    await check('old AI results cannot approve content or metadata edits; only the latest request can decide', async () => {
         const id = await make();
         const oldRequest = await state(id);
         assert.equal((await edit(id, { name: 'Needs new review' })).status, 200);
@@ -242,9 +244,12 @@ export const runJobEditChecks = async ({ pool, check, core, edit, legacy, oldReu
         const before = await counts();
         const decision = await state(id);
         assert.equal((await edit(id, { genderPostCode: 'G2' })).status, 200);
+        assert.equal((await read(id)).statusCode, 'PS3');
+        assert.notEqual((await state(id)).requestId, decision.requestId);
+        assert.equal((await apply(decision.requestId)).outcome, 'stale');
+        assert.deepEqual(await delta(before), [0, 1, 2, 0]);
+        assert.equal((await apply((await state(id)).requestId)).outcome, 'applied');
         assert.equal((await read(id)).statusCode, 'PS1');
-        assert.deepEqual(await state(id), decision);
-        assert.deepEqual(await delta(before), [0, 1, 1, 0]);
     });
 
     for (const writer of ['core', 'legacy']) {

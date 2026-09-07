@@ -474,6 +474,9 @@ try {
     await runLegacyRepostRequestChecks({ pool, check, core, managed, edit, legacyReupHttp, legacyCreateHttp, counts, balance, waitForRowWait });
     const { runRepostPolicyChecks } = await import('./repost-policy-checks.mjs');
     await runRepostPolicyChecks({ pool, check, core, managed, repost, edit, legacyReupHttp, counts, balance, waitForRowWait });
+    const { runEditReviewLifecycleChecks } = await import('./edit-review-lifecycle-checks.mjs');
+    await runEditReviewLifecycleChecks({ pool, check, core, managed, edit, legacyEditHttp, legacyCreateHttp,
+        manualHttp, counts, balance, waitForRowWait });
     console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent Core create/repost + private reads + concurrency + manual/AI moderation + legacy create/edit/repost outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
