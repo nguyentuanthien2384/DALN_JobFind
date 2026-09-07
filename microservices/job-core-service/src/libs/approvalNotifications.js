@@ -18,7 +18,10 @@ export const enqueueApprovalNotifications = async (conn, post, detail, requestId
     if (request.moderationRequestId !== requestId) throw new Error('AI_NOTIFICATION_REQUEST_INVALID');
     if (request.notificationPolicy !== APPROVAL_NOTIFICATION_POLICY) return;
     const deadline = Number(post.timeEnd);
-    if (!Number.isSafeInteger(deadline) || deadline <= Date.now() || deadline > 8640000000000000) return;
+    // Same canonical millisecond deadline as manual approval and reposting;
+    // coercible legacy strings (spaces/exponents/decimals) are not valid dates.
+    if (!['string', 'number'].includes(typeof post.timeEnd) || !/^[1-9][0-9]*$/.test(String(post.timeEnd))
+        || !Number.isSafeInteger(deadline) || deadline <= Date.now() || deadline > 8640000000000000) return;
 
     // One consistent snapshot after the post lock, not locks on user/company
     // after post (which would invert the writers' lock order). A later unfollow,

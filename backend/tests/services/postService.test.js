@@ -218,12 +218,12 @@ describe('postService', () => {
   });
 
   const moderationFixture = (statusCode = 'PS3') => {
-    const post = { id: 10, userId: 7, detailPostId: 20, statusCode, timeEnd: '1700000000000', isHot: 0, save: jest.fn() };
+    const post = { id: 10, userId: 7, detailPostId: 20, statusCode, timeEnd: '9000000000000', isHot: 0, save: jest.fn() };
     const detail = { ...validPost(), id: 20 };
     mockDb.Post.findOne.mockResolvedValue(post); mockDb.DetailPost.findOne.mockResolvedValue(detail);
     mockDb.User.findAll.mockResolvedValue([{ id: 1, companyId: null }, { id: 7, companyId: 4 }]);
     mockDb.User.findOne.mockResolvedValue({ email: 'author@example.com' });
-    mockDb.Company.findOne.mockResolvedValue({ id: 4, name: 'Acme' });
+    mockDb.Company.findOne.mockResolvedValue({ id: 4, name: 'Acme', statusCode: 'S1', censorCode: 'CS1' });
     mockDb.FollowCompany.findAll.mockResolvedValue([]);
     mockDb.sequelize.query.mockImplementation(sql => Promise.resolve(sql.includes('TABLE_NAME IN')
       ? [['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))]
@@ -258,7 +258,7 @@ describe('postService', () => {
       attributes: ['id', 'name', 'thumbnail', 'statusCode', 'censorCode'] }));
   });
 
-  test('approval preserves its old timestamp/follower behavior but sends nothing on a stale repeat or matching no-op', async () => {
+  test('eligible approval preserves its timestamp/follower behavior but sends nothing on a stale repeat or matching no-op', async () => {
     const { post, payload } = moderationFixture();
     mockDb.FollowCompany.findAll.mockResolvedValue([{ userId: 2 }, { userId: 3 }]);
     const result = await service.handleAcceptPost({ ...payload, statusCode: 'PS1' }, { roleCode: 'ADMIN' });
@@ -276,6 +276,26 @@ describe('postService', () => {
       .toMatchObject({ errCode: 0, changed: false });
     expect(mockDb.Note.create).toHaveBeenCalledTimes(1); expect(mockSendMail).not.toHaveBeenCalled();
     expect(mockDb.Notification.bulkCreate).not.toHaveBeenCalled(); expect(inserts()).toHaveLength(2);
+  });
+
+  test.each(['expired', 'malformed', 'banned', 'unapproved', 'missingCompany', 'missingOwner'])
+  ('approval uses locked eligibility for %s, ignoring forged body fields while preserving author/status/note', async condition => {
+    const { post, detail, payload } = moderationFixture();
+    if (condition === 'expired') post.timeEnd = '1700000000000';
+    if (condition === 'malformed') post.timeEnd = '2e12';
+    if (condition === 'banned') mockDb.Company.findOne.mockResolvedValue({ id: 4, name: 'Acme', statusCode: 'S2', censorCode: 'CS1' });
+    if (condition === 'unapproved') mockDb.Company.findOne.mockResolvedValue({ id: 4, name: 'Acme', statusCode: 'S1', censorCode: 'CS2' });
+    if (condition === 'missingCompany') mockDb.Company.findOne.mockResolvedValue(null);
+    if (condition === 'missingOwner') mockDb.User.findAll.mockResolvedValue([{ id: 1, companyId: null }]);
+    const response = await service.handleAcceptPost({ ...payload, expectedRevision: jobRevision(post, detail), statusCode: 'PS1',
+      timeEnd: '9000000000000', companyId: 99, companyName: 'Spoofed', companyStatusCode: 'S1', companyCensorCode: 'CS1' }, { roleCode: 'ADMIN' });
+    expect(response).toMatchObject({ errCode: 0, changed: true, statusCode: 'PS1' });
+    expect(mockDb.FollowCompany.findAll).not.toHaveBeenCalled(); expect(mockDb.Note.create).toHaveBeenCalledTimes(1);
+    const inserts = mockDb.sequelize.query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO outbox_events'));
+    expect(inserts).toHaveLength(2); expect(inserts[0][1].replacements[3]).toBe('job.updated');
+    const values = inserts[1][1].replacements; expect(values).toHaveLength(6);
+    expect(JSON.parse(values[4])).toMatchObject({ audience: 'author', recipientId: 7 });
+    expect(JSON.parse(values[4]).companyName).not.toBe('Spoofed'); expect(mockSendMail).not.toHaveBeenCalled();
   });
 
   test.each(['note', 'commit'])('a failed %s never emails or notifies followers', async stage => {

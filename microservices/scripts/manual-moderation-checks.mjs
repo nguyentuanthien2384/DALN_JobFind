@@ -266,5 +266,8 @@ export const runManualModerationChecks = async ({ pool, check, core, repost, man
         const { runCoreApprovalNotificationChecks } = await import('./core-approval-notification-checks.mjs');
         await runCoreApprovalNotificationChecks({ pool, check, make, read, decide, state, post, repost, edit,
             handleNotificationEvent, receive, deliveryCounts, waitForRowWait });
+        const { runManualApprovalEligibilityChecks } = await import('./manual-approval-eligibility-checks.mjs');
+        await runManualApprovalEligibilityChecks({ pool, check, make, read, decide, state, post, manualHttp,
+            receive, deliveryCounts, counts, balance, waitForRowWait });
     } finally { await mysqlPool.end(); }
 };

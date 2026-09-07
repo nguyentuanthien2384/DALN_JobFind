@@ -63,6 +63,10 @@ export const moderateLegacyPost = async (data, action, identity = {}) => {
             await db.Note.create({ postId: post.id, note, userId: Number(data.userId) }, { transaction });
             await enqueueLegacyJobUpdated({ post, detail, owner, company }, transaction);
             await enqueueManualModerationNotifications({ action, postId: post.id, posterId: post.userId,
+                // Eligibility comes only from current locked rows, never the
+                // moderation body. These fields are local context, not event data.
+                timeEnd: post.timeEnd, companyStatusCode: company?.statusCode ?? null,
+                companyCensorCode: company?.censorCode ?? null,
                 companyId: owner?.companyId ?? null, companyName: company?.name ?? null, jobTitle: detail.name, note }, transaction);
             return { errCode: 0, changed: true, postId: post.id, statusCode: post.statusCode,
                 editRevision: jobRevision(post, detail), errMessage: rule.message };

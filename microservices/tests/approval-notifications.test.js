@@ -52,10 +52,18 @@ describe('approval follower intents', () => {
         await expect(enqueueApprovalNotifications(conn, post, detail, id)).rejects.toThrow();
         expect(inserts(conn)).toHaveLength(0);
     });
-    it.each([null, '', 'bad', '0', '-1', String(Date.now() - 1), '8640000000000001', '9007199254740992'])('does not advertise an expired/unsafe deadline %s', async timeEnd => {
+    it.each([null, '', 'bad', '0', '-1', String(Date.now() - 1), '8640000000000001', '9007199254740992',
+        undefined, true, {}, '2e12', ' 2000000000000 ', '2000000000000.0'])('does not advertise an expired/unsafe deadline %s', async timeEnd => {
         const conn = fixture();
         await enqueueApprovalNotifications(conn, { ...post, timeEnd }, detail, id);
         expect(conn.query).toHaveBeenCalledOnce();
+    });
+    it.each([-1, 0, 1])('requires a strictly future deadline relative to the snapshot clock (%s ms)', async delta => {
+        const now = 1900000000000, clock = vi.spyOn(Date, 'now').mockReturnValue(now), conn = fixture();
+        try {
+            await enqueueApprovalNotifications(conn, { ...post, timeEnd: String(now + delta) }, detail, id);
+            expect(inserts(conn)).toHaveLength(delta > 0 ? 1 : 0);
+        } finally { clock.mockRestore(); }
     });
     it('writes no intent when the eligible snapshot has no followers', async () => {
         const conn = fixture(request, []);

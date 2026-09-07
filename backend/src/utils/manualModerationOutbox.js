@@ -10,9 +10,18 @@ const BATCH_SIZE = 100;
 // delivery. Never start a second legacy relay or publish before this TX commits.
 export const enqueueManualModerationNotifications = async (intent, transaction) => {
     await assertTransactionalLegacyOutbox(transaction);
+    // Only advertise a live job in an active, approved company. The writer
+    // supplies these fields from rows already locked in user/company/post order.
+    // Check the clock here, after lock waits and decision writes. Missing or
+    // malformed context suppresses followers, never the historical author notice.
+    const deadline = Number(intent.timeEnd);
+    const eligible = intent.action === 'approve' && Number.isSafeInteger(Number(intent.companyId)) && Number(intent.companyId) > 0
+        && intent.companyStatusCode === 'S1' && intent.companyCensorCode === 'CS1'
+        && ['string', 'number'].includes(typeof intent.timeEnd) && /^[1-9][0-9]*$/.test(String(intent.timeEnd))
+        && Number.isSafeInteger(deadline) && deadline <= 8640000000000000 && deadline > Date.now();
     // Freeze recipients with one read inside the decision transaction. Retries
     // never reread the changing follower list. Dedup legacy duplicate follow rows.
-    const followers = intent.action === 'approve' && intent.companyId
+    const followers = eligible
         ? await db.FollowCompany.findAll({ where: { companyId: intent.companyId }, attributes: ['userId'],
             order: [['userId', 'ASC']], raw: true, transaction }) : [];
     const recipientIds = [...new Set(followers.map(row => Number(row.userId))
