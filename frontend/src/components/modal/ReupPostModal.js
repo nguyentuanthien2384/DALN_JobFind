@@ -3,7 +3,7 @@ import { Modal, ModalFooter, ModalBody, Button, Spinner } from 'reactstrap';
 import DatePicker from 'react-datepicker';
 import './modal.css';
 
-function ReupPostModal({ isOpen, handleFunc, onHide, blocked = false, feedback = '', initialTimeEnd }) {
+function ReupPostModal({ isOpen, handleFunc, onHide, blocked = false, feedback = '', initialTimeEnd, reviewMode }) {
     const [timeEnd, setTimeEnd] = useState(() => new Date(Date.now() + 86400000));
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -38,6 +38,7 @@ function ReupPostModal({ isOpen, handleFunc, onHide, blocked = false, feedback =
         <p className="text-center">Hãy chọn thời gian kết thúc tuyển dụng</p>
         <ModalBody>
             <p>Đăng lại dùng nội dung tin gốc đã lưu, không dùng phần đang sửa trên biểu mẫu.</p>
+            {reviewMode && <p>{reviewMode === 'core' ? 'Tin đăng lại sẽ chờ AI kiểm duyệt qua Job Core.' : 'Tin đăng lại sẽ chờ duyệt thủ công qua backend cũ.'}</p>}
             <DatePicker selected={timeEnd} disabled={isLoading || blocked || uncertain}
                 className="form-control" onChange={date => { setTimeEnd(date); setError(''); }} />
             {(feedback || error) && <p role="alert">{feedback || error}</p>}

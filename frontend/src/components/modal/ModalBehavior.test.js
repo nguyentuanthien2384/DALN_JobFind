@@ -89,6 +89,11 @@ describe("NoteModal", () => {
 });
 
 describe("ReupPostModal", () => {
+    it.each([['core', 'AI kiểm duyệt qua Job Core'], ['legacy', 'duyệt thủ công qua backend cũ']])('explains the selected %s moderation path before confirming', (reviewMode, message) => {
+        render(<ReupPostModal isOpen reviewMode={reviewMode} handleFunc={jest.fn()} onHide={jest.fn()} />);
+        expect(screen.getByText(new RegExp(message))).toBeInTheDocument();
+        expect(screen.getByText(/không dùng phần đang sửa/)).toBeInTheDocument();
+    });
     it('restores the submitted date after remount and keeps it on a rejection instead of resetting to tomorrow', async () => {
         const deadline = new Date('2031-01-02T00:00:00').getTime(), onHide = jest.fn(), handleFunc = jest.fn().mockResolvedValue(false);
         const first = render(<ReupPostModal isOpen initialTimeEnd={deadline} handleFunc={handleFunc} onHide={onHide} />);

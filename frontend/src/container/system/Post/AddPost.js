@@ -5,7 +5,6 @@ import DatePicker from "react-datepicker";
 import {
     updatePostService,
     getDetailPostByIdService,
-    reupPostService,
     getDetailCompanyByUserId,
 } from "../../../service/userService";
 import MarkdownIt from "markdown-it";
@@ -20,8 +19,8 @@ import ReupPostModal from "../../../components/modal/ReupPostModal";
 import { assertLegacyCreateIdentity } from '../../../service/legacyCreateAttempt';
 import { jobCreateMode, readJobCreateAttempt, prepareJobCreateAttempt, settleJobCreateAttempt,
     clearSuccessfulJobCreate, assertPendingJobCreate, sendJobCreateAttempt, jobCreateOutcome } from '../../../service/jobCreateAttempt';
-import { readLegacyRepostAttempt, prepareLegacyRepostAttempt, assertPendingLegacyRepost,
-    settleLegacyRepostAttempt, isLegacyRepostReceipt } from '../../../service/legacyRepostAttempt';
+import { jobRepostMode, readJobRepostAttempt, prepareJobRepostAttempt, assertPendingJobRepost,
+    sendJobRepostAttempt, settleJobRepostAttempt, jobRepostOutcome, coreRepostSource } from '../../../service/jobRepostAttempt';
 import { getManagedJob, updateJob } from '../../../service/jobPostingService';
 import { jobEditMode, assertJobEditorIdentity, readCoreJobSnapshot, readCoreEditPending,
     prepareCoreEditPending, assertCoreEditPending, clearCoreEditPending, acceptCoreEditResponse } from '../../../service/jobEditSession';
@@ -77,6 +76,7 @@ const AddPost = () => {
     const reloadIntent = useRef(null);
     const editAttempt = useRef(null);
     const [repostAttempt, setRepostAttempt] = useState(null);
+    const [repostMode, setRepostMode] = useState(null);
     const [repostError, setRepostError] = useState('');
     const reupWarning = repostAttempt?.status === 'pending'
         ? 'Chưa xác định được kết quả đăng lại. Mã, phiên bản và ngày đã gửi được giữ; hãy đối chiếu cùng mã hoặc kiểm tra danh sách tin. Tải lại tin gốc không xác nhận kết quả này.'
@@ -110,6 +110,7 @@ const AddPost = () => {
         setCreateError('');
         setCreateMode(null);
         setRepostAttempt(null);
+        setRepostMode(null);
         setRepostError('');
         setisChangeDate(false);
         setPropsModal({ isActive: false });
@@ -118,8 +119,10 @@ const AddPost = () => {
         }
         if (id) {
             if (userData.id && userData.companyId) {
-                try { setRepostAttempt(readLegacyRepostAttempt(userData, id)); }
-                catch { setRepostError('Không đọc được thao tác đăng lại đã lưu. Hãy liên hệ hỗ trợ trước khi đăng lại.'); }
+                try {
+                    const saved = readJobRepostAttempt(userData, id);
+                    setRepostAttempt(saved); setRepostMode(saved?.writer || jobRepostMode());
+                } catch (error) { setRepostError(error.message || 'Không đọc được thao tác đăng lại đã lưu. Hãy liên hệ hỗ trợ trước khi đăng lại.'); }
             }
             if (!reloading || reloading.mode !== 'core') setInputValues({ ...emptyPostForm(), isActionADD: false });
             const load = async () => {
@@ -380,25 +383,21 @@ const AddPost = () => {
             }
         }
     };
-    const sendRepostAttempt = async sent => {
-        if (!id || !sent || sent.status !== 'pending' || editAttempt.current || isLoading || repostError) return false;
-        try { assertPendingLegacyRepost(user, id, sent); }
+    const sendRepostAttempt = async (sent, preparation = null) => {
+        if (!id || !sent || sent.status !== 'pending' || repostError) return false;
+        if (preparation ? (editAttempt.current !== preparation.attempt || viewEpoch.current !== preparation.epoch)
+            : (editAttempt.current || isLoading)) return false;
+        try { assertPendingJobRepost(user, id, sent); }
         catch (error) { setRepostError(error.message); return false; }
-        const epoch = viewEpoch.current, attempt = {};
+        const { epoch, attempt } = preparation || { epoch: viewEpoch.current, attempt: {} };
         editAttempt.current = attempt;
         setIsLoading(true);
         try {
             // Replay intentionally ignores the newly loaded source revision or
             // deadline. The server decides whether this is a receipt or a write.
-            const res = await reupPostService(sent.payload, { idempotencyKey: sent.key });
+            const res = await sendJobRepostAttempt(user, id, sent);
             const conflict = res?.conflict || res?.httpStatus === 409 || res?.errorType === 'conflict';
-            let patch;
-            if (isLegacyRepostReceipt(res, sent)) patch = { status: 'succeeded', postId: Number(res.postId) };
-            else if (res?.errCode === 0) patch = { status: 'blocked' };
-            else if (conflict || ([1, 2, 3].includes(res?.errCode) && !(res.httpStatus >= 500)
-                && !['network', 'timeout', 'cancelled', 'unavailable', 'server', 'unknown'].includes(res.errorType))) patch = { status: 'rejected' };
-            else patch = { status: 'pending' };
-            const saved = settleLegacyRepostAttempt(user, id, sent, patch);
+            const saved = settleJobRepostAttempt(user, id, sent, jobRepostOutcome(res, id, sent, user));
             if (epoch !== viewEpoch.current) return false;
             assertLegacyCreateIdentity(user);
             setRepostAttempt(saved);
@@ -411,7 +410,7 @@ const AddPost = () => {
             return false;
         } catch {
             if (epoch === viewEpoch.current) {
-                try { assertPendingLegacyRepost(user, id, sent); }
+                try { assertPendingJobRepost(user, id, sent); }
                 catch { setRepostError('Không đối chiếu được tài khoản hoặc mã đã lưu. Hãy tải lại và liên hệ hỗ trợ nếu lỗi còn tiếp diễn.'); }
                 toast.error('Chưa xác nhận được kết quả đăng lại; giữ nguyên mã thao tác để đối chiếu.');
             }
@@ -422,19 +421,33 @@ const AddPost = () => {
         }
     };
     let handleReupPost = async (timeEnd) => {
-        if (!id || !readyToEdit || loadError || editWarning || isLoading || editAttempt.current || reupWarning || repostError
+        if (!id || !readyToEdit || !repostMode || user.roleCode === 'ADMIN' || loadError || editWarning || isLoading || editAttempt.current || reupWarning || repostError
             || !['PS1', 'PS2', 'PS3'].includes(inputValues.statusCode) || !validDeadline
             || validDeadline.getTime() > Date.now() || !isJobRevision(inputValues.editRevision)) return false;
         if (!Number.isSafeInteger(timeEnd) || timeEnd <= Date.now()) return false;
+        const preparation = { epoch: viewEpoch.current, attempt: {} };
+        editAttempt.current = preparation.attempt; setIsLoading(true);
         try {
+            assertJobEditorIdentity(user);
             if (readCoreEditPending(user, id)) throw new Error('Cần đối chiếu lần sửa Job Core trước khi tạo yêu cầu đăng lại mới');
-            const saved = prepareLegacyRepostAttempt(user, id, { userId: user.id, postId: id, timeEnd,
-                expectedRevision: inputValues.editRevision }, repostAttempt);
+            let expected;
+            if (repostMode === 'core') {
+                const source = await getManagedJob(id);
+                if (preparation.epoch !== viewEpoch.current) return false;
+                assertJobEditorIdentity(user);
+                expected = coreRepostSource(source, id, user, inputValues.editRevision);
+                if (timeEnd <= Date.now()) throw new Error('Ngày đã chọn đã qua; chưa gửi yêu cầu. Hãy tải lại và chọn ngày mới');
+            }
+            const saved = prepareJobRepostAttempt(user, id, { userId: user.id, postId: id, timeEnd,
+                expectedRevision: inputValues.editRevision }, repostAttempt, repostMode, expected);
             setRepostAttempt(saved);
-            return await sendRepostAttempt(saved);
+            return await sendRepostAttempt(saved, preparation);
         } catch (error) {
-            setRepostError(error.message || 'Không lưu được mã thao tác; chưa gửi yêu cầu đăng lại');
+            if (preparation.epoch === viewEpoch.current) setRepostError(error.message || 'Không lưu được mã thao tác; chưa gửi yêu cầu đăng lại');
             return false;
+        } finally {
+            if (editAttempt.current === preparation.attempt) editAttempt.current = null;
+            if (preparation.epoch === viewEpoch.current) setIsLoading(false);
         }
     };
     const navigate = useNavigate();
@@ -480,8 +493,13 @@ const AddPost = () => {
                             {editWarning && <p role="alert">{editWarning}</p>}
                             {id && editMode && <p className="text-muted">
                                 {editMode === 'core'
-                                    ? 'Luồng xem/sửa: Job Core — mỗi thay đổi thực sự sẽ chờ AI kiểm duyệt tiêu đề và mô tả, kể cả tin trước đó duyệt thủ công. Đăng lại hiện vẫn dùng luồng cũ và duyệt thủ công.'
+                                    ? 'Luồng xem/sửa: Job Core — mỗi thay đổi thực sự sẽ chờ AI kiểm duyệt tiêu đề và mô tả, kể cả tin trước đó duyệt thủ công.'
                                     : 'Luồng xem/sửa: backend cũ — duyệt thủ công.'}
+                            </p>}
+                            {id && repostMode && <p className="text-muted">
+                                {repostMode === 'core' ? 'Luồng đăng lại: Job Core — tin mới chờ AI kiểm duyệt, chưa được công khai ngay.'
+                                    : 'Luồng đăng lại: backend cũ — duyệt thủ công.'}
+                                {repostAttempt && ' Mã, luồng, phiên bản và ngày đã gửi được giữ khi tải lại hoặc đổi cấu hình.'}
                             </p>}
                             {!id && createError && <p role="alert">{createError}</p>}
                             {!id && createMode && <p className="text-muted">
@@ -498,7 +516,7 @@ const AddPost = () => {
                             {!id && createAttempt?.status === 'rejected' && <p role="status">Yêu cầu bị từ chối. Bạn có thể sửa nội dung rồi lưu; mã thao tác vẫn được giữ để tránh tạo trùng. Nếu mã đã gắn với nội dung khác, hãy liên hệ hỗ trợ để đối chiếu.</p>}
                             {!id && createAttempt?.status === 'succeeded' && <div role="status">
                                 <p>Đã tạo tin #{createAttempt.postId}. Nội dung được giữ lại; gửi lại cùng mã không trừ thêm lượt. Đây là xác nhận lúc tạo, không phải trạng thái duyệt hiện tại.</p>
-                                {createAttempt.writer === 'core' && <p>Màn hình xem/sửa có cấu hình riêng; hãy kiểm tra luồng được ghi trên màn hình đó. Sửa qua luồng cũ sẽ về chờ duyệt thủ công. Đăng lại hiện vẫn duyệt thủ công.</p>}
+                                {createAttempt.writer === 'core' && <p>Màn hình xem/sửa và đăng lại có cấu hình riêng; hãy kiểm tra luồng được ghi trên màn hình đó. Sửa hoặc đăng lại qua luồng cũ sẽ về chờ duyệt thủ công.</p>}
                                 <button type="button" onClick={() => navigate(`/admin/edit-post/${createAttempt.postId}/`)}>Xem tin đã tạo</button>
                                 <button type="button" disabled={!!createError} onClick={() => {
                                     try {
@@ -516,7 +534,7 @@ const AddPost = () => {
                                 onClick={() => sendRepostAttempt(repostAttempt)}>Đối chiếu đăng lại cùng mã</button>}
                             {id && repostAttempt?.status === 'rejected' && <p role="status">Yêu cầu đăng lại bị từ chối. Ngày đã gửi và mã cũ được giữ; lần sửa ngày/phiên bản tiếp theo vẫn dùng cùng mã.</p>}
                             {reupCreatedId && <button type="button" onClick={() => navigate(`/admin/edit-post/${reupCreatedId}/`)}>Xem tin đăng lại</button>}
-                            {id && (editMode === 'core' || editWarning || loadError || (readyToEdit && !isJobRevision(inputValues.editRevision))) &&
+                            {id && (editMode === 'core' || editWarning || loadError || repostError || (readyToEdit && !isJobRevision(inputValues.editRevision))) &&
                                 <button type="button" disabled={isLoading} onClick={() => setConfirmReload(true)}>Tải lại tin</button>}
                             {confirmReload && <div role="alertdialog" aria-label="Xác nhận tải lại tin">
                                 <p>Tải lại sẽ bỏ phần chưa lưu trên biểu mẫu. Bạn nên sao chép nội dung cần giữ trước khi tiếp tục.</p>
@@ -1001,7 +1019,7 @@ const AddPost = () => {
                                     Date.now() >= validDeadline.getTime() && (
                                         <>
                                             <button
-                                                disabled={!!editWarning || !!reupWarning || !!repostError || isLoading || !isJobRevision(inputValues.editRevision)}
+                                                disabled={!repostMode || !!editWarning || !!reupWarning || !!repostError || isLoading || !isJobRevision(inputValues.editRevision)}
                                                 onClick={() =>
                                                     setPropsModal({
                                                         ...propsModal,
@@ -1041,6 +1059,7 @@ const AddPost = () => {
                 blocked={!!editWarning || !!reupWarning || !!repostError}
                 feedback={repostError || reupWarning || editWarning}
                 initialTimeEnd={repostAttempt?.payload.timeEnd}
+                reviewMode={repostMode}
                 onHide={() =>
                     setPropsModal({
                         ...propsModal,
