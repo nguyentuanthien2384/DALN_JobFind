@@ -10,6 +10,25 @@ concurrency:
   group: microservices-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  compose-background:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Cache disposable infrastructure images
+        run: |
+          docker pull mysql:8.0
+          docker pull mongo:7
+          docker pull postgres:16-alpine
+          docker pull redis:7-alpine
+          docker pull rabbitmq:4-management-alpine
+          docker pull docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+      - name: Accept background chain with actual services and synthetic AI on an internal Compose network
+        working-directory: microservices
+        run: npm run test:compose-background:integration
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
