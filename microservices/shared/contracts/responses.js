@@ -15,6 +15,15 @@ const stageLabel = record({ stage, label: text() });
 
 export const responseDefinitions = {
     ...schemas,
+    ManagedJobRow: object({ id, name: nullable(text(255)), statusCode: nullable(text(32)), timeEnd: nullable(text(32)),
+        isHot: nullable(integer(0, 1)), updatedAt: nullable(date), userId: id, companyId: id,
+        authorFirstName: nullable(text(255)), authorLastName: nullable(text(255)) },
+    ['id', 'name', 'statusCode', 'timeEnd', 'isHot', 'updatedAt', 'userId', 'companyId', 'authorFirstName', 'authorLastName']),
+    JobReview: object({ job: object({ id, name: nullable(text(255)), statusCode: nullable(text(32)), companyId: id,
+        reviewState: { enum: ['untracked', 'no_active_ai', 'ai_requested', 'ai_failed', 'ai_applied'] } }, ['id', 'name', 'statusCode', 'companyId', 'reviewState']),
+        notes: list(object({ id, note: nullable(text(255)), createdAt: nullable(date), authorId: nullable(id),
+            authorFirstName: nullable(text(255)), authorLastName: nullable(text(255)) },
+        ['id', 'note', 'createdAt', 'authorId', 'authorFirstName', 'authorLastName'])), count: integer() }, ['job', 'notes', 'count']),
     ManagedJob: object({
         ...schemas.Job.properties,
         editRevision: nullable(editRevision),
@@ -67,7 +76,7 @@ export const successSchema = (operation) => {
     const result = ref(resultNames[operation.id] || operation.response);
     return record({ errCode: operation.id === 'applicationSync' ? { enum: [0, -1] } : { const: 0 },
         data: operation.list ? list(result) : result, count: integer(), took: integer(), emailQueued: bool,
-        errMessage: text(1000) }, ['errCode', 'data']);
+        errMessage: text(1000) }, ['errCode', 'data', ...(operation.id === 'jobManageList' ? ['count'] : [])]);
 };
 
 export const responseValidationSchema = (operation) => ({ $defs: responseDefinitions, ...successSchema(operation) });

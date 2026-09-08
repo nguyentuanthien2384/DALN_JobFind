@@ -37,6 +37,9 @@ const jobFields = {
 export const queryNumber = (max) => ({ type: 'string', pattern: '^(0|[1-9][0-9]*)$', maxLength: String(max).length, format: `jobfind-uint-${max}` });
 export const schemas = {
     Empty: object(),
+    ManagedJobsQuery: object({ limit: { ...queryNumber(50), pattern: '^[1-9][0-9]*$' }, offset: queryNumber(1000000),
+        search: text(255), statusCode: { type: 'string', enum: ['', 'PS1', 'PS2', 'PS3', 'PS4'] } }),
+    JobReviewQuery: object({ limit: { ...queryNumber(50), pattern: '^[1-9][0-9]*$' }, offset: queryNumber(1000000) }),
     JobRepost: object({
         expectedRevision: editRevision,
         timeEnd: { anyOf: [integer(1, 8640000000000000), { type: 'string', pattern: '^[1-9][0-9]{0,15}$', format: 'jobfind-id' }] }

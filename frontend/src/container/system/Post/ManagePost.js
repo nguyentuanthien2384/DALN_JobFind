@@ -1,6 +1,8 @@
 import React from 'react'
 import { useEffect, useState, useRef } from 'react';
-import { isJobRevision } from '../../../service/jobFormAdapter';
+import { isJobRevision, jobDeadlineDate, jobStatusLabel } from '../../../service/jobFormAdapter';
+import { assertJobEditorIdentity } from '../../../service/jobEditSession';
+import { workspaceSelection, listManagedJobs, readManagedJobList } from '../../../service/jobWorkspaceService';
 import { banPostService, getAllPostByAdminService, activePostService, getAllPostByRoleAdminService, acceptPostService } from '../../../service/userService';
 import moment from 'moment';
 import { PAGINATION } from '../../../util/constant';
@@ -19,6 +21,7 @@ const ManagePost = () => {
         try { return JSON.parse(localStorage.getItem('userData')) || {}; } catch { return {}; }
     });
     const [dataPost, setdataPost] = useState([]);
+    const [workspace] = useState(() => workspaceSelection(user));
     const [count, setCount] = useState(0);
     const [numberPage, setnumberPage] = useState(0);
     const [search, setSearch] = useState(id || '');
@@ -44,15 +47,24 @@ const ManagePost = () => {
     useEffect(() => {
         let active = true;
         viewEpoch.current += 1;
-        setLoading(true); setLoadError(''); setdataPost([]);
+        setLoading(true); setLoadError(''); setdataPost([]); setTotal(0); setCount(0);
         setPropsModal(current => ({ ...current, isActive: false }));
         const load = async () => {
             try {
+                if (workspace.error) throw new Error(workspace.error);
+                assertJobEditorIdentity(user);
                 const query = { limit: PAGINATION.pagerow, offset: numberPage * PAGINATION.pagerow,
                     search: CommonUtils.removeSpace(search), censorCode };
-                const result = user.roleCode === 'ADMIN' ? await getAllPostByRoleAdminService(query)
+                const coreQuery = { limit: query.limit, offset: query.offset, search: query.search, statusCode: censorCode };
+                const result = workspace.mode === 'core' ? await listManagedJobs(coreQuery)
+                    : user.roleCode === 'ADMIN' ? await getAllPostByRoleAdminService(query)
                     : await getAllPostByAdminService({ ...query, companyId: user.companyId });
                 if (!active) return;
+                assertJobEditorIdentity(user);
+                if (workspace.mode === 'core') {
+                    const page = readManagedJobList(result, user, coreQuery);
+                    setdataPost(page.data); setTotal(page.count); setCount(Math.ceil(page.count / PAGINATION.pagerow)); return;
+                }
                 if (!result || result.errCode !== 0 || !Array.isArray(result.data)) throw new Error(result?.errMessage || 'Không đọc được danh sách tin');
                 setdataPost(result.data); setTotal(result.count); setCount(Math.ceil(result.count / PAGINATION.pagerow));
             } catch (error) { if (active) setLoadError(error.message || 'Không đọc được danh sách tin'); }
@@ -60,7 +72,7 @@ const ManagePost = () => {
         };
         load();
         return () => { active = false; viewEpoch.current += 1; };
-    }, [search, censorCode, numberPage, id, refreshVersion, user]);
+    }, [search, censorCode, numberPage, id, refreshVersion, user, workspace]);
 
     const handleChangePage = number => { if (!busy.current && !propsModal.isActive) setnumberPage(number.selected); };
     const handleOnChangeCensor = value => { if (busy.current || propsModal.isActive) return; setCensorCode(value); setnumberPage(0); };
@@ -70,6 +82,7 @@ const ManagePost = () => {
         if (busy.current || blocked.current || disabled || user.roleCode !== 'ADMIN' || epoch !== viewEpoch.current || !isJobRevision(row.editRevision)) return false;
         busy.current = true; setPending(true);
         try {
+            assertJobEditorIdentity(user);
             const payload = { userId: user.id, note, expectedRevision: row.editRevision };
             const result = action === 'ban' ? await banPostService({ ...payload, postId: row.id }, {})
                 : action === 'reopen' ? await activePostService({ ...payload, id: row.id }, {})
@@ -119,11 +132,12 @@ const ManagePost = () => {
                 <div className="card">
                     <div className="card-body">
                         <h4 className="card-title">Danh sách bài đăng</h4>
+                        {workspace.mode === 'core' && <p>Danh sách riêng của công ty qua Job Core, gồm cả tin chưa công khai và hết hạn. Trạng thái là lúc tải; không phải xác nhận kết quả của lần đăng đang chờ đối chiếu.</p>}
                         {loading && <p role="status">Đang tải danh sách tin...</p>}
                         {(loadError || actionWarning) && <p role="alert">{loadError || actionWarning}</p>}
                         {user.roleCode === 'ADMIN' && !loading && dataPost.some(row => !isJobRevision(row.editRevision)) &&
                             <p role="alert">Một số tin thiếu phiên bản. Cần cập nhật backend và tải lại trước khi kiểm duyệt.</p>}
-                        {(loadError || actionWarning || dataPost.some(row => !isJobRevision(row.editRevision))) &&
+                        {(workspace.mode === 'core' || loadError || actionWarning || dataPost.some(row => !isJobRevision(row.editRevision))) &&
                             <button type="button" disabled={pending || loading || propsModal.isActive} onClick={reload}>Tải lại danh sách</button>}
                         <Row justify='space-around' className='mt-5 mb-5'>
                             <Col xs={12} xxl={12}>
@@ -138,7 +152,7 @@ const ManagePost = () => {
                             </Col>
 
                         </Row>
-                        <div>Số lượng bài viết: {total}</div>
+                        {!loading && !loadError && <div>Số lượng bài viết: {total}</div>}
                         <div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
@@ -175,7 +189,8 @@ const ManagePost = () => {
                                 <tbody>
                                     {dataPost && dataPost.length > 0 &&
                                         dataPost.map((item, index) => {
-                                            let date = moment.unix(item.timeEnd / 1000).format('DD/MM/YYYY')
+                                            const deadline = jobDeadlineDate(item.timeEnd);
+                                            let date = deadline ? moment(deadline).format('DD/MM/YYYY') : 'Chưa rõ ngày hết hạn';
                                             return (
                                                 <tr key={item.id}>
                                                     <td>{index + 1 + numberPage * PAGINATION.pagerow}</td>
@@ -187,7 +202,7 @@ const ManagePost = () => {
                                                     }
                                                     <td>{`${item.userPostData?.firstName || ''} ${item.userPostData?.lastName || ''}`}</td>
                                                     <td>{date}</td>
-                                                    <td><label className={item.statusPostData.code === 'PS1' ? 'badge badge-success' : (item.statusPostData.code === 'PS3' ? 'badge badge-warning'  : 'badge badge-danger')}>{item.statusPostData.value}</label></td>
+                                                    <td><label className={item.statusCode === 'PS1' ? 'badge badge-success' : (item.statusCode === 'PS3' ? 'badge badge-warning'  : 'badge badge-danger')}>{item.statusPostData?.value || jobStatusLabel(item.statusCode)}</label></td>
 
                                                     <td>
                                                         <Link style={{color:'#4B49AC'}} to={`/admin/note/${item.id}`}>Chú thích</Link>
@@ -199,7 +214,7 @@ const ManagePost = () => {
                                                             </>
                                                         }
                                                         { 
-                                                        item.statusCode !== 'PS4' &&
+                                                        ['PS1', 'PS2', 'PS3'].includes(item.statusCode) &&
                                                         <Link style={{ color: '#4B49AC' }} to={`/admin/edit-post/${item.id}/`}>{user?.roleCode === "ADMIN" ? 'Xem chi tiết' : 'Sửa'}</Link>
                                                         }
                                                         &nbsp; &nbsp;
@@ -226,10 +241,11 @@ const ManagePost = () => {
                                 </tbody>
                             </table>
                             {
-                                            dataPost && dataPost.length === 0 && (
+                                            !loading && !loadError && dataPost && dataPost.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
                                                     Không có dữ liệu
+                                                    {numberPage > 0 && <button type="button" onClick={() => setnumberPage(0)}>Về trang đầu</button>}
 
                                                 </div>
                                             )

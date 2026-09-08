@@ -170,6 +170,13 @@ app.put('/api/jobs/:id', writeLimiter,
 app.delete('/api/jobs/:id', writeLimiter,
     requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }),
     createProxy('jobs', (req) => `/jobs/${req.params.id}`));
+// Literal /manage must precede public /:id. Errors are private too; never fall
+// back to public Search or the legacy list for private workspace requests.
+for (const [path, target] of [['/api/jobs/manage', () => '/jobs/manage'],
+    ['/api/jobs/:id/review', req => `/jobs/${req.params.id}/review`]]) {
+    app.get(path, (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); },
+        requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), createProxy('jobs', target));
+}
 app.get('/api/jobs/:id', publicLimiter, createProxy('jobs', (req) => `/jobs/${req.params.id}`));
 
 // --- Quan ly ho so ung tuyen (Application & Workflow Service) ---

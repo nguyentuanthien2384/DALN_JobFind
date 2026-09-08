@@ -11,6 +11,7 @@ import { ensureAiResultTables } from './libs/moderationState.js';
 import { ensureAiRequestTable } from './libs/aiTaskRequest.js';
 import { ensureJobRequestTable } from './libs/jobRequest.js';
 import { getManagedJob } from './controllers/jobManagementController.js';
+import { listManagedJobs, getManagedJobReview } from './controllers/jobWorkspaceController.js';
 import { aiResultRetry } from './libs/aiResultRetry.js';
 import { consume, isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import { EVENTS, QUEUES } from '../../shared/events.js';
@@ -56,6 +57,8 @@ contractRoute(app, 'jobCreate', canManageJobs, createJob);
 contractRoute(app, 'jobRepost', canManageJobs, repostJob);
 contractRoute(app, 'jobUpdate', canManageJobs, updateJob);
 contractRoute(app, 'jobDelete', canManageJobs, deleteJob);
+contractRoute(app, 'jobManageList', canManageJobs, listManagedJobs);
+contractRoute(app, 'jobReviewGet', canManageJobs, getManagedJobReview);
 contractRoute(app, 'jobGet', getJob);
 contractRoute(app, 'jobManageGet', canManageJobs, getManagedJob);
 

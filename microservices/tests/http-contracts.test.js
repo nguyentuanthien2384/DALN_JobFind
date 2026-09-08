@@ -14,6 +14,7 @@ import * as aiClient from '../../frontend/src/service/aiSearchService.js';
 import * as applicationClient from '../../frontend/src/service/applicationService.js';
 import * as adminClient from '../../frontend/src/service/adminReportService.js';
 import * as jobClient from '../../frontend/src/service/jobPostingService.js';
+import * as workspaceClient from '../../frontend/src/service/jobWorkspaceService.js';
 import { jobToForm, buildJobCreate, buildJobUpdate } from '../../frontend/src/service/jobFormAdapter.js';
 
 const cvId = '507f1f77bcf86cd799439011';
@@ -84,6 +85,8 @@ afterAll(async () => {
 describe('real HTTP request contracts', () => {
     it.each([
         ['jobManageGet', jobClient.getManagedJob, [7]],
+        ['jobManageList', workspaceClient.listManagedJobs, [{ limit: 5, offset: 0, search: 'a & b%_!', statusCode: 'PS3' }]],
+        ['jobReviewGet', workspaceClient.getManagedJobReview, [7, { limit: 5, offset: 5 }]],
         ['jobUpdate', jobClient.updateJob, [7, { genderPostCode: null, amount: 3, expectedRevision: editRevision }]],
         ['jobCreate', jobClient.createJob, [bodyExamples.JobCreate, { idempotencyKey: 'create-test' }]],
         ['jobRepost', jobClient.repostJob, [7, bodyExamples.JobRepost.timeEnd, { idempotencyKey: 'repost-test' }]],
@@ -137,6 +140,10 @@ describe('real HTTP request contracts', () => {
     it.each([
         ['jobGet', { path: '/jobs/1x' }], ['jobGet', { path: '/jobs/9007199254740992' }],
         ['jobManageGet', { path: '/jobs/1x/manage' }], ['jobManageGet', { query: '?companyId=4' }],
+        ...['jobManageList', 'jobReviewGet'].flatMap(id => ['?companyId=4', '?limit=0', '?limit=51', '?offset=1000001', '?limit=2&limit=3', '?offset=-1', '?limit=01']
+            .map(query => [id, { query }])),
+        ['jobManageList', { query: '?statusCode=PS5' }], ['jobManageList', { query: '?search[x]=hi' }],
+        ['jobManageList', { query: '?search=' + 'a'.repeat(256) }], ['jobReviewGet', { path: '/jobs/bad/review' }],
         ['cvDelete', { path: '/profile/cvs/not-a-mongo-id' }], ['aiTaskGet', { path: '/ai/tasks/bad%20id' }],
         ['jobCreate', { body: { ...bodyExamples.JobCreate, isHot: 'false' } }],
         ['jobCreate', { body: { ...bodyExamples.JobCreate, amount: -1 } }],

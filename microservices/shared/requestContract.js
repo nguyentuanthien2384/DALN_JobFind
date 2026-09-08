@@ -7,7 +7,7 @@ export const createContractValidator = () => {
     const ajv = new Ajv2020({ strict: true, allErrors: false, coerceTypes: false, useDefaults: false, removeAdditional: false, ownProperties: true });
     addFormats(ajv);
     ajv.addFormat('jobfind-id', { type: 'string', validate: (value) => Number.isSafeInteger(Number(value)) && Number(value) > 0 });
-    for (const max of [20, 100, 200, 10000, 1000000]) ajv.addFormat(`jobfind-uint-${max}`, {
+    for (const max of [20, 50, 100, 200, 10000, 1000000]) ajv.addFormat(`jobfind-uint-${max}`, {
         type: 'string', validate: (value) => Number.isSafeInteger(Number(value)) && Number(value) >= 0 && Number(value) <= max
     });
     return ajv;

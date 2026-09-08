@@ -63,6 +63,7 @@ try {
     const { moderateLegacyPost } = legacyRequire('./src/utils/jobModeration.js');
     const { createJob, updateJob, repostJob, getJob } = await import('../job-core-service/src/controllers/jobController.js');
     const { getManagedJob } = await import('../job-core-service/src/controllers/jobManagementController.js');
+    const { listManagedJobs, getManagedJobReview } = await import('../job-core-service/src/controllers/jobWorkspaceController.js');
     const { ensureJobRequestTable } = await import('../job-core-service/src/libs/jobRequest.js');
     const { ensureAiTaskTable } = await import('../job-core-service/src/controllers/aiController.js');
     const { ensureOutboxTable } = await import('../job-core-service/src/libs/outbox.js');
@@ -133,6 +134,8 @@ try {
     contractRoute(app, 'jobRepost', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), repostJob);
     contractRoute(app, 'jobUpdate', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), updateJob);
     contractRoute(app, 'jobManageGet', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), getManagedJob);
+    contractRoute(app, 'jobManageList', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), listManagedJobs);
+    contractRoute(app, 'jobReviewGet', requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true }), getManagedJobReview);
     contractRoute(app, 'jobGet', getJob);
     server = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
     const url = `http://127.0.0.1:${server.address().port}/jobs`;
@@ -477,7 +480,9 @@ try {
     const { runEditReviewLifecycleChecks } = await import('./edit-review-lifecycle-checks.mjs');
     await runEditReviewLifecycleChecks({ pool, check, core, managed, edit, legacyEditHttp, legacyCreateHttp,
         manualHttp, counts, balance, waitForRowWait });
-    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent Core create/repost + private reads + concurrency + manual/AI moderation + legacy create/edit/repost outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
+    const { runJobWorkspaceChecks } = await import('./job-workspace-checks.mjs');
+    await runJobWorkspaceChecks({ pool, check, core, managed, edit, manualHttp, counts, balance, url, token });
+    console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent Core create/repost + private reads/workspace + concurrency + manual/AI moderation + legacy create/edit/repost outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();
     const closed = await Promise.allSettled([

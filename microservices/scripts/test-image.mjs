@@ -26,6 +26,13 @@ assert.equal((await get('/api/jobs/1/repost', {method:'POST'})).status, 401, 're
 const privateRead = await get('/api/jobs/1/manage');
 assert.equal(privateRead.status, 401, 'management read must require login');
 assert.equal(privateRead.headers.get('cache-control'), 'private, no-store');
+for (const path of ['/api/jobs/manage', '/api/jobs/1/review']) {
+    const workspace = await get(path);
+    assert.equal(workspace.status, 401, 'workspace must be private, registered before public /:id');
+    assert.equal(workspace.headers.get('cache-control'), 'private, no-store');
+}
+const { reviewState } = await import('/app/job-core-service/src/controllers/jobWorkspaceController.js');
+assert.equal(reviewState({ statusCode: 'PS3' }), 'untracked', 'PS3 alone is not an AI request');
 const { normalizeJobCreate } = await import('/app/job-core-service/src/libs/jobRequest.js');
 assert.equal(normalizeJobCreate({ amount: '2' }).amount, 2, 'posting request helper must be packaged');
 const { editedDetail } = await import('/app/job-core-service/src/libs/jobEdit.js');

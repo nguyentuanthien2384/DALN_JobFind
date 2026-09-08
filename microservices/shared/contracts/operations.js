@@ -14,6 +14,8 @@ export const operations = [
     op('jobRepost', 'jobs', 'post', '/jobs/:id/repost', P.JOB_MANAGE, { params: jobParams, body: 'JobRepost', response: 'Job', status: 201, idempotency: true, idempotencyRequired: true, ...company }),
     op('jobUpdate', 'jobs', 'put', '/jobs/:id', P.JOB_MANAGE, { params: jobParams, body: 'JobUpdate', response: 'Job', ...company }),
     op('jobDelete', 'jobs', 'delete', '/jobs/:id', P.JOB_MANAGE, { params: jobParams, response: 'Ack', ...company }),
+    op('jobManageList', 'jobs', 'get', '/jobs/manage', P.JOB_MANAGE, { query: schemas.ManagedJobsQuery, response: 'ManagedJobRow', list: true, ...company }),
+    op('jobReviewGet', 'jobs', 'get', '/jobs/:id/review', P.JOB_MANAGE, { params: jobParams, query: schemas.JobReviewQuery, response: 'JobReview', ...company }),
     op('jobGet', 'jobs', 'get', '/jobs/:id', null, { params: jobParams, response: 'Job' }),
     op('jobManageGet', 'jobs', 'get', '/jobs/:id/manage', P.JOB_MANAGE, { params: jobParams, response: 'ManagedJob', ...company }),
     op('aiParseResume', 'jobs', 'post', '/ai/parse-resume', P.AI_CANDIDATE_USE, { body: 'ParseResume', response: 'AcceptedTask', status: 202, idempotency: true }),
