@@ -12,7 +12,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       JOBFIND_IMAGE: jobfind-microservices:${{ github.sha }}
     steps:
@@ -48,6 +48,12 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+      - name: Verify recruiter browser journeys on disposable MySQL and Redis
+        working-directory: microservices
+        run: |
+          npx --no-install playwright install --with-deps chromium
+          docker pull redis:7-alpine
+          npm run test:job-browser:integration
       - name: Validate local Compose without production credentials
         working-directory: microservices
         env:

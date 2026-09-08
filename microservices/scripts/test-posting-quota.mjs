@@ -12,6 +12,7 @@ import express from 'express';
 // cached mysql:8.0 plus npm dependencies in BOTH backend and microservices.
 // Never imports either app/server, starts a relay, calls AI, SMTP or PayPal.
 const execute = promisify(execFile);
+assert.ok(process.argv.slice(2).every(arg => arg === '--browser'), 'Unknown test option');
 const docker = async (...args) => (await execute('docker', args, { timeout: 45000, maxBuffer: 1024 * 1024 })).stdout.trim();
 const token = randomUUID();
 const database = 'jobfind_posting_quota_test';
@@ -482,6 +483,10 @@ try {
         manualHttp, counts, balance, waitForRowWait });
     const { runJobWorkspaceChecks } = await import('./job-workspace-checks.mjs');
     await runJobWorkspaceChecks({ pool, check, core, managed, edit, manualHttp, counts, balance, url, token });
+    if (process.argv.includes('--browser')) {
+        const { runJobBrowserJourneys } = await import('./job-browser/journeys.mjs');
+        await runJobBrowserJourneys({ pool, check, legacy, legacyController, legacyDb, url, token, docker });
+    }
     console.log(`Posting integration: ${passed} checks passed (quotas + edits + idempotent Core create/repost + private reads/workspace + concurrency + manual/AI moderation + legacy create/edit/repost outbox); disposable MySQL, actual Job Core/legacy HTTP and Sequelize writers; no external providers.`);
 } finally {
     server?.closeAllConnections();

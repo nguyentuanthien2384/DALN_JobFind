@@ -1,0 +1,15 @@
+/* Minimal test shell layout; production component styles/modals remain real. */
+body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.5; }
+nav { margin-bottom: 16px; }
+input, select, textarea, button { font: inherit; }
+table { width: 100%; border-collapse: collapse; }
+td, th { border: 1px solid #ddd; padding: 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+.col-md-6 { flex: 1 1 42%; }
+.form-group { margin-bottom: 10px; }
+.pagination { display: flex; gap: 16px; list-style: none; }
+.modal { position: fixed; inset: 0; z-index: 1055; overflow: auto; }
+.modal-dialog { max-width: 600px; margin: 6vh auto; }
+.modal-content { padding: 20px; background: white; border: 2px solid #666; }
+.modal-backdrop { position: fixed; inset: 0; background: #0008; z-index: 1050; }
+.modal-footer { display: flex; gap: 20px; padding: 12px; }

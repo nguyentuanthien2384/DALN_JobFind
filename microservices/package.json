@@ -35,11 +35,13 @@
     "test:event-contracts:integration": "node scripts/test-event-contracts.mjs",
     "test:posting-quota:integration": "node scripts/test-posting-quota.mjs",
     "test:job-writes:integration": "node scripts/test-posting-quota.mjs",
+    "test:job-browser:integration": "node scripts/test-posting-quota.mjs --browser",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "playwright": "1.62.1",
     "@vitest/coverage-v8": "^4.1.11",
     "vitest": "^4.1.11"
   },
