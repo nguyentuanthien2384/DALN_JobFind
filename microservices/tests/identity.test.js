@@ -69,6 +69,8 @@ describe('identity profile and CV controller', () => {
         await listCvs(makeReq({ headers: { 'x-user-id': '1' } }), res);
         expect(res.body.count).toBe(2);
         expect(res.body.data).toBe(profile.cvs);
+        expect(db.Profile.findOne).toHaveBeenCalledWith({ legacyUserId: 1 });
+        expect(res.headers['Cache-Control']).toBe('private, no-store');
     });
 
     it('creates a CV with defaults and user-provided sections', async () => {

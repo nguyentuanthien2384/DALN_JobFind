@@ -7,6 +7,12 @@ import CommonUtils from "../../util/CommonUtils";
 import NoteModal from "./NoteModal";
 import ReupPostModal from "./ReupPostModal";
 import SendCvModal from "./SendCvModal";
+const samplePdf = 'data:application/pdf;base64,JVBERi0xLjcKZml4dHVyZQ==';
+const fillApplication = async () => {
+    fireEvent.change(screen.getByLabelText('Lời giới thiệu'), { target: { value: 'Tôi muốn ứng tuyển' } });
+    fireEvent.change(screen.getByLabelText('Chọn tệp CV'), { target: { files: [new File(['pdf'], 'cv.pdf', { type: 'application/pdf' })] } });
+    await screen.findByRole('link', { name: /xem lại CV/ });
+};
 
 jest.mock("reactstrap", () => {
     const React = require("react");
@@ -161,19 +167,23 @@ describe("SendCvModal", () => {
     beforeEach(() => {
         localStorage.clear();
         localStorage.setItem("userData", JSON.stringify({ id: 8, roleCode: "CANDIDATE" }));
+        localStorage.setItem('token_user', 'candidate-token');
+        process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'false';
         jest.clearAllMocks();
         URL.createObjectURL = jest.fn(() => "blob:preview");
+        URL.revokeObjectURL = jest.fn();
         getDetailUserById.mockResolvedValue({
             errCode: 0,
             data: { userAccountData: { userSettingData: { file: "" } } },
         });
         createNewCv.mockResolvedValue({ errCode: 0 });
-        CommonUtils.getBase64.mockResolvedValue("data:application/pdf;base64,UERG");
+        CommonUtils.getBase64.mockResolvedValue(samplePdf);
     });
 
     it("loads the candidate profile and warns when no online CV exists", async () => {
         render(<SendCvModal isOpen postId={22} onHide={jest.fn()} />);
         await waitFor(() => expect(getDetailUserById).toHaveBeenCalledWith(8));
+        await waitFor(() => expect(screen.queryByText('Đang tải CV online…')).not.toBeInTheDocument());
         fireEvent.click(screen.getByLabelText("CV online"));
         expect(toast.error).toHaveBeenCalledWith("Hiện chưa đăng CV online cho chúng tôi");
         expect(screen.getByLabelText("Tự chọn CV")).toBeChecked();
@@ -219,7 +229,7 @@ describe("SendCvModal", () => {
         }));
         fireEvent.change(screen.getByLabelText("Chọn tệp CV"), { target: { files: [file] } });
         await act(async () => {
-            resolveBase64("data:application/pdf;base64,UERG");
+            resolveBase64(samplePdf);
         });
         await waitFor(() => expect(CommonUtils.getBase64).toHaveBeenCalledWith(file));
         expect(await screen.findByRole("link", { name: /xem lại CV/ })).toHaveAttribute("href", "blob:preview");
@@ -227,7 +237,7 @@ describe("SendCvModal", () => {
         fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" }));
         await waitFor(() => expect(createNewCv).toHaveBeenCalledWith({
             userId: 8,
-            file: "data:application/pdf;base64,UERG",
+            file: samplePdf,
             postId: 22,
             description: "Tôi có 5 năm kinh nghiệm",
         }));
@@ -243,17 +253,18 @@ describe("SendCvModal", () => {
         jest.useFakeTimers();
         getDetailUserById.mockResolvedValue({
             errCode: 0,
-            data: { userAccountData: { userSettingData: { file: "data:application/pdf;base64,QQ==" } } },
+            data: { userAccountData: { userSettingData: { file: samplePdf } } },
         });
         render(<SendCvModal isOpen postId={23} onHide={jest.fn()} />);
-        await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+        await act(async () => { await Promise.resolve(); });
         fireEvent.click(screen.getByLabelText("CV online"));
+        fireEvent.change(screen.getByLabelText('Lời giới thiệu'), { target: { value: 'Tôi muốn ứng tuyển' } });
         expect(screen.getByRole("link", { name: /xem lại CV/ })).toHaveAttribute("href", "blob:preview");
         fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" }));
         await waitFor(() => expect(createNewCv).toHaveBeenCalledWith(expect.objectContaining({
             userId: 8,
             postId: 23,
-            file: "data:application/pdf;base64,QQ==",
+            file: samplePdf,
         })));
         act(() => jest.advanceTimersByTime(1000));
         jest.useRealTimers();
@@ -264,6 +275,7 @@ describe("SendCvModal", () => {
         createNewCv.mockReturnValue(new Promise(resolve => { finish = resolve; }));
         render(<SendCvModal isOpen postId={23} onHide={jest.fn()} />);
         await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());
+        await fillApplication();
         fireEvent.click(screen.getByRole('button', {name:'Gửi hồ sơ'}));
         fireEvent.click(screen.getByRole('button', {name:'Gửi hồ sơ'}));
         expect(createNewCv).toHaveBeenCalledTimes(1);
@@ -276,6 +288,7 @@ describe("SendCvModal", () => {
         createNewCv.mockReturnValue(new Promise(resolve => {finish=resolve;}));
         const view=render(<SendCvModal isOpen postId={23} onHide={onHide} />);
         await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());
+        await fillApplication();
         fireEvent.click(screen.getByRole('button', {name:'Gửi hồ sơ'}));
         view.rerender(<SendCvModal isOpen postId={24} onHide={onHide} />);
         await act(async () => finish({errCode:0,cvId:10}));
@@ -288,6 +301,7 @@ describe("SendCvModal", () => {
         createNewCv.mockResolvedValue({ errCode: 2 });
         render(<SendCvModal isOpen postId={24} onHide={onHide} />);
         await act(async () => { await Promise.resolve(); });
+        await fillApplication();
         fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" }));
         await waitFor(() => expect(createNewCv).toHaveBeenCalled());
         act(() => jest.advanceTimersByTime(1000));

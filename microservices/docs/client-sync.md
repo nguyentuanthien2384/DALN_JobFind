@@ -680,6 +680,10 @@ Ngày 08-09-2026. Đọc lại nhật ký từ các nền tảng outbox/inbox, b
 
 ## Thứ tự các đợt còn lại
 
+### Cập nhật 2z ngày 09-09-2026
+
+Đã nối CV có cấu trúc đã lưu vào lựa chọn ứng tuyển: ứng viên tạo/xem lại PDF và chủ động gửi đúng byte của bản đã chọn. Đổi nguồn/CV/công việc/phiên bỏ lựa chọn hoặc phản hồi muộn; không tự gọi AI/gửi lại, không cập nhật tệp đã nộp theo nguồn. Cờ mới mặc định tắt, độc lập hai cờ AI/CV và tiến trình. Giữ writer/relay 2y; nâng Identity/Gateway với no-store CV cá nhân trước frontend. **1.383 frontend + 1.133 microservices test, browser/PDF và 10 nhóm tích hợp DB/broker dùng PDF từ browser qua**; không cộng backend/Compose lịch sử chưa chạy lại. Không đổi `.env`, dữ liệu/cờ/container thật, HTTP/event (52/15), hoặc gọi provider/SMTP. Chi tiết: [prepared-cv-application.md](prepared-cv-application.md). **Tiếp theo nghiệm thu xuyên vai trò và dữ liệu lịch sử đại diện trên Compose cách ly trước rollout.** Các mốc dưới là lịch sử.
+
 ### Cập nhật 2y ngày 09-09-2026
 
 Đã làm bền nộp hồ sơ legacy → Application/Kanban: CV và `application.submitted` cùng transaction, relay có confirm, giữ snapshot nguồn khi nộp và ngăn import lịch sử giành trước event. Unique người dùng/tin tiếp tục chặn trùng; thiếu InnoDB/outbox/index trả 503. Màn hình Công việc đã nộp có tiến trình qua `legacy_cv_id` + job ID, tách trạng thái đọc và báo chờ đồng bộ/lỗi rõ ràng, hỗ trợ dữ liệu thiếu liên kết, phiên và bố cục điện thoại. Cờ `REACT_APP_APPLICATION_PROGRESS_ENABLED=false` mặc định.

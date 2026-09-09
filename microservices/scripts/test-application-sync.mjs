@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import express from 'express';
 import net from 'node:net';
@@ -12,6 +13,12 @@ import mysql from 'mysql2/promise';
 // Real legacy HTTP/Sequelize writer -> shared outbox relay -> RabbitMQ -> real
 // Application consumer/PostgreSQL. Only disposable loopback infrastructure.
 assert.equal(process.argv.length,2);
+let submissionPdf = 'data:application/pdf;base64,JVBERi0xLjQ=';
+if (process.env.JOBFIND_APPLICATION_TEST_PDF) {
+    const bytes = await readFile(process.env.JOBFIND_APPLICATION_TEST_PDF);
+    assert.ok(bytes.length <= 2 * 1024 * 1024 && bytes.subarray(0, 5).toString() === '%PDF-', 'Expected a test PDF no larger than 2 MiB');
+    submissionPdf = 'data:application/pdf;base64,' + bytes.toString('base64');
+}
 const token=randomUUID(), label='jobfind.application-sync-test', containers=[];
 const execute=promisify(execFile);
 const docker=async(...args)=>(await execute('docker',args,{windowsHide:true,timeout:90000,maxBuffer:1024*1024})).stdout.trim();
@@ -83,7 +90,7 @@ try {
     server=await new Promise(resolve=>{const listener=app.listen(0,'127.0.0.1',()=>resolve(listener));});
     const origin=`http://127.0.0.1:${server.address().port}`;
     const request=async(path,options={})=>{const res=await fetch(origin+path,{signal:AbortSignal.timeout(15000),...options});return {status:res.status,body:await res.json(),headers:res.headers};};
-    const submit=(postId,extra={},headers={})=>request('/api/create-new-cv',{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify({userId:999,postId,file:'data:application/pdf;base64,JVBERi0xLjQ=',description:'Reviewed letter',...extra})});
+    const submit=(postId,extra={},headers={})=>request('/api/create-new-cv',{method:'POST',headers:{'content-type':'application/json',...headers},body:JSON.stringify({userId:999,postId,file:submissionPdf,description:'Reviewed letter',...extra})});
     const one=async(query,args=[])=>(await sql.query(query,args))[0][0];
     let accepted;
     await check('legacy historical import and current submission keep different ID namespaces',async()=>{
@@ -99,7 +106,7 @@ try {
         await sql.query("UPDATE detailposts SET name='Changed title' WHERE id=1");
         const payload=JSON.parse((await one('SELECT payload FROM outbox_events LIMIT 1')).payload);
         assert.equal(payload.jobTitle,'Synthetic job');assert.equal(payload.candidateEmail,'original@example.invalid');
-        assert.equal((await one('SELECT file FROM cvs WHERE id=101')).file.toString(),'data:application/pdf;base64,JVBERi0xLjQ=');
+        assert.equal((await one('SELECT file FROM cvs WHERE id=101')).file.toString(),submissionPdf);
     });
     rabbit=await import('../shared/rabbitmq.js');publisher=await import('../shared/outboxPublisher.js');
     const consumer=await import('../application-service/src/consumers/submissionConsumer.js');

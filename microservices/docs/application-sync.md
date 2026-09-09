@@ -57,4 +57,6 @@ Browser cần build thêm `REACT_APP_APPLICATION_PROGRESS_ENABLED=true` cùng ha
 
 ## Phần tiếp tục
 
+Đường dùng CV đã lưu để tạo, xem lại và gửi PDF được triển khai trong [đợt 2z](prepared-cv-application.md). Phần dưới ghi giới hạn tại thời điểm kết thúc 2y.
+
 CV có cấu trúc ở Identity vẫn chưa tự đổi thành PDF hoặc đồng bộ hai chiều với file/hồ sơ ứng tuyển legacy. Tiếp theo là nối việc dùng CV đã chuẩn bị cho ứng tuyển bằng thao tác có chủ đích, giữ bản đã nộp và quyền sở hữu; sau đó nghiệm thu vai trò/dữ liệu lịch sử trên môi trường dự kiến. Email/Socket.IO thực, chất lượng AI, migration lớn, tải/SLO và phục hồi toàn hệ thống chưa được chứng nhận bởi đợt này.

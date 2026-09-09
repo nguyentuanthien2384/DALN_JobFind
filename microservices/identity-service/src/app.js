@@ -24,6 +24,7 @@ runtime.onClose(() => closeConnection());
 app.use(jsonBodies(express));
 
 
+app.use('/profile/cvs', (_req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); });
 app.use(requireTrustedGateway);
 
 // --- Ho so ---

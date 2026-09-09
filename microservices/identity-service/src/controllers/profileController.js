@@ -58,6 +58,7 @@ export const updateMyProfile = async (req, res) => {
 
 // ===== CV Builder =====
 export const listCvs = async (req, res) => {
+    res.setHeader('Cache-Control', 'private, no-store');
     const id = identity(req);
     const profile = await findOrCreate(id);
     return res.json({ errCode: 0, data: profile.cvs, count: profile.cvs.length });

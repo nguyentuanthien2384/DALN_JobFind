@@ -142,7 +142,7 @@ app.use((req, res, next) => {
 const sub = (prefix) => (req) => `${prefix}${req.path === '/' ? '' : req.path}`;
 
 // --- Identity & Profile Service ---
-app.use('/api/profile/cvs', requirePermission(PERMISSIONS.CV_SELF_MANAGE),
+app.use('/api/profile/cvs', (_req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); }, requirePermission(PERMISSIONS.CV_SELF_MANAGE),
     createProxy('identity', sub('/profile/cvs')));
 app.use('/api/profile', requirePermission(PERMISSIONS.PROFILE_SELF),
     createProxy('identity', sub('/profile')));

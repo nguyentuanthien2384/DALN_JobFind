@@ -624,6 +624,7 @@ const JobDetail = () => {
                         isOpen={isActiveModal}
                         onHide={() => setAcitveModal(false)}
                         postId={id}
+                        jobTitle={dataPost.postDetailData?.name}
                     />
         </main>
     );

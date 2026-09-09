@@ -1,0 +1,28 @@
+.modal .modal-dialog.send-cv-modal { width: calc(100% - 24px); max-width: 900px; margin: 16px auto; min-height: 0; height: calc(100% - 32px); }
+.modal .modal-dialog.send-cv-modal .modal-content { max-height: 100%; }
+.send-cv-modal .modal-body { padding: 24px; overflow-y: auto; }
+.send-cv-modal h2 { font-size: 20px; line-height: 1.5; }
+.send-cv-modal p { line-height: 1.6; }
+.send-cv-modal fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.send-cv-modal textarea, .prepared-cv-picker select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; color: #172b46; }
+.send-cv-modal a { color: #235d9f; text-decoration: underline; }
+.cv-source-options { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 18px 0; }
+.cv-source-options label, .cv-review-check { display: flex; align-items: baseline; gap: 8px; cursor: pointer; }
+.prepared-cv-picker { padding: 16px; background: #f5f8fb; border: 1px solid #dbe3ed; border-radius: 8px; }
+.prepared-cv-picker > label { display: block; margin: 16px 0; }
+.prepared-cv-picker button { background: #246b53; color: #fff; border: 0; border-radius: 6px; padding: 10px 14px; white-space: normal; line-height: 1.5; }
+.prepared-cv-picker button:disabled { opacity: .5; cursor: default; }
+.prepared-cv-preview { margin-top: 16px; overflow-wrap: anywhere; }
+.prepared-cv-preview iframe { display: block; width: 100%; height: 420px; border: 1px solid #cbd5e1; margin-top: 12px; }
+.cv-review-check { margin-top: 18px; line-height: 1.6; }
+.modal .modal-dialog.send-cv-modal .modal-content .modal-footer { justify-content: space-between; flex-shrink: 0; flex-direction: row; flex-wrap: nowrap; padding: 12px 16px; background: #fff; }
+.modal .modal-dialog.send-cv-modal .modal-content .modal-footer > .btn { margin: 0; padding: 12px 18px; }
+.prepared-cv-mobile-note { display: none; }
+@media (max-width: 575px) {
+    .send-cv-modal .modal-body { padding: 18px; }
+    .cv-source-options { flex-direction: column; gap: 8px; }
+    .prepared-cv-picker { padding: 12px; }
+    .prepared-cv-preview iframe { display: none; }
+    .prepared-cv-mobile-note { display: block; margin-top: 12px; }
+    .send-cv-modal input[type=file] { max-width: 100%; }
+}

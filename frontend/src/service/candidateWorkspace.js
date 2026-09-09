@@ -2,6 +2,7 @@
 import { createAiRequestOptions } from './aiSearchService';
 
 export const candidateAiEnabled = () => process.env.REACT_APP_CANDIDATE_AI_ENABLED === 'true';
+export const preparedCvEnabled = () => process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED === 'true';
 const TYPES = ['parse_resume', 'match_cv', 'cover_letter'];
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
 const MONGO_ID = /^[a-f0-9]{24}$/i;
