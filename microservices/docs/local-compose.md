@@ -4,6 +4,8 @@ Phạm vi: một máy phát triển, chỉ công bố cổng trên `127.0.0.1`. 
 
 ## Thay đổi tương thích cần biết
 
+- **Đợt 2ac — đối chiếu target trước bật cờ:** đã thêm preflight chỉ đọc và [kế hoạch áp dụng/quay lui từng cờ](rollout-plan.md). Target hiện **HOLD**: Worker thiếu cấu hình kho tác vụ/provider, Admin xung đột chỉ mục, ứng dụng còn bind mount và RabbitMQ dùng volume tự sinh; chưa có cặp artifact/restore drill được xác minh. Sáu readiness và phần cấu trúc MySQL/PostgreSQL được kiểm tra qua không đủ để bật cờ. Không thực hiện các lệnh chuyển container bên dưới khi các điều kiện này còn thiếu.
+
 - **Đợt 2ab — giao diện gọi Compose thật:** thêm bài browser bao gồm chuỗi nền hiện có; 7 nhóm thao tác browser + 32 checkpoint HTTP/nền + 1 fixture, 1.388 frontend/1.133 microservices test qua. Sửa xem CV trên điện thoại, mở/tải đúng PDF đã nộp và xử lý lỗi quyền/hồ sơ lịch sử. Cổng loopback chỉ thuộc ingress thử; không bật cờ hoặc thay stack thật. Kết quả và giới hạn tại [compose-browser-acceptance.md](compose-browser-acceptance.md). Tiếp theo đối chiếu các điều kiện áp dụng/rollback bên dưới trước bật từng cờ.
 
 - **Đợt 2aa — nghiệm thu HTTP ứng tuyển xuyên vai trò:** lệnh Compose background hiện bao gồm backend/router/auth thật, đăng nhập mật khẩu, hồ sơ lịch sử, CV/ứng tuyển/Kanban/tiến trình và restart. 32 checkpoint Compose, 789 backend/1.133 microservices test qua; project thử đã dọn. Không thay runtime/schema/cờ thật. Browser chưa gọi trực tiếp Compose trong bài này; xem [compose-application-acceptance.md](compose-application-acceptance.md).
@@ -122,7 +124,7 @@ SIGTERM đổi trạng thái sang draining, ngừng nhận HTTP mới, hủy đ�
 
 ### Rollback
 
-Giữ image đã kiểm chứng theo commit SHA trước mỗi đợt. Gán `JOBFIND_IMAGE` về image trước đó và chạy lại các ứng dụng với `--no-deps --no-build`; không xóa volume. Khi rollback thay đổi JWT, backend phát token và Gateway/Socket xác thực phải cùng chính sách. Không tự động rollback schema hoặc xóa các bảng inbox/outbox/ledger: cần giữ dữ liệu và lịch sử chống trùng.
+Giữ cặp artifact đã kiểm chứng theo commit/digest trước mỗi đợt và làm theo [rollout-plan.md](rollout-plan.md). Ưu tiên quay lui từng cờ bằng frontend mới tương thích pending intention. **Không mặc định dùng image trước đó**: server cũ có thể không hiểu marker/receipt/snapshot đã ghi bởi bản mới. Chỉ gán `JOBFIND_IMAGE` về bộ server đã diễn tập tương thích dữ liệu mới và cập nhật đúng ứng dụng bằng `--no-deps --no-build` trong cửa sổ đã chuẩn bị; không xóa volume. Backend phát token và Gateway/Socket phải cùng policy. Không tự động rollback schema, restore đè dữ liệu phát sinh hoặc xóa inbox/outbox/ledger. Target hiện bind mount nên image ID Node nền không đại diện cho mã ứng dụng trước thay đổi.
 
 ## Mốc kiểm thử lần bổ sung này
 

@@ -1,5 +1,7 @@
 # Đồng bộ backend–frontend–microservices theo từng đợt
 
+Mốc **2ac**: [đối chiếu target và quay lui từng tính năng](rollout-plan.md). Cả tám cờ giữ `legacy/false` theo quyết định HOLD; preflight chỉ đọc đã chỉ ra Worker/Admin đang dừng và các bằng chứng release/restore còn thiếu. 1.145 microservices test và 303 frontend test liên quan qua; chưa đổi stack/cờ thật. Mốc 2ab dưới là nghiệm thu môi trường cách ly.
+
 Mốc mới nhất **2ab ngày 09-09-2026**: [nghiệm thu giao diện với API Compose thật](compose-browser-acceptance.md) qua 7 nhóm browser, 32 checkpoint HTTP/nền hiện có và 1 fixture browser; 1.388 frontend và 1.133 microservices test qua. Đăng nhập, ba tác vụ AI, tìm kiếm/bộ lọc, CV–PDF–ứng tuyển và Kanban/tiến trình đã chạy qua App thật. Sửa xem CV trên điện thoại, tải đúng tệp đã nộp, dữ liệu lịch sử thiếu liên kết và lỗi quyền; PDF hai trang đã kiểm tra trực quan. CI đã cấu hình, stack thử đã dọn; chưa đổi cờ/DDL/container thật. Bước tiếp theo đối chiếu điều kiện áp dụng và rollback trước khi bật từng cờ. Các mục dưới ghi lịch sử từng đợt; [2aa](compose-application-acceptance.md) là mốc HTTP trước browser.
 
 ## Đợt 1: phiên đăng nhập, lỗi API và chờ AI

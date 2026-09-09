@@ -1,0 +1,652 @@
+{
+  "observedAt": "2026-09-09T13:37:52.211Z",
+  "project": "ai-job-portal",
+  "sourceCommit": "1a0747cdc72e83271877c94761ced6e455c90417",
+  "decision": "hold",
+  "mode": "read-only",
+  "checks": [
+    {
+      "id": "broker.persistence",
+      "status": "blocked",
+      "detail": "restore-and-recreate-plan-not-verified"
+    },
+    {
+      "id": "compatible-immutable-release-pair",
+      "status": "unknown"
+    },
+    {
+      "id": "database-privileges-and-full-schema",
+      "status": "unknown"
+    },
+    {
+      "id": "internal-secret-consistency",
+      "status": "pass",
+      "detail": "distinct JWT/internal keys"
+    },
+    {
+      "id": "jwt.disk-to-gateway",
+      "status": "pass",
+      "detail": "disk-backend-policy-compared-with-container; running-backend-not-proven"
+    },
+    {
+      "id": "mysql.engine.accounts",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.ai_request_keys",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.ai_result_inbox",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.ai_tasks",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.companies",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.cvs",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.detailposts",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.job_moderation_state",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.job_request_keys",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.notes",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.outbox_events",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.posts",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.engine.users",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.key.ai_request_keys",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.key.job_request_keys",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.unique.ai_request_keys.taskId",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.unique.ai_request_keys.userId+requestKey",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.unique.cvs.userId+postId",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.unique.job_request_keys.userId+requestKey",
+      "status": "pass"
+    },
+    {
+      "id": "mysql.unique.outbox_events.id",
+      "status": "pass"
+    },
+    {
+      "id": "pending-event-compatibility",
+      "status": "unknown"
+    },
+    {
+      "id": "postgres.application-schema",
+      "status": "pass",
+      "detail": "partial-columns-and-legacy-id-unique-only"
+    },
+    {
+      "id": "provider-approved",
+      "status": "unknown",
+      "detail": "No provider request issued"
+    },
+    {
+      "id": "rollback-rehearsal",
+      "status": "unknown"
+    },
+    {
+      "id": "running-legacy-version-and-jwt",
+      "status": "unknown"
+    },
+    {
+      "id": "runtime.admin-service",
+      "status": "blocked",
+      "detail": "stopped"
+    },
+    {
+      "id": "runtime.ai-worker",
+      "status": "blocked",
+      "detail": "stopped"
+    },
+    {
+      "id": "runtime.api-gateway",
+      "status": "pass",
+      "detail": "readyz HTTP 200"
+    },
+    {
+      "id": "runtime.application-service",
+      "status": "pass",
+      "detail": "readyz HTTP 200"
+    },
+    {
+      "id": "runtime.identity-service",
+      "status": "pass",
+      "detail": "readyz HTTP 200"
+    },
+    {
+      "id": "runtime.job-core-service",
+      "status": "pass",
+      "detail": "readyz HTTP 200"
+    },
+    {
+      "id": "runtime.notification-service",
+      "status": "pass",
+      "detail": "readyz HTTP 200"
+    },
+    {
+      "id": "runtime.search-service",
+      "status": "pass",
+      "detail": "readyz HTTP 200"
+    },
+    {
+      "id": "secret-policy",
+      "status": "pass"
+    },
+    {
+      "id": "served-frontend-flags",
+      "status": "unknown"
+    },
+    {
+      "id": "target-cross-role-smoke",
+      "status": "unknown"
+    },
+    {
+      "id": "verified-backup-restore",
+      "status": "unknown"
+    }
+  ],
+  "features": {
+    "search": {
+      "decision": "hold",
+      "unresolved": [
+        "verified-backup-restore",
+        "compatible-immutable-release-pair",
+        "served-frontend-flags",
+        "running-legacy-version-and-jwt",
+        "database-privileges-and-full-schema",
+        "pending-event-compatibility",
+        "target-cross-role-smoke",
+        "rollback-rehearsal",
+        "broker.persistence"
+      ]
+    },
+    "progress": {
+      "decision": "hold",
+      "unresolved": [
+        "verified-backup-restore",
+        "compatible-immutable-release-pair",
+        "served-frontend-flags",
+        "running-legacy-version-and-jwt",
+        "database-privileges-and-full-schema",
+        "pending-event-compatibility",
+        "target-cross-role-smoke",
+        "rollback-rehearsal",
+        "broker.persistence"
+      ]
+    },
+    "ai": {
+      "decision": "hold",
+      "unresolved": [
+        "verified-backup-restore",
+        "compatible-immutable-release-pair",
+        "served-frontend-flags",
+        "running-legacy-version-and-jwt",
+        "database-privileges-and-full-schema",
+        "pending-event-compatibility",
+        "target-cross-role-smoke",
+        "rollback-rehearsal",
+        "runtime.ai-worker",
+        "runtime.admin-service",
+        "broker.persistence",
+        "provider-approved"
+      ]
+    },
+    "preparedCv": {
+      "decision": "hold",
+      "unresolved": [
+        "verified-backup-restore",
+        "compatible-immutable-release-pair",
+        "served-frontend-flags",
+        "running-legacy-version-and-jwt",
+        "database-privileges-and-full-schema",
+        "pending-event-compatibility",
+        "target-cross-role-smoke",
+        "rollback-rehearsal",
+        "broker.persistence"
+      ]
+    },
+    "workspace": {
+      "decision": "hold",
+      "unresolved": [
+        "verified-backup-restore",
+        "compatible-immutable-release-pair",
+        "served-frontend-flags",
+        "running-legacy-version-and-jwt",
+        "database-privileges-and-full-schema",
+        "pending-event-compatibility",
+        "target-cross-role-smoke",
+        "rollback-rehearsal"
+      ]
+    },
+    "create": {
+      "decision": "hold",
+      "unresolved": [
+        "verified-backup-restore",
+        "compatible-immutable-release-pair",
+        "served-frontend-flags",
+        "running-legacy-version-and-jwt",
+        "database-privileges-and-full-schema",
+        "pending-event-compatibility",
+        "target-cross-role-smoke",
+        "rollback-rehearsal",
+        "runtime.ai-worker",
+        "runtime.admin-service",
+        "broker.persistence"
+      ]
+    },
+    "edit": {
+      "decision": "hold",
+      "unresolved": [
+        "verified-backup-restore",
+        "compatible-immutable-release-pair",
+        "served-frontend-flags",
+        "running-legacy-version-and-jwt",
+        "database-privileges-and-full-schema",
+        "pending-event-compatibility",
+        "target-cross-role-smoke",
+        "rollback-rehearsal",
+        "runtime.ai-worker",
+        "runtime.admin-service",
+        "broker.persistence"
+      ]
+    },
+    "repost": {
+      "decision": "hold",
+      "unresolved": [
+        "verified-backup-restore",
+        "compatible-immutable-release-pair",
+        "served-frontend-flags",
+        "running-legacy-version-and-jwt",
+        "database-privileges-and-full-schema",
+        "pending-event-compatibility",
+        "target-cross-role-smoke",
+        "rollback-rehearsal",
+        "runtime.ai-worker",
+        "runtime.admin-service",
+        "broker.persistence"
+      ]
+    }
+  },
+  "workerConfiguration": {
+    "taskStoreUrlPresent": false,
+    "providerKeyPresent": false,
+    "providerCallMade": false
+  },
+  "stoppedDiagnostics": {
+    "admin-service": {
+      "classified": "index-options-conflict"
+    },
+    "ai-worker": {
+      "classified": "missing-ai-mongo-url"
+    }
+  },
+  "frontendDiskFlags": {
+    "REACT_APP_JOB_SEARCH_MODE": "legacy",
+    "REACT_APP_APPLICATION_PROGRESS_ENABLED": "false",
+    "REACT_APP_CANDIDATE_AI_ENABLED": "false",
+    "REACT_APP_PREPARED_CV_APPLICATION_ENABLED": "false",
+    "REACT_APP_JOB_WORKSPACE_MODE": "legacy",
+    "REACT_APP_JOB_CREATE_MODE": "legacy",
+    "REACT_APP_JOB_EDIT_MODE": "legacy",
+    "REACT_APP_JOB_REPOST_MODE": "legacy"
+  },
+  "frontendDiskFlagsAreServedEvidence": false,
+  "runtimeArtifactsImmutable": false,
+  "mysqlOutbox": {
+    "pending": 0,
+    "oldestSeconds": null
+  },
+  "mysqlRootAccount": true,
+  "queues": [
+    {
+      "name": "job-core-service.ai-results.dead-letter",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 0
+    },
+    {
+      "name": "admin-service.audit.dead-letter",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 0
+    },
+    {
+      "name": "ai-worker.jobs.dead-letter",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 0
+    },
+    {
+      "name": "search-service.indexer.dead-letter",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 0
+    },
+    {
+      "name": "notification-service.events",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 1
+    },
+    {
+      "name": "search-service.indexer",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 1
+    },
+    {
+      "name": "job-core-service.ai-results",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 1
+    },
+    {
+      "name": "application-service.submissions",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 1
+    },
+    {
+      "name": "ai-worker.jobs",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 0
+    },
+    {
+      "name": "notification-service.events.dead-letter",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 0
+    },
+    {
+      "name": "admin-service.audit",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 0
+    },
+    {
+      "name": "application-service.submissions.dead-letter",
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 0
+    }
+  ],
+  "containers": [
+    {
+      "service": "notification-service",
+      "id": "9b5a7e9c141b",
+      "imageId": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "destination": "/app"
+        }
+      ]
+    },
+    {
+      "service": "application-service",
+      "id": "3037f23512e0",
+      "imageId": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "destination": "/app"
+        }
+      ]
+    },
+    {
+      "service": "job-core-service",
+      "id": "bde4d95f1266",
+      "imageId": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "destination": "/app"
+        }
+      ]
+    },
+    {
+      "service": "search-service",
+      "id": "d15ae6b63cfd",
+      "imageId": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "destination": "/app"
+        }
+      ]
+    },
+    {
+      "service": "ai-worker",
+      "id": "3c886919018a",
+      "imageId": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+      "status": "exited",
+      "exitCode": 1,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "destination": "/app"
+        }
+      ]
+    },
+    {
+      "service": "admin-service",
+      "id": "435f92fce359",
+      "imageId": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+      "status": "exited",
+      "exitCode": 1,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "destination": "/app"
+        }
+      ]
+    },
+    {
+      "service": "identity-service",
+      "id": "e2bdc3a3d983",
+      "imageId": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "destination": "/app"
+        }
+      ]
+    },
+    {
+      "service": "api-gateway",
+      "id": "71f9e053336e",
+      "imageId": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "destination": "/app"
+        }
+      ]
+    },
+    {
+      "service": "postgres",
+      "id": "53853e572a33",
+      "imageId": "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": false,
+      "mounts": [
+        {
+          "type": "volume",
+          "destination": "/var/lib/postgresql/data",
+          "name": "ai-job-portal_pg-data"
+        }
+      ]
+    },
+    {
+      "service": "mongo",
+      "id": "8ba418872a26",
+      "imageId": "sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": false,
+      "mounts": [
+        {
+          "type": "volume",
+          "destination": "/data/configdb",
+          "name": "94b61d50f87aaf9db3e5284dd13036214344125f09b5b4bc0639473b67b329c3"
+        },
+        {
+          "type": "volume",
+          "destination": "/data/db",
+          "name": "ai-job-portal_mongo-data"
+        }
+      ]
+    },
+    {
+      "service": "rabbitmq",
+      "id": "441c0b509948",
+      "imageId": "sha256:09b39ca8a3e884e91cab8842cd41264de21aab0625e1f1d016a9a3135ba590ef",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": false,
+      "mounts": [
+        {
+          "type": "volume",
+          "destination": "/var/lib/rabbitmq",
+          "name": "2c9c8f366348f2990a6e896b6b789e5768b37ac0f317921d63fb7045640f0bd7"
+        }
+      ]
+    },
+    {
+      "service": "redis",
+      "id": "f396beb0dc98",
+      "imageId": "sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": false,
+      "mounts": [
+        {
+          "type": "volume",
+          "destination": "/data",
+          "name": "b914c488793442db3d182a39beeafeaa1d3c3f4d596d5b9cfbec335ad584f794"
+        }
+      ]
+    },
+    {
+      "service": "deps-installer",
+      "id": "87283d7fae76",
+      "imageId": "sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32",
+      "status": "exited",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "root",
+      "sourceBindMounted": true,
+      "mounts": [
+        {
+          "type": "bind",
+          "destination": "/app"
+        }
+      ]
+    },
+    {
+      "service": "elasticsearch",
+      "id": "158b526796ca",
+      "imageId": "sha256:84a73ced8390c059e7bc2858595c68dc36e6f8bdb98895dcab0074eda35ac96e",
+      "status": "running",
+      "exitCode": 0,
+      "readOnly": false,
+      "user": "1000:0",
+      "sourceBindMounted": false,
+      "mounts": [
+        {
+          "type": "volume",
+          "destination": "/usr/share/elasticsearch/data",
+          "name": "ai-job-portal_es-data"
+        }
+      ]
+    }
+  ]
+}
