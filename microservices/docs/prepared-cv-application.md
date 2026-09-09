@@ -69,4 +69,6 @@ Không đặt `JOBFIND_VERIFY_PREPARED_CV_DELIVERY` thì chỉ chạy browser. `
 
 ## Phần còn lại
 
+**Cập nhật 2aa ngày 09-09-2026:** nghiệm thu HTTP xuyên vai trò trong Compose đã qua 32 checkpoint, gồm login legacy thật, hồ sơ lịch sử, nộp PDF, Kanban/tiến trình và restart. Xem [compose-application-acceptance.md](compose-application-acceptance.md). PDF trong bài Compose là fixture; browser tạo/chọn PDF trên API Compose thật vẫn là bước kế tiếp. Đoạn dưới ghi phạm vi tại thời điểm kết thúc 2z.
+
 Đợt này chưa chứng nhận login/SMTP/Socket.IO thật, chất lượng AI, tải, bộ dữ liệu lịch sử quy mô lớn hoặc toàn bộ checklist kiến trúc. Chưa có revision/idempotency phía server cho CV Builder; thao tác lưu chưa xác nhận vẫn phải đối chiếu theo 2x. Bước tiếp theo là nghiệm thu xuyên vai trò trên Compose cách ly với dữ liệu lịch sử đại diện, từ chuẩn bị CV đến ứng tuyển và cập nhật tiến trình tuyển dụng, trước khi bật cờ trên môi trường dự kiến.

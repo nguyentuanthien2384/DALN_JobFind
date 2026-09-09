@@ -1,0 +1,9 @@
+# The build context is backend/. Send only source and locked dependencies;
+# never send local credentials, node_modules, uploads or unrelated files.
+**
+!package.json
+!package-lock.json
+!src/
+!src/**
+**/.env
+**/.env.*

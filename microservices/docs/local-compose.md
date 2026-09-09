@@ -4,6 +4,8 @@ Phạm vi: một máy phát triển, chỉ công bố cổng trên `127.0.0.1`. 
 
 ## Thay đổi tương thích cần biết
 
+- **Đợt 2aa — nghiệm thu HTTP ứng tuyển xuyên vai trò:** lệnh Compose background hiện bao gồm backend/router/auth thật, đăng nhập mật khẩu, hồ sơ lịch sử, CV/ứng tuyển/Kanban/tiến trình và restart. 32 checkpoint Compose, 789 backend/1.133 microservices test qua; project thử đã dọn. Không thay runtime/schema/cờ thật. Browser chưa gọi trực tiếp Compose trong bài này; xem [compose-application-acceptance.md](compose-application-acceptance.md).
+
 - **Đợt 2z — CV đã chuẩn bị vào ứng tuyển:** chọn bản đã lưu, tạo/xem lại PDF tiếng Việt rồi chủ động gửi đúng tệp đó. Cờ `REACT_APP_PREPARED_CV_APPLICATION_ENABLED=false` độc lập AI/tiến trình; nâng Identity/Gateway với no-store CV cá nhân và giữ các điều kiện 2y trước khi bật. Không có DDL hoặc HTTP/event mới. 2.516 test hồi quy, browser/PDF và 10 nhóm DB/broker với tệp từ browser qua. Chi tiết: [prepared-cv-application.md](prepared-cv-application.md).
 
 - **Đợt 2y — hồ sơ ứng tuyển:** writer CV legacy cần InnoDB, unique người dùng/tin và outbox đã sẵn sàng; không tự sửa schema/fallback. Nâng Application importer và Core relay trước backend writer, rồi Gateway/frontend; giữ marker/snapshot khi rollback. Cờ đọc tiến trình `REACT_APP_APPLICATION_PROGRESS_ENABLED=false` mặc định. 3.288 test hồi quy, 10 nhóm tích hợp riêng và browser qua; chưa đổi môi trường thật. Xem [application-sync.md](application-sync.md).

@@ -75,9 +75,10 @@ try {
     if (phase === 'seed') {
         const ddl = [
             'CREATE TABLE companies (id INT PRIMARY KEY, name VARCHAR(255), thumbnail VARCHAR(255), statusCode VARCHAR(10), censorCode VARCHAR(10), allowPost INT, allowHotPost INT, createdAt DATETIME, updatedAt DATETIME)',
-            'CREATE TABLE users (id INT PRIMARY KEY, companyId INT, email VARCHAR(255), firstName VARCHAR(255), lastName VARCHAR(255))',
-            'CREATE TABLE accounts (id INT AUTO_INCREMENT PRIMARY KEY, userId INT, roleCode VARCHAR(32), statusCode VARCHAR(10), phonenumber VARCHAR(32))',
-            'CREATE TABLE cvs (id INT AUTO_INCREMENT PRIMARY KEY, userId INT, postId INT, isChecked TINYINT, description TEXT, createdAt DATETIME)',
+            'CREATE TABLE users (id INT PRIMARY KEY, companyId INT, email VARCHAR(255), firstName VARCHAR(255), lastName VARCHAR(255), address VARCHAR(255), genderCode VARCHAR(64), image LONGBLOB, dob VARCHAR(255))',
+            'CREATE TABLE accounts (id INT AUTO_INCREMENT PRIMARY KEY, userId INT, roleCode VARCHAR(32), statusCode VARCHAR(10), phonenumber VARCHAR(32), password VARCHAR(255), createdAt DATETIME, updatedAt DATETIME)',
+            'CREATE TABLE cvs (id INT AUTO_INCREMENT PRIMARY KEY, userId INT, postId INT, isChecked TINYINT, description VARCHAR(255), file LONGBLOB, createdAt DATETIME, updatedAt DATETIME, UNIQUE KEY cvs_userid_postid_unique(userId,postId))',
+            'CREATE TABLE allcodes (code VARCHAR(64) PRIMARY KEY, type VARCHAR(255), value VARCHAR(255), image VARCHAR(255))',
             'CREATE TABLE followcompanies (id INT AUTO_INCREMENT PRIMARY KEY, companyId INT, userId INT, createdAt DATETIME, updatedAt DATETIME)',
             'CREATE TABLE detailposts (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), descriptionHTML LONGTEXT, descriptionMarkdown LONGTEXT, categoryJobCode VARCHAR(64), addressCode VARCHAR(64), salaryJobCode VARCHAR(64), amount INT, categoryJoblevelCode VARCHAR(64), categoryWorktypeCode VARCHAR(64), experienceJobCode VARCHAR(64), genderPostCode VARCHAR(64))',
             'CREATE TABLE posts (id INT AUTO_INCREMENT PRIMARY KEY, statusCode VARCHAR(10), timeEnd VARCHAR(32), timePost VARCHAR(32), userId INT, isHot TINYINT, detailPostId INT, createdAt DATETIME, updatedAt DATETIME)',
@@ -86,8 +87,9 @@ try {
         ];
         for (const sql of ddl) await pool.query(sql + ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
         await pool.query("INSERT INTO companies VALUES (3,'Synthetic company',NULL,'S1','CS1',100,100,NOW(),NOW())");
-        await pool.query("INSERT INTO users VALUES (7,3,'author@example.invalid','Synthetic','Author'),(8,NULL,'follower@example.invalid','Synthetic','Follower')");
-        await pool.query("INSERT INTO accounts(userId,roleCode,statusCode) VALUES (7,'COMPANY','S1'),(8,'CANDIDATE','S1')");
+        await pool.query("INSERT INTO users(id,companyId,email,firstName,lastName) VALUES (7,3,'author@example.invalid','Synthetic','Author'),(8,NULL,'follower@example.invalid','Synthetic','Follower'),(9,NULL,'other@example.invalid','Other','Candidate'),(10,3,'employee@example.invalid','Synthetic','Employee'),(11,4,'outsider@example.invalid','Other','Company'),(12,NULL,'admin@example.invalid','Synthetic','Admin')");
+        await pool.query("INSERT INTO companies VALUES (4,'Other company',NULL,'S1','CS1',100,100,NOW(),NOW())");
+        await pool.query("INSERT INTO accounts(userId,roleCode,statusCode,phonenumber) VALUES (7,'COMPANY','S1','0007'),(8,'CANDIDATE','S1','0008'),(9,'CANDIDATE','S1','0009'),(10,'EMPLOYER','S1','0010'),(11,'COMPANY','S1','0011'),(12,'ADMIN','S1','0012')");
         await pool.query('INSERT INTO followcompanies(companyId,userId) VALUES (3,8)');
         await eventually('Mongo startup', () => mongo.connect());
         await eventually('Rabbit startup', async () => { const connection = await amqp.connect(process.env.RABBITMQ_URL); await connection.close(); return true; });

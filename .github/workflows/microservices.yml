@@ -26,7 +26,7 @@ jobs:
           docker pull redis:7-alpine
           docker pull rabbitmq:4-management-alpine
           docker pull docker.elastic.co/elasticsearch/elasticsearch:8.15.0
-      - name: Accept background chain with actual services and synthetic AI on an internal Compose network
+      - name: Accept background and cross-role application chains with real login and synthetic AI on internal Compose
         working-directory: microservices
         run: npm run test:compose-background:integration
   verify:

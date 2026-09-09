@@ -15,6 +15,7 @@ const fixture = fileURLToPath(new URL('./compose-acceptance/', import.meta.url))
 const project = `jobfind-accept-${randomUUID().slice(0, 8)}`;
 const secret = randomUUID() + randomUUID();
 const image = `${project}:test`;
+const legacyImage = `${project}:legacy-test`;
 const execute = promisify(execFile);
 const docker = async (...args) => {
     try { return (await execute('docker', args, { timeout: 240000, maxBuffer: 8 * 1024 * 1024, windowsHide: true })).stdout.trim(); }
@@ -31,11 +32,11 @@ const common = {
     JWT_ISSUER: 'jobfind-auth', JWT_AUDIENCE: 'jobfind-api', JWT_ACCESS_TTL_SECONDS: '900',
     RABBITMQ_URL: `amqp://acceptance:${secret}@rabbitmq:5672`, REDIS_URL: 'redis://redis:6379',
     JOB_CORE_URL: 'http://job-core-service:4002', SEARCH_URL: 'http://search-service:4003',
-    ADMIN_URL: 'http://admin-service:4006', LEGACY_URL: 'http://mock:4010',
+    ADMIN_URL: 'http://admin-service:4006', LEGACY_URL: 'http://legacy:4011',
     IDENTITY_URL: 'http://identity-service:4001', APPLICATION_URL: 'http://application-service:4004',
     POSTGRES_URL: `postgres://acceptance:${secret}@postgres:5432/application_db`,
     ELASTICSEARCH_URL: 'http://elasticsearch:9200', RECONCILE_MINUTES: '60', LOG_LEVEL: 'warn',
-    EMAIL_APP: '', EMAIL_APP_PASSWORD: '', FRONTEND_URL: 'http://fixture.invalid'
+    EMAIL_APP: '', EMAIL_APP_PASSWORD: '', FRONTEND_URL: 'http://fixture.invalid', FIXTURE_PASSWORD: secret
 };
 const app = (name, port, extra = {}) => ({ image, pull_policy: 'never', working_dir: `/app/${name}`,
     command: ['node', 'src/app.js'], environment: { ...common, PORT: String(port), ...extra },
@@ -52,6 +53,10 @@ const config = { services: {
     elasticsearch: { image: 'docker.elastic.co/elasticsearch/elasticsearch:8.15.0', environment: { 'discovery.type': 'single-node', 'xpack.security.enabled': 'false', ES_JAVA_OPTS: '-Xms256m -Xmx256m' }, volumes: ['es-data:/usr/share/elasticsearch/data'], mem_limit: '768m' },
     mock: { image, pull_policy: 'never', command: ['node', '/app/acceptance/mock.mjs'], working_dir: '/app',
         volumes: [`${fixture}:/app/acceptance:ro`], environment: { INTERNAL_SECRET: secret }, init: true, healthcheck: { disable: true } },
+    legacy: { image: legacyImage, pull_policy: 'never', init: true, read_only: true, tmpfs: ['/tmp'],
+        cap_drop: ['ALL'], security_opt: ['no-new-privileges:true'], stop_grace_period: '70s', mem_limit: '384m',
+        volumes: [`${fixture}:/acceptance:ro`], environment: { ...common, NODE_ENV: 'development',
+            DB_HOST: 'mysql', DB_PORT: '3306', DB_USER: 'root', DB_PASSWORD: secret, DB_NAME: 'acceptance' } },
     'job-core-service': app('job-core-service', 4002),
     'search-service': app('search-service', 4003),
     'notification-service': app('notification-service', 4005),
@@ -69,14 +74,18 @@ let started = false;
 try {
     console.log(`Isolated project: ${project}; building current production source`);
     await docker('build', '-t', image, root);
+    await docker('build', '-t', legacyImage, '-f', path.join(fixture, 'legacy.Dockerfile'), path.resolve(root, '../backend'));
     await compose('config', '--quiet');
     started = true;
     await compose('up', '-d', '--pull', 'never', 'mysql', 'mongo', 'postgres', 'redis', 'rabbitmq', 'elasticsearch', 'mock');
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'seed'));
     const services = ['job-core-service','search-service','notification-service','admin-service','identity-service','application-service','api-gateway','ai-worker'];
-    await compose('up', '-d', '--pull', 'never', ...services);
+    await compose('up', '-d', '--pull', 'never', 'legacy', ...services);
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'main'));
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'candidate'));
+    console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/applications.mjs', 'main'));
+    await compose('restart', 'application-service', 'identity-service', 'legacy');
+    console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/applications.mjs', 'restart'));
     // Stop consumers, commit through HTTP and prove durable backlog before restart.
     await compose('stop', 'ai-worker', 'search-service', 'notification-service');
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'offline'));
@@ -96,14 +105,14 @@ try {
         assert.deepEqual(Object.keys(container.NetworkSettings.Networks), [`${project}_default`]);
     }
     console.log('PASS: network isolation, no published ports, project ownership');
-    await compose('stop', ...services);
-    for (const service of services) {
+    await compose('stop', 'legacy', ...services);
+    for (const service of ['legacy', ...services]) {
         const id = await compose('ps', '-aq', service);
         const state = JSON.parse(await docker('inspect', id))[0].State;
         assert.equal(state.ExitCode, 0, `${service} graceful shutdown`);
         assert.equal(state.OOMKilled, false, `${service} OOM`);
     }
-    console.log('PASS: eight service processes shut down cleanly');
+    console.log('PASS: eight services and legacy HTTP fixture shut down cleanly');
     console.log('Compose background acceptance PASSED');
 } catch (error) {
     console.error(error.message.replaceAll(secret, '[test-secret]'));
@@ -113,6 +122,7 @@ try {
     // Only this generated project can be removed; never use the repository Compose.
     if (started) await compose('down', '--volumes', '--remove-orphans', '--timeout', '75');
     await docker('image', 'rm', image).catch(() => {});
+    await docker('image', 'rm', legacyImage).catch(() => {});
     assert.ok(path.basename(directory).startsWith('jobfind-compose-'));
     await rm(directory, { recursive: true, force: true });
     console.log(`Cleaned owned fixture: ${project}`);

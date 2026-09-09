@@ -1,6 +1,6 @@
 # Nghiệm thu chuỗi xử lý nền trên Compose cách ly
 
-Đợt 2w tiếp nối browser integration 2v; 2x bổ sung ba tác vụ AI ứng viên, CV và Search đa lựa chọn. Chạy tại `microservices`:
+Đợt 2w tiếp nối browser integration 2v; 2x bổ sung ba tác vụ AI ứng viên, CV và Search đa lựa chọn. **2aa bổ sung đăng nhập legacy thật, ứng tuyển xuyên vai trò, dữ liệu lịch sử và restart: tổng 32 checkpoint qua ngày 09-09-2026**; xem [compose-application-acceptance.md](compose-application-acceptance.md). Chạy tại `microservices`:
 
 ```powershell
 npm run test:compose-background:integration
@@ -36,7 +36,7 @@ Runner dựng image production từ checkout hiện tại và tạo một cấu 
 
 ## Giới hạn
 
-Phạm vi nghiệp vụ gồm chuỗi kiểm duyệt tin Core và từ 2x có parse/match/thư ứng viên, CV CRUD, Search nhiều bộ lọc. Application được khởi động/kiểm tra readiness, chưa nghiệm thu Kanban hay thanh toán trong bài này. JWT được ký từ secret thử nghiệm, không chạy login thật; frontend/browser được kiểm tra riêng tại 2v/2x, không chạy nối trực tiếp toàn Compose. Không đo chất lượng AI, tải/SLO, backup/restore, migration, mất máy chủ hoặc SMTP thật. Không bật cờ frontend hay triển khai lên stack `ai-job-portal`.
+Phạm vi nghiệp vụ gồm chuỗi kiểm duyệt tin Core và từ 2x có parse/match/thư ứng viên, CV CRUD, Search nhiều bộ lọc. Từ 2aa, container legacy thử tải router/auth/controller/ORM thật; bài Application dùng login mật khẩu thật, nghiệm thu API Kanban/ứng tuyển và hồ sơ lịch sử. Các phase 2w/2x vẫn ký JWT tổng hợp. Frontend/browser được kiểm tra riêng, chưa chạy nối trực tiếp toàn Compose; PDF ở phase Application là fixture transport, chưa sinh qua màn hình. Không đo chất lượng AI, thanh toán, tải/SLO, backup/restore, migration, mất máy chủ hoặc SMTP/Socket.IO thật. Không bật cờ frontend hay triển khai lên stack `ai-job-portal`.
 
 ## Kết quả ngày 08-09-2026
 
