@@ -24,6 +24,10 @@ export const searchJobs = async (req, res) => {
     const must = [];
 
     const addTerm = (field, value) => {
+        if (Array.isArray(value)) {
+            if (value.length) filter.push({ terms: { [field]: [...new Set(value)] } });
+            return;
+        }
         if (value !== undefined && value !== null && value !== '' && value !== 'undefined') {
             filter.push({ term: { [field]: value } });
         }
@@ -59,6 +63,7 @@ export const searchJobs = async (req, res) => {
             index: INDEX,
             from: Number(offset) || 0,
             size: Math.min(Number(limit) || 12, 100),
+            track_total_hits: true,
             query: { bool: { must: must.length ? must : [{ match_all: {} }], filter } },
             sort: sortClause,
             // Tra ve doan van ban co chua tu khoa de hien thi trong ket qua.

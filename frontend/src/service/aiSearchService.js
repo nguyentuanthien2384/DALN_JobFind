@@ -14,7 +14,8 @@ const searchJobs = (params = {}) => {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== "") {
-            query.append(key, value);
+            if (Array.isArray(value)) value.forEach(item => query.append(key, item));
+            else query.append(key, value);
         }
     });
     return axios.get(`/api/search/jobs?${query.toString()}`);

@@ -25,7 +25,7 @@
           "search"
         ],
         "summary": "GET /search/jobs",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required. offset + effective limit must not exceed 10000; limit=0 uses the default of 12.",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required. offset + effective limit must not exceed 10000; limit=0 uses the default of 12. salaryJobCode, categoryJoblevelCode, categoryWorktypeCode and experienceJobCode accept repeated query keys (1..20 values, OR within each field, AND across fields). Scalar values remain supported. Count is exact; pages are limited to the first 10000 hits.",
         "x-jobfind-permission": null,
         "x-jobfind-internal": false,
         "x-jobfind-company-required": false,
@@ -68,8 +68,23 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "maxLength": 64
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "maxItems": 20,
+                  "minItems": 1
+                }
+              ]
             }
           },
           {
@@ -77,8 +92,23 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "maxLength": 64
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "maxItems": 20,
+                  "minItems": 1
+                }
+              ]
             }
           },
           {
@@ -86,8 +116,23 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "maxLength": 64
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "maxItems": 20,
+                  "minItems": 1
+                }
+              ]
             }
           },
           {
@@ -95,8 +140,23 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "maxLength": 64
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "maxItems": 20,
+                  "minItems": 1
+                }
+              ]
             }
           },
           {
@@ -3034,20 +3094,80 @@
             "maxLength": 64
           },
           "salaryJobCode": {
-            "type": "string",
-            "maxLength": 64
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            ]
           },
           "categoryJoblevelCode": {
-            "type": "string",
-            "maxLength": 64
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            ]
           },
           "categoryWorktypeCode": {
-            "type": "string",
-            "maxLength": 64
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            ]
           },
           "experienceJobCode": {
-            "type": "string",
-            "maxLength": 64
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            ]
           },
           "isHot": {
             "type": "string",

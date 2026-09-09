@@ -76,6 +76,7 @@ try {
     const services = ['job-core-service','search-service','notification-service','admin-service','identity-service','application-service','api-gateway','ai-worker'];
     await compose('up', '-d', '--pull', 'never', ...services);
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'main'));
+    console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'candidate'));
     // Stop consumers, commit through HTTP and prove durable backlog before restart.
     await compose('stop', 'ai-worker', 'search-service', 'notification-service');
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'offline'));

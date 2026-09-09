@@ -45,6 +45,16 @@ beforeEach(() => {
 });
 
 describe('published search consumer contracts', () => {
+    it('combines OR within multi-value filters and AND across filters, requests an exact count', async () => {
+        const { searchJobs } = await import('../search-service/src/controllers/searchController.js');
+        const res = makeRes();
+        await searchJobs(makeReq({ query: { salaryJobCode:['S1','S2','S1'], experienceJobCode:['E1','E2'], addressCode:'HN' } }), res);
+        const request = mocks.es.search.mock.lastCall[0];
+        expect(request.track_total_hits).toBe(true);
+        expect(request.query.bool.filter).toEqual(expect.arrayContaining([
+            { terms:{salaryJobCode:['S1','S2']} }, { terms:{experienceJobCode:['E1','E2']} }, {term:{addressCode:'HN'}}
+        ]));
+    });
     it.each(['PS1', 'PS2', 'PS3', 'PS4'])('legacy manual %s snapshot is only a refresh signal, never an authoritative overwrite', async statusCode => {
         const event = createEventEnvelope({ eventId: 'manual-event', eventType: 'job.updated', aggregateId: 7,
             occurredAt: '2026-09-06T00:00:00Z', producer: 'legacy-backend', payloadVersion: 1,

@@ -5214,20 +5214,80 @@
             "maxLength": 64
           },
           "salaryJobCode": {
-            "type": "string",
-            "maxLength": 64
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            ]
           },
           "categoryJoblevelCode": {
-            "type": "string",
-            "maxLength": 64
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            ]
           },
           "categoryWorktypeCode": {
-            "type": "string",
-            "maxLength": 64
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            ]
           },
           "experienceJobCode": {
-            "type": "string",
-            "maxLength": 64
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "maxItems": 20,
+                "minItems": 1
+              }
+            ]
           },
           "isHot": {
             "type": "string",

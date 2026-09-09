@@ -1,15 +1,17 @@
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useMatch } from "react-router-dom";
 import UserCv from "../system/Cv/UserCv";
 import ChangePassword from "../system/User/ChangePassword";
 import CandidateInfo from "./CandidateInfo";
 import ManageCvCandidate from "./ManageCvCandidate";
 import SettingUser from "./SettingUser";
 import SavedJobs from "./SavedJobs";
+import CandidateAi from './CandidateAi';
 
 const HomeCandidate = () => {
+    const isAiWorkspace = Boolean(useMatch('/candidate/ai-cv'));
     return (
-        <div className="container-scroller">
+        <div className={`container-scroller${isAiWorkspace ? ' candidate-ai-shell' : ''}`}>
             {/* partial:partials/_navbar.html */}
 
             {/* partial */}
@@ -23,9 +25,10 @@ const HomeCandidate = () => {
                 <div className="main-panel">
                     <div
                         className="content-wrapper"
-                        style={{ marginLeft: "9%" }}
+                        style={{ marginLeft: isAiWorkspace ? 0 : "9%" }}
                     >
                         <Routes>
+                            <Route path="/ai-cv" element={<CandidateAi />} />
                             <Route path="/info" element={<CandidateInfo />} />
                             <Route
                                 path="/usersetting"

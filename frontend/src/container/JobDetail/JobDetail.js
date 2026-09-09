@@ -1,3 +1,4 @@
+import { candidateAiEnabled } from '../../service/candidateWorkspace';
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -479,6 +480,7 @@ const JobDetail = () => {
                                                 <i className="far fa-paper-plane"></i>
                                                 Ứng tuyển ngay
                                             </button>}
+                                            {currentUser?.roleCode === 'CANDIDATE' && candidateAiEnabled() && <Link className="job-action-btn job-action-btn--secondary" to={`/candidate/ai-cv?jobId=${id}`}>Chuẩn bị CV / thư với AI</Link>}
                                             {canSocialInteract && <button
                                                 type="button"
                                                 className={

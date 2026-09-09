@@ -10,7 +10,7 @@ import { publishOutboxEvent, closeOutboxPublisher } from '/app/shared/outboxPubl
 assert.equal(process.env.MYSQL_HOST, 'mysql');
 assert.equal(process.env.MYSQL_DATABASE, 'acceptance');
 const phase = process.argv[2];
-assert.ok(['seed','main','offline','recovery','broker-offline','broker-recovery'].includes(phase));
+assert.ok(['seed','main','candidate','offline','recovery','broker-offline','broker-recovery'].includes(phase));
 const pool = mysql.createPool({ host: 'mysql', user: 'root', password: process.env.MYSQL_PASSWORD,
     database: 'acceptance', connectTimeout: 1500, timezone: '+07:00' });
 const mongo = new MongoClient('mongodb://mongo:27017', { serverSelectionTimeoutMS: 2000 });
@@ -187,6 +187,50 @@ try {
             pass('invalid event goes to DLQ with original identity/body and no provider call');
             await drained();
             await pool.query('INSERT INTO acceptance_state VALUES (?,?)', ['main', JSON.stringify({ calls: await countCalls() })]);
+        } else if (phase === 'candidate') {
+            // Actual Gateway auth, Core tasks, SDK JSON/SSE, Mongo CV writes and Search.
+            const candidateToken = jwt.sign({}, process.env.JWT_SECRET, {subject:'8',algorithm:'HS256',issuer:'jobfind-auth',audience:'jobfind-api',expiresIn:900});
+            const candidate = (route, method='GET', body, key) => http(`http://api-gateway:4000/api${route}`, {
+                method,headers:{authorization:`Bearer ${candidateToken}`,'content-type':'application/json',...(key && {'idempotency-key':key})},
+                ...(body && {body:JSON.stringify(body)})
+            });
+            const job = await one("SELECT id FROM posts WHERE statusCode='PS1' ORDER BY id LIMIT 1");
+            assert.ok(job);
+            let parsed;
+            for (const [route,type,payload] of [
+                ['parse-resume','parse_resume',{fileName:'synthetic.pdf',fileBase64:Buffer.from('%PDF-1.4\nSynthetic').toString('base64')}],
+                ['match-cv','match_cv',{resumeText:'Synthetic Node CV',jobId:job.id}],
+                ['cover-letter','cover_letter',{resumeText:'Synthetic Node CV',jobId:job.id,language:'vi'}]
+            ]) {
+                const calls=await countCalls(), key=randomUUID();
+                const accepted=await candidate(`/ai/${route}`,'POST',payload,key);
+                assert.equal((await candidate(`/ai/${route}`,'POST',payload,key)).taskId,accepted.taskId);
+                const result=await eventually(type+' completes',async()=>{
+                    const response=await candidate(`/ai/tasks/${accepted.taskId}`);
+                    assert.equal(response.data.type,type);return response.data.status==='done' && response.data.result;
+                });
+                assert.equal(await countCalls(),calls+1);
+                if (type==='parse_resume') { parsed=result;assert.equal(parsed.fullName,'Synthetic Candidate'); }
+                if (type==='match_cv') assert.equal(result.score,80);
+                if (type==='cover_letter') assert.equal(result.letter,'Synthetic application letter.');
+                const forbidden=await fetch(`http://api-gateway:4000/api/ai/tasks/${accepted.taskId}`,{headers:{authorization:`Bearer ${token}`}});
+                assert.equal(forbidden.status,403);
+                pass(`${type}: candidate HTTP task, replay, actual SDK mock result and employer denied`);
+            }
+            // UI's selected-field CV create, edit and delete, not legacy applications.
+            const cvInput={title:'Synthetic CV',fullName:parsed.fullName,email:parsed.email,skills:parsed.skills,experiences:[{company:'Example',from:'2024',to:'2026'}]};
+            const cv=(await candidate('/profile/cvs','POST',cvInput)).data;
+            assert.match(cv._id,/^[a-f0-9]{24}$/);
+            assert.ok((await candidate('/profile/cvs')).data.some(row=>row._id===cv._id));
+            assert.equal((await candidate(`/profile/cvs/${cv._id}`,'PUT',{title:'Edited CV',summary:'Reviewed by candidate'})).data.title,'Edited CV');
+            await candidate(`/profile/cvs/${cv._id}`,'DELETE');
+            assert.equal((await candidate('/profile/cvs')).data.length,0);
+            pass('Identity CV create/list/edit/delete through Gateway with candidate identity');
+            const results=await api('/search/jobs?salaryJobCode=SAL1&salaryJobCode=OTHER&categoryWorktypeCode=WT1&categoryWorktypeCode=REMOTE&limit=5');
+            assert.ok(results.data.some(row=>row.id===job.id));
+            const empty=await api('/search/jobs?salaryJobCode=OTHER&salaryJobCode=MISSING');assert.equal(empty.count,0);
+            pass('Search repeated filters preserve OR semantics through Gateway and actual Elasticsearch');
+            await drained();
         } else if (phase === 'offline') {
             await control({ mode: 'approve' });
             const calls = await countCalls(); const job = await create('Compose offline consumers');

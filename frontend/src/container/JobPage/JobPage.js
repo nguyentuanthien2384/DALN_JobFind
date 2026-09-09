@@ -3,14 +3,19 @@ import LeftBar from './LeftPage/LeftBar'
 import RightContent from './RightPage/RightContent'
 import { PAGINATION } from '../../util/constant';
 import ReactPaginate from 'react-paginate';
-import { getListPostService } from '../../service/userService'
+import { loadSearchPage, loadSearchLabels, searchMode } from '../../service/searchWorkspace';
 import CommonUtils from '../../util/CommonUtils';
 const JobPage = () => {
 
     const [countPage, setCountPage] = useState(1)
     const [post, setPost] = useState([])
     const [count, setCount] = useState(0)
-    const [numberPage, setNumberPage] = useState('')
+    const [numberPage, setNumberPage] = useState(0)
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [retry, setRetry] = useState(0);
+    const [labels, setLabels] = useState({});
+    const mode = searchMode();
     const limit = PAGINATION.pagerow
 
     const [workType, setWorkType] = useState([])
@@ -22,31 +27,12 @@ const JobPage = () => {
     const [jobLevel, setJobLevel] = useState([])
     const [jobLocation, setJobLocation] = useState('')
     const [search,setSearch] = useState('')
-    let loadPost = async (limit, offset, sortName) => {
-        let params = {
-            limit: limit,
-            offset: offset,
-            categoryJobCode: jobType,
-            addressCode: jobLocation,
-            salaryJobCode: salary,
-            categoryJoblevelCode: jobLevel,
-            categoryWorktypeCode: workType,
-            experienceJobCode: exp,
-            sortName: sortName,
-            search : CommonUtils.removeSpace(search)
-        }
-        let arrData = await getListPostService(params)
-        if (arrData && arrData.errCode === 0) {
-            setPost(arrData.data)
-            setCountPage(Math.ceil(arrData.count / limit))
-            setCount(arrData.count)
-        }
-    }
-
     const handleSearch = (value) => {
+        setNumberPage(0);
         setSearch(value)
     }
     const recieveWorkType = (data) => {
+        setNumberPage(0);
         setWorkType(prev => {
             let isCheck = prev.includes(data)
             if (isCheck)
@@ -56,6 +42,7 @@ const JobPage = () => {
         })
     }
     const recieveSalary = (data) => {
+        setNumberPage(0);
         setSalary(prev => {
             let isCheck = prev.includes(data)
             if (isCheck)
@@ -65,6 +52,7 @@ const JobPage = () => {
         })
     }
     const recieveExp = (data) => {
+        setNumberPage(0);
         setExp(prev => {
             let isCheck = prev.includes(data)
             if (isCheck)
@@ -74,9 +62,11 @@ const JobPage = () => {
         })
     }
     const recieveJobType = (data) => {
+        setNumberPage(0);
         jobType === data ? setJobType('') : setJobType(data)
     }
     const recieveJobLevel = (data) => {
+        setNumberPage(0);
         setJobLevel(prev => {
             let isCheck = prev.includes(data)
             if (isCheck)
@@ -86,35 +76,31 @@ const JobPage = () => {
         })
     }
     const recieveLocation = (data) => {
+        setNumberPage(0);
         jobLocation === data ? setJobLocation('') : setJobLocation(data)
     }
     useEffect(() => {
-        let filterdata = async () => {
-            let params = {
-                limit: limit,
-                offset: 0,
-                categoryJobCode: jobType,
-                addressCode: jobLocation,
-                salaryJobCode: salary,
-                categoryJoblevelCode: jobLevel,
-                categoryWorktypeCode: workType,
-                experienceJobCode: exp,
-                search: CommonUtils.removeSpace(search)
-            }
-            let arrData = await getListPostService(params)
-            if (arrData && arrData.errCode === 0) {
-                setNumberPage(0)
-                setPost(arrData.data)
-                setCountPage(Math.ceil(arrData.count / limit))
-                setCount(arrData.count)
-            }
-        }
-        filterdata()
-    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit])
-    const handleChangePage = (number) => {
-        setNumberPage(number.selected)
-        loadPost(limit, number.selected * limit)
-    }
+        let active = true;
+        if (mode === 'core') loadSearchLabels().then(data => { if (active) setLabels(data); });
+        return () => { active = false; };
+    }, [mode]);
+    useEffect(() => {
+        let active = true;
+        setLoading(true); setError(''); setPost([]); setCount(0);
+        const params = { limit, offset: numberPage * limit, categoryJobCode: jobType,
+            addressCode: jobLocation, salaryJobCode: salary, categoryJoblevelCode: jobLevel,
+            categoryWorktypeCode: workType, experienceJobCode: exp,
+            search: CommonUtils.removeSpace(search), sortName: undefined };
+        loadSearchPage(params, mode, labels).then(result => {
+            if (!active) return;
+            setPost(result.data); setCount(result.count);
+            setCountPage(Math.ceil((mode === 'core' ? Math.min(result.count, 10000) : result.count) / limit));
+        }).catch(failure => {
+            if (active) { setError(failure.message); setCountPage(0); }
+        }).finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
+    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels]);
+    const handleChangePage = (number) => { setNumberPage(number.selected); };
     return (
         <>
 
@@ -166,7 +152,11 @@ const JobPage = () => {
                             </div>
                             {/* <!-- Right content --> */}
                             <div className="col-xl-9 col-lg-9 col-md-8">
-                            <RightContent handleSearch={handleSearch} count={count} post={post} />
+                            <RightContent handleSearch={handleSearch} count={count} post={post} loading={loading} error={error} />
+                            {loading && <p role="status">Đang tìm việc…</p>}
+                            {error && <div role="alert">{error} <button type="button" onClick={() => setRetry(value => value + 1)}>Thử lại</button></div>}
+                            {!loading && !error && count === 0 && <p>Không tìm thấy công việc phù hợp. Hãy thử đổi từ khóa hoặc bộ lọc.</p>}
+                            {mode === 'core' && count > 10000 && <p>Đang hiển thị tối đa 10.000 kết quả. Hãy thêm bộ lọc để thu hẹp tìm kiếm.</p>}
                             <ReactPaginate
                             forcePage={numberPage}
                             previousLabel={'Quay lại'}

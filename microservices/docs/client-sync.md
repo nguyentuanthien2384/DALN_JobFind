@@ -680,6 +680,14 @@ Ngày 08-09-2026. Đọc lại nhật ký từ các nền tảng outbox/inbox, b
 
 ## Thứ tự các đợt còn lại
 
+### Cập nhật 2x ngày 08–09/09/2026
+
+Đã nối `/candidate/ai-cv`: PDF → AI → bản nháp đầy đủ → CV Identity; đánh giá CV theo tin và soạn/sửa thư. Có key trước POST, khôi phục task qua refresh/hạ cờ, chỉ GET khi có ID, dừng chờ và bỏ phản hồi muộn; ghi CV chưa rõ kết quả yêu cầu đối chiếu thủ công, không tự gửi lại. Trang tìm việc chính có cờ Search Core, adapter thẻ tin/danh mục, nhiều lựa chọn OR trong từng bộ lọc, AND giữa bộ lọc và lỗi/tải lại rõ ràng, không tự fallback.
+
+**1.350 test frontend, 1.131 test microservices, 22 checkpoint Compose cách ly và browser production build đã qua**; build cả Core/AI bật và legacy/AI tắt, contracts/syntax/YAML/diff qua. Thêm bước CI cho browser ứng viên. Giữ 52 HTTP/15 event; mở rộng query Search cần nâng Search + Gateway trước frontend. `.env.example` mặc định `REACT_APP_JOB_SEARCH_MODE=legacy`, `REACT_APP_CANDIDATE_AI_ENABLED=false`; không sửa `.env`/schema/dữ liệu/container thật hoặc gọi provider/SMTP. Chi tiết hành vi, chạy lại và rollback: [candidate-search-sync.md](candidate-search-sync.md).
+
+Màn hình CV có cấu trúc không tự thay hồ sơ/tệp ứng tuyển legacy; chưa có CV revision/idempotency server hoặc lịch sử AI nhiều thiết bị. **Tiếp theo đối chiếu hồ sơ/CV và luồng ứng tuyển legacy còn lại, dữ liệu lịch sử và vai trò trên stack dự kiến trước rollout.** Mốc 2w dưới đây là lịch sử; bài Compose hiện đã mở rộng sang ba tác vụ AI ứng viên, CRUD CV và Search.
+
 ### Cập nhật 2w ngày 08-09-2026
 
 Đã nghiệm thu chuỗi nền quản lý tin trên Compose cách ly: **17 checkpoint qua**, từ HTTP Gateway/JWT/current identity → transaction/outbox → RabbitMQ → worker/SDK/AI HTTP giả → result/inbox → Search/Notification/Admin. Có kiểm tra chống giao trùng, generation cũ, AI lỗi, retry realtime, DLQ, backlog khi consumer dừng và outbox khi broker dừng, phục hồi và dừng sạch tám dịch vụ. Chạy lại **1.125 test microservices** đều qua; contracts/syntax/YAML/diff qua. Các lần sửa chỉ thuộc fixture và tài liệu/CI, không đổi mã nghiệp vụ hoặc cờ frontend. Không chạy lại bộ browser/backend/frontend trong đợt này.
@@ -688,5 +696,5 @@ Lệnh chạy lại, cách ly/cleanup và giới hạn ở `compose-background-a
 
 1. **Đã qua 2v + 2w trong phạm vi quản lý tin:** browser integration và chuỗi nền với provider giả trên Compose riêng. Form login/App shell, Socket.IO/SMTP thật và dữ liệu lịch sử còn thuộc nghiệm thu toàn hệ thống. Tạo 2r, xem/sửa 2s, đăng lại 2t và workspace 2u mặc định vẫn legacy. Giữ writer/key/revision/ngày của yêu cầu đã lưu; review chưa bao gồm lý do/lịch sử AI đầy đủ.
 2. Kiểm tra các client chưa gửi key/revision và dữ liệu lịch sử trước chuyển cờ trên stack local. Hạn mức, snapshot, idempotency, precondition và hàng rào manual–AI đã có kiểm thử riêng; không thay thế nghiệm thu môi trường dự kiến. Dashboard Socket.IO và publisher còn lại vẫn best-effort; không đồng nghĩa mọi event legacy đã bền. Giữ các giới hạn/rollback nêu trên; không chỉ đổi đường dẫn API.
-3. Nối màn hình AI/CV và chuyển luồng tìm kiếm theo từng màn hình khi phía server đủ nghiệp vụ. Hiện Kanban/báo cáo và gợi ý tìm kiếm đã có gọi microservice; danh sách tìm kiếm chính còn API legacy, đăng tin/workspace mặc định legacy nhưng đã có tùy chọn Core. Không coi helper API đã có là giao diện tính năng đã hoàn tất.
+3. **2x đã nối màn hình AI/CV và tùy chọn Core cho tìm kiếm chính**, mặc định chưa bật. Kanban/báo cáo và gợi ý tìm kiếm đã gọi microservice; đăng tin/workspace vẫn legacy mặc định và có lựa chọn Core. Còn đối chiếu thông tin hồ sơ/tệp CV và ứng tuyển legacy; không coi bộ CV Identity là đồng bộ hai chiều tự động với dữ liệu này.
 4. Nghiệm thu các vai trò trên stack mới, hạn mức và thao tác lặp, token hết hạn, dịch vụ gián đoạn/phục hồi, dữ liệu cập nhật chậm giữa dịch vụ. Các mục kiến trúc/vận hành khác của PDF tiếp tục theo `implementation-progress.md`.

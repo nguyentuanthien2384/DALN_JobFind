@@ -1,3 +1,4 @@
+import { candidateAiEnabled } from '../../service/candidateWorkspace';
 import React from 'react'
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom'
@@ -228,6 +229,7 @@ const Header = () => {
                                                                 <i className="far fa-solid fa-bars text-primary" />
                                                                 Cài đặt nâng cao
                                                             </Link>}
+                                                            {isCandidate && candidateAiEnabled() && <Link to="/candidate/ai-cv" className="dropdown-item" onClick={closeHeaderMenus}>CV và trợ lý AI</Link>}
                                                             {isCandidate && <Link to="/candidate/cv-post/" className="dropdown-item" onClick={closeHeaderMenus}>
                                                                 <i className="far fa-file-word text-primary"></i>
                                                                 Công việc đã nộp
@@ -310,6 +312,7 @@ const Header = () => {
                                                         </li>
                                                         <li><Link to={profilePath} onClick={closeHeaderMenus}>Thông tin tài khoản</Link></li>
                                                         {isCandidate && <li><Link to="/candidate/usersetting" onClick={closeHeaderMenus}>Cài đặt nâng cao</Link></li>}
+                                                        {isCandidate && candidateAiEnabled() && <li><Link to="/candidate/ai-cv" onClick={closeHeaderMenus}>CV và trợ lý AI</Link></li>}
                                                         {isCandidate && <li><Link to="/candidate/cv-post/" onClick={closeHeaderMenus}>Công việc đã nộp</Link></li>}
                                                         {canUseChat && <li><Link to="/chat" onClick={closeHeaderMenus}>Tin nhắn{unreadChat > 0 ? ` (${unreadChat})` : ''}</Link></li>}
                                                         {isCandidate && <li><Link to="/candidate/saved-jobs/" onClick={closeHeaderMenus}>Việc làm đã lưu</Link></li>}

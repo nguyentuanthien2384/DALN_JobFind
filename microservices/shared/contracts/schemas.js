@@ -16,6 +16,7 @@ export const date = { anyOf: [{ type: 'string', format: 'date' }, { type: 'strin
 export const stage = { type: 'string', enum: ['moi_ung_tuyen', 'dang_xem_xet', 'phong_van', 'de_nghi', 'nhan_viec', 'tu_choi'] };
 const optionalText = (max) => nullable(text(max));
 const listOfText = array(nonblank(255));
+const searchCodes = { anyOf: [text(64), { ...array(nonblank(64), 20), minItems: 1 }] };
 const experience = object({ company: optionalText(255), position: optionalText(255), from: optionalText(100), to: optionalText(100), description: optionalText(10000) });
 const education = object({ school: optionalText(255), major: optionalText(255), degree: optionalText(255), year: optionalText(100) });
 const cvFields = {
@@ -33,7 +34,8 @@ const jobFields = {
     amount: { anyOf: [integer(1, 100000), { type: 'string', pattern: '^(100000|[1-9][0-9]{0,4})$' }] },
     categoryJoblevelCode: optionalText(64), categoryWorktypeCode: optionalText(64), experienceJobCode: optionalText(64)
 };
-// Query values remain strings; controllers already parse them. Arrays/objects are rejected.
+// Numeric query values remain strings; controllers parse them. Only the four
+// explicitly declared multi-select Search filters accept arrays of strings.
 export const queryNumber = (max) => ({ type: 'string', pattern: '^(0|[1-9][0-9]*)$', maxLength: String(max).length, format: `jobfind-uint-${max}` });
 export const schemas = {
     Empty: object(),
@@ -76,8 +78,8 @@ export const schemas = {
         actorId: nullable(id), actorRole: nullable(text(32)), companyId: nullable(id), targetType: optionalText(64), targetId: nullable(eventId),
         status: integer(100, 599), durationMs: { type: 'number', minimum: 0, maximum: 86400000 }, ip: text(128), correlationId: nullable(requestKey)
     }, ['method', 'route', 'status', 'durationMs']),
-    SearchQuery: object({ q: text(500), categoryJobCode: text(64), addressCode: text(64), salaryJobCode: text(64), categoryJoblevelCode: text(64),
-        categoryWorktypeCode: text(64), experienceJobCode: text(64), isHot: { type: 'string', enum: ['1', '0', 'true', 'false', ''] },
+    SearchQuery: object({ q: text(500), categoryJobCode: text(64), addressCode: text(64), salaryJobCode: searchCodes, categoryJoblevelCode: searchCodes,
+        categoryWorktypeCode: searchCodes, experienceJobCode: searchCodes, isHot: { type: 'string', enum: ['1', '0', 'true', 'false', ''] },
         sort: { type: 'string', enum: ['newest', 'relevance'] }, limit: queryNumber(100), offset: queryNumber(10000)
     }),
     ApplicationQuery: object({ jobId: idString, stage, minRating: { type: 'string', pattern: '^[1-5]$' }, q: text(500), limit: queryNumber(100), offset: queryNumber(1000000) }),

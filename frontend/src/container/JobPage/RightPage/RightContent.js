@@ -13,7 +13,7 @@ const RightContent = (props) => {
                         <div className="row">
                             <div className="col-lg-12">
                                 <div className="count-job mb-35">
-                                    <span>{props.count} công việc được tìm thấy</span>
+                                    <span>{props.loading ? 'Đang tìm việc…' : props.error ? 'Chưa tải được kết quả' : `${props.count} công việc được tìm thấy`}</span>
                                     <JobSearchAutocomplete onSearch={props.handleSearch} />
 
                                     {/* <!-- Select job items start --> */}

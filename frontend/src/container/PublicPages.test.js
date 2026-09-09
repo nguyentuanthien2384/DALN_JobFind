@@ -17,6 +17,7 @@ jest.mock("react-router-dom", () => {
         return expression.test(pathname);
     };
     return {
+        useMatch: pattern => matches(pattern, `/candidate${mockCurrentPath}`) ? { pathname: mockCurrentPath } : null,
         Link: ({ to, children, ...props }) =>
             React.createElement("a", { href: to, ...props }, children),
         Navigate: ({ to }) => React.createElement("span", {

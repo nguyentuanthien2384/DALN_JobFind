@@ -2,6 +2,7 @@
 
 Hướng dẫn bản Compose đóng gói: [Chạy local an toàn](docs/local-compose.md).
 Những yêu cầu PDF đã làm và còn thiếu: [Tiến độ triển khai](docs/implementation-progress.md).
+Màn hình ứng viên và tìm kiếm mới: [Đồng bộ AI/CV, Search và cách bật/rollback](docs/candidate-search-sync.md).
 Chưa coi toàn bộ checklist PDF/production là hoàn tất.
 
 Kiến trúc microservices xây trên nền dự án JobFind hiện có. Backend monolith cũ

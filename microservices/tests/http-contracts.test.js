@@ -83,6 +83,17 @@ afterAll(async () => {
 });
 
 describe('real HTTP request contracts', () => {
+    it('preserves multi-value search filters serialized by the real frontend helper', async () => {
+        await aiClient.searchJobs({ salaryJobCode:['S1','S2'], experienceJobCode:['E1','E2'], q:'Node & React' });
+        const url = frontendHttp.get.mock.lastCall[0];
+        const response = await send('searchJobs', { query:url.slice(url.indexOf('?')) });
+        expect(response.status).toBe(200);
+        expect((await response.json()).query).toMatchObject({salaryJobCode:['S1','S2'],experienceJobCode:['E1','E2'],q:'Node & React'});
+    });
+    it.each(['?salaryJobCode[x]=S1','?salaryJobCode='+ 'x'.repeat(65), '?' + Array.from({length:21},(_,i)=>'salaryJobCode=S'+i).join('&'), '?categoryJobCode=A&categoryJobCode=B'])
+    ('rejects unsupported multi-value query %s', async query => {
+        expect((await send('searchJobs',{query})).status).toBe(400);
+    });
     it.each([
         ['jobManageGet', jobClient.getManagedJob, [7]],
         ['jobManageList', workspaceClient.listManagedJobs, [{ limit: 5, offset: 0, search: 'a & b%_!', statusCode: 'PS3' }]],

@@ -73,6 +73,16 @@ jobs:
           npx --no-install playwright install --with-deps chromium
           docker pull redis:7-alpine
           npm run test:job-browser:integration
+      - name: Build candidate AI and Core search frontend for browser acceptance
+        working-directory: frontend
+        env:
+          REACT_APP_CANDIDATE_AI_ENABLED: 'true'
+          REACT_APP_JOB_SEARCH_MODE: core
+          REACT_APP_BACKEND_URL: /
+        run: npm run build
+      - name: Verify candidate CV and Core search browser journeys with synthetic API data
+        working-directory: microservices
+        run: npm run test:candidate-browser:integration
       - name: Validate local Compose without production credentials
         working-directory: microservices
         env:

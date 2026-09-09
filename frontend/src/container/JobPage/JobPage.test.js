@@ -49,6 +49,23 @@ const expectLatestQuery = async (expected) => {
 };
 
 describe("JobPage", () => {
+    it('discards a late response from the old filter and shows only the latest results', async () => {
+        let release;
+        getListPostService.mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+        render(<JobPage />);
+        fireEvent.click(screen.getByRole('button', { name:'search' }));
+        await screen.findByText('React Developer');
+        release({errCode:0,count:1,data:[{id:9,name:'Obsolete result'}]});
+        await waitFor(()=>expect(screen.queryByText('Obsolete result')).not.toBeInTheDocument());
+    });
+    it('clears old rows on failure and retries the same filters explicitly', async () => {
+        render(<JobPage />);await screen.findByText('React Developer');
+        getListPostService.mockRejectedValueOnce(new Error('Offline'));
+        fireEvent.click(screen.getByRole('button',{name:'salary'}));await screen.findByText('Offline');
+        expect(screen.queryByText('React Developer')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button',{name:'Thử lại'}));await screen.findByText('React Developer');
+        expect(getListPostService).toHaveBeenLastCalledWith(expect.objectContaining({salaryJobCode:['HIGH'],offset:0}));
+    });
     beforeEach(() => {
         jest.clearAllMocks();
         window.history.replaceState({}, "", "/job");

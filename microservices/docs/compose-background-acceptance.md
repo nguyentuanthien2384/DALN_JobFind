@@ -1,6 +1,6 @@
 # Nghiệm thu chuỗi xử lý nền trên Compose cách ly
 
-Đợt 2w tiếp nối browser integration 2v. Chạy tại `microservices`:
+Đợt 2w tiếp nối browser integration 2v; 2x bổ sung ba tác vụ AI ứng viên, CV và Search đa lựa chọn. Chạy tại `microservices`:
 
 ```powershell
 npm run test:compose-background:integration
@@ -13,7 +13,7 @@ Runner dựng image production từ checkout hiện tại và tạo một cấu 
 - Docker Engine/Compose hoạt động; đủ RAM để chạy thêm stack thử nghiệm bên cạnh stack hiện tại. Image hạ tầng phải có sẵn: `mysql:8.0`, `mongo:7`, `postgres:16-alpine`, `redis:7-alpine`, `rabbitmq:4-management-alpine`, `docker.elastic.co/elasticsearch/elasticsearch:8.15.0`. Runner dùng `--pull never`; bước build image có thể tải base image/dependency.
 - Project ngẫu nhiên `jobfind-accept-xxxxxxxx`, secret tổng hợp riêng, database `acceptance`, mạng Docker `internal: true`, không publish cổng, không `host.docker.internal`, không gắn Docker socket.
 - Dữ liệu mẫu được tạo bằng DDL trên MySQL mới. Đây là fixture tối thiểu, không phải bài thử migration từ database hiện có.
-- SDK Anthropic thật nhận `ANTHROPIC_BASE_URL=http://mock:4010` và API key giả. Máy chủ giả chỉ mô phỏng HTTP response cho kiểm duyệt; không thay handler, relay hoặc consumer của ứng dụng.
+- SDK Anthropic thật nhận `ANTHROPIC_BASE_URL=http://mock:4010` và API key giả. Máy chủ giả mô phỏng HTTP response cho kiểm duyệt, parse/match CV và SSE cho thư ứng tuyển; không thay handler, relay hoặc consumer của ứng dụng.
 - Notification ghi DB và gửi HTTP realtime tới fixture có kiểm tra internal secret. Không cấu hình SMTP; địa chỉ nhận thuộc miền `.invalid`. Bài này không chứng minh email/Socket.IO thật đã được gửi tới trình duyệt.
 - Kết thúc, kể cả assertion lỗi, runner chỉ xóa container/network/volume của project ngẫu nhiên vừa tạo và image thử nghiệm của nó. Không chạy lệnh dọn toàn Docker. Nếu tiến trình bị cưỡng chế tắt/máy mất điện, lấy tên project trong log để kiểm tra tài nguyên còn sót trước khi dọn thủ công.
 
@@ -31,12 +31,16 @@ Runner dựng image production từ checkout hiện tại và tạo một cấu 
 10. Dừng Worker/Search/Notification, commit tin qua HTTP, xác nhận backlog rồi khởi động lại và chờ dữ liệu hội tụ.
 11. Dừng RabbitMQ, ghi tin qua HTTP và xác nhận hai outbox event chưa phát; khởi động broker rồi chờ relay/consumer tự kết nối lại và hoàn tất đúng một lần.
 12. Kiểm tra mạng/cổng/ownership và exit code khi dừng tám dịch vụ.
+13. Ba tác vụ ứng viên qua Gateway → Core → worker/SDK → kết quả; replay giữ task ID và số lần gọi, tài khoản nhà tuyển dụng không đọc được task ứng viên.
+14. CV Identity tạo/đọc/sửa/xóa qua Gateway và MongoDB thật; Search tham số lặp qua Gateway và Elasticsearch thật cho kết quả đúng OR/AND.
 
 ## Giới hạn
 
-Phạm vi nghiệp vụ là chuỗi kiểm duyệt tin Core. Identity/Application được khởi động và kiểm tra readiness, chưa nghiệm thu nghiệp vụ CV, thư ứng tuyển, matching, Kanban hay thanh toán. JWT được ký từ secret thử nghiệm, không chạy login thật; frontend/browser đã được kiểm tra riêng tại 2v. Không đo chất lượng AI, tải/SLO, backup/restore, migration, mất máy chủ hoặc SMTP thật. Không bật cờ frontend hay triển khai lên stack `ai-job-portal`.
+Phạm vi nghiệp vụ gồm chuỗi kiểm duyệt tin Core và từ 2x có parse/match/thư ứng viên, CV CRUD, Search nhiều bộ lọc. Application được khởi động/kiểm tra readiness, chưa nghiệm thu Kanban hay thanh toán trong bài này. JWT được ký từ secret thử nghiệm, không chạy login thật; frontend/browser được kiểm tra riêng tại 2v/2x, không chạy nối trực tiếp toàn Compose. Không đo chất lượng AI, tải/SLO, backup/restore, migration, mất máy chủ hoặc SMTP thật. Không bật cờ frontend hay triển khai lên stack `ai-job-portal`.
 
 ## Kết quả ngày 08-09-2026
+
+**Mốc mới nhất 2x: PASS 22 checkpoint** trên project `jobfind-accept-813f2977`, gồm toàn bộ các tình huống 2w và 5 checkpoint ứng viên/CV/Search mới. Đã dọn container/volume/network/image thử thuộc project; stack thật giữ nguyên. **1.131 test microservices** qua; kiểm thử frontend/browser/build/CI và điều kiện áp dụng ở [candidate-search-sync.md](candidate-search-sync.md). Các số 2w sau đây là lịch sử.
 
 **PASS: 17 checkpoint nghiệm thu** trên project `jobfind-accept-3341903e`, bao gồm seed/readiness, các tình huống nghiệp vụ và lỗi, hai vòng phục hồi, cách ly và graceful shutdown. Runner kết thúc exit code 0 và đã dọn container, năm volume, network và image thuộc project này. Kiểm tra sau chạy không còn tài nguyên mang project label; stack `ai-job-portal` vẫn giữ các container/image trước đó.
 
