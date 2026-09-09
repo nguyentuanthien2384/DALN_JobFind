@@ -4,6 +4,8 @@ Phạm vi: một máy phát triển, chỉ công bố cổng trên `127.0.0.1`. 
 
 ## Thay đổi tương thích cần biết
 
+- **Đợt 2ab — giao diện gọi Compose thật:** thêm bài browser bao gồm chuỗi nền hiện có; 7 nhóm thao tác browser + 32 checkpoint HTTP/nền + 1 fixture, 1.388 frontend/1.133 microservices test qua. Sửa xem CV trên điện thoại, mở/tải đúng PDF đã nộp và xử lý lỗi quyền/hồ sơ lịch sử. Cổng loopback chỉ thuộc ingress thử; không bật cờ hoặc thay stack thật. Kết quả và giới hạn tại [compose-browser-acceptance.md](compose-browser-acceptance.md). Tiếp theo đối chiếu các điều kiện áp dụng/rollback bên dưới trước bật từng cờ.
+
 - **Đợt 2aa — nghiệm thu HTTP ứng tuyển xuyên vai trò:** lệnh Compose background hiện bao gồm backend/router/auth thật, đăng nhập mật khẩu, hồ sơ lịch sử, CV/ứng tuyển/Kanban/tiến trình và restart. 32 checkpoint Compose, 789 backend/1.133 microservices test qua; project thử đã dọn. Không thay runtime/schema/cờ thật. Browser chưa gọi trực tiếp Compose trong bài này; xem [compose-application-acceptance.md](compose-application-acceptance.md).
 
 - **Đợt 2z — CV đã chuẩn bị vào ứng tuyển:** chọn bản đã lưu, tạo/xem lại PDF tiếng Việt rồi chủ động gửi đúng tệp đó. Cờ `REACT_APP_PREPARED_CV_APPLICATION_ENABLED=false` độc lập AI/tiến trình; nâng Identity/Gateway với no-store CV cá nhân và giữ các điều kiện 2y trước khi bật. Không có DDL hoặc HTTP/event mới. 2.516 test hồi quy, browser/PDF và 10 nhóm DB/broker với tệp từ browser qua. Chi tiết: [prepared-cv-application.md](prepared-cv-application.md).

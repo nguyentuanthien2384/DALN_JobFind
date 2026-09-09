@@ -1,0 +1,10 @@
+.submitted-cv-view { min-width: 0; }
+.submitted-cv-view .card-body { min-width: 0; overflow-wrap: anywhere; }
+.submitted-cv-view .cv-back { margin-bottom: 16px; padding: 6px 0; border: 0; background: transparent; color: #394599; }
+.submitted-cv-view .cv-file-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.submitted-cv-view .cv-file-actions a { padding: 10px 14px; border-radius: 5px; background: #246b53; color: white; }
+.submitted-cv-frame { width: 100%; height: 700px; border: 1px solid #d5dce6; }
+@media (max-width: 767px) {
+    .submitted-cv-view .card-body { padding: 20px 16px; }
+    .submitted-cv-frame { display: none; }
+}

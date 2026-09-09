@@ -11,7 +11,8 @@ import CandidateAi from './CandidateAi';
 const HomeCandidate = () => {
     const isAiWorkspace = Boolean(useMatch('/candidate/ai-cv'));
     const isApplicationHistory = Boolean(useMatch('/candidate/cv-post'));
-    const fullWidth = isAiWorkspace || isApplicationHistory;
+    const isSubmittedCv = Boolean(useMatch('/candidate/cv-detail/:id'));
+    const fullWidth = isAiWorkspace || isApplicationHistory || isSubmittedCv;
     return (
         <div className={`container-scroller${fullWidth ? ' candidate-ai-shell' : ''}`}>
             {/* partial:partials/_navbar.html */}

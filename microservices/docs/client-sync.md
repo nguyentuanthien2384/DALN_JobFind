@@ -1,6 +1,6 @@
 # Đồng bộ backend–frontend–microservices theo từng đợt
 
-Mốc mới nhất **2aa ngày 09-09-2026**: [nghiệm thu HTTP ứng tuyển xuyên vai trò trên Compose cách ly](compose-application-acceptance.md) qua 32 checkpoint, 789 backend và 1.133 microservices test. Router/auth legacy thật, login mật khẩu, dữ liệu lịch sử, snapshot/PDF, Kanban/tiến trình và restart đã được nối trong cùng stack thử. Chưa đổi endpoint/cờ/DDL/container thật; browser → Compose trực tiếp là bước kế tiếp. Các mục dưới ghi lịch sử từng đợt.
+Mốc mới nhất **2ab ngày 09-09-2026**: [nghiệm thu giao diện với API Compose thật](compose-browser-acceptance.md) qua 7 nhóm browser, 32 checkpoint HTTP/nền hiện có và 1 fixture browser; 1.388 frontend và 1.133 microservices test qua. Đăng nhập, ba tác vụ AI, tìm kiếm/bộ lọc, CV–PDF–ứng tuyển và Kanban/tiến trình đã chạy qua App thật. Sửa xem CV trên điện thoại, tải đúng tệp đã nộp, dữ liệu lịch sử thiếu liên kết và lỗi quyền; PDF hai trang đã kiểm tra trực quan. CI đã cấu hình, stack thử đã dọn; chưa đổi cờ/DDL/container thật. Bước tiếp theo đối chiếu điều kiện áp dụng và rollback trước khi bật từng cờ. Các mục dưới ghi lịch sử từng đợt; [2aa](compose-application-acceptance.md) là mốc HTTP trước browser.
 
 ## Đợt 1: phiên đăng nhập, lỗi API và chờ AI
 

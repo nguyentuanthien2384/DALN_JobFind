@@ -1,5 +1,7 @@
 # Nghiệm thu ứng tuyển xuyên vai trò trên Compose cách ly — 2aa
 
+Tiếp nối ở **2ab**: [nghiệm thu thao tác trình duyệt với API Compose thật](compose-browser-acceptance.md), gồm production frontend, tạo/xem/nộp/tải PDF, AI, Search và Kanban. Bài browser bao gồm toàn bộ checkpoint HTTP/nền dưới đây; phần kết quả 2aa được giữ làm lịch sử.
+
 Ngày 09-09-2026: **PASS 32 checkpoint** trên project `jobfind-accept-78f39683`: 22 điểm chuỗi nền/AI/CV/Search đã có và 10 điểm mới về ứng tuyển, đăng nhập và phục hồi. Chạy lại từ thư mục `microservices`:
 
 ```powershell

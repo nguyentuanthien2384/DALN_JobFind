@@ -28,6 +28,7 @@
     "local:ps": "docker compose -f docker-compose.yml -f compose.local.yml --profile monitoring ps",
     "test:image": "node scripts/test-image.mjs",
     "test:compose-background:integration": "node scripts/test-compose-background.mjs",
+    "test:compose-browser:integration": "node scripts/test-compose-background.mjs --browser",
     "test:candidate-browser:integration": "node scripts/test-candidate-browser.mjs",
     "test:application-sync:integration": "node scripts/test-application-sync.mjs",
     "test:admin-audit:integration": "node scripts/test-admin-audit.mjs",

@@ -1,5 +1,7 @@
 # Nghiệm thu chuỗi xử lý nền trên Compose cách ly
 
+Đợt **2ab** thêm `npm run test:compose-browser:integration`, bao gồm toàn bộ bài dưới và thao tác trình duyệt với API Compose thật. Riêng chế độ browser có ingress cố định trên cổng loopback ngẫu nhiên; các dịch vụ/DB/provider vẫn ở mạng internal. Xem [compose-browser-acceptance.md](compose-browser-acceptance.md) về cách chạy và kết quả mới nhất. Các điều kiện “không publish cổng” bên dưới áp dụng cho chế độ background thuần.
+
 Đợt 2w tiếp nối browser integration 2v; 2x bổ sung ba tác vụ AI ứng viên, CV và Search đa lựa chọn. **2aa bổ sung đăng nhập legacy thật, ứng tuyển xuyên vai trò, dữ liệu lịch sử và restart: tổng 32 checkpoint qua ngày 09-09-2026**; xem [compose-application-acceptance.md](compose-application-acceptance.md). Chạy tại `microservices`:
 
 ```powershell

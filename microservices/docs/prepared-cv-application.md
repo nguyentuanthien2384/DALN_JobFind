@@ -1,5 +1,7 @@
 # Dùng CV đã chuẩn bị để ứng tuyển — đợt 2z
 
+Mốc tiếp nối **2ab**: [nghiệm thu giao diện trên Compose thật](compose-browser-acceptance.md). PDF do trình duyệt tạo được đối chiếu với tệp nộp, tệp nhà tuyển dụng đọc và tệp ứng viên tải xuống; bổ sung màn hình mở/tải PDF rõ ràng trên điện thoại. Kết quả 2z dưới đây là lịch sử, không thay thế nghiệm thu 2ab.
+
 Ngày 09-09-2026, tiếp nối đường nộp CV bền và lịch sử ứng tuyển của [đợt 2y](application-sync.md). Đợt này nối CV có cấu trúc đã lưu tại Identity vào tệp PDF gửi qua thao tác ứng tuyển hiện có. Chưa triển khai lên môi trường đang phục vụ.
 
 ## Luồng ứng viên

@@ -8,8 +8,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Standalone Compose project: no project .env, host services, external volumes,
-// published ports or Docker socket in containers. Cleanup is scoped by random ID.
-assert.equal(process.argv.length, 2, 'This runner accepts no overrides');
+// production ports or Docker socket in containers. Browser mode adds a test-only
+// loopback ingress; application/provider containers stay internal.
+assert.ok(process.argv.length === 2 || (process.argv.length === 3 && process.argv[2] === '--browser'), 'Only --browser is supported');
+const browserMode = process.argv[2] === '--browser';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const fixture = fileURLToPath(new URL('./compose-acceptance/', import.meta.url));
 const project = `jobfind-accept-${randomUUID().slice(0, 8)}`;
@@ -69,10 +71,27 @@ const config = { services: {
     runner: { image, pull_policy: 'never', working_dir: '/app', command: ['node', '/app/acceptance/checks.mjs'],
         environment: common, volumes: [`${fixture}:/app/acceptance:ro`], healthcheck: { disable: true }, profiles: ['test'] }
 }, networks: { default: { internal: true } }, volumes: Object.fromEntries(['mysql-data','mongo-data','pg-data','rabbit-data','es-data'].map(key => [key, {}])) };
+if (browserMode) {
+    config.networks.browser = {};
+    config.services['browser-edge'] = { image, pull_policy: 'never', working_dir: '/app',
+        command: ['node', '/app/acceptance/browser-edge.mjs'], volumes: [`${fixture}:/app/acceptance:ro`],
+        networks: ['default', 'browser'], ports: ['127.0.0.1::4012'], read_only: true,
+        cap_drop: ['ALL'], security_opt: ['no-new-privileges:true'], healthcheck: { disable: true } };
+}
 await writeFile(file, JSON.stringify(config, null, 2));
 let started = false;
 try {
     console.log(`Isolated project: ${project}; building current production source`);
+    if (browserMode) {
+        assert.ok(process.env.npm_execpath, 'Run browser acceptance with npm run test:compose-browser:integration');
+        console.log('Building candidate-enabled frontend into the owned temporary directory');
+        await execute(process.execPath, [process.env.npm_execpath, 'run', 'build'], {
+            cwd: path.resolve(root, '../frontend'), windowsHide: true, timeout: 240000, maxBuffer: 4 * 1024 * 1024,
+            env: { ...process.env, BUILD_PATH: path.join(directory, 'frontend'), REACT_APP_BACKEND_URL: '/',
+                REACT_APP_CANDIDATE_AI_ENABLED: 'true', REACT_APP_APPLICATION_PROGRESS_ENABLED: 'true',
+                REACT_APP_PREPARED_CV_APPLICATION_ENABLED: 'true', REACT_APP_JOB_SEARCH_MODE: 'core' }
+        });
+    }
     await docker('build', '-t', image, root);
     await docker('build', '-t', legacyImage, '-f', path.join(fixture, 'legacy.Dockerfile'), path.resolve(root, '../backend'));
     await compose('config', '--quiet');
@@ -86,6 +105,16 @@ try {
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/applications.mjs', 'main'));
     await compose('restart', 'application-service', 'identity-service', 'legacy');
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/applications.mjs', 'restart'));
+    if (browserMode) {
+        console.log(await compose('run', '--rm', '--no-deps', 'legacy', 'node', '/acceptance/browser-seed.cjs'));
+        await compose('up', '-d', '--pull', 'never', 'browser-edge');
+        const gateway = JSON.parse(await docker('inspect', await compose('ps', '-q', 'browser-edge')))[0];
+        const binding = gateway.NetworkSettings.Ports['4012/tcp'][0];
+        assert.equal(binding.HostIp, '127.0.0.1');
+        const { runComposeBrowser } = await import('./test-compose-browser.mjs');
+        await runComposeBrowser({ gateway: `http://127.0.0.1:${binding.HostPort}`, password: secret,
+            build: path.join(directory, 'frontend'), directory, compose });
+    }
     // Stop consumers, commit through HTTP and prove durable backlog before restart.
     await compose('stop', 'ai-worker', 'search-service', 'notification-service');
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'offline'));
@@ -101,12 +130,19 @@ try {
     for (const id of ids) {
         const container = JSON.parse(await docker('inspect', id))[0];
         assert.equal(container.Config.Labels['com.docker.compose.project'], project);
-        assert.deepEqual(Object.keys(container.HostConfig.PortBindings || {}), []);
-        assert.deepEqual(Object.keys(container.NetworkSettings.Networks), [`${project}_default`]);
+        if (browserMode && container.Config.Labels['com.docker.compose.service'] === 'browser-edge') {
+            assert.deepEqual(Object.keys(container.HostConfig.PortBindings), ['4012/tcp']);
+            assert.equal(container.HostConfig.PortBindings['4012/tcp'][0].HostIp, '127.0.0.1');
+            assert.deepEqual(Object.keys(container.NetworkSettings.Networks).sort(), [`${project}_browser`, `${project}_default`]);
+        } else {
+            assert.deepEqual(Object.keys(container.HostConfig.PortBindings || {}), []);
+            assert.deepEqual(Object.keys(container.NetworkSettings.Networks), [`${project}_default`]);
+        }
     }
-    console.log('PASS: network isolation, no published ports, project ownership');
-    await compose('stop', 'legacy', ...services);
-    for (const service of ['legacy', ...services]) {
+    console.log(`PASS: network isolation, ${browserMode ? 'only fixed Gateway ingress published to loopback' : 'no published ports'}, project ownership`);
+    const stopping = ['legacy', ...services, ...(browserMode ? ['browser-edge'] : [])];
+    await compose('stop', ...stopping);
+    for (const service of stopping) {
         const id = await compose('ps', '-aq', service);
         const state = JSON.parse(await docker('inspect', id))[0].State;
         assert.equal(state.ExitCode, 0, `${service} graceful shutdown`);
