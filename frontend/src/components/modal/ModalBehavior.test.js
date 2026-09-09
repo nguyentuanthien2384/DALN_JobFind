@@ -259,6 +259,29 @@ describe("SendCvModal", () => {
         jest.useRealTimers();
     });
 
+    it("does not submit twice on rapid clicks and explains an existing application", async () => {
+        let finish;
+        createNewCv.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+        render(<SendCvModal isOpen postId={23} onHide={jest.fn()} />);
+        await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());
+        fireEvent.click(screen.getByRole('button', {name:'Gửi hồ sơ'}));
+        fireEvent.click(screen.getByRole('button', {name:'Gửi hồ sơ'}));
+        expect(createNewCv).toHaveBeenCalledTimes(1);
+        await act(async () => finish({errCode:5,httpStatus:409}));
+        expect(toast.error).toHaveBeenCalledWith('Bạn đã ứng tuyển tin này. Hãy kiểm tra CV trong Công việc đã nộp.');
+    });
+
+    it("ignores the submitted result after the modal changes job", async () => {
+        const onHide = jest.fn();let finish;
+        createNewCv.mockReturnValue(new Promise(resolve => {finish=resolve;}));
+        const view=render(<SendCvModal isOpen postId={23} onHide={onHide} />);
+        await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());
+        fireEvent.click(screen.getByRole('button', {name:'Gửi hồ sơ'}));
+        view.rerender(<SendCvModal isOpen postId={24} onHide={onHide} />);
+        await act(async () => finish({errCode:0,cvId:10}));
+        expect(onHide).not.toHaveBeenCalled();expect(toast.success).not.toHaveBeenCalled();
+    });
+
     it("shows a send failure and keeps the modal open", async () => {
         jest.useFakeTimers();
         const onHide = jest.fn();

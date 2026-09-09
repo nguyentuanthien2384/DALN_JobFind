@@ -372,7 +372,8 @@ describe("SettingUser", () => {
 describe("ManageCvCandidate", () => {
     beforeEach(() => {
         localStorage.clear();
-        localStorage.setItem("userData", JSON.stringify({ id: 7 }));
+        localStorage.setItem("userData", JSON.stringify({ id: 7,roleCode:"CANDIDATE" }));
+        localStorage.setItem("token_user","candidate-test-token");
         jest.clearAllMocks();
         getAllListCvByUserIdService.mockResolvedValue({
             errCode: 0,
@@ -404,7 +405,7 @@ describe("ManageCvCandidate", () => {
     it("requests the selected page and numbers its first row correctly", async () => {
         getAllListCvByUserIdService
             .mockResolvedValueOnce({ errCode: 0, data: [appliedCv(1)], count: 6 })
-            .mockResolvedValueOnce({ errCode: 0, data: [appliedCv(2, 1, "Node Developer")] });
+            .mockResolvedValueOnce({ errCode: 0, data: [appliedCv(2, 1, "Node Developer")], count:6 });
         render(<ManageCvCandidate />);
         await screen.findByText("React Developer");
         fireEvent.click(screen.getByRole("button", { name: "Trang hồ sơ 2" }));

@@ -29,6 +29,7 @@
     "test:image": "node scripts/test-image.mjs",
     "test:compose-background:integration": "node scripts/test-compose-background.mjs",
     "test:candidate-browser:integration": "node scripts/test-candidate-browser.mjs",
+    "test:application-sync:integration": "node scripts/test-application-sync.mjs",
     "test:admin-audit:integration": "node scripts/test-admin-audit.mjs",
     "test:search-projection:integration": "node scripts/test-search-projection.mjs",
     "test:ai-tasks:integration": "node scripts/test-ai-tasks.mjs",

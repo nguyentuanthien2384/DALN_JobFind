@@ -4,7 +4,7 @@ const model = () => ({
 const mockDb = {
   Cv: model(), User: model(), Account: model(), Post: model(), DetailPost: model(), Skill: model(),
   UserSkill: model(), Company: model(), CandidateView: model(), UserSetting: model(), Allcode: {},
-  sequelize: { fn: jest.fn(() => 'fn'), col: jest.fn(() => 'col'), transaction: jest.fn() }
+  sequelize: { query: jest.fn(), fn: jest.fn(() => 'fn'), col: jest.fn(() => 'col'), transaction: jest.fn() }
 };
 const mockTransaction = { LOCK: { UPDATE: 'UPDATE' } };
 const mockPdfToString = jest.fn();
@@ -21,6 +21,15 @@ const reset = () => {
   }
   mockDb.sequelize.fn.mockReturnValue('fn');
   mockDb.sequelize.col.mockReturnValue('col');
+  mockDb.sequelize.query.mockImplementation(async sql => {
+    if(sql.includes('information_schema.TABLES'))return [[...['cvs','users','accounts','companies','posts','detailposts','outbox_events'].map(name=>({name,engine:'InnoDB'}))]];
+    if(sql.includes('STATISTICS'))return [[{name:'unique_cv',col:'userId'},{name:'unique_cv',col:'postId'}]];
+    return [[]];
+  });
+  mockDb.User.findAll.mockResolvedValue([{id:1,companyId:null,firstName:'Candidate'},{id:7,companyId:3}]);
+  mockDb.Account.findAll.mockResolvedValue([{id:1,userId:1,statusCode:'S1',roleCode:'CANDIDATE'},{id:2,userId:7,statusCode:'S1',roleCode:'COMPANY'}]);
+  mockDb.Company.findOne.mockResolvedValue({id:3,statusCode:'S1',censorCode:'CS1'});
+  mockDb.DetailPost.findOne.mockResolvedValue({id:1,name:'Synthetic job'});
   mockDb.sequelize.transaction.mockImplementation(async (callback) => callback(mockTransaction));
   mockPdfToString.mockReset();
   mockFlat.mockClear();
@@ -42,12 +51,12 @@ describe('cvService', () => {
   });
 
   test('creates a CV and returns its id, including a failed create response', async () => {
-    mockDb.Post.findOne.mockResolvedValue({ id: 2, timeEnd: String(Date.now() + 60_000) });
+    mockDb.Post.findOne.mockResolvedValue({ id: 2, userId:7, detailPostId:1, statusCode:'PS1', timeEnd: String(Date.now() + 60_000) });
     mockDb.Cv.findOne.mockResolvedValue(null);
     mockDb.Cv.create.mockResolvedValueOnce({ id: 9 }).mockResolvedValueOnce(null);
     const payload = { userId: 1, postId: 2, file: 'base64', description: 'hello' };
     expect(await service.handleCreateCv(payload)).toEqual(expect.objectContaining({ errCode: 0, cvId: 9 }));
-    expect(mockDb.Cv.create).toHaveBeenCalledWith({ userId: 1, postId: 2, file: 'base64', isChecked: 0, description: 'hello' });
+    expect(mockDb.Cv.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 1, postId: 2, file: 'base64', isChecked: 0, description: 'hello' }), {transaction:mockTransaction});
     expect((await service.handleCreateCv(payload)).errCode).toBe(2);
   });
 
@@ -56,17 +65,17 @@ describe('cvService', () => {
     mockDb.Post.findOne.mockResolvedValueOnce(null);
     expect((await service.handleCreateCv(payload)).errCode).toBe(3);
 
-    mockDb.Post.findOne.mockResolvedValueOnce({ id: 2, timeEnd: String(Date.now() - 1) });
+    mockDb.Post.findOne.mockResolvedValue({ id: 2, userId:7, detailPostId:1, statusCode:'PS1', timeEnd: String(Date.now() - 1) });
     expect((await service.handleCreateCv(payload)).errCode).toBe(4);
 
-    mockDb.Post.findOne.mockResolvedValueOnce({ id: 2, timeEnd: String(Date.now() + 60_000) });
+    mockDb.Post.findOne.mockResolvedValueOnce({ id: 2, userId:7, detailPostId:1, statusCode:'PS1', timeEnd: String(Date.now() + 60_000) });
     mockDb.Cv.findOne.mockResolvedValueOnce({ id: 8 });
     expect((await service.handleCreateCv(payload)).errCode).toBe(5);
     expect(mockDb.Cv.create).not.toHaveBeenCalled();
   });
 
   test('maps a concurrent duplicate insert to the stable duplicate response', async () => {
-    mockDb.Post.findOne.mockResolvedValue({ id: 2, timeEnd: String(Date.now() + 60_000) });
+    mockDb.Post.findOne.mockResolvedValue({ id: 2, userId:7, detailPostId:1, statusCode:'PS1', timeEnd: String(Date.now() + 60_000) });
     mockDb.Cv.findOne.mockResolvedValue(null);
     const conflict = new Error('duplicate');
     conflict.name = 'SequelizeUniqueConstraintError';
@@ -86,6 +95,40 @@ describe('cvService', () => {
     const result = await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' });
     expect(result).toEqual({ errCode: 0, data: [{ id: 1, file: '100%' }], count: 1 });
     expect(mockDb.Cv.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 0 }));
+  });
+
+  test('submission freezes server identity and event in the same transaction without including the PDF', async () => {
+    mockDb.Post.findOne.mockResolvedValue({id:2,userId:7,detailPostId:1,statusCode:'PS1',timeEnd:String(Date.now()+60000)});
+    mockDb.Cv.create.mockResolvedValue({id:9});
+    const response=await service.handleCreateCv({userId:1,postId:2,file:'private PDF',description:'Reviewed',candidateName:'Forged',companyId:999});
+    expect(response.errCode).toBe(0);
+    const insert=mockDb.sequelize.query.mock.calls.find(([sql])=>sql.startsWith('INSERT INTO outbox_events'))[1];
+    expect(insert.transaction).toBe(mockTransaction);
+    expect(insert.replacements.slice(1,4)).toEqual(['legacy-application','9','application.submitted']);
+    expect(JSON.parse(insert.replacements[4])).toMatchObject({candidateId:1,candidateName:'Candidate',companyId:3,jobTitle:'Synthetic job',coverLetter:'Reviewed'});
+    expect(insert.replacements[4]).not.toContain('private PDF');expect(insert.replacements[4]).not.toContain('Forged');
+  });
+
+  test.each(['engine','unique index'])('submission refuses unavailable %s before writing a CV', async kind => {
+    mockDb.Post.findOne.mockResolvedValue({id:2,userId:7});
+    if(kind==='engine')mockDb.sequelize.query.mockResolvedValueOnce([[]]);
+    else mockDb.sequelize.query.mockResolvedValueOnce([['cvs','users','accounts','companies','posts','detailposts','outbox_events'].map(name=>({name,engine:'InnoDB'}))]).mockResolvedValueOnce([[]]);
+    expect((await service.handleCreateCv({userId:1,postId:2,file:'pdf',description:'Hi'})).httpStatus).toBe(503);
+    expect(mockDb.Cv.create).not.toHaveBeenCalled();
+  });
+
+  test('current actor role and post visibility are checked inside the transaction', async () => {
+    mockDb.Post.findOne.mockResolvedValue({id:2,userId:7,detailPostId:1,statusCode:'PS1',timeEnd:String(Date.now()+60000)});
+    mockDb.Account.findAll.mockResolvedValueOnce([{id:1,userId:1,roleCode:'COMPANY',statusCode:'S1'},{id:7,userId:7,statusCode:'S1'}]);
+    const payload={userId:1,postId:2,file:'pdf',description:'Hi'};
+    expect((await service.handleCreateCv(payload)).httpStatus).toBe(403);
+    mockDb.Post.findOne.mockResolvedValueOnce({id:2,userId:7}).mockResolvedValueOnce({id:2,userId:7,statusCode:'PS4'});
+    expect((await service.handleCreateCv(payload)).httpStatus).toBe(404);expect(mockDb.Cv.create).not.toHaveBeenCalled();
+  });
+
+  test('submission rejects a too-long letter without touching the database', async () => {
+    expect((await service.handleCreateCv({userId:1,postId:2,file:'pdf',description:'x'.repeat(256)})).httpStatus).toBe(400);
+    expect(mockDb.Post.findOne).not.toHaveBeenCalled();
   });
 
   test('CV detail handles missing CV, candidate read and recruiter read/decoded file', async () => {
@@ -258,7 +301,7 @@ describe('cvService', () => {
     ];
     for (const [method, arg, target, dbMethod] of failures) {
       if (method === 'handleCreateCv') {
-        mockDb.Post.findOne.mockResolvedValueOnce({ id: 2, timeEnd: String(Date.now() + 60_000) });
+        mockDb.Post.findOne.mockResolvedValue({ id: 2, userId:7, detailPostId:1, statusCode:'PS1', timeEnd: String(Date.now() + 60_000) });
         mockDb.Cv.findOne.mockResolvedValueOnce(null);
       }
       target[dbMethod].mockRejectedValueOnce(new Error('db'));

@@ -29,6 +29,8 @@ describe('Job Core transactional outbox', () => {
         ['job.created', 'job', 'job-core-service'], ['job.created', undefined, 'job-core-service'],
         ['notification.job_approved_requested', 'job-approval-notification', 'job-core-service'],
         ['job.deleted', 'legacy-job', 'job-core-service'],
+        ['application.submitted', 'legacy-application', 'legacy-backend'],
+        ['application.submitted', 'job', 'job-core-service'],
         ['notification.manual_moderation_requested', 'manual-moderation-notification', 'legacy-backend']
     ])('preserves producer for %s with persisted aggregate marker %s', async (eventType, aggregateType, producer) => {
         const row = { id: 'stable-id', aggregateId: '7', aggregateType, eventType, createdAt: new Date(), payload: '{"job":{"id":7}}', attempts: 0 };

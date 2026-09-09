@@ -37,7 +37,10 @@ export const syncFromLegacy = async () => {
              LEFT JOIN accounts a ON a.userId = u.id
              LEFT JOIN posts p ON p.id = cv.postId
              LEFT JOIN detailposts d ON d.id = p.detailPostId
-             LEFT JOIN users owner ON owner.id = p.userId`
+             LEFT JOIN users owner ON owner.id = p.userId
+             WHERE NOT EXISTS (SELECT 1 FROM outbox_events o
+                 WHERE o.aggregateType = 'legacy-application' AND o.eventType = 'application.submitted'
+                   AND o.aggregateId = CAST(cv.id AS BINARY))`
         );
 
         let imported = 0;
@@ -60,7 +63,8 @@ export const syncFromLegacy = async () => {
                     r.cv_id, r.job_id, r.job_title, r.candidate_id, fullName,
                     r.email, r.phonenumber, r.company_id, stage, r.description,
                     Boolean(r.isChecked), r.createdAt,
-                    // Snapshot: giu lai ho so ung vien dung nhu luc nop.
+                    // Historical rows have no submission-time contact snapshot;
+                    // these fields reflect the source at import, not at submission.
                     JSON.stringify({
                         fullName, email: r.email, phone: r.phonenumber,
                         source: 'legacy_mysql', importedAt: new Date().toISOString()

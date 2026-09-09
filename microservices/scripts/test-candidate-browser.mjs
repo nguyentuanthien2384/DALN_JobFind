@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { chromium, expect } from 'playwright/test';
 
-// Tests a production frontend build with SEARCH_MODE=core and AI_ENABLED=true.
+// Tests a production build with REACT_APP_JOB_SEARCH_MODE=core,
+// REACT_APP_CANDIDATE_AI_ENABLED=true and REACT_APP_APPLICATION_PROGRESS_ENABLED=true.
 // All API requests are fulfilled in the browser; no backend/provider is contacted.
 const build = fileURLToPath(new URL('../../frontend/build/',import.meta.url));
 const directory = await mkdtemp(path.join(tmpdir(),'jobfind-candidate-ui-'));
@@ -19,7 +20,7 @@ try {
     const context=await browser.newContext({viewport:{width:1280,height:1000}});
     const user={id:8,roleCode:'CANDIDATE',firstName:'Synthetic',lastName:'Candidate',image:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="20" fill="%23246b53"/></svg>'};
     await context.addInitScript(user=>{localStorage.setItem('userData',JSON.stringify(user));localStorage.setItem('token_user','synthetic-ui-token');},user);
-    let creates=0, cvs=[], taskType='parse_resume';const requests=[];const errors=[];
+    let creates=0, cvs=[], taskType='parse_resume', progressFailure=false;const requests=[];const errors=[];
     const parsed={title:'Developer',fullName:'Synthetic Candidate',email:'candidate@example.invalid',phone:null,address:null,summary:'Node services',
         skills:['Node'],languages:['Vietnamese'],experiences:[{company:'Example',position:'Developer',duration:'2024–2026',description:'Services'}],educations:[],yearsOfExperience:2};
     await context.route('**/*',async route=>{
@@ -29,6 +30,10 @@ try {
             const reply=body=>route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*'},body:JSON.stringify(body)});
             if(method==='OPTIONS') return reply({});
             if(url.pathname==='/api/auth/me')return reply({errCode:0,data:{userId:8,roleCode:'CANDIDATE',companyId:null}});
+            if(url.pathname==='/api/get-all-cv-by-userId')return reply({errCode:0,count:2,data:[
+                {id:12,userId:8,postId:7,isChecked:0,createdAt:'2026-09-09T00:00:00Z',postCvData:{id:7,postDetailData:{name:'Submitted synthetic job'}}},
+                {id:13,userId:8,postId:8,isChecked:1,createdAt:'2026-09-08T00:00:00Z',postCvData:null}]});
+            if(url.pathname==='/api/my-applications')return reply(progressFailure?{errCode:503}:{errCode:0,count:1,data:[{id:'900',legacy_cv_id:12,job_id:7,stage:'phong_van'}]});
             if(url.pathname==='/api/profile/cvs'){
                 if(method==='POST'){cvs.push({...request.postDataJSON(),_id:'507f1f77bcf86cd799439011'});return reply({errCode:0,data:cvs.at(-1)});}
                 return reply({errCode:0,data:cvs,count:cvs.length});
@@ -74,8 +79,20 @@ try {
     await letter.fill('Edited by candidate.');await expect(letter).toHaveValue('Edited by candidate.');assert.equal(creates,2);
     await page.goto(origin+'/job');await expect(page.getByText('Synthetic Search Job',{exact:true})).toBeVisible();
     assert.ok(requests.some(row=>row.path==='/api/search/jobs'));assert.ok(!requests.some(row=>row.path==='/api/get-filter-post'));
+    await page.goto(origin+'/candidate/cv-post');
+    await expect(page.getByText('Phỏng vấn',{exact:true})).toBeVisible();
+    await expect(page.getByText('Đang chờ đồng bộ',{exact:true})).toBeVisible();
+    await expect(page.getByText('Tin tuyển dụng không còn thông tin',{exact:true})).toBeVisible();
+    await expect(page.getByRole('link',{name:'Xem CV đã nộp'}).first()).toHaveAttribute('href','/candidate/cv-detail/12');
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'application history mobile must not overflow');
+    await page.screenshot({path:path.join(directory,'application-history-mobile.png'),fullPage:true});
+    await page.setViewportSize({width:1280,height:1000});await page.evaluate(()=>window.scrollTo(0,0));
+    await page.screenshot({path:path.join(directory,'application-history-desktop.png'),fullPage:true});
+    progressFailure=true;await page.getByRole('button',{name:'Tải lại hồ sơ'}).click();await expect(page.getByText('Chưa tải được tiến trình',{exact:true}).first()).toBeVisible();
+    await expect(page.getByText('Submitted synthetic job',{exact:true})).toBeVisible();
+    progressFailure=false;await page.getByRole('button',{name:'Tải lại hồ sơ'}).click();await expect(page.getByText('Phỏng vấn',{exact:true})).toBeVisible();
     assert.deepEqual(errors,[]);
-    console.log('PASS: production browser PDF -> result -> editable CV -> save -> refresh/GET, mobile layout, editable cover letter, Core search card');
+    console.log('PASS: production browser AI/CV, cover letter, Core search, application stages/history, progress outage and recovery, mobile layout');
     if (process.env.JOBFIND_KEEP_UI_SCREENSHOT === '1') console.log('Screenshot: '+path.join(directory,'candidate-desktop.png'));
 } finally {
     await browser?.close();await new Promise(resolve=>server.close(resolve));

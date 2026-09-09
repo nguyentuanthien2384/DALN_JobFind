@@ -10,8 +10,10 @@ import CandidateAi from './CandidateAi';
 
 const HomeCandidate = () => {
     const isAiWorkspace = Boolean(useMatch('/candidate/ai-cv'));
+    const isApplicationHistory = Boolean(useMatch('/candidate/cv-post'));
+    const fullWidth = isAiWorkspace || isApplicationHistory;
     return (
-        <div className={`container-scroller${isAiWorkspace ? ' candidate-ai-shell' : ''}`}>
+        <div className={`container-scroller${fullWidth ? ' candidate-ai-shell' : ''}`}>
             {/* partial:partials/_navbar.html */}
 
             {/* partial */}
@@ -25,7 +27,7 @@ const HomeCandidate = () => {
                 <div className="main-panel">
                     <div
                         className="content-wrapper"
-                        style={{ marginLeft: isAiWorkspace ? 0 : "9%" }}
+                        style={{ marginLeft: fullWidth ? 0 : "9%" }}
                     >
                         <Routes>
                             <Route path="/ai-cv" element={<CandidateAi />} />

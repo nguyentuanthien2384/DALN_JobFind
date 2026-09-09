@@ -680,6 +680,12 @@ Ngày 08-09-2026. Đọc lại nhật ký từ các nền tảng outbox/inbox, b
 
 ## Thứ tự các đợt còn lại
 
+### Cập nhật 2y ngày 09-09-2026
+
+Đã làm bền nộp hồ sơ legacy → Application/Kanban: CV và `application.submitted` cùng transaction, relay có confirm, giữ snapshot nguồn khi nộp và ngăn import lịch sử giành trước event. Unique người dùng/tin tiếp tục chặn trùng; thiếu InnoDB/outbox/index trả 503. Màn hình Công việc đã nộp có tiến trình qua `legacy_cv_id` + job ID, tách trạng thái đọc và báo chờ đồng bộ/lỗi rõ ràng, hỗ trợ dữ liệu thiếu liên kết, phiên và bố cục điện thoại. Cờ `REACT_APP_APPLICATION_PROGRESS_ENABLED=false` mặc định.
+
+**789 backend + 1.133 microservices + 1.366 frontend test**, **10 tình huống tích hợp MySQL/RabbitMQ/PostgreSQL thật** và browser production mở rộng qua; build bật/tắt, contracts/syntax/YAML/diff qua. Không đổi 52 HTTP/15 event, DDL thật, `.env`, cờ hoặc container đang dùng; không gọi provider/SMTP. Nâng Application importer và Core relay trước backend writer, rồi Gateway/frontend; không hạ reader/relay không hiểu marker khi có dữ liệu mới. Chi tiết: [application-sync.md](application-sync.md). **Tiếp theo nối việc dùng CV đã chuẩn bị vào ứng tuyển có chủ đích; chưa đồng bộ hai chiều CV Identity–file legacy.** Các mốc dưới là lịch sử.
+
 ### Cập nhật 2x ngày 08–09/09/2026
 
 Đã nối `/candidate/ai-cv`: PDF → AI → bản nháp đầy đủ → CV Identity; đánh giá CV theo tin và soạn/sửa thư. Có key trước POST, khôi phục task qua refresh/hạ cờ, chỉ GET khi có ID, dừng chờ và bỏ phản hồi muộn; ghi CV chưa rõ kết quả yêu cầu đối chiếu thủ công, không tự gửi lại. Trang tìm việc chính có cờ Search Core, adapter thẻ tin/danh mục, nhiều lựa chọn OR trong từng bộ lọc, AND giữa bộ lọc và lỗi/tải lại rõ ràng, không tự fallback.

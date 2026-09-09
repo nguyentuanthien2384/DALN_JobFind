@@ -181,7 +181,7 @@ app.get('/api/jobs/:id', publicLimiter, createProxy('jobs', (req) => `/jobs/${re
 
 // --- Quan ly ho so ung tuyen (Application & Workflow Service) ---
 // Ung vien chi duoc xem lich su ung tuyen cua chinh minh.
-app.get('/api/my-applications', requirePermission(PERMISSIONS.APPLICATION_SELF_READ),
+app.get('/api/my-applications', (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); }, requirePermission(PERMISSIONS.APPLICATION_SELF_READ),
     createProxy('applications', () => '/my-applications'));
 // Danh sach cac buoc trong pipeline - giao dien can de ve cot Kanban.
 app.get('/api/applications/stages',

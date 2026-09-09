@@ -144,6 +144,7 @@ export const runOutboxOnce = async () => {
                     // Reserved legacy discriminator is persisted with created/updated.
                     // Missing/ordinary 'job' markers preserve all older core rows.
                     producer: event.eventType === 'notification.manual_moderation_requested' ||
+                        (event.eventType === 'application.submitted' && event.aggregateType === 'legacy-application') ||
                         (['job.created', 'job.updated'].includes(event.eventType) && event.aggregateType === 'legacy-job')
                         ? 'legacy-backend' : 'job-core-service'
                 });

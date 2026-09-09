@@ -399,12 +399,13 @@ export const getFunnel = async (req, res) => {
 
 // ===== UNG VIEN XEM LICH SU UNG TUYEN CUA MINH =====
 export const myApplications = async (req, res) => {
+    res.setHeader('Cache-Control', 'private, no-store');
     const { userId } = identity(req);
     if (!userId) return res.status(401).json({ errCode: 401, errMessage: 'Chưa xác định được người dùng' });
 
     try {
         const { rows } = await pool.query(
-            `SELECT id, job_id, job_title, stage, applied_at, stage_changed_at
+            `SELECT id, legacy_cv_id, job_id, job_title, stage, applied_at, stage_changed_at
              FROM applications WHERE candidate_id = $1 ORDER BY applied_at DESC`,
             [userId]
         );

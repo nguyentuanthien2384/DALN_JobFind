@@ -75,6 +75,7 @@ Chạy browser sau khi build cờ thử (biến chỉ thuộc phiên lệnh, kh�
 # frontend
 $env:REACT_APP_JOB_SEARCH_MODE='core'
 $env:REACT_APP_CANDIDATE_AI_ENABLED='true'
+$env:REACT_APP_APPLICATION_PROGRESS_ENABLED='true' # Bộ browser từ 2y kiểm tra thêm lịch sử ứng tuyển
 npm run build
 # microservices; cài Chromium thử một lần nếu chưa có
 npx --no-install playwright install chromium

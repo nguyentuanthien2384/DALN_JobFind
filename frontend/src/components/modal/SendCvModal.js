@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { Modal, ModalFooter, ModalBody, Button, Spinner } from 'reactstrap';
 import { createNewCv } from '../../service/cvService';
@@ -24,8 +24,17 @@ const dataURLtoFile = (dataurl, filename) => {
 
 function SendCvModal(props) {
     const currentUser = readJsonStorage('userData')
-    const canApply = hasPermission(currentUser, PERMISSIONS.APPLY_TO_JOB)
+    const canApply = currentUser?.roleCode === 'CANDIDATE' && hasPermission(currentUser, PERMISSIONS.APPLY_TO_JOB)
+    const token = localStorage.getItem('token_user')
     const [isLoading, setIsLoading] = useState(false)
+    const sending = useRef(false)
+    const viewVersion = useRef(0)
+    useEffect(() => {
+        viewVersion.current += 1
+        sending.current = false
+        setIsLoading(false)
+        return () => { viewVersion.current += 1 }
+    }, [props.isOpen, props.postId, currentUser?.id, token])
     const [inputValue, setInputValue] = useState({
         userId: '', postId: '', file: '', description: '', linkFile: '', linkFileUser: '', fileUser: ''
     })
@@ -88,10 +97,13 @@ function SendCvModal(props) {
         }
     }
     const handleSendCV = async () => {
+        if (sending.current) return
         if (!canApply) {
             toast.error('Chỉ ứng viên mới có thể nộp CV')
             return
         }
+        sending.current = true
+        const version = viewVersion.current
         setIsLoading(true)
         let cvSend = ''
         if (typeCv === 'userCv') {
@@ -100,15 +112,17 @@ function SendCvModal(props) {
         else {
             cvSend = inputValue.file
         }
-        let kq = await createNewCv({
+        let kq
+        try { kq = await createNewCv({
             userId: inputValue.userId,
             file: cvSend,
-            postId: inputValue.postId,
+            postId: props.postId,
             description: inputValue.description
-        })
-        setTimeout(function () {
+        }) } catch { kq = { errCode: -1, errMessage: 'Chưa xác nhận được việc nộp hồ sơ. Kiểm tra Công việc đã nộp trước khi gửi lại.' } }
+        if (version !== viewVersion.current || localStorage.getItem('token_user') !== token) return
             setIsLoading(false)
-            if (kq.errCode === 0) {
+            sending.current = false
+            if (kq?.errCode === 0) {
                 setInputValue((current) => ({
                     ...current,
                     file: '', description: '', linkFile: ''
@@ -117,8 +131,8 @@ function SendCvModal(props) {
                 props.onHide()
             }
             else
-                toast.error("Gửi thất bại");
-        }, 1000);
+                toast.error(kq?.errCode === 5 ? 'Bạn đã ứng tuyển tin này. Hãy kiểm tra CV trong Công việc đã nộp.'
+                    : !kq || kq.errCode === -1 || kq.httpStatus >= 500 ? 'Chưa xác nhận được việc nộp hồ sơ. Kiểm tra Công việc đã nộp trước khi gửi lại.' : kq.errMessage || "Gửi thất bại");
     }
     if (props.isOpen && !canApply) return null
 
@@ -132,7 +146,8 @@ function SendCvModal(props) {
                     Nhập lời giới thiệu gửi đến nhà tuyển dụng
                     <div>
                     <textarea placeholder='Giới thiệu sơ lược về bản thân để tăng sự yêu thích đối với nhà tuyển dụng' 
-                    name='description' className='mt-2' style={{ width: "100%" }} rows='5' onChange={(event) => handleChange(event)}></textarea>
+                    name='description' maxLength={255} value={inputValue.description} className='mt-2' style={{ width: "100%" }} rows='5' onChange={(event) => handleChange(event)}></textarea>
+                    <p>Lời giới thiệu tối đa 255 ký tự. Tệp CV đã nộp được giữ riêng với CV đang lưu trong hồ sơ.</p>
                     <div className='d-flex' style={{justifyContent:'space-between'}}>
                         <div>
                         <input id="cv-from-device" onChange={radioOnChange} type="radio" checked={typeCv === 'pcCv'} value="pcCv" name="typeCV"></input>
@@ -158,7 +173,7 @@ function SendCvModal(props) {
                     </div>
                 </ModalBody>
                 <ModalFooter style={{ justifyContent: 'space-between' }}>
-                    <Button className='me-5' onClick={() => handleSendCV()}>
+                    <Button className='me-5' disabled={isLoading} onClick={() => handleSendCV()}>
                         Gửi hồ sơ
                     </Button>
 

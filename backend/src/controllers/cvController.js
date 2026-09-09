@@ -1,7 +1,6 @@
 import cvService from '../services/cvService';
 import db from '../models/index';
 import { emitDashboardChanged } from '../config/socket';
-import { emitApplicationSubmitted } from '../utils/eventBus';
 import {
     isAdmin,
     isRecruiter,
@@ -27,13 +26,11 @@ let handleCreateNewCV = async (req, res) => {
         });
         // Ung vien vua nop CV -> bang "so luong CV" ben nha tuyen dung phai doi ngay.
         if (data.errCode === 0) emitDashboardChanged('cv');
-        // Bao cho Application Service de ho so vao bang Kanban. Thieu buoc nay thi
-        // nha tuyen dung khong thay ho so moi cho toi khi service khoi dong lai.
-        if (data.errCode === 0 && data.cvId) emitApplicationSubmitted(data.cvId);
-        return res.status(200).json(data);
+        // Application delivery intent is committed with the CV by the service.
+        return res.status(data.httpStatus || 200).json(data);
     } catch (error) {
-        console.log(error)
-        return res.status(200).json({
+        console.error('Không hoàn tất giao dịch nộp hồ sơ')
+        return res.status(500).json({
             errCode: -1,
             errMessage: 'Error from server'
         })

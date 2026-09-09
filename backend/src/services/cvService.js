@@ -1,6 +1,6 @@
 import db from "../models/index";
 import CommonUtils from '../utils/CommonUtils';
-import { findPublicPost, isPostOpenForApplications } from '../utils/publicResources';
+import { submitLegacyApplication } from '../utils/legacyApplication';
 const { Op, and } = require("sequelize");
 let caculateMatchCv = async(file,mapRequired) => {
     let myMapRequired = new Map(mapRequired)
@@ -48,83 +48,7 @@ let getMapRequiredSkill = (mapRequired,post) => {
         }
     }
 }
-let handleCreateCv = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            if (!data.userId || !data.file || !data.postId || !data.description) {
-                resolve({
-                    errCode: 1,
-                    errMessage: 'Missing required parameters !'
-                })
-            } else {
-                const post = await findPublicPost(data.postId)
-                if (!post) {
-                    resolve({
-                        errCode: 3,
-                        errMessage: 'Không tìm thấy tin tuyển dụng đang công khai'
-                    })
-                    return
-                }
-                if (!isPostOpenForApplications(post)) {
-                    resolve({
-                        errCode: 4,
-                        errMessage: 'Tin tuyển dụng đã hết hạn ứng tuyển'
-                    })
-                    return
-                }
-                const existingCv = await db.Cv.findOne({
-                    where: { userId: data.userId, postId: data.postId },
-                    attributes: ['id']
-                })
-                if (existingCv) {
-                    resolve({
-                        errCode: 5,
-                        errMessage: 'Bạn đã ứng tuyển tin này'
-                    })
-                    return
-                }
-                let cv
-                try {
-                    cv = await db.Cv.create({
-                        userId: data.userId,
-                        file: data.file,
-                        postId: data.postId,
-                        isChecked: 0,
-                        description: data.description
-                    })
-                } catch (error) {
-                    // The unique database constraint closes the race between two
-                    // concurrent requests that both passed the lookup above.
-                    if (error?.name === 'SequelizeUniqueConstraintError') {
-                        resolve({
-                            errCode: 5,
-                            errMessage: 'Bạn đã ứng tuyển tin này'
-                        })
-                        return
-                    }
-                    throw error
-                }
-                if (cv) {
-                    resolve({
-                        errCode: 0,
-                        errMessage: 'Đã gửi CV thành công',
-                        // Tra them id de controller phat su kien sang he thong
-                        // microservice. Chi them truong moi nen khong pha gi.
-                        cvId: cv.id
-                    })
-                }
-                else {
-                    resolve({
-                        errCode: 2,
-                        errMessage: 'Đã gửi CV thất bại'
-                    })
-                }
-            }
-        } catch (error) {
-            reject(error)
-        }
-    })
-}
+const handleCreateCv = submitLegacyApplication;
 let getAllListCvByPost = (data) => {
     return new Promise(async (resolve, reject) => {
         try {

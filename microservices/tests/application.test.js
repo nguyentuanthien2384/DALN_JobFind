@@ -296,6 +296,9 @@ describe('application pipeline controller', () => {
         await myApplications(makeReq({ headers: { 'x-user-id': '4' } }), ok);
         expect(ok.body.data[0].stageLabel).toBe('Phỏng vấn');
         expect(ok.body.count).toBe(1);
+        expect(ok.headers['Cache-Control']).toBe('private, no-store');
+        expect(mocks.pool.query.mock.calls[0][0]).toContain('legacy_cv_id');
+        expect(mocks.pool.query.mock.calls[0][1]).toEqual([4]);
         mocks.pool.query.mockRejectedValue(new Error('db'));
         const failed = makeRes();
         await myApplications(makeReq({ headers: { 'x-user-id': '4' } }), failed);

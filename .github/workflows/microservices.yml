@@ -61,6 +61,12 @@ jobs:
         run: |
           docker pull mysql:8.0
           npm run test:job-writes:integration
+      - name: Verify legacy applications and pipeline recovery on disposable databases and broker
+        working-directory: microservices
+        run: |
+          docker pull postgres:16-alpine
+          docker pull rabbitmq:4-management-alpine
+          npm run test:application-sync:integration
       - run: npm ci --ignore-scripts
         working-directory: frontend
       - run: npm run test:unit
@@ -77,6 +83,7 @@ jobs:
         working-directory: frontend
         env:
           REACT_APP_CANDIDATE_AI_ENABLED: 'true'
+          REACT_APP_APPLICATION_PROGRESS_ENABLED: 'true'
           REACT_APP_JOB_SEARCH_MODE: core
           REACT_APP_BACKEND_URL: /
         run: npm run build
