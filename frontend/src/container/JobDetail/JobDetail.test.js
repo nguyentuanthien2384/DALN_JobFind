@@ -7,7 +7,6 @@ import {
     getRelatedPostService,
     toggleFavoritePostService,
 } from "../../service/userService";
-import CommonUtils from "../../util/CommonUtils";
 import JobDetail from "./JobDetail";
 import { clearJobDetailResourceCache } from "./jobDetailResource";
 
@@ -19,10 +18,6 @@ jest.mock("../../service/userService", () => ({
     getDetailPostByIdService: jest.fn(),
     getRelatedPostService: jest.fn(),
     toggleFavoritePostService: jest.fn(),
-}));
-jest.mock("../../util/CommonUtils", () => ({
-    __esModule: true,
-    default: { formatDate: jest.fn() },
 }));
 jest.mock("react-toastify", () => ({
     toast: { error: jest.fn(), success: jest.fn() },
@@ -41,6 +36,7 @@ jest.mock("../../components/modal/SendCvModal", () => (props) =>
         <div role="dialog" aria-label="Nộp CV">
             <span>post:{props.postId}</span>
             <button type="button" onClick={props.onHide}>Đóng</button>
+            <button type="button" onClick={props.onSubmitted}>Xác nhận đã gửi</button>
         </div>
     ) : null
 );
@@ -89,7 +85,6 @@ describe("JobDetail", () => {
         jest.clearAllMocks();
         clearJobDetailResourceCache();
         mockPostId = "42";
-        CommonUtils.formatDate.mockReturnValue(10);
         getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: post });
         getRelatedPostService.mockResolvedValue({ errCode: 1, data: [] });
         checkFavoritePostService.mockResolvedValue({ errCode: 0, isFavorite: false });
@@ -125,14 +120,64 @@ describe("JobDetail", () => {
         expect(screen.getByText(/TAX-01/)).toBeInTheDocument();
         expect(screen.getByText(/120/)).toBeInTheDocument();
 
-        const companyCard = screen
-            .getByRole("heading", { name: "Thông tin công ty" })
-            .closest(".company-details-card");
-        expect(companyCard).toHaveClass("post-details3");
-        expect(within(companyCard).getAllByRole("listitem")).toHaveLength(6);
-        expect(within(companyCard).getByText("Công ty Sao Việt")).toHaveClass(
-            "company-details-value"
-        );
+        const companyCard = screen.getByRole("region", { name: "Thông tin công ty" });
+        expect(within(companyCard).getByText("120 nhân viên")).toBeInTheDocument();
+        expect(within(companyCard).getByRole("link", { name: "Xem trang công ty" })).toHaveAttribute("href", "/detail-company/9");
+    });
+
+    it("renders API sections, vacancies, seniority and actual applicant total", async () => {
+        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: {
+            ...post, applicationCount: 27, timePost: Date.now() - 86400000,
+            postDetailData: { ...post.postDetailData, amount: 2, jobLevelPostData: { value: 'Senior / Lead' },
+                descriptionHTML: '<h2>Mô tả công việc</h2><p>Phát triển ứng dụng.</p><h2>Yêu cầu ứng viên</h2><ul><li>React và TypeScript</li></ul><h2>Quyền lợi</h2><ul><li>Bảo hiểm sức khỏe</li><li>Làm việc Hybrid</li></ul>' }
+        } });
+        render(<JobDetail />);
+        expect(await screen.findByText('27 lượt ứng tuyển')).toBeInTheDocument();
+        expect(screen.getByText('02 người')).toBeInTheDocument();
+        expect(screen.getByText('Senior / Lead')).toBeInTheDocument();
+        expect(screen.getAllByRole('heading', { name: 'Mô tả công việc' })).toHaveLength(1);
+        expect(screen.getByRole('heading', { name: 'Yêu cầu ứng viên' })).toBeInTheDocument();
+        expect(screen.getByText('Làm việc Hybrid')).toBeInTheDocument();
+        expect(screen.getByRole('progressbar')).toHaveAccessibleName('Thời gian tuyển dụng đã qua');
+    });
+
+    it("refreshes totals only after a successful application from the second CTA", async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'CANDIDATE' }));
+        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...post, applicationCount: 4 } })
+            .mockResolvedValueOnce({ errCode: 0, data: { ...post, applicationCount: 5 } });
+        render(<JobDetail />);
+        const buttons = await screen.findAllByRole('button', { name: 'Nộp CV ngay' });
+        expect(buttons).toHaveLength(2);
+        fireEvent.click(buttons[1]);
+        fireEvent.click(screen.getByRole('button', { name: 'Đóng' }));
+        expect(getDetailPostByIdService).toHaveBeenCalledTimes(1);
+        fireEvent.click(buttons[1]);
+        fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đã gửi' }));
+        expect(await screen.findByText('5 lượt ứng tuyển')).toBeInTheDocument();
+        screen.getAllByRole('button', { name: 'Đã nộp CV' }).forEach(button => expect(button).toBeDisabled());
+        expect(getDetailPostByIdService).toHaveBeenCalledTimes(2);
+    });
+
+    it("allows an application when the deadline is later today", async () => {
+        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...post, timeEnd: String(Date.now() + 3600000) } });
+        render(<JobDetail />);
+        (await screen.findAllByRole('button', { name: 'Nộp CV ngay' })).forEach(button => expect(button).toBeEnabled());
+        expect(screen.getByText('Chưa có số liệu')).toBeInTheDocument();
+    });
+
+    it("handles rejected favorite requests and prevents duplicate toggles", async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'CANDIDATE' }));
+        let reject;
+        toggleFavoritePostService.mockReturnValueOnce(new Promise((resolve, fail) => { reject = fail; }));
+        render(<JobDetail />);
+        const save = await screen.findByRole('button', { name: 'Lưu việc làm' });
+        await waitFor(() => expect(save).toBeEnabled());
+        fireEvent.click(save); fireEvent.click(save);
+        expect(toggleFavoritePostService).toHaveBeenCalledTimes(1);
+        await act(async () => reject(new Error('offline')));
+        expect(save).toBeEnabled();
+        expect(save).toHaveAttribute('aria-pressed', 'false');
+        expect(toast.error).toHaveBeenCalledWith('Không thể lưu việc làm. Vui lòng thử lại.');
     });
 
     it("keeps a full-height loading shell visible while the detail request is pending", async () => {
@@ -212,7 +257,7 @@ describe("JobDetail", () => {
         render(<JobDetail />);
         await screen.findByRole("heading", { name: "Senior React Developer" });
 
-        fireEvent.click(screen.getByRole("button", { name: "Lưu tin" }));
+        fireEvent.click(screen.getByRole("button", { name: "Lưu việc làm" }));
         expect(toast.error).toHaveBeenCalledWith(
             "Xin hãy đăng nhập để có thể lưu tin tuyển dụng"
         );
@@ -227,12 +272,12 @@ describe("JobDetail", () => {
         localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         const view = render(<JobDetail />);
         await screen.findByRole("heading", { name: "Senior React Developer" });
-        fireEvent.click(screen.getByRole("button", { name: "Lưu tin" }));
+        fireEvent.click(screen.getByRole("button", { name: "Lưu việc làm" }));
 
         await waitFor(() =>
             expect(toggleFavoritePostService).toHaveBeenCalledWith({ userId: 7, postId: "42" })
         );
-        expect(await screen.findByRole("button", { name: "Đã lưu tin" })).toHaveClass(
+        expect(await screen.findByRole("button", { name: "Đã lưu việc làm" })).toHaveClass(
             "is-active"
         );
         expect(toast.success).toHaveBeenCalledWith("Đã lưu");
@@ -244,37 +289,38 @@ describe("JobDetail", () => {
         });
         render(<JobDetail />);
         await screen.findByRole("heading", { name: "Senior React Developer" });
-        fireEvent.click(screen.getByRole("button", { name: "Lưu tin" }));
+        fireEvent.click(screen.getByRole("button", { name: "Lưu việc làm" }));
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không thể lưu"));
 
         toggleFavoritePostService.mockResolvedValueOnce(null);
-        fireEvent.click(screen.getByRole("button", { name: "Lưu tin" }));
+        fireEvent.click(screen.getByRole("button", { name: "Lưu việc làm" }));
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Có lỗi xảy ra"));
     });
 
     it("opens and closes the application modal for a signed-in user", async () => {
         localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         render(<JobDetail />);
-        fireEvent.click(await screen.findByRole("button", { name: "Ứng tuyển ngay" }));
+        fireEvent.click((await screen.findAllByRole("button", { name: "Nộp CV ngay" }))[0]);
 
-        expect(CommonUtils.formatDate).toHaveBeenCalledWith(post.timeEnd);
         expect(screen.getByRole("dialog", { name: "Nộp CV" })).toHaveTextContent("post:42");
         fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
         expect(screen.queryByRole("dialog", { name: "Nộp CV" })).not.toBeInTheDocument();
     });
 
     it("blocks expired applications and redirects anonymous active applicants", async () => {
-        CommonUtils.formatDate.mockReturnValueOnce(0);
+        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...post, timeEnd: Date.now() - 1 } });
         const first = render(<JobDetail />);
-        fireEvent.click(await screen.findByRole("button", { name: "Ứng tuyển ngay" }));
-        expect(toast.error).toHaveBeenCalledWith("Hạn ứng tuyển đã hết");
+        const closedButtons = await screen.findAllByRole("button", { name: "Đã hết hạn ứng tuyển" });
+        closedButtons.forEach(button => expect(button).toBeDisabled());
+        fireEvent.click(closedButtons[0]);
+        expect(screen.getAllByRole("button", { name: "Đã hết hạn ứng tuyển" })).toHaveLength(2);
         expect(screen.queryByRole("dialog", { name: "Nộp CV" })).not.toBeInTheDocument();
         first.unmount();
 
         jest.useFakeTimers();
-        CommonUtils.formatDate.mockReturnValue(3);
+        clearJobDetailResourceCache();
         render(<JobDetail />);
-        fireEvent.click(await screen.findByRole("button", { name: "Ứng tuyển ngay" }));
+        fireEvent.click((await screen.findAllByRole("button", { name: "Nộp CV ngay" }))[0]);
         expect(toast.error).toHaveBeenCalledWith(
             "Xin hãy đăng nhập để có thể thực hiện nộp CV"
         );
@@ -306,23 +352,20 @@ describe("JobDetail", () => {
         expect(mockNavigate).toHaveBeenCalledWith("/chat/88");
     });
 
-    it("lets ADMIN chat, apply and save the job as a super-admin", async () => {
+    it("lets ADMIN chat and save but reserves CV submission for candidates", async () => {
         localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
         render(<JobDetail />);
 
         expect(await screen.findByRole("heading", { name: "Senior React Developer" })).toBeInTheDocument();
         expect(checkFavoritePostService).toHaveBeenCalledWith({ postId: "42", userId: 1 });
         expect(screen.getByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Ứng tuyển ngay" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Lưu tin" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Nộp CV ngay" })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Lưu việc làm" })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" }));
         expect(mockNavigate).toHaveBeenCalledWith("/chat/88");
 
-        fireEvent.click(screen.getByRole("button", { name: "Ứng tuyển ngay" }));
-        expect(screen.getByRole("dialog", { name: "Nộp CV" })).toHaveTextContent("post:42");
-
-        fireEvent.click(screen.getByRole("button", { name: "Lưu tin" }));
+        fireEvent.click(screen.getByRole("button", { name: "Lưu việc làm" }));
         await waitFor(() => expect(toggleFavoritePostService).toHaveBeenCalledWith({
             postId: "42",
             userId: 1,
@@ -352,8 +395,8 @@ describe("JobDetail", () => {
 
         expect(await screen.findByRole("heading", { name: "Senior React Developer" })).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Nhắn tin cho nhà tuyển dụng" })).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Ứng tuyển ngay" })).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Lưu tin" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Nộp CV ngay" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Lưu việc làm" })).not.toBeInTheDocument();
         expect(checkFavoritePostService).not.toHaveBeenCalled();
     });
 });

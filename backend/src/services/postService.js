@@ -339,6 +339,8 @@ let getDetailPostById = (id, { includeNonPublic = false } = {}) => {
                     const companyData = company?.toJSON ? company.toJSON() : company ? { ...company } : null
                     if (companyData) delete companyData.file
                     post.companyData = companyData
+                    // Only the aggregate is public; applicant identities and files stay private.
+                    post.applicationCount = await db.Cv.count({ where: { postId: post.id } })
                     resolve({
                         errCode: 0,
                         data: post,

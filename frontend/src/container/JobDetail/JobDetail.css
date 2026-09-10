@@ -1,0 +1,135 @@
+.jd-page { background: #f6f8fc; color: #202329; padding: 30px 0 72px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; }
+.jd-page *, .jd-page *::before, .jd-page *::after { box-sizing: border-box; }
+.jd-page .jd-shell { width: calc(100% - 72px); max-width: 1160px; margin: 0 auto; }
+.jd-page h1, .jd-page h2, .jd-page h3, .jd-page p, .jd-page dl, .jd-page dd { margin: 0; font-family: inherit; }
+.jd-page a { text-decoration: none; color: #1245bb; }
+.jd-page a:hover { color: #0966db; }
+.jd-page :is(a, button, summary):focus-visible { outline: 3px solid #82b3ff; outline-offset: 4px; }
+.jd-hero { display: grid; grid-template-columns: 76px minmax(0, 1fr) 190px; gap: 26px; align-items: start; background: #fff; padding: 28px; border-radius: 10px; box-shadow: 0 8px 36px #284c9b06; margin-bottom: 36px; }
+.jd-logo { width: 76px; height: 76px; border: 1px solid #eef0f3; padding: 5px; border-radius: 9px; background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
+.jd-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 5px; }
+.jd-logo span { font-size: 22px; font-weight: 750; color: #1748c1; }
+.jd-logo--small { width: 48px; height: 48px; border-radius: 5px; padding: 3px; }
+.jd-logo--small span { font-size: 16px; }
+.jd-heading { min-width: 0; padding-top: 4px; }
+.jd-page .jd-heading h1 { color: #17191d; font-size: clamp(1.4rem, 2.1vw, 1.85rem); font-weight: 750; line-height: 1.25; letter-spacing: -.6px; overflow-wrap: anywhere; margin-bottom: 8px; }
+.jd-page .jd-company-link { font-size: 1rem; font-weight: 600; }
+.jd-tags { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 22px; }
+.jd-tags > span { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 30px; background: #f3f4f6; color: #4c515e; font-size: .8125rem; line-height: 1.4; }
+.jd-tags svg { width: 13px; height: 13px; flex-shrink: 0; }
+.jd-tags .jd-tag--salary { background: #edfdf5; color: #08744d; font-weight: 600; }
+.jd-tags .jd-tag--closed { background: #fff1ed; color: #ab4428; }
+.jd-hero-actions { display: grid; gap: 10px; align-self: center; }
+.jd-page .jd-button { min-height: 46px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 12px 14px; border: 1px solid transparent; border-radius: 6px; font: 600 .9375rem/1.4 'Inter', 'Segoe UI', Arial, sans-serif; cursor: pointer; text-align: center; transition: background .18s, box-shadow .18s; }
+.jd-button svg { width: 18px; height: 18px; flex-shrink: 0; }
+.jd-page .jd-button--primary { background: linear-gradient(110deg, #2460ed, #02a9df); color: #fff; box-shadow: 0 4px 10px #2460ed1c; }
+.jd-page .jd-button--primary:hover { box-shadow: 0 5px 16px #2460ed35; background: linear-gradient(110deg, #1852d9, #0097d0); }
+.jd-page .jd-button--save { background: #eef0f2; color: #272b32; font-weight: 500; }
+.jd-page .jd-button--save:hover, .jd-page .jd-button--save.is-active { background: #e8efff; color: #1749be; }
+.jd-button--save.is-active svg { fill: #d7e4ff; }
+.jd-page .jd-button:disabled { cursor: default; opacity: .65; box-shadow: none; }
+.jd-page .jd-button--outline { border-color: #dce5f7; color: #1848b3; background: white; }
+.jd-page .jd-button--text { padding: 7px 0 0; background: transparent; color: #445773; font-size: .8125rem; font-weight: 500; }
+.jd-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(265px, 1fr); gap: 32px; align-items: start; }
+.jd-content, .jd-sidebar { min-width: 0; }
+.jd-section { margin-bottom: 38px; }
+.jd-page .jd-section > h2 { color: #191c21; font-size: 1.375rem; font-weight: 700; line-height: 1.25; border-left: 3px solid #2052d2; padding-left: 14px; margin-bottom: 22px; }
+.jd-richtext { font-size: 1rem; line-height: 1.75; color: #50545e; overflow-wrap: anywhere; }
+.jd-page .jd-richtext p { font-size: inherit; line-height: inherit; color: inherit; margin: 0 0 12px; }
+.jd-page .jd-richtext p:last-child { margin-bottom: 0; }
+.jd-richtext ul, .jd-richtext ol { padding-left: 22px; margin: 0 0 14px; }
+.jd-richtext ul > li { list-style: disc; }
+.jd-richtext ol > li { list-style: decimal; }
+.jd-richtext li { padding-left: 3px; margin-bottom: 12px; }
+.jd-richtext :is(h1,h2,h3,h4,h5,h6) { font-size: 1.125rem; color: #202329; margin: 20px 0 10px; }
+.jd-richtext table { display: block; max-width: 100%; overflow-x: auto; }
+.jd-richtext td, .jd-richtext th { border: 1px solid #dce1ea; padding: 6px 10px; }
+.jd-richtext pre { white-space: pre-wrap; }
+.jd-requirements .jd-richtext > ul { padding: 0; }
+.jd-requirements .jd-richtext > ul > li { list-style: none; position: relative; padding-left: 29px; }
+.jd-requirements .jd-richtext > ul > li::before { content: '✓'; color: #1b4bc3; border: 1.5px solid #1b4bc3; border-radius: 50%; font-size: 11px; font-weight: 700; line-height: 13px; width: 15px; height: 15px; text-align: center; position: absolute; left: 1px; top: 6px; }
+.jd-benefits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.jd-benefit { display: flex; align-items: center; gap: 14px; padding: 19px 17px; border-radius: 12px; background: #f0f3f8; }
+.jd-benefit-icon { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #e4edff; color: #205bda; flex-shrink: 0; }
+.jd-benefit-icon--shield { background: #d5fbed; color: #0b9f72; }
+.jd-benefit-icon--laptop { background: #fff4cc; color: #ce890d; }
+.jd-benefit-icon--graduate { background: #f0e3ff; color: #963cdd; }
+.jd-benefit .jd-richtext { font-size: .875rem; line-height: 1.5; }
+.jd-benefit .jd-richtext strong { color: #202329; font-weight: 600; }
+.jd-sidebar { display: grid; gap: 26px; }
+.jd-card { padding: 24px; background: #fff; border-radius: 10px; box-shadow: 0 9px 30px #2b53a305; }
+.jd-page .jd-card > h2 { color: #1b1e24; font-size: 1.0625rem; line-height: 1.4; font-weight: 700; margin-bottom: 22px; }
+.jd-company-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.jd-company-heading > div:last-child { min-width: 0; }
+.jd-page .jd-company-heading h2 { font-size: 1rem; color: #17191d; line-height: 1.45; font-weight: 700; overflow-wrap: anywhere; }
+.jd-company-heading a { display: inline-block; margin-top: 3px; font-size: .8125rem; }
+.jd-company-facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 11px 0; border-bottom: 1px solid #f0f2f5; font-size: .8125rem; line-height: 1.6; }
+.jd-company-facts > div:last-child { border: 0; padding-bottom: 0; }
+.jd-company-facts dt { flex: 0 0 auto; font-weight: 400; color: #666b76; }
+.jd-page .jd-company-facts dd { text-align: right; min-width: 0; overflow-wrap: anywhere; color: #252932; font-weight: 500; }
+.jd-company-more { margin-top: 15px; }
+.jd-company-more summary { font-size: .8125rem; color: #526788; cursor: pointer; }
+.jd-job-facts { display: grid; gap: 20px; }
+.jd-job-facts > div { display: flex; align-items: center; gap: 16px; }
+.jd-job-facts svg { color: #2050c3; width: 19px; flex-shrink: 0; }
+.jd-job-facts dt { color: #707580; font-size: .8125rem; font-weight: 400; margin-bottom: 3px; }
+.jd-page .jd-job-facts dd { color: #21252d; font-size: .9375rem; line-height: 1.45; font-weight: 500; }
+.jd-progress { margin-top: 25px; padding-top: 20px; border-top: 1px solid #f0f2f5; }
+.jd-progress-heading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; font-size: .8125rem; }
+.jd-progress-heading strong { color: #1749bc; font-weight: 600; }
+.jd-progress progress { display: block; width: 100%; height: 6px; border: 0; border-radius: 8px; margin: 11px 0 9px; appearance: none; overflow: hidden; background: #eef0f3; }
+.jd-progress progress::-webkit-progress-bar { background: #eef0f3; }
+.jd-progress progress::-webkit-progress-value { background: #2355d5; }
+.jd-progress progress::-moz-progress-bar { background: #2355d5; }
+.jd-page .jd-progress p { font-size: .75rem; line-height: 1.6; color: #727782; margin-top: 9px; }
+.jd-contact-card { display: grid; gap: 12px; text-align: center; }
+.jd-page .jd-contact-card > p { color: #5a5f6a; font-size: .9375rem; line-height: 1.5; }
+.jd-page .jd-muted { font-size: 1rem; color: #686e79; }
+.jd-related { margin-top: 44px; }
+.jd-related-job { display: flex; align-items: center; gap: 16px; padding: 18px; background: #fff; border: 1px solid #edf0f6; border-radius: 9px; margin-bottom: 12px; }
+.jd-related-job > div:last-child { min-width: 0; overflow-wrap: anywhere; }
+.jd-page .jd-related-job h3 { color: #232936; font-size: 1rem; font-weight: 600; line-height: 1.5; }
+.jd-page .jd-related-job p, .jd-related-job span { font-size: .8125rem; color: #687082; line-height: 1.7; }
+.jd-error { min-height: 65vh; max-width: 500px; margin: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center; padding: 30px; }
+.jd-page .jd-error h1 { font-size: 1.5rem; }
+.jd-error .jd-button { width: auto; }
+.jd-skeleton { min-height: 175px; }
+.jd-skeleton-line { height: 18px; border-radius: 7px; background: #e9edf5; width: 92%; margin-bottom: 24px; }
+.jd-skeleton-line:nth-child(2n) { width: 70%; }
+.jd-page .job-detail-skeleton__content-card { min-height: 530px; }
+.jd-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+@media (min-width: 1400px) { .jd-page .jd-shell { max-width: 1200px; } }
+@media (max-width: 1000px) {
+    .jd-hero { grid-template-columns: 66px minmax(0, 1fr) 170px; gap: 20px; padding: 24px; }
+    .jd-hero > .jd-logo { width: 66px; height: 66px; }
+    .jd-layout { gap: 28px; grid-template-columns: minmax(0, 2fr) minmax(250px, 1fr); }
+    .jd-card { padding: 20px; }
+    .jd-tags { gap: 7px; }
+    .jd-tags > span { font-size: .75rem; padding: 5px 8px; }
+    .jd-benefit { padding: 16px 13px; gap: 11px; }
+    .jd-company-facts > div { gap: 10px; }
+}
+@media (max-width: 760px) {
+    .jd-page { padding: 20px 0 45px; }
+    .jd-page .jd-shell { width: calc(100% - 32px); }
+    .jd-hero { grid-template-columns: 60px minmax(0, 1fr); padding: 20px; gap: 16px; margin-bottom: 28px; }
+    .jd-hero > .jd-logo { width: 60px; height: 60px; }
+    .jd-page .jd-heading h1 { font-size: 1.35rem; letter-spacing: -.35px; }
+    .jd-heading { padding: 0; }
+    .jd-tags { margin-top: 16px; }
+    .jd-hero-actions { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+    .jd-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .jd-section { margin-bottom: 30px; }
+    .jd-page .jd-section > h2 { font-size: 1.25rem; margin-bottom: 18px; }
+    .jd-sidebar { gap: 18px; }
+    .jd-card { padding: 22px; }
+    .jd-company-facts > div { font-size: .875rem; }
+}
+@media (max-width: 440px) {
+    .jd-benefits { grid-template-columns: 1fr; gap: 12px; }
+    .jd-hero { padding: 16px; }
+    .jd-hero-actions { grid-template-columns: 1fr; }
+    .jd-tags { margin-left: -76px; padding-top: 6px; }
+    .jd-page .jd-company-link { font-size: .875rem; }
+}
+@media (prefers-reduced-motion: reduce) { .jd-page .jd-button { transition: none; } }

@@ -20,7 +20,7 @@ const pdfBlob = value => {
     return new Blob([Uint8Array.from(binary, char => char.charCodeAt(0))], { type: 'application/pdf' });
 };
 
-function ApplicationForm({ user, token, postId, jobTitle, onHide }) {
+function ApplicationForm({ user, token, postId, jobTitle, onHide, onSubmitted }) {
     const [type, setType] = useState('pcCv'), [description, setDescription] = useState('');
     const [file, setFile] = useState(''), [savedFile, setSavedFile] = useState(''), [fileUrl, setFileUrl] = useState('');
     const [savedLoading, setSavedLoading] = useState(true), [savedError, setSavedError] = useState('');
@@ -92,7 +92,7 @@ function ApplicationForm({ user, token, postId, jobTitle, onHide }) {
         try { response = await createNewCv(payload); } catch { response = null; }
         if (!current()) return;
         sending.current = false; setIsLoading(false);
-        if (response?.errCode === 0 && !(response.httpStatus >= 400)) { toast.success('Đã gửi thành công'); onHide(); return; }
+        if (response?.errCode === 0 && !(response.httpStatus >= 400)) { toast.success('Đã gửi thành công'); onSubmitted?.(); onHide(); return; }
         const message = response?.errCode === 5 ? 'Bạn đã ứng tuyển tin này. Hãy kiểm tra CV trong Công việc đã nộp.'
             : !response || response.errCode === -1 || response.httpStatus >= 500
                 ? 'Chưa xác nhận được việc nộp hồ sơ. Kiểm tra Công việc đã nộp trước khi gửi lại.' : response.errMessage || 'Gửi thất bại';

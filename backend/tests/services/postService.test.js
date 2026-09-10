@@ -1,9 +1,9 @@
 const model = () => ({
   findOne: jest.fn(), findAll: jest.fn(), findAndCountAll: jest.fn(), create: jest.fn(),
-  update: jest.fn(), bulkCreate: jest.fn()
+  update: jest.fn(), bulkCreate: jest.fn(), count: jest.fn()
 });
 const mockDb = {
-  User: model(), Company: model(), DetailPost: model(), Post: model(), Note: model(),
+  User: model(), Company: model(), DetailPost: model(), Post: model(), Note: model(), Cv: model(),
   FollowCompany: model(), Notification: model(), UserSkill: model(), Skill: model(), UserSetting: model(),
   Allcode: {},
   Sequelize: { where: jest.fn(() => 'where') },
@@ -30,6 +30,7 @@ const reset = () => {
     ? [[{ engine: 'InnoDB' }]] : [['users', 'companies', 'posts', 'detailposts'].map(name => ({ name, engine: 'InnoDB' }))]));
   mockDb.sequelize.transaction.mockImplementation(work => work(mockTransaction));
   mockDb.User.findAll.mockResolvedValue([{ id: 7, companyId: 4 }]);
+  mockDb.Cv.count.mockResolvedValue(12);
   mockDb.Post.findOne.mockResolvedValue({ id: 30, userId: 7, detailPostId: 20, statusCode: 'PS3', isHot: 0, timeEnd: validPost().timeEnd });
   mockDb.DetailPost.findOne.mockResolvedValue({ ...validPost(), id: 20 });
   mockSendMail.mockReset();
@@ -347,11 +348,15 @@ describe('postService', () => {
   test('loads post detail and owning company', async () => {
     mockDb.Post.findOne.mockResolvedValueOnce(null);
     expect((await service.getDetailPostById(10)).errMessage).toBeDefined();
+    expect(mockDb.Cv.count).not.toHaveBeenCalled();
     const post = { id: 10, userId: 7 };
     mockDb.Post.findOne.mockResolvedValueOnce(post);
     mockDb.User.findOne.mockResolvedValueOnce({ companyId: 4 });
     mockDb.Company.findOne.mockResolvedValueOnce({ id: 4, file: 'private-license' });
-    expect((await service.getDetailPostById(10)).data.companyData).toEqual({ id: 4 });
+    const response = await service.getDetailPostById(10);
+    expect(response.data.companyData).toEqual({ id: 4 });
+    expect(response.data.applicationCount).toBe(12);
+    expect(mockDb.Cv.count).toHaveBeenCalledWith({ where: { postId: 10 } });
     expect(mockDb.Post.findOne).toHaveBeenLastCalledWith(expect.objectContaining({
       where: { id: 10, statusCode: 'PS1' }
     }));

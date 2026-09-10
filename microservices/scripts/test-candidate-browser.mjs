@@ -110,7 +110,7 @@ try {
     await expect(page.getByRole('heading',{name:'Kỹ sư phần mềm',exact:true})).toBeVisible({timeout:10000}).catch(async failure=>{
         console.log('Job detail errors: '+JSON.stringify(errors));console.log('Job detail text: '+(await page.locator('body').innerText()).slice(0,1800));throw failure;
     });
-    await page.getByRole('button',{name:/Ứng tuyển ngay/}).first().click();
+    await page.getByRole('button',{name:/Nộp CV ngay/}).first().click();
     const modal=page.getByRole('dialog'); await expect(modal).toBeVisible();
     await modal.getByLabel('CV đã chuẩn bị',{exact:true}).check();
     await modal.getByLabel('CV đã lưu',{exact:true}).selectOption('507f1f77bcf86cd799439011');

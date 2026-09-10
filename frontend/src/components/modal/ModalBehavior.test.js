@@ -217,7 +217,8 @@ describe("SendCvModal", () => {
     it("encodes, previews and submits a selected PDF", async () => {
         jest.useFakeTimers();
         const onHide = jest.fn();
-        render(<SendCvModal isOpen postId={22} onHide={onHide} />);
+        const onSubmitted = jest.fn();
+        render(<SendCvModal isOpen postId={22} onHide={onHide} onSubmitted={onSubmitted} />);
         await act(async () => { await Promise.resolve(); });
         fireEvent.change(screen.getByPlaceholderText("Giới thiệu sơ lược về bản thân để tăng sự yêu thích đối với nhà tuyển dụng"), {
             target: { value: "Tôi có 5 năm kinh nghiệm" },
@@ -246,6 +247,7 @@ describe("SendCvModal", () => {
         });
         expect(toast.success).toHaveBeenCalledWith("Đã gửi thành công");
         expect(onHide).toHaveBeenCalledTimes(1);
+        expect(onSubmitted).toHaveBeenCalledTimes(1);
         jest.useRealTimers();
     });
 
