@@ -23,10 +23,9 @@ runtime.onClose(() => closeTaskStore());
 
 const start = async () => {
   if (!isConfigured()) {
-    logger.warn(
-      "Chua co ANTHROPIC_API_KEY. Worker van chay va van nhan viec, nhung moi " +
-        "tac vu se tra ve loi cau hinh. Dat bien moi truong roi khoi dong lai.",
-    );
+    // Leave queued work untouched until a provider is configured. Consuming it
+    // here would persist configuration failures as terminal business results.
+    throw new Error('ANTHROPIC_API_KEY is required before consuming AI tasks');
   }
   logModel();
 

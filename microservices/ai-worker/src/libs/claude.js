@@ -10,7 +10,7 @@ const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5";
 // Task redelivery is guarded by the durable ledger; disable hidden SDK retries too.
 export const client = new Anthropic({ maxRetries: 0 });
 
-export const isConfigured = () => Boolean(process.env.ANTHROPIC_API_KEY);
+export const isConfigured = () => Boolean(process.env.ANTHROPIC_API_KEY?.trim());
 
 // Lay phan van ban trong cau tra loi. Cau tra loi con chua khoi `thinking`
 // (Opus 5 bat suy luan mac dinh) nen phai loc theo type, khong the lay content[0].

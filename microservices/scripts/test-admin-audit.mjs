@@ -145,6 +145,29 @@ try {
         }
     });
 
+    await check('incompatible existing event collation remains fatal and preserves historical records', async () => {
+        await mongoose.disconnect();
+        await mongoose.connect(`mongodb://127.0.0.1:${port}/jobfind_audit_collation_integration`, { autoIndex: false, autoCreate: false });
+        try {
+            await mongoose.connection.db.createCollection('auditlogs', { collation: { locale: 'en', strength: 2 } });
+            await AuditLog.collection.insertOne({ kind: 'event', name: 'old.event', eventId: 'Original', createdAt: new Date('2020-01-01') });
+            await AuditLog.collection.createIndex({ createdAt: 1 });
+            await AuditLog.collection.createIndex({ eventId: 1 }, {
+                name: 'audit_event_id_unique', unique: true,
+                partialFilterExpression: { kind: 'event', eventId: { $type: 'string' } }
+            });
+            const before = await AuditLog.collection.find({}).toArray();
+            await assert.rejects(ensureAuditIndexes(), error => [85, 86].includes(error.code));
+            assert.deepEqual(await AuditLog.collection.find({}).toArray(), before);
+            const indexes = await AuditLog.listIndexes();
+            assert.equal(indexes.find(index => index.name === 'audit_event_id_unique').collation.locale, 'en');
+            assert.ok(!indexes.some(index => index.expireAfterSeconds != null));
+        } finally {
+            await mongoose.disconnect();
+            await mongoose.connect(uri, { autoIndex: false });
+        }
+    });
+
     await check('conflicting historical IDs stop index startup without deleting records', async () => {
         // Fault fixture inside this disposable DB only, never the project database.
         await AuditLog.collection.dropIndex('audit_event_id_unique');

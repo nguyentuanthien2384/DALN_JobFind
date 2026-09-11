@@ -1,0 +1,190 @@
+{
+  "observedAt": "2026-09-11T09:14:43.044Z",
+  "sourceProject": "ai-job-portal",
+  "project": "jobfind-rehearse-3d803b78",
+  "sourceMongoImage": "sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d",
+  "sourceMongoContainer": "8ba418872a26c15e8a045b91592e2952823c4906ae1d3cfeb1ee1d3a89608073",
+  "sourceVolume": "ai-job-portal_mongo-data",
+  "provider": "isolated-http-fixture",
+  "checks": [
+    "read-only offline copy matches source file checksum",
+    "original TTL index conflict reproduced on the offline copy",
+    "copy inventory saved; synthetic backlog queued on separate broker",
+    "incomplete worker exits without consuming queued work, calling AI or writing a result",
+    "incomplete worker exits without consuming queued work, calling AI or writing a result",
+    "Admin reader and audit consumer ready before Worker releases queued results",
+    "running: Admin and Worker ready; one successful mock call/result; original audit and ledger unchanged",
+    "restart: Admin and Worker ready; one successful mock call/result; original audit and ledger unchanged",
+    "internal network, no published ports or source mounts; clean shutdown"
+  ],
+  "sourceWorkerConfiguration": {
+    "taskStoreUrlPresent": false,
+    "providerKeyPresent": false,
+    "realProviderVerified": false
+  },
+  "sourceChecksum": "9ffef24010b0e3288ce9d5dcd141568e84a43a01a967786494b0e80389acc87b",
+  "applicationImage": "sha256:9c3ad7006a2667b1aea411ad12a4c0e84d9b2b336297d540abfa188c7baa7a6d",
+  "baseline": {
+    "audit": {
+      "count": 1142,
+      "sha256": "bca2971b994317fcf238452dc9af8253cfcafa1609a3f8fd0704d6426bc3da17"
+    },
+    "ledger": {
+      "count": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "collation": {
+      "locale": "simple"
+    },
+    "olderThan180Days": 0,
+    "plainRetention": true,
+    "indexes": [
+      {
+        "v": 2,
+        "key": {
+          "_id": 1
+        },
+        "name": "_id_"
+      },
+      {
+        "v": 2,
+        "key": {
+          "kind": 1
+        },
+        "name": "kind_1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "name": 1
+        },
+        "name": "name_1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "service": 1
+        },
+        "name": "service_1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "actorId": 1
+        },
+        "name": "actorId_1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "companyId": 1
+        },
+        "name": "companyId_1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "targetType": 1
+        },
+        "name": "targetType_1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "targetId": 1
+        },
+        "name": "targetId_1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "correlationId": 1
+        },
+        "name": "correlationId_1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "createdAt": 1
+        },
+        "name": "createdAt_1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "createdAt": -1
+        },
+        "name": "createdAt_-1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "actorId": 1,
+          "createdAt": -1
+        },
+        "name": "actorId_1_createdAt_-1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "targetType": 1,
+          "targetId": 1,
+          "createdAt": -1
+        },
+        "name": "targetType_1_targetId_1_createdAt_-1",
+        "background": true
+      },
+      {
+        "v": 2,
+        "key": {
+          "eventId": 1
+        },
+        "name": "audit_event_id_unique",
+        "background": true,
+        "unique": true,
+        "partialFilterExpression": {
+          "kind": "event",
+          "eventId": {
+            "$type": "string"
+          }
+        }
+      }
+    ]
+  },
+  "running": {
+    "ready": [
+      "admin-service",
+      "ai-worker"
+    ],
+    "providerCalls": 1,
+    "oldAuditPreserved": 1142,
+    "oldLedgerPreserved": 0,
+    "existingIndexesPreserved": true,
+    "expiryEnabledByStartup": false
+  },
+  "restart": {
+    "ready": [
+      "admin-service",
+      "ai-worker"
+    ],
+    "providerCalls": 1,
+    "oldAuditPreserved": 1142,
+    "oldLedgerPreserved": 0,
+    "existingIndexesPreserved": true,
+    "expiryEnabledByStartup": false
+  },
+  "status": "passed",
+  "sourceUnchanged": true,
+  "cleaned": true
+}

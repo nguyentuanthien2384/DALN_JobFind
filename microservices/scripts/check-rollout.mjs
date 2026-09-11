@@ -46,6 +46,7 @@ try {
             report.stoppedDiagnostics[name] = missing && /^[@a-zA-Z0-9_./-]+$/.test(missing[1])
                 ? { missingModule:missing[1] } : { classified: /already exists.*different options|different options/s.test(logs) ? 'index-options-conflict'
                     : /AI_MONGO_URL is required/.test(logs) ? 'missing-ai-mongo-url'
+                    : /ANTHROPIC_API_KEY is required/.test(logs) ? 'missing-ai-provider-key'
                     : /E11000/.test(logs) ? 'duplicate-index-data' : /ECONNREFUSED/.test(logs) ? 'dependency-connection-refused' : 'needs-log-review' };
         } catch { report.stoppedDiagnostics[name]={ unavailable:true }; }
     }

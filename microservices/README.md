@@ -1,6 +1,7 @@
 # AI Job Portal — Hệ thống Microservices
 
 Hướng dẫn bản Compose đóng gói: [Chạy local an toàn](docs/local-compose.md).
+Hai điểm chặn vận hành: [Diễn tập Worker/Admin trên bản sao MongoDB](docs/worker-admin-rehearsal.md).
 Những yêu cầu PDF đã làm và còn thiếu: [Tiến độ triển khai](docs/implementation-progress.md).
 Màn hình ứng viên và tìm kiếm mới: [Đồng bộ AI/CV, Search và cách bật/rollback](docs/candidate-search-sync.md).
 Hồ sơ đã nộp và Kanban: [Đồng bộ ứng tuyển legacy và tiến trình ứng viên](docs/application-sync.md).

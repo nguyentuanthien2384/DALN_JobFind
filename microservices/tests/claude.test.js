@@ -33,6 +33,8 @@ describe('Claude adapter', () => {
         expect(api.isConfigured()).toBe(true);
         vi.stubEnv('ANTHROPIC_API_KEY', '');
         expect(api.isConfigured()).toBe(false);
+        vi.stubEnv('ANTHROPIC_API_KEY', '   ');
+        expect(api.isConfigured()).toBe(false);
     });
 
     it('requests schema-constrained JSON and extracts only text blocks', async () => {

@@ -39,6 +39,7 @@ beforeEach(() => {
     mocks.express.json = vi.fn(() => 'json-middleware');
     mocks.expressApp.listen.mockImplementation((port, callback) => callback?.());
     mocks.startTaskConsumer.mockResolvedValue(undefined);
+    mocks.isConfigured.mockReturnValue(true);
     mocks.ensureTaskStore.mockResolvedValue(undefined);
     mocks.testMysql.mockResolvedValue(undefined);
     mocks.ensureDeliveryTables.mockResolvedValue(undefined);
@@ -47,15 +48,28 @@ beforeEach(() => {
 });
 
 describe('service bootstrap wiring', () => {
-    it('starts the refactored AI consumer and preserves configuration diagnostics', async () => {
-        mocks.isConfigured.mockReturnValue(false);
+    it('starts the AI consumer only after provider and durable ledger are ready', async () => {
         await import('../ai-worker/src/app.js');
         await vi.waitFor(() => expect(mocks.startTaskConsumer).toHaveBeenCalledOnce());
         expect(mocks.logModel).toHaveBeenCalledOnce();
         expect(mocks.ensureTaskStore).toHaveBeenCalledOnce();
         expect(mocks.ensureTaskStore.mock.invocationCallOrder[0]).toBeLessThan(mocks.startTaskConsumer.mock.invocationCallOrder[0]);
-        expect(mocks.logger.warn).toHaveBeenCalledWith(expect.stringContaining('ANTHROPIC_API_KEY'));
         expect(mocks.logger.info).toHaveBeenCalledWith('AI Worker dang cho viec tu RabbitMQ');
+    });
+
+    it('does not open a ledger, consume backlog or listen without a provider key', async () => {
+        mocks.isConfigured.mockReturnValue(false);
+        const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined);
+        try {
+            await import('../ai-worker/src/app.js');
+            await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(1));
+            expect(mocks.ensureTaskStore).not.toHaveBeenCalled();
+            expect(mocks.startTaskConsumer).not.toHaveBeenCalled();
+            expect(mocks.expressApp.listen).not.toHaveBeenCalled();
+            expect(mocks.logger.error).toHaveBeenCalledWith('khong khoi dong duoc', {
+                error: expect.stringContaining('ANTHROPIC_API_KEY is required')
+            });
+        } finally { exit.mockRestore(); }
     });
 
     it('does not accept paid AI work if the durable task ledger is unavailable', async () => {
