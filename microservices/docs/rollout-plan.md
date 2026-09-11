@@ -1,5 +1,7 @@
 # Đối chiếu triển khai và quay lui từng tính năng — 2ac
 
+**Cập nhật 2ae, 11-09-2026:** [Sao lưu/khôi phục trên bản sao](backup-restore-rehearsal.md) đã qua với MariaDB, PostgreSQL, MongoDB và RabbitMQ. Đã giữ bản backup có checksum, thử SIGKILL, mất toàn bộ volume thử và redelivery/ACK; đúng node/volume nguồn được ghi nhận. Hoàn tất diễn tập phục hồi local; chưa offsite và chưa chứng nhận recovery point đồng bộ của hệ thống thật. Bước tiếp theo là chốt artifact triển khai/quay lui cùng cấu hình provider. Các điều kiện triển khai và cờ vẫn HOLD.
+
 **Cập nhật 2ad, 11-09-2026:** [Diễn tập Worker/Admin trên bản sao MongoDB](worker-admin-rehearsal.md) đã qua: Worker thiếu cấu hình không nhận việc; Admin giữ 1.142 audit và chỉ mục cũ; hai dịch vụ ready, restart/replay không gọi AI lặp. Source hiện đang dừng và được giữ nguyên. Bước xử lý hai điểm chặn đã hoàn tất ở mức mã nguồn/bản sao; runtime thật vẫn HOLD cho tới khi cấp/kiểm chứng provider, sao lưu/khôi phục và chốt artifact. Các phát hiện dưới đây là ảnh chụp lịch sử 2ac, không phải trạng thái dịch vụ hiện tại.
 
 Ngày 09-09-2026, đối chiếu checkout `1a0747c` (2ab) và project đang có `ai-job-portal` bằng các thao tác chỉ đọc. **Kết luận: HOLD cả tám cờ**. Kết quả nghiệm thu Compose cách ly không chứng minh stack đang phục vụ đã dùng cùng bản mã, schema, secret hay dữ liệu. Chưa bật cờ, restart/recreate container, sửa `.env`, chạy migration hoặc gọi AI/SMTP.

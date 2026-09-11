@@ -4,6 +4,8 @@ Phạm vi: một máy phát triển, chỉ công bố cổng trên `127.0.0.1`. 
 
 ## Thay đổi tương thích cần biết
 
+- **Đợt 2ae — sao lưu/khôi phục local đã qua:** thêm `npm run test:restore` tại gốc dự án, đọc nguồn đã dừng và MariaDB bằng transaction chỉ đọc; kiểm tra bốn kho, mất volume và 8 message ready/unacked/dead-letter. 8 nhóm tích hợp/18 kiểm thử công cụ qua; backup được giữ với manifest, nguồn không đổi. Xem [biên bản và phạm vi backup](backup-restore-rehearsal.md). Chưa đổi volume tự sinh của RabbitMQ trên runtime thật, chưa offsite hoặc chốt recovery point phân tán.
+
 - **Đợt 2ad — Worker/Admin đã qua diễn tập trên bản sao MongoDB thật:** Worker thiếu khóa dừng trước khi nhận việc; Admin giữ retention và 1.142 audit cũ; readiness, restart và replay một lần qua. 1.151 microservices test và 8 kiểm tra tích hợp Admin qua. Source đang dừng được giữ nguyên; vẫn cần cấu hình provider thật, sao lưu/khôi phục và chốt artifact trước chuyển runtime. Xem [biên bản và công cụ chạy lại](worker-admin-rehearsal.md). Các trạng thái 2ac bên dưới là lịch sử.
 
 - **Đợt 2ac — đối chiếu target trước bật cờ:** đã thêm preflight chỉ đọc và [kế hoạch áp dụng/quay lui từng cờ](rollout-plan.md). Target hiện **HOLD**: Worker thiếu cấu hình kho tác vụ/provider, Admin xung đột chỉ mục, ứng dụng còn bind mount và RabbitMQ dùng volume tự sinh; chưa có cặp artifact/restore drill được xác minh. Sáu readiness và phần cấu trúc MySQL/PostgreSQL được kiểm tra qua không đủ để bật cờ. Không thực hiện các lệnh chuyển container bên dưới khi các điều kiện này còn thiếu.

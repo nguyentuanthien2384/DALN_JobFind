@@ -8,6 +8,7 @@
     "dev:stop": "node scripts/dev.mjs stop",
     "dev:check": "node scripts/check-live-data.mjs",
     "test:runtime": "node --test scripts/*.test.mjs",
+    "test:restore": "node scripts/restore-drill.mjs --source-project ai-job-portal",
     "test": "npm run test:unit",
     "test:unit": "npm run test:backend && npm run test:frontend && npm run test:microservices",
     "test:backend": "npm --prefix backend test",
