@@ -6,6 +6,7 @@ import { moderateLegacyPost } from '../utils/jobModeration';
 import { enqueueLegacyJobCreated } from '../utils/legacyOutbox';
 import { repostLegacyPost } from '../utils/jobRepost';
 import { LegacyJobRequestError, runLegacyCreateRequest } from '../utils/legacyJobRequest';
+import { APPROVED_COMPANY_WHERE } from '../utils/publicResources';
 const { Op } = require("sequelize");
 require('dotenv').config();
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
@@ -13,7 +14,31 @@ const PUBLIC_COMPANY_ATTRIBUTES = [
     'id', 'name', 'thumbnail', 'coverimage', 'descriptionHTML',
     'website', 'address', 'phonenumber', 'amountEmployer'
 ];
-const APPROVED_COMPANY_WHERE = { statusCode: 'S1', censorCode: 'CS1' };
+const activeOwnerAccountInclude = () => ({
+    model: db.Account,
+    as: 'userAccountData',
+    attributes: [],
+    where: { statusCode: 'S1' },
+    required: true
+});
+// Every level must be required: a required company inside an optional user join
+// still lets orphaned or inactive owners inflate public results and counts.
+const publicPostOwnerInclude = (companyAttributes = PUBLIC_COMPANY_ATTRIBUTES) => ({
+    model: db.User,
+    as: 'userPostData',
+    attributes: PUBLIC_USER_ATTRIBUTES,
+    required: true,
+    include: [
+        activeOwnerAccountInclude(),
+        {
+            model: db.Company,
+            as: 'userCompanyData',
+            attributes: companyAttributes,
+            where: APPROVED_COMPANY_WHERE,
+            required: true
+        }
+    ]
+});
 // Business failures throw inside the managed transaction so every write rolls
 // back; only convert them to the legacy response shape AFTER rollback.
 const withPostingTransaction = async (work) => {
@@ -321,7 +346,10 @@ let getDetailPostById = (id, { includeNonPublic = false } = {}) => {
                     post.editRevision = jobRevision(post, post.postDetailData || {});
                     let user = await db.User.findOne({
                         where: { id: post.userId },
-                        attributes: PUBLIC_USER_ATTRIBUTES
+                        attributes: PUBLIC_USER_ATTRIBUTES,
+                        ...(includeNonPublic ? {} : { include: [activeOwnerAccountInclude()] }),
+                        raw: true,
+                        nest: true
                     })
                     let company = user ? await db.Company.findOne({
                         where: { id: user.companyId, ...APPROVED_COMPANY_WHERE },
@@ -452,19 +480,7 @@ let getFilterPost = (data) => {
                             { model: db.Allcode, as: 'expTypePostData', attributes: ['value', 'code'] }
                         ]
                     },
-                    {
-                        model: db.User, as: 'userPostData',
-                        attributes: PUBLIC_USER_ATTRIBUTES,
-                        include: [
-                            {
-                                model: db.Company,
-                                as: 'userCompanyData',
-                                attributes: PUBLIC_COMPANY_ATTRIBUTES,
-                                where: APPROVED_COMPANY_WHERE,
-                                required: true
-                            },
-                        ]
-                    }
+                    publicPostOwnerInclude()
                 ],
                 raw: true,
                 nest: true
@@ -588,7 +604,9 @@ let getRelatedPost = (data) => {
             } else {
                 let post = await db.Post.findOne({
                     where: { id: data.postId, statusCode: 'PS1' },
-                    raw: true
+                    include: [publicPostOwnerInclude()],
+                    raw: true,
+                    nest: true
                 })
                 if (!post) {
                     resolve({
@@ -637,19 +655,7 @@ let getRelatedPost = (data) => {
                                         { model: db.Allcode, as: 'expTypePostData', attributes: ['value', 'code'] }
                                     ]
                                 },
-                                {
-                                    model: db.User, as: 'userPostData',
-                                    attributes: PUBLIC_USER_ATTRIBUTES,
-                                    include: [
-                                        {
-                                            model: db.Company,
-                                            as: 'userCompanyData',
-                                            attributes: ['id', 'name', 'thumbnail'],
-                                            where: APPROVED_COMPANY_WHERE,
-                                            required: true
-                                        },
-                                    ]
-                                }
+                                publicPostOwnerInclude(['id', 'name', 'thumbnail'])
                             ],
                             raw: true,
                             nest: true
@@ -717,19 +723,7 @@ let getRecommendedPost = (data) => {
                                 { model: db.Allcode, as: 'expTypePostData', attributes: ['value', 'code'] }
                             ]
                         },
-                        {
-                            model: db.User, as: 'userPostData',
-                            attributes: PUBLIC_USER_ATTRIBUTES,
-                            include: [
-                                {
-                                    model: db.Company,
-                                    as: 'userCompanyData',
-                                    attributes: PUBLIC_COMPANY_ATTRIBUTES,
-                                    where: APPROVED_COMPANY_WHERE,
-                                    required: true
-                                },
-                            ]
-                        }
+                        publicPostOwnerInclude()
                     ],
                     raw: true,
                     nest: true

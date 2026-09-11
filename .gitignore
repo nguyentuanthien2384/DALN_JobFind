@@ -1,5 +1,6 @@
 # Hạng mục phụ thuộc (Dependencies) - Cực kỳ nặng
 node_modules/
+.local/
 **/node_modules/
 jspm_packages/
 web_modules/

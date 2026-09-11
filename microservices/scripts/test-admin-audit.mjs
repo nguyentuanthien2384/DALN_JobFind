@@ -117,6 +117,34 @@ try {
         assert.equal(await AuditLog.countDocuments({ kind: 'action', name: 'POST /test' }), 2);
     });
 
+    await check('legacy plain timestamp index starts without conversion or loss of old audit logs', async () => {
+        // A second fresh database inside this test-owned container reproduces
+        // the old installation; never alter retention in the project database.
+        await mongoose.disconnect();
+        await mongoose.connect(`mongodb://127.0.0.1:${port}/jobfind_audit_legacy_integration`, { autoIndex: false });
+        try {
+            await AuditLog.collection.insertMany([
+                { kind: 'event', name: 'old.event', createdAt: new Date('2020-01-01') },
+                { kind: 'action', name: 'GET /old', createdAt: new Date('2020-01-01') }
+            ]);
+            await AuditLog.collection.createIndex({ createdAt: 1 }, { name: 'createdAt_1' });
+            await AuditLog.collection.createIndex({ eventId: 1 }, {
+                name: 'audit_event_id_unique', unique: true,
+                partialFilterExpression: { kind: 'event', eventId: { $type: 'string' } }
+            });
+            await ensureAuditIndexes();
+            await ensureAuditIndexes();
+            assert.equal(await AuditLog.countDocuments(), 2);
+            const indexes = await AuditLog.listIndexes();
+            assert.equal(indexes.find(index => index.name === 'createdAt_1').expireAfterSeconds, undefined);
+            assert.ok(!indexes.some(index => index.expireAfterSeconds != null));
+            assert.equal(indexes.find(index => index.name === 'audit_event_id_unique').unique, true);
+        } finally {
+            await mongoose.disconnect();
+            await mongoose.connect(uri, { autoIndex: false });
+        }
+    });
+
     await check('conflicting historical IDs stop index startup without deleting records', async () => {
         // Fault fixture inside this disposable DB only, never the project database.
         await AuditLog.collection.dropIndex('audit_event_id_unique');

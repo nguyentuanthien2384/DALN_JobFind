@@ -3,7 +3,7 @@ const model = () => ({
   update: jest.fn(), bulkCreate: jest.fn(), count: jest.fn()
 });
 const mockDb = {
-  User: model(), Company: model(), DetailPost: model(), Post: model(), Note: model(), Cv: model(),
+  User: model(), Account: model(), Company: model(), DetailPost: model(), Post: model(), Note: model(), Cv: model(),
   FollowCompany: model(), Notification: model(), UserSkill: model(), Skill: model(), UserSetting: model(),
   Allcode: {},
   Sequelize: { where: jest.fn(() => 'where') },
@@ -43,6 +43,23 @@ const validPost = (extra = {}) => ({
   descriptionHTML: '<p>job</p>', descriptionMarkdown: 'job', isHot: 0, note: 'note', statusCode: 'PS1',
   ...extra
 });
+
+const expectPublicOwnerScope = query => {
+  const owner = query.include.find(item => item.as === 'userPostData');
+  // Regression: an optional parent join still returns/counts a post when its
+  // nested company/account does not match. All three joins must be INNER joins.
+  expect(owner).toMatchObject({ model: mockDb.User, required: true });
+  expect(owner.include.find(item => item.as === 'userAccountData')).toEqual({
+    model: mockDb.Account, as: 'userAccountData', attributes: [],
+    where: { statusCode: 'S1' }, required: true
+  });
+  const company = owner.include.find(item => item.as === 'userCompanyData');
+  expect(company).toMatchObject({ model: mockDb.Company, required: true,
+    where: { statusCode: 'S1', censorCode: 'CS1' } });
+  expect(company.attributes).not.toContain('file');
+  expect(query.where).toMatchObject({ statusCode: 'PS1' });
+  expect(query.where).not.toHaveProperty('timeEnd');
+};
 
 describe('postService', () => {
   test('legacy detail read returns the revision of the same joined content used by the update writer', async () => {
@@ -343,6 +360,12 @@ describe('postService', () => {
     expect(await service.getAllPostByAdmin({ limit: '5', offset: '0', search: 'Node', censorCode: 'PS1' })).toEqual({
       errCode: 0, data: [expected], count: 1
     });
+    for (const [query] of mockDb.Post.findAndCountAll.mock.calls) {
+      const owner = query.include.find(item => item.as === 'userPostData');
+      expect(owner).not.toHaveProperty('required', true);
+      expect(owner.include.find(item => item.as === 'userAccountData')).toBeUndefined();
+      expect(owner.include.find(item => item.as === 'userCompanyData')).not.toHaveProperty('where');
+    }
   });
 
   test('loads post detail and owning company', async () => {
@@ -360,16 +383,43 @@ describe('postService', () => {
     expect(mockDb.Post.findOne).toHaveBeenLastCalledWith(expect.objectContaining({
       where: { id: 10, statusCode: 'PS1' }
     }));
+    expect(mockDb.User.findOne).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { id: 7 }, raw: true, nest: true,
+      include: [{ model: mockDb.Account, as: 'userAccountData', attributes: [],
+        where: { statusCode: 'S1' }, required: true }]
+    }));
 
     mockDb.Post.findOne.mockResolvedValueOnce(post);
     mockDb.User.findOne.mockResolvedValueOnce({ companyId: 4 });
     mockDb.Company.findOne.mockResolvedValueOnce({ id: 4, file: 'private-license' });
     await service.getDetailPostById(10, { includeNonPublic: true });
     expect(mockDb.Post.findOne).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: 10 } }));
+    expect(mockDb.User.findOne.mock.calls.at(-1)[0]).not.toHaveProperty('include');
     const detailQuery = mockDb.Post.findOne.mock.calls.at(-1)[0].include.find(item => item.as === 'postDetailData');
     expect(detailQuery.attributes).toEqual(expect.arrayContaining(['categoryJobCode', 'addressCode', 'salaryJobCode',
       'categoryJoblevelCode', 'categoryWorktypeCode', 'experienceJobCode', 'genderPostCode']));
     expect(detailQuery.include).toHaveLength(7); // keep old associations for clients not yet migrated
+  });
+
+  test.each(['inactiveOrMissingOwner', 'unapprovedOrMissingCompany'])
+  ('public detail conceals %s without exposing application counts', async condition => {
+    mockDb.Post.findOne.mockResolvedValue({ id: 10, userId: 7, timeEnd: '1700000000000' });
+    mockDb.User.findOne.mockResolvedValue(condition === 'inactiveOrMissingOwner' ? null : { id: 7, companyId: 4 });
+    mockDb.Company.findOne.mockResolvedValue(null);
+    expect(await service.getDetailPostById(10)).toEqual({ errCode: 0, errMessage: 'Không tìm thấy bài viết' });
+    expect(mockDb.Cv.count).not.toHaveBeenCalled();
+    if (condition === 'inactiveOrMissingOwner') expect(mockDb.Company.findOne).not.toHaveBeenCalled();
+    else expect(mockDb.Company.findOne).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 4, statusCode: 'S1', censorCode: 'CS1' }
+    }));
+  });
+
+  test('public detail keeps approved expired posts readable for application history', async () => {
+    mockDb.Post.findOne.mockResolvedValue({ id: 10, userId: 7, statusCode: 'PS1', timeEnd: '1700000000000' });
+    mockDb.User.findOne.mockResolvedValue({ id: 7, companyId: 4 });
+    mockDb.Company.findOne.mockResolvedValue({ id: 4 });
+    expect((await service.getDetailPostById(10)).data.timeEnd).toBe('1700000000000');
+    expect(mockDb.Post.findOne.mock.calls[0][0].where).toEqual({ id: 10, statusCode: 'PS1' });
   });
 
   test('filters active posts across array filters, hot flag and pagination', async () => {
@@ -382,6 +432,7 @@ describe('postService', () => {
     });
     expect(result).toEqual({ errCode: 0, data: ['p'], count: 1 });
     expect(mockDb.Post.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 0 }));
+    expectPublicOwnerScope(mockDb.Post.findAndCountAll.mock.calls[0][0]);
   });
 
   test('returns type statistics and total active post count', async () => {
@@ -407,6 +458,8 @@ describe('postService', () => {
     mockDb.DetailPost.findAll.mockResolvedValueOnce([{ id: 21 }]);
     mockDb.Post.findAll.mockResolvedValueOnce(['related']);
     expect(await service.getRelatedPost({ postId: 10, limit: 3 })).toEqual({ errCode: 0, data: ['related'] });
+    expectPublicOwnerScope(mockDb.Post.findOne.mock.calls.at(-1)[0]);
+    expectPublicOwnerScope(mockDb.Post.findAll.mock.calls[0][0]);
   });
 
   test('scores recommendations by skills/settings and falls back to newest when no match', async () => {
@@ -420,6 +473,7 @@ describe('postService', () => {
     const result = await service.getRecommendedPost({ userId: 7, limit: 1 });
     expect(result.data).toHaveLength(1);
     expect(result.data[0]).toEqual(expect.objectContaining({ id: 1, matchScore: 9 }));
+    expectPublicOwnerScope(mockDb.Post.findAll.mock.calls[0][0]);
 
     mockDb.UserSkill.findAll.mockResolvedValueOnce([]);
     mockDb.UserSetting.findOne.mockResolvedValueOnce(null);

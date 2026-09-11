@@ -2,6 +2,12 @@
   "name": "jobfind",
   "private": true,
   "scripts": {
+    "start": "node scripts/dev.mjs start",
+    "dev": "node scripts/dev.mjs start",
+    "dev:status": "node scripts/dev.mjs status",
+    "dev:stop": "node scripts/dev.mjs stop",
+    "dev:check": "node scripts/check-live-data.mjs",
+    "test:runtime": "node --test scripts/*.test.mjs",
     "test": "npm run test:unit",
     "test:unit": "npm run test:backend && npm run test:frontend && npm run test:microservices",
     "test:backend": "npm --prefix backend test",

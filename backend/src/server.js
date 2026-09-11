@@ -6,6 +6,8 @@ import initwebRoutes from "./routes/web";
 import connectDB from "./config/connectDB";
 import {sendJobMail,updateFreeViewCv} from "./utils/schedule"
 import { initSocket } from "./config/socket";
+import db from './models/index';
+import schedule from 'node-schedule';
 import { assertSecureJwtSecret, getJwtPolicy } from './utils/securityConfig';
 require('dotenv').config();
 
@@ -50,19 +52,72 @@ app.use(function (req, res, next) {
 
 app.use(bodyParser.json({ limit: '50mb' }))
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }))
-sendJobMail();
-updateFreeViewCv()
 viewEngine(app);
 initwebRoutes(app);
 
-connectDB();
+const port = process.env.PORT || 5000;
+let server;
+let socketServer;
+let shutdownPromise;
 
-let port = process.env.PORT || 5000;
+export const shutdown = () => {
+    if (!shutdownPromise) {
+        shutdownPromise = (async () => {
+            await schedule.gracefulShutdown();
+            if (socketServer) {
+                // Socket.IO also closes its attached HTTP server.
+                await new Promise((resolve) => socketServer.close(resolve));
+            } else if (server && server.listening) {
+                await new Promise((resolve) => server.close(resolve));
+            }
+            await db.sequelize.close();
+        })();
+    }
+    return shutdownPromise;
+};
 
-// Boc app Express vao http server de Socket.IO dung chung cong 5000 voi API REST.
-let server = http.createServer(app);
-initSocket(server);
+const handleShutdown = () => {
+    const timeout = setTimeout(() => process.exit(1), 10000);
+    timeout.unref();
+    shutdown().then(() => {
+        clearTimeout(timeout);
+        process.exit(0);
+    }).catch((error) => {
+        console.error('Backend shutdown failed:', error.message);
+        process.exit(1);
+    });
+};
 
-server.listen(port, () => {
-    console.log("Backend Nodejs is running on the port : " + port)
+const startServer = async () => {
+    // Never advertise a usable API before the configured database is reachable.
+    await connectDB();
+    server = http.createServer(app);
+    socketServer = initSocket(server);
+    await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(port, () => {
+            server.removeListener('error', reject);
+            resolve();
+        });
+    });
+
+    // Local startup can disable outbound recommendation mail and daily quota resets.
+    // Preserve the existing production behavior when this option is unset.
+    if (String(process.env.SCHEDULED_JOBS_ENABLED).toLowerCase() !== 'false') {
+        sendJobMail();
+        updateFreeViewCv();
+    }
+
+    process.once('SIGINT', handleShutdown);
+    process.once('SIGTERM', handleShutdown);
+    console.log('Backend Nodejs is running on the port : ' + port);
+    return server;
+};
+
+export const startup = startServer().catch(async (error) => {
+    console.error('Backend startup failed:', error.message);
+    process.exitCode = 1;
+    await shutdown().catch((shutdownError) => {
+        console.error('Backend cleanup failed:', shutdownError.message);
+    });
 });

@@ -1,0 +1,16 @@
+# Local application runtime; infrastructure is started separately to preserve
+# the existing database volumes, including the legacy RabbitMQ volume.
+services:
+  api-gateway:
+    environment:
+      CORS_ORIGIN: http://localhost:${JOBFIND_WEB_PORT:-3001},http://127.0.0.1:${JOBFIND_WEB_PORT:-3001}
+      LEGACY_URL: http://host.docker.internal:${JOBFIND_BACKEND_PORT:-5000}
+  notification-service:
+    environment:
+      FRONTEND_URL: http://localhost:${JOBFIND_WEB_PORT:-3001}
+      LEGACY_URL: http://host.docker.internal:${JOBFIND_BACKEND_PORT:-5000}
+      # Running the local project does not send external email. Pending email
+      # deliveries remain stored for a separately configured email rollout.
+      EMAIL_APP: ""
+      EMAIL_APP_PASSWORD: ""
+      EMAIL_DEMO_RECIPIENT: ""

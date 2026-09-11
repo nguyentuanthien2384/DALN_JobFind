@@ -1,4 +1,7 @@
 import mongoose from 'mongoose';
+import { createLogger } from '../../../shared/logger.js';
+
+const logger = createLogger('admin-service');
 
 // Nhat ky hoat dong toan he thong.
 //
@@ -71,5 +74,26 @@ export const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 // Add declared indexes only; never syncIndexes/dropIndexes or rewrite old logs.
 // Startup must await this before consuming events, including when autoIndex is disabled.
 export const ensureAuditIndexes = async () => {
-    await AuditLog.createIndexes();
+    let existing;
+    try {
+        existing = await AuditLog.listIndexes();
+    } catch (error) {
+        if (error.code !== 26 && error.codeName !== 'NamespaceNotFound') throw error;
+        existing = [];
+    }
+
+    // Older installs created a plain createdAt_1 index. Converting it to TTL
+    // during startup would both conflict and begin deleting historical logs.
+    // Preserve it until retention is migrated explicitly; all identity/search
+    // indexes are still required, and their creation errors remain fatal.
+    const keepsLegacyRetention = existing.some(({ key, expireAfterSeconds }) => (
+        key?.createdAt === 1 && Object.keys(key).length === 1 && expireAfterSeconds == null
+    ));
+    const toCreate = AuditLog.schema.indexes().filter(([, options]) => (
+        !keepsLegacyRetention || options.expireAfterSeconds == null
+    ));
+    await AuditLog.createIndexes({ toCreate });
+    if (keepsLegacyRetention) {
+        logger.warn('kept existing audit retention; automatic expiry requires an explicit migration');
+    }
 };

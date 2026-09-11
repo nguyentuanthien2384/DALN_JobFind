@@ -137,6 +137,18 @@ job_find/
 
 ## Cài đặt và khởi chạy
 
+### Khởi chạy thống nhất trên máy hiện tại
+
+Từ thư mục gốc `D:\job_find`, chạy `npm start`, sau đó mở **http://localhost:3001** khi `npm run dev:status` báo `running`.
+
+- `npm run dev:status`: xem tiến độ và trạng thái chạy.
+- `npm run dev:check`: đối chiếu dữ liệu API với MySQL thật, không tạo tin/CV.
+- `npm run dev:stop`: dừng ứng dụng do trình khởi chạy quản lý, giữ cơ sở dữ liệu.
+
+Trình khởi chạy dùng `backend/.env` và `microservices/.env` hiện có, sao lưu MySQL/PostgreSQL/MongoDB vào `.local/backups`, khởi động các kho dữ liệu đã cấu hình, dựng dịch vụ từ mã nguồn hiện tại, rồi chạy backend và frontend. Cổng 3001 tránh xung đột với dự án Docker khác trên máy. Không nhập lại dữ liệu mẫu hoặc tự gia hạn tin cũ.
+
+Chi tiết điều kiện chạy, dữ liệu hiện có và các tính năng cần cấu hình riêng: [Chạy với dữ liệu thật](docs/run-with-real-data.md). Các bước thủ công bên dưới vẫn dùng được nếu không chạy trình khởi động chung.
+
 ### 1. Cấu hình backend legacy
 
 Tạo/cập nhật `backend/.env`:
