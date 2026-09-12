@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { offerFixture } from './offerFixture.js';
 
 const mocks = vi.hoisted(() => ({
     createPool: vi.fn(),
@@ -54,6 +55,58 @@ const expectRichEmail = (email, { ctaUrl, progressCurrent } = {}) => {
 };
 
 describe('notification delivery channels', () => {
+    it('sends replies to the HR mailbox and blocks header injection', async () => {
+        vi.stubEnv('EMAIL_APP', 'sender@gmail.com');
+        const { sendEmail } = await import('../notification-service/src/libs/channels.js');
+        mocks.transporter.sendMail.mockResolvedValue({ messageId: 'mail-1' });
+        await sendEmail({ to: 'candidate@realmail.com', subject: 'Offer', html: 'H', replyTo: 'hr@company.vn' });
+        expect(mocks.transporter.sendMail).toHaveBeenCalledWith(expect.objectContaining({ replyTo: 'hr@company.vn' }));
+        mocks.transporter.sendMail.mockClear();
+        const result = await sendEmail({ to: 'candidate@realmail.com', subject: 'Offer', html: 'H', replyTo: 'hr@company.vn\r\nBcc: bad@x.com' });
+        expect(result).toMatchObject({ skipped: true, reason: 'invalid_reply_to' });
+        expect(mocks.transporter.sendMail).not.toHaveBeenCalled();
+    });
+
+    it('renders all offer logistics in HTML and plain text with a working reply instruction', async () => {
+        const { applicationDecisionTemplate } = await import('../notification-service/src/templates.js');
+        const { email } = applicationDecisionTemplate({ decision: 'accepted', jobTitle: 'Developer', candidateName: 'Lan', offer: offerFixture });
+        expect(email.replyTo).toBe(offerFixture.contactEmail);
+        expect(email.subject).toBe('Thư mời nhận việc — Developer');
+        expect(email.html).toContain('data-progress-current="4"');
+        for (const key of ['companyName', 'location', 'salary', 'probation', 'contactName', 'contactEmail', 'contactPhone', 'requiredDocuments', 'onboardingInstructions']) {
+            expect(email.html).toContain(offerFixture[key]);
+            expect(email.text).toContain(offerFixture[key]);
+        }
+        for (const content of ['20/10/2099 lúc 08:30', '18/10/2099 lúc 17:00', 'UTC+7', 'đồng ý hoặc từ chối']) {
+            expect(email.html).toContain(content);
+            expect(email.text).toContain(content);
+        }
+        expect(email.html).toContain('Bảo hiểm<br>Phụ cấp ăn trưa');
+        expect(email.text).toContain('Bảo hiểm\nPhụ cấp ăn trưa');
+        expect(email.html).not.toContain('Vui lòng không trả lời');
+        expect(email.text).not.toContain('Vui lòng không trả lời');
+    });
+
+    it('escapes offer text and ignores offers entirely for a rejection', async () => {
+        const { applicationDecisionTemplate } = await import('../notification-service/src/templates.js');
+        const offer = { ...offerFixture, location: '<img src=x onerror=alert(1)>', benefits: '<script>bad()</script>' };
+        const accepted = applicationDecisionTemplate({ decision: 'accepted', offer });
+        expect(accepted.email.html).not.toContain('<img src=x');
+        expect(accepted.email.html).toContain('&lt;script&gt;');
+        const rejected = applicationDecisionTemplate({ decision: 'rejected', offer });
+        expect(rejected.email.replyTo).toBeUndefined();
+        expect(rejected.email.text).not.toContain(offer.salary);
+        expect(rejected.email.html).not.toContain('Ngày giờ nhận việc');
+        expect(rejected.email.text).not.toContain('tại false');
+        expect(rejected.email.text).not.toContain('Công ty: false');
+    });
+
+    it('links safe remote onboarding URLs without creating executable links', async () => {
+        const { applicationDecisionTemplate } = await import('../notification-service/src/templates.js');
+        const make = (meetingUrl) => applicationDecisionTemplate({ decision: 'accepted', offer: { ...offerFixture, workMode: 'remote', meetingUrl } }).email;
+        expect(make('https://meet.example.com/join?a=1&b=2').html).toContain('href="https://meet.example.com/join?a=1&amp;b=2"');
+        expect(make('javascript:alert(1)').html).not.toContain('href="javascript:');
+    });
     it('uses the supplied transaction connection for notification writes and email lookup', async () => {
         const db = { query: vi.fn().mockResolvedValueOnce([{ insertId: 8 }]).mockResolvedValueOnce([[{ email: 'user@x.com' }]]) };
         const { saveNotification, getUserEmail } = await import('../notification-service/src/libs/channels.js');

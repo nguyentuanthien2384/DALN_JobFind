@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inventory, sha256 } from './release/verify.mjs';
 import { scanPrivateBindings } from './release/scan-private-bindings.mjs';
+import { composeEnvironment } from './release/compose-environment.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const run = (command, args, options = {}) => {
@@ -84,6 +85,9 @@ const services = {};
 const required = name => '${' + name + ':?Provide ' + name + ' outside the release kit}';
 for (const name of ['api-gateway', 'identity-service', 'job-core-service', 'search-service', 'application-service', 'notification-service', 'admin-service', 'ai-worker']) {
     const service = config.services[name];
+    // Compose --no-interpolate may serialize environment as KEY=value entries.
+    // Normalize before overriding keys; named properties on arrays disappear in JSON.
+    service.environment = composeEnvironment(service.environment);
     delete service.build; delete service.depends_on; delete service.volumes;
     service.image = micro; service.pull_policy = 'never';
     for (const [key, value] of Object.entries(service.environment || {})) {

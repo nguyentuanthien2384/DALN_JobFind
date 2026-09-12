@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
+import { offerFixture } from './offerFixture.js';
 
 const mocks = vi.hoisted(() => {
     const client = { query: vi.fn(), release: vi.fn() };
@@ -70,13 +71,15 @@ describe('Application outbox failure boundaries', () => {
         mocks.publish.mockRejectedValue(new Error('broker unavailable'));
         const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
         const res = makeRes();
-        await sendDecisionNotification(request({ decision: 'accepted', message: 'Congratulations' }), res);
+        await sendDecisionNotification(request({ decision: 'accepted', message: 'Congratulations', offer: offerFixture }), res);
 
         expect(res.body.emailQueued).toBe(true);
         expect(mocks.client.query).toHaveBeenLastCalledWith('COMMIT');
         expect(mocks.publish).not.toHaveBeenCalled();
         const event = eventOf();
-        expect(event.payload).toMatchObject({ candidateEmail: 'snapshot@example.com', decision: 'accepted', toStage: 'nhan_viec' });
+        expect(event.payload).toMatchObject({ candidateEmail: 'snapshot@example.com', decision: 'accepted', toStage: 'de_nghi', offer: offerFixture });
+        const history = mocks.client.query.mock.calls.find(([sql]) => sql.startsWith('INSERT INTO application_events'));
+        expect(JSON.parse(history[1][5])).toEqual({ decision: 'accepted', message: 'Congratulations', offer: offerFixture });
 
         const state = relayDatabase(event);
         const { runOutboxOnce } = await import('../application-service/src/libs/outbox.js');
@@ -95,7 +98,8 @@ describe('Application outbox failure boundaries', () => {
 
     it.each([
         ['moveStage', { stage: 'phong_van' }],
-        ['sendDecisionNotification', { decision: 'rejected' }]
+        ['sendDecisionNotification', { decision: 'rejected' }],
+        ['sendDecisionNotification', { decision: 'accepted', offer: offerFixture }]
     ])('rolls back status/history when the outbox insert fails in %s', async (handler, body) => {
         commandDatabase({ failOutbox: true });
         const controller = await import('../application-service/src/controllers/applicationController.js');

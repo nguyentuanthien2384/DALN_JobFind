@@ -58,6 +58,15 @@ async function switchWeb(variant) {
     });
     assert.equal(inspect(full).HostConfig.ReadonlyRootfs, true);
     assert.notEqual(inspect(full).Config.User, 'root');
+    // public/login is an asset directory, but /login is also a React route.
+    // A directory redirect leaks the internal port and breaks real sign-in.
+    for (const route of ['/login', '/login/', '/admin/list-post', '/candidate/cv-post']) {
+        const response = await fetch(origin + route, { redirect: 'manual' });
+        assert.equal(response.status, 200, 'SPA route must serve the app shell: ' + route);
+        assert.match(await response.text(), /id="root"/);
+    }
+    const loginAsset = await fetch(origin + '/login/images/form-v8.jpg');
+    assert.equal(loginAsset.status, 200); assert.match(loginAsset.headers.get('content-type'), /image/);
 }
 try {
     pass('complete kit checksum verification');
@@ -73,6 +82,13 @@ try {
         assert.equal(parsed.services.web.image, manifest.variants[variant].image);
         assert.equal(parsed.services.backend.image, image('backend'));
         assert.equal(parsed.services.backend.environment.INTERNAL_SECRET, dummy.INTERNAL_SECRET);
+        assert.equal(parsed.services['api-gateway'].environment.LEGACY_URL, 'http://backend:5000');
+        assert.equal(parsed.services['api-gateway'].environment.MYSQL_PASSWORD, dummy.MYSQL_PASSWORD);
+        assert.equal(parsed.services['notification-service'].environment.EMAIL_APP, '');
+        assert.equal(parsed.services['notification-service'].environment.EMAIL_APP_PASSWORD, '');
+        assert.equal(parsed.services['notification-service'].environment.LEGACY_URL, 'http://backend:5000');
+        assert.equal(parsed.services['ai-worker'].environment.ANTHROPIC_API_KEY, dummy.ANTHROPIC_API_KEY);
+        assert.equal(parsed.services['ai-worker'].environment.CLAUDE_MODEL, dummy.CLAUDE_MODEL);
         assert.match(parsed.services.backend.environment.RABBITMQ_URL, /@rabbitmq:5672$/);
         assert.equal(parsed.networks.default.external, true);
         for (const [name, service] of Object.entries(parsed.services)) {

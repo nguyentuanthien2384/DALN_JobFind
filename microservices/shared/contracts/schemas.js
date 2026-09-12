@@ -1,3 +1,4 @@
+import { offerSchema } from './offerSchema.js';
 // Transport schemas. No type coercion, defaults, or silent property removal.
 export const text = (maxLength = 255) => ({ type: 'string', maxLength });
 export const nonblank = (maxLength = 255) => ({ ...text(maxLength), minLength: 1, pattern: '\\S' });
@@ -67,7 +68,8 @@ export const schemas = {
     CvUpdate: { ...object(cvFields), minProperties: 1 },
     CvImport: object({ parsed, fileName: optionalText(255) }, ['parsed']),
     MoveStage: object({ stage, reason: optionalText(5000) }, ['stage']),
-    Decision: object({ decision: { type: 'string', enum: ['accepted', 'rejected'] }, message: optionalText(3000) }, ['decision']),
+    Decision: { ...object({ decision: { type: 'string', enum: ['accepted', 'rejected'] }, message: optionalText(3000), offer: offerSchema }, ['decision']),
+        allOf: [{ if: { properties: { decision: { const: 'accepted' } } }, then: { required: ['offer'], properties: { offer: {} } } }] },
     Rating: object({ rating: { anyOf: [integer(1, 5), { type: 'string', pattern: '^[1-5]$' }] } }, ['rating']),
     Note: object({ body: nonblank(5000) }, ['body']),
     TalentSave: object({ candidateId: id, candidateName: optionalText(255), tags: array(nonblank(100), 50), note: optionalText(5000) }, ['candidateId']),

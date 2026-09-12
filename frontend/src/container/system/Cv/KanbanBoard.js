@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import OfferLetterForm, { OfferSummary } from './OfferLetterForm';
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import {
@@ -43,6 +44,10 @@ const KanbanBoard = () => {
     const [noteText, setNoteText] = useState("");
     const [decisionMessage, setDecisionMessage] = useState("");
     const [isSendingDecision, setIsSendingDecision] = useState(false);
+    const [showOffer, setShowOffer] = useState(false);
+    const sendingDecision = useRef(false);
+    const currentDetail = useRef(null);
+    currentDetail.current = detail?.id;
     const [isLoading, setIsLoading] = useState(true);
 
     const user = JSON.parse(localStorage.getItem("userData") || "{}");
@@ -123,11 +128,13 @@ const KanbanBoard = () => {
     };
 
     const openDetail = async (id) => {
+        if (sendingDecision.current) return;
         const res = await getApplicationDetail(id);
         if (res && res.errCode === 0) {
             setDetail(res.data);
             setNoteText("");
             setDecisionMessage("");
+            setShowOffer(false);
         } else {
             toast.error("Không mở được hồ sơ");
         }
@@ -171,24 +178,42 @@ const KanbanBoard = () => {
         else toast.error("Không lưu được");
     };
 
-    const handleSendDecision = async (decision) => {
+    const handleSendDecision = async (decision, offer) => {
+        if (sendingDecision.current || !detail) return;
+        const applicationId = detail.id;
         const label = decision === "accepted" ? "trúng tuyển" : "không trúng tuyển";
         const destination = isDemoRecipient(detail.candidate_email)
             ? "hộp thư demo (nếu đã cấu hình)"
             : (detail.candidate_email || "email đã đăng ký của ứng viên");
         if (!window.confirm(`Gửi email thông báo ${label} đến ${destination}?`)) return;
 
+        sendingDecision.current = true;
         setIsSendingDecision(true);
-        const res = await sendApplicationDecision(detail.id, decision, decisionMessage.trim());
-        setIsSendingDecision(false);
-
-        if (res && res.errCode === 0) {
-            toast.success(`Đã xếp hàng gửi email thông báo ${label}`);
-            setDetail((d) => ({ ...d, ...res.data, timeline: d.timeline }));
-            setDecisionMessage("");
-            await loadBoard(jobId);
-        } else {
-            toast.error((res && res.errMessage) || "Không thể gửi email thông báo");
+        try {
+            const res = offer
+                ? await sendApplicationDecision(applicationId, decision, decisionMessage.trim(), offer)
+                : await sendApplicationDecision(applicationId, decision, decisionMessage.trim());
+            if (res && res.errCode === 0) {
+                toast.success(`Đã xếp hàng gửi email thông báo ${label}`);
+                if (currentDetail.current === applicationId) {
+                    setDetail((d) => d?.id === applicationId ? { ...d, ...res.data } : d);
+                    setDecisionMessage("");
+                    setShowOffer(false);
+                }
+                // A refresh failure must not imply the successful send failed.
+                await Promise.allSettled([loadBoard(jobId), getApplicationDetail(applicationId).then((fresh) => {
+                    if (fresh?.errCode === 0 && currentDetail.current === applicationId) setDetail(fresh.data);
+                })]);
+            } else if (!res || ['network', 'timeout', 'cancelled', 'unavailable'].includes(res.errorType)) {
+                toast.error("Chưa xác định được kết quả gửi. Hãy tải lại hồ sơ và kiểm tra lịch sử trước khi gửi lại.");
+            } else {
+                toast.error(res.errMessage || "Không thể gửi email thông báo");
+            }
+        } catch {
+            toast.error("Chưa xác định được kết quả gửi. Hãy tải lại hồ sơ và kiểm tra lịch sử trước khi gửi lại.");
+        } finally {
+            sendingDecision.current = false;
+            setIsSendingDecision(false);
         }
     };
 
@@ -376,19 +401,23 @@ const KanbanBoard = () => {
                                     value={decisionMessage}
                                     placeholder="Lời nhắn thêm cho ứng viên (không bắt buộc)"
                                     maxLength={3000}
+                                    disabled={isSendingDecision}
                                     onChange={(e) => setDecisionMessage(e.target.value)}
                                 />
+                                {showOffer && <OfferLetterForm key={detail.id} detail={detail} user={user}
+                                    message={decisionMessage.trim()} busy={isSendingDecision}
+                                    onSend={(offer) => handleSendDecision('accepted', offer)} onCancel={() => setShowOffer(false)} />}
                                 <div className="kb-decision-actions">
                                     <button
                                         className="kb-btn success"
                                         disabled={isSendingDecision}
-                                        onClick={() => handleSendDecision("accepted")}
+                                        onClick={() => setShowOffer(true)}
                                     >
                                         {isSendingDecision ? "Đang gửi…" : "Gửi trúng tuyển"}
                                     </button>
                                     <button
                                         className="kb-btn danger"
-                                        disabled={isSendingDecision}
+                                        disabled={isSendingDecision || showOffer}
                                         onClick={() => handleSendDecision("rejected")}
                                     >
                                         {isSendingDecision ? "Đang gửi…" : "Gửi không trúng tuyển"}
@@ -408,6 +437,11 @@ const KanbanBoard = () => {
                                             {t.from_stage ? `${t.from_stage} → ` : ""}<b>{t.to_stage}</b>
                                             {t.reason ? ` — ${t.reason}` : ""}
                                         </span>
+                                        {t.decision_snapshot && <details className="kb-decision-history">
+                                            <summary>Xem nội dung đã yêu cầu gửi</summary>
+                                            {t.decision_snapshot.offer && <OfferSummary offer={t.decision_snapshot.offer} />}
+                                            {t.decision_snapshot.message && <p className="kb-cover">{t.decision_snapshot.message}</p>}
+                                        </details>}
                                         <span className="kb-time-at">
                                             {new Date(t.created_at).toLocaleString("vi-VN")}
                                         </span>

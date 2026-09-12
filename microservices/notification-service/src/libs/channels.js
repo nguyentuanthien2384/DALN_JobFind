@@ -2,6 +2,8 @@ import mysql from 'mysql2/promise';
 import nodemailer from 'nodemailer';
 import axios from 'axios';
 import { createLogger } from '../../../shared/logger.js';
+import { normalizeEmailRecipient, isValidEmailRecipient } from './emailAddress.js';
+export { normalizeEmailRecipient, isValidEmailRecipient } from './emailAddress.js';
 
 const logger = createLogger('notification-service');
 
@@ -58,36 +60,10 @@ const PLACEHOLDER_DOMAIN_SUFFIXES = ['.example', '.invalid', '.test', '.local', 
 export const EMAIL_SKIP_REASONS = Object.freeze({
     NOT_CONFIGURED: 'email_not_configured',
     INVALID_RECIPIENT: 'invalid_recipient',
+    INVALID_REPLY_TO: 'invalid_reply_to',
     PLACEHOLDER_IN_PRODUCTION: 'placeholder_recipient_in_production',
     NO_SAFE_DEMO_RECIPIENT: 'no_safe_demo_recipient'
 });
-
-export const normalizeEmailRecipient = (value) => (
-    typeof value === 'string' ? value.trim().toLowerCase() : ''
-);
-
-export const isValidEmailRecipient = (value) => {
-    const email = normalizeEmailRecipient(value);
-    if (!email || email.length > 254) return false;
-
-    const parts = email.split('@');
-    if (parts.length !== 2) return false;
-
-    const [localPart, domain] = parts;
-    if (
-        !localPart || localPart.length > 64
-        || localPart.startsWith('.') || localPart.endsWith('.') || localPart.includes('..')
-        || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(localPart)
-    ) return false;
-
-    const labels = domain.split('.');
-    if (domain.length > 253 || labels.length < 2) return false;
-    return labels.every((label) => (
-        label.length > 0
-        && label.length <= 63
-        && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label)
-    ));
-};
 
 export const isPlaceholderEmailRecipient = (value) => {
     const email = normalizeEmailRecipient(value);
@@ -147,10 +123,10 @@ const getTransporter = () => {
     return transporter;
 };
 
-export const sendEmail = async ({ to, subject, html, text, messageId }) => {
+export const sendEmail = async ({ to, subject, html, text, messageId, replyTo }) => {
     const recipient = resolveEmailRecipient(to);
     const safeSubject = String(subject ?? '')
-        .replace(/[\r\n]+/g, ' ')
+        .replace(/[\u0000-\u001f\u007f]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 200);
@@ -159,6 +135,10 @@ export const sendEmail = async ({ to, subject, html, text, messageId }) => {
             to: normalizeEmailRecipient(to), subject: safeSubject, reason: recipient.reason
         });
         return recipient;
+    }
+    // Reject mailbox lists, control characters and display-name/header injection.
+    if (replyTo != null && !isValidEmailRecipient(replyTo)) {
+        return { skipped: true, reason: EMAIL_SKIP_REASONS.INVALID_REPLY_TO };
     }
     if (!emailConfigured()) {
         logger.debug('bo qua gui email vi chua cau hinh EMAIL_APP', { to: recipient.to, subject: safeSubject });
@@ -176,6 +156,7 @@ export const sendEmail = async ({ to, subject, html, text, messageId }) => {
         };
         if (typeof text === 'string' && text.trim()) mail.text = text;
         if (messageId) mail.messageId = messageId;
+        if (replyTo) mail.replyTo = normalizeEmailRecipient(replyTo);
 
         const info = await getTransporter().sendMail(mail);
         logger.info('da gui email', {

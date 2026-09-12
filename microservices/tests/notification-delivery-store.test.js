@@ -9,7 +9,7 @@ import { queueNotification, ensureDeliveryTables, claimDelivery, finishDelivery 
 
 const request = {
     eventId: 'e1', userId: 2, recipientEmail: 'snapshot@x.com',
-    template: { typeCode: 'APPLICATION_STAGE', content: 'Interview', link: '/x', email: { subject: 'S', html: 'H', text: 'T' } }
+    template: { typeCode: 'APPLICATION_STAGE', content: 'Interview', link: '/x', email: { subject: 'S', html: 'H', text: 'T', replyTo: 'hr@example.com' } }
 };
 
 // Transactional test double: serialize transactions, commit snapshots, discard rollbacks.
@@ -90,7 +90,7 @@ describe('notification durable inbox', () => {
         expect(mocks.saveNotification).toHaveBeenCalledOnce();
         expect(mocks.getUserEmail).not.toHaveBeenCalled();
         const email = JSON.parse(db.state().deliveries.find((row) => row[2] === 'email')[3]);
-        expect(email).toMatchObject({ to: 'snapshot@x.com', subject: 'S', text: 'T' });
+        expect(email).toMatchObject({ to: 'snapshot@x.com', subject: 'S', text: 'T', replyTo: 'hr@example.com' });
         expect(email.messageId).toMatch(/^<[a-f0-9]{64}@jobfind.local>$/);
         for (const connection of db.control.connections) expect(connection.release).toHaveBeenCalledOnce();
     });

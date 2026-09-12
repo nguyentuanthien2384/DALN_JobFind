@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeEventFixture } from './contractAssertions.js';
 import { eventCatalog, eventExamples } from '../shared/contracts/eventCatalog.js';
+import { offerFixture } from './offerFixture.js';
 
 const mocks = vi.hoisted(() => ({
     consume: vi.fn(),
@@ -33,6 +34,17 @@ beforeEach(async () => {
 });
 
 describe('notification event consumer', () => {
+    it('keeps HR reply-to and offer details through both durable and legacy delivery', async () => {
+        const { handlers } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const payload = { ...eventExamples['application.decision_email_requested'], toStage: 'de_nghi', offer: offerFixture };
+        await handlers['application.decision_email_requested'](payload, { eventId: 'offer-1' });
+        const queued = mocks.queueNotification.mock.calls[0][0];
+        expect(queued.template.email.replyTo).toBe(offerFixture.contactEmail);
+        expect(queued.template.email.text).toContain(offerFixture.location);
+        expect(queued.recipientEmail).toBe(payload.candidateEmail);
+        await handlers['application.decision_email_requested'](payload);
+        expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ replyTo: offerFixture.contactEmail, to: payload.candidateEmail }));
+    });
     const approvalType = 'notification.job_approved_requested';
     it.each([true, false])('keeps delayed AI decisions historical and bounds Unicode author previews (approved=%s)', async approved => {
         const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');

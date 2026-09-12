@@ -1,3 +1,4 @@
+import { isValidEmailRecipient } from './libs/emailAddress.js';
 // Design system chung cho email transactional cua Job Finder.
 // Khong dung anh ngoai; bo cuc table va CSS inline giup email hien thi on dinh
 // tren Gmail, Outlook va ung dung mail di dong.
@@ -137,22 +138,24 @@ export const applicationStageTemplate = ({ toStage, jobTitle, candidateName, com
 };
 
 export const applicationDecisionTemplate = ({
-    decision, jobTitle, candidateName, companyName, message
+    decision, jobTitle, candidateName, companyName, message, offer
 }) => {
     const accepted = decision === 'accepted';
     const job = displayText(jobTitle, 'vị trí bạn đã ứng tuyển');
     const name = displayText(candidateName, 'bạn');
-    const company = displayText(companyName);
+    const company = displayText(companyName || (accepted ? offer?.companyName : ''));
     const subject = sanitizeSubject(accepted
-        ? `Chúc mừng bạn đã trúng tuyển — ${jobTitle || 'Job Finder'}`
+        ? `${offer ? 'Thư mời nhận việc' : 'Chúc mừng bạn đã trúng tuyển'} — ${jobTitle || 'Job Finder'}`
         : `Kết quả ứng tuyển — ${jobTitle || 'Job Finder'}`);
     const accent = accepted ? '#15803d' : '#be123c';
     const softAccent = accepted ? '#ecfdf3' : '#fff1f2';
-    const status = accepted ? 'Trúng tuyển' : 'Chưa trúng tuyển';
+    const status = accepted ? (offer ? 'Mời nhận việc · Chờ phản hồi' : 'Trúng tuyển') : 'Chưa trúng tuyển';
     const headline = accepted
         ? (name === 'bạn' ? 'Chúc mừng, bạn đã trúng tuyển' : `Chúc mừng ${name}, bạn đã trúng tuyển`)
         : 'Cảm ơn bạn đã dành thời gian cho vị trí này';
-    const body = accepted
+    const body = accepted && offer
+        ? [`Chào ${name}, cảm ơn bạn đã tham gia quy trình tuyển dụng${company ? ` tại ${company}` : ''}. Chúng tôi trân trọng mời bạn nhận việc ở vị trí “${job}” với thông tin dưới đây.`, 'Vui lòng xem kỹ nội dung thư và phản hồi đồng ý hoặc từ chối trước thời hạn. Chúng tôi mong được chào đón bạn vào đội ngũ.']
+        : accepted
         ? [`Nhà tuyển dụng đã xác nhận bạn được chọn cho vị trí “${job}”${company ? ` tại ${company}` : ''}. Thông báo này ghi nhận kết quả trên Job Finder; lương, ngày bắt đầu và các điều khoản cần được hai bên xác nhận trực tiếp.`]
         : [`Chào ${name}, nhà tuyển dụng chưa lựa chọn hồ sơ của bạn cho vị trí “${job}”${company ? ` tại ${company}` : ''} trong đợt tuyển dụng này. Kết quả này chỉ áp dụng cho vị trí và lần tuyển dụng hiện tại.`];
     const ctaPath = accepted ? CANDIDATE_APPLICATIONS_PATH : JOBS_PATH;
@@ -167,19 +170,24 @@ export const applicationDecisionTemplate = ({
         icon: accepted ? '&#10003;' : 'i',
         accent,
         softAccent,
-        progressStep: 5,
+        progressStep: accepted && offer ? 4 : 5,
         body,
         details: [
             { label: 'Vị trí', value: job },
-            ...(company ? [{ label: 'Công ty', value: company }] : [])
+            ...(company ? [{ label: 'Công ty', value: company }] : []),
+            ...(accepted && offer ? offerEmailDetails(offer) : [])
         ],
-        nextStep: accepted
+        nextStep: accepted && offer
+            ? `Vui lòng trả lời email này đến ${offer.contactEmail} trước ${formatOfferDateTime(offer.responseDeadline)} (giờ Việt Nam, UTC+7), ghi rõ đồng ý hoặc từ chối lời mời và xác nhận thời gian bắt đầu. Nếu cần trao đổi, liên hệ ${offer.contactName}${offer.contactPhone ? ` qua ${offer.contactPhone}` : ''}.`
+            : accepted
             ? 'Đọc lời nhắn từ nhà tuyển dụng nếu có, sau đó xác nhận thời hạn phản hồi, ngày bắt đầu và giấy tờ cần chuẩn bị.'
             : 'Xem lời nhắn từ nhà tuyển dụng nếu có. Bạn có thể cập nhật CV và khám phá thêm cơ hội phù hợp trên Job Finder.',
         ctaLabel: accepted ? 'Xem hồ sơ ứng tuyển' : 'Khám phá việc làm',
         ctaPath,
         secondaryLink: accepted ? null : { label: 'Xem hồ sơ đã nộp', path: CANDIDATE_APPLICATIONS_PATH },
-        customMessage: displayMultilineText(message)
+        customMessage: displayMultilineText(message),
+        ...(accepted && offer ? { signoff: `Trân trọng,\n${offer.contactName}\n${company}` } : {}),
+        ...(accepted && offer && isValidEmailRecipient(offer.contactEmail) ? { replyTo: offer.contactEmail } : {})
     });
 
     return {
@@ -191,6 +199,33 @@ export const applicationDecisionTemplate = ({
         email
     };
 };
+
+function formatOfferDateTime(value) {
+    const [date, time] = String(value || '').split('T');
+    return `${date.split('-').reverse().join('/')}${time ? ` lúc ${time}` : ''}`;
+}
+
+function offerEmailDetails(offer) {
+    const fields = [
+        ['Ngày giờ nhận việc', `${formatOfferDateTime(offer.startDate)} lúc ${offer.startTime} (giờ Việt Nam, UTC+7)`],
+        ['Hình thức', { onsite: 'Tại văn phòng', remote: 'Trực tuyến / từ xa', hybrid: 'Kết hợp văn phòng và từ xa' }[offer.workMode]],
+        ['Địa điểm nhận việc', offer.location], ['Đường dẫn nhận việc trực tuyến', offer.meetingUrl],
+        ['Lịch làm việc', offer.workSchedule], ['Lương / thu nhập', offer.salary], ['Thử việc', offer.probation],
+        ['Phúc lợi', offer.benefits], ['Giấy tờ cần chuẩn bị', offer.requiredDocuments],
+        ['Hướng dẫn ngày đầu', offer.onboardingInstructions], ['Người liên hệ', offer.contactName],
+        ['Email phản hồi', offer.contactEmail], ['Số điện thoại', offer.contactPhone],
+        ['Hạn phản hồi', `${formatOfferDateTime(offer.responseDeadline)} (giờ Việt Nam, UTC+7)`]
+    ];
+    return fields.filter(([, value]) => value).map(([label, value]) => ({ label, value,
+        ...(label === 'Đường dẫn nhận việc trực tuyến' ? { href: safeOfferUrl(value) } : {}) }));
+}
+
+function safeOfferUrl(value) {
+    try {
+        const url = new URL(value);
+        return ['http:', 'https:'].includes(url.protocol) && url.hostname && !url.username && !url.password && !/\s/.test(value) ? value : null;
+    } catch { return null; }
+}
 
 export const jobModeratedTemplate = ({ approved, jobTitle, reason }) => {
     const job = displayText(jobTitle, 'tin tuyển dụng');
@@ -325,8 +360,9 @@ export const newJobFromFollowedCompanyTemplate = ({ jobTitle, companyName, jobId
 function renderNotificationEmail({
     subject, preheader, eyebrow, status, headline, icon, accent, softAccent,
     body = [], details = [], nextStep, ctaLabel, ctaPath, secondaryLink,
-    progressStep = null, customMessage, customMessageLabel = 'LỜI NHẮN TỪ NHÀ TUYỂN DỤNG'
+    progressStep = null, customMessage, customMessageLabel = 'LỜI NHẮN TỪ NHÀ TUYỂN DỤNG', replyTo, signoff
 }) {
+    const footer = replyTo ? `Thư được gửi qua Job Finder thay mặt nhà tuyển dụng. Trả lời email này để liên hệ ${replyTo}.` : 'Email tự động từ Job Finder. Vui lòng không trả lời trực tiếp email này.';
     const safeSubject = escapeHtml(subject);
     const safePreheader = escapeHtml(displayText(preheader, subject));
     const safeEyebrow = escapeHtml(eyebrow);
@@ -338,10 +374,10 @@ function renderNotificationEmail({
     const secondaryUrl = secondaryLink ? absoluteFrontendUrl(secondaryLink.path) : null;
     const bodyRows = body.map((paragraph) => `
                                 <p style="margin:0 0 12px;color:#475569;font-size:15px;line-height:1.72;mso-line-height-rule:exactly">${escapeHtml(paragraph)}</p>`).join('');
-    const detailsRows = details.map(({ label, value }, index) => `
+    const detailsRows = details.map(({ label, value, href }, index) => `
                                             <tr>
                                                 <td style="padding:${index ? '12px 0 0' : '0'};color:#64748b;font-size:12px;line-height:1.4;text-transform:uppercase;letter-spacing:.06em;width:120px;vertical-align:top">${escapeHtml(label)}</td>
-                                                <td style="padding:${index ? '12px 0 0' : '0'};color:#0f172a;font-size:15px;font-weight:700;line-height:1.45;vertical-align:top">${escapeHtml(value)}</td>
+                                                <td style="padding:${index ? '12px 0 0' : '0'};color:#0f172a;font-size:15px;font-weight:700;line-height:1.45;vertical-align:top;word-break:break-word">${href ? `<a href="${escapeHtml(href)}" style="color:#15803d;text-decoration:underline">${escapeHtml(value)}</a>` : escapeHtml(value).replace(/\r\n?|\n/g, '<br>')}</td>
                                             </tr>`).join('');
     const progress = progressStep ? renderProgress(progressStep, safeAccent) : '';
     const customMessageHtml = customMessage ? `
@@ -443,6 +479,7 @@ function renderNotificationEmail({
                         </td>
                     </tr>
                     ${customMessageHtml}
+                    ${signoff ? `<tr><td class="content-pad" style="padding:0 34px 25px;color:#475569;font-size:14px;line-height:1.65">${escapeHtml(signoff).replace(/\n/g, '<br>')}</td></tr>` : ''}
                     <tr>
                         <td class="content-pad" style="padding:0 34px 32px">
                             <table class="cta-table" role="presentation" cellspacing="0" cellpadding="0" border="0">
@@ -456,7 +493,7 @@ function renderNotificationEmail({
                     </tr>
                     <tr>
                         <td class="content-pad" style="padding:20px 34px 24px;border-top:1px solid #e2e8f0;background:#fbfdff">
-                            <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6">Email tự động từ Job Finder. Vui lòng không trả lời trực tiếp email này.</p>
+                            <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6">${escapeHtml(footer)}</p>
                         </td>
                     </tr>
                 </table>
@@ -469,9 +506,9 @@ function renderNotificationEmail({
 
     const text = renderPlainText({
         eyebrow, status, headline, body, details, nextStep, ctaLabel, ctaUrl,
-        secondaryLink, secondaryUrl, customMessage, customMessageLabel
+        secondaryLink, secondaryUrl, customMessage, customMessageLabel, footer, signoff
     });
-    return { subject, html, text };
+    return { subject, html, text, ...(replyTo ? { replyTo } : {}) };
 }
 
 function renderProgress(currentStep, accent) {
@@ -502,7 +539,7 @@ function renderProgress(currentStep, accent) {
 
 function renderPlainText({
     eyebrow, status, headline, body, details, nextStep, ctaLabel, ctaUrl,
-    secondaryLink, secondaryUrl, customMessage, customMessageLabel
+    secondaryLink, secondaryUrl, customMessage, customMessageLabel, footer, signoff
 }) {
     return [
         'JOB FINDER',
@@ -520,8 +557,9 @@ function renderPlainText({
         `${ctaLabel}: ${ctaUrl}`,
         ...(secondaryLink ? [`${secondaryLink.label}: ${secondaryUrl}`] : []),
         ...(customMessage ? ['', `${customMessageLabel}:`, customMessage] : []),
+        ...(signoff ? ['', signoff] : []),
         '',
-        'Email tự động từ Job Finder. Vui lòng không trả lời trực tiếp email này.'
+        footer
     ].join('\n');
 }
 

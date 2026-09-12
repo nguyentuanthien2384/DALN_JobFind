@@ -23,7 +23,7 @@ Nền tảng tuyển dụng kết nối **ứng viên**, **nhà tuyển dụng**
 - Quản lý công ty, nhân sự tuyển dụng, tin đăng, gói đăng tin và lượt xem CV.
 - Xem hồ sơ ứng viên theo bảng Kanban gồm sáu trạng thái: **Mới ứng tuyển → Đang xem xét → Phỏng vấn → Đề nghị → Đã nhận việc / Từ chối**.
 - Kéo thả hồ sơ giữa các cột, chấm sao, ghi chú nội bộ, xem lịch sử xử lý và lưu ứng viên vào talent pool.
-- Trong chi tiết hồ sơ, gửi **trúng tuyển** hoặc **không trúng tuyển**, kèm lời nhắn tùy chọn. Hệ thống cập nhật trạng thái, ghi lịch sử và gửi email đến địa chỉ ứng viên đã dùng khi nộp hồ sơ.
+- Trong chi tiết hồ sơ, soạn **thư mời nhận việc** với ngày giờ theo giờ Việt Nam, địa điểm hoặc đường dẫn trực tuyến, người liên hệ HR và hạn phản hồi. Có thể bổ sung lương, thử việc, phúc lợi, giấy tờ và hướng dẫn ngày đầu; xem trước trước khi gửi. Thư mời chuyển hồ sơ sang **Đề nghị nhận việc**; HR xác nhận riêng trước khi chuyển sang **Đã nhận việc**. Thông báo không trúng tuyển vẫn có lời nhắn tùy chọn.
 - Xem số lượng hồ sơ theo từng giai đoạn và tỷ lệ tuyển thành công ngay trên pipeline.
 
 ### Quản trị viên
@@ -90,10 +90,12 @@ flowchart LR
 ### Luồng thông báo kết quả tuyển dụng
 
 1. Nhà tuyển dụng mở hồ sơ tại `/admin/pipeline`.
-2. Chọn **Gửi trúng tuyển** hoặc **Gửi không trúng tuyển**, có thể thêm lời nhắn.
-3. `application-service` kiểm tra quyền theo công ty, cập nhật trạng thái và ghi lịch sử.
+2. Chọn **Gửi trúng tuyển**, điền thông tin, **Xem trước thư mời** rồi **Xác nhận gửi thư mời**; hoặc chọn **Gửi không trúng tuyển** kèm lời nhắn.
+3. `application-service` kiểm tra quyền theo công ty và dữ liệu thư, cập nhật trạng thái, lưu nguyên nội dung trong lịch sử cùng giao dịch với yêu cầu gửi. Thư mời ở bước `de_nghi`, giữ `nhan_viec` nếu hồ sơ đã được xác nhận nhận việc trước đó.
 4. Service phát sự kiện `application.decision_email_requested` qua RabbitMQ.
-5. `notification-service` lưu thông báo trong ứng dụng, gửi realtime nếu có thể và gửi email kết quả tới ứng viên.
+5. `notification-service` lưu thông báo trong ứng dụng, gửi realtime nếu có thể và gửi email kết quả tới ứng viên. Với thư mời nhận việc, nút trả lời của ứng dụng email gửi đến địa chỉ HR đã khai báo (`Reply-To`). Phản hồi email không tự động thay đổi trạng thái hồ sơ.
+
+Chi tiết sử dụng, kiểm tra dữ liệu và cập nhật hệ thống: [Thư mời nhận việc](docs/recruitment-offer-email.md).
 
 > Email dùng địa chỉ được lưu trong hồ sơ tại thời điểm ứng tuyển; vì vậy việc ứng viên thay đổi hồ sơ sau đó không làm sai dữ liệu tuyển dụng lịch sử.
 

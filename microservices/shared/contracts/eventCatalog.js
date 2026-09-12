@@ -1,3 +1,4 @@
+import { offerSchema } from './offerSchema.js';
 // Frozen payload-v1 wire contracts, independent of HTTP DTOs and DB models.
 // Additive fields are accepted; changing/removing fields requires a new version.
 const string = (maxLength = 1000000) => ({ type: 'string', maxLength });
@@ -77,8 +78,8 @@ export const eventCatalog = {
     'ai.cover_letter': metadata(object({ taskId, jobId: nullable(id), resumeText: string(), jobTitle: string(), jobDescription: string(), companyName: optionalText, language: string(32) }, ['taskId', 'resumeText', 'jobTitle', 'jobDescription']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
     'ai.result': metadata(aiResult, { moderate_job: 'jobId', parse_resume: 'taskId', match_cv: 'taskId', cover_letter: 'taskId' }, ['ai-worker'], ['job-core-service.ai-results'], 1024 * 1024),
     'application.stage_changed': metadata(object(application, ['applicationId', 'candidateId', 'jobId', 'fromStage', 'toStage']), 'applicationId', ['application-service'], ['notification-service.events']),
-    'application.decision_email_requested': metadata({ ...object({ ...application, decision: { enum: ['accepted', 'rejected'] }, message: optionalText }, ['applicationId', 'candidateId', 'jobId', 'decision', 'toStage']),
-        allOf: [{ if: { properties: { decision: { const: 'accepted' } }, required: ['decision'] }, then: { properties: { toStage: { const: 'nhan_viec' } } }, else: { properties: { toStage: { const: 'tu_choi' } } } }]
+    'application.decision_email_requested': metadata({ ...object({ ...application, decision: { enum: ['accepted', 'rejected'] }, message: optionalText, offer: { ...offerSchema, additionalProperties: true } }, ['applicationId', 'candidateId', 'jobId', 'decision', 'toStage']),
+        allOf: [{ if: { properties: { decision: { const: 'accepted' } }, required: ['decision'] }, then: { properties: { toStage: { enum: ['de_nghi', 'nhan_viec'] } } }, else: { properties: { toStage: { const: 'tu_choi' } } } }]
     }, 'applicationId', ['application-service'], ['notification-service.events']),
     'application.submitted': metadata(object({ cvId: id, jobId: id, candidateId: id, companyId: id, posterId: nullable(id),
         jobTitle: optionalText, candidateName: optionalText, candidateEmail: optionalText, candidatePhone: optionalText, coverLetter: optionalText, appliedAt: nullable(date)

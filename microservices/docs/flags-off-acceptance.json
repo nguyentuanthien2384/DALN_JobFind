@@ -1,0 +1,106 @@
+{
+  "runId": "f348e1cb-199a-4169-8e43-09e120b9acec",
+  "startedAt": "2026-09-12T07:37:53.812Z",
+  "status": "passed",
+  "checks": [
+    "all eight feature flags off before acceptance",
+    "real password login through browser, session persistence and legacy history with flags off",
+    "wrong password, locked account, revoked access, expired/tampered JWT and spoofed role denied",
+    "existing administrator can read real aggregate reports",
+    "live MySQL outbox to RabbitMQ to consumers, duplicate replay preserves PostgreSQL rows and one audit record",
+    "historical application reconciliation repeated twice without duplicate rows or stage/note changes",
+    "run-owned fixtures removed; all MySQL/PostgreSQL rows and historical Mongo documents unchanged"
+  ],
+  "cleaned": true,
+  "frontend": {
+    "releaseId": "bc9cb1c4e070-2026-09-11T14-26-04-972Z",
+    "applicationCommit": "bc9cb1c4e070dac884782706284f07d72dcf0892",
+    "variant": "rollback",
+    "gatewayUrl": "/",
+    "flags": {
+      "REACT_APP_JOB_SEARCH_MODE": "legacy",
+      "REACT_APP_JOB_WORKSPACE_MODE": "legacy",
+      "REACT_APP_JOB_CREATE_MODE": "legacy",
+      "REACT_APP_JOB_EDIT_MODE": "legacy",
+      "REACT_APP_JOB_REPOST_MODE": "legacy",
+      "REACT_APP_CANDIDATE_AI_ENABLED": "false",
+      "REACT_APP_APPLICATION_PROGRESS_ENABLED": "false",
+      "REACT_APP_PREPARED_CV_APPLICATION_ENABLED": "false"
+    }
+  },
+  "replay": {
+    "relayAttempts": 2,
+    "auditRecords": 1,
+    "applicationRowsUnchanged": true,
+    "recipient": null
+  },
+  "finishedAt": "2026-09-12T07:38:11.871Z",
+  "activeImage": "sha256:008c67873b55a81194d3a2ce9ffa0add0dd52a9b75fe89cdfe84d7fc0facfe2e",
+  "patchManifestSha256": "21b2f75e84891e09c2e65d19d7b51826133d776693f89c427eddfa7a4cc876a1",
+  "health": {
+    "checkedAt": "2026-09-12T08:28:19.559Z",
+    "checks": [
+      "original infrastructure IDs, node identity, image IDs and data volumes retained",
+      "all pinned application images running, non-root and read-only; Web is only app host port; AI worker stopped",
+      "all eight HTTP runtime readiness checks passed",
+      "MySQL schema unchanged; outbox drained; no new AI tasks or notification deliveries",
+      "six MySQL service accounts scoped to application database without global administration privileges",
+      "both PostgreSQL runtime roles are non-superuser without role/database creation",
+      "external mail delivery remains disabled"
+    ],
+    "services": [
+      {
+        "name": "api-gateway",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "identity-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "job-core-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "search-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "application-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "notification-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "admin-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "backend",
+        "image": "sha256:dd4d2f51d98a4bf88c0f9949d8f9e8d314c089b1386dc53cfe093634f6bc8491",
+        "running": true
+      },
+      {
+        "name": "web",
+        "image": "sha256:008c67873b55a81194d3a2ce9ffa0add0dd52a9b75fe89cdfe84d7fc0facfe2e",
+        "running": true
+      }
+    ],
+    "broker": {
+      "queues": 12,
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 5
+    }
+  },
+  "originalSealedArtifactsPreserved": true
+}

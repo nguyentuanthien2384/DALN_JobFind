@@ -1,0 +1,139 @@
+{
+  "deploymentId": "activation-2026-09-12T00-57-33-951Z",
+  "status": "features-active",
+  "applicationCommit": "bc9cb1c4e070dac884782706284f07d72dcf0892",
+  "url": "http://localhost:3001",
+  "activatedAt": "2026-09-12T07:03:45.549Z",
+  "manifestSha256": "18ee4fbe4f3703ef63e132417156e7de32242b2e6455a4c3584cbb247b298504",
+  "active": {
+    "variant": "prepared-cv",
+    "image": "sha256:1535b1e3c97faae115b8a99325d8a97167b8833029b60105135314a7a930a6b6",
+    "flags": {
+      "REACT_APP_JOB_SEARCH_MODE": "core",
+      "REACT_APP_JOB_WORKSPACE_MODE": "core",
+      "REACT_APP_JOB_CREATE_MODE": "legacy",
+      "REACT_APP_JOB_EDIT_MODE": "legacy",
+      "REACT_APP_JOB_REPOST_MODE": "legacy",
+      "REACT_APP_CANDIDATE_AI_ENABLED": "false",
+      "REACT_APP_APPLICATION_PROGRESS_ENABLED": "true",
+      "REACT_APP_PREPARED_CV_APPLICATION_ENABLED": "true"
+    }
+  },
+  "verification": {
+    "checks": [
+      "MySQL outbox drained",
+      "current role resolution, private company workspace and cross-company denial",
+      "historical application progress, candidate-owned CV bytes and cross-candidate denial",
+      "prepared CV read API and no-store policy",
+      "search projection matches all visible SQL jobs and handles empty results",
+      "Admin preserves original audit index without adding TTL"
+    ],
+    "counts": {
+      "visibleJobs": 25,
+      "accountsChecked": 38,
+      "submittedCvs": 6,
+      "auditLogs": 1142
+    },
+    "cvRowsSha256": "d6a1bc75121c3a46de9c08cb68e30ff2336f0e00043ea630b9f0eba89b95fc1b"
+  },
+  "health": {
+    "checkedAt": "2026-09-12T07:04:06.677Z",
+    "checks": [
+      "original infrastructure IDs, node identity, image IDs and data volumes retained",
+      "all pinned application images running, non-root and read-only; Web is only app host port; AI worker stopped",
+      "all eight HTTP runtime readiness checks passed",
+      "MySQL schema unchanged; outbox drained; no new AI tasks or notification deliveries",
+      "six MySQL service accounts scoped to application database without global administration privileges",
+      "both PostgreSQL runtime roles are non-superuser without role/database creation",
+      "external mail delivery remains disabled"
+    ],
+    "services": [
+      {
+        "name": "api-gateway",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "identity-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "job-core-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "search-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "application-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "notification-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "admin-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "backend",
+        "image": "sha256:dd4d2f51d98a4bf88c0f9949d8f9e8d314c089b1386dc53cfe093634f6bc8491",
+        "running": true
+      },
+      {
+        "name": "web",
+        "image": "sha256:1535b1e3c97faae115b8a99325d8a97167b8833029b60105135314a7a930a6b6",
+        "running": true
+      }
+    ],
+    "broker": {
+      "queues": 12,
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 5
+    }
+  },
+  "browser": {
+    "stage": "prepared-cv",
+    "checks": [
+      "public browser uses real Core search",
+      "candidate browser displays real application history and progress",
+      "candidate history fits mobile viewport",
+      "company browser uses private Core workspace",
+      "AI controls remain disabled",
+      "authenticated Socket connects through same-origin proxy"
+    ],
+    "writes": 0,
+    "errors": 0,
+    "limitation": "All applicable existing jobs expired; live application modal not exercised. Prepared PDF/submission was verified in isolated release tests."
+  },
+  "rollback": {
+    "at": "2026-09-12T07:03:19.652Z",
+    "status": "passed",
+    "allFlagsOff": true,
+    "infrastructureRetained": true,
+    "providerWritesGated": true,
+    "frontendImage": "sha256:3fd9b5abbb780c1255e4e3d9ef7f09a8a3273087f0680736404f46b9f26e425a"
+  },
+  "cloneCleaned": true,
+  "checkpoint": ".local/deployments/activation-2026-09-12T00-57-33-951Z/backup",
+  "sealedFiles": 28,
+  "automatedTests": {
+    "passed": 20,
+    "failed": 0
+  },
+  "remaining": [
+    "Anthropic API key and model validation; Worker test before AI activation",
+    "Live prepared-CV modal/submission not exercised because applicable jobs expired",
+    "Backup remains on this machine; off-machine replication not performed"
+  ],
+  "oldComposeSuperseded": true
+}

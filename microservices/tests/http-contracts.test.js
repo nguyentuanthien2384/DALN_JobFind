@@ -7,6 +7,7 @@ import { responseDefinitions, responseValidationSchema } from '../shared/contrac
 import { contractRoute, validateRequest, createContractValidator, rejectUnknownModernRoute } from '../shared/requestContract.js';
 import { requireTrustedGateway, requireServicePermission } from '../shared/accessControl.js';
 import { jsonBodies, safeHttpError } from '../shared/httpBoundary.js';
+import { offerFixture } from './offerFixture.js';
 
 const frontendHttp = vi.hoisted(() => Object.fromEntries(['get', 'post', 'put', 'patch', 'delete'].map((method) => [method, vi.fn(() => Promise.resolve({ errCode: 0 }))])));
 vi.mock('../../frontend/src/axios.js', () => ({ default: frontendHttp }));
@@ -31,7 +32,7 @@ const bodyExamples = {
     CvUpdate: { title: 'CV mới' },
     CvImport: { parsed: { fullName: 'Lan', yearsOfExperience: 3, experiences: [{ company: 'Example', duration: '2020–2023' }], skills: ['JS'] }, fileName: 'cv.pdf' },
     MoveStage: { stage: 'phong_van', reason: 'Hẹn phỏng vấn' },
-    Decision: { decision: 'accepted', message: 'Chúc mừng' },
+    Decision: { decision: 'accepted', message: 'Chúc mừng', offer: offerFixture },
     Rating: { rating: '5' }, Note: { body: 'Ghi chú' },
     TalentSave: { candidateId: 7, candidateName: 'Lan', note: 'Từ hồ sơ ứng tuyển' },
     TagSave: { type: 'JOBTYPE', code: 'IT', aliases: ['software'], weight: 2, isActive: true },
@@ -113,7 +114,7 @@ describe('real HTTP request contracts', () => {
         ['aiCoverLetter', aiClient.coverLetterAi, ['Kỹ sư', 7, 'vi']],
         ['applicationList', applicationClient.getApplications, [{ jobId: 7, stage: 'phong_van', minRating: 3, limit: 20, offset: 0 }]],
         ['applicationMove', applicationClient.moveApplicationStage, [7, 'phong_van', 'Hẹn phỏng vấn']],
-        ['applicationDecision', applicationClient.sendApplicationDecision, [7, 'accepted', 'Chúc mừng']],
+        ['applicationDecision', applicationClient.sendApplicationDecision, [7, 'accepted', 'Chúc mừng', offerFixture]],
         ['talentSave', applicationClient.saveToTalentPool, [bodyExamples.TalentSave]],
         ['reportOverview', adminClient.getOverview, [{ fromDate: '2026-01-01', toDate: '2026-02-01' }]],
         ['auditList', adminClient.getAuditLogs, [{ limit: 15 }]],
@@ -188,6 +189,8 @@ describe('real HTTP request contracts', () => {
         ['applicationMove', { body: { stage: 'interview' } }],
         ['applicationRating', { body: { rating: 3.5 } }], ['applicationNote', { body: { body: 'x'.repeat(5001) } }],
         ['applicationDecision', { body: { decision: 'accept' } }],
+        ['applicationDecision', { body: { decision: 'accepted' } }],
+        ['applicationDecision', { body: { decision: 'accepted', offer: { ...offerFixture, location: ' ' } } }],
         ['talentSave', { body: { candidateId: 7, tags: 'JS' } }],
         ['masterSave', { body: { type: 'IT', aliases: [{ $where: 'bad' }] } }],
         ['auditIngest', { body: { ...bodyExamples.AuditAction, durationMs: -1 } }],

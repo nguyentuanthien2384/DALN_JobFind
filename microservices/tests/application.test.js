@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
+import { offerFixture } from './offerFixture.js';
 import { expectResponseContract, decodeEventFixture } from './contractAssertions.js';
 
 const mocks = vi.hoisted(() => ({
@@ -186,21 +187,22 @@ describe('application pipeline controller', () => {
         for (const [result, status] of [[{ notFound: true }, 404], [{ denied: true }, 403]]) {
             mocks.withTransaction.mockResolvedValueOnce(result);
             const res = makeRes();
-            await sendDecisionNotification(companyReq({ body: { decision: 'accepted' } }), res);
+            await sendDecisionNotification(companyReq({ body: { decision: 'accepted', offer: offerFixture } }), res);
             expect(res.statusCode).toBe(status);
         }
     });
 
     it('records accepted decisions, truncates messages, and queues email event', async () => {
         const before = { id: 1, stage: 'phong_van', company_id: 9, candidate_id: 2, candidate_email: 'a@b.com', candidate_name: 'Lan', job_id: 3, job_title: 'Dev' };
-        const after = { ...before, stage: 'nhan_viec' };
+        const after = { ...before, stage: 'de_nghi' };
         const client = { query: vi.fn().mockResolvedValueOnce({ rows: [before] }).mockResolvedValueOnce({ rows: [after] }).mockResolvedValueOnce({}) };
         mocks.withTransaction.mockImplementation((work) => work(client));
         const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
         const res = makeRes();
-        await sendDecisionNotification(companyReq({ params: { id: '1' }, body: { decision: 'accepted', message: `  ${'x'.repeat(4000)}  ` } }), res);
+        await sendDecisionNotification(companyReq({ params: { id: '1' }, body: { decision: 'accepted', offer: offerFixture, message: `  ${'x'.repeat(4000)}  ` } }), res);
         const payload = mocks.enqueueOutboxEvent.mock.calls[0][1].payload;
-        expect(payload).toMatchObject({ applicationId: 1, candidateEmail: 'a@b.com', decision: 'accepted', fromStage: 'phong_van', toStage: 'nhan_viec' });
+        expect(payload).toMatchObject({ applicationId: 1, candidateEmail: 'a@b.com', decision: 'accepted', fromStage: 'phong_van', toStage: 'de_nghi', offer: offerFixture, companyName: offerFixture.companyName });
+        expect(JSON.parse(client.query.mock.calls[2][1][5])).toMatchObject({ decision: 'accepted', offer: offerFixture });
         expect(payload.message).toHaveLength(3000);
         expect(res.body.emailQueued).toBe(true);
     });
@@ -216,8 +218,52 @@ describe('application pipeline controller', () => {
         expect(mocks.enqueueOutboxEvent.mock.calls[0][1].payload).toMatchObject({ fromStage: null, message: null });
         mocks.withTransaction.mockRejectedValue(new Error('db'));
         const failed = makeRes();
-        await sendDecisionNotification(companyReq({ body: { decision: 'accepted' } }), failed);
+        await sendDecisionNotification(companyReq({ body: { decision: 'accepted', offer: offerFixture } }), failed);
         expect(failed.statusCode).toBe(500);
+    });
+
+    it('refuses incomplete offers before any transaction or email is queued', async () => {
+        const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
+        for (const offer of [undefined, { ...offerFixture, location: ' ' }, { ...offerFixture, startDate: '2020-01-01' }]) {
+            const res = makeRes();
+            await sendDecisionNotification(companyReq({ body: { decision: 'accepted', offer } }), res);
+            expect(res.statusCode).toBe(400);
+        }
+        expect(mocks.withTransaction).not.toHaveBeenCalled();
+        expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
+    });
+
+    it('preserves confirmed hires while saving a new invitation snapshot', async () => {
+        const app = { id: 1, stage: 'nhan_viec', company_id: 9, candidate_id: 2 };
+        const client = { query: vi.fn().mockResolvedValueOnce({ rows: [app] }).mockResolvedValueOnce({}) };
+        mocks.withTransaction.mockImplementation((work) => work(client));
+        const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
+        const res = makeRes();
+        await sendDecisionNotification(companyReq({ body: { decision: 'accepted', offer: offerFixture } }), res);
+        expect(res.body.data.stage).toBe('nhan_viec');
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('UPDATE applications'))).toBe(false);
+        expect(mocks.enqueueOutboxEvent.mock.calls[0][1].payload).toMatchObject({ toStage: 'nhan_viec', offer: offerFixture });
+    });
+
+    it('denies offers for another company without writing a snapshot or outbox event', async () => {
+        const client = { query: vi.fn().mockResolvedValue({ rows: [{ id: 1, company_id: 19 }] }) };
+        mocks.withTransaction.mockImplementation((work) => work(client));
+        const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
+        const res = makeRes();
+        await sendDecisionNotification(companyReq({ body: { decision: 'accepted', offer: offerFixture } }), res);
+        expect(res.statusCode).toBe(403);
+        expect(client.query).toHaveBeenCalledTimes(1);
+        expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
+    });
+
+    it('exposes the last saved decision for review with its request time', async () => {
+        const event = { decision_snapshot: { decision: 'accepted', offer: offerFixture }, created_at: '2026-09-12T01:00:00Z' };
+        mocks.pool.query.mockResolvedValueOnce({ rows: [{ id: 1, company_id: 9, is_read: true }] })
+            .mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [event] });
+        const { getApplication } = await import('../application-service/src/controllers/applicationController.js');
+        const res = makeRes();
+        await getApplication(companyReq({ params: { id: '1' } }), res);
+        expect(res.body.data.latestDecision).toEqual({ ...event.decision_snapshot, requestedAt: event.created_at });
     });
 
     it('validates and updates ratings with ownership checks', async () => {

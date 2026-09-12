@@ -70,6 +70,7 @@ export const initSchema = async () => {
             created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     `);
+    await pool.query(`ALTER TABLE application_events ADD COLUMN IF NOT EXISTS decision_snapshot JSONB`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_app_events ON application_events (application_id, created_at DESC)`);
 
     await pool.query(`

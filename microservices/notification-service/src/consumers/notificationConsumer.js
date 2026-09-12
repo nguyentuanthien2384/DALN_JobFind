@@ -71,7 +71,8 @@ export const deliver = async ({ userId, template, recipientEmail, eventId }) => 
                 to: email,
                 subject: template.email.subject,
                 html: template.email.html,
-                text: template.email.text
+                text: template.email.text,
+                ...(template.email.replyTo ? { replyTo: template.email.replyTo } : {})
             });
             if (sent.sent) stats.emailed += 1;
         }
@@ -116,7 +117,9 @@ export const handlers = {
             decision: payload.decision,
             jobTitle: payload.jobTitle,
             candidateName: payload.candidateName,
-            message: payload.message
+            companyName: payload.companyName,
+            message: payload.message,
+            offer: payload.offer
         });
         await deliver({
             eventId: metadata.eventId,

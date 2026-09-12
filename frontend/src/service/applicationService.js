@@ -25,9 +25,9 @@ const getApplicationDetail = (id) => axios.get(`/api/applications/${id}`);
 const moveApplicationStage = (id, stage, reason) =>
     axios.patch(`/api/applications/${id}/stage`, { stage, reason });
 
-// Chot ket qua va gui email cho ung vien. Co the gui lai neu email truoc bi sot.
-const sendApplicationDecision = (id, decision, message) =>
-    axios.post(`/api/applications/${id}/decision-notification`, { decision, message });
+// Gui thu moi nhan viec hoac thong bao tu choi; thu moi cho ung vien phan hoi.
+const sendApplicationDecision = (id, decision, message, offer) =>
+    axios.post(`/api/applications/${id}/decision-notification`, { decision, message, ...(offer ? { offer } : {}) });
 
 const rateApplication = (id, rating) =>
     axios.patch(`/api/applications/${id}/rating`, { rating });

@@ -202,7 +202,7 @@ describe("KanbanBoard", () => {
         });
         const confirm = jest.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
 
-        fireEvent.click(within(modal).getByRole("button", { name: "Gửi trúng tuyển" }));
+        fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
         expect(sendApplicationDecision).not.toHaveBeenCalled();
         fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
         await waitFor(() => expect(sendApplicationDecision).toHaveBeenCalledWith(1, "rejected", "Cảm ơn bạn"));
@@ -225,10 +225,33 @@ describe("KanbanBoard", () => {
         );
 
         const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
-        fireEvent.click(within(modal).getByRole("button", { name: "Gửi trúng tuyển" }));
+        fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
         await waitFor(() => expect(confirm).toHaveBeenCalledWith(
-            "Gửi email thông báo trúng tuyển đến hộp thư demo (nếu đã cấu hình)?"
+            "Gửi email thông báo không trúng tuyển đến hộp thư demo (nếu đã cấu hình)?"
         ));
+        confirm.mockRestore();
+    });
+
+    it('previews and sends the complete offer once, preserving it after a failed send', async () => {
+        const offer = { companyName: 'Example Company', startDate: '2099-10-20', startTime: '08:30', timeZone: 'Asia/Ho_Chi_Minh',
+            workMode: 'onsite', location: '12 Nguyễn Huệ', responseDeadline: '2099-10-18T17:00', contactName: 'Hà', contactEmail: 'hr@example.com' };
+        getApplicationDetail.mockResolvedValue({ ...detailResponse, data: { ...detailResponse.data, latestDecision: { decision: 'accepted', offer } } });
+        sendApplicationDecision.mockRejectedValueOnce(new Error('Network'));
+        const confirm = jest.spyOn(window, 'confirm').mockReturnValue(true);
+        await renderLoadedBoard();
+        fireEvent.click(screen.getByText('Lan Nguyen'));
+        const modal = await screen.findByRole('dialog', { name: 'Chi tiết hồ sơ Lan Nguyen' });
+        fireEvent.click(within(modal).getByRole('button', { name: 'Gửi trúng tuyển' }));
+        fireEvent.click(within(modal).getByRole('button', { name: 'Xem trước thư mời' }));
+        expect(sendApplicationDecision).not.toHaveBeenCalled();
+        const send = within(modal).getByRole('button', { name: 'Xác nhận gửi thư mời' });
+        fireEvent.click(send);
+        fireEvent.click(send);
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('kiểm tra lịch sử')));
+        expect(sendApplicationDecision).toHaveBeenCalledTimes(1);
+        expect(sendApplicationDecision).toHaveBeenCalledWith(1, 'accepted', '', expect.objectContaining(offer));
+        expect(send).not.toBeDisabled();
+        expect(within(modal).getByText('12 Nguyễn Huệ')).toBeInTheDocument();
         confirm.mockRestore();
     });
 

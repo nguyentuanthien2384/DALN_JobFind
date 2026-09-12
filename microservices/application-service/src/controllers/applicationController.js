@@ -2,6 +2,7 @@ import { pool, withTransaction, STAGES, STAGE_LABELS } from '../libs/db.js';
 import { enqueueOutboxEvent } from '../libs/outbox.js';
 import { EVENTS } from '../../../shared/events.js';
 import { createLogger } from '../../../shared/logger.js';
+import { validateOffer } from '../libs/offer.js';
 
 const logger = createLogger('application-service');
 
@@ -118,7 +119,7 @@ export const getApplication = async (req, res) => {
 
         const [notes, events] = await Promise.all([
             pool.query('SELECT * FROM application_notes WHERE application_id = $1 ORDER BY created_at DESC', [app.id]),
-            pool.query('SELECT * FROM application_events WHERE application_id = $1 ORDER BY created_at DESC', [app.id])
+            pool.query('SELECT * FROM application_events WHERE application_id = $1 ORDER BY created_at DESC, id DESC', [app.id])
         ]);
 
         // Nha tuyen dung mo ho so ra thi danh dau da xem.
@@ -127,9 +128,11 @@ export const getApplication = async (req, res) => {
             app.is_read = true;
         }
 
+        const lastDecision = events.rows.find((event) => event.decision_snapshot);
         return res.json({
             errCode: 0,
-            data: { ...app, notes: notes.rows, timeline: events.rows }
+            data: { ...app, notes: notes.rows, timeline: events.rows,
+                latestDecision: lastDecision ? { ...lastDecision.decision_snapshot, requestedAt: lastDecision.created_at } : null }
         });
     } catch (error) {
         logger.error('doc chi tiet that bai', { error: error.message });
@@ -209,22 +212,25 @@ export const moveStage = async (req, res) => {
 };
 
 // ===== GUI KET QUA TUYEN DUNG =====
-// Thao tac nay vua chot trang thai cua ho so, vua phat yeu cau gui email. Nha
-// tuyen dung co the bam lai de gui nhac lai ma khong phai keo the qua lai giua
-// cac cot Kanban.
+// Thu moi nhan viec cho phan hoi cua ung vien; moi lan gui luu snapshot va
+// outbox trong cung giao dich. Gui lai khong tu dong xac nhan ung vien da nhan viec.
 export const sendDecisionNotification = async (req, res) => {
     const { userId, roleCode, companyId } = identity(req);
-    const { decision, message } = req.body || {};
-    const stageByDecision = { accepted: 'nhan_viec', rejected: 'tu_choi' };
-    const stage = stageByDecision[decision];
+    const { decision, message, offer: offerInput } = req.body || {};
+    const stageByDecision = { accepted: 'de_nghi', rejected: 'tu_choi' };
+    const requestedStage = stageByDecision[decision];
     const candidateMessage = String(message || '').trim().slice(0, 3000);
 
-    if (!stage) {
+    if (!Object.hasOwn(stageByDecision, decision)) {
         return res.status(400).json({
             errCode: 1,
             errMessage: 'Kết quả không hợp lệ. Chỉ nhận accepted hoặc rejected'
         });
     }
+
+    const validated = decision === 'accepted' ? validateOffer(offerInput) : {};
+    if (validated.error) return res.status(400).json({ errCode: 1, errMessage: validated.error });
+    const snapshot = { decision, message: candidateMessage || null, ...(validated.offer ? { offer: validated.offer } : {}) };
 
     try {
         const result = await withTransaction(async (client) => {
@@ -236,6 +242,8 @@ export const sendDecisionNotification = async (req, res) => {
             const app = rows[0];
             if (roleCode !== 'ADMIN' && app.company_id !== companyId) return { denied: true };
 
+            // An invitation awaits a reply; sending again must not undo a confirmed hire.
+            const stage = decision === 'accepted' && app.stage === 'nhan_viec' ? 'nhan_viec' : requestedStage;
             const changed = app.stage !== stage;
             let updated = app;
             if (changed) {
@@ -251,16 +259,17 @@ export const sendDecisionNotification = async (req, res) => {
             // Luu dau vet ca khi gui lai email, de nha tuyen dung biet lan cuoi
             // cung da thong bao ket qua vao luc nao.
             await client.query(
-                `INSERT INTO application_events (application_id, from_stage, to_stage, actor_id, reason)
-                 VALUES ($1, $2, $3, $4, $5)`,
+                `INSERT INTO application_events (application_id, from_stage, to_stage, actor_id, reason, decision_snapshot)
+                 VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
                 [
                     app.id,
                     changed ? app.stage : null,
                     stage,
                     userId,
                     decision === 'accepted'
-                        ? 'Đã yêu cầu gửi email thông báo trúng tuyển cho ứng viên'
-                        : 'Đã yêu cầu gửi email thông báo không trúng tuyển cho ứng viên'
+                        ? 'Đã yêu cầu gửi thư mời nhận việc; chờ ứng viên phản hồi qua email HR'
+                        : 'Đã yêu cầu gửi email thông báo không trúng tuyển cho ứng viên',
+                    JSON.stringify(snapshot)
                 ]
             );
 
@@ -277,8 +286,10 @@ export const sendDecisionNotification = async (req, res) => {
                     jobId: updated.job_id,
                     jobTitle: updated.job_title,
                     companyId: updated.company_id,
+                    ...(validated.offer ? { companyName: validated.offer.companyName } : {}),
                     decision,
                     message: candidateMessage || null,
+                    ...(validated.offer ? { offer: validated.offer } : {}),
                     fromStage: from,
                     toStage: stage
                 }

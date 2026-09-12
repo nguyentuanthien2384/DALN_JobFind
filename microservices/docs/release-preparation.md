@@ -1,5 +1,7 @@
 # Chuẩn bị bản triển khai và bản quay lui — 2af
 
+**Cập nhật 12-09-2026:** đã triển khai local và bật bốn tính năng; xem [biên bản kích hoạt](activation-local.md). Khi kích hoạt phát hiện Compose của bộ cũ bỏ sót giá trị ghi đè do `environment` ở dạng mảng. Giữ nguyên bộ đã niêm phong, sử dụng cấu hình thay thế đã kiểm tra trong thư mục deployment mới; không dùng trực tiếp Compose cũ để bật thật. Kết quả dưới đây ghi nhận bước chuẩn bị trước khi phát hiện này.
+
 Đóng gói ngày 11-09, nghiệm thu hoàn tất ngày 12-09-2026: **PASS bước chuẩn bị artifact**, giữ **HOLD kích hoạt tính năng**. Ứng dụng lấy từ commit sạch `bc9cb1c4e070dac884782706284f07d72dcf0892`, kế thừa kết quả Worker/Admin và backup/restore trên bản sao. Công thức đóng gói mới được ghi checksum riêng; không gán các file chưa commit cho commit ứng dụng. Không thay đổi source runtime, database, queue, `.env` hoặc cờ thật.
 
 ## Bộ bàn giao

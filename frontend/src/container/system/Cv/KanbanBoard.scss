@@ -299,8 +299,28 @@
 
     .kb-decision-actions {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
         margin-top: 8px;
+    }
+
+    .kb-offer { margin-top: 16px; padding: 16px; border: 1px solid #bbdfce; background: #f5faf7; border-radius: 10px; }
+    .kb-offer-fields { border: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .kb-offer-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: #334155; margin: 0; }
+    .kb-offer-fields input, .kb-offer-fields select { min-width: 0; width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; }
+    .kb-offer-wide { grid-column: 1 / -1; }
+    .kb-offer-summary { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr); gap: 8px 12px; font-size: 13px; }
+    .kb-offer-summary dt { color: #64748b; font-weight: 500; }
+    .kb-offer-summary dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .kb-offer-preview { background: white; border-radius: 8px; padding: 16px; font-size: 14px; overflow-wrap: anywhere; }
+    .kb-offer-error { color: #b91c1c; font-size: 13px; }
+    .kb-decision-history { flex-basis: 100%; padding: 8px; background: #f8fafc; }
+    .kb-time { flex-wrap: wrap; }
+    @media (max-width: 600px) {
+        .kb-offer-fields { grid-template-columns: 1fr; }
+        .kb-offer-summary { grid-template-columns: 1fr; }
+        .kb-offer-summary dd { margin-bottom: 8px; }
+        .kb-offer { padding: 10px; }
     }
 
     .kb-time {

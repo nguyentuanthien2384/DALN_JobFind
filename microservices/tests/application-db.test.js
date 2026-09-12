@@ -30,7 +30,7 @@ describe('application PostgreSQL adapter', () => {
         expect(db.STAGES).toEqual(['moi_ung_tuyen', 'dang_xem_xet', 'phong_van', 'de_nghi', 'nhan_viec', 'tu_choi']);
         expect(db.STAGE_LABELS.phong_van).toBe('Phỏng vấn');
         await db.initSchema();
-        expect(pool.query).toHaveBeenCalledTimes(9);
+        expect(pool.query.mock.calls.map((x) => x[0]).join('\n')).toContain('ADD COLUMN IF NOT EXISTS decision_snapshot JSONB');
         expect(pool.query.mock.calls.map((x) => x[0]).join('\n')).toContain('CREATE TABLE IF NOT EXISTS talent_pool');
     });
 

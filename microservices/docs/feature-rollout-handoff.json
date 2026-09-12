@@ -1,0 +1,434 @@
+{
+  "completedAt": "2026-09-12T08:42:16.331Z",
+  "status": "passed-for-four-eligible-flags",
+  "directory": "D:\\job_find\\.local\\deployments\\activation-2026-09-12T00-57-33-951Z\\handoff-2026-09-12T08-42-10-364Z",
+  "manifestSha256": "6dca5f417f72de2065591ff0ac80a71e090c5992b4ef59da1f75e7c23ca0db80",
+  "applicationCommit": "bc9cb1c4e070dac884782706284f07d72dcf0892",
+  "active": {
+    "variant": "prepared-cv",
+    "image": "sha256:1535b1e3c97faae115b8a99325d8a97167b8833029b60105135314a7a930a6b6",
+    "flags": {
+      "REACT_APP_JOB_SEARCH_MODE": "core",
+      "REACT_APP_JOB_WORKSPACE_MODE": "core",
+      "REACT_APP_JOB_CREATE_MODE": "legacy",
+      "REACT_APP_JOB_EDIT_MODE": "legacy",
+      "REACT_APP_JOB_REPOST_MODE": "legacy",
+      "REACT_APP_CANDIDATE_AI_ENABLED": "false",
+      "REACT_APP_APPLICATION_PROGRESS_ENABLED": "true",
+      "REACT_APP_PREPARED_CV_APPLICATION_ENABLED": "true"
+    }
+  },
+  "rollbackImage": "sha256:008c67873b55a81194d3a2ce9ffa0add0dd52a9b75fe89cdfe84d7fc0facfe2e",
+  "rollbackSeconds": 2.402,
+  "mysqlTablesUnchanged": 31,
+  "stages": [
+    {
+      "stage": "search",
+      "image": "sha256:9c462a0ed219db524fd81152fe21fea1fb82648d4e7c96f9369e07f2a26fbae5",
+      "flags": {
+        "REACT_APP_JOB_SEARCH_MODE": "core",
+        "REACT_APP_JOB_WORKSPACE_MODE": "legacy",
+        "REACT_APP_JOB_CREATE_MODE": "legacy",
+        "REACT_APP_JOB_EDIT_MODE": "legacy",
+        "REACT_APP_JOB_REPOST_MODE": "legacy",
+        "REACT_APP_CANDIDATE_AI_ENABLED": "false",
+        "REACT_APP_APPLICATION_PROGRESS_ENABLED": "false",
+        "REACT_APP_PREPARED_CV_APPLICATION_ENABLED": "false"
+      },
+      "browser": {
+        "stage": "search",
+        "checks": [
+          "public browser uses real Core search"
+        ],
+        "writes": 0,
+        "errors": 0
+      },
+      "prepared": {
+        "scope": "served bundle with synthetic browser API fixtures",
+        "enabled": false,
+        "submitted": 0,
+        "apiRequestsReachedBackend": 0
+      },
+      "observation": {
+        "from": "2026-09-12T08:35:03.758Z",
+        "to": "2026-09-12T08:35:34.141Z",
+        "minimumObservationSeconds": 25,
+        "samples": 3,
+        "newHttp5xx": 0,
+        "unexpectedRestarts": 0,
+        "queueReady": 0,
+        "queueUnacked": 0,
+        "logs": {
+          "api-gateway": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "identity-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "job-core-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "search-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "application-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "notification-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "admin-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "backend": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          }
+        }
+      }
+    },
+    {
+      "stage": "progress",
+      "image": "sha256:2d90693cfd848b8df81e1a3ea008aae18c741b1cb73fb952c0455e371e65a04c",
+      "flags": {
+        "REACT_APP_JOB_SEARCH_MODE": "core",
+        "REACT_APP_JOB_WORKSPACE_MODE": "legacy",
+        "REACT_APP_JOB_CREATE_MODE": "legacy",
+        "REACT_APP_JOB_EDIT_MODE": "legacy",
+        "REACT_APP_JOB_REPOST_MODE": "legacy",
+        "REACT_APP_CANDIDATE_AI_ENABLED": "false",
+        "REACT_APP_APPLICATION_PROGRESS_ENABLED": "true",
+        "REACT_APP_PREPARED_CV_APPLICATION_ENABLED": "false"
+      },
+      "browser": {
+        "stage": "progress",
+        "checks": [
+          "public browser uses real Core search",
+          "candidate browser displays real application history and progress",
+          "candidate history fits mobile viewport"
+        ],
+        "writes": 0,
+        "errors": 0
+      },
+      "prepared": {
+        "scope": "served bundle with synthetic browser API fixtures",
+        "enabled": false,
+        "submitted": 0,
+        "apiRequestsReachedBackend": 0
+      },
+      "observation": {
+        "from": "2026-09-12T08:35:36.640Z",
+        "to": "2026-09-12T08:36:07.429Z",
+        "minimumObservationSeconds": 25,
+        "samples": 3,
+        "newHttp5xx": 0,
+        "unexpectedRestarts": 0,
+        "queueReady": 0,
+        "queueUnacked": 0,
+        "logs": {
+          "api-gateway": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "identity-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "job-core-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "search-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "application-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "notification-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "admin-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "backend": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          }
+        }
+      }
+    },
+    {
+      "stage": "workspace",
+      "image": "sha256:a0ecc9fb39a8b36969584ef01f695bc6aec2bfeb6e5d8efed2370860e26aff55",
+      "flags": {
+        "REACT_APP_JOB_SEARCH_MODE": "core",
+        "REACT_APP_JOB_WORKSPACE_MODE": "core",
+        "REACT_APP_JOB_CREATE_MODE": "legacy",
+        "REACT_APP_JOB_EDIT_MODE": "legacy",
+        "REACT_APP_JOB_REPOST_MODE": "legacy",
+        "REACT_APP_CANDIDATE_AI_ENABLED": "false",
+        "REACT_APP_APPLICATION_PROGRESS_ENABLED": "true",
+        "REACT_APP_PREPARED_CV_APPLICATION_ENABLED": "false"
+      },
+      "browser": {
+        "stage": "workspace",
+        "checks": [
+          "public browser uses real Core search",
+          "candidate browser displays real application history and progress",
+          "candidate history fits mobile viewport",
+          "company browser uses private Core workspace"
+        ],
+        "writes": 0,
+        "errors": 0
+      },
+      "prepared": {
+        "scope": "served bundle with synthetic browser API fixtures",
+        "enabled": false,
+        "submitted": 0,
+        "apiRequestsReachedBackend": 0
+      },
+      "observation": {
+        "from": "2026-09-12T08:36:09.635Z",
+        "to": "2026-09-12T08:36:41.375Z",
+        "minimumObservationSeconds": 25,
+        "samples": 3,
+        "newHttp5xx": 0,
+        "unexpectedRestarts": 0,
+        "queueReady": 0,
+        "queueUnacked": 0,
+        "logs": {
+          "api-gateway": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "identity-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "job-core-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "search-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "application-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "notification-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "admin-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "backend": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          }
+        }
+      }
+    },
+    {
+      "stage": "prepared-cv",
+      "image": "sha256:1535b1e3c97faae115b8a99325d8a97167b8833029b60105135314a7a930a6b6",
+      "flags": {
+        "REACT_APP_JOB_SEARCH_MODE": "core",
+        "REACT_APP_JOB_WORKSPACE_MODE": "core",
+        "REACT_APP_JOB_CREATE_MODE": "legacy",
+        "REACT_APP_JOB_EDIT_MODE": "legacy",
+        "REACT_APP_JOB_REPOST_MODE": "legacy",
+        "REACT_APP_CANDIDATE_AI_ENABLED": "false",
+        "REACT_APP_APPLICATION_PROGRESS_ENABLED": "true",
+        "REACT_APP_PREPARED_CV_APPLICATION_ENABLED": "true"
+      },
+      "browser": {
+        "stage": "prepared-cv",
+        "checks": [
+          "public browser uses real Core search",
+          "candidate browser displays real application history and progress",
+          "candidate history fits mobile viewport",
+          "company browser uses private Core workspace",
+          "AI controls remain disabled",
+          "authenticated Socket connects through same-origin proxy"
+        ],
+        "writes": 0,
+        "errors": 0,
+        "limitation": "All applicable existing jobs expired; live application modal not exercised. Prepared PDF/submission was verified in isolated release tests."
+      },
+      "prepared": {
+        "scope": "served bundle with synthetic browser API fixtures",
+        "enabled": true,
+        "submitted": 0,
+        "apiRequestsReachedBackend": 0,
+        "pdf": {
+          "bytes": 11157,
+          "sha256": "935d24421b3629c7b5b70921f795c7523ae60a6d7078d7172cabd0252acef315",
+          "reviewRequired": true,
+          "mobileFits": true
+        }
+      },
+      "observation": {
+        "from": "2026-09-12T08:36:43.741Z",
+        "to": "2026-09-12T08:37:17.010Z",
+        "minimumObservationSeconds": 25,
+        "samples": 3,
+        "newHttp5xx": 0,
+        "unexpectedRestarts": 0,
+        "queueReady": 0,
+        "queueUnacked": 0,
+        "logs": {
+          "api-gateway": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "identity-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "job-core-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "search-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "application-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "notification-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "admin-service": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          },
+          "backend": {
+            "errors": 0,
+            "warnings": 0,
+            "expectedClientDenials": 0
+          }
+        }
+      }
+    }
+  ],
+  "finalHealth": {
+    "checkedAt": "2026-09-12T08:40:59.073Z",
+    "checks": [
+      "original infrastructure IDs, node identity, image IDs and data volumes retained",
+      "all pinned application images running, non-root and read-only; Web is only app host port; AI worker stopped",
+      "all eight HTTP runtime readiness checks passed",
+      "MySQL schema unchanged; outbox drained; no new AI tasks or notification deliveries",
+      "six MySQL service accounts scoped to application database without global administration privileges",
+      "both PostgreSQL runtime roles are non-superuser without role/database creation",
+      "external mail delivery remains disabled"
+    ],
+    "services": [
+      {
+        "name": "api-gateway",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "identity-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "job-core-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "search-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "application-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "notification-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "admin-service",
+        "image": "sha256:f43babf898d54ea7dcd11dbee3c960c7faa38d2e257a517d46f558f711181c9b",
+        "running": true
+      },
+      {
+        "name": "backend",
+        "image": "sha256:dd4d2f51d98a4bf88c0f9949d8f9e8d314c089b1386dc53cfe093634f6bc8491",
+        "running": true
+      },
+      {
+        "name": "web",
+        "image": "sha256:1535b1e3c97faae115b8a99325d8a97167b8833029b60105135314a7a930a6b6",
+        "running": true
+      }
+    ],
+    "broker": {
+      "queues": 12,
+      "ready": 0,
+      "unacked": 0,
+      "consumers": 5
+    }
+  },
+  "firstHandoffAttempt": "one health-check invocation failed; immediate standalone check and full repeated handoff passed",
+  "remaining": [
+    "AI provider key and Worker verification before four dependent flags can switch",
+    "No live CV submission: existing suitable jobs expired; PDF tested with browser-only synthetic API fixtures",
+    "No ongoing unattended monitoring or off-machine backup configured"
+  ]
+}
