@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { composeEnvironment } from './release/compose-environment.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url)), exec = promisify(execFile);
 const require = createRequire(path.join(root, 'backend/package.json'));
 const name = (await readFile(path.join(root, '.local/deployments/LATEST'), 'utf8')).trim();
@@ -45,10 +46,16 @@ const db = await require('mysql2/promise').createConnection({ host: env.DB_HOST,
 try {
     const [[pending]] = await db.query('SELECT COUNT(*) n FROM outbox_events WHERE publishedAt IS NULL'); assert.equal(Number(pending.n), 0);
     const [[tasks]] = await db.query('SELECT COUNT(*) n FROM ai_tasks'); assert.equal(Number(tasks.n), 0);
-    const [[delivery]] = await db.query('SELECT COUNT(*) n FROM notification_deliveries'); assert.equal(Number(delivery.n), 0);
+    const [deliveries] = await db.query('SELECT channel, status, COUNT(*) n FROM notification_deliveries GROUP BY channel, status ORDER BY channel, status');
+    report.notificationDeliveries = {
+        total: deliveries.reduce((total, row) => total + Number(row.n), 0),
+        counts: deliveries.map(row => ({ channel: row.channel, status: row.status, count: Number(row.n) }))
+    };
+    assert.ok(deliveries.every(row => ['sent', 'skipped'].includes(row.status)),
+        'Notification deliveries must be settled with no pending, processing, failed or unknown outcomes');
     const [columns] = await db.query('SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION');
     assert.deepEqual(columns, await json('mysql-schema-before.json'));
-    report.checks.push('MySQL schema unchanged; outbox drained; no new AI tasks or notification deliveries');
+    report.checks.push('MySQL schema unchanged; outbox drained; no new AI tasks; notification deliveries settled without failed or unknown outcomes');
     for (const [role, c] of Object.entries(settings.mysqlRoles)) {
         const [global] = await db.query('SELECT PRIVILEGE_TYPE FROM information_schema.USER_PRIVILEGES WHERE GRANTEE=?', [`'${c.user}'@'%'`]);
         assert.ok(global.every(p => p.PRIVILEGE_TYPE === 'USAGE'), 'Unexpected global MySQL privilege');
@@ -60,10 +67,31 @@ try {
 } finally { await db.end(); }
 const pg = await docker(['exec', container('postgres').Id, 'psql', '-U', micro.POSTGRES_USER, '-d', 'application_db', '-tA', '-c', `SELECT count(*) FROM pg_roles WHERE rolname IN ('${settings.pgRoles.application.user}','${settings.pgRoles.admin.user}') AND NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole;`]);
 assert.equal(pg, '2'); report.checks.push('both PostgreSQL runtime roles are non-superuser without role/database creation');
-for (const name of ['backend', 'notification-service']) {
-    const c = container(name), env = Object.fromEntries(c.Config.Env.map(v => { const at = v.indexOf('='); return [v.slice(0, at), v.slice(at + 1)]; }));
-    assert.equal(env.EMAIL_APP, ''); assert.equal(env.EMAIL_APP_PASSWORD, '');
+const runtimeEnvironment = name => composeEnvironment(container(name).Config.Env);
+const backendMail = runtimeEnvironment('backend');
+assert.ok(backendMail.EMAIL_APP === '' && backendMail.EMAIL_APP_PASSWORD === '',
+    'Legacy backend mail delivery must remain disabled');
+const notificationMail = runtimeEnvironment('notification-service');
+if (state.mailDelivery?.enabled === true) {
+    // Keep resolved Compose and runtime secrets in memory; assertion values are
+    // booleans so configuration mismatches never print credentials.
+    const resolvedCompose = JSON.parse(await docker(['compose', '-f', path.join(directory, 'compose.live.json'), 'config', '--format', 'json']));
+    const expectedMail = composeEnvironment(resolvedCompose.services?.['notification-service']?.environment);
+    for (const key of ['EMAIL_APP', 'EMAIL_APP_PASSWORD']) {
+        assert.ok(typeof expectedMail[key] === 'string' && expectedMail[key].trim().length > 0,
+            'Enabled notification mail requires nonempty resolved Compose credentials');
+        assert.ok(typeof notificationMail[key] === 'string' && notificationMail[key].trim().length > 0,
+            'Enabled notification mail requires nonempty runtime credentials');
+        assert.ok(notificationMail[key] === expectedMail[key],
+            'Notification mail credentials must match resolved Compose configuration');
+    }
+    report.mailDelivery = { enabled: true, credentialsMatch: true, backendDisabled: true };
+    report.checks.push('automatic notification mail enabled with matching runtime configuration; legacy backend mail remains disabled');
+} else {
+    assert.ok(notificationMail.EMAIL_APP === '' && notificationMail.EMAIL_APP_PASSWORD === '',
+        'Notification mail must remain disabled until explicitly enabled in deployment state');
+    report.mailDelivery = { enabled: false, backendDisabled: true };
+    report.checks.push('external mail delivery remains disabled');
 }
-report.checks.push('external mail delivery remains disabled');
 await writeFile(path.join(directory, 'runtime-health.json'), JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify(report, null, 2));

@@ -29,6 +29,8 @@ Cần dựng lại frontend và các dịch vụ từ cùng phiên bản mã ngu
 
 API `POST /api/applications/:id/decision-notification` yêu cầu thêm `offer` khi `decision: accepted`; `rejected` vẫn chỉ cần `decision` và lời nhắn tùy chọn. Dữ liệu `offer` có cấu trúc trong `microservices/shared/contracts/offerSchema.js`. Những sự kiện cũ đã nằm trong hàng đợi mà chưa có `offer` vẫn được hỗ trợ để tránh làm hỏng email đang chờ.
 
-Kiểm thử dùng dữ liệu giả và SMTP giả lập, không gửi email tới ứng viên thật. Kiểm thử trình duyệt và ảnh xem trước là kiểm tra bố cục; khả năng hiển thị trên Gmail/Outlook thực tế còn phụ thuộc ứng dụng email.
+Các bộ kiểm thử đơn vị dùng dữ liệu giả và SMTP giả lập. Ngày 12/09/2026 đã bật Gmail từ cấu hình có sẵn trong `microservices/.env` cho bản triển khai hiện tại và kiểm thử gửi tự động từ giao diện đến Inbox Gmail. Lượt thử dùng một hồ sơ giả, gửi về chính hộp thư cấu hình; xem [kết quả kiểm thử thực tế](recruitment-offer-live-test.md). Ảnh xem trước là kiểm tra bố cục HTML bằng trình duyệt, không phải ảnh giao diện Gmail/Outlook.
+
+Khi cần áp dụng lại cấu hình gửi vào bản triển khai hiện tại, chạy `node scripts/enable-live-mail.mjs` từ gốc dự án. Script xác nhận SMTP, lưu cấu hình riêng tư và tạo lại `notification-service`. `node scripts/activation-health.mjs` xác nhận cấu hình đang chạy. Không đưa thông tin Gmail vào mã nguồn hoặc bản build.
 
 Kiểm thử trình duyệt: dựng frontend với `BUILD_PATH` trỏ tới `.local/offer-preview-build` ở gốc dự án, rồi chạy `node scripts/test-offer-browser.mjs` trong `microservices`. Có thể dùng `OFFER_PREVIEW_BUILD` để chỉ định thư mục build khác. Script chặn mọi API thật, kiểm tra màn hình 1440px/375px, lưu ảnh và mẫu email vào `.local/offer-browser`.
