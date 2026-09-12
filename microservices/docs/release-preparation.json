@@ -1,0 +1,76 @@
+{
+  "releaseId": "bc9cb1c4e070-2026-09-11T14-26-04-972Z",
+  "manifestSha256": "f2ec068f3f83f9fc36501df84c45bbf220efc7b5200d5ab9b6fd21f3562cd7e1",
+  "startedAt": "2026-09-12T00:42:30.678Z",
+  "checks": [
+    {
+      "name": "complete kit checksum verification",
+      "status": "passed"
+    },
+    {
+      "name": "both pinned Compose variants parse; no data volumes, builds or dependencies to recreate",
+      "status": "passed"
+    },
+    {
+      "name": "standalone web rollback requires no provider or secret bindings",
+      "status": "passed"
+    },
+    {
+      "name": "packaged microservices: offline readiness, auth, contracts, non-root and graceful shutdown",
+      "status": "passed"
+    },
+    {
+      "name": "packaged Worker fails closed without provider configuration",
+      "status": "passed"
+    },
+    {
+      "name": "packaged real Backend/Socket boots with disposable MariaDB; health and auth gates",
+      "status": "passed"
+    },
+    {
+      "name": "Nginx same-origin API and real Socket polling/WebSocket proxy with authentication",
+      "status": "passed"
+    },
+    {
+      "name": "exact frontend image swap at same origin: pending survives; no auto-send; altered payload blocked; original key replay; new AI disabled",
+      "status": "passed",
+      "api": "synthetic browser responses; no provider calls"
+    },
+    {
+      "name": "served rollback bundle and cache policy",
+      "status": "passed",
+      "mainBundle": "/static/js/main.70b97a11.js",
+      "mainBundleSha256": "6e0c7004f702dca5067bceb0972a896ff308c29605a14d4006f372e9d4604f34"
+    },
+    {
+      "name": "served deployment bundle and cache policy",
+      "status": "passed",
+      "mainBundle": "/static/js/main.b0529d35.js",
+      "mainBundleSha256": "b9a1e024026be66d0e2a48438f40bd16caa0fe89e54745a5ccca254c9ed02b99"
+    },
+    {
+      "name": "packaged Backend/Socket graceful shutdown",
+      "status": "passed"
+    }
+  ],
+  "status": "passed",
+  "cleaned": true,
+  "fixtureMysqlImage": "sha256:ee75c0457ab19e1b0a28516fad8066f8dafaac0421b1f05f8852b5c7a819b629",
+  "sourceUnchanged": true,
+  "finishedAt": "2026-09-12T00:43:15.020Z",
+  "archiveLoadVerification": {
+    "status": "passed",
+    "completedAt": "2026-09-12T00:39:58.000Z",
+    "file": "images.tar",
+    "sha256": "2e05f2f201d757c9674354267573c8ac85da1eb16f94b32b5e63fedcac13a5e5",
+    "images": 9,
+    "method": "Bundled verify.mjs --load; all image IDs, OS and architectures matched; no containers started"
+  },
+  "regressionVerification": {
+    "runDate": "2026-09-11",
+    "runtimeTestsPassed": 19,
+    "frontendTestsPassed": 160,
+    "frontendSuitesPassed": 8,
+    "notes": "Existing React act warnings in create-post suite; no failed tests"
+  }
+}

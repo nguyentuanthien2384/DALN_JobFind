@@ -325,6 +325,7 @@ Mật khẩu dữ liệu demo: `123456`.
 
 ## Tài liệu chuyên sâu
 
+- [Bộ triển khai và quay lui cố định phiên bản](microservices/docs/release-preparation.md)
 - [Ma trận phân quyền và kiểm soát truy cập](docs/AUTHORIZATION.md)
 - [Chi tiết kiến trúc microservices](microservices/README.md)
 - [Mã nguồn template email kết quả](microservices/notification-service/src/templates.js)
