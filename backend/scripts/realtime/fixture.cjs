@@ -1,6 +1,6 @@
 const { Sequelize, DataTypes } = require('sequelize');
 module.exports = (url) => {
-    const db = { sequelize: new Sequelize(url, { logging: false, pool: { max: 8 } }) };
+    const db = { sequelize: new Sequelize(url, { logging: false, ...(process.env.CHAT_TEST_DB_TIMEZONE ? {timezone:process.env.CHAT_TEST_DB_TIMEZONE} : {}), pool: { max: 8 } }) };
     db.Account = db.sequelize.define('Account', { userId: DataTypes.INTEGER, roleCode: DataTypes.STRING, statusCode: DataTypes.STRING });
     db.Company = db.sequelize.define('Company', { name: DataTypes.STRING, thumbnail: DataTypes.STRING, statusCode: DataTypes.STRING, censorCode: DataTypes.STRING });
     db.User = db.sequelize.define('User', { companyId: DataTypes.INTEGER, firstName: DataTypes.STRING, lastName: DataTypes.STRING, image: DataTypes.STRING });

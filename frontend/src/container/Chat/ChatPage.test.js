@@ -215,7 +215,7 @@ describe("ChatPage", () => {
         );
         await waitFor(() => expect(input).toHaveValue(""));
         expect(getChatConversationService).toHaveBeenCalledTimes(2);
-        expect(getListChatConversationService).toHaveBeenCalledTimes(2);
+        expect(getListChatConversationService).toHaveBeenCalledTimes(4);
     });
 
     it("keeps a failed REST message available and reports the service error", async () => {
@@ -366,6 +366,16 @@ describe("ChatPage", () => {
         expect(await screen.findByText(/Hoạt động lúc/)).toBeInTheDocument();
         act(() => socketHandlers.disconnect());
         expect(screen.queryByText(/Hoạt động lúc/)).not.toBeInTheDocument();
+    });
+
+    it('refreshes unread counters after the snapshot read commit and ignores an older list response', async () => {
+        mockPartnerId='20';let staleList;
+        getListChatConversationService.mockImplementationOnce(()=>new Promise(resolve=>{staleList=resolve;}));
+        getListChatConversationService.mockResolvedValue({errCode:0,data:conversations.map(c=>({...c,unreadCount:0}))});
+        render(<ChatPage />);await screen.findByText('Tôi có thể tham gia');
+        await waitFor(()=>expect(getListChatConversationService).toHaveBeenCalledTimes(2));
+        await act(async()=>staleList({errCode:0,data:conversations.map(c=>({...c,unreadCount:260}))}));
+        expect(screen.queryByText('260',{exact:true})).not.toBeInTheDocument();
     });
 
 });
