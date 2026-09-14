@@ -1,3 +1,4 @@
+import { reconcilePushSession } from './push/webPush';
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
     BrowserRouter as Router,
@@ -38,6 +39,7 @@ const RoutePageLoader = () => (
 );
 
 function App() {
+    useEffect(()=>{reconcilePushSession();},[]);
     const initialSession = useRef({
         user: readJsonStorage("userData"),
         hasToken: Boolean(localStorage.getItem("token_user")),

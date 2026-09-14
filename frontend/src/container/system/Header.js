@@ -1,3 +1,4 @@
+import { clearPushOnLogout } from '../../push/webPush';
 import React from "react";
 import { Link } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
@@ -24,6 +25,7 @@ const Header = ({ user: suppliedUser }) => {
     const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
     const boxRef = useRef(null);
     const profileRef = useRef(null);
+    const refreshVersion = useRef(0);
     const homePath = getDefaultRouteForUser(user);
 
     const handleSidebarToggle = () => {
@@ -40,7 +42,9 @@ const Header = ({ user: suppliedUser }) => {
         setIsMobileSidebarOpen(willOpen);
     };
 
-    let handleLogout = () => {
+    let handleLogout = async () => {
+        const cleanup=clearPushOnLogout();
+        if(cleanup)await cleanup;
         disconnectSocket();
         localStorage.removeItem("userData");
         localStorage.removeItem("token_user");
@@ -50,14 +54,17 @@ const Header = ({ user: suppliedUser }) => {
     // nen nha tuyen dung khong biet co CV moi hay tin duoc duyet.
     useEffect(() => {
         if (!user || !user.id) return;
+        let active = true;
         const loadNotification = async () => {
+            if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
+            const version = ++refreshVersion.current;
             try {
                 const res = await getNotificationByUserService({
                     userId: user.id,
                     limit: 10,
                     offset: 0,
                 });
-                if (res && res.errCode === 0) {
+                if (active && version === refreshVersion.current && res && res.errCode === 0) {
                     setListNotification(res.data || []);
                     setUnreadCount(res.unreadCount || 0);
                 }
@@ -70,11 +77,18 @@ const Header = ({ user: suppliedUser }) => {
 
         // Co thong bao / tin nhan moi thi cap nhat ngay, khong cho het 30 giay
         const socket = getSocket();
-        if (socket) socket.on("notification:new", loadNotification);
+        const events = ['notification:new', 'notification:read', 'connect'];
+        if (socket) events.forEach(event => socket.on(event, loadNotification));
+        document.addEventListener('visibilitychange', loadNotification);
+        window.addEventListener('online', loadNotification);
 
         return () => {
+            active = false;
+            ++refreshVersion.current;
             window.clearInterval(intervalId);
-            if (socket) socket.off("notification:new", loadNotification);
+            if (socket) events.forEach(event => socket.off(event, loadNotification));
+            document.removeEventListener('visibilitychange', loadNotification);
+            window.removeEventListener('online', loadNotification);
         };
     }, [user]);
 
@@ -115,6 +129,7 @@ const Header = ({ user: suppliedUser }) => {
     const handleReadAll = async () => {
         const res = await markReadNotificationService({ userId: user.id });
         if (res && res.errCode === 0) {
+            ++refreshVersion.current;
             setListNotification((cur) => cur.map((i) => ({ ...i, isChecked: 1 })));
             setUnreadCount(0);
         }
@@ -122,16 +137,19 @@ const Header = ({ user: suppliedUser }) => {
 
     const handleClickNotification = async (notification) => {
         if (+notification.isChecked === 0) {
-            await markReadNotificationService({
+            const result = await markReadNotificationService({
                 userId: user.id,
                 id: notification.id,
             });
+            if(result?.errCode===0){
+            ++refreshVersion.current;
             setListNotification((cur) =>
                 cur.map((i) =>
                     i.id === notification.id ? { ...i, isChecked: 1 } : i
                 )
             );
             setUnreadCount((cur) => Math.max(0, cur - 1));
+            }
         }
         closeHeaderMenus();
         if (notification.link) window.location.href = notification.link;

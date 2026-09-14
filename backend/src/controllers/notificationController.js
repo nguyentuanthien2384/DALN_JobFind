@@ -24,6 +24,12 @@ let handleMarkReadNotification = async (req, res) => {
             ...req.body,
             userId: req.user.id
         });
+        if(data.errCode===0){
+            // The SQL update is already committed. A realtime outage must not
+            // turn a successful read operation into an API failure.
+            try{await require('../config/socket').emitNotificationRead(req.user.id);}
+            catch{require('../utils/realtimeMetrics').increment('notification_read_publish_errors_total');}
+        }
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

@@ -85,8 +85,15 @@ let handleSendMessage = async (data) => {
     const rate = await limiter.consume(`send:${senderId}`, 30, 60000);
     if (!rate.allowed) return protocol.error('RATE_LIMITED', 'Bạn gửi quá nhanh. Vui lòng thử lại sau.', 7, true, { retryAfterMs: rate.retryAfterMs });
     try {
-        const message = await tracing.run('chat.insert', () => db.ChatMessage.create({ senderId, receiverId, content, isRead: 0,
-            ...(clientMessageId ? { clientMessageId } : {}) }));
+        const values={ senderId, receiverId, content, isRead:0, ...(clientMessageId ? {clientMessageId} : {}) };
+        const message = await tracing.run('chat.insert', () => {
+            if (!require('../utils/webPushConfig').settings()) return db.ChatMessage.create(values);
+            return db.sequelize.transaction(async transaction => {
+                const saved=await db.ChatMessage.create(values,{transaction});
+                await require('./webPushService').enqueue(saved,transaction);
+                return saved;
+            });
+        });
         return { errCode: 0, data: message, errMessage: 'Gửi tin nhắn thành công' };
     } catch (error) {
         if (clientMessageId && error.name === 'SequelizeUniqueConstraintError') {

@@ -25,7 +25,7 @@ for (const path of [
   '../../src/controllers/cvController', '../../src/controllers/packagePostController',
   '../../src/controllers/packageCvController', '../../src/controllers/favoritePostController',
   '../../src/controllers/companyReviewController', '../../src/controllers/followCompanyController',
-  '../../src/controllers/notificationController', '../../src/controllers/chatController'
+  '../../src/controllers/webPushController', '../../src/controllers/notificationController', '../../src/controllers/chatController'
 ]) {
   jest.mock(path, () => new Proxy({}, { get(target, key) {
     if (!target[key]) target[key] = jest.fn();

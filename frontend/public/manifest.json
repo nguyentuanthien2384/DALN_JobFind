@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Job Finder",
+  "name": "Job Finder — Việc làm và tin nhắn",
   "icons": [
     {
       "src": "favicon.ico",
@@ -18,8 +18,10 @@
       "sizes": "512x512"
     }
   ],
-  "start_url": ".",
+  "start_url": "/chat",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#fb246a",
+  "background_color": "#ffffff",
+  "id": "/",
+  "lang": "vi"
 }

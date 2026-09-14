@@ -10,6 +10,7 @@ import {
 } from "../../service/userService";
 import { getSocket } from "../../socket";
 import { readPending, preparePending, clearPending, sendReliably } from "./reliableSend";
+import PushSettings from "../../push/PushSettings";
 import ChatAvatar from "./ChatAvatar";
 import { mergeMessages, synchronizeConversation } from './conversationSync';
 
@@ -317,6 +318,7 @@ const ChatPage = () => {
                     ></i>
                     Tin nhắn
                 </h4>
+                <PushSettings userId={Number(userData.id)} />
                 <div className="chat-wrapper">
                     {/* Danh sách hội thoại — tren mobile se an di khi da mo mot cuoc tro chuyen */}
                     <div

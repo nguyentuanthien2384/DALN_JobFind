@@ -18,6 +18,7 @@ jest.mock("../../service/userService", () => ({
     getListChatConversationService: jest.fn(),
     sendChatMessageService: jest.fn(),
 }));
+jest.mock("../../push/PushSettings", () => () => null);
 jest.mock("../../socket", () => ({ getSocket: jest.fn() }));
 jest.mock("react-toastify", () => ({ toast: { error: jest.fn() } }));
 jest.mock("react-router-dom", () => {

@@ -98,6 +98,7 @@ const connect = async (url, id) => {
     assert.equal((await chat.getConversation({userId:8,partnerId:9,afterId:1})).errCode,5);
     console.log('PASS MySQL pagination: 300+ messages, both directions, no gaps/duplicates, authorization, interleaved conversation IDs');
 
+    if(process.env.CHAT_TEST_PUSH === 'true')await require('./realtime/push.cjs')(db);
     if (process.env.CHAT_TEST_NGINX_BIN) {nginxConfig=await require('./realtime/nginx.cjs').prepare();process.env.URL_REACT+=','+nginxConfig.url;}
     if (process.env.CHAT_TEST_CHAOS === 'true') redisProxy = await require('./realtime/redis-fault-proxy.cjs')(redisUrl);
     if (process.env.CHAT_TEST_BROWSERS === 'true') process.env.CHAT_BROWSER_ASSETS = await require('./realtime/browser.cjs').build();

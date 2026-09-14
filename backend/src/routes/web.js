@@ -11,6 +11,7 @@ import companyReviewController from '../controllers/companyReviewController'
 import followCompanyController from '../controllers/followCompanyController'
 import notificationController from '../controllers/notificationController'
 import chatController from '../controllers/chatController'
+import webPushController from '../controllers/webPushController'
 
 import middlewareControllers from '../middlewares/jwtVerify'
 import { authorize, PERMISSIONS } from '../middlewares/authorize'
@@ -51,6 +52,10 @@ let initWebRoutes = (app) => {
         if (!secret || req.headers['x-internal-secret'] !== secret) return res.sendStatus(403);
         return res.type('text/plain').send(require('../utils/realtimeMetrics').render());
     });
+
+    router.get('/api/push/config', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), webPushController.config);
+    router.post('/api/push/subscription', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), webPushController.subscribe);
+    router.delete('/api/push/subscription', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), webPushController.unsubscribe);
 
     //=====================API USER==========================//
     // Tao tai khoan: co the goi khi chua dang nhap (tu dang ky) hoac boi admin.

@@ -60,11 +60,13 @@ const port = process.env.PORT || 5000;
 let server;
 let socketServer;
 let shutdownPromise;
+let pushWorker;
 
 export const shutdown = () => {
     if (!shutdownPromise) {
         shutdownPromise = (async () => {
             await schedule.gracefulShutdown();
+            if(pushWorker) await pushWorker.stop();
             if (socketServer) {
                 // Socket.IO also closes its attached HTTP server.
                 await new Promise((resolve) => socketServer.close(resolve));
@@ -94,6 +96,11 @@ const handleShutdown = () => {
 const startServer = async () => {
     // Never advertise a usable API before the configured database is reachable.
     await connectDB();
+    if(require('./utils/webPushConfig').settings()){
+        // Detect a missing migration before accepting chat writes.
+        await db.WebPushSubscription.findOne({attributes:['id'],raw:true});
+        await db.WebPushDelivery.findOne({attributes:['id'],raw:true});
+    }
     server = http.createServer(app);
     const adapter = await connectSocketRedis();
     socketServer = initSocket(server, adapter);
@@ -104,6 +111,9 @@ const startServer = async () => {
             resolve();
         });
     });
+
+    pushWorker=require('./services/webPushService').createWorker();
+    pushWorker.start();
 
     // Local startup can disable outbound recommendation mail and daily quota resets.
     // Preserve the existing production behavior when this option is unset.

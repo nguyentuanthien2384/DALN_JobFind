@@ -10,6 +10,8 @@ module.exports = (url) => {
     db.ChatMessage = require('../../src/models/chatMessage')(db.sequelize, DataTypes);
     db.ChatMessage.associate(db);
     db.RealtimePresence = require('../../src/models/realtimePresence')(db.sequelize, DataTypes);
+    db.WebPushSubscription = require('../../src/models/webPushSubscription')(db.sequelize,DataTypes);
+    db.WebPushDelivery = require('../../src/models/webPushDelivery')(db.sequelize,DataTypes);
     // Use the real service/controller with explicitly isolated fixture models.
     // Never import the project's database configuration or .env credentials.
     const modelPath = require.resolve('../../src/models/index');

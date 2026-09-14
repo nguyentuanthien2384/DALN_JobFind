@@ -1,3 +1,4 @@
+import { clearPushOnLogout } from '../../push/webPush';
 import { candidateAiEnabled } from '../../service/candidateWorkspace';
 import React from 'react'
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -25,6 +26,7 @@ const Header = () => {
     const notificationRef = useRef(null)
     const profileRef = useRef(null)
     const mobileMenuRef = useRef(null)
+    const refreshVersion = useRef(0)
     const isCandidate = user?.roleCode === 'CANDIDATE'
     const canUseChat = hasPermission(user, PERMISSIONS.USE_CHAT)
     const profilePath = isCandidate ? '/candidate/info' : '/admin/user-info/'
@@ -32,12 +34,15 @@ const Header = () => {
 
     useEffect(() => {
         if (!user || !user.id) return
-
+        let active = true
         const loadHeaderData = async () => {
+            if (document.visibilityState === 'hidden' || navigator.onLine === false) return
+            const version = ++refreshVersion.current
             const [notificationResult, chatResult] = await Promise.allSettled([
                 getNotificationByUserService({ userId: user.id, limit: 10, offset: 0 }),
                 canUseChat ? getListChatConversationService() : Promise.resolve(null)
             ])
+            if (!active || version !== refreshVersion.current) return
             const notificationRes = notificationResult.status === 'fulfilled' ? notificationResult.value : null
             const chatRes = chatResult.status === 'fulfilled' ? chatResult.value : null
             if (notificationRes && notificationRes.errCode === 0) {
@@ -57,20 +62,32 @@ const Header = () => {
         const socket = getSocket()
         const refresh = () => loadHeaderData()
         if (socket) {
-            if (canUseChat) socket.on('chat:new-message', refresh)
+            if (canUseChat) { socket.on('chat:new-message', refresh); socket.on('chat:read', refresh) }
             socket.on('notification:new', refresh)
+            socket.on('notification:read', refresh)
+            socket.on('connect', refresh)
         }
+        document.addEventListener('visibilitychange', refresh)
+        window.addEventListener('online', refresh)
 
         return () => {
+            active = false
+            ++refreshVersion.current
             window.clearInterval(intervalId)
+            document.removeEventListener('visibilitychange', refresh)
+            window.removeEventListener('online', refresh)
             if (socket) {
-                if (canUseChat) socket.off('chat:new-message', refresh)
+                if (canUseChat) { socket.off('chat:new-message', refresh); socket.off('chat:read', refresh) }
                 socket.off('notification:new', refresh)
+                socket.off('notification:read', refresh)
+                socket.off('connect', refresh)
             }
         }
     }, [user, canUseChat])
 
-    let handleLogout = () => {
+    let handleLogout = async () => {
+        const cleanup=clearPushOnLogout();
+        if(cleanup)await cleanup;
         disconnectSocket()
         localStorage.removeItem("userData");
         localStorage.removeItem("token_user")
@@ -126,6 +143,7 @@ const Header = () => {
     const handleReadAll = async () => {
         const res = await markReadNotificationService({ userId: user.id })
         if (res && res.errCode === 0) {
+            ++refreshVersion.current
             setListNotification(current => current.map(item => ({ ...item, isChecked: 1 })))
             setUnreadCount(0)
         }
@@ -133,9 +151,12 @@ const Header = () => {
 
     const handleClickNotification = async (notification) => {
         if (+notification.isChecked === 0) {
-            await markReadNotificationService({ userId: user.id, id: notification.id })
-            setListNotification(current => current.map(item => item.id === notification.id ? { ...item, isChecked: 1 } : item))
-            setUnreadCount(current => Math.max(0, current - 1))
+            const result = await markReadNotificationService({ userId: user.id, id: notification.id })
+            if (result?.errCode === 0) {
+                ++refreshVersion.current
+                setListNotification(current => current.map(item => item.id === notification.id ? { ...item, isChecked: 1 } : item))
+                setUnreadCount(current => Math.max(0, current - 1))
+            }
         }
         setShowNotification(false)
         setShowMobileNotifications(false)

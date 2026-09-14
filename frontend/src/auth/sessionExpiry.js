@@ -1,3 +1,4 @@
+import { clearPushOnLogout } from '../push/webPush';
 import { disconnectSocket } from '../socket';
 
 export const SESSION_ENDED_EVENT = 'jobfind:session-ended';
@@ -29,7 +30,17 @@ export const createSessionExpiryHandler = ({ storage, location, disconnect, noti
     return true;
 };
 
-export const expireSession = (sentToken, reason) => createSessionExpiryHandler({
+const finishExpiry = (sentToken, reason) => createSessionExpiryHandler({
     storage: localStorage, location: window.location, disconnect: disconnectSocket,
     notify: () => window.dispatchEvent(new Event(SESSION_ENDED_EVENT))
 })(sentToken, reason);
+
+let pendingExpiry;
+export const expireSession=(sentToken,reason)=>{
+    if(!sentToken||localStorage.getItem('token_user')!==sentToken)return false;
+    if(pendingExpiry?.token===sentToken)return pendingExpiry.promise;
+    const cleanup=clearPushOnLogout();
+    if(!cleanup)return finishExpiry(sentToken,reason);
+    const promise=cleanup.then(()=>finishExpiry(sentToken,reason)).finally(()=>{if(pendingExpiry?.token===sentToken)pendingExpiry=null;});
+    pendingExpiry={token:sentToken,promise};return promise;
+};

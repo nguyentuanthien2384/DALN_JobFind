@@ -202,6 +202,9 @@ const emitReadReceipt = (userId, partnerId, throughMessageId) => {
 const emitNotification = (userId, notification) => {
     if (io && userId) io.to(roomOf(userId)).emit('notification:new', notification);
 };
+const emitNotificationRead = userId => {
+    if (io && userId) io.to(roomOf(userId)).emit('notification:read', { v: 1 });
+};
 const emitDashboardChanged = async (type, scope = {}) => {
     if (!io) return;
     try {
@@ -225,4 +228,4 @@ const disconnectUser = (userId) => {
         io.in(roomOf(userId)).disconnectSockets(true);
     }
 };
-module.exports = { initSocket, emitNewMessage, emitReadReceipt, emitNotification, emitDashboardChanged, disconnectUser, getIO: () => io };
+module.exports = { initSocket, emitNewMessage, emitReadReceipt, emitNotification, emitNotificationRead, emitDashboardChanged, disconnectUser, getIO: () => io };
