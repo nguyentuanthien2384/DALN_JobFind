@@ -26,14 +26,20 @@ export const clearPending = (userId, partnerId, clientMessageId) => {
 };
 export const sendReliably = async (socket, payload, sendRest) => {
     let socketOutcomeUnknown = false;
+    const started = performance.now();
+    const report = (outcome) => {
+        try { if (socket?.connected) socket.volatile?.emit('chat:telemetry', {v:1,outcome,durationMs:Math.min(30000,Math.max(0,Math.round(performance.now()-started)))}); } catch {}
+    };
     if (socket?.connected) {
         try {
             // Only transport/ACK failure falls back. A business rejection must
             // not be retried through another transport.
-            return await socket.timeout(5000).emitWithAck('chat:send', payload);
+            const result = await socket.timeout(5000).emitWithAck('chat:send', payload);
+            report('ack'); return result;
         } catch { socketOutcomeUnknown = true; }
     }
     const result = await sendRest(payload);
+    report(result?.errCode === 0 ? 'fallback' : 'uncertain');
     // A fallback denial (for example a rate limit) does not prove that the
     // original socket request failed to commit. Keep the key until success.
     return socketOutcomeUnknown && result?.errCode !== 0 ? { ...result, deliveryUncertain: true } : result;

@@ -72,6 +72,7 @@ export const shutdown = () => {
                 await new Promise((resolve) => server.close(resolve));
             }
             await closeSocketRedis();
+            await require('./utils/realtimeTracing').close();
             await db.sequelize.close();
         })();
     }

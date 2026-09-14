@@ -335,4 +335,37 @@ describe("ChatPage", () => {
         expect(screen.getByText('Tin trong lúc đồng bộ')).toBeInTheDocument();
         expect(getChatConversationService).toHaveBeenCalledTimes(2);
     });
+    it('loads older history while preserving a new live message and removes the history button at the beginning', async () => {
+        mockPartnerId = '20'; socket.connected = true;
+        getChatConversationService.mockResolvedValueOnce({errCode:0, data:[{...messages[1],id:20}], partnerData:companyPartner, pageInfo:{hasMore:true}});
+        render(<ChatPage />);
+        const older = await screen.findByRole('button', {name:'Xem tin nhắn cũ'});
+        let finish;
+        getChatConversationService.mockImplementationOnce(() => new Promise(resolve => {finish=resolve;}));
+        fireEvent.click(older); expect(older).toBeDisabled();
+        await act(async () => socketHandlers['chat:new-message']({id:21,senderId:20,receiverId:7,content:'Tin mới trong lúc tải lịch sử'}));
+        await act(async () => finish({errCode:0,data:[{...messages[0],id:19}],pageInfo:{hasMore:false}}));
+        expect(getChatConversationService).toHaveBeenLastCalledWith({partnerId:'20',beforeId:20});
+        expect(screen.getByText(messages[0].content)).toBeInTheDocument();
+        expect(screen.getByText('Tin mới trong lúc tải lịch sử')).toBeInTheDocument();
+        expect(screen.queryByRole('button',{name:'Xem tin nhắn cũ'})).not.toBeInTheDocument();
+    });
+    it('shows a recoverable history error and re-enables the button after a network exception', async () => {
+        mockPartnerId='20';
+        getChatConversationService.mockResolvedValueOnce({errCode:0,data:messages,partnerData:companyPartner,pageInfo:{hasMore:true}});
+        render(<ChatPage />);
+        const older=await screen.findByRole('button',{name:'Xem tin nhắn cũ'});
+        getChatConversationService.mockRejectedValueOnce(new Error('offline'));
+        fireEvent.click(older);
+        await screen.findByRole('alert'); expect(older).toBeEnabled();
+    });
+    it('displays last-seen for an offline authorized partner and clears stale status on disconnect', async () => {
+        mockPartnerId='20';socket.connected=true;
+        socket.emitWithAck.mockResolvedValue({errCode:0,data:{online:false,lastSeenAt:'2026-01-03T12:00:00Z'}});
+        render(<ChatPage />);
+        expect(await screen.findByText(/Hoạt động lúc/)).toBeInTheDocument();
+        act(() => socketHandlers.disconnect());
+        expect(screen.queryByText(/Hoạt động lúc/)).not.toBeInTheDocument();
+    });
+
 });

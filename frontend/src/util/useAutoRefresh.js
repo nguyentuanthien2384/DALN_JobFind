@@ -74,11 +74,13 @@ const useAutoRefresh = (taiLaiDuLieu, tuyChon = {}) => {
         // lai thanh mot lan goi API.
         const lamMoiHoanLai = () => {
             window.clearTimeout(hen);
-            hen = window.setTimeout(lamMoi, 500);
+            hen = window.setTimeout(() => {
+                if (document.visibilityState === "visible" && navigator.onLine !== false) lamMoi();
+            }, 500);
         };
 
         const dinhKy = window.setInterval(() => {
-            if (document.visibilityState === "visible") lamMoi();
+            if (document.visibilityState === "visible" && navigator.onLine !== false) lamMoi();
         }, khoangPoll);
 
         const khiDoiTab = () => {
@@ -88,13 +90,15 @@ const useAutoRefresh = (taiLaiDuLieu, tuyChon = {}) => {
 
         // Khong co socket (chua dang nhap / khong ket noi duoc) thi van con poll.
         const socket = getSocket();
-        if (socket) socket.on("dashboard:changed", lamMoiHoanLai);
+        if (socket) { socket.on("dashboard:changed", lamMoiHoanLai); socket.on("connect", lamMoiHoanLai); }
+        window.addEventListener("online", lamMoiHoanLai);
 
         return () => {
             window.clearTimeout(hen);
             window.clearInterval(dinhKy);
             document.removeEventListener("visibilitychange", khiDoiTab);
-            if (socket) socket.off("dashboard:changed", lamMoiHoanLai);
+            if (socket) { socket.off("dashboard:changed", lamMoiHoanLai); socket.off("connect", lamMoiHoanLai); }
+            window.removeEventListener("online", lamMoiHoanLai);
         };
     }, [bat, khoangPoll, lamMoi]);
 

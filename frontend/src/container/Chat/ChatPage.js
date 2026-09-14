@@ -10,6 +10,8 @@ import {
 } from "../../service/userService";
 import { getSocket } from "../../socket";
 import { readPending, preparePending, clearPending, sendReliably } from "./reliableSend";
+import ChatAvatar from "./ChatAvatar";
+import { mergeMessages, synchronizeConversation } from './conversationSync';
 
 const ChatPage = () => {
     const navigate = useNavigate();
@@ -24,10 +26,18 @@ const ChatPage = () => {
     const [isSending, setIsSending] = useState(false);
     const [sendUncertain, setSendUncertain] = useState(false);
     const [partnerOnline, setPartnerOnline] = useState(null);
+    const [partnerLastSeen, setPartnerLastSeen] = useState(null);
+    const [hasOlder, setHasOlder] = useState(false);
+    const [loadingOlder, setLoadingOlder] = useState(false);
+    const [syncError, setSyncError] = useState('');
+    const syncCursorRef = useRef({ partnerId, id: 0 });
+    const historyLockRef = useRef(false);
+    const messageListRef = useRef(null);
     const activePartnerRef = useRef(partnerId);
     activePartnerRef.current = partnerId;
     const sendLockRef = useRef(false);
     const fetchSequenceRef = useRef(0);
+    const listSequenceRef = useRef(0);
     const messagesEndRef = useRef(null);
     const typingTimerRef = useRef(null);
     const typingEmitTimerRef = useRef(null);
@@ -43,38 +53,43 @@ const ChatPage = () => {
     }, []);
 
     const fetchListConversation = useCallback(async () => {
+        const sequence = ++listSequenceRef.current;
         const res = await getListChatConversationService();
-        if (res && res.errCode === 0) {
+        if (sequence === listSequenceRef.current && res && res.errCode === 0) {
             setListConversation(res.data);
         }
     }, []);
 
     const fetchConversation = useCallback(async (scroll) => {
         const sequence = ++fetchSequenceRef.current;
-        const res = await getChatConversationService({ partnerId });
+        const current = () => activePartnerRef.current === partnerId && sequence === fetchSequenceRef.current;
+        const cursor = syncCursorRef.current.partnerId === partnerId ? syncCursorRef.current.id : 0;
+        let res;
+        try { res = await synchronizeConversation({ partnerId, afterId: cursor, fetchPage: getChatConversationService, current }); }
+        catch { res = { errCode: -1, errMessage: 'Chưa đồng bộ được hội thoại. Vui lòng thử lại.' }; }
         if (activePartnerRef.current !== partnerId || sequence !== fetchSequenceRef.current) return;
         if (res && res.errCode === 0) {
             setMessages((prev) => {
-                if (scroll || prev.length !== res.data.length) {
+                const list = messageListRef.current;
+                const nearBottom = !list || list.scrollHeight - list.scrollTop - list.clientHeight < 120;
+                if (scroll || (nearBottom && Number(res.data.at(-1)?.id) > Number(prev.at(-1)?.id || 0))) {
                     setTimeout(scrollToBottom, 100);
                 }
-                // Retain events that arrived while this snapshot was in flight.
-                const byId = new Map(res.data.map((message) => [Number(message.id), message]));
-                prev.forEach((message) => {
-                    const snapshot = byId.get(Number(message.id));
-                    if (snapshot && +message.isRead === 1) byId.set(Number(message.id), { ...snapshot, isRead: 1 });
-                });
-                const newest = Math.max(0, ...res.data.map((message) => Number(message.id)));
-                prev.filter((message) => Number(message.id) > newest).forEach((message) => byId.set(Number(message.id), message));
-                return [...byId.values()].sort((a, b) => Number(a.id) - Number(b.id));
+                return mergeMessages(prev, res.data);
             });
+            if (!cursor) setHasOlder(Boolean(res.pageInfo?.hasMore));
+            syncCursorRef.current = { partnerId, id: Math.max(cursor, ...res.data.map((message) => Number(message.id)), 0) };
+            setSyncError('');
             setPartnerData(res.partnerData);
+            // The REST snapshot marks its boundary read even while the socket
+            // is offline. Refresh counters after that commit, not in parallel.
+            fetchListConversation();
             const socket = getSocket();
             if (socket && socket.connected && res.data.length && !document.hidden) {
                 socket.emit("chat:read", { partnerId: Number(partnerId), throughMessageId: Math.max(...res.data.map((m) => Number(m.id))) });
             }
-        }
-    }, [partnerId, scrollToBottom]);
+        } else if (res) setSyncError(res.errMessage || 'Chưa đồng bộ được hội thoại. Vui lòng thử lại.');
+    }, [partnerId, scrollToBottom, fetchListConversation]);
 
     useEffect(() => {
         if (!userData) {
@@ -122,7 +137,7 @@ const ChatPage = () => {
             fetchListConversation();
             if (partnerId && !document.hidden) fetchConversation(false);
         };
-        const onDisconnect = () => { setIsRealtime(false); setPartnerOnline(null); };
+        const onDisconnect = () => { setIsRealtime(false); setPartnerOnline(null); setPartnerLastSeen(null); };
 
         const onNewMessage = (msg) => {
             const involved =
@@ -192,7 +207,9 @@ const ChatPage = () => {
     }, [fetchConversation, partnerId, userData]);
 
     useEffect(() => {
-        setMessages([]); setPartnerData(null); setPartnerTyping(false); setPartnerOnline(null);
+        syncCursorRef.current = { partnerId, id: 0 };
+        setHasOlder(false); setLoadingOlder(false); setSyncError('');
+        setMessages([]); setPartnerData(null); setPartnerTyping(false); setPartnerOnline(null); setPartnerLastSeen(null);
         const pending = userData && partnerId ? readPending(userData.id, partnerId) : null;
         setContent(pending?.content || ''); setSendUncertain(Boolean(pending));
     }, [partnerId, userData]);
@@ -205,7 +222,10 @@ const ChatPage = () => {
             if (!socket?.connected || document.hidden) return;
             try {
                 const res = await socket.timeout(3000).emitWithAck('chat:presence', { partnerId: Number(partnerId) });
-                if (!stopped) setPartnerOnline(res?.errCode === 0 ? res.data.online : null);
+                if (!stopped) {
+                    setPartnerOnline(res?.errCode === 0 ? res.data.online : null);
+                    setPartnerLastSeen(res?.errCode === 0 ? res.data.lastSeenAt : null);
+                }
             } catch { if (!stopped) setPartnerOnline(null); }
         };
         check();
@@ -239,6 +259,25 @@ const ChatPage = () => {
             if (activePartnerRef.current === target) setSendUncertain(Boolean(readPending(userData.id, target)));
             toast.error(error.message || 'Chưa xác nhận được tin nhắn. Hãy gửi lại để kiểm tra.');
         } finally { sendLockRef.current = false; setIsSending(false); }
+    };
+
+    const loadOlder = async () => {
+        if (!messages.length || historyLockRef.current) return;
+        historyLockRef.current = true; setLoadingOlder(true);
+        const target = partnerId, oldest = Number(messages[0].id);
+        const list = messageListRef.current, previousHeight = list?.scrollHeight || 0;
+        try {
+            const res = await getChatConversationService({ partnerId: target, beforeId: oldest });
+            if (activePartnerRef.current !== target) return;
+            if (res?.errCode !== 0) { setSyncError(res?.errMessage || 'Không tải được tin nhắn cũ.'); return; }
+            setMessages((prev) => mergeMessages(res.data, prev));
+            setHasOlder(Boolean(res.pageInfo?.hasMore)); setSyncError('');
+            requestAnimationFrame(() => {
+                if (activePartnerRef.current === target && list) list.scrollTop += list.scrollHeight - previousHeight;
+            });
+        } catch {
+            if (activePartnerRef.current === target) setSyncError('Không tải được tin nhắn cũ. Vui lòng thử lại.');
+        } finally { historyLockRef.current = false; if (activePartnerRef.current === target) setLoadingOlder(false); }
     };
 
     const handleTyping = (value) => {
@@ -303,7 +342,8 @@ const ChatPage = () => {
                                         color: "inherit",
                                     }}
                                 >
-                                    <img
+                                    <ChatAvatar
+                                        name={getPartnerName(item.partnerData)}
                                         src={getPartnerAvatar(item.partnerData)}
                                         alt=""
                                         style={{
@@ -380,7 +420,8 @@ const ChatPage = () => {
                                     >
                                         <i className="fas fa-arrow-left"></i>
                                     </Link>
-                                    <img
+                                    <ChatAvatar
+                                        name={getPartnerName(partnerData)}
                                         src={getPartnerAvatar(partnerData)}
                                         alt=""
                                         style={{
@@ -405,7 +446,7 @@ const ChatPage = () => {
                                                         className="fas fa-circle"
                                                         style={{ fontSize: "7px", color: "#28a745", marginRight: "4px" }}
                                                     ></i>
-                                                    {partnerOnline === false ? 'Người nhận đang ngoại tuyến' : 'Đang kết nối trực tiếp'}
+                                                    {partnerOnline === false ? (partnerLastSeen ? `Hoạt động lúc ${moment(partnerLastSeen).format('HH:mm DD/MM/YYYY')}` : 'Người nhận đang ngoại tuyến') : 'Đang kết nối trực tiếp'}
                                                 </span>
                                             ) : (
                                                 "Chế độ tải lại định kỳ"
@@ -414,6 +455,10 @@ const ChatPage = () => {
                                     </div>
                                 </div>
                                 <div
+                                    ref={messageListRef}
+                                    role="log"
+                                    aria-label="Nội dung hội thoại"
+                                    aria-live="polite"
                                     style={{
                                         flex: 1,
                                         overflowY: "auto",
@@ -421,6 +466,8 @@ const ChatPage = () => {
                                         background: "#fafafa",
                                     }}
                                 >
+                                    {syncError && <div role="alert" className="alert alert-warning">{syncError} <button type="button" onClick={() => fetchConversation(false)}>Thử đồng bộ lại</button></div>}
+                                    {hasOlder && <div style={{ textAlign: 'center', marginBottom: 16 }}><button type="button" className="btn btn-light" disabled={loadingOlder} onClick={loadOlder}>{loadingOlder ? 'Đang tải tin nhắn cũ...' : 'Xem tin nhắn cũ'}</button></div>}
                                     {messages.map((item, index) => {
                                         const isMine =
                                             +item.senderId === +userData.id;
@@ -511,7 +558,7 @@ const ChatPage = () => {
                                         onClick={() => handleSend()}
                                         disabled={isSending || !content.trim()}
                                     >
-                                        <i className="far fa-paper-plane"></i>
+                                        <i className="far fa-paper-plane" aria-hidden="true"></i> {isSending ? "Đang gửi…" : sendUncertain ? "Gửi lại" : "Gửi"}
                                     </button>
                                 </div>
                             </>

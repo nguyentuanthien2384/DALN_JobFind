@@ -7,11 +7,12 @@ const schemas = {
     'chat:send': { receiverId: id, content: { type: 'string', minLength: 1, maxLength: 2000 }, clientMessageId: clientId },
     'chat:typing': { receiverId: id },
     'chat:read': { partnerId: id, throughMessageId: id },
+    'chat:telemetry': { outcome: {enum:['ack','fallback','uncertain']}, durationMs:{type:'integer',minimum:0,maximum:30000} },
     'chat:presence': { partnerId: id },
 };
 const validators = Object.fromEntries(Object.entries(schemas).map(([event, properties]) => [event, ajv.compile({
     type: 'object', additionalProperties: false,
-    required: event === 'chat:send' ? ['receiverId', 'content', 'clientMessageId'] : [Object.keys(properties)[0]],
+    required: event === 'chat:telemetry' ? ['outcome','durationMs'] : event === 'chat:send' ? ['receiverId', 'content', 'clientMessageId'] : [Object.keys(properties)[0]],
     properties: { ...properties, v: { const: 1 } },
 })]));
 const error = (code, errMessage, errCode = 1, retryable = false, extra = {}) => ({

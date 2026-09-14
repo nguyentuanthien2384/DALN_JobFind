@@ -19,6 +19,7 @@ const mockDb = {
     },
 };
 jest.mock('../../src/models/index', () => mockDb);
+jest.mock('../../src/services/realtimePresenceService', () => ({ touch: jest.fn(async () => {}), lastSeen: jest.fn(async () => '2026-01-01T00:00:00.000Z') }));
 const http = require('http');
 const express = require('express');
 const jwt = require('jsonwebtoken');
@@ -121,4 +122,28 @@ test('oversized WebSocket payload closes the transport before persistence', asyn
     const sender = await connect(client(7, { transports: ['websocket'] }));
     const disconnected = once(sender, 'disconnect'); sender.emit('chat:send', { ...send, content: 'x'.repeat(70000) });
     await disconnected; expect(mockRows).toHaveLength(0);
+});
+
+
+test('rejects a correctly signed JWT with the wrong audience',async()=>{
+    const token=jwt.sign({sub:'7'},security.getJwtSecret(),{...security.getJwtSignOptions(),audience:'another-service'});
+    const s=client(7,{auth:{token}});const rejected=once(s,'connect_error');s.connect();
+    expect((await rejected).data.code).toBe('AUTH_INVALID');
+});
+test('blocks a deleted account on its next live action before writing',async()=>{
+    const s=await connect(client(7));mockInactive.add(7);
+    const gone=once(s,'disconnect');s.emit('chat:send',send);await gone;expect(mockRows).toHaveLength(0);
+});
+test('limits new message flooding and validates bounded client latency reports',async()=>{
+    const s=await connect(client(7));
+    for(let i=0;i<30;i++)expect((await s.timeout(2000).emitWithAck('chat:send',{...send,clientMessageId:`flood-message-${String(i).padStart(8,'0')}`})).errCode).toBe(0);
+    expect((await s.timeout(2000).emitWithAck('chat:send',{...send,clientMessageId:'flood-overflow-000001'})).code).toBe('RATE_LIMITED');
+    expect(mockRows).toHaveLength(30);
+    expect((await s.timeout(2000).emitWithAck('chat:telemetry',{v:1,outcome:'ack',durationMs:250})).errCode).toBe(0);
+    expect((await s.timeout(2000).emitWithAck('chat:telemetry',{v:1,outcome:'arbitrary label',durationMs:250})).code).toBe('PAYLOAD_INVALID');
+    expect((await s.timeout(2000).emitWithAck('chat:telemetry',{v:1,outcome:'ack',durationMs:9999999})).code).toBe('PAYLOAD_INVALID');
+});
+test('malformed wire JSON disconnects without a database write',async()=>{
+    const s=await connect(client(7,{transports:['websocket']}));const gone=once(s,'disconnect');
+    s.io.engine.write('2["chat:send",invalid json]');await gone;expect(mockRows).toHaveLength(0);
 });

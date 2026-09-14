@@ -1,6 +1,7 @@
 import db from "../models/index";
 const { Op, QueryTypes } = require("sequelize");
 const protocol = require("../utils/chatProtocol");
+const tracing = require('../utils/realtimeTracing');
 const limiter = require("../utils/realtimeLimiter");
 require('dotenv').config();
 
@@ -70,7 +71,7 @@ let handleSendMessage = async (data) => {
         return protocol.error('PAYLOAD_INVALID', 'Mã tin nhắn không hợp lệ');
     const attempts = await limiter.consume(`send-attempt:${senderId}`, 120, 60000);
     if (!attempts.allowed) return protocol.error('RATE_LIMITED', 'Bạn thao tác quá nhanh', 7, true, { retryAfterMs: attempts.retryAfterMs });
-    const relationship = await canParticipantsChat(senderId, receiverId);
+    const relationship = await tracing.run('chat.authorize', () => canParticipantsChat(senderId, receiverId));
     if (relationship.missingReceiver) return protocol.error('CHAT_RECEIVER_NOT_FOUND', 'Không tìm thấy người nhận', 3);
     if (!relationship.allowed) return protocol.error('CHAT_NOT_ALLOWED', 'Chỉ ứng viên và nhà tuyển dụng thuộc công ty đã duyệt mới được nhắn tin với nhau', 5);
     const replay = (message) => Number(message.receiverId) === receiverId && message.content === content
@@ -78,18 +79,18 @@ let handleSendMessage = async (data) => {
         : protocol.error('IDEMPOTENCY_CONFLICT', 'Mã gửi lại đã được sử dụng cho một tin nhắn khác', 6);
     const where = { senderId, clientMessageId };
     if (clientMessageId) {
-        const existing = await db.ChatMessage.findOne({ where });
+        const existing = await tracing.run('chat.lookup', () => db.ChatMessage.findOne({ where }));
         if (existing) return replay(existing);
     }
     const rate = await limiter.consume(`send:${senderId}`, 30, 60000);
     if (!rate.allowed) return protocol.error('RATE_LIMITED', 'Bạn gửi quá nhanh. Vui lòng thử lại sau.', 7, true, { retryAfterMs: rate.retryAfterMs });
     try {
-        const message = await db.ChatMessage.create({ senderId, receiverId, content, isRead: 0,
-            ...(clientMessageId ? { clientMessageId } : {}) });
+        const message = await tracing.run('chat.insert', () => db.ChatMessage.create({ senderId, receiverId, content, isRead: 0,
+            ...(clientMessageId ? { clientMessageId } : {}) }));
         return { errCode: 0, data: message, errMessage: 'Gửi tin nhắn thành công' };
     } catch (error) {
         if (clientMessageId && error.name === 'SequelizeUniqueConstraintError') {
-            const existing = await db.ChatMessage.findOne({ where });
+            const existing = await tracing.run('chat.lookup', () => db.ChatMessage.findOne({ where }));
             if (existing) return replay(existing);
         }
         throw error;
@@ -144,8 +145,13 @@ let getConversation = (data) => {
                     })
                     return
                 }
+                const cursor = (value) => value === undefined ? undefined : (/^[1-9][0-9]*$/.test(String(value)) && Number.isSafeInteger(Number(value)) ? Number(value) : null);
+                const beforeId = cursor(data.beforeId), afterId = cursor(data.afterId);
+                if (beforeId === null || afterId === null || (beforeId && afterId)) return resolve(protocol.error('PAYLOAD_INVALID', 'Mốc hội thoại không hợp lệ'));
+                const limit = Math.min(Math.max(Number(data.limit) || 100, 1), 200);
                 let messages = await db.ChatMessage.findAll({
                     where: {
+                        ...(beforeId ? { id: { [Op.lt]: beforeId } } : afterId ? { id: { [Op.gt]: afterId } } : {}),
                         [Op.or]: [
                             { senderId: data.userId, receiverId: data.partnerId },
                             { senderId: data.partnerId, receiverId: data.userId }
@@ -153,11 +159,13 @@ let getConversation = (data) => {
                     },
                     // Query the newest records first; an old conversation must
                     // not hide new messages after it grows past 100 entries.
-                    order: [['id', 'DESC']],
-                    limit: Math.min(Math.max(Number(data.limit) || 100, 1), 200),
+                    order: [['id', afterId ? 'ASC' : 'DESC']],
+                    limit: limit + 1,
                     raw: true
                 })
-                messages.reverse()
+                const hasMore = messages.length > limit;
+                messages = messages.slice(0, limit);
+                if (!afterId) messages.reverse();
                 // Mark only the snapshot that was actually returned. A newer message
                 // arriving while the query runs must not be marked read accidentally.
                 if (messages.length) await markConversationRead({ ...data, throughMessageId: messages[messages.length - 1].id });
@@ -173,7 +181,8 @@ let getConversation = (data) => {
                 resolve({
                     errCode: 0,
                     data: messages,
-                    partnerData: partner
+                    partnerData: partner,
+                    pageInfo: { hasMore, nextBeforeId: messages[0]?.id || null, nextAfterId: messages[messages.length - 1]?.id || null }
                 })
             }
         } catch (error) {

@@ -154,4 +154,20 @@ describe("useAutoRefresh", () => {
         unmount();
         expect(socket.off).toHaveBeenCalledWith("dashboard:changed", callback);
     });
+    it('reconciles after reconnect and ignores signals while hidden or offline', async () => {
+        const refresh=jest.fn().mockResolvedValue();
+        const {unmount}=renderHook(()=>useAutoRefresh(refresh,{khoangPoll:60000}));
+        const onConnect=socket.on.mock.calls.find(([event])=>event==='connect')[1];
+        setVisibility('hidden');
+        await act(async()=>{onConnect();jest.advanceTimersByTime(501);await Promise.resolve();});
+        expect(refresh).not.toHaveBeenCalled();
+        setVisibility('visible');Object.defineProperty(navigator,'onLine',{configurable:true,value:false});
+        await act(async()=>{onConnect();jest.advanceTimersByTime(501);await Promise.resolve();});
+        expect(refresh).not.toHaveBeenCalled();
+        Object.defineProperty(navigator,'onLine',{configurable:true,value:true});
+        await act(async()=>{window.dispatchEvent(new Event('online'));onConnect();jest.advanceTimersByTime(501);await Promise.resolve();});
+        expect(refresh).toHaveBeenCalledTimes(1);unmount();
+        expect(socket.off).toHaveBeenCalledWith('connect',onConnect);
+    });
+
 });

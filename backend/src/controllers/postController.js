@@ -10,9 +10,9 @@ const forbidden = (res, errMessage) => res.status(403).json({
 // Manual job.updated is already committed to the outbox by the writer. This
 // socket hint is still best-effort and must not turn a committed decision into
 // an HTTP failure (or prompt a user to repeat it).
-const notifyModerationDashboard = async data => {
+const notifyModerationDashboard = async (data, postId) => {
     if (data.errCode !== 0 || data.changed !== true) return;
-    try { await emitDashboardChanged('post'); }
+    try { await emitDashboardChanged('post', { postId }); }
     catch { console.log('Manual moderation dashboard refresh failed after commit'); }
 };
 
@@ -29,7 +29,7 @@ let handleCreateNewPost = async (req, res) => {
         // job.created is already committed with the post/quota. No direct emit.
         // Bai dang moi lam doi bieu do "top linh vuc" -> bao cho dashboard tu tai lai.
         if (data.errCode === 0 && data.replayed !== true) {
-            try { await emitDashboardChanged('post'); }
+            try { await emitDashboardChanged('post', { companyId: req.user.companyId }); }
             catch { console.log('Create post dashboard refresh failed after commit'); }
         }
         return res.status(data.httpStatus || 200).json(data);
@@ -99,7 +99,7 @@ let handleBanPost = async (req, res) => {
             ...req.body,
             userId: req.user.id
         }, { roleCode: req.user.userAccountData?.roleCode });
-        await notifyModerationDashboard(data);
+        await notifyModerationDashboard(data, req.body.id ?? req.body.postId);
         return res.status(data.httpStatus || (data.conflict ? 409 : 200)).json(data);
     } catch (error) {
         console.log(error)
@@ -116,7 +116,7 @@ let handleAcceptPost = async (req, res) => {
             ...req.body,
             userId: req.user.id
         }, { roleCode: req.user.userAccountData?.roleCode });
-        await notifyModerationDashboard(data);
+        await notifyModerationDashboard(data, req.body.id ?? req.body.postId);
         return res.status(data.httpStatus || (data.conflict ? 409 : 200)).json(data);
     } catch (error) {
         console.log(error)
@@ -181,7 +181,7 @@ let handleActivePost = async (req, res) => {
             ...req.body,
             userId: req.user.id
         }, { roleCode: req.user.userAccountData?.roleCode });
-        await notifyModerationDashboard(data);
+        await notifyModerationDashboard(data, req.body.id ?? req.body.postId);
         return res.status(data.httpStatus || (data.conflict ? 409 : 200)).json(data);
     } catch (error) {
         console.log(error)

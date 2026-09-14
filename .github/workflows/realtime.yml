@@ -1,15 +1,15 @@
 name: Realtime integration
 on:
   push:
-    paths: ['backend/**', 'frontend/src/container/Chat/**', 'frontend/src/socket*', '.github/workflows/realtime.yml']
+    paths: ['backend/**', 'frontend/src/container/Chat/**', 'frontend/src/socket*', 'frontend/src/service/userService*', 'frontend/src/util/useAutoRefresh*', '.github/workflows/realtime.yml']
   pull_request:
-    paths: ['backend/**', 'frontend/src/container/Chat/**', 'frontend/src/socket*', '.github/workflows/realtime.yml']
+    paths: ['backend/**', 'frontend/src/container/Chat/**', 'frontend/src/socket*', 'frontend/src/service/userService*', 'frontend/src/util/useAutoRefresh*', '.github/workflows/realtime.yml']
 permissions:
   contents: read
 jobs:
   mysql-redis:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     services:
       mysql:
         image: mysql:8.0
@@ -34,8 +34,16 @@ jobs:
         working-directory: backend
       - run: npm test -- --silent
         working-directory: backend
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: npm run test:unit -- --runTestsByPath src/container/Chat/ChatPage.test.js src/container/Chat/conversationSync.test.js src/container/Chat/reliableSend.test.js src/util/useAutoRefresh.test.js
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium firefox webkit
+        working-directory: backend
       - run: npm run test:chat:infrastructure
         working-directory: backend
         env:
+          CHAT_TEST_BROWSERS: 'true'
+          CHAT_TEST_CHAOS: 'true'
           CHAT_TEST_MYSQL_URL: mysql://root:realtime-ci-disposable@127.0.0.1:3306/mysql
           CHAT_TEST_REDIS_URL: redis://127.0.0.1:6379

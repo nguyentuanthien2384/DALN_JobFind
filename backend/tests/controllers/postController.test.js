@@ -159,7 +159,7 @@ describe('postController', () => {
     mockService.handleCreateNewPost.mockResolvedValueOnce({ errCode: 0, postId: 101 });
     await controller.handleCreateNewPost(request(), createResponse());
     expect(mockEmitJobCreated).not.toHaveBeenCalled();
-    expect(mockEmitDashboardChanged).toHaveBeenCalledWith('post');
+    expect(mockEmitDashboardChanged).toHaveBeenCalledWith('post', expect.any(Object));
 
     mockService.handleReupPost.mockResolvedValueOnce({ errCode: 0, postId: 102 });
     await controller.handleReupPost(request(), createResponse());
@@ -222,7 +222,7 @@ describe('postController', () => {
     mockService[method].mockResolvedValueOnce({ errCode: 0, changed: true, postId: 123 });
     await controller[method](request(), createResponse());
     expect(mockEmitJobUpdated).not.toHaveBeenCalled(); // writer already saved exact job ID in outbox
-    if (changesDashboard) expect(mockEmitDashboardChanged).toHaveBeenCalledWith('post');
+    if (changesDashboard) expect(mockEmitDashboardChanged).toHaveBeenCalledWith('post', expect.any(Object));
   });
 
   test.each(['handleBanPost', 'handleAcceptPost', 'handleActivePost'])('%s returns committed success even when dashboard refresh fails', async method => {

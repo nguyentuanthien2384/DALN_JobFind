@@ -26,7 +26,7 @@ describe('chatController', () => {
     const res = createResponse();
     await controller.handleSendMessage(req(), res);
     expect(mockService.handleSendMessage).toHaveBeenCalledWith({ senderId: 7, receiverId: 8, content: 'hello' });
-    expect(mockEmitNewMessage).toHaveBeenCalledWith(saved);
+    expect(mockEmitNewMessage).toHaveBeenCalledWith(saved, res.json.mock.calls[0][0].traceId);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errCode: 0, data: saved, code: 'OK', v: 1 }));
   });
 

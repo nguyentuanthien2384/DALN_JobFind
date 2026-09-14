@@ -357,7 +357,7 @@ describe('chatService', () => {
     expect(await chat.getConversation({ userId: 1, partnerId: 2 })).toEqual({
       errCode: 0,
       data: [{ id: 10 }, { id: 11 }],
-      partnerData: { id: 2 }
+      partnerData: { id: 2 }, pageInfo: { hasMore: false, nextBeforeId: 10, nextAfterId: 11 }
     });
 
     mockDb.User.findAll.mockResolvedValueOnce([
@@ -392,9 +392,10 @@ describe('chatService', () => {
     mockDb.ChatMessage.findAll.mockResolvedValue(rows);
     mockDb.User.findOne.mockResolvedValue({ id: 2 });
     expect(await chat.getConversation({ userId: 1, partnerId: 2, limit: 500 })).toEqual({
-      errCode: 0, data: [{ id: 1 }, { id: 2 }, { id: 3 }], partnerData: { id: 2 }
+      errCode: 0, data: [{ id: 1 }, { id: 2 }, { id: 3 }], partnerData: { id: 2 },
+      pageInfo: { hasMore: false, nextBeforeId: 1, nextAfterId: 3 }
     });
-    expect(mockDb.ChatMessage.findAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 200, order: [['id', 'DESC']] }));
+    expect(mockDb.ChatMessage.findAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 201, order: [['id', 'DESC']] }));
     mockDb.User.findAll.mockResolvedValueOnce([
       { id: 1, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } },
       {
@@ -404,7 +405,33 @@ describe('chatService', () => {
       }
     ]);
     await chat.getConversation({ userId: 1, partnerId: 2, limit: -5 });
-    expect(mockDb.ChatMessage.findAll).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 1 }));
+    expect(mockDb.ChatMessage.findAll).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 2 }));
+  });
+
+
+  test.each([0, -1, '1.5', '1e2', '9007199254740992', 'x', '1 OR 1=1'])('rejects invalid history cursor %s before querying messages', async (beforeId) => {
+    expect((await chat.getConversation({ userId: 1, partnerId: 2, beforeId })).code).toBe('PAYLOAD_INVALID');
+    expect(mockDb.ChatMessage.findAll).not.toHaveBeenCalled();
+  });
+  test('rejects conflicting cursors and preserves participant authorization', async () => {
+    expect((await chat.getConversation({ userId: 1, partnerId: 2, beforeId: 10, afterId: 1 })).code).toBe('PAYLOAD_INVALID');
+    mockDb.User.findAll.mockResolvedValueOnce([]);
+    expect((await chat.getConversation({ userId: 1, partnerId: 2, afterId: 1 })).errCode).not.toBe(0);
+    expect(mockDb.ChatMessage.findAll).not.toHaveBeenCalled();
+  });
+  test('paginates older history and catch-up forward without exposing sentinel or marking it read', async () => {
+    mockDb.ChatMessage.update.mockResolvedValue([1]);
+    mockDb.ChatMessage.findAll.mockResolvedValueOnce([{id: 9}, {id: 8}, {id: 7}]);
+    const older = await chat.getConversation({userId: 1, partnerId: 2, beforeId: 10, limit: 2});
+    expect(older.data.map(m => m.id)).toEqual([8,9]);
+    expect(older.pageInfo).toEqual({hasMore: true, nextBeforeId: 8, nextAfterId: 9});
+    mockDb.ChatMessage.findAll.mockResolvedValueOnce([{id: 11}, {id: 12}, {id: 13}]);
+    const newer = await chat.getConversation({userId: 1, partnerId: 2, afterId: 10, limit: 2});
+    expect(newer.data.map(m => m.id)).toEqual([11,12]);
+    expect(newer.pageInfo).toEqual({hasMore: true, nextBeforeId: 11, nextAfterId: 12});
+    const { Op } = require('sequelize');
+    expect(mockDb.ChatMessage.findAll.mock.calls[1][0]).toEqual(expect.objectContaining({where: expect.objectContaining({id: {[Op.gt]:10}}), order: [['id','ASC']], limit:3}));
+    expect(mockDb.ChatMessage.update).toHaveBeenLastCalledWith({isRead:1}, expect.objectContaining({where: expect.objectContaining({id:{[Op.lte]:12}})}));
   });
 
   test('groups conversations, counts unread incoming messages and sorts newest first', async () => {

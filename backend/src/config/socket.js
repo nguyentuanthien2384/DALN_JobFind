@@ -7,6 +7,8 @@ const { randomUUID } = require('crypto');
 const protocol = require('../utils/chatProtocol');
 const limiter = require('../utils/realtimeLimiter');
 const metrics = require('../utils/realtimeMetrics');
+const tracing = require('../utils/realtimeTracing');
+const presence = require('../services/realtimePresenceService');
 require('dotenv').config();
 let io = null;
 const roomOf = (id) => `user:${id}`;
@@ -21,12 +23,23 @@ const getIdentity = (socket) => {
         return { userId: Number(claims.sub), authExp: claims.exp };
     } catch (error) { throw authError(error.name === 'TokenExpiredError' || error.message === 'AUTH_EXPIRED' ? 'AUTH_EXPIRED' : 'AUTH_INVALID'); }
 };
-const activeAccount = (userId) => db.Account.findOne({ where: { userId, statusCode: 'S1' }, attributes: ['userId', 'roleCode'], raw: true });
+const activeAccount = (userId) => db.Account.findOne({ where: { userId, statusCode: 'S1' }, attributes: ['userId', 'roleCode'], include: [{model:db.User,as:'userAccountData',attributes:[],required:true}], raw: true });
+const dashboardRoom = async (userId, roleCode) => {
+    if (roleCode === 'ADMIN') return 'feature:dashboard:admin';
+    if (!['COMPANY', 'EMPLOYER'].includes(roleCode)) return null;
+    const user = await db.User.findByPk(userId, { attributes: ['companyId'], raw: true });
+    if (!user?.companyId) return null;
+    const company = await db.Company.findOne({ where: { id: user.companyId, statusCode: 'S1', censorCode: 'CS1' }, attributes: ['id'], raw: true });
+    return company ? `feature:dashboard:company:${company.id}` : null;
+};
 const endSession = (socket, code) => {
     socket.emit('auth:expired', { v: 1, code });
     socket.disconnect(true);
 };
 const initSocket = (server, adapter) => {
+    tracing.init();
+    const handshakeLimit = Number(process.env.SOCKET_HANDSHAKE_LIMIT_PER_MINUTE || 120);
+    if (!Number.isSafeInteger(handshakeLimit) || handshakeLimit < 1) throw new Error('Invalid handshake limit');
     const origins = new Set((process.env.URL_REACT || 'http://localhost:3000,http://localhost:3001').split(',').map((s) => s.trim()).filter(Boolean));
     io = new Server(server, {
         ...(adapter ? { adapter } : {}),
@@ -41,7 +54,7 @@ const initSocket = (server, adapter) => {
             }
             // Do not trust a client-supplied X-Forwarded-For. The proxy may also
             // enforce per-IP limits; this bounds attempts per direct peer here.
-            limiter.consume(`connect:${req.socket.remoteAddress}`, 120, 60000)
+            limiter.consume(`connect:${req.socket.remoteAddress}`, handshakeLimit, 60000)
                 .then((rate) => callback(null, rate.allowed)).catch(() => callback(null, false));
         },
     });
@@ -55,9 +68,10 @@ const initSocket = (server, adapter) => {
             if (!account) throw authError('AUTH_INACTIVE');
             const rate = await limiter.consume(`login:${identity.userId}`, 30, 60000);
             if (!rate.allowed) throw authError('RATE_LIMITED');
+            const authorizedDashboardRoom = await dashboardRoom(identity.userId, account.roleCode);
             const connectionLease = randomUUID();
             if (!await limiter.slot(identity.userId, connectionLease)) throw authError('CONNECTION_LIMITED');
-            socket.data = { ...identity, roleCode: account.roleCode, connectionLease };
+            socket.data = { ...identity, roleCode: account.roleCode, connectionLease, dashboardRoom: authorizedDashboardRoom };
             // Also release if the transport closes before namespace acceptance.
             socket.conn.once('close', () => { limiter.release(identity.userId, connectionLease).catch(() => {}); });
             socket.userId = identity.userId;
@@ -73,8 +87,15 @@ const initSocket = (server, adapter) => {
     runtime.on('connection', (socket) => {
         const { userId, authExp, roleCode, connectionLease } = socket.data;
         socket.join(roomOf(userId));
-        if (['ADMIN', 'COMPANY', 'EMPLOYER'].includes(roleCode)) socket.join('feature:dashboard');
+        const touchPresence = () => presence.touch(userId).catch(() => metrics.increment('socket_presence_store_errors_total'));
+        touchPresence();
+        // A recovered session may contain rooms from a previous company/role.
+        for (const room of socket.rooms || []) if (room.startsWith('feature:dashboard')) socket.leave(room);
+        if (socket.data.dashboardRoom) socket.join(socket.data.dashboardRoom);
         metrics.connect();
+        let transport = socket.conn.transport?.name;
+        metrics.transport(transport,1);
+        socket.conn.on?.('upgrade', (next) => {metrics.transport(transport,-1);transport=next.name;metrics.transport(transport,1);});
         metrics.increment('socket_recovery_total', `{result="${socket.recovered ? 'recovered' : 'fresh'}"}`);
         const expiry = setTimeout(() => endSession(socket, 'AUTH_EXPIRED'), Math.max(0, authExp * 1000 - Date.now()));
         expiry.unref?.();
@@ -83,24 +104,29 @@ const initSocket = (server, adapter) => {
             if (checking) return;
             checking = true;
             try {
-                if (!await activeAccount(userId)) endSession(socket, 'AUTH_INACTIVE');
+                const account = await activeAccount(userId);
+                if (!account) endSession(socket, 'AUTH_INACTIVE');
+                else if (account.roleCode !== roleCode || await dashboardRoom(userId, account.roleCode) !== (socket.data.dashboardRoom || null)) socket.disconnect(true);
                 else if (!await limiter.slot(userId, connectionLease, true)) endSession(socket, 'AUTH_UNAVAILABLE');
+                else await touchPresence();
             }
             catch { endSession(socket, 'AUTH_UNAVAILABLE'); }
             finally { checking = false; }
         }, 30000);
         revalidate.unref?.();
         socket.on('disconnect', (reason) => {
-            clearTimeout(expiry); clearInterval(revalidate); metrics.disconnect();
+            clearTimeout(expiry); clearInterval(revalidate); metrics.disconnect(); metrics.transport(transport,-1);
             limiter.release(userId, connectionLease).catch(() => {});
+            touchPresence();
             const safeReason = ['ping timeout', 'transport close', 'transport error', 'server namespace disconnect', 'client namespace disconnect', 'server shutting down'].includes(reason) ? reason : 'other';
             metrics.increment('socket_disconnect_total', `{reason="${safeReason}"}`);
         });
         let malformed = 0;
-        const register = (event, action) => socket.on(event, async (payload, ack) => {
-            const start = Date.now(), traceId = randomUUID();
+        const register = (event, action) => socket.on(event, (payload, ack) => tracing.run(`socket.${event}`, async (span) => {
+            const start = Date.now(), traceId = tracing.id(span);
             let result;
             try {
+                metrics.payload(event, Buffer.byteLength(JSON.stringify(payload) || ''));
                 if (authExp * 1000 <= Date.now()) {
                     result = protocol.error('AUTH_EXPIRED', 'Phiên đăng nhập đã hết hạn');
                     endSession(socket, 'AUTH_EXPIRED');
@@ -113,22 +139,27 @@ const initSocket = (server, adapter) => {
                     } else if (!await activeAccount(userId)) {
                         result = protocol.error('AUTH_INACTIVE', 'Tài khoản đã bị vô hiệu hóa');
                         endSession(socket, 'AUTH_INACTIVE');
-                    } else result = await action(payload);
+                    } else result = await action(payload, traceId);
                 }
             } catch {
                 result = protocol.error('INTERNAL_ERROR', 'Error from server', -1, true);
             }
             const response = protocol.response(result, traceId);
+            span.setAttribute('app.result',response.code);
             if (typeof ack === 'function') ack(response);
             metrics.increment('socket_event_total', `{event="${event}",result="${response.code}"}`);
             if (response.code === 'RATE_LIMITED') metrics.increment('socket_rate_limit_total', `{event="${event}"}`);
             metrics.observe(event, (Date.now() - start) / 1000);
             if (process.env.SOCKET_LOG_EVENTS === 'true') console.info(JSON.stringify({ event, traceId, outcome: response.code, latencyMs: Date.now() - start }));
+        }));
+        register('chat:telemetry', async ({outcome,durationMs}) => {
+            metrics.ack(outcome,durationMs/1000);return {errCode:0};
         });
-        register('chat:send', async (payload) => {
+        register('chat:send', async (payload, traceId) => {
             const result = await chatService.handleSendMessage({ senderId: userId, receiverId: payload.receiverId, content: payload.content, clientMessageId: payload.clientMessageId });
+            if (result.duplicate) metrics.increment('chat_duplicate_replay_total');
             if (result.errCode === 0 && !result.duplicate) {
-                try { emitNewMessage(result.data); }
+                try { await tracing.run('chat.publish', async () => emitNewMessage(result.data, traceId)); }
                 catch { metrics.increment('socket_publish_errors_total'); }
             }
             return result;
@@ -149,15 +180,16 @@ const initSocket = (server, adapter) => {
             const relation = await chatService.canParticipantsChat(userId, partnerId);
             if (!relation.allowed) return protocol.error('CHAT_NOT_ALLOWED', 'Bạn không có quyền mở cuộc trò chuyện này', 5);
             const sockets = await runtime.in(roomOf(partnerId)).fetchSockets();
-            return { errCode: 0, data: { partnerId, online: sockets.some((peer) => peer.data.authExp * 1000 > Date.now()), checkedAt: new Date().toISOString() } };
+            const online = sockets.some((peer) => peer.data.authExp * 1000 > Date.now());
+            return { errCode: 0, data: { partnerId, online, lastSeenAt: online ? null : await presence.lastSeen(partnerId), checkedAt: new Date().toISOString() } };
         });
     });
     return runtime;
 };
-const emitNewMessage = (message) => {
+const emitNewMessage = (message, traceId) => {
     if (!io || !message) return;
     const value = message.toJSON ? message.toJSON() : message;
-    const event = { ...value, v: 1, eventId: `chat:${value.id}`, occurredAt: value.createdAt };
+    const event = { ...value, ...(traceId ? {traceId} : {}), v: 1, eventId: `chat:${value.id}`, occurredAt: value.createdAt };
     io.to(roomOf(value.receiverId)).emit('chat:new-message', event);
     io.to(roomOf(value.senderId)).emit('chat:new-message', event);
 };
@@ -170,8 +202,22 @@ const emitReadReceipt = (userId, partnerId, throughMessageId) => {
 const emitNotification = (userId, notification) => {
     if (io && userId) io.to(roomOf(userId)).emit('notification:new', notification);
 };
-const emitDashboardChanged = (type) => {
-    if (io) io.to('feature:dashboard').emit('dashboard:changed', { v: 1, type, at: Date.now() });
+const emitDashboardChanged = async (type, scope = {}) => {
+    if (!io) return;
+    try {
+        let companyId = Number(scope.companyId), ownerId = Number(scope.userId);
+        if (scope.postId) {
+            const post = await db.Post.findByPk(scope.postId, { attributes: ['userId'], raw: true });
+            ownerId = Number(post?.userId);
+        }
+        if (ownerId) {
+            const owner = await db.User.findByPk(ownerId, { attributes: ['companyId'], raw: true });
+            companyId = Number(owner?.companyId);
+        }
+        const rooms = ['feature:dashboard:admin'];
+        if (Number.isSafeInteger(companyId) && companyId > 0) rooms.push(`feature:dashboard:company:${companyId}`);
+        io.to(rooms).emit('dashboard:changed', { v: 1, type, at: Date.now() });
+    } catch { metrics.increment('socket_publish_errors_total'); }
 };
 const disconnectUser = (userId) => {
     if (io && userId) {

@@ -1,10 +1,11 @@
-const mockDb = { Account: { findOne: jest.fn() } };
+const mockDb = { User: {findByPk:jest.fn()}, Company:{findOne:jest.fn()}, Post:{findByPk:jest.fn()}, Account: { findOne: jest.fn() } };
 const mockChat = { handleSendMessage: jest.fn(), markConversationRead: jest.fn(), canParticipantsChat: jest.fn() };
 const emitter = { emit: jest.fn() }; emitter.volatile = emitter;
 const mockIo = { use: jest.fn(), on: jest.fn(), to: jest.fn(() => emitter), in: jest.fn(), emit: jest.fn() };
 const mockServer = jest.fn(() => mockIo);
 jest.mock('../../src/models/index', () => mockDb);
 jest.mock('../../src/services/chatService', () => mockChat);
+jest.mock('../../src/services/realtimePresenceService', () => ({ touch: jest.fn(async () => {}), lastSeen: jest.fn(async () => null) }));
 jest.mock('socket.io', () => ({ Server: mockServer }));
 const jwt = require('jsonwebtoken');
 const api = require('../../src/config/socket');
@@ -93,7 +94,44 @@ test('safe errors never contain DB details, tokens or message text', async () =>
     expect(ack.mock.calls[0][0]).toEqual(expect.objectContaining({ code: 'INTERNAL_ERROR', retryable: true }));
     expect(JSON.stringify(ack.mock.calls)).not.toContain('secret DB');
 });
-test('notification targets one user; dashboard targets subscribed roles', () => {
+test('notification targets one user; unscoped dashboard targets only admins', async () => {
     api.emitNotification(8, { id: 1 }); expect(mockIo.to).toHaveBeenCalledWith('user:8');
-    api.emitDashboardChanged('cv'); expect(mockIo.to).toHaveBeenCalledWith('feature:dashboard'); expect(mockIo.emit).not.toHaveBeenCalled();
+    await api.emitDashboardChanged('cv'); expect(mockIo.to).toHaveBeenCalledWith(['feature:dashboard:admin']); expect(mockIo.emit).not.toHaveBeenCalled();
+});
+
+
+test('presence hides last-seen while another tab is online and never queries private presence without permission', async () => {
+    connect(); const presence = require('../../src/services/realtimePresenceService');
+    const fetchSockets = jest.fn().mockResolvedValue([{data:{authExp:Date.now()/1000+300}}]);
+    mockIo.in.mockReturnValue({fetchSockets});
+    const ack=jest.fn(); await handlers['chat:presence']({partnerId:8},ack);
+    expect(ack.mock.calls[0][0].data).toEqual(expect.objectContaining({online:true,lastSeenAt:null}));
+    expect(presence.lastSeen).not.toHaveBeenCalled();
+    fetchSockets.mockResolvedValue([]); presence.lastSeen.mockResolvedValueOnce('2026-01-03T12:00:00.000Z');
+    await handlers['chat:presence']({partnerId:8},ack);
+    expect(ack.mock.calls[1][0].data).toEqual(expect.objectContaining({online:false,lastSeenAt:'2026-01-03T12:00:00.000Z'}));
+    mockChat.canParticipantsChat.mockResolvedValueOnce({allowed:false});
+    await handlers['chat:presence']({partnerId:9},ack);
+    expect(ack.mock.calls[2][0].code).toBe('CHAT_NOT_ALLOWED');
+    expect(presence.lastSeen).toHaveBeenCalledTimes(1); expect(fetchSockets).toHaveBeenCalledTimes(2);
+});
+
+test('dashboard delivery resolves the actual post owner and targets only its company plus admins', async () => {
+    mockDb.Post.findByPk.mockResolvedValue({userId:8}); mockDb.User.findByPk.mockResolvedValue({companyId:11});
+    await api.emitDashboardChanged('cv',{postId:17});
+    expect(mockDb.Post.findByPk).toHaveBeenCalledWith(17,expect.any(Object));
+    expect(mockDb.User.findByPk).toHaveBeenCalledWith(8,expect.any(Object));
+    expect(mockIo.to).toHaveBeenCalledWith(['feature:dashboard:admin','feature:dashboard:company:11']);
+    expect(emitter.emit).toHaveBeenCalledWith('dashboard:changed',expect.objectContaining({v:1,type:'cv'}));
+});
+test('recovery clears previous company rooms and role changes disconnect the old session', async () => {
+    socket.handshake.auth.token=jwt.sign({sub:'7'},security.getJwtSecret(),security.getJwtSignOptions());
+    mockDb.Account.findOne.mockResolvedValue({userId:7,roleCode:'EMPLOYER'});
+    mockDb.User.findByPk.mockResolvedValue({companyId:11});mockDb.Company.findOne.mockResolvedValue({id:11});
+    const next=jest.fn();await authenticate()(socket,next);expect(next).toHaveBeenCalledWith();
+    socket.rooms=new Set(['feature:dashboard:company:99','feature:dashboard']);socket.leave=jest.fn();connect();
+    expect(socket.leave).toHaveBeenCalledWith('feature:dashboard:company:99');
+    expect(socket.join).toHaveBeenCalledWith('feature:dashboard:company:11');
+    mockDb.Account.findOne.mockResolvedValue({userId:7,roleCode:'CANDIDATE'});
+    await jest.advanceTimersByTimeAsync(30000);expect(socket.disconnect).toHaveBeenCalledWith(true);
 });

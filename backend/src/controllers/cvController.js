@@ -25,7 +25,10 @@ let handleCreateNewCV = async (req, res) => {
             userId: req.user.id
         });
         // Ung vien vua nop CV -> bang "so luong CV" ben nha tuyen dung phai doi ngay.
-        if (data.errCode === 0) emitDashboardChanged('cv');
+        if (data.errCode === 0) {
+            try { await emitDashboardChanged('cv', { postId: req.body.postId }); }
+            catch { console.error('Không gửi được tín hiệu dashboard sau khi lưu hồ sơ'); }
+        }
         // Application delivery intent is committed with the CV by the service.
         return res.status(data.httpStatus || 200).json(data);
     } catch (error) {

@@ -27,21 +27,22 @@
 
 ### Phục hồi, đồng bộ và hiệu năng
 
+- Hội thoại có cursor `beforeId`/`afterId`, mặc định 100 tin, tối đa 200 tin/trang. Có nút tải lịch sử cũ và báo lỗi để thử lại. Reconnect lấy bù liên tiếp từ snapshot đã tải thành công, không lấy mốc từ live event; do đó lấy lại được hơn 200 tin bỏ lỡ. Giữ lịch sử đã mở, loại trùng theo ID và không làm lùi trạng thái đã đọc.
 - Connection State Recovery trong 120 giây, `skipMiddlewares: false`. Từ chối khôi phục room của người dùng khác. Client vẫn tải lại dữ liệu DB sau reconnect để bù cả trường hợp server đã lưu nhưng chưa phát được.
 - Reconnect có backoff/jitter và không dừng sau 5 lần. Sự kiện browser `online` khởi động lại kết nối. Token thay đổi/logout giữa các tab đóng socket cũ; sự cố tạm thời khiến server ngắt kết nối được thử lại mà không tự gia hạn token.
 - Khi đang kết nối, đối soát chat mỗi 120 giây. Khi mất kết nối, lùi dần khoảng 5 đến 30 giây kèm jitter. Bỏ qua khi tab ẩn/browser offline; làm mới khi quay lại. Đây là chính sách tần suất, không phải benchmark tải.
 - Bỏ full-history transfer và gom nhóm bằng JavaScript: database tổng hợp ID tin cuối và số chưa đọc theo người nhận; ứng dụng chỉ tải các tin cuối. Truy vấn vẫn phải duyệt lịch sử phù hợp trong DB, chưa phải bảng tổng hợp duy trì sẵn. Cần EXPLAIN với dữ liệu đại diện trước khi tuyên bố cải thiện latency.
 - Read receipt mang `throughMessageId`, tránh đánh dấu cả những tin đến sau snapshot. Đồng bộ trạng thái đọc ở các tab của người đọc và phía người gửi. Client giữ tin mới đến trong lúc REST đang tải, giữ trạng thái đã đọc đã biết và bỏ phản hồi của cuộc trò chuyện cũ khi người dùng chuyển màn hình.
-- Presence kiểm tra được quyền và số socket thực, dùng được nhiều tab/nhiều node. Giao diện kiểm tra mỗi 30 giây khi mở cuộc trò chuyện. Chưa lưu lịch sử `lastSeen`.
-- Dashboard hint chuyển từ toàn bộ kết nối sang room `feature:dashboard` chỉ dành cho ADMIN/COMPANY/EMPLOYER. Payload vẫn không chứa dữ liệu nghiệp vụ; chưa phân nhóm riêng theo từng công ty.
+- Presence kiểm tra được quyền và số socket thực, dùng được nhiều tab/nhiều node. Giao diện kiểm tra mỗi 30 giây khi mở cuộc trò chuyện. Đã lưu `lastSeenAt` trong MySQL, cập nhật khi connect/heartbeat/disconnect. Ghi bằng bind parameter để giữ đúng múi giờ, cập nhật đồng thời chỉ lấy thời điểm lớn nhất. Khi còn một tab online thì không hiển thị last-seen; chỉ trả cho người có quyền trò chuyện.
+- Dashboard dùng `feature:dashboard:admin` và `feature:dashboard:company:<id>`. Room lấy từ tài khoản/công ty đã duyệt trong DB; không nhận đăng ký room từ client. Phát tín hiệu theo công ty của chủ bài đăng/người thanh toán hoặc danh tính đã xác thực. Recovery xóa room cũ; thay đổi vai trò/công ty được phát hiện mỗi 30 giây, ngắt để xác thực lại. Dashboard tải lại sau reconnect/online và không gọi nền khi tab ẩn hoặc offline.
 
 ### Redis, vận hành và quan sát
 
 - `SOCKET_REDIS_URL` là tùy chọn. Có cấu hình thì startup chờ Redis, thất bại sau tối đa khoảng 8 giây; không quảng bá API sẵn sàng trước đó. Shutdown đóng Socket.IO, Redis, rồi DB.
-- Redis Streams Adapter dùng stream `jobfind:socket.io`, giới hạn mục tiêu 10.000 entries. Dữ liệu adapter/lease/limiter phải nằm trên Redis nội bộ có ACL/auth/TLS theo hạ tầng thực tế. Không dùng chung các prefix này giữa các môi trường.
-- Multi-node có polling cần sticky routing. Có cấu hình tham khảo tại `scripts/release/nginx.socket-upstream.example.conf`; chưa tự thay cấu hình đang phục vụ. IP hash cần trusted real-IP setup nếu đứng sau CDN; ưu tiên affinity của ingress khi phù hợp.
-- Metrics tại `GET /internal/socket-metrics`, yêu cầu `x-internal-secret` khớp `INTERNAL_SECRET`. Gồm kết nối đang hoạt động, kết nối bị từ chối, phục hồi, lý do ngắt, lỗi Origin/auth/Redis/rate limit, sự kiện theo kết quả và histogram thời gian xử lý.
-- `SOCKET_LOG_EVENTS=true` bật log JSON gồm event, traceId, kết quả và thời gian. Không log JWT, nội dung chat hoặc ID phiên. Mỗi ACK có traceId. Đây là correlation tại handler, **chưa có distributed tracing OpenTelemetry** qua mọi service/SQL/Redis.
+- Redis Streams Adapter dùng stream `<SOCKET_REDIS_PREFIX>:socket.io`, giới hạn mục tiêu 10.000 entries. Prefix mặc định `jobfind`, dùng riêng cho stream, pub/sub, session, limiter và lease. Reader dùng hàng chờ có giới hạn để chờ Redis kết nối lại; writer/limiter từ chối khi Redis mất kết nối. Cấu hình này khắc phục vòng XREAD lặp liên tục gây nghẽn event loop khi kế thừa `disableOfflineQueue: true`. Ephemeral publish và lưu session không được adapter chờ sẽ ghi metric lỗi, không làm process crash. Shutdown chờ các lệnh ghi còn lại trước khi đóng Redis. Dữ liệu adapter/lease/limiter phải nằm trên Redis nội bộ có ACL/auth/TLS theo hạ tầng thực tế. Không dùng chung các prefix này giữa các môi trường.
+- Multi-node có polling cần sticky routing. Có cấu hình tham khảo tại `scripts/release/nginx.socket-upstream.example.conf`; đã nghiệm thu Nginx 1.31.5 riêng trên máy này với TLS và log xác nhận affinity; chưa thay cấu hình đang phục vụ. IP hash cần trusted real-IP setup nếu đứng sau CDN; ưu tiên affinity của ingress khi phù hợp.
+- Metrics tại `GET /internal/socket-metrics`, yêu cầu `x-internal-secret` khớp `INTERNAL_SECRET`. Gồm kết nối đang hoạt động, kết nối bị từ chối, phục hồi, lý do ngắt, lỗi Origin/auth/Redis/rate limit, sự kiện theo kết quả và histogram thời gian xử lý, kích thước payload, số kết nối theo transport và thời gian chờ ACK do browser báo về. `chat:telemetry` là dữ liệu client khai báo, được giới hạn 30 giây, outcome cố định và rate limit; dùng quan sát xu hướng, không phải bằng chứng tính phí/SLO đáng tin cậy tuyệt đối.
+- `SOCKET_LOG_EVENTS=true` bật log JSON gồm event, traceId, kết quả và thời gian. Không log JWT, nội dung chat hoặc ID phiên. Mỗi ACK có traceId. Có OpenTelemetry opt-in (`SOCKET_TRACING_ENABLED=true`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_SERVICE_NAME`): span handler → authorize/lookup/insert → publish, cùng traceId trong ACK và event tới người nhận. Không tự thu thập SQL, nội dung, token, ID người tham gia hay exception message. Span publish đo lời gọi phát, không khẳng định người nhận đã nhận. Chưa tự instrument mọi lệnh SQL/Redis hoặc tạo span trong trình duyệt nhận.
 
 ## Hợp đồng sự kiện
 
@@ -55,7 +56,8 @@ Yêu cầu gửi mới:
 
 - `chat:typing`: `{receiverId: 8}`.
 - `chat:read`: `{partnerId: 8, throughMessageId: 123}`. Boundary có thể bỏ trống cho client cũ, khi đó đánh dấu toàn cuộc trò chuyện như trước.
-- `chat:presence`: `{partnerId: 8}`; ACK có `{data: {partnerId, online, checkedAt}}`.
+- `chat:presence`: `{partnerId: 8}`; ACK có `{data: {partnerId, online, lastSeenAt, checkedAt}}`.
+- `chat:telemetry`: `{v:1,outcome:"ack"|"fallback"|"uncertain",durationMs:0..30000}`, gửi volatile sau thao tác gửi.
 - ACK giữ `errCode`, `errMessage`, `data` và thêm `v`, `ok`, `code`, `retryable`, `traceId`; lỗi rate limit có `retryAfterMs`.
 - `chat:new-message` giữ các trường tin nhắn, thêm `v:1`, `eventId:"chat:<database-id>"`, `occurredAt`. `eventId` dùng nhận diện, không phải API replay offset bền vững riêng.
 - Mã lỗi chính: `AUTH_INVALID`, `AUTH_EXPIRED`, `AUTH_INACTIVE`, `AUTH_UNAVAILABLE`, `PAYLOAD_INVALID`, `CHAT_NOT_ALLOWED`, `CHAT_RECEIVER_NOT_FOUND`, `CHAT_MESSAGE_TOO_LONG`, `IDEMPOTENCY_CONFLICT`, `RATE_LIMITED`, `CONNECTION_LIMITED`, `INTERNAL_ERROR`.
@@ -66,10 +68,10 @@ Yêu cầu gửi mới:
 
    ```sh
    cd backend
-   npx sequelize-cli db:migrate --to migrationzzzz-chat-reliability.js
+   npx sequelize-cli db:migrate --to migrationzzzzz-realtime-presence.js
    ```
 
-   Lệnh áp dụng cả migration trước đó còn pending, nên phải kiểm tra `db:migrate:status` trước. Migration mới thêm cột nullable và ba index, có thể chạy lại sau DDL bị gián đoạn. Nó đã được kiểm tra trên database riêng; chưa áp dụng vào dữ liệu đang dùng. Index có thể gây chờ ghi trên bảng lớn, cần chọn cửa sổ bảo trì.
+   Lệnh áp dụng cả migration trước đó còn pending, nên phải kiểm tra `db:migrate:status` trước. Hai migration realtime thêm cột nullable, các index và bảng `RealtimePresences`, có thể chạy lại sau DDL bị gián đoạn. Nó đã được kiểm tra trên database riêng; chưa áp dụng vào dữ liệu đang dùng. Index có thể gây chờ ghi trên bảng lớn, cần chọn cửa sổ bảo trì.
 
 2. Cập nhật dependencies từ lockfile, backend và frontend. `URL_REACT` phải chứa chính xác Origin người dùng truy cập (scheme, host, port), không thêm đường dẫn/dấu `/` cuối. Yêu cầu tab cũ tải lại vì hợp đồng socket đã được siết chặt.
 3. Một node có thể bỏ `SOCKET_REDIS_URL`. Muốn bật nhiều node: tất cả dùng chung DB, JWT policy, Origin allowlist và Redis; cấu hình affinity ở tuyến thực sự chuyển tiếp `/socket.io/`.
@@ -95,25 +97,46 @@ npm --prefix backend run test:chat:infrastructure
 
 Script tự tạo rồi xóa duy nhất database `chat_realtime_test_<random>`, chạy migrations, dùng service/controller/ORM thật, và khởi tạo hai tiến trình Socket.IO độc lập. Redis phải là bản thử riêng vì script ghi stream/lease/rate-limit keys. Không dùng endpoint đang phục vụ người dùng.
 
-Đã chạy trên máy này ngày 14/09/2026:
+Đã chạy trên máy này ngày 14/09/2026, sau lần phát triển bổ sung:
 
-- Toàn bộ backend: 812 test qua (40 suite), gồm kết nối Socket.IO thật qua polling và WebSocket; JWT thật; Origin xấu/thiếu; query-token; quyền typing/read/presence; payload lớn; token hết hạn khi đang online; recovery; revoke và đa tab. Nhóm Jest này thay DB bằng fixture.
-- MariaDB 10.4.32 riêng và Redis 7.4.7 riêng: migration/chạy lại và dữ liệu cũ; 8 insert đồng thời chỉ tạo một bản ghi; payload xung đột; SQL conversation summary; read boundary; fanout hai tiến trình; REST replay trên node khác; limiter và cap 10 kết nối chung.
-- Qua proxy thử: ngắt người nhận, gửi tin khi offline, dừng node cũ, chuyển sang node còn lại; **khôi phục session và nhận đúng tin bị bỏ lỡ**.
-- Frontend: toàn bộ 72 suite / 1.421 test qua; sau đó thêm một test retry khi server tạm từ chối, chạy lại 39 test chat/auth/socket đều qua. Kiểm tra pending sau remount, mất ACK, lỗi REST dự phòng, race snapshot/realtime và client lifecycle. Bản dựng production cuối biên dịch thành công.
-- Runtime/release helpers: 20 test qua; cập nhật các probe Socket.IO trong smoke/release/activation để gửi Origin hợp lệ. Kiểm tra cú pháp các script đã qua; không chạy lại deployment/activation trên môi trường đang phục vụ.
-- Thêm CI `.github/workflows/realtime.yml` với MySQL 8 và Redis 7. Workflow đã được thêm vào mã nguồn, chưa được chạy trên GitHub trong tác vụ này.
+- **Backend:** 831 test / 42 suite qua. Bao gồm JWT thật, sai audience, tài khoản bị xóa/khóa, Origin, payload lớn/sai JSON, rate limit gửi tin, quyền, ACK traceId, telemetry schema và OTLP xuất qua HTTP collector thật.
+- **Frontend:** 1.432 test / 73 suite qua. Có kiểm tra lỗi tải lịch sử, lấy bù nhiều trang, chuyển hội thoại, tin đến trong lúc tải, giữ trạng thái đã đọc, pending khi reload, fallback và dashboard không tải khi ẩn/offline.
+- **Trình duyệt:** Chromium, Firefox, WebKit chạy component ChatPage thật với API, SQL và Socket.IO thật, không giả lập API. Mỗi engine kiểm tra lịch sử 240 tin, chuỗi XSS/SQL hiển thị như văn bản, gửi một lần, hai browser context trao đổi typing/tin/read, mất mạng rồi lấy bù 260 tin, 502 bong bóng không trùng, màn hình rộng 390 px và không có lỗi JavaScript. Harness không bao gồm toàn bộ AppShell; WebKit desktop không thay thế nghiệm thu Safari/iOS trên thiết bị thật.
+- **SQL/Redis hai tiến trình:** migration chạy lại, dữ liệu cũ, 8 insert đồng thời, unique index, last-seen không lùi và đúng múi giờ, presence nhiều tab/nhiều node, phân trang cả hai chiều với ID xen kẽ cuộc trò chuyện khác, scoped dashboard, REST dedupe, giới hạn phân tán và cap kết nối.
+- **Redis chaos:** ngắt mạng Redis của cả hai node; handler vẫn phản hồi lỗi, không ghi chat và không chuyển sang limiter riêng. Khôi phục mạng, cùng mã chỉ tạo một row. Đã bắt và sửa lỗi event-loop starvation phát hiện bởi bài thử này.
+- **Nginx/TLS:** polling đi đúng một upstream theo access log, nâng cấp polling → WSS thật, ACK xác thực qua chứng chỉ riêng được client tin cậy. Không sửa kho chứng chỉ Windows hoặc cấu hình Nginx đang phục vụ.
+- **Thời gian thật:** peer không trả heartbeat bị dọn sau cửa sổ 25 + 20 giây; ngắt 121 giây khiến recovery thất bại đúng dự kiến, xác thực mới và lấy bù qua SQL thành công. Dừng node cũ và chuyển node còn lại vẫn nhận tin phục hồi; kiểm tra exit code 0 khi shutdown.
+- **Tải tổng hợp:** các mốc 50, 100 và 500 kết nối; gửi 500 tin với nhịp mục tiêu 20 tin/giây, không trùng; 125 khách reconnect thành công. Lần đo riêng p95 65,03 ms, p99 99,7 ms. Đây là số đo local với dữ liệu thử, không phải công suất production hoặc soak 2–8 giờ. Kết quả lượt nghiệm thu kết hợp cuối lưu tại `.local/websocket-checks/load-result.json`; EXPLAIN tại `chat-explain.json`.
+- **CI:** workflow realtime thêm cài trình duyệt, test giao diện liên quan, browser matrix và Redis chaos; chưa chạy workflow trên GitHub trong tác vụ này.
+
+Chạy thêm các lớp kiểm thử trên cùng hai endpoint thử nghiệm:
+
+```powershell
+# Cài engine trước lần đầu
+npx --prefix backend playwright install chromium firefox webkit
+$env:CHAT_TEST_BROWSERS='true'
+$env:CHAT_TEST_CHAOS='true'
+$env:CHAT_TEST_LOAD='true'
+$env:CHAT_TEST_TIMING='true' # chờ đủ 121 giây thật
+# Tùy chọn Nginx/TLS: đường dẫn executable local, không dùng bản đang phục vụ
+$env:CHAT_TEST_NGINX_BIN='D:/path/to/nginx.exe'
+$env:CHAT_TEST_OPENSSL_BIN='D:/path/to/openssl.exe'
+npm --prefix backend run test:chat:infrastructure
+```
+
+Mỗi lần chạy dùng database và Redis prefix ngẫu nhiên riêng. Bài tải tăng `SOCKET_HANDSHAKE_LIMIT_PER_MINUTE` lên 2.000 vì tất cả khách giả lập có cùng IP; cấu hình mặc định vẫn là 120. Khi đứng sau proxy phải cấu hình ingress rate limit và ngưỡng peer phù hợp với số đo.
 
 Audit dependency tại thời điểm làm việc không báo lỗi cho dependency realtime mới; vẫn báo một mục mức high ở Nodemailer có sẵn. Chưa nâng Nodemailer trong thay đổi WebSocket này.
 
-## Giới hạn và đề xuất tiếp theo của báo cáo
+## Phần còn phụ thuộc sản phẩm/hạ tầng
 
-Không gọi phần việc này là đã hoàn tất mọi mục nghiên cứu/production sign-off trong PDF. Những mục dưới đây phụ thuộc hạ tầng hoặc sản phẩm tiếp theo:
+Không tuyên bố hoàn tất mọi hướng phát triển/production sign-off trong PDF:
 
-- Push nền cho mobile/native cần ứng dụng, sự đồng ý nhận thông báo và cấu hình FCM/APNs; chưa có trong phạm vi web hiện tại. Thông báo lưu DB/realtime của dự án được giữ nguyên.
-- Chưa lưu last-seen, chưa làm room theo từng công ty, chưa có attachment upload/scan/storage. Không thêm binary/raw WebSocket/subprotocol khi chưa có nhu cầu nghiệp vụ, phù hợp ưu tiên thấp trong báo cáo.
-- Recovery chỉ có cửa sổ 120 giây và dữ liệu adapter bị giới hạn. Sau đó đối soát bằng REST hiện có (cửa sổ hội thoại tối đa 200 tin), không tuyên bố replay vô hạn hoặc durable outbox cho mọi notification/dashboard event.
-- Chưa có refresh token, logout thu hồi mọi access token trên server, phân tích tải/SLO với dữ liệu thật, EXPLAIN trên database thật, kiểm thử Nginx/TLS/CDN đang phục vụ, hoặc diễn tập mất Redis toàn cụm. Presence best-effort, không phải cam kết người nhận đang nhìn màn hình.
-- Chưa có OpenTelemetry toàn tuyến, protocol version migration nhiều thế hệ client hay native mobile contract riêng. Rate-limit, lease và polling hiện là baseline cần điều chỉnh theo số đo.
+- Push nền cho mobile/native cần ứng dụng, quyền thông báo, FCM/APNs và thông tin triển khai. Chưa xây native app hoặc tích hợp nhà cung cấp chưa được cấu hình. Web hiện tại giữ notification store và realtime; đã kiểm tra online/offline và kích thước mobile trên browser engine.
+- Binary protocol/subprotocol riêng (P3), attachment upload/scan/storage, Conversation/ConversationMember là hướng dài hạn. Báo cáo không khuyến nghị thay raw WebSocket ngay; không thêm những thành phần này vào giao thức chat văn bản.
+- Chưa có refresh token hoặc logout thu hồi mọi JWT trên server; logout/token đổi phía client đã đóng socket. Cần thiết kế vòng đời phiên toàn ứng dụng trước khi thay cơ chế cấp token.
+- Chưa nghiệm thu CDN/TLS production, Safari/iOS/Android trên thiết bị thật, tải peak theo analytics hoặc soak 2–8 giờ. Nginx local, WebKit và tải tổng hợp không đại diện các môi trường đó.
+- Chưa áp migration vào database đang phục vụ hoặc triển khai bản mới lên production. Áp dụng hai migration và cập nhật frontend/backend cùng đợt theo hướng dẫn trên. Không cần Redis để chạy một node; muốn nhiều node phải cùng cấu hình Redis prefix/DB/JWT/Origin và affinity.
+- Có hợp đồng v1, kiểm tra phiên bản, field mới theo hướng bổ sung và fallback REST cũ; chưa có nhiều thế hệ client native để kiểm thử tương thích chéo. Room/presence vẫn best-effort; không chứng minh người dùng đang nhìn màn hình.
 
-Nguồn kỹ thuật đã đối chiếu: [Delivery guarantees](https://socket.io/docs/v4/delivery-guarantees/), [Connection State Recovery](https://socket.io/docs/v4/connection-state-recovery/), [Redis Streams Adapter](https://socket.io/docs/v4/redis-streams-adapter/), [Server options](https://socket.io/docs/v4/server-options/).
+Nguồn kỹ thuật: [Delivery guarantees](https://socket.io/docs/v4/delivery-guarantees/), [Connection State Recovery](https://socket.io/docs/v4/connection-state-recovery/), [Redis Streams Adapter](https://github.com/socketio/socket.io-redis-streams-adapter), [Node Redis production usage](https://redis.io/docs/latest/develop/clients/nodejs/produsage/), [OpenTelemetry JavaScript](https://opentelemetry.io/docs/languages/js/), [Nginx Windows](https://nginx.org/en/docs/windows.html).

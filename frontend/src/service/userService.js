@@ -393,7 +393,8 @@ const sendChatMessageService = (data) => {
     return axios.post(`/api/send-chat-message`, data, { timeout: 10000 })
 }
 const getChatConversationService = (data) => {
-    return axios.get(`/api/get-chat-conversation?partnerId=${data.partnerId}`, { timeout: 10000 })
+    const cursor = data.beforeId ? `&beforeId=${data.beforeId}` : data.afterId ? `&afterId=${data.afterId}` : '';
+    return axios.get(`/api/get-chat-conversation?partnerId=${data.partnerId}${cursor}`, { timeout: 10000 })
 }
 const getListChatConversationService = () => {
     return axios.get(`/api/get-list-chat-conversation`, { timeout: 10000 })

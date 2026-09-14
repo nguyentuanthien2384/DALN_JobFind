@@ -3,11 +3,16 @@
 const buckets = new Map();
 const connections = new Map();
 let redis = null;
+const prefix = () => {
+    const value = process.env.SOCKET_REDIS_PREFIX || 'jobfind';
+    if (!/^[A-Za-z0-9:_-]{1,64}$/.test(value)) throw new Error('Invalid SOCKET_REDIS_PREFIX');
+    return value;
+};
 const LUA = "local n=redis.call('INCR',KEYS[1]); if n==1 then redis.call('PEXPIRE',KEYS[1],ARGV[1]) end; return {n,redis.call('PTTL',KEYS[1])}";
 const consume = async (key, limit, windowMs) => {
     if (redis) {
         if (!redis.isReady) throw new Error('REALTIME_LIMITER_UNAVAILABLE');
-        const [count, ttl] = await redis.eval(LUA, { keys: [`jobfind:realtime:limit:${key}`], arguments: [String(windowMs)] });
+        const [count, ttl] = await redis.eval(LUA, { keys: [`${prefix()}:realtime:limit:${key}`], arguments: [String(windowMs)] });
         return { allowed: count <= limit, retryAfterMs: Math.max(1, ttl) };
     }
     const now = Date.now();
@@ -22,7 +27,7 @@ const consume = async (key, limit, windowMs) => {
     }
     return { allowed: ++bucket.count <= limit, retryAfterMs: bucket.until - now };
 };
-const connectionKey = (userId) => `jobfind:realtime:connections:${userId}`;
+const connectionKey = (userId) => `${prefix()}:realtime:connections:${userId}`;
 const slot = async (userId, lease, renew = false) => {
     const now = Date.now(), until = now + 60000;
     if (redis) {
@@ -42,4 +47,4 @@ const release = async (userId, lease) => {
     if (redis) { if (redis.isReady) await redis.zRem(connectionKey(userId), lease); }
     else connections.delete(lease);
 };
-module.exports = { consume, slot, release, setRedis: (client) => { redis = client; }, reset: () => { buckets.clear(); connections.clear(); redis = null; } };
+module.exports = { prefix, consume, slot, release, setRedis: (client) => { redis = client; }, reset: () => { buckets.clear(); connections.clear(); redis = null; } };

@@ -46,7 +46,7 @@ describe('cvController', () => {
     const res = createResponse();
     await controller.handleCreateNewCV(request(), res);
     expect(mockService.handleCreateCv).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, postId: 5 }));
-    expect(mockEmitDashboardChanged).toHaveBeenCalledWith('cv');
+    expect(mockEmitDashboardChanged).toHaveBeenCalledWith('cv', {postId:5});
     expect(mockEmitApplicationSubmitted).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({ errCode: 0, cvId: 55 });
   });
@@ -58,7 +58,7 @@ describe('cvController', () => {
     expect(mockEmitApplicationSubmitted).not.toHaveBeenCalled();
     mockService.handleCreateCv.mockResolvedValueOnce({ errCode: 0 });
     await controller.handleCreateNewCV(request(), createResponse());
-    expect(mockEmitDashboardChanged).toHaveBeenCalledWith('cv');
+    expect(mockEmitDashboardChanged).toHaveBeenCalledWith('cv', {postId:5});
     expect(mockEmitApplicationSubmitted).not.toHaveBeenCalled();
   });
 

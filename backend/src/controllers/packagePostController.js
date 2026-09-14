@@ -64,7 +64,10 @@ let paymentOrderSuccess = async (req, res) => {
             userId: req.user.id
         });
         // Mua goi thanh cong -> bang doanh thu goi bai dang cua admin doi ngay.
-        if (data.errCode === 0 && !data.alreadyProcessed) emitDashboardChanged('payment-post');
+        if (data.errCode === 0 && !data.alreadyProcessed) {
+            try { await emitDashboardChanged('payment-post', { userId: req.user.id }); }
+            catch { console.error('Không gửi được tín hiệu dashboard sau khi thanh toán'); }
+        }
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

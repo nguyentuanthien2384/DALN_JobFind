@@ -173,11 +173,11 @@ describe('simple controller contracts', () => {
   test('successful package payments emit the matching dashboard events only on success', async () => {
     packageCvService.paymentOrderSuccess.mockResolvedValueOnce({ errCode: 0 });
     await packageCvController.paymentOrderSuccess(baseRequest(), createResponse());
-    expect(socket.emitDashboardChanged).toHaveBeenCalledWith('payment-cv');
+    expect(socket.emitDashboardChanged).toHaveBeenCalledWith('payment-cv', {userId:7});
 
     packagePostService.paymentOrderSuccess.mockResolvedValueOnce({ errCode: 0 });
     await packagePostController.paymentOrderSuccess(baseRequest(), createResponse());
-    expect(socket.emitDashboardChanged).toHaveBeenCalledWith('payment-post');
+    expect(socket.emitDashboardChanged).toHaveBeenCalledWith('payment-post', {userId:7});
 
     socket.emitDashboardChanged.mockClear();
     packageCvService.paymentOrderSuccess.mockResolvedValueOnce({ errCode: 2 });
