@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import { expireSession } from "./auth/sessionExpiry";
 
 /**
  * Ket noi Socket.IO dung chung cho ca ung dung.
@@ -12,6 +13,7 @@ import { io } from "socket.io-client";
 const URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:4000";
 
 let socket = null;
+let reconnectTimer;
 
 export const getSocket = () => {
     const token = localStorage.getItem("token_user");
@@ -29,12 +31,33 @@ export const getSocket = () => {
     socket = io(URL, {
         auth: { token },
         transports: ["websocket", "polling"],
-        reconnectionAttempts: 5,
-        reconnectionDelay: 2000,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 30000,
+        randomizationFactor: 0.5,
+        tryAllTransports: true,
         autoConnect: true,
     });
+    const current = socket;
+    socket.on('disconnect', (reason) => {
+        if (reason !== 'io server disconnect') return;
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => {
+            if (socket === current && localStorage.getItem('token_user') === token && !current.connected) current.connect();
+        }, 3000 + Math.random() * 2000);
+    });
 
+    socket.on('auth:expired', ({ code } = {}) => {
+        if (['AUTH_INVALID', 'AUTH_EXPIRED', 'AUTH_INACTIVE'].includes(code)) expireSession(token, code === 'AUTH_INACTIVE' ? 'inactive' : 'expired');
+    });
     socket.on("connect_error", (err) => {
+        if (['AUTH_INVALID', 'AUTH_EXPIRED', 'AUTH_INACTIVE'].includes(err.data?.code)) expireSession(token, err.data.code === 'AUTH_INACTIVE' ? 'inactive' : 'expired');
+        if (['AUTH_UNAVAILABLE', 'RATE_LIMITED', 'CONNECTION_LIMITED'].includes(err.data?.code)) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => {
+                if (socket === current && localStorage.getItem('token_user') === token && !current.connected) current.connect();
+            }, 30000 + Math.random() * 5000);
+        }
         // Khong hien toast de khong lam phien nguoi dung: da co co che poll du phong.
         console.warn("Socket khong ket noi duoc, dung che do poll:", err.message);
     });
@@ -43,10 +66,20 @@ export const getSocket = () => {
 };
 
 export const disconnectSocket = () => {
+    clearTimeout(reconnectTimer);
     if (socket) {
         socket.disconnect();
         socket = null;
     }
 };
 
+// Resume after an extended outage. Never reconnect with a superseded token.
+if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => {
+        if (socket && socket.auth?.token === localStorage.getItem('token_user') && !socket.connected) socket.connect();
+    });
+    window.addEventListener('storage', (event) => {
+        if (event.key === 'token_user' && socket?.auth?.token !== localStorage.getItem('token_user')) disconnectSocket();
+    });
+}
 export default getSocket;

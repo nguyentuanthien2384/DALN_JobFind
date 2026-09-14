@@ -39,6 +39,9 @@ const socket = {
     }),
     off: jest.fn(),
     emit: jest.fn(),
+    timeout: jest.fn().mockReturnThis(),
+    emitWithAck: jest.fn(),
+    volatile: { emit: jest.fn() },
 };
 
 const companyPartner = {
@@ -95,6 +98,7 @@ const messages = [
 
 describe("ChatPage", () => {
     beforeAll(() => {
+        Object.defineProperty(globalThis, 'crypto', { configurable: true, value: require('crypto').webcrypto });
         Object.defineProperty(Element.prototype, "scrollIntoView", {
             configurable: true,
             value: jest.fn(),
@@ -102,7 +106,10 @@ describe("ChatPage", () => {
     });
 
     beforeEach(() => {
-        localStorage.clear();
+        localStorage.clear(); sessionStorage.clear();
+        socket.timeout.mockReturnValue(socket);
+        socket.emitWithAck.mockReset();
+        socket.emitWithAck.mockImplementation((event) => event === 'chat:presence' ? Promise.resolve({ errCode: 1 }) : Promise.resolve({ errCode: 0 }));
         localStorage.setItem(
             "userData",
             JSON.stringify({ id: 7, firstName: "An", roleCode: "CANDIDATE" })
@@ -188,7 +195,7 @@ describe("ChatPage", () => {
         expect(screen.getByText("Đã xem")).toBeInTheDocument();
         expect(screen.getByText("Đang kết nối trực tiếp")).toBeInTheDocument();
         expect(getChatConversationService).toHaveBeenCalledWith({ partnerId: "20" });
-        expect(socket.emit).toHaveBeenCalledWith("chat:read", { partnerId: "20" });
+        expect(socket.emit).toHaveBeenCalledWith("chat:read", expect.objectContaining({ partnerId: 20, throughMessageId: expect.any(Number) }));
         expect(screen.getAllByText("Công ty Ánh Dương", { selector: "b" })).toHaveLength(2);
         expect(document.querySelector(".chat-back-btn")).toHaveAttribute("href", "/chat");
     });
@@ -202,10 +209,9 @@ describe("ChatPage", () => {
         fireEvent.keyDown(input, { key: "Enter" });
 
         await waitFor(() =>
-            expect(sendChatMessageService).toHaveBeenCalledWith({
-                receiverId: "20",
-                content: "Tin nhắn mới",
-            })
+            expect(sendChatMessageService).toHaveBeenCalledWith(expect.objectContaining({
+                receiverId: 20, content: "Tin nhắn mới", clientMessageId: expect.any(String), v: 1,
+            }))
         );
         await waitFor(() => expect(input).toHaveValue(""));
         expect(getChatConversationService).toHaveBeenCalledTimes(2);
@@ -236,17 +242,14 @@ describe("ChatPage", () => {
         render(<ChatPage />);
         await screen.findByText("Tôi có thể tham gia");
         const input = screen.getByPlaceholderText("Nhập tin nhắn...");
+        socket.emitWithAck.mockResolvedValueOnce({ errCode: 2, errMessage: 'Socket từ chối' });
         fireEvent.change(input, { target: { value: "Gửi realtime" } });
         fireEvent.click(screen.getByRole("button"));
 
-        const sendCall = socket.emit.mock.calls.find(([event]) => event === "chat:send");
-        expect(sendCall[1]).toEqual({ receiverId: "20", content: "Gửi realtime" });
+        const sendCall = socket.emitWithAck.mock.calls.find(([event]) => event === "chat:send");
+        expect(sendCall[1]).toEqual(expect.objectContaining({ receiverId: 20, content: "Gửi realtime", clientMessageId: expect.any(String) }));
         expect(sendChatMessageService).not.toHaveBeenCalled();
-        expect(input).toHaveValue("");
-
-        await act(async () => {
-            sendCall[2]({ errCode: 2, errMessage: "Socket từ chối" });
-        });
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Socket từ chối'));
         expect(input).toHaveValue("Gửi realtime");
         expect(toast.error).toHaveBeenCalledWith("Socket từ chối");
     });
@@ -279,7 +282,7 @@ describe("ChatPage", () => {
         const listCallsBeforeMessage = getListChatConversationService.mock.calls.length;
         await act(async () => socketHandlers["chat:new-message"](incoming));
         expect(screen.getByText("Tin đến tức thì")).toBeInTheDocument();
-        expect(socket.emit).toHaveBeenCalledWith("chat:read", { partnerId: "20" });
+        expect(socket.emit).toHaveBeenCalledWith("chat:read", expect.objectContaining({ partnerId: 20, throughMessageId: expect.any(Number) }));
         expect(getListChatConversationService).toHaveBeenCalledTimes(
             listCallsBeforeMessage + 1
         );
@@ -293,11 +296,43 @@ describe("ChatPage", () => {
         await act(async () => {
             await new Promise((resolve) => setTimeout(resolve, 300));
         });
-        expect(socket.emit).toHaveBeenCalledWith("chat:typing", { receiverId: "20" });
+        expect(socket.volatile.emit).toHaveBeenCalledWith("chat:typing", { receiverId: 20 });
 
         unmount();
         ["connect", "disconnect", "chat:new-message", "chat:typing", "chat:read"].forEach(
             (event) => expect(socket.off).toHaveBeenCalledWith(event, expect.any(Function))
         );
+    });
+
+    it('retains an uncertain send across remount and retries with the same key without blocking the button', async () => {
+        mockPartnerId = '20';
+        sendChatMessageService.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout', errMessage: 'Chưa xác nhận' });
+        const first = render(<ChatPage />);
+        await screen.findByText('Tôi có thể tham gia');
+        fireEvent.change(screen.getByPlaceholderText('Nhập tin nhắn...'), { target: { value: 'Mất phản hồi' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Gửi tin nhắn' }));
+        const retry = await screen.findByRole('button', { name: 'Gửi lại tin nhắn' });
+        expect(retry).toBeEnabled();
+        expect(screen.getByPlaceholderText('Nhập tin nhắn...')).toBeDisabled();
+        const original = sendChatMessageService.mock.calls[0][0];
+        first.unmount(); render(<ChatPage />);
+        await screen.findByText('Tôi có thể tham gia');
+        expect(screen.getByPlaceholderText('Nhập tin nhắn...')).toHaveValue('Mất phản hồi');
+        sendChatMessageService.mockResolvedValueOnce({ errCode: 0, duplicate: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Gửi lại tin nhắn' }));
+        await waitFor(() => expect(sendChatMessageService).toHaveBeenLastCalledWith(original));
+        await waitFor(() => expect(screen.getByPlaceholderText('Nhập tin nhắn...')).toHaveValue(''));
+    });
+
+    it('reconciles messages on reconnect and preserves an event received during a stale REST response', async () => {
+        mockPartnerId = '20'; socket.connected = true;
+        render(<ChatPage />); await screen.findByText('Tôi có thể tham gia');
+        let resolveSnapshot;
+        getChatConversationService.mockImplementationOnce(() => new Promise((resolve) => { resolveSnapshot = resolve; }));
+        await act(async () => socketHandlers.connect());
+        await act(async () => socketHandlers['chat:new-message']({ id: 99, senderId: 20, receiverId: 7, content: 'Tin trong lúc đồng bộ' }));
+        await act(async () => resolveSnapshot({ errCode: 0, data: messages, partnerData: companyPartner }));
+        expect(screen.getByText('Tin trong lúc đồng bộ')).toBeInTheDocument();
+        expect(getChatConversationService).toHaveBeenCalledTimes(2);
     });
 });

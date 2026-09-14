@@ -6,7 +6,7 @@ const model = () => ({
 const mockDb = {
   FavoritePost: model(), FollowCompany: model(), CompanyReview: model(), Notification: model(),
   ChatMessage: model(), Post: model(), Company: model(), User: model(), Account: model(),
-  DetailPost: {}, Allcode: {}
+  DetailPost: {}, Allcode: {}, sequelize: { query: jest.fn() }
 };
 
 jest.mock('../../src/models/index', () => mockDb);
@@ -270,7 +270,14 @@ describe('notificationService', () => {
 });
 
 describe('chatService', () => {
-  beforeEach(resetDb);
+  beforeEach(() => {
+    resetDb(); require('../../src/utils/realtimeLimiter').reset();
+    mockDb.User.findAll.mockResolvedValue([
+      { id: 1, userAccountData: { roleCode: 'ADMIN', statusCode: 'S1' } },
+      { id: 2, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } }
+    ]);
+    mockDb.sequelize.query.mockResolvedValue([{ partnerId: 2, lastMessageId: 2, unreadCount: 1 }, { partnerId: 3, lastMessageId: 3, unreadCount: 1 }]);
+  });
 
   test('validates message participants/content, maximum length and self-message', async () => {
     expect((await chat.handleSendMessage({})).errCode).toBe(1);
@@ -387,7 +394,7 @@ describe('chatService', () => {
     expect(await chat.getConversation({ userId: 1, partnerId: 2, limit: 500 })).toEqual({
       errCode: 0, data: [{ id: 1 }, { id: 2 }, { id: 3 }], partnerData: { id: 2 }
     });
-    expect(mockDb.ChatMessage.findAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 200, order: [['createdAt', 'DESC']] }));
+    expect(mockDb.ChatMessage.findAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 200, order: [['id', 'DESC']] }));
     mockDb.User.findAll.mockResolvedValueOnce([
       { id: 1, userAccountData: { roleCode: 'CANDIDATE', statusCode: 'S1' } },
       {

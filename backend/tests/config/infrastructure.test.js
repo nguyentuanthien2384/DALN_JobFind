@@ -136,7 +136,7 @@ describe('legacy backend bootstrap', () => {
     expect(initWebRoutes).toHaveBeenCalledWith(app);
     expect(connectDB).toHaveBeenCalledTimes(1);
     expect(createServer).toHaveBeenCalledWith(app);
-    expect(initSocket).toHaveBeenCalledWith(server);
+    expect(initSocket).toHaveBeenCalledWith(server, undefined);
     expect(server.listen).toHaveBeenCalledWith('5999', expect.any(Function));
     expect(log).toHaveBeenCalledWith('Backend Nodejs is running on the port : 5999');
 

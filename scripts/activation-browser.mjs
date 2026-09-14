@@ -101,7 +101,7 @@ export async function checkBrowser(directory, stage) {
             await expect(p.getByText(/Tính năng mới chưa mở/)).toBeVisible();
             report.checks.push('AI controls remain disabled'); await c.close();
             await new Promise((resolve, reject) => {
-                const socket = io(origin, { auth: { token: token(candidate) }, transports: ['websocket'], reconnection: false, timeout: 10000 });
+                const socket = io(origin, { auth: { token: token(candidate) }, extraHeaders: { Origin: origin }, transports: ['websocket'], reconnection: false, timeout: 10000 });
                 socket.once('connect', () => { socket.disconnect(); resolve(); });
                 socket.once('connect_error', () => { socket.disconnect(); reject(Error('Authenticated Socket connection failed')); });
             });

@@ -354,7 +354,9 @@ const run = async () => {
     // Canh gac cho mot loi da tung xay ra: khi frontend tro sang Gateway, WebSocket
     // ngung hoat dong vi lop proxy dua tren axios khong xu ly duoc HTTP Upgrade.
     // Chat va thong bao realtime chet lang, khong bao loi gi.
-    const handshake = await fetch(`${GW}/socket.io/?EIO=4&transport=polling`);
+    const handshake = await fetch(`${GW}/socket.io/?EIO=4&transport=polling`, {
+        headers: { Origin: process.env.SMOKE_SOCKET_ORIGIN || 'http://localhost:3001' }
+    });
     const handshakeBody = await handshake.text();
     check('WebSocket bắt tay được qua Gateway',
         handshake.status === 200 && handshakeBody.includes('"sid"'));

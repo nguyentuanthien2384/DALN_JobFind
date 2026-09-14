@@ -1,5 +1,7 @@
 import db from "../models/index";
-const { Op } = require("sequelize");
+const { Op, QueryTypes } = require("sequelize");
+const protocol = require("../utils/chatProtocol");
+const limiter = require("../utils/realtimeLimiter");
 require('dotenv').config();
 
 const RECRUITER_ROLES = new Set(['COMPANY', 'EMPLOYER']);
@@ -56,56 +58,43 @@ const canParticipantsChat = async (senderId, receiverId) => {
 };
 
 // Gửi tin nhắn
-let handleSendMessage = (data) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const content = typeof data.content === 'string' ? data.content.trim() : ''
-            if (!data.senderId || !data.receiverId || !content) {
-                resolve({
-                    errCode: 1,
-                    errMessage: 'Missing required parameters !'
-                })
-            } else if (content.length > 2000) {
-                resolve({
-                    errCode: 4,
-                    errMessage: 'Tin nhắn không được vượt quá 2.000 ký tự'
-                })
-            } else if (+data.senderId === +data.receiverId) {
-                resolve({
-                    errCode: 2,
-                    errMessage: 'Không thể tự gửi tin nhắn cho chính mình'
-                })
-            } else {
-                const relationship = await canParticipantsChat(data.senderId, data.receiverId)
-                if (relationship.missingReceiver) {
-                    resolve({
-                        errCode: 3,
-                        errMessage: 'Không tìm thấy người nhận'
-                    })
-                } else if (!relationship.allowed) {
-                    resolve({
-                        errCode: 5,
-                        errMessage: 'Chỉ ứng viên và nhà tuyển dụng thuộc công ty đã duyệt mới được nhắn tin với nhau'
-                    })
-                } else {
-                    let message = await db.ChatMessage.create({
-                        senderId: data.senderId,
-                        receiverId: data.receiverId,
-                        content: content,
-                        isRead: 0
-                    })
-                    resolve({
-                        errCode: 0,
-                        data: message,
-                        errMessage: 'Gửi tin nhắn thành công'
-                    })
-                }
-            }
-        } catch (error) {
-            reject(error)
+let handleSendMessage = async (data) => {
+    const content = typeof data.content === 'string' ? data.content.trim() : '';
+    const senderId = Number(data.senderId), receiverId = Number(data.receiverId);
+    if (!Number.isSafeInteger(senderId) || senderId <= 0 || !Number.isSafeInteger(receiverId) || receiverId <= 0 || !content)
+        return protocol.error('PAYLOAD_INVALID', 'Missing required parameters !');
+    if (content.length > 2000) return protocol.error('CHAT_MESSAGE_TOO_LONG', 'Tin nhắn không được vượt quá 2.000 ký tự', 4);
+    if (senderId === receiverId) return protocol.error('CHAT_NOT_ALLOWED', 'Không thể tự gửi tin nhắn cho chính mình', 2);
+    const clientMessageId = data.clientMessageId;
+    if (clientMessageId !== undefined && !protocol.validate('chat:send', { receiverId, content, clientMessageId }))
+        return protocol.error('PAYLOAD_INVALID', 'Mã tin nhắn không hợp lệ');
+    const attempts = await limiter.consume(`send-attempt:${senderId}`, 120, 60000);
+    if (!attempts.allowed) return protocol.error('RATE_LIMITED', 'Bạn thao tác quá nhanh', 7, true, { retryAfterMs: attempts.retryAfterMs });
+    const relationship = await canParticipantsChat(senderId, receiverId);
+    if (relationship.missingReceiver) return protocol.error('CHAT_RECEIVER_NOT_FOUND', 'Không tìm thấy người nhận', 3);
+    if (!relationship.allowed) return protocol.error('CHAT_NOT_ALLOWED', 'Chỉ ứng viên và nhà tuyển dụng thuộc công ty đã duyệt mới được nhắn tin với nhau', 5);
+    const replay = (message) => Number(message.receiverId) === receiverId && message.content === content
+        ? { errCode: 0, data: message, duplicate: true }
+        : protocol.error('IDEMPOTENCY_CONFLICT', 'Mã gửi lại đã được sử dụng cho một tin nhắn khác', 6);
+    const where = { senderId, clientMessageId };
+    if (clientMessageId) {
+        const existing = await db.ChatMessage.findOne({ where });
+        if (existing) return replay(existing);
+    }
+    const rate = await limiter.consume(`send:${senderId}`, 30, 60000);
+    if (!rate.allowed) return protocol.error('RATE_LIMITED', 'Bạn gửi quá nhanh. Vui lòng thử lại sau.', 7, true, { retryAfterMs: rate.retryAfterMs });
+    try {
+        const message = await db.ChatMessage.create({ senderId, receiverId, content, isRead: 0,
+            ...(clientMessageId ? { clientMessageId } : {}) });
+        return { errCode: 0, data: message, errMessage: 'Gửi tin nhắn thành công' };
+    } catch (error) {
+        if (clientMessageId && error.name === 'SequelizeUniqueConstraintError') {
+            const existing = await db.ChatMessage.findOne({ where });
+            if (existing) return replay(existing);
         }
-    })
-}
+        throw error;
+    }
+};
 
 // Lấy hội thoại giữa 2 user (đồng thời đánh dấu tin nhận được là đã đọc)
 // Shared by the REST and Socket.IO paths so read state is persisted consistently.
@@ -118,13 +107,16 @@ let markConversationRead = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             }
+            const relationship = await canParticipantsChat(data.userId, data.partnerId);
+            if (!relationship.allowed) return resolve(protocol.error('CHAT_NOT_ALLOWED', 'Bạn không có quyền mở cuộc trò chuyện này', 5));
             const [updatedCount] = await db.ChatMessage.update(
                 { isRead: 1 },
                 {
                     where: {
                         senderId: data.partnerId,
                         receiverId: data.userId,
-                        isRead: 0
+                        isRead: 0,
+                        ...(data.throughMessageId ? { id: { [Op.lte]: data.throughMessageId } } : {})
                     }
                 }
             )
@@ -152,7 +144,6 @@ let getConversation = (data) => {
                     })
                     return
                 }
-                await markConversationRead(data)
                 let messages = await db.ChatMessage.findAll({
                     where: {
                         [Op.or]: [
@@ -162,11 +153,14 @@ let getConversation = (data) => {
                     },
                     // Query the newest records first; an old conversation must
                     // not hide new messages after it grows past 100 entries.
-                    order: [['createdAt', 'DESC']],
+                    order: [['id', 'DESC']],
                     limit: Math.min(Math.max(Number(data.limit) || 100, 1), 200),
                     raw: true
                 })
                 messages.reverse()
+                // Mark only the snapshot that was actually returned. A newer message
+                // arriving while the query runs must not be marked read accidentally.
+                if (messages.length) await markConversationRead({ ...data, throughMessageId: messages[messages.length - 1].id });
                 let partner = await db.User.findOne({
                     where: { id: data.partnerId },
                     attributes: ['id', 'firstName', 'lastName', 'image'],
@@ -198,31 +192,26 @@ let getListConversation = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             } else {
-                let messages = await db.ChatMessage.findAll({
-                    where: {
-                        [Op.or]: [
-                            { senderId: data.userId },
-                            { receiverId: data.userId }
-                        ]
-                    },
-                    order: [['createdAt', 'DESC']],
-                    raw: true
-                })
-                // Gom nhóm theo đối phương, giữ tin mới nhất + đếm chưa đọc
-                let mapConversation = {}
-                messages.forEach(item => {
-                    let partnerId = +item.senderId === +data.userId ? item.receiverId : item.senderId
-                    if (!mapConversation[partnerId]) {
-                        mapConversation[partnerId] = {
-                            partnerId: partnerId,
-                            lastMessage: item,
-                            unreadCount: 0
-                        }
-                    }
-                    if (+item.receiverId === +data.userId && +item.isRead === 0) {
-                        mapConversation[partnerId].unreadCount += 1
-                    }
-                })
+                // Aggregate in SQL: transfer one row per partner instead of the
+                // entire history. Parameters are bound, never interpolated.
+                const summaries = await db.sequelize.query(`
+                    SELECT partnerId, MAX(id) AS lastMessageId, SUM(unread) AS unreadCount
+                    FROM (
+                        SELECT receiverId AS partnerId, id, 0 AS unread
+                        FROM ChatMessages WHERE senderId = :userId
+                        UNION ALL
+                        SELECT senderId AS partnerId, id, CASE WHEN isRead = 0 THEN 1 ELSE 0 END AS unread
+                        FROM ChatMessages WHERE receiverId = :userId
+                    ) AS messages GROUP BY partnerId`, {
+                    replacements: { userId: Number(data.userId) }, type: QueryTypes.SELECT,
+                });
+                const latest = summaries.length ? await db.ChatMessage.findAll({
+                    where: { id: { [Op.in]: summaries.map((row) => row.lastMessageId) } }, raw: true,
+                }) : [];
+                const byId = new Map(latest.map((message) => [Number(message.id), message]));
+                const mapConversation = Object.fromEntries(summaries.map((row) => [row.partnerId, {
+                    partnerId: Number(row.partnerId), lastMessage: byId.get(Number(row.lastMessageId)), unreadCount: Number(row.unreadCount),
+                }]).filter(([, value]) => value.lastMessage));
                 let listPartnerId = Object.keys(mapConversation)
                 let listPartner = await db.User.findAll({
                     where: { id: listPartnerId },
@@ -253,6 +242,7 @@ let getListConversation = (data) => {
 }
 
 module.exports = {
+    canParticipantsChat,
     handleSendMessage: handleSendMessage,
     getConversation: getConversation,
     getListConversation: getListConversation,

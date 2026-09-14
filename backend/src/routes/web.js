@@ -46,6 +46,12 @@ let initWebRoutes = (app) => {
         time: new Date().toISOString()
     }))
 
+    router.get('/internal/socket-metrics', (req, res) => {
+        const secret = process.env.INTERNAL_SECRET;
+        if (!secret || req.headers['x-internal-secret'] !== secret) return res.sendStatus(403);
+        return res.type('text/plain').send(require('../utils/realtimeMetrics').render());
+    });
+
     //=====================API USER==========================//
     // Tao tai khoan: co the goi khi chua dang nhap (tu dang ky) hoac boi admin.
     // verifyTokenOptional gan req.user neu co token hop le de controller biet

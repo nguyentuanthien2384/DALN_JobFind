@@ -9,6 +9,7 @@ import {
     sendChatMessageService,
 } from "../../service/userService";
 import { getSocket } from "../../socket";
+import { readPending, preparePending, clearPending, sendReliably } from "./reliableSend";
 
 const ChatPage = () => {
     const navigate = useNavigate();
@@ -21,6 +22,12 @@ const ChatPage = () => {
     const [isRealtime, setIsRealtime] = useState(false);
     const [partnerTyping, setPartnerTyping] = useState(false);
     const [isSending, setIsSending] = useState(false);
+    const [sendUncertain, setSendUncertain] = useState(false);
+    const [partnerOnline, setPartnerOnline] = useState(null);
+    const activePartnerRef = useRef(partnerId);
+    activePartnerRef.current = partnerId;
+    const sendLockRef = useRef(false);
+    const fetchSequenceRef = useRef(0);
     const messagesEndRef = useRef(null);
     const typingTimerRef = useRef(null);
     const typingEmitTimerRef = useRef(null);
@@ -43,18 +50,28 @@ const ChatPage = () => {
     }, []);
 
     const fetchConversation = useCallback(async (scroll) => {
+        const sequence = ++fetchSequenceRef.current;
         const res = await getChatConversationService({ partnerId });
+        if (activePartnerRef.current !== partnerId || sequence !== fetchSequenceRef.current) return;
         if (res && res.errCode === 0) {
             setMessages((prev) => {
                 if (scroll || prev.length !== res.data.length) {
                     setTimeout(scrollToBottom, 100);
                 }
-                return res.data;
+                // Retain events that arrived while this snapshot was in flight.
+                const byId = new Map(res.data.map((message) => [Number(message.id), message]));
+                prev.forEach((message) => {
+                    const snapshot = byId.get(Number(message.id));
+                    if (snapshot && +message.isRead === 1) byId.set(Number(message.id), { ...snapshot, isRead: 1 });
+                });
+                const newest = Math.max(0, ...res.data.map((message) => Number(message.id)));
+                prev.filter((message) => Number(message.id) > newest).forEach((message) => byId.set(Number(message.id), message));
+                return [...byId.values()].sort((a, b) => Number(a.id) - Number(b.id));
             });
             setPartnerData(res.partnerData);
             const socket = getSocket();
-            if (socket && socket.connected) {
-                socket.emit("chat:read", { partnerId });
+            if (socket && socket.connected && res.data.length && !document.hidden) {
+                socket.emit("chat:read", { partnerId: Number(partnerId), throughMessageId: Math.max(...res.data.map((m) => Number(m.id))) });
             }
         }
     }, [partnerId, scrollToBottom]);
@@ -67,14 +84,30 @@ const ChatPage = () => {
             return;
         }
         fetchListConversation();
-        // Khi socket dang chay thi chi poll thua ra 20 giay/lan cho chac an;
-        // neu socket hong hoan toan thi quay ve nhip 4 giay nhu truoc.
-        const interval = setInterval(() => {
-            fetchListConversation();
-            if (partnerId) fetchConversation(false);
-        }, isRealtime ? 20000 : 4000);
-        return () => clearInterval(interval);
-    }, [fetchConversation, fetchListConversation, isRealtime, navigate, partnerId, userData]);
+    }, [fetchListConversation, navigate, userData]);
+
+    useEffect(() => {
+        if (!userData) return;
+        let timer, stopped = false, refreshing = false, offlineDelay = 5000;
+        const refresh = async () => {
+            if (stopped || refreshing) return;
+            refreshing = true;
+            if (!document.hidden && navigator.onLine !== false) {
+                await Promise.allSettled([fetchListConversation(), partnerId ? fetchConversation(false) : Promise.resolve()]);
+            }
+            refreshing = false;
+            if (stopped) return;
+            offlineDelay = Math.min(30000, offlineDelay * 1.5);
+            timer = setTimeout(refresh, isRealtime ? 120000 : offlineDelay + Math.random() * 1000);
+        };
+        const onVisible = () => {
+            if (!document.hidden) { clearTimeout(timer); refresh(); }
+        };
+        timer = setTimeout(refresh, isRealtime ? 120000 : offlineDelay);
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('online', onVisible);
+        return () => { stopped = true; clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('online', onVisible); };
+    }, [fetchConversation, fetchListConversation, isRealtime, partnerId, userData]);
 
     // ---- Socket.IO: nhan tin nhan tuc thi ----
     useEffect(() => {
@@ -82,8 +115,14 @@ const ChatPage = () => {
         const socket = getSocket();
         if (!socket) return;
 
-        const onConnect = () => setIsRealtime(true);
-        const onDisconnect = () => setIsRealtime(false);
+        const onConnect = () => {
+            setIsRealtime(true);
+            // Always reconcile persisted state, even after transport recovery:
+            // a process may have committed a message before it could broadcast.
+            fetchListConversation();
+            if (partnerId && !document.hidden) fetchConversation(false);
+        };
+        const onDisconnect = () => { setIsRealtime(false); setPartnerOnline(null); };
 
         const onNewMessage = (msg) => {
             const involved =
@@ -98,11 +137,11 @@ const ChatPage = () => {
                 setMessages((prev) => {
                     if (prev.some((m) => +m.id === +msg.id)) return prev;
                     setTimeout(scrollToBottom, 50);
-                    return [...prev, msg];
+                    return [...prev, msg].sort((a, b) => Number(a.id) - Number(b.id));
                 });
                 setPartnerTyping(false);
-                if (+msg.receiverId === +userData.id) {
-                    socket.emit("chat:read", { partnerId });
+                if (+msg.receiverId === +userData.id && !document.hidden) {
+                    socket.emit("chat:read", { partnerId: Number(partnerId), throughMessageId: Number(msg.id) });
                 }
             }
             // Luon lam moi danh sach hoi thoai de cap nhat tin cuoi + so chua doc
@@ -116,11 +155,12 @@ const ChatPage = () => {
             typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 2500);
         };
 
-        const onMessagesRead = ({ byUserId }) => {
+        const onMessagesRead = ({ byUserId, throughMessageId }) => {
+            fetchListConversation();
             if (!partnerId || +byUserId !== +partnerId) return;
             setMessages((prev) =>
                 prev.map((message) =>
-                    +message.senderId === +userData.id
+                    +message.senderId === +userData.id && (!throughMessageId || +message.id <= +throughMessageId)
                         ? { ...message, isRead: 1 }
                         : message
                 )
@@ -143,49 +183,62 @@ const ChatPage = () => {
             clearTimeout(typingTimerRef.current);
             clearTimeout(typingEmitTimerRef.current);
         };
-    }, [fetchListConversation, partnerId, scrollToBottom, userData]);
+    }, [fetchConversation, fetchListConversation, partnerId, scrollToBottom, userData]);
 
     useEffect(() => {
-        if (partnerId && userData) {
+        if (partnerId && userData && !document.hidden) {
             fetchConversation(true);
         }
     }, [fetchConversation, partnerId, userData]);
 
+    useEffect(() => {
+        setMessages([]); setPartnerData(null); setPartnerTyping(false); setPartnerOnline(null);
+        const pending = userData && partnerId ? readPending(userData.id, partnerId) : null;
+        setContent(pending?.content || ''); setSendUncertain(Boolean(pending));
+    }, [partnerId, userData]);
+
+    useEffect(() => {
+        if (!partnerId || !isRealtime) return;
+        let stopped = false;
+        const check = async () => {
+            const socket = getSocket();
+            if (!socket?.connected || document.hidden) return;
+            try {
+                const res = await socket.timeout(3000).emitWithAck('chat:presence', { partnerId: Number(partnerId) });
+                if (!stopped) setPartnerOnline(res?.errCode === 0 ? res.data.online : null);
+            } catch { if (!stopped) setPartnerOnline(null); }
+        };
+        check();
+        const interval = setInterval(check, 30000);
+        return () => { stopped = true; clearInterval(interval); };
+    }, [isRealtime, partnerId]);
+
     const handleSend = async () => {
-        if (!content.trim() || !partnerId || isSending) return;
-        const text = content.trim();
-        const socket = getSocket();
-
-        // Uu tien gui qua socket cho nhanh; socket hong thi rot ve API REST.
-        if (socket && socket.connected) {
-            setContent("");
-            setIsSending(true);
-            socket.emit(
-                "chat:send",
-                { receiverId: partnerId, content: text },
-                (res) => {
-                    setIsSending(false);
-                    if (!res || res.errCode !== 0) {
-                        setContent(text); // tra lai chu de nguoi dung gui lai
-                        toast.error(
-                            res && res.errMessage ? res.errMessage : "Gửi tin nhắn thất bại"
-                        );
-                    }
-                }
-            );
-            return;
-        }
-
+        if (!content.trim() || !partnerId || sendLockRef.current) return;
+        const text = content.trim(), target = partnerId;
+        sendLockRef.current = true;
         setIsSending(true);
-        let res = await sendChatMessageService({ receiverId: partnerId, content: text });
-        setIsSending(false);
-        if (res && res.errCode === 0) {
-            setContent("");
-            fetchConversation(true);
-            fetchListConversation();
-        } else {
-            toast.error(res && res.errMessage ? res.errMessage : "Có lỗi xảy ra");
-        }
+        try {
+            const wasPending = Boolean(readPending(userData.id, target));
+            const payload = preparePending(userData.id, target, text);
+            const res = await sendReliably(getSocket(), payload, sendChatMessageService);
+            if (res?.errCode === 0) {
+                clearPending(userData.id, target, payload.clientMessageId);
+                if (activePartnerRef.current === target) {
+                    setContent(''); setSendUncertain(false);
+                    if (res.data) setMessages((prev) => prev.some((m) => +m.id === +res.data.id) ? prev : [...prev, res.data].sort((a, b) => a.id - b.id));
+                    Promise.allSettled([fetchConversation(true), fetchListConversation()]);
+                }
+            } else {
+                const definitive = !wasPending && res && !res.deliveryUncertain && res.errCode !== -1 && !['network', 'timeout', 'unavailable', 'cancelled'].includes(res.errorType);
+                if (definitive) clearPending(userData.id, target, payload.clientMessageId);
+                if (activePartnerRef.current === target) setSendUncertain(!definitive);
+                toast.error(res?.errMessage || 'Chưa xác nhận được tin nhắn. Hãy gửi lại để kiểm tra.');
+            }
+        } catch (error) {
+            if (activePartnerRef.current === target) setSendUncertain(Boolean(readPending(userData.id, target)));
+            toast.error(error.message || 'Chưa xác nhận được tin nhắn. Hãy gửi lại để kiểm tra.');
+        } finally { sendLockRef.current = false; setIsSending(false); }
     };
 
     const handleTyping = (value) => {
@@ -194,7 +247,7 @@ const ChatPage = () => {
         typingEmitTimerRef.current = setTimeout(() => {
             const socket = getSocket();
             if (value.trim() && socket && socket.connected && partnerId) {
-                socket.emit("chat:typing", { receiverId: partnerId });
+                socket.volatile.emit("chat:typing", { receiverId: Number(partnerId) });
             }
         }, 250);
     };
@@ -344,13 +397,15 @@ const ChatPage = () => {
                                                 <span style={{ color: "#fb246a" }}>
                                                     đang soạn tin nhắn...
                                                 </span>
+                                            ) : partnerOnline === true ? (
+                                                <span style={{ color: '#28a745' }}>Đang trực tuyến</span>
                                             ) : isRealtime ? (
                                                 <span>
                                                     <i
                                                         className="fas fa-circle"
                                                         style={{ fontSize: "7px", color: "#28a745", marginRight: "4px" }}
                                                     ></i>
-                                                    Đang kết nối trực tiếp
+                                                    {partnerOnline === false ? 'Người nhận đang ngoại tuyến' : 'Đang kết nối trực tiếp'}
                                                 </span>
                                             ) : (
                                                 "Chế độ tải lại định kỳ"
@@ -371,7 +426,7 @@ const ChatPage = () => {
                                             +item.senderId === +userData.id;
                                         return (
                                             <div
-                                                key={index}
+                                                key={item.id}
                                                 style={{
                                                     display: "flex",
                                                     justifyContent: isMine
@@ -435,13 +490,14 @@ const ChatPage = () => {
                                         borderTop: "1px solid #eee",
                                     }}
                                 >
+                                    {sendUncertain && <span role="status" style={{ fontSize: 12 }}>Chưa xác nhận. Bấm gửi lại để kiểm tra cùng tin nhắn.</span>}
                                     <input
                                         type="text"
                                         className="form-control"
                                         placeholder="Nhập tin nhắn..."
                                         value={content}
                                         maxLength={2000}
-                                        disabled={isSending}
+                                        disabled={isSending || sendUncertain}
                                         onChange={(e) =>
                                             handleTyping(e.target.value)
                                         }
@@ -451,6 +507,7 @@ const ChatPage = () => {
                                     />
                                     <button
                                         className="btn btn-primary"
+                                        aria-label={sendUncertain ? 'Gửi lại tin nhắn' : 'Gửi tin nhắn'}
                                         onClick={() => handleSend()}
                                         disabled={isSending || !content.trim()}
                                     >

@@ -7,6 +7,7 @@ import connectDB from "./config/connectDB";
 import {sendJobMail,updateFreeViewCv} from "./utils/schedule"
 import { initSocket } from "./config/socket";
 import db from './models/index';
+import { connectSocketRedis, closeSocketRedis } from './config/socketRedis';
 import schedule from 'node-schedule';
 import { assertSecureJwtSecret, getJwtPolicy } from './utils/securityConfig';
 require('dotenv').config();
@@ -70,6 +71,7 @@ export const shutdown = () => {
             } else if (server && server.listening) {
                 await new Promise((resolve) => server.close(resolve));
             }
+            await closeSocketRedis();
             await db.sequelize.close();
         })();
     }
@@ -92,7 +94,8 @@ const startServer = async () => {
     // Never advertise a usable API before the configured database is reachable.
     await connectDB();
     server = http.createServer(app);
-    socketServer = initSocket(server);
+    const adapter = await connectSocketRedis();
+    socketServer = initSocket(server, adapter);
     await new Promise((resolve, reject) => {
         server.once('error', reject);
         server.listen(port, () => {

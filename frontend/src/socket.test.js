@@ -11,6 +11,7 @@ const makeSocket = () => {
         auth: null,
         on: jest.fn((event, handler) => { handlers[event] = handler; }),
         disconnect: jest.fn(),
+        connect: jest.fn(),
         handlers,
     };
 };
@@ -50,8 +51,11 @@ describe("shared Socket.IO client", () => {
         expect(io).toHaveBeenCalledWith(process.env.REACT_APP_BACKEND_URL || "http://localhost:4000", {
             auth: { token: "token-a" },
             transports: ["websocket", "polling"],
-            reconnectionAttempts: 5,
-            reconnectionDelay: 2000,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 30000,
+            randomizationFactor: 0.5,
+            tryAllTransports: true,
             autoConnect: true,
         });
         expect(socket.on).toHaveBeenCalledWith("connect_error", expect.any(Function));
@@ -108,5 +112,19 @@ describe("shared Socket.IO client", () => {
         disconnectSocket();
         expect(first.disconnect).toHaveBeenCalledTimes(1);
         expect(getSocket()).toBe(second);
+    });
+
+    it('retries a temporary server rejection and never reconnects a superseded login', () => {
+        jest.useFakeTimers();
+        const socket = makeSocket(); socket.auth = { token: 'token' };
+        io.mockReturnValue(socket); localStorage.setItem('token_user', 'token');
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+        getSocket(); socket.handlers.disconnect('io server disconnect');
+        jest.advanceTimersByTime(5000); expect(socket.connect).toHaveBeenCalledTimes(1);
+        socket.handlers.connect_error({ message: 'temporarily unavailable', data: { code: 'AUTH_UNAVAILABLE' } });
+        jest.advanceTimersByTime(35000); expect(socket.connect).toHaveBeenCalledTimes(2);
+        socket.handlers.disconnect('io server disconnect'); localStorage.setItem('token_user', 'other-login');
+        jest.advanceTimersByTime(5000); expect(socket.connect).toHaveBeenCalledTimes(2);
+        warn.mockRestore(); jest.useRealTimers();
     });
 });

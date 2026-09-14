@@ -147,6 +147,7 @@ describe("userService", () => {
 
         await expect(service[name](...args)).resolves.toBe(expected);
         const expectedArguments = body === undefined ? [url] : [url, body];
+        if (['sendChatMessageService', 'getChatConversationService', 'getListChatConversationService'].includes(name)) expectedArguments.push({ timeout: 10000 });
         expect(axios[method]).toHaveBeenCalledWith(...expectedArguments);
     });
 

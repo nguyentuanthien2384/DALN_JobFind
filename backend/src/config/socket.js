@@ -3,175 +3,180 @@ import chatService from "../services/chatService";
 import db from "../models/index";
 import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../utils/securityConfig';
 const jwt = require('jsonwebtoken');
+const { randomUUID } = require('crypto');
+const protocol = require('../utils/chatProtocol');
+const limiter = require('../utils/realtimeLimiter');
+const metrics = require('../utils/realtimeMetrics');
 require('dotenv').config();
-
-/**
- * Tang realtime cho tinh nang chat (Socket.IO).
- *
- * Thiet ke: KHONG thay the API REST san co. Cac endpoint
- * /api/send-chat-message, /api/get-chat-conversation... van hoat dong y nguyen,
- * nen neu socket khong ket noi duoc thi giao dien tu quay ve co che poll cu.
- * Socket chi lam nhiem vu day tin nhan den nguoi nhan ngay lap tuc.
- *
- * Moi user duoc cho vao mot "room" rieng ten `user:<id>`, nho vay muon gui cho
- * ai chi can emit vao room cua nguoi do, khong phai tu quan ly danh sach socket.
- */
-
 let io = null;
-
-// Lay userId tu token JWT trong handshake. Tra ve null neu token sai/thieu.
-const getUserIdFromHandshake = (socket) => {
-    const raw = (socket.handshake.auth && socket.handshake.auth.token)
-        || socket.handshake.query.token;
-    if (!raw) return null;
-    const token = raw.startsWith('Bearer ') ? raw.slice(7) : raw;
+const roomOf = (id) => `user:${id}`;
+const authError = (code) => Object.assign(new Error(code), { data: { code, retryable: false } });
+const getIdentity = (socket) => {
+    const raw = socket.handshake.auth?.token;
+    if (typeof raw !== 'string' || raw.length > 8192) throw authError('AUTH_INVALID');
     try {
-        const payload = jwt.verify(token, getJwtSecret(), getJwtVerifyOptions());
-        if (!hasAccessTokenClaims(payload)) return null;
-        return payload.sub;
-    } catch (error) {
-        return null;
-    }
+        const claims = jwt.verify(raw.startsWith('Bearer ') ? raw.slice(7) : raw, getJwtSecret(), getJwtVerifyOptions());
+        if (!hasAccessTokenClaims(claims)) throw authError('AUTH_INVALID');
+        if (claims.exp * 1000 <= Date.now()) throw authError('AUTH_EXPIRED');
+        return { userId: Number(claims.sub), authExp: claims.exp };
+    } catch (error) { throw authError(error.name === 'TokenExpiredError' || error.message === 'AUTH_EXPIRED' ? 'AUTH_EXPIRED' : 'AUTH_INVALID'); }
 };
-
-const roomOf = (userId) => `user:${userId}`;
-
-// Socket.IO accepts an origin array, not a comma-separated HTTP header value.
-// Keeping the parsing here in sync with server.js avoids emitting an invalid
-// `Access-Control-Allow-Origin: origin-a,origin-b` response in production.
-const getAllowedOrigins = () => (
-    process.env.URL_REACT || 'http://localhost:3000,http://localhost:3001'
-)
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
-let initSocket = (server) => {
+const activeAccount = (userId) => db.Account.findOne({ where: { userId, statusCode: 'S1' }, attributes: ['userId', 'roleCode'], raw: true });
+const endSession = (socket, code) => {
+    socket.emit('auth:expired', { v: 1, code });
+    socket.disconnect(true);
+};
+const initSocket = (server, adapter) => {
+    const origins = new Set((process.env.URL_REACT || 'http://localhost:3000,http://localhost:3001').split(',').map((s) => s.trim()).filter(Boolean));
     io = new Server(server, {
-        cors: {
-            origin: getAllowedOrigins(),
-            methods: ['GET', 'POST'],
-            credentials: true
-        }
+        ...(adapter ? { adapter } : {}),
+        cors: { origin: [...origins], methods: ['GET', 'POST'], credentials: true },
+        maxHttpBufferSize: 64 * 1024, perMessageDeflate: false,
+        pingInterval: 25000, pingTimeout: 20000,
+        connectionStateRecovery: { maxDisconnectionDuration: 120000, skipMiddlewares: false },
+        allowRequest: (req, callback) => {
+            if (typeof req.headers.origin !== 'string' || !origins.has(req.headers.origin)) {
+                metrics.increment('socket_origin_reject_total');
+                return callback(null, false);
+            }
+            // Do not trust a client-supplied X-Forwarded-For. The proxy may also
+            // enforce per-IP limits; this bounds attempts per direct peer here.
+            limiter.consume(`connect:${req.socket.remoteAddress}`, 120, 60000)
+                .then((rate) => callback(null, rate.allowed)).catch(() => callback(null, false));
+        },
     });
-
-    // Chi cho phep ket noi khi co token hop le -> khong the gia mao nguoi khac.
-    io.use(async (socket, next) => {
-        const userId = getUserIdFromHandshake(socket);
-        if (!userId) return next(new Error('UNAUTHORIZED'));
+    const runtime = io;
+    runtime.use(async (socket, next) => {
         try {
-            const account = await db.Account.findOne({
-                where: { userId, statusCode: 'S1' },
-                attributes: ['userId'],
-                raw: true
-            });
-            if (!account) return next(new Error('UNAUTHORIZED'));
-            socket.userId = userId;
+            const identity = getIdentity(socket);
+            // Recovery credentials must never transfer a previous user's rooms.
+            if (socket.recovered && socket.data.userId !== identity.userId) throw authError('AUTH_INVALID');
+            const account = await activeAccount(identity.userId);
+            if (!account) throw authError('AUTH_INACTIVE');
+            const rate = await limiter.consume(`login:${identity.userId}`, 30, 60000);
+            if (!rate.allowed) throw authError('RATE_LIMITED');
+            const connectionLease = randomUUID();
+            if (!await limiter.slot(identity.userId, connectionLease)) throw authError('CONNECTION_LIMITED');
+            socket.data = { ...identity, roleCode: account.roleCode, connectionLease };
+            // Also release if the transport closes before namespace acceptance.
+            socket.conn.once('close', () => { limiter.release(identity.userId, connectionLease).catch(() => {}); });
+            socket.userId = identity.userId;
+            metrics.increment('socket_connections_total', '{result="accepted"}');
             next();
         } catch (error) {
-            next(new Error('UNAUTHORIZED'));
+            const code = error.data?.code || 'AUTH_UNAVAILABLE';
+            metrics.increment('socket_connections_total', '{result="rejected"}');
+            metrics.increment('socket_auth_failure_total', `{reason="${code}"}`);
+            next(authError(code));
         }
     });
-
-    io.on('connection', (socket) => {
-        socket.join(roomOf(socket.userId));
-
-        // Gui tin nhan qua socket. senderId luon lay tu token, khong lay tu client
-        // gui len, tranh viec mao danh nguoi khac de gui tin.
-        socket.on('chat:send', async (payload, ack) => {
+    runtime.on('connection', (socket) => {
+        const { userId, authExp, roleCode, connectionLease } = socket.data;
+        socket.join(roomOf(userId));
+        if (['ADMIN', 'COMPANY', 'EMPLOYER'].includes(roleCode)) socket.join('feature:dashboard');
+        metrics.connect();
+        metrics.increment('socket_recovery_total', `{result="${socket.recovered ? 'recovered' : 'fresh'}"}`);
+        const expiry = setTimeout(() => endSession(socket, 'AUTH_EXPIRED'), Math.max(0, authExp * 1000 - Date.now()));
+        expiry.unref?.();
+        let checking = false;
+        const revalidate = setInterval(async () => {
+            if (checking) return;
+            checking = true;
             try {
-                const data = {
-                    senderId: socket.userId,
-                    receiverId: payload && payload.receiverId,
-                    content: payload && payload.content
-                };
-                const res = await chatService.handleSendMessage(data);
-                if (res.errCode === 0) {
-                    emitNewMessage(res.data);
-                }
-                if (typeof ack === 'function') ack(res);
-            } catch (error) {
-                console.log('socket chat:send error:', error.message);
-                if (typeof ack === 'function') {
-                    ack({ errCode: -1, errMessage: 'Error from server' });
-                }
+                if (!await activeAccount(userId)) endSession(socket, 'AUTH_INACTIVE');
+                else if (!await limiter.slot(userId, connectionLease, true)) endSession(socket, 'AUTH_UNAVAILABLE');
             }
+            catch { endSession(socket, 'AUTH_UNAVAILABLE'); }
+            finally { checking = false; }
+        }, 30000);
+        revalidate.unref?.();
+        socket.on('disconnect', (reason) => {
+            clearTimeout(expiry); clearInterval(revalidate); metrics.disconnect();
+            limiter.release(userId, connectionLease).catch(() => {});
+            const safeReason = ['ping timeout', 'transport close', 'transport error', 'server namespace disconnect', 'client namespace disconnect', 'server shutting down'].includes(reason) ? reason : 'other';
+            metrics.increment('socket_disconnect_total', `{reason="${safeReason}"}`);
         });
-
-        // Bao "dang soan tin" cho doi phuong
-        socket.on('chat:typing', (payload) => {
-            const receiverId = payload && payload.receiverId;
-            if (!receiverId) return;
-            io.to(roomOf(receiverId)).emit('chat:typing', {
-                fromUserId: socket.userId
-            });
-        });
-
-        // Bao da doc de phia gui cap nhat lai so tin chua doc
-        socket.on('chat:read', async (payload, ack) => {
-            const partnerId = payload && payload.partnerId;
-            if (!partnerId) return;
+        let malformed = 0;
+        const register = (event, action) => socket.on(event, async (payload, ack) => {
+            const start = Date.now(), traceId = randomUUID();
+            let result;
             try {
-                const result = await chatService.markConversationRead({
-                    userId: socket.userId,
-                    partnerId
-                });
-                if (result.errCode === 0) {
-                    io.to(roomOf(partnerId)).emit('chat:read', {
-                        byUserId: socket.userId
-                    });
+                if (authExp * 1000 <= Date.now()) {
+                    result = protocol.error('AUTH_EXPIRED', 'Phiên đăng nhập đã hết hạn');
+                    endSession(socket, 'AUTH_EXPIRED');
+                } else {
+                    const rate = await limiter.consume(`event:${userId}:${event}`, event === 'chat:typing' ? 60 : 120, 60000);
+                    if (!rate.allowed) result = protocol.error('RATE_LIMITED', 'Bạn thao tác quá nhanh', 7, true, { retryAfterMs: rate.retryAfterMs });
+                    else if (!protocol.validate(event, payload)) {
+                        result = protocol.error('PAYLOAD_INVALID', 'Dữ liệu sự kiện không hợp lệ');
+                        if (++malformed >= 5) socket.disconnect(true);
+                    } else if (!await activeAccount(userId)) {
+                        result = protocol.error('AUTH_INACTIVE', 'Tài khoản đã bị vô hiệu hóa');
+                        endSession(socket, 'AUTH_INACTIVE');
+                    } else result = await action(payload);
                 }
-                if (typeof ack === 'function') ack(result);
-            } catch (error) {
-                if (typeof ack === 'function') {
-                    ack({ errCode: -1, errMessage: 'Error from server' });
-                }
+            } catch {
+                result = protocol.error('INTERNAL_ERROR', 'Error from server', -1, true);
             }
+            const response = protocol.response(result, traceId);
+            if (typeof ack === 'function') ack(response);
+            metrics.increment('socket_event_total', `{event="${event}",result="${response.code}"}`);
+            if (response.code === 'RATE_LIMITED') metrics.increment('socket_rate_limit_total', `{event="${event}"}`);
+            metrics.observe(event, (Date.now() - start) / 1000);
+            if (process.env.SOCKET_LOG_EVENTS === 'true') console.info(JSON.stringify({ event, traceId, outcome: response.code, latencyMs: Date.now() - start }));
+        });
+        register('chat:send', async (payload) => {
+            const result = await chatService.handleSendMessage({ senderId: userId, receiverId: payload.receiverId, content: payload.content, clientMessageId: payload.clientMessageId });
+            if (result.errCode === 0 && !result.duplicate) {
+                try { emitNewMessage(result.data); }
+                catch { metrics.increment('socket_publish_errors_total'); }
+            }
+            return result;
+        });
+        register('chat:typing', async ({ receiverId }) => {
+            const relation = await chatService.canParticipantsChat(userId, receiverId);
+            if (!relation.allowed) return protocol.error('CHAT_NOT_ALLOWED', 'Bạn không có quyền mở cuộc trò chuyện này', 5);
+            const rate = await limiter.consume(`typing:${userId}:${receiverId}`, 1, 750);
+            if (rate.allowed) runtime.to(roomOf(receiverId)).volatile.emit('chat:typing', { v: 1, fromUserId: userId });
+            return { errCode: 0 };
+        });
+        register('chat:read', async ({ partnerId, throughMessageId }) => {
+            const result = await chatService.markConversationRead({ userId, partnerId, throughMessageId });
+            if (result.errCode === 0) emitReadReceipt(userId, partnerId, throughMessageId);
+            return result;
+        });
+        register('chat:presence', async ({ partnerId }) => {
+            const relation = await chatService.canParticipantsChat(userId, partnerId);
+            if (!relation.allowed) return protocol.error('CHAT_NOT_ALLOWED', 'Bạn không có quyền mở cuộc trò chuyện này', 5);
+            const sockets = await runtime.in(roomOf(partnerId)).fetchSockets();
+            return { errCode: 0, data: { partnerId, online: sockets.some((peer) => peer.data.authExp * 1000 > Date.now()), checkedAt: new Date().toISOString() } };
         });
     });
-
-    console.log('Socket.IO da san sang cho chat realtime');
-    return io;
+    return runtime;
 };
-
-/**
- * Day mot tin nhan vua luu xuong cho ca nguoi nhan lan nguoi gui
- * (nguoi gui co the dang mo nhieu tab). Ham nay duoc goi ca tu socket
- * lan tu controller REST, nen gui bang duong nao cung deu realtime.
- */
-let emitNewMessage = (message) => {
+const emitNewMessage = (message) => {
     if (!io || !message) return;
-    io.to(roomOf(message.receiverId)).emit('chat:new-message', message);
-    io.to(roomOf(message.senderId)).emit('chat:new-message', message);
+    const value = message.toJSON ? message.toJSON() : message;
+    const event = { ...value, v: 1, eventId: `chat:${value.id}`, occurredAt: value.createdAt };
+    io.to(roomOf(value.receiverId)).emit('chat:new-message', event);
+    io.to(roomOf(value.senderId)).emit('chat:new-message', event);
 };
-
-/** Day thong bao (duyet tin, cong ty dang tin moi...) den 1 user. */
-let emitNotification = (userId, notification) => {
-    if (!io || !userId) return;
-    io.to(roomOf(userId)).emit('notification:new', notification);
-};
-
-/**
- * Bao cho cac trang dashboard biet so lieu thong ke vua doi.
- *
- * Chi gui MOT tin hieu, KHONG kem so lieu. Ly do: moi vai tro nhin thay mot
- * pham vi du lieu khac nhau (admin thay toan he thong, cong ty chi thay cua
- * minh). Neu o day tinh san so lieu roi phat di thi vua phai tinh lai cho
- * tung vai tro, vua co nguy co gui nham du lieu cong ty nay sang cong ty khac.
- * Gui tin hieu suong thi moi trinh duyet tu goi lai API cua rieng no, quyen
- * xem du lieu van do API kiem soat nhu cu.
- *
- * @param {string} type - loai thay doi: 'post' | 'cv' | 'payment-post' | 'payment-cv'
- */
-let emitDashboardChanged = (type) => {
+const emitReadReceipt = (userId, partnerId, throughMessageId) => {
     if (!io) return;
-    io.emit('dashboard:changed', { type, at: Date.now() });
+    const event = { v: 1, byUserId: Number(userId), partnerId: Number(partnerId), throughMessageId };
+    io.to(roomOf(partnerId)).emit('chat:read', event);
+    io.to(roomOf(userId)).emit('chat:read', event);
 };
-
-module.exports = {
-    initSocket,
-    emitNewMessage,
-    emitNotification,
-    emitDashboardChanged,
-    getIO: () => io
+const emitNotification = (userId, notification) => {
+    if (io && userId) io.to(roomOf(userId)).emit('notification:new', notification);
 };
+const emitDashboardChanged = (type) => {
+    if (io) io.to('feature:dashboard').emit('dashboard:changed', { v: 1, type, at: Date.now() });
+};
+const disconnectUser = (userId) => {
+    if (io && userId) {
+        io.to(roomOf(userId)).emit('auth:expired', { v: 1, code: 'AUTH_INACTIVE' });
+        io.in(roomOf(userId)).disconnectSockets(true);
+    }
+};
+module.exports = { initSocket, emitNewMessage, emitReadReceipt, emitNotification, emitDashboardChanged, disconnectUser, getIO: () => io };

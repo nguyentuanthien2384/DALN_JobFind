@@ -1,27 +1,31 @@
 import chatService from "../services/chatService";
-import { emitNewMessage } from "../config/socket";
+import { emitNewMessage, emitReadReceipt } from "../config/socket";
+const protocol = require('../utils/chatProtocol');
+const metrics = require('../utils/realtimeMetrics');
 
 let handleSendMessage = async (req, res) => {
     try {
+        if ((req.body.v !== undefined || req.body.clientMessageId !== undefined) && !protocol.validate('chat:send', req.body)) {
+            return res.status(400).json(protocol.response(protocol.error('PAYLOAD_INVALID', 'Dữ liệu tin nhắn không hợp lệ')));
+        }
         // The sender identity must always come from the verified JWT, never
         // from a value supplied by the browser.
         let data = await chatService.handleSendMessage({
             senderId: req.user.id,
             receiverId: req.body.receiverId,
-            content: req.body.content
+            content: req.body.content,
+            clientMessageId: req.body.clientMessageId
         });
         // Tin gui bang REST cung duoc day qua socket, nho vay nguoi nhan thay ngay
         // ma khong can cho vong poll. Neu socket chua san sang thi ham nay khong lam gi.
-        if (data.errCode === 0) {
-            emitNewMessage(data.data);
+        if (data.errCode === 0 && !data.duplicate) {
+            try { emitNewMessage(data.data); }
+            catch { metrics.increment('socket_publish_errors_total'); }
         }
-        return res.status(data.errCode === 5 ? 403 : 200).json(data);
+        return res.status(data.errCode === 5 ? 403 : data.errCode === 6 ? 409 : data.errCode === 7 ? 429 : 200).json(protocol.response(data));
     } catch (error) {
-        console.log(error)
-        return res.status(200).json({
-            errCode: -1,
-            errMessage: 'Error from server'
-        })
+        console.log(JSON.stringify({ event: 'chat:request', code: 'INTERNAL_ERROR' }))
+        return res.status(200).json(protocol.response(protocol.error('INTERNAL_ERROR', 'Error from server', -1, true)))
     }
 }
 
@@ -32,13 +36,14 @@ let getConversation = async (req, res) => {
             partnerId: req.query.partnerId,
             limit: req.query.limit
         });
+        if (data.errCode === 0 && data.data?.length) {
+            try { emitReadReceipt(req.user.id, Number(req.query.partnerId), data.data[data.data.length - 1].id); }
+            catch { metrics.increment('socket_publish_errors_total'); }
+        }
         return res.status(data.errCode === 5 ? 403 : 200).json(data);
     } catch (error) {
-        console.log(error)
-        return res.status(200).json({
-            errCode: -1,
-            errMessage: 'Error from server'
-        })
+        console.log(JSON.stringify({ event: 'chat:request', code: 'INTERNAL_ERROR' }))
+        return res.status(200).json(protocol.response(protocol.error('INTERNAL_ERROR', 'Error from server', -1, true)))
     }
 }
 
@@ -47,11 +52,8 @@ let getListConversation = async (req, res) => {
         let data = await chatService.getListConversation({ userId: req.user.id });
         return res.status(200).json(data);
     } catch (error) {
-        console.log(error)
-        return res.status(200).json({
-            errCode: -1,
-            errMessage: 'Error from server'
-        })
+        console.log(JSON.stringify({ event: 'chat:request', code: 'INTERNAL_ERROR' }))
+        return res.status(200).json(protocol.response(protocol.error('INTERNAL_ERROR', 'Error from server', -1, true)))
     }
 }
 

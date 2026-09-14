@@ -6,7 +6,7 @@ const mockService = {
 const mockEmitNewMessage = jest.fn();
 
 jest.mock('../../src/services/chatService', () => mockService);
-jest.mock('../../src/config/socket', () => ({ emitNewMessage: mockEmitNewMessage }));
+jest.mock('../../src/config/socket', () => ({ emitNewMessage: mockEmitNewMessage, emitReadReceipt: jest.fn() }));
 
 const controller = require('../../src/controllers/chatController');
 const { createRequest, createResponse } = require('../helpers/http');
@@ -27,7 +27,7 @@ describe('chatController', () => {
     await controller.handleSendMessage(req(), res);
     expect(mockService.handleSendMessage).toHaveBeenCalledWith({ senderId: 7, receiverId: 8, content: 'hello' });
     expect(mockEmitNewMessage).toHaveBeenCalledWith(saved);
-    expect(res.json).toHaveBeenCalledWith({ errCode: 0, data: saved });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errCode: 0, data: saved, code: 'OK', v: 1 }));
   });
 
   test('does not broadcast a rejected message', async () => {
@@ -65,6 +65,6 @@ describe('chatController', () => {
     mockService[serviceMethod].mockRejectedValueOnce(new Error('down'));
     const res = createResponse();
     await controller[method](req(), res);
-    expect(res.json).toHaveBeenCalledWith({ errCode: -1, errMessage: 'Error from server' });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errCode: -1, errMessage: 'Error from server', code: 'INTERNAL_ERROR', retryable: true }));
   });
 });

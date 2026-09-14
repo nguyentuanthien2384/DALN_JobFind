@@ -117,21 +117,21 @@ try {
     report.fixtureMysqlImage = fixtureMysqlImage;
     const mysql = start('mysql', ['--network-alias', 'mysql', '--tmpfs', '/var/lib/mysql', ...env({ MYSQL_ROOT_PASSWORD: 'release-root-only', MYSQL_DATABASE: 'fixture' }), fixtureMysqlImage]);
     await waitFor(() => docker('exec', mysql, 'mysqladmin', '-uroot', '-prelease-root-only', 'ping', '--silent'));
-    const backend = start('backend', [...hardened, '--network-alias', 'backend', ...env({ NODE_ENV: 'development', DB_HOST: 'mysql', DB_PORT: '3306', DB_USER: 'root', DB_PASSWORD: 'release-root-only', DB_NAME: 'fixture', JWT_SECRET: jwt, SCHEDULED_JOBS_ENABLED: 'false' }), image('backend')]);
+    await switchWeb('deployment');
+    const backend = start('backend', [...hardened, '--network-alias', 'backend', ...env({ NODE_ENV: 'development', DB_HOST: 'mysql', DB_PORT: '3306', DB_USER: 'root', DB_PASSWORD: 'release-root-only', DB_NAME: 'fixture', JWT_SECRET: jwt, URL_REACT: origin, SCHEDULED_JOBS_ENABLED: 'false' }), image('backend')]);
     await waitFor(() => docker('exec', backend, 'node', '-e', "fetch('http://127.0.0.1:5000/health').then(r=>{if(r.status!==200)process.exit(1)}).catch(()=>process.exit(1))"));
     docker('exec', backend, 'node', '-e', "fetch('http://127.0.0.1:5000/api/auth/me').then(r=>{if(r.status!==401)process.exit(1)}).catch(()=>process.exit(1))");
     assert.ok(inspect(backend).Config.Env.includes('SCHEDULED_JOBS_ENABLED=false'));
     pass('packaged real Backend/Socket boots with disposable MariaDB; health and auth gates');
     const gateway = start('gateway', [...hardened, '--network-alias', 'api-gateway', ...env({ JWT_SECRET: jwt, MYSQL_HOST: 'mysql', MYSQL_PORT: '3306', MYSQL_USER: 'root', MYSQL_PASSWORD: 'release-root-only', MYSQL_DATABASE: 'fixture', LEGACY_URL: 'http://backend:5000', REDIS_URL: 'redis://127.0.0.1:9' }), image('microservices')]);
     await waitFor(() => docker('exec', gateway, 'node', '-e', "fetch('http://127.0.0.1:4000/healthz').then(r=>{if(r.status!==200)process.exit(1)}).catch(()=>process.exit(1))"));
-    await switchWeb('deployment');
     const api = await fetch(origin + '/api/profile'); assert.equal(api.status, 401);
-    const socketResponse = await fetch(origin + '/socket.io/?EIO=4&transport=polling'); assert.equal(socketResponse.status, 200); assert.match(await socketResponse.text(), /^0\{/);
+    const socketResponse = await fetch(origin + '/socket.io/?EIO=4&transport=polling', { headers: { Origin: origin } }); assert.equal(socketResponse.status, 200); assert.match(await socketResponse.text(), /^0\{/);
     await new Promise((resolve, reject) => {
-        const socket = io(origin, { transports: ['websocket'], reconnection: false, timeout: 5000, forceNew: true });
+        const socket = io(origin, { extraHeaders: { Origin: origin }, transports: ['websocket'], reconnection: false, timeout: 5000, forceNew: true });
         const timer = setTimeout(() => { socket.close(); reject(Error('Socket auth probe timeout')); }, 8000);
         socket.on('connect', () => { clearTimeout(timer); socket.close(); reject(Error('Unauthenticated socket connected')); });
-        socket.on('connect_error', error => { clearTimeout(timer); socket.close(); try { assert.equal(error.message, 'UNAUTHORIZED'); resolve(); } catch (e) { reject(e); } });
+        socket.on('connect_error', error => { clearTimeout(timer); socket.close(); try { assert.ok(['AUTH_INVALID', 'UNAUTHORIZED'].includes(error.message)); resolve(); } catch (e) { reject(e); } });
     });
     pass('Nginx same-origin API and real Socket polling/WebSocket proxy with authentication');
 

@@ -97,6 +97,11 @@ let getCurrentAuthorization = async (req, res) => {
 let handleBanUser = async (req, res) => {
     try {
         let data = await userService.banUser(req.body.data.id);
+        if (data.errCode === 0) {
+            // Account state is already committed; notification failure must not
+            // turn a successful ban into a failed API response.
+            try { require('../config/socket').disconnectUser(Number(req.body.data.id)); } catch { /* periodic revalidation also closes it */ }
+        }
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

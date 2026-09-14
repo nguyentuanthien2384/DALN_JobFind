@@ -1,0 +1,41 @@
+name: Realtime integration
+on:
+  push:
+    paths: ['backend/**', 'frontend/src/container/Chat/**', 'frontend/src/socket*', '.github/workflows/realtime.yml']
+  pull_request:
+    paths: ['backend/**', 'frontend/src/container/Chat/**', 'frontend/src/socket*', '.github/workflows/realtime.yml']
+permissions:
+  contents: read
+jobs:
+  mysql-redis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: realtime-ci-disposable
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -prealtime-ci-disposable"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+        working-directory: backend
+      - run: npm test -- --silent
+        working-directory: backend
+      - run: npm run test:chat:infrastructure
+        working-directory: backend
+        env:
+          CHAT_TEST_MYSQL_URL: mysql://root:realtime-ci-disposable@127.0.0.1:3306/mysql
+          CHAT_TEST_REDIS_URL: redis://127.0.0.1:6379

@@ -1,181 +1,99 @@
-const mockJwtVerify = jest.fn();
-const mockChatService = { handleSendMessage: jest.fn(), markConversationRead: jest.fn() };
-const mockFindAccount = jest.fn();
-const mockIo = {
-  use: jest.fn(), on: jest.fn(), to: jest.fn(), emit: jest.fn()
-};
-const mockServerConstructor = jest.fn(() => mockIo);
-
-jest.mock('jsonwebtoken', () => ({ verify: mockJwtVerify }));
-jest.mock('../../src/services/chatService', () => mockChatService);
-jest.mock('../../src/models/index', () => ({
-  Account: { findOne: mockFindAccount }
-}));
-jest.mock('socket.io', () => ({ Server: mockServerConstructor }));
-
-const socketModule = require('../../src/config/socket');
-
-const flush = () => new Promise((resolve) => setImmediate(resolve));
-const originalFrontendOrigins = process.env.URL_REACT;
-
-describe('socket realtime layer', () => {
-  let authMiddleware;
-  let connectionHandler;
-  let socket;
-  let handlers;
-  let roomEmitter;
-
-  beforeAll(() => jest.spyOn(console, 'log').mockImplementation(() => {}));
-  afterAll(() => {
-    console.log.mockRestore();
-    if (originalFrontendOrigins === undefined) delete process.env.URL_REACT;
-    else process.env.URL_REACT = originalFrontendOrigins;
-  });
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockFindAccount.mockResolvedValue({ userId: 7 });
+const mockDb = { Account: { findOne: jest.fn() } };
+const mockChat = { handleSendMessage: jest.fn(), markConversationRead: jest.fn(), canParticipantsChat: jest.fn() };
+const emitter = { emit: jest.fn() }; emitter.volatile = emitter;
+const mockIo = { use: jest.fn(), on: jest.fn(), to: jest.fn(() => emitter), in: jest.fn(), emit: jest.fn() };
+const mockServer = jest.fn(() => mockIo);
+jest.mock('../../src/models/index', () => mockDb);
+jest.mock('../../src/services/chatService', () => mockChat);
+jest.mock('socket.io', () => ({ Server: mockServer }));
+const jwt = require('jsonwebtoken');
+const api = require('../../src/config/socket');
+const limiter = require('../../src/utils/realtimeLimiter');
+const security = require('../../src/utils/securityConfig');
+const payload = { v: 1, receiverId: 8, content: 'hello', clientMessageId: 'abcdefghijklmnop' };
+let handlers, socket, options;
+const authenticate = () => mockIo.use.mock.calls[0][0];
+const connect = () => mockIo.on.mock.calls.find(([name]) => name === 'connection')[1](socket);
+beforeEach(() => {
+    jest.clearAllMocks(); jest.useFakeTimers(); limiter.reset();
+    process.env.URL_REACT = 'http://localhost:3000,http://localhost:3001';
+    mockDb.Account.findOne.mockResolvedValue({ userId: 7, roleCode: 'CANDIDATE' });
+    mockChat.canParticipantsChat.mockResolvedValue({ allowed: true });
     handlers = {};
-    roomEmitter = { emit: jest.fn() };
-    mockIo.to.mockReturnValue(roomEmitter);
-    socket = {
-      userId: 7,
-      handshake: { auth: {}, query: {} },
-      join: jest.fn(),
-      on: jest.fn((event, callback) => { handlers[event] = callback; })
-    };
-  });
-
-  test('emit helpers are safe before Socket.IO initialisation', () => {
-    expect(socketModule.getIO()).toBeNull();
-    expect(() => socketModule.emitNewMessage({ senderId: 1, receiverId: 2 })).not.toThrow();
-    expect(() => socketModule.emitNotification(1, {})).not.toThrow();
-    expect(() => socketModule.emitDashboardChanged('post')).not.toThrow();
-  });
-
-  test('initialises CORS, authenticates active-account handshake tokens and joins the private room', async () => {
-    process.env.URL_REACT = ' http://frontend-one.test, http://frontend-two.test, ';
-    const server = {};
-    expect(socketModule.initSocket(server)).toBe(mockIo);
-    expect(mockServerConstructor).toHaveBeenCalledWith(server, expect.objectContaining({
-      cors: expect.objectContaining({
-        origin: ['http://frontend-one.test', 'http://frontend-two.test'],
-        credentials: true
-      })
-    }));
-    authMiddleware = mockIo.use.mock.calls[0][0];
-    connectionHandler = mockIo.on.mock.calls.find(([event]) => event === 'connection')[1];
-
-    let next = jest.fn();
-    await authMiddleware(socket, next);
-    expect(next.mock.calls[0][0]).toEqual(new Error('UNAUTHORIZED'));
-
-    socket.handshake.auth.token = 'Bearer valid';
-    mockJwtVerify.mockReturnValueOnce({ sub: 7, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
-    next = jest.fn();
-    await authMiddleware(socket, next);
-    expect(mockJwtVerify).toHaveBeenCalledWith('valid', expect.anything(), expect.objectContaining({ algorithms: ['HS256'] }));
-    expect(mockFindAccount).toHaveBeenCalledWith(expect.objectContaining({
-      where: { userId: 7, statusCode: 'S1' },
-      raw: true
-    }));
-    expect(socket.userId).toBe(7);
-    expect(next).toHaveBeenCalledWith();
-
-    socket.handshake.auth = {};
-    socket.handshake.query.token = 'query-token';
-    mockJwtVerify.mockImplementationOnce(() => { throw new Error('bad'); });
-    next = jest.fn();
-    await authMiddleware(socket, next);
-    expect(next.mock.calls[0][0]).toEqual(new Error('UNAUTHORIZED'));
-
-    connectionHandler(socket);
-    expect(socket.join).toHaveBeenCalledWith('user:7');
-    expect(Object.keys(handlers)).toEqual(expect.arrayContaining(['chat:send', 'chat:typing', 'chat:read']));
-  });
-
-  test('rejects disabled, deleted and database-unavailable accounts during the handshake', async () => {
-    socketModule.initSocket({});
-    authMiddleware = mockIo.use.mock.calls[0][0];
-    socket.handshake.auth.token = 'valid';
-    mockJwtVerify.mockReturnValue({ sub: 7, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
-
-    mockFindAccount.mockResolvedValueOnce(null);
-    let next = jest.fn();
-    await authMiddleware(socket, next);
-    expect(next.mock.calls[0][0]).toEqual(new Error('UNAUTHORIZED'));
-
-    mockFindAccount.mockRejectedValueOnce(new Error('db down'));
-    next = jest.fn();
-    await authMiddleware(socket, next);
-    expect(next.mock.calls[0][0]).toEqual(new Error('UNAUTHORIZED'));
-  });
-
-  test('stores a socket message under authenticated sender and broadcasts/acks success', async () => {
-    socketModule.initSocket({});
-    connectionHandler = mockIo.on.mock.calls.find(([event]) => event === 'connection')[1];
-    connectionHandler(socket);
+    socket = { data: { userId: 7, authExp: Math.floor(Date.now() / 1000) + 900, roleCode: 'CANDIDATE' },
+        handshake: { auth: {}, query: {} }, conn: { once: jest.fn() }, join: jest.fn(), disconnect: jest.fn(), emit: jest.fn(),
+        on: jest.fn((name, fn) => { handlers[name] = fn; }) };
+    api.initSocket({}); options = mockServer.mock.calls[0][1];
+});
+afterEach(() => { if (handlers.disconnect) handlers.disconnect('transport close'); jest.useRealTimers(); });
+test('strict origins, payload cap, heartbeat and middleware on recovery', async () => {
+    expect(options).toEqual(expect.objectContaining({ maxHttpBufferSize: 65536, pingInterval: 25000, pingTimeout: 20000,
+        connectionStateRecovery: { maxDisconnectionDuration: 120000, skipMiddlewares: false } }));
+    for (const origin of [undefined, 'null', 'http://localhost:3000.evil', 'http://localhost:3000/']) {
+        const done = jest.fn(); options.allowRequest({ headers: { origin }, socket: {} }, done); expect(done).toHaveBeenCalledWith(null, false);
+    }
+    const done = jest.fn(); options.allowRequest({ headers: { origin: 'http://localhost:3000' }, socket: { remoteAddress: '127.0.0.1' } }, done);
+    await Promise.resolve(); expect(done).toHaveBeenCalledWith(null, true);
+});
+test('accepts only valid auth tokens and active accounts, never query tokens', async () => {
+    const token = jwt.sign({ sub: '7' }, security.getJwtSecret(), security.getJwtSignOptions());
+    for (const value of [undefined, {}, 42, 'invalid']) {
+        socket.handshake.auth.token = value; socket.handshake.query.token = token;
+        const next = jest.fn(); await authenticate()(socket, next); expect(next.mock.calls[0][0].data.code).toBe('AUTH_INVALID');
+    }
+    socket.handshake.auth.token = `Bearer ${token}`;
+    let next = jest.fn(); await authenticate()(socket, next); expect(next).toHaveBeenCalledWith(); expect(socket.data.userId).toBe(7);
+    mockDb.Account.findOne.mockResolvedValueOnce(null);
+    next = jest.fn(); await authenticate()(socket, next); expect(next.mock.calls[0][0].data.code).toBe('AUTH_INACTIVE');
+    mockDb.Account.findOne.mockRejectedValueOnce(new Error('db'));
+    next = jest.fn(); await authenticate()(socket, next); expect(next.mock.calls[0][0].data.code).toBe('AUTH_UNAVAILABLE');
+    socket.recovered = true; socket.data.userId = 99;
+    next = jest.fn(); await authenticate()(socket, next); expect(next.mock.calls[0][0].data.code).toBe('AUTH_INVALID');
+});
+test('authenticates the sender, rejects spoofing and publishes only new commits', async () => {
+    connect(); expect(socket.join).toHaveBeenCalledWith('user:7');
+    let ack = jest.fn(); await handlers['chat:send']({ ...payload, senderId: 999 }, ack);
+    expect(ack.mock.calls[0][0].code).toBe('PAYLOAD_INVALID'); expect(mockChat.handleSendMessage).not.toHaveBeenCalled();
     const message = { id: 1, senderId: 7, receiverId: 8, content: 'hello' };
-    mockChatService.handleSendMessage.mockResolvedValueOnce({ errCode: 0, data: message });
-    const ack = jest.fn();
-    await handlers['chat:send']({ senderId: 999, receiverId: 8, content: 'hello' }, ack);
-    expect(mockChatService.handleSendMessage).toHaveBeenCalledWith({ senderId: 7, receiverId: 8, content: 'hello' });
-    expect(mockIo.to).toHaveBeenCalledWith('user:8');
-    expect(mockIo.to).toHaveBeenCalledWith('user:7');
-    expect(roomEmitter.emit).toHaveBeenCalledWith('chat:new-message', message);
-    expect(ack).toHaveBeenCalledWith({ errCode: 0, data: message });
-  });
-
-  test('message failures and rejected messages do not broadcast', async () => {
-    socketModule.initSocket({});
-    mockIo.on.mock.calls.find(([event]) => event === 'connection')[1](socket);
-    mockChatService.handleSendMessage.mockResolvedValueOnce({ errCode: 2 });
-    await handlers['chat:send']({}, undefined);
-    expect(mockIo.to).not.toHaveBeenCalled();
-    mockChatService.handleSendMessage.mockRejectedValueOnce(new Error('db'));
-    const ack = jest.fn();
-    await handlers['chat:send']({}, ack);
-    expect(ack).toHaveBeenCalledWith({ errCode: -1, errMessage: 'Error from server' });
-  });
-
-  test('typing is sent only with a receiver', () => {
-    socketModule.initSocket({});
-    mockIo.on.mock.calls.find(([event]) => event === 'connection')[1](socket);
-    handlers['chat:typing']({});
-    expect(mockIo.to).not.toHaveBeenCalled();
-    handlers['chat:typing']({ receiverId: 8 });
-    expect(mockIo.to).toHaveBeenCalledWith('user:8');
-    expect(roomEmitter.emit).toHaveBeenCalledWith('chat:typing', { fromUserId: 7 });
-  });
-
-  test('read receipts persist and notify the partner, with stable failure ack', async () => {
-    socketModule.initSocket({});
-    mockIo.on.mock.calls.find(([event]) => event === 'connection')[1](socket);
-    await handlers['chat:read']({}, jest.fn());
-    expect(mockChatService.markConversationRead).not.toHaveBeenCalled();
-    mockChatService.markConversationRead.mockResolvedValueOnce({ errCode: 0, updatedCount: 2 });
-    const ack = jest.fn();
-    await handlers['chat:read']({ partnerId: 8 }, ack);
-    expect(mockChatService.markConversationRead).toHaveBeenCalledWith({ userId: 7, partnerId: 8 });
-    expect(roomEmitter.emit).toHaveBeenCalledWith('chat:read', { byUserId: 7 });
-    expect(ack).toHaveBeenCalledWith({ errCode: 0, updatedCount: 2 });
-    mockChatService.markConversationRead.mockRejectedValueOnce(new Error('db'));
-    const failedAck = jest.fn();
-    await handlers['chat:read']({ partnerId: 8 }, failedAck);
-    expect(failedAck).toHaveBeenCalledWith({ errCode: -1, errMessage: 'Error from server' });
-  });
-
-  test('public emit helpers target private rooms and dashboards', () => {
-    socketModule.initSocket({});
-    const notification = { id: 1 };
-    socketModule.emitNotification(8, notification);
-    expect(mockIo.to).toHaveBeenCalledWith('user:8');
-    expect(roomEmitter.emit).toHaveBeenCalledWith('notification:new', notification);
-    socketModule.emitNotification(null, notification);
-    socketModule.emitNewMessage(null);
-    jest.spyOn(Date, 'now').mockReturnValueOnce(1234);
-    socketModule.emitDashboardChanged('cv');
-    expect(mockIo.emit).toHaveBeenCalledWith('dashboard:changed', { type: 'cv', at: 1234 });
-    Date.now.mockRestore();
-  });
+    mockChat.handleSendMessage.mockResolvedValue({ errCode: 0, data: message });
+    ack = jest.fn(); await handlers['chat:send'](payload, ack);
+    expect(mockChat.handleSendMessage).toHaveBeenCalledWith({ senderId: 7, receiverId: 8, content: 'hello', clientMessageId: payload.clientMessageId });
+    expect(ack.mock.calls[0][0]).toEqual(expect.objectContaining({ ok: true, code: 'OK', traceId: expect.any(String) }));
+    expect(emitter.emit).toHaveBeenCalledWith('chat:new-message', expect.objectContaining({ id: 1, eventId: 'chat:1', v: 1 }));
+    emitter.emit.mockClear(); mockChat.handleSendMessage.mockResolvedValue({ errCode: 0, duplicate: true, data: message });
+    await handlers['chat:send'](payload); expect(emitter.emit).not.toHaveBeenCalled();
+});
+test('typing/read require authorization and read receipt carries snapshot boundary', async () => {
+    connect(); mockChat.canParticipantsChat.mockResolvedValueOnce({ allowed: false });
+    const ack = jest.fn(); await handlers['chat:typing']({ receiverId: 8 }, ack);
+    expect(ack.mock.calls[0][0].code).toBe('CHAT_NOT_ALLOWED'); expect(emitter.emit).not.toHaveBeenCalled();
+    await handlers['chat:typing']({ receiverId: 8 });
+    expect(emitter.emit).toHaveBeenCalledWith('chat:typing', { v: 1, fromUserId: 7 });
+    mockChat.markConversationRead.mockResolvedValue({ errCode: 0 });
+    await handlers['chat:read']({ partnerId: 8, throughMessageId: 10 });
+    expect(mockChat.markConversationRead).toHaveBeenCalledWith({ userId: 7, partnerId: 8, throughMessageId: 10 });
+    expect(emitter.emit).toHaveBeenCalledWith('chat:read', expect.objectContaining({ byUserId: 7, throughMessageId: 10 }));
+});
+test('cleans timers, expires live JWTs and disconnects inactive accounts', async () => {
+    socket.data.authExp = Math.floor(Date.now() / 1000) + 1;
+    connect(); await jest.advanceTimersByTimeAsync(1001);
+    expect(socket.emit).toHaveBeenCalledWith('auth:expired', { v: 1, code: 'AUTH_EXPIRED' }); expect(socket.disconnect).toHaveBeenCalledWith(true);
+    handlers.disconnect('transport close'); expect(jest.getTimerCount()).toBe(0);
+    socket.data.authExp += 900; connect(); mockDb.Account.findOne.mockResolvedValueOnce(null);
+    await jest.advanceTimersByTimeAsync(30000); expect(socket.emit).toHaveBeenCalledWith('auth:expired', { v: 1, code: 'AUTH_INACTIVE' });
+});
+test('rate limits across sockets and disconnects repeated malformed payloads', async () => {
+    connect(); const ack = jest.fn();
+    for (let i = 0; i < 121; i++) await handlers['chat:read']({}, ack);
+    expect(socket.disconnect).toHaveBeenCalledWith(true); expect(ack.mock.calls[120][0].code).toBe('RATE_LIMITED');
+});
+test('safe errors never contain DB details, tokens or message text', async () => {
+    connect(); mockChat.handleSendMessage.mockRejectedValueOnce(new Error('secret DB credentials'));
+    const ack = jest.fn(); await handlers['chat:send'](payload, ack);
+    expect(ack.mock.calls[0][0]).toEqual(expect.objectContaining({ code: 'INTERNAL_ERROR', retryable: true }));
+    expect(JSON.stringify(ack.mock.calls)).not.toContain('secret DB');
+});
+test('notification targets one user; dashboard targets subscribed roles', () => {
+    api.emitNotification(8, { id: 1 }); expect(mockIo.to).toHaveBeenCalledWith('user:8');
+    api.emitDashboardChanged('cv'); expect(mockIo.to).toHaveBeenCalledWith('feature:dashboard'); expect(mockIo.emit).not.toHaveBeenCalled();
 });
