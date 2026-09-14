@@ -19,6 +19,7 @@ process.env.JWT_SECRET = randomBytes(32).toString('hex');
 process.env.JWT_ISSUER = 'jobfind-auth'; process.env.JWT_AUDIENCE = 'jobfind-api'; process.env.JWT_ACCESS_TTL_SECONDS = '900';
 process.env.URL_REACT = 'http://localhost:3000';
 process.env.SOCKET_REDIS_PREFIX = name;
+process.env.WEB_PUSH_ENABLED = 'false'; // Never inherit real device delivery settings.
 if (process.env.CHAT_TEST_LOAD === 'true') process.env.SOCKET_HANDSHAKE_LIMIT_PER_MINUTE='2000';
 const children = [], clients = [];
 let db, proxy, redisProxy, nginxConfig, nginx;
@@ -137,6 +138,16 @@ const connect = async (url, id) => {
     await new Promise(resolve=>setTimeout(resolve,150));assert.deepEqual(hints,[]);
     companyA.disconnect();companyATab.disconnect();companyB.disconnect();
     console.log('PASS scoped dashboard: admins + two authorized company users across nodes; other company and candidate receive nothing');
+    await db.Notification.sync();
+    const notice=await db.Notification.create({userId:7,content:'test read sync',isChecked:0});
+    const wrongNotice=await db.Notification.create({userId:8,content:'other owner',isChecked:0});
+    let leakedRead=false;const unexpectedRead=()=>{leakedRead=true;};receiver.on('notification:read',unexpectedRead);
+    const readHints=[waitEvent(sender,'notification:read'),waitEvent(otherTab,'notification:read')];
+    const readResponse=await fetch(`${nodeA}/api/test-read-notification`,{method:'POST',headers:{'Content-Type':'application/json',authorization:`Bearer ${sender.auth.token}`},body:JSON.stringify({id:notice.id,userId:8})});
+    assert.equal((await readResponse.json()).errCode,0);assert.ok((await Promise.all(readHints)).every(event=>event.v===1));
+    await notice.reload();await wrongNotice.reload();assert.equal(+notice.isChecked,1);assert.equal(+wrongNotice.isChecked,0);
+    await new Promise(resolve=>setTimeout(resolve,150));assert.equal(leakedRead,false);receiver.off('notification:read',unexpectedRead);
+    console.log('PASS notification read: real authenticated HTTP/SQL commit, two tabs across Redis nodes receive invalidation, another account receives nothing');
     const packet = { v: 1, receiverId: 8, content: 'cross node', clientMessageId: 'redis-cross-node-00001' };
     const received = waitEvent(receiver, 'chat:new-message'), mirrored = waitEvent(otherTab, 'chat:new-message');
     const sent = await sender.timeout(6000).emitWithAck('chat:send', packet);

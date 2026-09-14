@@ -18,6 +18,8 @@ let io;
     app.post(['/send', '/api/send-chat-message'], authenticate, controller.handleSendMessage);
     app.get('/api/get-chat-conversation', authenticate, controller.getConversation);
     app.get('/api/get-list-chat-conversation', authenticate, controller.getListConversation);
+    app.get('/api/push/config', require('../../src/middlewares/jwtVerify').verifyTokenUser, require('../../src/controllers/webPushController').config);
+    app.post('/api/test-read-notification', require('../../src/middlewares/jwtVerify').verifyTokenUser, require('../../src/controllers/notificationController').handleMarkReadNotification);
     if (process.env.CHAT_BROWSER_ASSETS) {
         app.use(express.static(process.env.CHAT_BROWSER_ASSETS,{dotfiles:'allow'}));
         app.get('/chat/:partnerId', (req,res) => res.sendFile(require('path').join(process.env.CHAT_BROWSER_ASSETS,'index.html'),{dotfiles:'allow'}));

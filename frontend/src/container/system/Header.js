@@ -84,7 +84,6 @@ const Header = ({ user: suppliedUser }) => {
 
         return () => {
             active = false;
-            ++refreshVersion.current;
             window.clearInterval(intervalId);
             if (socket) events.forEach(event => socket.off(event, loadNotification));
             document.removeEventListener('visibilitychange', loadNotification);

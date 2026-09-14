@@ -13,7 +13,9 @@
     "restore:sample-data": "node scripts/restore-sample-data.js",
     "seed:test-accounts": "node scripts/create-test-accounts.js",
     "seed:demo-data": "node scripts/setup-demo-data.js",
-    "test:chat:infrastructure": "node scripts/test-chat-infrastructure.cjs"
+    "test:chat:infrastructure": "node scripts/test-chat-infrastructure.cjs",
+    "push:keys": "node scripts/generate-push-keys.cjs",
+    "test:push:browser": "node scripts/realtime/push-browser.cjs"
   },
   "author": "bingo2706",
   "license": "ISC",

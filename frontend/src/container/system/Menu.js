@@ -170,17 +170,29 @@ const Menu = ({ user: suppliedUser }) => {
     // Dem tin nhan chua doc cho muc "Tin nhan".
     useEffect(() => {
         if (!user || !user.id || !canUseChat) return
+        let active = true, version = 0
         const loadUnread = async () => {
-            const res = await getListChatConversationService()
-            if (res && res.errCode === 0) setUnreadChat(res.totalUnread || 0)
+            if (document.visibilityState === 'hidden' || navigator.onLine === false) return
+            const current = ++version
+            try {
+                const res = await getListChatConversationService()
+                if (active && current === version && res && res.errCode === 0) setUnreadChat(res.totalUnread || 0)
+            } catch { /* Keep the last known badge until the next refresh. */ }
         }
         loadUnread()
         const intervalId = window.setInterval(loadUnread, 30000)
         const socket = getSocket()
-        if (socket) socket.on('chat:new-message', loadUnread)
+        const events = ['chat:new-message', 'chat:read', 'connect']
+        if (socket) events.forEach(event => socket.on(event, loadUnread))
+        document.addEventListener('visibilitychange', loadUnread)
+        window.addEventListener('online', loadUnread)
         return () => {
+            active = false
+            ++version
             window.clearInterval(intervalId)
-            if (socket) socket.off('chat:new-message', loadUnread)
+            if (socket) events.forEach(event => socket.off(event, loadUnread))
+            document.removeEventListener('visibilitychange', loadUnread)
+            window.removeEventListener('online', loadUnread)
         }
     }, [user, canUseChat])
 

@@ -36,6 +36,18 @@ jest.mock("../../service/userService", () => ({
 }));
 
 describe("system Menu", () => {
+    it('reloads the chat badge on read and reconnect while suppressing hidden-tab work',async()=>{
+        localStorage.setItem('userData',JSON.stringify({id:1,roleCode:'ADMIN'}));
+        render(<Menu/>);await screen.findByText('3');
+        const handler=event=>socket.on.mock.calls.find(([name])=>name===event)[1];
+        getListChatConversationService.mockResolvedValue({errCode:0,totalUnread:0});
+        await act(async()=>{await handler('chat:read')();});expect(screen.queryByText('3')).not.toBeInTheDocument();
+        Object.defineProperty(navigator,'onLine',{configurable:true,value:false});
+        const count=getListChatConversationService.mock.calls.length;
+        await act(async()=>{await handler('connect')();});expect(getListChatConversationService).toHaveBeenCalledTimes(count);
+        Object.defineProperty(navigator,'onLine',{configurable:true,value:true});
+        await act(async()=>{window.dispatchEvent(new Event('online'));});expect(getListChatConversationService).toHaveBeenCalledTimes(count+1);
+    });
     beforeEach(() => {
         jest.clearAllMocks();
         localStorage.clear();

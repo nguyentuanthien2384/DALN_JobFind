@@ -133,7 +133,7 @@ Audit dependency tại thời điểm làm việc không báo lỗi cho dependen
 
 Không tuyên bố hoàn tất mọi hướng phát triển/production sign-off trong PDF:
 
-- Push nền cho mobile/native cần ứng dụng, quyền thông báo, FCM/APNs và thông tin triển khai. Chưa xây native app hoặc tích hợp nhà cung cấp chưa được cấu hình. Web hiện tại giữ notification store và realtime; đã kiểm tra online/offline và kích thước mobile trên browser engine.
+- Theo xác nhận sản phẩm chỉ có website, đã bổ sung Web Push cho tin nhắn chat: bật/tắt theo thiết bị, outbox giao dịch, retry/lease, chống hiện nhầm tài khoản và kiểm thử SQL/HTTPS mã hóa/Chromium. Xem [hướng dẫn và kết quả Web Push](web-push.md). Chưa tích hợp ứng dụng native; không thuộc phạm vi website được xác nhận. Nghiệm thu dịch vụ push công khai trên thiết bị thực vẫn cần HTTPS và cấu hình triển khai.
 - Binary protocol/subprotocol riêng (P3), attachment upload/scan/storage, Conversation/ConversationMember là hướng dài hạn. Báo cáo không khuyến nghị thay raw WebSocket ngay; không thêm những thành phần này vào giao thức chat văn bản.
 - Chưa có refresh token hoặc logout thu hồi mọi JWT trên server; logout/token đổi phía client đã đóng socket. Cần thiết kế vòng đời phiên toàn ứng dụng trước khi thay cơ chế cấp token.
 - Chưa nghiệm thu CDN/TLS production, Safari/iOS/Android trên thiết bị thật, tải peak theo analytics hoặc soak 2–8 giờ. Nginx local, WebKit và tải tổng hợp không đại diện các môi trường đó.

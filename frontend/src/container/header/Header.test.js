@@ -34,6 +34,24 @@ const socket = {
 };
 
 describe("public Header", () => {
+    it('refreshes read badges across tabs and reconnects; stale responses cannot restore an old count', async () => {
+        localStorage.setItem('userData', JSON.stringify({id:7,roleCode:'CANDIDATE'}));
+        const {unmount}=render(<Header/>);await screen.findByText('2');
+        let finishOld;
+        getNotificationByUserService.mockImplementationOnce(()=>new Promise(resolve=>{finishOld=resolve;}));
+        act(()=>{socketHandlers['notification:read']();});
+        getNotificationByUserService.mockResolvedValue({errCode:0,unreadCount:0,data:[]});
+        getListChatConversationService.mockResolvedValue({errCode:0,totalUnread:0});
+        await act(async()=>{await socketHandlers.connect();});
+        await act(async()=>{finishOld({errCode:0,unreadCount:19,data:[]});});
+        expect(screen.queryByText('19')).not.toBeInTheDocument();expect(screen.queryByText('2')).not.toBeInTheDocument();
+        const count=getNotificationByUserService.mock.calls.length;
+        Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'});
+        await act(async()=>{await socketHandlers['chat:read']();});expect(getNotificationByUserService).toHaveBeenCalledTimes(count);
+        Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});
+        await act(async()=>{document.dispatchEvent(new Event('visibilitychange'));});expect(getNotificationByUserService).toHaveBeenCalledTimes(count+1);
+        unmount();expect(socket.off).toHaveBeenCalledWith('notification:read',socketHandlers['notification:read']);
+    });
     beforeEach(() => {
         localStorage.clear();
         jest.clearAllMocks();

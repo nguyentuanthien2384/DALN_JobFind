@@ -96,6 +96,7 @@ test('safe errors never contain DB details, tokens or message text', async () =>
 });
 test('notification targets one user; unscoped dashboard targets only admins', async () => {
     api.emitNotification(8, { id: 1 }); expect(mockIo.to).toHaveBeenCalledWith('user:8');
+    api.emitNotificationRead(8); expect(mockIo.to).toHaveBeenLastCalledWith('user:8');
     await api.emitDashboardChanged('cv'); expect(mockIo.to).toHaveBeenCalledWith(['feature:dashboard:admin']); expect(mockIo.emit).not.toHaveBeenCalled();
 });
 

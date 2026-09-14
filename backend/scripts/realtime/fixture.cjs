@@ -12,6 +12,7 @@ module.exports = (url) => {
     db.RealtimePresence = require('../../src/models/realtimePresence')(db.sequelize, DataTypes);
     db.WebPushSubscription = require('../../src/models/webPushSubscription')(db.sequelize,DataTypes);
     db.WebPushDelivery = require('../../src/models/webPushDelivery')(db.sequelize,DataTypes);
+    db.Notification = require('../../src/models/notification')(db.sequelize,DataTypes);
     // Use the real service/controller with explicitly isolated fixture models.
     // Never import the project's database configuration or .env credentials.
     const modelPath = require.resolve('../../src/models/index');

@@ -208,6 +208,14 @@ describe('legacy backend bootstrap', () => {
     expect(mocks.updateFreeViewCv).not.toHaveBeenCalled();
     expect(mocks.closeDatabase).toHaveBeenCalledTimes(1);
   });
+  test('refuses traffic when enabled push storage has not been migrated', async () => {
+    const mocks = mockBootstrap();
+    const keys=require('web-push').generateVAPIDKeys();
+    process.env.WEB_PUSH_ENABLED='true';process.env.WEB_PUSH_PUBLIC_KEY=keys.publicKey;process.env.WEB_PUSH_PRIVATE_KEY=keys.privateKey;process.env.WEB_PUSH_SUBJECT='mailto:tests@example.com';
+    jest.doMock('../../src/models/index',()=>({sequelize:{close:mocks.closeDatabase},WebPushSubscription:{findOne:jest.fn().mockRejectedValue(new Error('push table missing'))}}));
+    await require('../../src/server').startup;
+    expect(mocks.createServer).not.toHaveBeenCalled();expect(mocks.closeDatabase).toHaveBeenCalledTimes(1);expect(process.exitCode).toBe(1);
+  });
 
   test('cleans up Socket.IO and the DB pool when its port cannot be opened', async () => {
     const mocks = mockBootstrap({ listenError: new Error('address already in use') });

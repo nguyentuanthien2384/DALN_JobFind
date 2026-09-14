@@ -72,7 +72,6 @@ const Header = () => {
 
         return () => {
             active = false
-            ++refreshVersion.current
             window.clearInterval(intervalId)
             document.removeEventListener('visibilitychange', refresh)
             window.removeEventListener('online', refresh)
