@@ -43,7 +43,7 @@ const connect = async (url, id) => {
     clients.push(socket); const ready = waitEvent(socket, 'connect'); socket.connect(); await ready; return socket;
 };
 (async () => {
-    await admin.query(`CREATE DATABASE ${name}`);
+    await admin.query(`CREATE DATABASE ${name} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     require('@babel/register')({ presets: [['@babel/preset-env', { targets: { node: 'current' } }]], babelrc: false, configFile: false });
     db = require('./realtime/fixture.cjs')(fixtureUrl.href);
     for (const model of [db.Company, db.User, db.Account]) await model.sync();
@@ -102,8 +102,9 @@ const connect = async (url, id) => {
     if(process.env.CHAT_TEST_PUSH === 'true')await require('./realtime/push.cjs')(db);
     if (process.env.CHAT_TEST_NGINX_BIN) {nginxConfig=await require('./realtime/nginx.cjs').prepare();process.env.URL_REACT+=','+nginxConfig.url;}
     if (process.env.CHAT_TEST_CHAOS === 'true') redisProxy = await require('./realtime/redis-fault-proxy.cjs')(redisUrl);
-    if (process.env.CHAT_TEST_BROWSERS === 'true') process.env.CHAT_BROWSER_ASSETS = await require('./realtime/browser.cjs').build();
+    if (process.env.CHAT_TEST_BROWSERS === 'true'||process.env.CHAT_TEST_CONVERSATION==='true') process.env.CHAT_BROWSER_ASSETS = await require('./realtime/browser.cjs').build();
     const [nodeA, nodeB] = await Promise.all([startNode(), startNode()]);
+    if(process.env.CHAT_TEST_CONVERSATION==='true')await require('./realtime/conversation.cjs')({nodes:[nodeA,nodeB],db,tokenFor:id=>jwt.sign({sub:String(id)},process.env.JWT_SECRET,{algorithm:'HS256',issuer:'jobfind-auth',audience:'jobfind-api',expiresIn:900})});
     if (process.env.CHAT_TEST_BROWSERS === 'true') await require('./realtime/browser.cjs').run({url:nodeB,db,tokenFor:(id)=>jwt.sign({sub:String(id)},process.env.JWT_SECRET,{algorithm:'HS256',issuer:'jobfind-auth',audience:'jobfind-api',expiresIn:900})});
     if (nginxConfig) {
         nginx=await require('./realtime/nginx.cjs').start(nginxConfig,[nodeA,nodeB]);

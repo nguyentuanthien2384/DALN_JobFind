@@ -357,7 +357,7 @@ describe('chatService', () => {
     expect(await chat.getConversation({ userId: 1, partnerId: 2 })).toEqual({
       errCode: 0,
       data: [{ id: 10 }, { id: 11 }],
-      partnerData: { id: 2 }, pageInfo: { hasMore: false, nextBeforeId: 10, nextAfterId: 11 }
+      partnerData: { id: 2 }, conversationMeta: { waitingReply: null }, pageInfo: { hasMore: false, nextBeforeId: 10, nextAfterId: 11 }
     });
 
     mockDb.User.findAll.mockResolvedValueOnce([
@@ -393,6 +393,7 @@ describe('chatService', () => {
     mockDb.User.findOne.mockResolvedValue({ id: 2 });
     expect(await chat.getConversation({ userId: 1, partnerId: 2, limit: 500 })).toEqual({
       errCode: 0, data: [{ id: 1 }, { id: 2 }, { id: 3 }], partnerData: { id: 2 },
+      conversationMeta: { waitingReply: { candidateId: 1, recruiterId: 2 } },
       pageInfo: { hasMore: false, nextBeforeId: 1, nextAfterId: 3 }
     });
     expect(mockDb.ChatMessage.findAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 201, order: [['id', 'DESC']] }));

@@ -11,6 +11,8 @@ import companyReviewController from '../controllers/companyReviewController'
 import followCompanyController from '../controllers/followCompanyController'
 import notificationController from '../controllers/notificationController'
 import chatController from '../controllers/chatController'
+import { handleSupportChat } from '../controllers/supportChatController'
+import { supportChatLimiter } from '../middlewares/rateLimit'
 import webPushController from '../controllers/webPushController'
 
 import middlewareControllers from '../middlewares/jwtVerify'
@@ -28,6 +30,7 @@ const protectedBy = (permission) => [
 ];
 
 let initWebRoutes = (app) => {
+    router.post('/api/support-chat', supportChatLimiter, handleSupportChat);
 
     // Cac dia chi dich vu mo truc tiep trong trinh duyet phai tra loi ro rang,
     // thay vi de Express roi xuong trang 404 "Cannot GET /".

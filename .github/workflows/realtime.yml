@@ -50,6 +50,7 @@ jobs:
         working-directory: backend
         env:
           CHAT_TEST_BROWSERS: 'true'
+          CHAT_TEST_CONVERSATION: 'true'
           CHAT_TEST_CHAOS: 'true'
           CHAT_TEST_PUSH: 'true'
           CHAT_TEST_PUSH_TLS_DIR: ../.local/push-test-tls

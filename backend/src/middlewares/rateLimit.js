@@ -86,6 +86,8 @@ const registerLimiter = createRateLimiter({
 });
 
 module.exports = {
+    supportChatLimiter: createRateLimiter({ windowMs: 60 * 1000, max: 8,
+        message: 'Bạn đã gửi quá nhiều câu hỏi. Vui lòng thử lại sau một phút.' }),
     createRateLimiter,
     loginLimiter,
     otpLimiter,

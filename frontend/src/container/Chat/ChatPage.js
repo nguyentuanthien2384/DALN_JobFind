@@ -12,6 +12,7 @@ import { getSocket } from "../../socket";
 import { readPending, preparePending, clearPending, sendReliably } from "./reliableSend";
 import PushSettings from "../../push/PushSettings";
 import ChatAvatar from "./ChatAvatar";
+import WaitingReply from "./WaitingReply";
 import { mergeMessages, synchronizeConversation } from './conversationSync';
 
 const ChatPage = () => {
@@ -21,6 +22,7 @@ const ChatPage = () => {
     const [listConversation, setListConversation] = useState([]);
     const [messages, setMessages] = useState([]);
     const [partnerData, setPartnerData] = useState(null);
+    const [conversationMeta, setConversationMeta] = useState(null);
     const [content, setContent] = useState("");
     const [isRealtime, setIsRealtime] = useState(false);
     const [partnerTyping, setPartnerTyping] = useState(false);
@@ -82,6 +84,7 @@ const ChatPage = () => {
             syncCursorRef.current = { partnerId, id: Math.max(cursor, ...res.data.map((message) => Number(message.id)), 0) };
             setSyncError('');
             setPartnerData(res.partnerData);
+            setConversationMeta(res.conversationMeta || null);
             // The REST snapshot marks its boundary read even while the socket
             // is offline. Refresh counters after that commit, not in parallel.
             fetchListConversation();
@@ -89,7 +92,10 @@ const ChatPage = () => {
             if (socket && socket.connected && res.data.length && !document.hidden) {
                 socket.emit("chat:read", { partnerId: Number(partnerId), throughMessageId: Math.max(...res.data.map((m) => Number(m.id))) });
             }
-        } else if (res) setSyncError(res.errMessage || 'Chưa đồng bộ được hội thoại. Vui lòng thử lại.');
+        } else if (res) {
+            if (res.errCode === 5) setConversationMeta(null);
+            setSyncError(res.errMessage || 'Chưa đồng bộ được hội thoại. Vui lòng thử lại.');
+        }
     }, [partnerId, scrollToBottom, fetchListConversation]);
 
     useEffect(() => {
@@ -210,7 +216,7 @@ const ChatPage = () => {
     useEffect(() => {
         syncCursorRef.current = { partnerId, id: 0 };
         setHasOlder(false); setLoadingOlder(false); setSyncError('');
-        setMessages([]); setPartnerData(null); setPartnerTyping(false); setPartnerOnline(null); setPartnerLastSeen(null);
+        setMessages([]); setPartnerData(null); setConversationMeta(null); setPartnerTyping(false); setPartnerOnline(null); setPartnerLastSeen(null);
         const pending = userData && partnerId ? readPending(userData.id, partnerId) : null;
         setContent(pending?.content || ''); setSendUncertain(Boolean(pending));
     }, [partnerId, userData]);
@@ -501,7 +507,7 @@ const ChatPage = () => {
                                                         fontSize: "14px",
                                                     }}
                                                 >
-                                                    <div>{item.content}</div>
+                                                      <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{item.content}</div>
                                                     <div
                                                         style={{
                                                             fontSize: "10px",
@@ -529,6 +535,12 @@ const ChatPage = () => {
                                             </div>
                                         );
                                     })}
+                                    <WaitingReply
+                                        eligible={conversationMeta?.waitingReply?.candidateId === Number(userData.id)
+                                            && conversationMeta?.waitingReply?.recruiterId === Number(partnerId)}
+                                        messages={messages} userId={userData.id} partnerId={partnerId}
+                                        name={getPartnerName(partnerData)} avatar={getPartnerAvatar(partnerData)}
+                                    />
                                     <div ref={messagesEndRef} />
                                 </div>
                                 <div

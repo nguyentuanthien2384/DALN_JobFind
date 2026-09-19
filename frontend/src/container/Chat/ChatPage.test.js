@@ -98,6 +98,52 @@ const messages = [
 ];
 
 describe("ChatPage", () => {
+    it('shows one automatic waiting bubble for confirmed candidate messages, keeps read separate and hides on reply', async () => {
+        mockPartnerId='20';socket.connected=true;
+        const meta={waitingReply:{candidateId:7,recruiterId:20}};
+        getChatConversationService.mockResolvedValue({errCode:0,data:[],partnerData:companyPartner,conversationMeta:meta});
+        render(<ChatPage/>);
+        await waitFor(()=>expect(getChatConversationService).toHaveBeenCalled());
+        expect(screen.queryByRole('status',{name:'Đang chờ nhà tuyển dụng trả lời'})).not.toBeInTheDocument();
+        fireEvent.change(screen.getByPlaceholderText('Nhập tin nhắn...'),{target:{value:'Đây chỉ là bản nháp'}});
+        expect(screen.queryByText('Phản hồi tự động')).not.toBeInTheDocument();
+        const sent={id:51,senderId:7,receiverId:20,content:'Công ty còn tuyển không?',isRead:0,createdAt:'2026-09-19T12:00:00Z'};
+        await act(async()=>{socketHandlers['chat:new-message'](sent);socketHandlers['chat:new-message'](sent);});
+        expect(screen.getAllByRole('status',{name:'Đang chờ nhà tuyển dụng trả lời'})).toHaveLength(1);
+        expect(screen.getByText('Phản hồi tự động')).toBeInTheDocument();
+        await act(async()=>{socketHandlers['chat:read']({byUserId:20,throughMessageId:51});});
+        expect(screen.getByText('Đã xem')).toBeInTheDocument();expect(screen.getByText('Phản hồi tự động')).toBeInTheDocument();
+        await act(async()=>{socketHandlers['chat:new-message']({...sent,id:52,content:'Em có thể bắt đầu tháng sau.'});});
+        expect(screen.getAllByRole('status',{name:'Đang chờ nhà tuyển dụng trả lời'})).toHaveLength(1);
+        await act(async()=>{socketHandlers['chat:new-message']({...sent,id:53,senderId:20,receiverId:7,content:'Công ty vẫn đang tuyển nhé!'});});
+        expect(screen.queryByText('Phản hồi tự động')).not.toBeInTheDocument();
+        // An older response cannot resurrect waiting after a live recruiter reply.
+        getChatConversationService.mockResolvedValue({errCode:0,data:[sent],partnerData:companyPartner,conversationMeta:meta});
+        await act(async()=>{socketHandlers.connect();});
+        expect(screen.queryByText('Phản hồi tự động')).not.toBeInTheDocument();
+    });
+
+    it.each([
+        ['approved candidate',7,{candidateId:7,recruiterId:20},true],
+        ['recruiter side',20,{candidateId:7,recruiterId:20},false],
+        ['admin or older server',7,null,false],
+        ['different conversation',7,{candidateId:7,recruiterId:30},false],
+    ])('restores waiting from persisted history only for %s',async(label,id,waitingReply,visible)=>{
+        mockPartnerId='20';localStorage.setItem('userData',JSON.stringify({id,roleCode:id===7?'CANDIDATE':'EMPLOYER'}));
+        getChatConversationService.mockResolvedValue({errCode:0,data:[{id:61,senderId:7,receiverId:20,content:'Câu hỏi đã lưu',isRead:1}],partnerData:companyPartner,conversationMeta:{waitingReply}});
+        render(<ChatPage/>);await screen.findByText('Câu hỏi đã lưu');
+        expect(Boolean(screen.queryByText('Phản hồi tự động'))).toBe(visible);
+    });
+
+    it('does not claim receipt when a new message is rejected',async()=>{
+        mockPartnerId='20';
+        getChatConversationService.mockResolvedValue({errCode:0,data:[],partnerData:companyPartner,conversationMeta:{waitingReply:{candidateId:7,recruiterId:20}}});
+        sendChatMessageService.mockResolvedValue({errCode:5,errMessage:'Không có quyền gửi'});
+        render(<ChatPage/>);await waitFor(()=>expect(getChatConversationService).toHaveBeenCalled());
+        fireEvent.change(screen.getByPlaceholderText('Nhập tin nhắn...'),{target:{value:'Tin bị từ chối'}});fireEvent.click(screen.getByRole('button',{name:'Gửi tin nhắn'}));
+        await waitFor(()=>expect(toast.error).toHaveBeenCalledWith('Không có quyền gửi'));
+        expect(screen.queryByText('Phản hồi tự động')).not.toBeInTheDocument();
+    });
     beforeAll(() => {
         Object.defineProperty(globalThis, 'crypto', { configurable: true, value: require('crypto').webcrypto });
         Object.defineProperty(Element.prototype, "scrollIntoView", {

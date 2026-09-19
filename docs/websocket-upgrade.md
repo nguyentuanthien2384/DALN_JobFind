@@ -44,6 +44,12 @@
 - Metrics tại `GET /internal/socket-metrics`, yêu cầu `x-internal-secret` khớp `INTERNAL_SECRET`. Gồm kết nối đang hoạt động, kết nối bị từ chối, phục hồi, lý do ngắt, lỗi Origin/auth/Redis/rate limit, sự kiện theo kết quả và histogram thời gian xử lý, kích thước payload, số kết nối theo transport và thời gian chờ ACK do browser báo về. `chat:telemetry` là dữ liệu client khai báo, được giới hạn 30 giây, outcome cố định và rate limit; dùng quan sát xu hướng, không phải bằng chứng tính phí/SLO đáng tin cậy tuyệt đối.
 - `SOCKET_LOG_EVENTS=true` bật log JSON gồm event, traceId, kết quả và thời gian. Không log JWT, nội dung chat hoặc ID phiên. Mỗi ACK có traceId. Có OpenTelemetry opt-in (`SOCKET_TRACING_ENABLED=true`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_SERVICE_NAME`): span handler → authorize/lookup/insert → publish, cùng traceId trong ACK và event tới người nhận. Không tự thu thập SQL, nội dung, token, ID người tham gia hay exception message. Span publish đo lời gọi phát, không khẳng định người nhận đã nhận. Chưa tự instrument mọi lệnh SQL/Redis hoặc tạo span trong trình duyệt nhận.
 
+### Thông báo chờ nhà tuyển dụng phản hồi
+
+Sau khi một tin của ứng viên được máy chủ xác nhận, ChatPage hiển thị một bong bóng xám có avatar công ty và nhãn **Phản hồi tự động**: “Chào bạn! Hệ thống đã ghi nhận tin nhắn của bạn. Vui lòng chờ nhà tuyển dụng phản hồi.” Ứng viên có thể tiếp tục gửi thêm thông tin; toàn bộ lượt chờ chỉ có một bong bóng. Thông báo vẫn còn khi nhà tuyển dụng đã đọc nhưng chưa trả lời, được khôi phục từ lịch sử khi tải lại/mở tab khác và biến mất khi nhận câu trả lời, kể cả qua đồng bộ sau mất mạng.
+
+API lịch sử trả thêm `conversationMeta.waitingReply` với `candidateId` và `recruiterId` lấy từ tài khoản/công ty đã xác minh; cuộc trò chuyện dùng ngoại lệ ADMIN trả `null`. Frontend chỉ hiển thị cho đúng ứng viên/đối tác và dựa trên tin đã xác nhận mới nhất. Bản nháp hoặc lần gửi bị từ chối không tạo thông báo đã ghi nhận. Đây là trạng thái giao diện, không phải tin do nhà tuyển dụng gửi: không ghi thêm ChatMessage, không tăng unread hoặc phát Web Push. Cần cập nhật cả backend và frontend; không cần migration.
+
 ## Hợp đồng sự kiện
 
 Yêu cầu gửi mới:
@@ -79,6 +85,27 @@ Yêu cầu gửi mới:
 5. Khi quay lui application, giữ cột/index mới cùng dữ liệu `clientMessageId`. Không xóa khóa chống trùng khi vẫn có yêu cầu chưa xác nhận. `down` chỉ dành cho môi trường đã dừng ghi và đã xử lý hết pending; không dùng để quay lui nóng.
 
 ## Kiểm thử
+
+### Nghiệm thu hội thoại ứng viên / nhà tuyển dụng ngày 19/09/2026
+
+Đã bổ sung `backend/scripts/realtime/conversation.cjs` để kiểm tra đúng cặp **CANDIDATE / EMPLOYER thuộc công ty đã duyệt**, không dựa vào quyền ngoại lệ của ADMIN. Hai browser context riêng kết nối vào hai tiến trình backend dùng cùng SQL/Redis. Dùng ChatPage/service/controller/Socket.IO thật, chỉ dựng danh tính JWT và dữ liệu thử riêng; không đi qua màn hình đăng nhập hoặc toàn bộ AppShell.
+
+Mỗi engine Chromium, Firefox và WebKit chạy một hội thoại 10 tin: trao đổi lịch phỏng vấn bằng tiếng Việt/emoji, 2.000 ký tự, chuỗi HTML/SQL như văn bản, tin khi mất mạng, tin mất ACK và tin nhiều dòng. Đối chiếu nội dung hai phía, REST và SQL; kiểm tra reload, typing, đã xem, online, gửi lại không trùng, fallback REST sau khi máy chủ lưu nhưng ACK bị chặn ở test server. Từ chối người ngoài, công ty chưa duyệt, giả sender và nội dung trên 2.000 ký tự. Màn hình 390 px giữ nội dung và ô nhập có thể nhìn thấy, không tràn ngang. Chứng cứ được lưu sau khi mọi assertion thành công tại `.local/websocket-checks/conversation-2026-09-19/result.json`, cùng ảnh hai vai trò trên từng trình duyệt.
+
+Kịch bản cũng kiểm tra thông báo chờ: chưa gửi thì không hiển thị; đã xem vẫn chờ; nhiều câu hỏi chỉ có một bong bóng; reload và tab thứ hai trên node khác phục hồi đúng; trả lời xóa trạng thái ở cả hai tab; mất ACK không thêm tin giả; phục hồi sau mất mạng nhận câu trả lời và xóa thông báo. SQL chỉ chứa đúng 10 tin người dùng gửi. Ảnh `waiting-<engine>-desktop.png` và `waiting-<engine>-mobile.png` nằm trong cùng thư mục chứng cứ. Test giao diện còn kiểm tra bản nháp, gửi thất bại, vai trò/đối tác không phù hợp và phản hồi REST cũ không làm trạng thái chờ xuất hiện lại. Log lượt nâng cấp này: `.local/websocket-checks/waiting-reply-browser.txt`.
+
+Sau khi bổ sung thông báo chờ ngày 19/09/2026: **855/855 test backend (47 suite)** và **1.458/1.458 test frontend (75 suite)** đạt; frontend production biên dịch thành công. Ba engine đều vượt qua kịch bản hội thoại trên SQL/Redis thử riêng; hạ tầng hai node, quyền nhận sự kiện, chống trùng và phục hồi qua node khác cũng đạt. Các log đầy đủ nằm trong `.local/websocket-checks/waiting-reply-{backend-full,frontend-full,build,browser}.txt`.
+
+Bài thử phát hiện và đã sửa lỗi **gộp dòng khi hiển thị**: SQL/API giữ ký tự xuống dòng nhưng HTML trước đó dùng `white-space: normal`. Bong bóng tin hiện dùng `pre-wrap`, giữ xuống dòng/khoảng trắng bên trong và bẻ chuỗi dài. Database thử được tạo rõ `utf8mb4` để kiểm tra tiếng Việt/emoji, không phụ thuộc charset mặc định của máy SQL. Nội dung vẫn được cắt khoảng trắng ở hai đầu theo hành vi gửi hiện có; ô soạn hiện là một dòng, tin nhiều dòng trong bài thử được gửi qua API.
+
+Chạy lại với hai endpoint SQL/Redis thử riêng được mô tả bên dưới:
+
+```powershell
+$env:CHAT_TEST_CONVERSATION='true'
+npm --prefix backend run test:chat:infrastructure
+```
+
+CI realtime đã bật kịch bản này. Lượt kiểm thử này nghiệm thu chức năng hội thoại theo các nhóm reliability/recovery/authorization/security/browser ở trang 19–20, 29 và 32–33 của PDF; **không thay thế** kiểm thử tải dài, CDN/HTTPS production, dịch vụ push công khai hoặc Safari trên iPhone thật. Log đầy đủ: `.local/websocket-checks/conversation-final-2026-09-19.txt`. Bài chat hồi quy trước đó vẫn chạy lại thành công trên cả ba engine, bao gồm lịch sử 240 tin và lấy bù 260 tin bỏ lỡ.
 
 ```sh
 npm --prefix backend test

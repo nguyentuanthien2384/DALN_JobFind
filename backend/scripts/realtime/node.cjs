@@ -29,6 +29,12 @@ let io;
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     process.env.URL_REACT += `,http://127.0.0.1:${server.address().port}`;
     io = initSocket(server, adapter);
+    // Fault injection is confined to this isolated test server. The actual
+    // application handler still validates, commits and broadcasts the message.
+    if(process.env.CHAT_TEST_CONVERSATION==='true')io.on('connection',socket=>socket.use((packet,next)=>{
+        if(packet[0]==='chat:send'&&packet[1]?.content?.startsWith('Kiểm thử mất ACK:')&&typeof packet[packet.length-1]==='function')packet[packet.length-1]=()=>{};
+        next();
+    }));
     io.on('connection', (socket) => socket.on('disconnect', () => process.send({ disconnectedUser: socket.data.userId })));
     process.send({ port: server.address().port });
 })().catch((error) => { process.send({ error: error.message }); process.exitCode = 1; });

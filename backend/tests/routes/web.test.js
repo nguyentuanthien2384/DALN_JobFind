@@ -41,8 +41,9 @@ jest.mock('../../src/middlewares/authorize', () => ({
 }));
 jest.mock('../../src/middlewares/rateLimit', () => ({
   loginLimiter: mockLoginLimiter, otpLimiter: mockOtpLimiter,
-  registerLimiter: mockRegisterLimiter, phoneCheckLimiter: mockPhoneLimiter
+  registerLimiter: mockRegisterLimiter, phoneCheckLimiter: mockPhoneLimiter, supportChatLimiter: jest.fn()
 }));
+jest.mock('../../src/controllers/supportChatController', () => ({ handleSupportChat: jest.fn() }));
 jest.mock('../../src/config/socket', () => ({ emitNotification: mockEmitNotification }));
 
 const initWebRoutes = require('../../src/routes/web');
@@ -115,7 +116,7 @@ describe('web routes', () => {
       'get:/api/get-detail-company-by-id', 'get:/api/get-detail-post-by-id',
       'get:/api/get-filter-post', 'get:/api/get-related-post',
       'get:/api/check-favorite-post', 'get:/api/get-review-by-company',
-      'get:/api/check-follow-company'
+      'get:/api/check-follow-company', 'post:/api/support-chat'
     ]);
     const latestRoutes = new Map();
     for (const route of mockRoutes) latestRoutes.set(`${route.method}:${route.path}`, route);

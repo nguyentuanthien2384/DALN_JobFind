@@ -55,7 +55,13 @@ const canParticipantsChat = async (senderId, receiverId) => {
     ) || (
         role(receiver) === 'CANDIDATE' && recruiterIsApproved(sender)
     );
-    return { allowed: candidateAndRecruiter };
+    return {
+        allowed: candidateAndRecruiter,
+        ...(candidateAndRecruiter ? { waitingReply: {
+            candidateId: Number(role(sender) === 'CANDIDATE' ? sender.id : receiver.id),
+            recruiterId: Number(role(sender) === 'CANDIDATE' ? receiver.id : sender.id),
+        } } : {}),
+    };
 };
 
 // Gửi tin nhắn
@@ -189,6 +195,7 @@ let getConversation = (data) => {
                     errCode: 0,
                     data: messages,
                     partnerData: partner,
+                    conversationMeta: { waitingReply: relationship.waitingReply || null },
                     pageInfo: { hasMore, nextBeforeId: messages[0]?.id || null, nextAfterId: messages[messages.length - 1]?.id || null }
                 })
             }

@@ -5,7 +5,7 @@ import { createServiceRuntime } from '../../shared/serviceRuntime.js';
 import { requestBodies, safeHttpError } from '../../shared/httpBoundary.js';
 import { rejectUnknownModernRoute } from '../../shared/requestContract.js';
 import { checkAccountStore, closeAccountStore } from './libs/accountStore.js';
-import { createProxyMiddleware } from 'http-proxy-middleware';
+import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware';
 import { createLogger } from '../../shared/logger.js';
 import { listServices, startHealthPolling } from './libs/registry.js';
 import { createProxy, getBreakerStats } from './middlewares/proxy.js';
@@ -197,6 +197,30 @@ app.use('/api/talent-pool',
 
 // --- Bao cao & quan tri (Admin & Reporting Service) - chi ADMIN ---
 app.use('/api/admin', requirePermission(PERMISSIONS.ADMIN_READ), createProxy('admin', sub('')));
+
+// SSE must bypass the JSON-only legacy axios proxy: that proxy buffers responses.
+// Request body was already parsed by requestBodies(), so reserialize before forwarding.
+// The legacy endpoint applies an independent per-IP limiter and a concurrency cap.
+app.post('/api/support-chat', aiLimiter, createProxyMiddleware({
+    target: process.env.LEGACY_URL || 'http://host.docker.internal:5000',
+    changeOrigin: true,
+    pathRewrite: () => '/api/support-chat',
+    proxyTimeout: 65000,
+    timeout: 65000,
+    on: {
+        proxyReq: (proxyReq, req) => {
+            for (const header of ['x-user-id', 'x-user-role', 'x-company-id', 'x-company-status',
+                'x-company-censor', 'x-internal-secret']) proxyReq.removeHeader(header);
+            fixRequestBody(proxyReq, req);
+        },
+        error: (_error, _req, res) => {
+            if (!res.headersSent) {
+                res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+                res.end(JSON.stringify({ errCode: 502, errMessage: 'Không kết nối được với chatbot.' }));
+            } else res.end();
+        }
+    }
+}));
 
 // --- Cac tinh nang AI ---
 app.use('/api/ai', requirePermission(PERMISSIONS.AI_CANDIDATE_USE), aiLimiter,

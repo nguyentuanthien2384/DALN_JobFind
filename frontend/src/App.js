@@ -25,6 +25,7 @@ import RouteGuard from "./auth/RouteGuard";
 import { PERMISSIONS } from "./auth/accessControl";
 import { getCurrentAuthorizationService } from "./service/userService";
 import SessionContext from "./auth/SessionContext";
+const SupportChat = lazy(() => import('./components/support/SupportChat'));
 import { SESSION_ENDED_EVENT } from "./auth/sessionExpiry";
 
 // Khu quan tri va khu ung vien keo theo nhieu bieu do, trinh sua va form lon.
@@ -293,6 +294,7 @@ function App() {
                 />
                 <Route path="*" element={<NotFound />} />
                 </Routes>
+                <Suspense fallback={null}><SupportChat key={userData?.id || 'guest'} /></Suspense>
             </Router>
         </SessionContext.Provider>
     );

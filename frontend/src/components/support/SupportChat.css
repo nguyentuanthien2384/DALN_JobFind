@@ -1,0 +1,80 @@
+/* Isolated widget styles: avoid JobFind public/admin global button and form rules. */
+.jf-support, .jf-support * { box-sizing: border-box; }
+.jf-support { position: fixed; z-index: 1040; right: 22px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 14px; color: #1b2638; }
+.jf-support button, .jf-support textarea { font: inherit; letter-spacing: normal; }
+.jf-support button { cursor: pointer; outline-offset: 3px; }
+.jf-support button:disabled { opacity: .45; cursor: not-allowed; }
+.jf-support a { color: #1964d3; text-decoration: none; }
+.jf-support a:hover { text-decoration: underline; }
+.jf-support__sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.jf-support__launcher { display: flex; align-items: center; gap: 10px; background: #152c4a; border: 0; border-radius: 999px; padding: 15px 19px; color: white; box-shadow: 0 9px 30px rgba(16, 38, 66, .26); font-weight: 650 !important; line-height: 1 !important; transition: transform .2s, box-shadow .2s; }
+.jf-support__launcher:hover { transform: translateY(-2px); box-shadow: 0 13px 33px rgba(16, 38, 66, .32); }
+.jf-support__panel { display: flex; flex-direction: column; width: min(414px, calc(100vw - 28px)); height: min(630px, calc(100dvh - 52px)); min-height: 300px; overflow: hidden; border: 1px solid #e3e7ed; border-radius: 20px; background: #fff; box-shadow: 0 20px 75px rgba(12, 30, 53, .23); }
+.jf-support__topbar { display: flex; align-items: center; justify-content: space-between; gap: 7px; flex: none; padding: 15px 13px 14px 18px; border-bottom: 1px solid #eef0f4; }
+.jf-support__brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.jf-support__brand strong { display: block; color: #17263f; font-size: 14px; font-weight: 750; line-height: 1.35; }
+.jf-support__brand small { color: #738096; font-size: 11px; line-height: 1.5; }
+.jf-support__logo, .jf-support__avatar { display: flex; flex: none; align-items: center; justify-content: center; background: #eaf1ff; color: #205fc0; }
+.jf-support__logo { width: 35px; height: 35px; border-radius: 12px; }
+.jf-support__tools { display: flex; gap: 2px; flex: none; }
+.jf-support__tools button, .jf-support__history-heading button { display: flex; align-items: center; justify-content: center; height: 33px; width: 33px; min-width: 33px; background: transparent; border: 0; border-radius: 9px; color: #667387; padding: 0; line-height: 1; }
+.jf-support__tools button:hover, .jf-support__history-heading button:hover { background: #f1f5fa; color: #1b2638; }
+.jf-support__login { font-size: 12px; line-height: 1.55; color: #5d6674; padding: 9px 19px; background: #f9fbfe; border-bottom: 1px solid #eff1f5; }
+.jf-support__login a { font-weight: 650; white-space: nowrap; }
+.jf-support__messages { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; gap: 17px; padding: 21px 17px; scrollbar-color: #c7d0dc transparent; }
+.jf-support__welcome { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px 4px; text-align: center; }
+.jf-support__welcome-icon { display: flex; align-items: center; justify-content: center; width: 59px; height: 59px; background: #edf3ff; border-radius: 20px; color: #2967c3; margin-bottom: 17px; }
+.jf-support__welcome h2 { font: 750 21px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #192942; margin: 0 0 5px; }
+.jf-support__welcome p { margin: 0 0 23px; max-width: 260px; color: #718098; line-height: 1.55; font-size: 13px; }
+.jf-support__suggestions { display: flex; flex-direction: column; gap: 9px; width: 100%; }
+.jf-support__suggestions button { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; border: 1px solid #e1e8f1; background: #fff; color: #344660; border-radius: 12px; padding: 12px 13px; text-align: left; font-size: 12px; line-height: 1.45; transition: background .2s, border-color .2s; }
+.jf-support__suggestions button:hover { border-color: #9ab9e8; background: #f6f9ff; }
+.jf-support__suggestions span { font-size: 17px; color: #7291be; }
+.jf-support__message { display: flex; align-items: flex-start; gap: 8px; max-width: 100%; }
+.jf-support__message--user { justify-content: flex-end; }
+.jf-support__message-body { max-width: calc(100% - 32px); min-width: 0; }
+.jf-support__avatar { width: 26px; height: 26px; border-radius: 10px; margin-top: 2px; }
+.jf-support__bubble { padding: 11px 13px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.55; min-height: 32px; }
+.jf-support__message--user .jf-support__bubble { background: #183e73; color: #fff; border-bottom-right-radius: 4px; }
+.jf-support__message--assistant .jf-support__bubble { background: #f3f6fa; color: #2a3546; border-bottom-left-radius: 4px; }
+.jf-support__interrupted { display: block; margin-top: 5px; color: #9b6c25; font-size: 11px; }
+.jf-support__copy { background: transparent; color: #708096; border: 0; padding: 5px 2px; font-size: 11px !important; line-height: 1.3; }
+.jf-support__copy:hover { color: #215cc2; }
+.jf-support__dots { display: inline-flex; align-items: center; gap: 4px; height: 13px; }
+.jf-support__dots i { display: block; width: 5px; height: 5px; border-radius: 50%; background: #8492a6; animation: jf-support-pulse 1s infinite alternate; }
+.jf-support__dots i:nth-child(2) { animation-delay: .2s; }
+.jf-support__dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes jf-support-pulse { to { opacity: .25; transform: translateY(-3px); } }
+.jf-support__error { flex: none; margin: 0 15px 8px; padding: 9px 11px; border-radius: 9px; background: #fff4f0; color: #a13028; font-size: 12px; line-height: 1.4; }
+.jf-support__error button { display: flex; align-items: center; gap: 5px; border: 0; background: none; color: #a13028; font-weight: 700; padding: 6px 0 0; }
+.jf-support__compose-area { flex: none; padding: 0 14px 11px; background: #fff; }
+.jf-support__composer { display: flex; align-items: flex-end; gap: 8px; border: 1px solid #dce2ec; border-radius: 17px; padding: 9px 9px 9px 13px; box-shadow: 0 2px 8px rgba(21, 44, 74, .045); margin: 0; }
+.jf-support__composer:focus-within { border-color: #7ca7df; box-shadow: 0 0 0 3px rgba(69, 131, 219, .10); }
+.jf-support__composer textarea { display: block; flex: 1; width: 100%; min-width: 0; height: 35px; max-height: 105px; resize: vertical; padding: 8px 0; border: 0 !important; background: transparent; outline: none !important; box-shadow: none !important; font-size: 13px; line-height: 1.45; color: #253349; }
+.jf-support__composer textarea::placeholder { color: #8b97a8; }
+.jf-support__send { flex: none; display: grid; place-items: center; width: 33px; height: 33px; min-width: 33px; border: 0; border-radius: 50%; padding: 0; color: #fff; background: #1b2c47; line-height: 1; }
+.jf-support__send:hover:not(:disabled) { background: #315e98; }
+.jf-support__compose-area p { margin: 8px 2px 0; color: #8993a1; font-size: 10px; text-align: center; line-height: 1.5; }
+.jf-support__history { flex: 1; overflow-y: auto; padding: 16px; }
+.jf-support__history-heading { display: flex; align-items: center; gap: 7px; }
+.jf-support__history h2 { font-size: 17px; line-height: 1.4; font-weight: 700; margin: 0; }
+.jf-support__history > p { font-size: 12px; line-height: 1.5; color: #718098; margin: 10px 0 18px; }
+.jf-support__thread { display: flex; align-items: center; border: 1px solid #e4e9f1; border-radius: 12px; margin-bottom: 9px; }
+.jf-support__thread-open { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; gap: 5px; border: 0; background: transparent; color: #2b3a52; padding: 12px; }
+.jf-support__thread-open span { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; font-size: 13px; }
+.jf-support__thread-open small { font-size: 11px; color: #8993a1; }
+.jf-support__thread-delete { display: grid; place-items: center; background: transparent; border: 0; color: #8290a3; padding: 10px; }
+.jf-support__thread-delete:hover { color: #aa332f; }
+.jf-support__history-new { display: flex; align-items: center; gap: 7px; width: 100%; justify-content: center; padding: 11px; border-radius: 11px; border: 1px dashed #9ab4d8; background: #f7faff; color: #205ba5; }
+@media (max-width: 520px) { .jf-support { right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); } .jf-support__panel { width: calc(100vw - 20px); height: min(670px, calc(100dvh - 26px - env(safe-area-inset-bottom, 0px))); border-radius: 17px; } .jf-support__launcher { padding: 14px 16px; } }
+@media (prefers-reduced-motion: reduce) { .jf-support * { animation: none !important; transition: none !important; } }
+
+/* Verified read-only job links; URL is derived from numeric DB IDs, never model output. */
+.jf-support__results { display: grid; gap: 7px; margin-top: 9px; }
+.jf-support__result { display: flex; flex-direction: column; gap: 4px; border: 1px solid #dbe6f4; border-radius: 10px; padding: 10px; background: #fff; color: #2a3d57; text-decoration: none !important; overflow-wrap: anywhere; }
+.jf-support__result:hover, .jf-support__result:focus-visible { background: #f2f7ff; border-color: #79a7e5; }
+.jf-support__result strong { font-size: 12px; line-height: 1.35; }
+.jf-support__result span { color: #516279; font-size: 11px; }
+.jf-support__result small { color: #1964d3; font-size: 11px; }
+.jf-support__mic { flex: none; width: 31px; height: 33px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #667387; }
+.jf-support__mic:hover:not(:disabled), .jf-support__mic--active { color: #b32d37; background: #fff0f1; }
