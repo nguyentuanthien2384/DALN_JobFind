@@ -1,4 +1,6 @@
 import express from "express";
+import { trustedSupport, publicTool, deliverHandoff } from '../controllers/supportBridgeController';
+import { supportChatAccess } from '../middlewares/supportChatAccess';
 import userController from '../controllers/userController';
 import allcodeController from '../controllers/allcodeController';
 import companyController from '../controllers/companyController';
@@ -30,6 +32,8 @@ const protectedBy = (permission) => [
 ];
 
 let initWebRoutes = (app) => {
+    router.post('/internal/support/public-tool', trustedSupport, publicTool);
+    router.post('/internal/support/handoff', trustedSupport, deliverHandoff);
     router.post('/api/support-chat', supportChatLimiter, handleSupportChat);
 
     // Cac dia chi dich vu mo truc tiep trong trinh duyet phai tra loi ro rang,
@@ -180,9 +184,9 @@ let initWebRoutes = (app) => {
     router.post('/api/mark-read-notification', ...protectedBy(PERMISSIONS.NOTIFICATION_READ), notificationController.handleMarkReadNotification)
 
     //==================API CHAT (NHAN TIN)==================================//
-    router.post('/api/send-chat-message', ...protectedBy(PERMISSIONS.CHAT), chatController.handleSendMessage)
-    router.get('/api/get-chat-conversation', ...protectedBy(PERMISSIONS.CHAT), chatController.getConversation)
-    router.get('/api/get-list-chat-conversation', ...protectedBy(PERMISSIONS.CHAT), chatController.getListConversation)
+    router.post('/api/send-chat-message', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), supportChatAccess, chatController.handleSendMessage)
+    router.get('/api/get-chat-conversation', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), supportChatAccess, chatController.getConversation)
+    router.get('/api/get-list-chat-conversation', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), supportChatAccess, chatController.getListConversation)
 
     //==================NOI BO: cho Notification Service goi==================//
     // Notification Service (chay trong Docker) khong giu ket noi Socket.IO voi

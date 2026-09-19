@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
-    "title": "JobFind admin HTTP API",
+    "title": "JobFind support HTTP API",
     "version": "1.0.0",
     "description": "Generated from executable request contracts. JSON only; unknown fields and invalid types are rejected, never silently coerced or removed. Response extensions remain allowed for the legacy migration. Operational endpoints, Socket.IO and legacy /api/* routes are documented separately in docs/http-contracts.md."
   },
@@ -14,19 +14,19 @@
   ],
   "tags": [
     {
-      "name": "admin"
+      "name": "support"
     }
   ],
   "paths": {
-    "/reports/overview": {
-      "get": {
-        "operationId": "reportOverview",
+    "/support/turn": {
+      "post": {
+        "operationId": "supportTurn",
         "tags": [
-          "admin"
+          "support"
         ],
-        "summary": "GET /reports/overview",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:read; resource ownership checks still apply. fromDate must not be after toDate. Accepts an ISO date or timestamp.",
-        "x-jobfind-permission": "admin:read",
+        "summary": "POST /support/turn",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required.",
+        "x-jobfind-permission": null,
         "x-jobfind-internal": false,
         "x-jobfind-company-required": false,
         "x-jobfind-reject-unknown-query": true,
@@ -35,63 +35,17 @@
             "internalSecret": []
           }
         ],
-        "parameters": [
-          {
-            "name": "fromDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              ]
-            }
-          },
-          {
-            "name": "toDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              ]
-            }
-          },
-          {
-            "name": "x-user-id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$"
-            },
-            "description": "Authenticated identity forwarded by the trusted gateway only."
-          },
-          {
-            "name": "x-user-role",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ADMIN"
-              ]
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupportTurn"
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "Successful response",
@@ -101,43 +55,20 @@
                 "schema": {
                   "type": "string"
                 }
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "content": {
-              "application/json": {
+              "text/event-stream": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "errCode": {
-                      "const": 0
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/ReportOverview"
-                    },
-                    "count": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "took": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "emailQueued": {
-                      "type": "boolean"
-                    },
-                    "errMessage": {
-                      "type": "string",
-                      "maxLength": 1000
-                    }
-                  },
-                  "required": [
-                    "errCode",
-                    "data"
-                  ],
-                  "additionalProperties": true
-                }
+                  "type": "string"
+                },
+                "example": "event: token\ndata: {\"text\":\"Xin chào\"}\n\nevent: done\ndata: {}\n\n"
               }
             }
           },
@@ -264,15 +195,15 @@
         }
       }
     },
-    "/reports/timeseries": {
+    "/support/knowledge": {
       "get": {
-        "operationId": "reportTimeseries",
+        "operationId": "supportKnowledge",
         "tags": [
-          "admin"
+          "support"
         ],
-        "summary": "GET /reports/timeseries",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:read; resource ownership checks still apply. fromDate must not be after toDate. Accepts an ISO date or timestamp.",
-        "x-jobfind-permission": "admin:read",
+        "summary": "GET /support/knowledge",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required.",
+        "x-jobfind-permission": null,
         "x-jobfind-internal": false,
         "x-jobfind-company-required": false,
         "x-jobfind-reject-unknown-query": true,
@@ -281,63 +212,7 @@
             "internalSecret": []
           }
         ],
-        "parameters": [
-          {
-            "name": "fromDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              ]
-            }
-          },
-          {
-            "name": "toDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              ]
-            }
-          },
-          {
-            "name": "x-user-id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$"
-            },
-            "description": "Authenticated identity forwarded by the trusted gateway only."
-          },
-          {
-            "name": "x-user-role",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ADMIN"
-              ]
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "description": "Successful response",
@@ -347,1011 +222,9 @@
                 "schema": {
                   "type": "string"
                 }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "errCode": {
-                      "const": 0
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/ReportTimeseries"
-                    },
-                    "count": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "took": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "emailQueued": {
-                      "type": "boolean"
-                    },
-                    "errMessage": {
-                      "type": "string",
-                      "maxLength": 1000
-                    }
-                  },
-                  "required": [
-                    "errCode",
-                    "data"
-                  ],
-                  "additionalProperties": true
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/reports/distribution": {
-      "get": {
-        "operationId": "reportDistribution",
-        "tags": [
-          "admin"
-        ],
-        "summary": "GET /reports/distribution",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:read; resource ownership checks still apply.",
-        "x-jobfind-permission": "admin:read",
-        "x-jobfind-internal": false,
-        "x-jobfind-company-required": false,
-        "x-jobfind-reject-unknown-query": true,
-        "security": [
-          {
-            "internalSecret": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "x-user-id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$"
-            },
-            "description": "Authenticated identity forwarded by the trusted gateway only."
-          },
-          {
-            "name": "x-user-role",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ADMIN"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "headers": {
-              "X-Correlation-ID": {
-                "description": "Request correlation identifier",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "errCode": {
-                      "const": 0
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/ReportDistribution"
-                    },
-                    "count": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "took": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "emailQueued": {
-                      "type": "boolean"
-                    },
-                    "errMessage": {
-                      "type": "string",
-                      "maxLength": 1000
-                    }
-                  },
-                  "required": [
-                    "errCode",
-                    "data"
-                  ],
-                  "additionalProperties": true
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/reports/funnel": {
-      "get": {
-        "operationId": "reportFunnel",
-        "tags": [
-          "admin"
-        ],
-        "summary": "GET /reports/funnel",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:read; resource ownership checks still apply.",
-        "x-jobfind-permission": "admin:read",
-        "x-jobfind-internal": false,
-        "x-jobfind-company-required": false,
-        "x-jobfind-reject-unknown-query": true,
-        "security": [
-          {
-            "internalSecret": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "x-user-id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$"
-            },
-            "description": "Authenticated identity forwarded by the trusted gateway only."
-          },
-          {
-            "name": "x-user-role",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ADMIN"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "headers": {
-              "X-Correlation-ID": {
-                "description": "Request correlation identifier",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "errCode": {
-                      "const": 0
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/ReportFunnel"
-                    },
-                    "count": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "took": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "emailQueued": {
-                      "type": "boolean"
-                    },
-                    "errMessage": {
-                      "type": "string",
-                      "maxLength": 1000
-                    }
-                  },
-                  "required": [
-                    "errCode",
-                    "data"
-                  ],
-                  "additionalProperties": true
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/reports/activity": {
-      "get": {
-        "operationId": "reportActivity",
-        "tags": [
-          "admin"
-        ],
-        "summary": "GET /reports/activity",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:read; resource ownership checks still apply. fromDate must not be after toDate. Accepts an ISO date or timestamp.",
-        "x-jobfind-permission": "admin:read",
-        "x-jobfind-internal": false,
-        "x-jobfind-company-required": false,
-        "x-jobfind-reject-unknown-query": true,
-        "security": [
-          {
-            "internalSecret": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "fromDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              ]
-            }
-          },
-          {
-            "name": "toDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              ]
-            }
-          },
-          {
-            "name": "x-user-id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$"
-            },
-            "description": "Authenticated identity forwarded by the trusted gateway only."
-          },
-          {
-            "name": "x-user-role",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ADMIN"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "headers": {
-              "X-Correlation-ID": {
-                "description": "Request correlation identifier",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "errCode": {
-                      "const": 0
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/ReportActivity"
-                    },
-                    "count": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "took": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "emailQueued": {
-                      "type": "boolean"
-                    },
-                    "errMessage": {
-                      "type": "string",
-                      "maxLength": 1000
-                    }
-                  },
-                  "required": [
-                    "errCode",
-                    "data"
-                  ],
-                  "additionalProperties": true
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/audit": {
-      "get": {
-        "operationId": "auditList",
-        "tags": [
-          "admin"
-        ],
-        "summary": "GET /audit",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:read; resource ownership checks still apply. fromDate must not be after toDate. Accepts an ISO date or timestamp.",
-        "x-jobfind-permission": "admin:read",
-        "x-jobfind-internal": false,
-        "x-jobfind-company-required": false,
-        "x-jobfind-reject-unknown-query": true,
-        "security": [
-          {
-            "internalSecret": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "kind",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "event",
-                "action"
-              ]
-            }
-          },
-          {
-            "name": "name",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 200
-            }
-          },
-          {
-            "name": "actorId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]{0,15}$",
-              "format": "jobfind-id"
-            }
-          },
-          {
-            "name": "targetType",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          },
-          {
-            "name": "targetId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
-            }
-          },
-          {
-            "name": "correlationId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-            }
-          },
-          {
-            "name": "eventId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
-            }
-          },
-          {
-            "name": "fromDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              ]
-            }
-          },
-          {
-            "name": "toDate",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "string",
-                  "format": "date-time"
-                }
-              ]
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "pattern": "^(0|[1-9][0-9]*)$",
-              "maxLength": 3,
-              "format": "jobfind-uint-200"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "pattern": "^(0|[1-9][0-9]*)$",
-              "maxLength": 7,
-              "format": "jobfind-uint-1000000"
-            }
-          },
-          {
-            "name": "x-user-id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$"
-            },
-            "description": "Authenticated identity forwarded by the trusted gateway only."
-          },
-          {
-            "name": "x-user-role",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ADMIN"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "headers": {
-              "X-Correlation-ID": {
-                "description": "Request correlation identifier",
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
                 "schema": {
                   "type": "string"
                 }
@@ -1368,7 +241,7 @@
                     "data": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Audit"
+                        "$ref": "#/components/schemas/SupportArticle"
                       }
                     },
                     "count": {
@@ -1521,15 +394,214 @@
         }
       }
     },
-    "/audit/target/{type}/{id}": {
+    "/support/conversations": {
       "get": {
-        "operationId": "auditTarget",
+        "operationId": "supportList",
         "tags": [
-          "admin"
+          "support"
         ],
-        "summary": "GET /audit/target/:type/:id",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:read; resource ownership checks still apply.",
-        "x-jobfind-permission": "admin:read",
+        "summary": "GET /support/conversations",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required.",
+        "x-jobfind-permission": null,
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SupportConversation"
+                      }
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/support/conversations/{id}": {
+      "get": {
+        "operationId": "supportGet",
+        "tags": [
+          "support"
+        ],
+        "summary": "GET /support/conversations/:id",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required.",
+        "x-jobfind-permission": null,
         "x-jobfind-internal": false,
         "x-jobfind-company-required": false,
         "x-jobfind-reject-unknown-query": true,
@@ -1539,45 +611,13 @@
           }
         ],
         "parameters": [
-          {
-            "name": "type",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 64,
-              "pattern": "^[A-Za-z0-9_-]+$"
-            }
-          },
           {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
-            }
-          },
-          {
-            "name": "x-user-id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$"
-            },
-            "description": "Authenticated identity forwarded by the trusted gateway only."
-          },
-          {
-            "name": "x-user-role",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ADMIN"
-              ]
+              "format": "uuid"
             }
           }
         ],
@@ -1587,6 +627,12 @@
             "headers": {
               "X-Correlation-ID": {
                 "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
                 "schema": {
                   "type": "string"
                 }
@@ -1601,234 +647,7 @@
                       "const": 0
                     },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Audit"
-                      }
-                    },
-                    "count": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "took": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "emailQueued": {
-                      "type": "boolean"
-                    },
-                    "errMessage": {
-                      "type": "string",
-                      "maxLength": 1000
-                    }
-                  },
-                  "required": [
-                    "errCode",
-                    "data"
-                  ],
-                  "additionalProperties": true
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/master-data": {
-      "get": {
-        "operationId": "masterList",
-        "tags": [
-          "admin"
-        ],
-        "summary": "GET /master-data",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:read; resource ownership checks still apply.",
-        "x-jobfind-permission": "admin:read",
-        "x-jobfind-internal": false,
-        "x-jobfind-company-required": false,
-        "x-jobfind-reject-unknown-query": true,
-        "security": [
-          {
-            "internalSecret": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 64
-            }
-          },
-          {
-            "name": "x-user-id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[1-9][0-9]*$"
-            },
-            "description": "Authenticated identity forwarded by the trusted gateway only."
-          },
-          {
-            "name": "x-user-role",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "ADMIN"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "headers": {
-              "X-Correlation-ID": {
-                "description": "Request correlation identifier",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "errCode": {
-                      "const": 0
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Master"
-                      }
+                      "$ref": "#/components/schemas/SupportConversation"
                     },
                     "count": {
                       "type": "integer",
@@ -1979,14 +798,14 @@
           }
         }
       },
-      "post": {
-        "operationId": "masterSave",
+      "delete": {
+        "operationId": "supportDelete",
         "tags": [
-          "admin"
+          "support"
         ],
-        "summary": "POST /master-data",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:write; resource ownership checks still apply.",
-        "x-jobfind-permission": "admin:write",
+        "summary": "DELETE /support/conversations/:id",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. No end-user login required.",
+        "x-jobfind-permission": null,
         "x-jobfind-internal": false,
         "x-jobfind-company-required": false,
         "x-jobfind-reject-unknown-query": true,
@@ -1996,6 +815,191 @@
           }
         ],
         "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ack"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/support/conversations/{id}/handoff": {
+      "post": {
+        "operationId": "supportHandoff",
+        "tags": [
+          "support"
+        ],
+        "summary": "POST /support/conversations/:id/handoff",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission support:chat:use; resource ownership checks still apply.",
+        "x-jobfind-permission": "support:chat:use",
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
           {
             "name": "x-user-id",
             "in": "header",
@@ -2013,7 +1017,10 @@
             "schema": {
               "type": "string",
               "enum": [
-                "ADMIN"
+                "ADMIN",
+                "COMPANY",
+                "EMPLOYER",
+                "CANDIDATE"
               ]
             }
           }
@@ -2023,7 +1030,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TagSave"
+                "$ref": "#/components/schemas/SupportHandoff"
               }
             }
           }
@@ -2034,6 +1041,12 @@
             "headers": {
               "X-Correlation-ID": {
                 "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
                 "schema": {
                   "type": "string"
                 }
@@ -2048,7 +1061,7 @@
                       "const": 0
                     },
                     "data": {
-                      "$ref": "#/components/schemas/Tag"
+                      "$ref": "#/components/schemas/SupportTicket"
                     },
                     "count": {
                       "type": "integer",
@@ -2200,15 +1213,15 @@
         }
       }
     },
-    "/master-data/{id}": {
-      "delete": {
-        "operationId": "masterDelete",
+    "/support/private/{name}": {
+      "get": {
+        "operationId": "supportPrivate",
         "tags": [
-          "admin"
+          "support"
         ],
-        "summary": "DELETE /master-data/:id",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission admin:write; resource ownership checks still apply.",
-        "x-jobfind-permission": "admin:write",
+        "summary": "GET /support/private/:name",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission support:chat:use; resource ownership checks still apply.",
+        "x-jobfind-permission": "support:chat:use",
         "x-jobfind-internal": false,
         "x-jobfind-company-required": false,
         "x-jobfind-reject-unknown-query": true,
@@ -2219,14 +1232,241 @@
         ],
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "pattern": "^[a-fA-F0-9]{24}$"
+              "enum": [
+                "getMyProfileSummary",
+                "getMyApplications",
+                "getMySavedJobs",
+                "getMyCompanyJobs",
+                "getSubscriptionStatus"
+              ]
             }
           },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "description": "Authenticated identity forwarded by the trusted gateway only."
+          },
+          {
+            "name": "x-user-role",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ADMIN",
+                "COMPANY",
+                "EMPLOYER",
+                "CANDIDATE"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SupportPrivate"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/support/handoffs": {
+      "get": {
+        "operationId": "supportQueue",
+        "tags": [
+          "support"
+        ],
+        "summary": "GET /support/handoffs",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission support:manage; resource ownership checks still apply.",
+        "x-jobfind-permission": "support:manage",
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [
           {
             "name": "x-user-id",
             "in": "header",
@@ -2258,333 +1498,9 @@
                 "schema": {
                   "type": "string"
                 }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Ack"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/audit-action": {
-      "post": {
-        "operationId": "auditIngest",
-        "tags": [
-          "admin"
-        ],
-        "summary": "POST /internal/audit-action",
-        "description": "Service-to-service only. Never exposed through the public gateway. No end-user login required.",
-        "x-jobfind-permission": null,
-        "x-jobfind-internal": true,
-        "x-jobfind-company-required": false,
-        "x-jobfind-reject-unknown-query": true,
-        "security": [
-          {
-            "internalSecret": []
-          }
-        ],
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuditAction"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "headers": {
-              "X-Correlation-ID": {
-                "description": "Request correlation identifier",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Ack"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/internal/alias-map": {
-      "get": {
-        "operationId": "aliasMap",
-        "tags": [
-          "admin"
-        ],
-        "summary": "GET /internal/alias-map",
-        "description": "Service-to-service only. Never exposed through the public gateway. No end-user login required.",
-        "x-jobfind-permission": null,
-        "x-jobfind-internal": true,
-        "x-jobfind-company-required": false,
-        "x-jobfind-reject-unknown-query": true,
-        "security": [
-          {
-            "internalSecret": []
-          }
-        ],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "headers": {
-              "X-Correlation-ID": {
-                "description": "Request correlation identifier",
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
                 "schema": {
                   "type": "string"
                 }
@@ -2599,7 +1515,484 @@
                       "const": 0
                     },
                     "data": {
-                      "$ref": "#/components/schemas/AliasMap"
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SupportTicket"
+                      }
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/support/handoffs/{id}/claim": {
+      "post": {
+        "operationId": "supportClaim",
+        "tags": [
+          "support"
+        ],
+        "summary": "POST /support/handoffs/:id/claim",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission support:manage; resource ownership checks still apply.",
+        "x-jobfind-permission": "support:manage",
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "description": "Authenticated identity forwarded by the trusted gateway only."
+          },
+          {
+            "name": "x-user-role",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ADMIN"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SupportTicket"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "took": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "emailQueued": {
+                      "type": "boolean"
+                    },
+                    "errMessage": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "required": [
+                    "errCode",
+                    "data"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/support/handoffs/{id}/resolve": {
+      "post": {
+        "operationId": "supportResolve",
+        "tags": [
+          "support"
+        ],
+        "summary": "POST /support/handoffs/:id/resolve",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission support:manage; resource ownership checks still apply.",
+        "x-jobfind-permission": "support:manage",
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "internalSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "x-user-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            },
+            "description": "Authenticated identity forwarded by the trusted gateway only."
+          },
+          {
+            "name": "x-user-role",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ADMIN"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Support-Guest": {
+                "description": "Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errCode": {
+                      "const": 0
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SupportTicket"
                     },
                     "count": {
                       "type": "integer",

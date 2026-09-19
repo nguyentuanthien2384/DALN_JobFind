@@ -27,6 +27,7 @@ import { getCurrentAuthorizationService } from "./service/userService";
 import SessionContext from "./auth/SessionContext";
 import { SESSION_ENDED_EVENT } from "./auth/sessionExpiry";
 const SupportChat = lazy(() => import('./components/support/SupportChat'));
+const SupportHelp = lazy(() => import('./components/support/SupportHelp'));
 
 // Khu quan tri va khu ung vien keo theo nhieu bieu do, trinh sua va form lon.
 // Chi tai cac goi nay khi nguoi dung thuc su vao dung khu vuc.
@@ -190,7 +191,7 @@ function App() {
                         <RouteGuard
                             user={userData}
                             hasToken={hasToken}
-                            anyPermissions={[PERMISSIONS.USE_CHAT]}
+                            anyPermissions={[PERMISSIONS.USE_CHAT, PERMISSIONS.SUPPORT_USE]}
                         >
                             <>
                                 <Header />
@@ -206,7 +207,7 @@ function App() {
                         <RouteGuard
                             user={userData}
                             hasToken={hasToken}
-                            anyPermissions={[PERMISSIONS.USE_CHAT]}
+                            anyPermissions={[PERMISSIONS.USE_CHAT, PERMISSIONS.SUPPORT_USE]}
                         >
                             <>
                                 <Header />
@@ -292,6 +293,7 @@ function App() {
                         </>
                     }
                 />
+                <Route path="/support/help" element={<SupportHelp />} />
                 <Route path="*" element={<NotFound />} />
                 </Routes>
                 <Suspense fallback={null}><SupportChat key={userData?.id || 'guest'} /></Suspense>

@@ -18,3 +18,4 @@ scrape_configs:
           - notification-service:4005
           - admin-service:4006
           - ai-worker:4007
+          - support-chat-service:4008

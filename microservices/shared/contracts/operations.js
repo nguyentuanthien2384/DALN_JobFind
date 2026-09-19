@@ -10,6 +10,16 @@ const jobParams = object({ id: idString }, ['id']);
 const cvParams = object({ cvId: mongoId }, ['cvId']);
 const company = { companyRequired: true };
 export const operations = [
+    op('supportTurn', 'support', 'post', '/support/turn', null, { body: 'SupportTurn', stream: true }),
+    op('supportKnowledge', 'support', 'get', '/support/knowledge', null, { list: true }),
+    op('supportList', 'support', 'get', '/support/conversations', null, { list: true }),
+    op('supportGet', 'support', 'get', '/support/conversations/:id', null, { params: object({ id: { type: 'string', format: 'uuid' } }, ['id']) }),
+    op('supportDelete', 'support', 'delete', '/support/conversations/:id', null, { params: object({ id: { type: 'string', format: 'uuid' } }, ['id']), response: 'Ack' }),
+    op('supportHandoff', 'support', 'post', '/support/conversations/:id/handoff', P.SUPPORT_USE, { params: object({ id: { type: 'string', format: 'uuid' } }, ['id']), body: 'SupportHandoff' }),
+    op('supportPrivate', 'support', 'get', '/support/private/:name', P.SUPPORT_USE, { params: object({ name: { type: 'string', enum: ['getMyProfileSummary', 'getMyApplications', 'getMySavedJobs', 'getMyCompanyJobs', 'getSubscriptionStatus'] } }, ['name']) }),
+    op('supportQueue', 'support', 'get', '/support/handoffs', P.SUPPORT_MANAGE, { list: true }),
+    op('supportClaim', 'support', 'post', '/support/handoffs/:id/claim', P.SUPPORT_MANAGE, { params: object({ id: { type: 'string', format: 'uuid' } }, ['id']), body: 'Empty' }),
+    op('supportResolve', 'support', 'post', '/support/handoffs/:id/resolve', P.SUPPORT_MANAGE, { params: object({ id: { type: 'string', format: 'uuid' } }, ['id']), body: 'Empty' }),
     op('jobCreate', 'jobs', 'post', '/jobs', P.JOB_MANAGE, { body: 'JobCreate', response: 'Job', status: 201, idempotency: true, ...company }),
     op('jobRepost', 'jobs', 'post', '/jobs/:id/repost', P.JOB_MANAGE, { params: jobParams, body: 'JobRepost', response: 'Job', status: 201, idempotency: true, idempotencyRequired: true, ...company }),
     op('jobUpdate', 'jobs', 'put', '/jobs/:id', P.JOB_MANAGE, { params: jobParams, body: 'JobUpdate', response: 'Job', ...company }),

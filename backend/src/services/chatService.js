@@ -188,7 +188,8 @@ let getConversation = (data) => {
                     nest: true,
                     raw: true,
                     include: [
-                        { model: db.Company, as: 'userCompanyData', attributes: ['id', 'name', 'thumbnail'] }
+                        { model: db.Company, as: 'userCompanyData', attributes: ['id', 'name', 'thumbnail'] },
+                        ...(data.supportOnly ? [{ model: db.Account, as: 'userAccountData', attributes: [], required: true, where: { roleCode: 'ADMIN', statusCode: 'S1' } }] : [])
                     ]
                 })
                 resolve({
@@ -249,6 +250,7 @@ let getListConversation = (data) => {
                     item.partnerData = listPartner.find(user => +user.id === +item.partnerId)
                     return item
                 })
+                if (data.supportOnly) result = result.filter(item => item.partnerData);
                 // Sắp xếp theo tin nhắn mới nhất
                 result.sort((a, b) => new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt))
                 let totalUnread = result.reduce((sum, item) => sum + item.unreadCount, 0)

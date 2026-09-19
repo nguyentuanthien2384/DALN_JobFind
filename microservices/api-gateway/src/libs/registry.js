@@ -10,6 +10,10 @@ const logger = createLogger('api-gateway');
 // dia chi, cong them theo doi suc khoe de Gateway biet dich nao dang song.
 
 const services = {
+    support: {
+        name: 'support-chat-service',
+        baseUrl: process.env.SUPPORT_CHAT_URL || 'http://support-chat-service:4008'
+    },
     identity: {
         name: 'identity-service',
         baseUrl: process.env.IDENTITY_URL || 'http://identity-service:4001'

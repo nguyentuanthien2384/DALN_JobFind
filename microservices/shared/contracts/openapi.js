@@ -3,7 +3,7 @@ import { responseDefinitions, successSchema } from './responses.js';
 import { ROLE_PERMISSIONS } from '../accessControl.js';
 
 export const contractVersion = '1.0.0';
-export const serviceNames = ['jobs', 'identity', 'search', 'applications', 'admin'];
+export const serviceNames = ['jobs', 'identity', 'search', 'applications', 'admin', 'support'];
 const toOpenApi = (schema) => JSON.parse(JSON.stringify(schema).replaceAll('#/$defs/', '#/components/schemas/'));
 const json = (schema) => ({ 'application/json': { schema: toOpenApi(schema) } });
 const path = (value) => value.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
@@ -34,7 +34,7 @@ export const buildOpenApi = (service = 'gateway') => {
         }
         const responses = { [op.status]: {
             description: op.status === 202 ? 'Durably accepted; poll aiTaskGet. Does not mean the AI job has completed.' : 'Successful response',
-            headers: { 'X-Correlation-ID': header('Request correlation identifier') }, content: json(successSchema(op))
+            headers: { 'X-Correlation-ID': header('Request correlation identifier'), ...(op.service === 'support' ? { 'X-Support-Guest': header('Guest capability; persist in sessionStorage and resend in X-Support-Guest. Expires after 30 days.') } : {}) }, content: op.stream ? { 'text/event-stream': { schema: { type: 'string' }, example: 'event: token\ndata: {"text":"Xin chào"}\n\nevent: done\ndata: {}\n\n' } } : json(successSchema(op))
         }, ...Object.fromEntries([400, 401, 403, 404, 409, 413, 415, 429, 500, 502, 503, 504].map((status) => [status, error])) };
         (paths[path(publicApi ? publicPath(op) : op.path)] ||= {})[op.method] = {
             operationId: op.id, tags: [op.service],

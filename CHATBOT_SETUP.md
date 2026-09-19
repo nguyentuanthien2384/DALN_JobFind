@@ -1,73 +1,65 @@
-# Chatbot AI JobFind — bản đã tích hợp
+# Chatbot hỗ trợ JobFind
 
-Chatbot đã được ghép vào dự án hiện tại từ ZIP, giữ các phần Redis/Socket.IO, Web Push, thông báo và chat giữa người dùng. Không cần chép đè ZIP lại.
+Bản hiện tại triển khai phương án A của PDF: assistant-ui, dịch vụ Node riêng, Vercel AI SDK, MySQL, kho hướng dẫn công khai, tra cứu theo tài khoản và chuyển nhân viên. Xem [đối chiếu PDF](docs/chatbot-pdf-implementation.md).
 
-## Tính năng
+## Khởi động
 
-- Dùng **@assistant-ui/react 0.15.21** thật, tương thích React 18 hiện có. `useExternalStoreRuntime` nối trạng thái và SSE của JobFind với `Thread`, `Message`, `Composer` và hành động tạo lại câu trả lời.
-- Widget tiếng Việt trên các trang, mở rộng/thu nhỏ và bố cục điện thoại.
-- Câu hỏi gợi ý, gửi bằng Enter, xuống dòng bằng Shift+Enter, nhập giọng nói nếu trình duyệt hỗ trợ.
-- Phản hồi từng phần, dừng, lỗi có thể thử lại, sao chép, tạo lại và sửa câu hỏi. Sửa/tạo lại thay phần hội thoại từ lượt được chọn; không lưu các nhánh trả lời cũ.
-- Markdown: tiêu đề, danh sách, bảng và khối mã. Không thực thi HTML, tải ảnh bên ngoài hay mở liên kết bên ngoài do mô hình sinh ra.
-- Tìm tin đang tuyển từ MySQL và hiển thị thẻ tên việc, công ty, địa điểm, lương, đường dẫn chi tiết. Theo dõi ID tin ở lượt tiếp theo.
-- Tối đa 6 cuộc trò chuyện, 40 tin/cuộc, lưu trong `sessionStorage` theo tài khoản/khách và tab. Tạo mới, chuyển, xóa, tải lại trang; câu trả lời bị dừng không gửi vào ngữ cảnh AI tiếp theo.
+Yêu cầu Node.js **22 trở lên**, Docker Desktop, cấu hình MySQL hiện có. Frontend phải dùng Gateway **http://localhost:4000**, không trỏ trực tiếp backend legacy port 5000.
 
-## Cấu hình để sử dụng AI thật
+1. Trên máy mới: cài `npm --prefix microservices ci` và `npm --prefix frontend ci --legacy-peer-deps`.
+2. Bổ sung các biến hỗ trợ từ `microservices/.env.example` vào `microservices/.env`; giữ cấu hình hiện có. INTERNAL_SECRET phải giống backend. Không đưa API key vào frontend hoặc Git.
+3. Chạy `npm start` từ thư mục gốc theo quy trình local hiện có. Supervisor đã thêm support-chat-service port nội bộ 4008. Compose tạo hai bảng hỗ trợ khi SUPPORT_AUTO_MIGRATE=true, không thay bảng người dùng/tin tuyển dụng/ChatMessage.
+4. Mở nút Hỗ trợ. Khi chưa có AI, chatbot vẫn dùng hướng dẫn có nguồn, tra cứu cá nhân và chuyển nhân viên. Giao diện ghi rõ chế độ dự phòng.
 
-1. Cài thư viện frontend theo lockfile: `npm --prefix frontend ci --legacy-peer-deps` nếu máy chưa có dependencies. Thư viện đã được cài ở máy đang phát triển.
-2. Thêm vào **backend/.env**, giữ nguyên các cấu hình khác:
+Nếu stack đã chạy và chỉ cập nhật phần hỗ trợ, chạy từ thư mục microservices: `docker compose -f docker-compose.yml -f compose.local.yml up -d --build --no-deps support-chat-service api-gateway`, đồng thời khởi động lại backend để nạp bridge. Để chạy cả stack thủ công, bỏ --no-deps và danh sách service. Frontend cần rebuild/khởi động lại để nạp giao diện mới.
 
-   ```env
-   GEMINI_API_KEY=YOUR_GOOGLE_AI_STUDIO_KEY
-   GEMINI_MODEL=gemini-2.5-flash-lite
-   ```
+## Nhà cung cấp
 
-   Lấy khóa tại https://aistudio.google.com/apikey. Chọn model Gemini mà tài khoản của bạn còn được cấp quyền; đổi `GEMINI_MODEL` khi cần. Không đưa khóa vào `REACT_APP_*` hoặc Git.
-3. Dùng Node.js 20.3 trở lên (đã kiểm tra trên Node 24). Khởi động MySQL, backend và frontend theo README. Nếu frontend trỏ tới Gateway, khởi động/rebuild Gateway và Redis để tải tuyến streaming mới. Có thể dùng `npm start` từ thư mục gốc theo quy trình local hiện có.
-4. Frontend tiếp tục dùng `REACT_APP_BACKEND_URL` hiện tại. Thông thường là Gateway `http://localhost:4000`; chạy trực tiếp legacy thì dùng `http://localhost:5000`. Đổi biến frontend cần build/khởi động lại.
-5. Mở nút **Hỗ trợ** và hỏi “Tìm việc React tại Hà Nội”. Tin chỉ xuất hiện khi đã duyệt, chưa hết hạn, tài khoản và công ty đang hoạt động. Khi không có tin hợp lệ, chatbot trả kết quả rỗng.
+Cấu hình trong microservices/.env:
 
-Kiểm tra môi trường khi tích hợp: backend chưa có `GEMINI_API_KEY`; MySQL kết nối được nhưng truy vấn công khai trả 0 tin thỏa điều kiện. Vì vậy chưa xác minh trả lời từ Gemini thật. Không có khóa giả hay dữ liệu việc làm giả được đưa vào ứng dụng.
+- OPENAI_API_KEY: khóa API, để trống nếu chưa có.
+- SUPPORT_OPENAI_MODEL: mặc định gpt-4.1-mini; chọn model tài khoản thực sự được cấp quyền.
+- GEMINI_API_KEY và GEMINI_MODEL (mặc định gemini-2.5-flash).
+- SUPPORT_GEMINI_PAID=false: chỉ đặt true sau khi xác nhận dự án Gemini trả phí có chính sách dữ liệu phù hợp.
+- SUPPORT_OLLAMA_URL và SUPPORT_OLLAMA_MODEL: tùy chọn, URL tương thích OpenAI, ví dụ http://host.docker.internal:11434/v1; cần model hỗ trợ công cụ.
+- SUPPORT_RETENTION_DAYS=30 (1–90 ngày).
+- SUPPORT_AUTO_MIGRATE=true cho môi trường local.
 
-## API và giới hạn
+Thứ tự: OpenAI → Gemini được cho phép → Ollama đã cấu hình → hướng dẫn có sẵn. Mỗi provider tối đa 18 giây, toàn lượt tối đa 60 giây. Sau khi đã hiển thị văn bản, lỗi sẽ đánh dấu chưa hoàn tất, không ghép câu trả lời provider khác. Lỗi ba lần thì ngừng thử provider đó 60 giây. Khóa chỉ nằm phía máy chủ.
 
-`POST /api/support-chat`, `Content-Type: application/json`:
+## Lịch sử và quyền riêng tư
 
-```json
-{"messages":[{"role":"user","text":"Tìm việc React tại Hà Nội"}]}
-```
+- MySQL là nguồn lịch sử chính. Tài khoản dùng JWT qua Gateway; khách dùng capability có chữ ký trong sessionStorage, DB chỉ giữ hash. Mất phiên khách sẽ không mở lại lịch sử khách cũ.
+- Mỗi hội thoại giữ tối đa 40 tin gần nhất, danh sách hiện tối đa 50 hội thoại mới nhất. Mở, tải JSON, xóa trong Lịch sử. Mặc định hết hạn 30 ngày từ lần gửi gần nhất; dọn mỗi giờ, chặn đọc ngay khi hết hạn.
+- Email, số điện thoại phổ biến, dạng khóa/JWT được che trước lưu/gửi model. Đây không phải bộ loại bỏ mọi dữ liệu cá nhân; không nhập OTP, mật khẩu, số tài khoản hoặc CV.
+- Nút tra cứu và câu hỏi tự phục vụ rõ ràng đọc dữ liệu trực tiếp theo danh tính đã xác thực. Kết quả riêng tư bị loại khỏi ngữ cảnh gửi AI ở các lượt sau. Không index dữ liệu cá nhân vào Elasticsearch.
 
-Phản hồi SSE gồm `tool` (thẻ việc làm), `token` (đoạn văn bản), `done`; nếu lỗi sau khi bắt đầu thì gửi `error`. Lỗi trước khi stream trả JSON kèm mã HTTP. Đóng kết nối/dừng trên trình duyệt hủy request ở Gateway và backend.
+## Nhân viên hỗ trợ
 
-- Chỉ nhận user/assistant, thứ tự xen kẽ, bắt đầu/kết thúc bằng user; tối đa 12 tin và tổng 8.500 ký tự. Mỗi câu hỏi tối đa 1.400 ký tự; frontend cắt bớt các cặp hội thoại cũ khi cần.
-- Giới hạn body 48 KB để hỗ trợ tiếng Việt/emoji trong ngân sách ký tự; backend chỉ nhận JSON.
-- Backend: 8 lượt/IP/phút, 8 yêu cầu AI đồng thời mỗi tiến trình. Gateway: giới hạn AI hiện có 30 lượt/giờ và Redis fail-closed.
-- Gateway ký IP khách bằng `INTERNAL_SECRET` dùng chung; backend xác minh chữ ký trước khi dùng IP cho giới hạn. Nếu không có secret chung, backend dùng IP kết nối và có thể gộp khách qua Gateway vào một hạn mức.
-- Gemini: tối đa 55 giây, 12.000 ký tự đầu ra, 2 công cụ chỉ đọc và tối đa 2 lượt gọi model/yêu cầu. Lượt cuối không mở công cụ.
-- Gateway bỏ token, cookie và các header danh tính khỏi yêu cầu chatbot. Không gửi hồ sơ ứng viên hay thông tin tài khoản tới Gemini.
+Đánh dấu đồng ý chia sẻ rồi chọn Chuyển hội thoại cho hỗ trợ. Hệ thống chụp các tin đã hoàn tất ở thời điểm đó. ADMIN mở Hỗ trợ chatbot → Yêu cầu hỗ trợ (`/admin/support`), tiếp nhận, mở Tin nhắn và đánh dấu đã xử lý. Chỉ một nhân viên được nhận mỗi yêu cầu.
+
+Nếu chuyển sang Tin nhắn lỗi, ticket vẫn tồn tại và có nút thử lại với cùng mã tin nhắn để tránh trùng. Ngoại tuyến vẫn giữ hàng đợi, không hứa thời gian phản hồi. Nhà tuyển dụng chưa đủ điều kiện tuyển dụng vẫn được liên hệ ADMIN; các quan hệ tuyển dụng khác giữ kiểm tra quyền hiện có.
+
+Xóa hội thoại xóa ticket và bản chụp. **Bản tóm tắt đã gửi sang Tin nhắn có chính sách lưu trữ riêng, không bị xóa bằng nút xóa chatbot.**
+
+## Kiến thức và vận hành
+
+Chín bài công khai được duyệt ở `microservices/support-chat-service/src/knowledge.js`, trang đọc `/support/help`. Chạy `npm --prefix microservices run index-kb -w support-chat-service` để nạp Elasticsearch support_kb_v1. Khi search chưa có index hoặc lỗi, dùng corpus đã đóng gói. Chỉ sửa tài liệu đã duyệt; không đưa CV hoặc hội thoại vào index.
+
+Production: chạy `npm --prefix microservices run migrate -w support-chat-service` với tài khoản migration rồi đặt SUPPORT_AUTO_MIGRATE=false cho runtime. Các lệnh đọc microservices/.env; nếu chạy ngoài Docker, dùng địa chỉ MySQL/Elasticsearch truy cập được từ host. Không public port 4008; các endpoint nghiệp vụ phải qua Gateway và khóa nội bộ.
+
+Readiness /readyz kiểm tra MySQL; /metrics được bảo vệ bằng credential runtime. Prometheus đã thêm 4008. Log chỉ ghi sự kiện, provider và số token, không ghi lời nhắn/kết quả cá nhân. Redis giới hạn lượt AI; một service tối đa tám lượt đang xử lý; khóa MySQL chống ghi đè giữa cửa sổ/replica.
 
 ## Kiểm thử
 
-Từ thư mục gốc:
+- `npm --prefix microservices run test:support`
+- `npm --prefix microservices run test:support:browser`
+- `npm --prefix microservices run test:support:live`
+- `npm --prefix microservices run contracts:check`
+- `npm --prefix frontend run build`
 
-```sh
-npm --prefix backend run test:support-chat
-npm --prefix backend test -- --runTestsByPath tests/controllers/supportChatController.test.js tests/utils/supportClientKey.test.js tests/routes/web.test.js tests/config/infrastructure.test.js tests/middlewares/rateLimit.test.js
-npm --prefix frontend run test:unit -- --testPathPattern="supportChat|SupportMarkdown|App.test" --silent
-npm --prefix microservices test -- tests/support-chat-proxy.test.js tests/gateway.test.js tests/http-contracts.test.js
-npm --prefix backend run test:support-chat:browser
-npm --prefix backend run test:support-chat:live
-npm --prefix frontend run build
-```
+Browser test dùng Chromium, MySQL Docker dùng một lần và danh tính/AI giả lập; không gửi tin cho người thật. Cần image mysql:8.0 có sẵn. Lệnh cũ `npm --prefix backend run test:support-chat:browser` chuyển sang bộ mới.
 
-Browser test dùng Chromium của Playwright và SSE giả lập cục bộ, không gọi Gemini. Nếu máy khác thiếu Chromium, chạy `npx playwright install chromium` trong thư mục backend. Kiểm tra gửi, streaming, Markdown, thẻ tin, tạo lại, sửa, dừng, thử lại, lịch sử, tải lại và mobile; ảnh nằm ở `.local/support-chat-browser/`.
+Live eval gọi Gateway đang chạy, tạo rồi dọn hội thoại khách, tiêu thụ hạn mức khi đã có API key. Báo cáo `.local/support-service-evaluation.json`. Chưa có provider thì trả mã 2 và blocked_missing_provider; không tính chế độ hướng dẫn là AI đạt. Vẫn cần người đánh giá độ đúng, nguồn, tình huống mơ hồ và việc không bịa tin/trạng thái.
 
-`test:support-chat:live` dùng Gemini thật và dữ liệu công khai thật, cần API key/quota. Thiếu key thì thoát mã 2 và ghi trạng thái BLOCKED; tuyệt đối không thay bằng câu trả lời giả. Bộ 9 tình huống kiểm tra chào hỏi, hướng dẫn ứng tuyển, tìm việc, hỏi tiếp theo ID, không có kết quả, làm rõ nhu cầu, bộ lọc chưa hỗ trợ và yêu cầu dữ liệu riêng tư/chỉ dẫn sai. Câu hỏi tiếp chỉ chạy khi lượt tìm việc có tin hợp lệ. Kết quả, câu trả lời, công cụ và thời gian được lưu ở `.local/support-chat-evaluation.json`. Các kiểm tra tự động chỉ xác nhận cấu trúc; chất lượng câu trả lời vẫn cần người đọc chấm theo tiêu chí ghi trong mỗi ca. Công cụ này gọi trực tiếp service, không thay thế kiểm thử triển khai qua Gateway.
-
-Kiểm thử mở rộng đã sửa việc đánh dấu nhầm hoàn tất khi Gemini ngắt luồng/hết token/chặn nội dung. Chỉ `finishReason=STOP` được coi là hoàn tất. Câu trả lời bị lỗi giữ trạng thái chưa hoàn chỉnh và không đi vào ngữ cảnh tiếp theo. Công cụ chi tiết lấy tối đa 6.000 ký tự mô tả, có `descriptionTruncated` để AI biết dữ liệu chưa đầy đủ.
-
-## Phạm vi hiện tại
-
-Đây là chatbot tìm việc và hướng dẫn sử dụng JobFind. Lịch sử chưa đồng bộ sang máy khác; chưa có upload tài liệu/ảnh, phân tích CV trong chat, duyệt hành động ghi, tự nộp đơn hoặc chuyển phiên AI cho nhân viên. Các tính năng CV và nhắn tin người dùng hiện có vẫn hoạt động ở khu vực riêng. assistant-ui cung cấp các thành phần mở rộng cho những nhu cầu này, nhưng cần backend, lưu trữ và kiểm soát quyền tương ứng trước khi bật.
-
-Tài liệu đối chiếu: https://github.com/assistant-ui/assistant-ui và https://www.assistant-ui.com/docs/runtimes/custom/external-store.
+/api/support-chat và Gemini cũ được giữ để tương thích; widget mới dùng /api/support/*. CHATBOT_TOOLS_UPGRADE.md mô tả bản legacy, không phải cấu hình mặc định.

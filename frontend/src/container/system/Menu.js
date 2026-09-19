@@ -26,6 +26,11 @@ import { readJsonStorage } from '../../util/storage';
 // Dinh nghia menu theo du lieu cho de doc va de them bot, thay vi lap JSX.
 const MENU_ADMIN = [
     {
+        key: 'support', permission: PERMISSIONS.SUPPORT_MANAGE, title: 'Hỗ trợ chatbot', icon: 'fas fa-comments menu-icon', children: [
+            { to: '/admin/support', label: 'Yêu cầu hỗ trợ' },
+        ],
+    },
+    {
         key: 'report', permission: PERMISSIONS.VIEW_PLATFORM_REPORTS, title: 'Báo cáo & Thống kê', icon: 'fas fa-chart-line menu-icon', children: [
             { to: '/admin/reports/', label: 'Bảng báo cáo' },
         ]

@@ -11,6 +11,8 @@ export const ROLES = Object.freeze({
 });
 
 export const PERMISSIONS = Object.freeze({
+    SUPPORT_USE: 'support:chat:use',
+    SUPPORT_MANAGE: 'support:manage',
     PROFILE_SELF: 'profile:self',
     CV_SELF_MANAGE: 'cv:self:manage',
     JOB_MANAGE: 'job:manage',
@@ -25,18 +27,21 @@ export const PERMISSIONS = Object.freeze({
 const matrix = {
     [ROLES.ADMIN]: Object.values(PERMISSIONS),
     [ROLES.COMPANY]: [
+        PERMISSIONS.SUPPORT_USE,
         PERMISSIONS.PROFILE_SELF,
         PERMISSIONS.JOB_MANAGE,
         PERMISSIONS.APPLICATION_MANAGE,
         PERMISSIONS.TALENT_POOL_MANAGE
     ],
     [ROLES.EMPLOYER]: [
+        PERMISSIONS.SUPPORT_USE,
         PERMISSIONS.PROFILE_SELF,
         PERMISSIONS.JOB_MANAGE,
         PERMISSIONS.APPLICATION_MANAGE,
         PERMISSIONS.TALENT_POOL_MANAGE
     ],
     [ROLES.CANDIDATE]: [
+        PERMISSIONS.SUPPORT_USE,
         PERMISSIONS.PROFILE_SELF,
         PERMISSIONS.CV_SELF_MANAGE,
         PERMISSIONS.APPLICATION_SELF_READ,

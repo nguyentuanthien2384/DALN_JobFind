@@ -1,5 +1,32 @@
 // Dedicated fetch client: the shared Axios client buffers JSON and cannot read SSE.
 const API_BASE = (process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '');
+const GUEST_KEY = 'jobfind-support-guest';
+const supportHeaders = () => {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('token_user');
+    if (token) headers.Authorization = `Bearer ${token}`;
+    else { const guest = sessionStorage.getItem(GUEST_KEY); if (guest) headers['X-Support-Guest'] = guest; }
+    return headers;
+};
+const rememberGuest = response => {
+    const token = response.headers?.get('X-Support-Guest');
+    if (token) sessionStorage.setItem(GUEST_KEY, token);
+};
+export const supportRequest = async (path, { method = 'GET', body, signal } = {}) => {
+    const response = await fetch(`${API_BASE}/api/support${path}`, { method, headers: supportHeaders(), ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal });
+    rememberGuest(response);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.errCode) throw new Error(payload.errMessage || 'Không kết nối được dịch vụ hỗ trợ.');
+    return payload.data;
+};
+export const supportApi = {
+    list: signal => supportRequest('/conversations', { signal }),
+    get: (id, signal) => supportRequest(`/conversations/${encodeURIComponent(id)}`, { signal }),
+    remove: id => supportRequest(`/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    privateTool: name => supportRequest(`/private/${encodeURIComponent(name)}`),
+    handoff: id => supportRequest(`/conversations/${encodeURIComponent(id)}/handoff`, { method: 'POST', body: { consent: true } }),
+    resetGuest: () => sessionStorage.removeItem(GUEST_KEY)
+};
 
 export const prepareSupportHistory = (messages) => {
     const clean = messages.filter((message) =>
@@ -20,13 +47,14 @@ export const prepareSupportHistory = (messages) => {
     return recent;
 };
 
-export const streamSupportReply = async (messages, { signal, onText, onTool = () => {} }) => {
-    const response = await fetch(`${API_BASE}/api/support-chat`, {
+export const streamSupportReply = async (messages, { signal, onText, onTool = () => {}, onState = () => {}, onSources = () => {}, onMode = () => {}, turn }) => {
+    const response = await fetch(`${API_BASE}${turn ? '/api/support/turn' : '/api/support-chat'}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ messages: prepareSupportHistory(messages) }),
+        headers: { ...(turn ? supportHeaders() : { 'Content-Type': 'application/json' }), Accept: 'text/event-stream' },
+        body: JSON.stringify(turn || { messages: prepareSupportHistory(messages) }),
         signal
     });
+    if (turn) rememberGuest(response);
     if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.errMessage || `Máy chủ trả về lỗi ${response.status}.`);
@@ -49,7 +77,10 @@ export const streamSupportReply = async (messages, { signal, onText, onTool = ()
             answer += payload.text;
             if (answer.length > 12000) throw new Error('Câu trả lời vượt quá giới hạn cho phép.');
             onText(answer);
-        } else if (event === 'tool' && payload && typeof payload.name === 'string') onTool(payload);
+        } else if (event === 'state') onState(payload);
+        else if (event === 'sources') onSources(payload.sources || []);
+        else if (event === 'mode') onMode(payload.mode);
+        else if (event === 'tool' && payload && typeof payload.name === 'string') onTool(payload);
         else if (event === 'error') throw new Error(payload.message || 'AI không thể hoàn tất câu trả lời.');
         else if (event === 'done') completed = true;
     };

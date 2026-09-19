@@ -272,7 +272,7 @@ describe('service registry', () => {
     it('resolves services, lists state, and ignores unknown health keys', async () => {
         const registry = await import('../api-gateway/src/libs/registry.js');
         expect(registry.getService('jobs')).toMatchObject({ name: 'job-core-service' });
-        expect(registry.listServices()).toHaveLength(6);
+        expect(registry.listServices()).toHaveLength(7);
         registry.markHealth('jobs', false, 'down');
         expect(registry.listServices().find((s) => s.key === 'jobs')).toMatchObject({ healthy: false, lastError: 'down' });
         expect(() => registry.markHealth('unknown', false)).not.toThrow();
@@ -289,7 +289,7 @@ describe('service registry', () => {
         vi.stubGlobal('fetch', fetch);
         const { startHealthPolling, listServices } = await import('../api-gateway/src/libs/registry.js');
         const timer = startHealthPolling(1000);
-        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(6));
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(7));
         const states = listServices();
         expect(states[0].healthy).toBe(true);
         expect(states[1].healthy).toBe(false);

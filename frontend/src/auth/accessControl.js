@@ -6,6 +6,8 @@ export const ROLES = Object.freeze({
 });
 
 export const PERMISSIONS = Object.freeze({
+    SUPPORT_USE: "support:chat:use",
+    SUPPORT_MANAGE: "support:manage",
     ACCESS_ADMIN_AREA: "admin.area.access",
     VIEW_ADMIN_HOME: "admin.home.view",
     USE_CHAT: "chat.use",
@@ -31,7 +33,7 @@ export const PERMISSIONS = Object.freeze({
 // Tat ca tai khoan da dang nhap deu duoc quan ly ho so cua chinh minh. ADMIN la
 // super-admin nen nhan moi quyen da duoc khai bao; cac vai tro con lai van bi
 // gioi han theo nghiep vu va trang thai cong ty.
-const COMMON_PERMISSIONS = [PERMISSIONS.MANAGE_PROFILE];
+const COMMON_PERMISSIONS = [PERMISSIONS.MANAGE_PROFILE, PERMISSIONS.SUPPORT_USE];
 
 const permissionSet = (permissions) => new Set([...COMMON_PERMISSIONS, ...permissions]);
 

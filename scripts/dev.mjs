@@ -22,7 +22,7 @@ const require = createRequire(path.join(root, 'backend/package.json'));
 const dotenv = require('dotenv');
 const action = process.argv[2] || 'start';
 const infrastructure = ['mongo', 'postgres', 'redis', 'rabbitmq', 'elasticsearch'];
-const applications = ['identity-service', 'application-service', 'notification-service', 'admin-service', 'job-core-service', 'search-service', 'api-gateway'];
+const applications = ['identity-service', 'application-service', 'notification-service', 'admin-service', 'job-core-service', 'search-service', 'support-chat-service', 'api-gateway'];
 const composeBase = ['compose', '-p', project, '-f', 'docker-compose.yml'];
 const composeApps = [...composeBase, '-f', 'compose.local.yml', '-f', 'compose.runtime.yml'];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -146,7 +146,7 @@ async function serve() {
         await longCommand([...composeApps, 'up', '-d', '--no-deps', ...applications], env);
         await waitFor(async () => {
             const id = await containerId('api-gateway');
-            const result = await command(['exec', id, 'node', '-e', `Promise.all(${JSON.stringify(applications.map((name, index) => `http://${name}:${({ 'identity-service':4001,'application-service':4004,'notification-service':4005,'admin-service':4006,'job-core-service':4002,'search-service':4003,'api-gateway':4000 })[name]}/readyz`))}.map(async url=>{const r=await fetch(url,{signal:AbortSignal.timeout(4000)});await r.body?.cancel();if(!r.ok)throw Error(url)})).then(()=>console.log('ready')).catch(()=>process.exit(1))`]);
+            const result = await command(['exec', id, 'node', '-e', `Promise.all(${JSON.stringify(applications.map((name, index) => `http://${name}:${({ 'identity-service':4001,'application-service':4004,'notification-service':4005,'admin-service':4006,'job-core-service':4002,'search-service':4003,'api-gateway':4000,'support-chat-service':4008 })[name]}/readyz`))}.map(async url=>{const r=await fetch(url,{signal:AbortSignal.timeout(4000)});await r.body?.cancel();if(!r.ok)throw Error(url)})).then(()=>console.log('ready')).catch(()=>process.exit(1))`]);
             return result === 'ready';
         }, 'Các dịch vụ API', 180000);
         await update('Khởi động giao diện tuyển dụng');

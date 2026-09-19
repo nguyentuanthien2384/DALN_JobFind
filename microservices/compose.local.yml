@@ -24,6 +24,12 @@ x-runtime: &runtime
   secrets: [metrics_token]
 
 services:
+  support-chat-service:
+    <<: *runtime
+    volumes: !reset []
+    environment:
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+    depends_on: !override {}
   deps-installer:
     profiles: [dev-tools]
 

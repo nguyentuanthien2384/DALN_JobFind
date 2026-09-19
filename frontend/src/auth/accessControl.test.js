@@ -54,6 +54,7 @@ describe("frontend access-control policy", () => {
 
         expectExactPermissions(user, [
             PERMISSIONS.MANAGE_PROFILE,
+            PERMISSIONS.SUPPORT_USE,
             PERMISSIONS.ACCESS_ADMIN_AREA,
             PERMISSIONS.VIEW_ADMIN_HOME,
             PERMISSIONS.USE_CHAT,
@@ -73,6 +74,7 @@ describe("frontend access-control policy", () => {
 
         expectExactPermissions(user, [
             PERMISSIONS.MANAGE_PROFILE,
+            PERMISSIONS.SUPPORT_USE,
             PERMISSIONS.ACCESS_ADMIN_AREA,
         ]);
         expect(hasAnyPermission(user, [
@@ -88,6 +90,7 @@ describe("frontend access-control policy", () => {
 
         expectExactPermissions(user, [
             PERMISSIONS.MANAGE_PROFILE,
+            PERMISSIONS.SUPPORT_USE,
             PERMISSIONS.ACCESS_ADMIN_AREA,
             PERMISSIONS.VIEW_ADMIN_HOME,
             PERMISSIONS.USE_CHAT,
@@ -107,6 +110,7 @@ describe("frontend access-control policy", () => {
 
         expectExactPermissions(user, [
             PERMISSIONS.MANAGE_PROFILE,
+            PERMISSIONS.SUPPORT_USE,
             PERMISSIONS.ACCESS_ADMIN_AREA,
             PERMISSIONS.CREATE_COMPANY,
         ]);
@@ -123,6 +127,7 @@ describe("frontend access-control policy", () => {
 
         expectExactPermissions(user, [
             PERMISSIONS.MANAGE_PROFILE,
+            PERMISSIONS.SUPPORT_USE,
             PERMISSIONS.USE_CHAT,
             PERMISSIONS.VIEW_CANDIDATE_AREA,
             PERMISSIONS.APPLY_TO_JOB,
@@ -185,6 +190,7 @@ describe("frontend access-control policy", () => {
         expect(hasApprovedCompany(pendingOwner)).toBe(false);
         expectExactPermissions(pendingOwner, [
             PERMISSIONS.MANAGE_PROFILE,
+            PERMISSIONS.SUPPORT_USE,
             PERMISSIONS.ACCESS_ADMIN_AREA,
             PERMISSIONS.MANAGE_COMPANY,
         ]);

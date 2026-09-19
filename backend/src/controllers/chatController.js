@@ -53,7 +53,7 @@ let getConversation = async (req, res) => {
 
 let getListConversation = async (req, res) => {
     try {
-        let data = await chatService.getListConversation({ userId: req.user.id });
+        let data = await chatService.getListConversation({ userId: req.user.id, supportOnly: req.supportOnly });
         return res.status(200).json(data);
     } catch (error) {
         console.log(JSON.stringify({ event: 'chat:request', code: 'INTERNAL_ERROR' }))

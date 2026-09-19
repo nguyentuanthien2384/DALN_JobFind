@@ -1,4 +1,5 @@
 import React from "react";
+import SupportInbox from '../../components/support/SupportInbox';
 import Header from "./Header";
 import Menu from "./Menu";
 import Home from "./Home";
@@ -144,8 +145,9 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                                         : <Navigate to={defaultRoute} replace />
                                 }
                             />
-                            <Route path="/chat" element={guard(<ChatPage />, PERMISSIONS.USE_CHAT)} />
-                            <Route path="/chat/:partnerId" element={guard(<ChatPage />, PERMISSIONS.USE_CHAT)} />
+                            <Route path="/chat" element={guard(<ChatPage />, PERMISSIONS.USE_CHAT, PERMISSIONS.SUPPORT_USE)} />
+                            <Route path="/support" element={guard(<SupportInbox />, PERMISSIONS.SUPPORT_MANAGE)} />
+                            <Route path="/chat/:partnerId" element={guard(<ChatPage />, PERMISSIONS.USE_CHAT, PERMISSIONS.SUPPORT_USE)} />
                             <Route path="/list-user" element={guard(<ManageUser />, PERMISSIONS.MANAGE_USERS)} />
                             <Route path="/pipeline" element={guard(<KanbanBoard />, PERMISSIONS.MANAGE_CANDIDATES)} />
                             <Route path="/reports" element={guard(<ReportDashboard />, PERMISSIONS.VIEW_PLATFORM_REPORTS)} />

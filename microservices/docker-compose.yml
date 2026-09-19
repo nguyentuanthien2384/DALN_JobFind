@@ -3,6 +3,34 @@ name: ai-job-portal
 # Cac cong deu lech so voi mac dinh vi may nay dang chay san mot he thong khac
 # (project tham khao unicode_nodejs) chiem 3000/5672/15672/27018/8500.
 services:
+  support-chat-service:
+    image: node:22-alpine
+    working_dir: /app/support-chat-service
+    volumes: [".:/app"]
+    command: npm start
+    environment:
+      PORT: 4008
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
+      MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
+      MYSQL_PORT: ${MYSQL_PORT:-3333}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
+      LEGACY_URL: ${LEGACY_URL:-http://host.docker.internal:5000}
+      IDENTITY_URL: http://identity-service:4001
+      APPLICATION_URL: http://application-service:4004
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SUPPORT_OPENAI_MODEL: ${SUPPORT_OPENAI_MODEL:-gpt-4.1-mini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      SUPPORT_GEMINI_PAID: ${SUPPORT_GEMINI_PAID:-false}
+      SUPPORT_OLLAMA_URL: ${SUPPORT_OLLAMA_URL:-}
+      SUPPORT_OLLAMA_MODEL: ${SUPPORT_OLLAMA_MODEL:-}
+      SUPPORT_RETENTION_DAYS: ${SUPPORT_RETENTION_DAYS:-30}
+      SUPPORT_AUTO_MIGRATE: ${SUPPORT_AUTO_MIGRATE:-true}
+    depends_on:
+      deps-installer: { condition: service_completed_successfully }
   # ============ HA TANG ============
   # MongoDB cho Identity & Profile Service (luu JSON linh hoat: ho so, CV).
   mongo:

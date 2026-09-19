@@ -12,6 +12,7 @@ COPY application-service/package.json application-service/package.json
 COPY notification-service/package.json notification-service/package.json
 COPY admin-service/package.json admin-service/package.json
 COPY ai-worker/package.json ai-worker/package.json
+COPY support-chat-service/package.json support-chat-service/package.json
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM ${NODE_IMAGE} AS runtime
@@ -28,6 +29,7 @@ COPY --chown=node:node application-service/ application-service/
 COPY --chown=node:node notification-service/ notification-service/
 COPY --chown=node:node admin-service/ admin-service/
 COPY --chown=node:node ai-worker/ ai-worker/
+COPY --chown=node:node support-chat-service/ support-chat-service/
 COPY --chown=node:node scripts/healthcheck.mjs scripts/healthcheck.mjs
 USER node
 WORKDIR /app/api-gateway

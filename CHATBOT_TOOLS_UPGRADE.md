@@ -1,3 +1,5 @@
+Bản ghi lịch sử: tài liệu này mô tả Gemini legacy. Cấu hình hiện tại theo PDF nằm ở [CHATBOT_SETUP.md](CHATBOT_SETUP.md).
+
 # Công cụ tìm việc của chatbot
 
 Đã đồng bộ vào source hiện tại; xem [CHATBOT_SETUP.md](CHATBOT_SETUP.md) để cài đặt, kiểm thử và biết phạm vi tính năng. Không chép đè lại các tệp cũ trong ZIP.

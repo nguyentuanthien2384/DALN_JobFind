@@ -9,6 +9,7 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 import { createLogger } from '../../shared/logger.js';
 import { listServices, startHealthPolling } from './libs/registry.js';
 import { createSupportChatProxy } from './middlewares/supportChatProxy.js';
+import { createSupportServiceProxy } from './middlewares/supportServiceProxy.js';
 import { createProxy, getBreakerStats } from './middlewares/proxy.js';
 import { optionalAuth, requireAuth, requireRole, requirePermission } from './middlewares/auth.js';
 import { PERMISSIONS } from '../../shared/accessControl.js';
@@ -42,7 +43,7 @@ app.set('trust proxy', parseTrustedProxies(process.env.TRUST_PROXY));
 
 app.use(cors({
     origin: allowedOrigins,
-    exposedHeaders: ['Retry-After', 'X-Correlation-Id'],
+    exposedHeaders: ['Retry-After', 'X-Correlation-Id', 'X-Support-Guest'],
     credentials: true
 }));
 // Chan path traversal truoc moi route/proxy va truoc ca body parser.
@@ -201,6 +202,8 @@ app.use('/api/admin', requirePermission(PERMISSIONS.ADMIN_READ), createProxy('ad
 
 // AI responses must stream through the gateway without JSON buffering.
 app.post('/api/support-chat', aiLimiter, createSupportChatProxy());
+app.use('/api/support', (req, res, next) => req.headers.authorization ? requireAuth(req, res, next) : next(),
+    (req, res, next) => req.method === 'POST' && req.path === '/turn' ? aiLimiter(req, res, next) : publicLimiter(req, res, next), createSupportServiceProxy());
 
 // --- Cac tinh nang AI ---
 app.use('/api/ai', requirePermission(PERMISSIONS.AI_CANDIDATE_USE), aiLimiter,

@@ -44,6 +44,8 @@ jest.mock('../../src/middlewares/rateLimit', () => ({
   registerLimiter: mockRegisterLimiter, phoneCheckLimiter: mockPhoneLimiter, supportChatLimiter: jest.fn()
 }));
 jest.mock('../../src/controllers/supportChatController', () => ({ handleSupportChat: jest.fn() }));
+jest.mock('../../src/controllers/supportBridgeController', () => ({ trustedSupport: jest.fn(), publicTool: jest.fn(), deliverHandoff: jest.fn() }));
+jest.mock('../../src/middlewares/supportChatAccess', () => ({ supportChatAccess: jest.fn() }));
 jest.mock('../../src/config/socket', () => ({ emitNotification: mockEmitNotification }));
 
 const initWebRoutes = require('../../src/routes/web');

@@ -39,6 +39,8 @@ const jobFields = {
 // explicitly declared multi-select Search filters accept arrays of strings.
 export const queryNumber = (max) => ({ type: 'string', pattern: '^(0|[1-9][0-9]*)$', maxLength: String(max).length, format: `jobfind-uint-${max}` });
 export const schemas = {
+    SupportTurn: object({ requestId: { type: 'string', format: 'uuid' }, text: nonblank(1400), conversationId: { type: 'string', format: 'uuid' }, version: integer(), replaceFrom: nullable({ type: 'string', format: 'uuid' }), parentId: nullable({ type: 'string', format: 'uuid' }) }, ['requestId', 'text']),
+    SupportHandoff: object({ consent: { const: true } }, ['consent']),
     Empty: object(),
     ManagedJobsQuery: object({ limit: { ...queryNumber(50), pattern: '^[1-9][0-9]*$' }, offset: queryNumber(1000000),
         search: text(255), statusCode: { type: 'string', enum: ['', 'PS1', 'PS2', 'PS3', 'PS4'] } }),

@@ -31,8 +31,8 @@ try {
     if (!containers.every(c => c.Config.Labels['com.docker.compose.project'] === project)) throw new Error('ownership');
     const byService = name => containers.filter(c => c.Config.Labels['com.docker.compose.service'] === name);
     const one = name => byService(name).length === 1 ? byService(name)[0] : null;
-    const services = ['api-gateway','identity-service','job-core-service','search-service','application-service','notification-service','admin-service','ai-worker'];
-    const ports = [4000,4001,4002,4003,4004,4005,4006,4007];
+    const services = ['api-gateway','identity-service','job-core-service','search-service','application-service','notification-service','admin-service','ai-worker','support-chat-service'];
+    const ports = [4000,4001,4002,4003,4004,4005,4006,4007,4008];
     report.containers = containers.map(c => ({ service: c.Config.Labels['com.docker.compose.service'], id: c.Id.slice(0,12),
         imageId: c.Image, status: c.State.Status, exitCode: c.State.ExitCode, readOnly: c.HostConfig.ReadonlyRootfs,
         user: c.Config.User || 'root', sourceBindMounted: c.Mounts.some(m => m.Type === 'bind' && m.Destination.startsWith('/app')),
