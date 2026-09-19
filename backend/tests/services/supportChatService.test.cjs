@@ -1,4 +1,3 @@
-const test = require('node:test');
 const assert = require('node:assert/strict');
 const { ReadableStream } = require('node:stream/web');
 const { validateMessages, streamGemini } = require('../../src/services/supportChatService');
@@ -6,7 +5,7 @@ const { validateMessages, streamGemini } = require('../../src/services/supportCh
 const originalKey = process.env.GEMINI_API_KEY;
 const originalModel = process.env.GEMINI_MODEL;
 const originalFetch = global.fetch;
-test.after(() => {
+afterAll(() => {
     if (originalKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = originalKey;
     if (originalModel === undefined) delete process.env.GEMINI_MODEL;
@@ -67,4 +66,22 @@ test('does not expose provider error body to users', async () => {
     global.fetch = async () => ({ ok: false, status: 429, body: null });
     await assert.rejects(streamGemini({ messages: [message('user', 'Chào')], onText: () => {} }),
         (error) => error.status === 429 && /giới hạn/.test(error.message));
+});
+
+test('accepts long previous answers within the total context budget', () => {
+    const history = [message('user', 'Hỏi'), message('assistant', 'a'.repeat(5000)), message('user', 'Hỏi tiếp')];
+    assert.equal(validateMessages(history)[1].text.length, 5000);
+    assert.throws(() => validateMessages([message('user', 'Hỏi'), message('assistant', 'a'.repeat(8500)), message('user', 'Hỏi tiếp')]), /độ dài/);
+});
+
+test('never displays reasoning text and rejects cancellation instead of reporting success', async () => {
+    process.env.GEMINI_API_KEY = 'local-test-secret';
+    const payload = { candidates: [{ content: { parts: [{ text: 'private reasoning', thought: true }, { text: 'public answer' }] } }] };
+    global.fetch = async () => ({ ok: true, body: new ReadableStream({ start(controller) {
+        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(payload)}\n\n`)); controller.close();
+    } }) });
+    const chunks = [];
+    await streamGemini({ messages: [message('user', 'Chào')], onText: (text) => chunks.push(text) });
+    assert.deepEqual(chunks, ['public answer']);
+    await assert.rejects(streamGemini({ messages: [message('user', 'Chào')], signal: AbortSignal.abort(), onText: () => {} }), { name: 'AbortError' });
 });

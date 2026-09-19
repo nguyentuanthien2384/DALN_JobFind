@@ -78,3 +78,25 @@
 .jf-support__result small { color: #1964d3; font-size: 11px; }
 .jf-support__mic { flex: none; width: 31px; height: 33px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #667387; }
 .jf-support__mic:hover:not(:disabled), .jf-support__mic--active { color: #b32d37; background: #fff0f1; }
+
+/* assistant-ui viewport and rich message content */
+.jf-support--expanded .jf-support__panel { width: min(820px, calc(100vw - 44px)); height: min(850px, calc(100dvh - 40px)); }
+.jf-support__markdown { white-space: normal; }
+.jf-support__markdown p { margin: 0 0 10px; }
+.jf-support__markdown > :last-child { margin-bottom: 0; }
+.jf-support__markdown ul, .jf-support__markdown ol { padding-left: 20px; margin: 8px 0; }
+.jf-support__markdown li { margin: 5px 0; list-style: inherit; }
+.jf-support__markdown h1, .jf-support__markdown h2, .jf-support__markdown h3 { font-size: 15px; line-height: 1.5; margin: 12px 0 6px; }
+.jf-support__markdown pre { overflow: auto; padding: 12px; background: #e8edf5; border-radius: 8px; white-space: pre; }
+.jf-support__markdown code { font-size: 12px; background: #e8edf5; border-radius: 3px; }
+.jf-support__markdown table { display: block; overflow-x: auto; border-collapse: collapse; }
+.jf-support__markdown th, .jf-support__markdown td { padding: 7px; border: 1px solid #d8e1ee; }
+.jf-support__markdown blockquote { padding-left: 10px; border-left: 3px solid #aac1e2; margin: 8px 0; }
+.jf-support__scroll { align-self: center; background: #edf3ff; color: #205fc0; border: 0; border-radius: 20px; padding: 5px 12px; font-size: 12px !important; }
+.jf-support__scroll:disabled { display: none; }
+.jf-support__edit { padding: 10px; margin-bottom: 8px; background: #edf3ff; border-radius: 10px; }
+.jf-support__edit label { display: block; font-size: 12px; }
+.jf-support__edit textarea { width: 100%; min-height: 65px; padding: 7px; border: 1px solid #aac1e2; border-radius: 7px; }
+.jf-support__edit button { padding: 5px 10px; margin: 5px 5px 0 0; border: 1px solid #aac1e2; border-radius: 6px; background: white; color: #183e73; }
+@media (max-width: 480px) { .jf-support--expanded .jf-support__panel { width: calc(100vw - 20px); height: calc(100dvh - 24px); } }
+@media (prefers-reduced-motion: reduce) { .jf-support *, .jf-support *::before { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

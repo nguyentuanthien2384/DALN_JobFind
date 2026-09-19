@@ -1,4 +1,3 @@
-const test = require('node:test');
 const assert = require('node:assert/strict');
 const { searchJobs, getJobDetails, executeSupportTool, positiveId } = require('../../src/services/supportJobTools');
 const Op = { gte: Symbol('gte'), like: Symbol('like') };
@@ -17,6 +16,7 @@ test('search returns bounded public, active, approved jobs and only whitelisted 
     assert.deepEqual(result.jobs.map((job) => job.id), [1, 3]);
     assert.equal(result.jobs[0].url, '/detail-job/1');
     assert.equal(result.jobs[0].description, undefined);
+    assert.equal(result.jobs[1].description, undefined);
     assert.equal(result.jobs[0].file, undefined);
     assert.equal(options.where.statusCode, 'PS1');
     assert.equal(options.where.timeEnd[Op.gte], '1700000000000');
@@ -31,6 +31,8 @@ test('detail is read-only, rejects invalid/nonpublic IDs and sanitizes descripti
     const database = { Post: { findOne: async (query) => { options = query; return row(9); } },
         DetailPost: {}, User: {}, Account: {}, Company: {}, Allcode: {} };
     assert.equal(positiveId('1; DROP TABLE Post'), null);
+    assert.equal(positiveId(true), null);
+    assert.equal(positiveId([9]), null);
     assert.deepEqual(await getJobDetails({ job_id: -7 }, { database, operators: Op }), { error: 'ID tin tuyển dụng không hợp lệ.' });
     assert.equal((await getJobDetails({ job_id: '9' }, { database, operators: Op, now: 1700000000000 })).job.description, ' mô tả ' .trim());
     assert.equal(options.where.id, 9);

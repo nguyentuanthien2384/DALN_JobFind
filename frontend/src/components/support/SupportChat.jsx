@@ -6,7 +6,16 @@ import {
     addSupportThread, deleteSupportThread, loadSupportStore,
     saveSupportStore, updateSupportMessages, normalizeSupportCards
 } from './supportChatStorage';
+import { AssistantRuntimeProvider, useExternalStoreRuntime, ThreadPrimitive, ComposerPrimitive, MessagePrimitive, ActionBarPrimitive } from '@assistant-ui/react';
+import SupportMarkdown from './SupportMarkdown';
 import './SupportChat.css';
+
+const convertMessage = (item) => ({
+    id: item.id, role: item.role, content: [{ type: 'text', text: item.text }],
+    ...(item.role === 'assistant' ? { status: item.status === 'pending' ? { type: 'running' }
+        : item.status === 'cancelled' ? { type: 'incomplete', reason: 'cancelled' } : { type: 'complete', reason: 'stop' } } : {}),
+    metadata: { custom: item }
+});
 
 const QUICK_QUESTIONS = [
     'Tìm việc React đang tuyển tại Hà Nội',
@@ -37,7 +46,8 @@ const SupportChat = () => {
     const [store, setStore] = useState(() => loadSupportStore(ownerKey));
     const [isOpen, setOpen] = useState(false);
     const [view, setView] = useState('chat');
-    const [draft, setDraft] = useState('');
+    const [editing, setEditing] = useState(null);
+    const [expanded, setExpanded] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [copiedId, setCopiedId] = useState(null);
@@ -46,7 +56,7 @@ const SupportChat = () => {
     const activeRequest = useRef(null);
     const generation = useRef(0);
     const inputRef = useRef(null);
-    const scrollRef = useRef(null);
+
     const thread = store.threads.find((item) => item.id === store.activeId) || store.threads[0];
     const messages = thread?.messages || [];
 
@@ -55,11 +65,6 @@ const SupportChat = () => {
         if (isOpen && view === 'chat') inputRef.current?.focus();
     }, [isOpen, view]);
     useEffect(() => {
-        if (isOpen && view === 'chat' && scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-    }, [isOpen, view, messages, busy]);
-    useEffect(() => {
         if (!isOpen) return undefined;
         const onKeyDown = (event) => {
             if (event.key === 'Escape') setOpen(false);
@@ -67,7 +72,8 @@ const SupportChat = () => {
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [isOpen]);
-    useEffect(() => () => { activeRequest.current?.abort(); speechRef.current?.abort(); }, []);
+    useEffect(() => () => { generation.current += 1; activeRequest.current?.abort(); speechRef.current?.abort(); }, []);
+    useEffect(() => { if (!isOpen) speechRef.current?.abort(); }, [isOpen]);
     useEffect(() => {
         generation.current += 1;
         activeRequest.current?.abort();
@@ -90,7 +96,7 @@ const SupportChat = () => {
         recognition.continuous = false;
         recognition.onresult = (event) => {
             const transcript = event.results?.[0]?.[0]?.transcript;
-            if (typeof transcript === 'string') setDraft((current) => `${current} ${transcript}`.trim().slice(0, 1400));
+            if (typeof transcript === 'string') runtime.thread.composer.setText(`${runtime.thread.composer.getState().text} ${transcript}`.trim().slice(0, 1400));
         };
         recognition.onerror = (event) => { if (event.error !== 'aborted') setError('Không nhận được giọng nói. Kiểm tra quyền micro hoặc nhập bằng bàn phím.'); };
         recognition.onend = () => { speechRef.current = null; setListening(false); };
@@ -98,6 +104,8 @@ const SupportChat = () => {
     };
 
     const cancelRequest = () => {
+        speechRef.current?.abort();
+        setEditing(null);
         generation.current += 1;
         activeRequest.current?.abort();
         activeRequest.current = null;
@@ -113,14 +121,15 @@ const SupportChat = () => {
         setStore((current) => addSupportThread(current));
         setView('chat');
         setError('');
-        setDraft('');
+        runtime.thread.composer.setText('');
+        setEditing(null);
     };
 
-    const sendMessage = async (raw, retry = false) => {
+    const sendMessage = async (raw, retry = false, history) => {
         if (activeRequest.current) return;
         const question = String(raw || '').trim();
         if (!retry && (!question || question.length > 1400)) return;
-        const base = retry ? messages : [...messages, { role: 'user', text: question, status: 'complete' }];
+        const base = retry ? (history || messages) : [...(history || messages), { role: 'user', text: question, status: 'complete' }];
         const threadId = thread.id;
         const replyId = `${Date.now()}-${Math.random()}`;
         const controller = new AbortController();
@@ -129,7 +138,8 @@ const SupportChat = () => {
         setBusy(true);
         setError('');
         setView('chat');
-        setDraft('');
+        runtime.thread.composer.setText('');
+        setEditing(null);
         setStore((current) => updateSupportMessages(current, threadId, () =>
             [...base, { id: replyId, role: 'assistant', text: '', cards: [], status: 'pending' }]));
         try {
@@ -141,7 +151,7 @@ const SupportChat = () => {
                     if (!cards.length) return;
                     setStore((current) => updateSupportMessages(current, threadId,
                         (items) => items.map((item) => item.id === replyId
-                            ? { ...item, cards: [...(item.cards || []), ...cards].slice(0, 10) } : item)));
+                            ? { ...item, cards: Array.from(new Map([...(item.cards || []), ...cards].map((job) => [job.id, job])).values()).slice(0, 5) } : item)));
                 },
                 onText: (text) => {
                     if (requestGeneration !== generation.current) return;
@@ -174,7 +184,7 @@ const SupportChat = () => {
 
     const retryLast = () => {
         const lastUser = [...messages].reverse().find((item) => item.role === 'user');
-        if (lastUser) sendMessage(lastUser.text, true);
+        if (lastUser) sendMessage(lastUser.text, true, messages.slice(0, messages.lastIndexOf(lastUser) + 1));
     };
 
     const copyAnswer = async (text, itemId) => {
@@ -184,16 +194,28 @@ const SupportChat = () => {
         } catch { setCopiedId(null); }
     };
 
+    const runtime = useExternalStoreRuntime({
+        isRunning: busy, messages, convertMessage,
+        onNew: (message) => sendMessage(message.content.filter((part) => part.type === 'text').map((part) => part.text).join('\n')),
+        onCancel: async () => cancelRequest(),
+        onReload: async (parentId) => {
+            const index = messages.findIndex((item) => item.id === parentId);
+            if (index >= 0) await sendMessage('', true, messages.slice(0, index + 1));
+        }
+    });
+
     return (
-        <div className="jf-support">
+        <AssistantRuntimeProvider runtime={runtime}>
+        <div className={`jf-support${expanded ? ' jf-support--expanded' : ''}`}>
             {isOpen ? (
-                <section className="jf-support__panel" role="dialog" aria-label="Trợ lý hỗ trợ JobFind" aria-modal="false">
+                <ThreadPrimitive.Root className="jf-support__panel" role="dialog" aria-label="Trợ lý hỗ trợ JobFind" aria-modal="false">
                     <div className="jf-support__topbar">
                         <div className="jf-support__brand">
                             <span className="jf-support__logo"><Icon name="sparkles" size={19}/></span>
                             <div><strong>Hỗ trợ JobFind</strong><small>Trợ lý AI · Trả lời tự động</small></div>
                         </div>
                         <div className="jf-support__tools">
+                            <button type="button" onClick={() => setExpanded(!expanded)} aria-label={expanded ? 'Thu nhỏ chatbot' : 'Mở rộng chatbot'} title={expanded ? 'Thu nhỏ' : 'Mở rộng'}>{expanded ? '↙' : '↗'}</button>
                             <button type="button" onClick={startNewChat} aria-label="Cuộc trò chuyện mới" title="Cuộc trò chuyện mới"><Icon name="plus"/></button>
                             <button type="button" onClick={() => { cancelRequest(); setView(view === 'history' ? 'chat' : 'history'); setError(''); }} aria-label="Lịch sử trò chuyện" title="Lịch sử"><Icon name="history"/></button>
                             <button type="button" onClick={() => setOpen(false)} aria-label="Đóng chatbot" title="Đóng"><Icon name="close"/></button>
@@ -208,7 +230,7 @@ const SupportChat = () => {
                             <p>Chỉ lưu trên trình duyệt của bạn trong phiên hiện tại.</p>
                             {store.threads.map((item) => (
                                 <div className="jf-support__thread" key={item.id}>
-                                    <button type="button" className="jf-support__thread-open" onClick={() => { setStore((current) => ({ ...current, activeId: item.id })); setView('chat'); setError(''); }}>
+                                    <button type="button" className="jf-support__thread-open" onClick={() => { runtime.thread.composer.setText(''); setEditing(null); setStore((current) => ({ ...current, activeId: item.id })); setView('chat'); setError(''); }}>
                                         <span>{item.title}</span>
                                         <small>{new Date(item.createdAt).toLocaleString('vi-VN')}</small>
                                     </button>
@@ -220,7 +242,7 @@ const SupportChat = () => {
                     ) : (
                         <>
                             {!user?.id && <div className="jf-support__login">Đăng nhập để sử dụng các chức năng cá nhân của JobFind. <Link to="/login" onClick={() => setOpen(false)}>Đăng nhập</Link></div>}
-                            <div className="jf-support__messages" ref={scrollRef} role="log" aria-live="polite" aria-label="Nội dung trò chuyện">
+                            <ThreadPrimitive.Viewport className="jf-support__messages" role="log" aria-live="polite" aria-label="Nội dung trò chuyện">
                                 {!messages.length ? (
                                     <div className="jf-support__welcome">
                                         <div className="jf-support__welcome-icon"><Icon name="sparkles" size={30}/></div>
@@ -230,11 +252,11 @@ const SupportChat = () => {
                                             {QUICK_QUESTIONS.map((question) => <button key={question} type="button" onClick={() => sendMessage(question)} disabled={busy}>{question}<span aria-hidden="true">↗</span></button>)}
                                         </div>
                                     </div>
-                                ) : messages.map((item, index) => (
-                                    <div className={`jf-support__message jf-support__message--${item.role}`} key={item.id || index}>
+                                ) : <ThreadPrimitive.Messages>{({ message }) => { const item = message.metadata.custom; const index = messages.findIndex((entry) => entry.id === message.id); return (
+                                    <MessagePrimitive.Root className={`jf-support__message jf-support__message--${item.role}`}>
                                         {item.role === 'assistant' && <span className="jf-support__avatar" aria-hidden="true"><Icon name="sparkles" size={15}/></span>}
                                         <div className="jf-support__message-body">
-                                            <div className="jf-support__bubble">{item.text || (item.cards?.length ? 'Đang tổng hợp kết quả...' : <span className="jf-support__dots" aria-label="Đang trả lời"><i/><i/><i/></span>)}</div>
+                                            <div className="jf-support__bubble">{item.text ? (item.role === 'assistant' ? <SupportMarkdown text={item.text}/> : item.text) : (item.cards?.length ? 'Đang tổng hợp kết quả...' : <span className="jf-support__dots" aria-label="Đang trả lời"><i/><i/><i/></span>)}</div>
                                             {item.role === 'assistant' && item.cards?.length > 0 && <div className="jf-support__results" aria-label="Tin tuyển dụng từ JobFind">
                                                 {item.cards.map((job) => <Link key={job.id} to={`/detail-job/${job.id}`} className="jf-support__result" onClick={() => setOpen(false)}>
                                                     <strong>{job.name}</strong><span>{job.company || 'Công ty tuyển dụng'}{job.location ? ` · ${job.location}` : ''}</span>
@@ -242,18 +264,29 @@ const SupportChat = () => {
                                                 </Link>)}
                                             </div>}
                                             {item.status === 'cancelled'  && <small className="jf-support__interrupted">Đã dừng · câu trả lời chưa hoàn chỉnh</small>}
+                                            {item.role === 'user' && !busy && <button className="jf-support__copy" type="button" onClick={() => setEditing({ id: item.id, text: item.text })}>Sửa câu hỏi</button>}
+                                            {item.role === 'assistant' && !busy && <ActionBarPrimitive.Reload className="jf-support__copy">Tạo lại</ActionBarPrimitive.Reload>}
                                             {item.role === 'assistant' && item.text && item.status === 'complete' && <button className="jf-support__copy" type="button" onClick={() => copyAnswer(item.text, `${thread.id}-${index}`)}>{copiedId === `${thread.id}-${index}` ? 'Đã sao chép' : 'Sao chép'}</button>}
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    </MessagePrimitive.Root>
+                                ); }}</ThreadPrimitive.Messages>}
+                            </ThreadPrimitive.Viewport>
+                            <ThreadPrimitive.ScrollToBottom className="jf-support__scroll" aria-label="Đến tin nhắn mới nhất">↓ Tin mới nhất</ThreadPrimitive.ScrollToBottom>
                             {error && <div className="jf-support__error" role="alert">{error}<button type="button" onClick={retryLast} disabled={busy}><Icon name="retry" size={15}/> Thử lại</button></div>}
                             <div className="jf-support__compose-area">
-                                <form className="jf-support__composer" onSubmit={(event) => { event.preventDefault(); sendMessage(draft); }}>
+                                {editing && <form className="jf-support__edit" onSubmit={(event) => {
+                                    event.preventDefault();
+                                    const index = messages.findIndex((item) => item.id === editing.id);
+                                    if (index >= 0) sendMessage(editing.text, false, messages.slice(0, index));
+                                }}>
+                                    <label htmlFor="jf-support-edit">Sửa câu hỏi và tạo câu trả lời mới</label>
+                                    <textarea id="jf-support-edit" value={editing.text} maxLength={1400} onChange={(event) => setEditing({ ...editing, text: event.target.value })}/>
+                                    <button type="submit" disabled={!editing.text.trim() || busy}>Gửi lại</button>
+                                    <button type="button" onClick={() => setEditing(null)}>Hủy</button>
+                                </form>}
+                                <ComposerPrimitive.Root className="jf-support__composer">
                                     <label htmlFor="jf-support-input" className="jf-support__sr-only">Nhập câu hỏi cho trợ lý</label>
-                                    <textarea id="jf-support-input" ref={inputRef} rows="1" maxLength="1400" value={draft}
-                                        onChange={(event) => setDraft(event.target.value)}
-                                        onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); sendMessage(draft); } }}
+                                    <ComposerPrimitive.Input id="jf-support-input" ref={inputRef} rows={1} maxLength={1400}
                                         placeholder="Đặt câu hỏi hỗ trợ..." aria-label="Đặt câu hỏi hỗ trợ"/>
                                     <button type="button" className={`jf-support__mic${listening ? ' jf-support__mic--active' : ''}`}
                                         onClick={startSpeech} disabled={busy || !(window.SpeechRecognition || window.webkitSpeechRecognition)}
@@ -261,20 +294,21 @@ const SupportChat = () => {
                                         title={(window.SpeechRecognition || window.webkitSpeechRecognition) ? 'Nhập giọng nói (trình duyệt có thể xử lý âm thanh)' : 'Trình duyệt chưa hỗ trợ nhập giọng nói'}>
                                         <Icon name="mic" size={17}/>
                                     </button>
-                                    {busy ? <button type="button" className="jf-support__send" onClick={cancelRequest} aria-label="Dừng trả lời" title="Dừng trả lời"><Icon name="stop" size={18}/></button>
-                                        : <button type="submit" className="jf-support__send" disabled={!draft.trim()} aria-label="Gửi tin nhắn" title="Gửi"><Icon name="send" size={18}/></button>}
-                                </form>
+                                    {busy ? <ComposerPrimitive.Cancel className="jf-support__send" aria-label="Dừng trả lời" title="Dừng trả lời"><Icon name="stop" size={18}/></ComposerPrimitive.Cancel>
+                                        : <ComposerPrimitive.Send className="jf-support__send" aria-label="Gửi tin nhắn" title="Gửi"><Icon name="send" size={18}/></ComposerPrimitive.Send>}
+                                </ComposerPrimitive.Root>
                                 <p>AI có thể mắc lỗi. Kết quả tuyển dụng đọc từ JobFind. Không nhập CV hoặc thông tin riêng tư. <Link to="/contact" onClick={() => setOpen(false)}>Liên hệ</Link></p>
                             </div>
                         </>
                     )}
-                </section>
+                </ThreadPrimitive.Root>
             ) : (
                 <button type="button" className="jf-support__launcher" aria-label="Mở chatbot hỗ trợ JobFind" onClick={() => setOpen(true)}>
                     <Icon name="chat" size={25}/><span>Hỗ trợ</span>
                 </button>
             )}
         </div>
+        </AssistantRuntimeProvider>
     );
 };
 

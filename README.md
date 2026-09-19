@@ -16,6 +16,7 @@ Nền tảng tuyển dụng kết nối **ứng viên**, **nhà tuyển dụng**
 - Xem trang chi tiết việc làm, thông tin công ty, lưu việc làm và theo dõi công ty quan tâm.
 - Tạo/cập nhật hồ sơ, quản lý CV, nộp CV và theo dõi lịch sử ứng tuyển.
 - Nhắn tin trực tiếp với nhà tuyển dụng; chuông thông báo cập nhật theo thời gian thực.
+- Trợ lý AI dùng assistant-ui: hỏi đáp, tìm tin tuyển dụng công khai, phản hồi trực tiếp, sửa câu hỏi và quản lý lịch sử trong phiên. Xem [cấu hình chatbot](CHATBOT_SETUP.md).
 - Nhận email kết quả trúng tuyển hoặc không trúng tuyển với bố cục thẻ hiện đại, tối ưu cho Gmail và thiết bị di động.
 
 ### Nhà tuyển dụng

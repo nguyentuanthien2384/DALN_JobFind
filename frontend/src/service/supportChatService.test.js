@@ -1,4 +1,6 @@
 import { prepareSupportHistory, streamSupportReply } from './supportChatService';
+import { TextDecoder } from 'util';
+global.TextDecoder = TextDecoder;
 
 describe('public assistant SSE adapter', () => {
     const previousFetch = global.fetch;
@@ -10,6 +12,30 @@ describe('public assistant SSE adapter', () => {
             { role: 'assistant', text: 'unfinished', status: 'cancelled' },
             { role: 'user', text: 'question', status: 'complete' }
         ])).toEqual([{ role: 'user', text: 'question' }]);
+    });
+
+    test('trims whole old turns to the server budget and retains job IDs for follow-up', () => {
+        const history = prepareSupportHistory([
+            { role: 'user', text: 'a'.repeat(1400) },
+            { role: 'assistant', text: 'b'.repeat(6000) },
+            { role: 'user', text: 'c'.repeat(1400) },
+            { role: 'assistant', text: 'd'.repeat(3000), cards: [{ id: 42 }] },
+            { role: 'user', text: 'Cho xem chi tiết tin đầu tiên' }
+        ]);
+        expect(history).toHaveLength(3);
+        expect(history[1].text).toContain('#42');
+        expect(history.reduce((size, item) => size + item.text.length, 0)).toBeLessThanOrEqual(8500);
+    });
+
+    test('rejects truncated streams and releases the reader', async () => {
+        const cancel = jest.fn(async () => {});
+        const chunks = [Buffer.from('event: token\ndata: {"text":"partial"}\n\n')];
+        global.fetch = jest.fn(async () => ({ ok: true, body: { getReader: () => ({
+            read: async () => chunks.length ? { value: chunks.shift(), done: false } : { done: true },
+            cancel, releaseLock: () => {}
+        }) } }));
+        await expect(streamSupportReply([{ role: 'user', text: 'hi' }], { onText: () => {} })).rejects.toThrow('Kết nối bị ngắt');
+        expect(cancel).toHaveBeenCalled();
     });
 
     test('forwards tool frames separately without treating them as model text', async () => {

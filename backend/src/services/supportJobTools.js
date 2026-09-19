@@ -77,9 +77,6 @@ async function searchJobs(args = {}, context = {}) {
     const now = context.now === undefined ? Date.now() : context.now;
     const query = cleanKeyword(args.query);
     const location = cleanKeyword(args.location);
-    if (!query && !location) {
-        // Empty search still bounded; no uncontrolled full-table scan/response.
-    }
     const rows = await database.Post.findAll({
         where: { statusCode: 'PS1', timeEnd: { [Op.gte]: String(now) } },
         attributes: ['id', 'timeEnd'], include: publicIncludes(query, location, database, Op),

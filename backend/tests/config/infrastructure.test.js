@@ -126,6 +126,8 @@ describe('legacy backend bootstrap', () => {
     await require('../../src/server').startup;
 
     expect(express).toHaveBeenCalledTimes(1);
+    expect(bodyParser.json).toHaveBeenCalledWith({ limit: '48kb' });
+    expect(app.use).toHaveBeenCalledWith('/api/support-chat', jsonMiddleware);
     expect(bodyParser.json).toHaveBeenCalledWith({ limit: '50mb' });
     expect(bodyParser.urlencoded).toHaveBeenCalledWith({ limit: '50mb', extended: true });
     expect(app.use).toHaveBeenCalledWith(jsonMiddleware);

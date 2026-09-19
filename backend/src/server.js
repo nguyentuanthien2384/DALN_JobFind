@@ -51,6 +51,12 @@ app.use(function (req, res, next) {
     next();
 });
 
+app.use('/api/support-chat', (req, res, next) => {
+    if (req.method === 'POST' && !req.is('application/json')) {
+        return res.status(415).json({ errCode: 415, errMessage: 'Chatbot chỉ nhận application/json.' });
+    }
+    return next();
+});
 app.use('/api/support-chat', bodyParser.json({ limit: '48kb' }))
 app.use(bodyParser.json({ limit: '50mb' }))
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }))

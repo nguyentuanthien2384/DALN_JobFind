@@ -14,6 +14,8 @@
     "seed:test-accounts": "node scripts/create-test-accounts.js",
     "seed:demo-data": "node scripts/setup-demo-data.js",
     "test:chat:infrastructure": "node scripts/test-chat-infrastructure.cjs",
+    "test:support-chat": "jest --runInBand --runTestsByPath tests/services/supportChatService.test.cjs tests/services/supportJobTools.test.cjs tests/services/supportToolCalling.test.cjs",
+    "test:support-chat:browser": "node scripts/test-support-chat-browser.cjs",
     "push:keys": "node scripts/generate-push-keys.cjs",
     "test:push:browser": "node scripts/realtime/push-browser.cjs"
   },

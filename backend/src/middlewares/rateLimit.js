@@ -14,9 +14,9 @@ const getClientKey = (req) => {
 // windowMs: khoang thoi gian tinh; max: so lan toi da trong khoang do.
 // countOnlyFailures: chi tinh cac lan that bai (dung cho dang nhap, de nhieu
 // nguoi dung chung mot dia chi IP van dang nhap binh thuong).
-const createRateLimiter = ({ windowMs, max, message, countOnlyFailures = false }) => {
+const createRateLimiter = ({ windowMs, max, message, countOnlyFailures = false, clientKey = getClientKey }) => {
     return (req, res, next) => {
-        const key = `${req.path}|${getClientKey(req)}`;
+        const key = `${req.path}|${clientKey(req)}`;
         const now = Date.now();
         const entry = buckets.get(key);
 
@@ -87,6 +87,7 @@ const registerLimiter = createRateLimiter({
 
 module.exports = {
     supportChatLimiter: createRateLimiter({ windowMs: 60 * 1000, max: 8,
+        clientKey: require('../utils/supportClientKey').supportClientKey,
         message: 'Bạn đã gửi quá nhiều câu hỏi. Vui lòng thử lại sau một phút.' }),
     createRateLimiter,
     loginLimiter,

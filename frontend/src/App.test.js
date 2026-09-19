@@ -2,6 +2,7 @@ import React from "react";
 import { act, render, screen } from "@testing-library/react";
 import { SESSION_ENDED_EVENT } from './auth/sessionExpiry';
 import App from "./App";
+jest.mock('./components/support/SupportChat', () => () => <div>support-assistant</div>);
 
 const mockGetCurrentAuthorizationService = jest.fn();
 jest.mock("./service/userService", () => ({

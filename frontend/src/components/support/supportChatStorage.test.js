@@ -14,7 +14,7 @@ describe('support chat per-tab history', () => {
         ]);
         saveSupportStore(updated);
         expect(loadSupportStore('guest-chat').threads[0].messages).toEqual([
-            { role: 'user', text: 'Tìm việc', status: 'complete', cards: [] }
+            { id: expect.any(String), role: 'user', text: 'Tìm việc', status: 'complete', cards: [] }
         ]);
         expect(loadSupportStore('user-22').threads[0].messages).toEqual([]);
         let many = guest;
@@ -43,5 +43,16 @@ describe('support chat per-tab history', () => {
         const deleted = deleteSupportThread(store, store.activeId);
         expect(deleted.threads).toHaveLength(1);
         expect(deleted.activeId).toBe(deleted.threads[0].id);
+    });
+
+    test('preserves long answers, stable IDs and cancelled status after reload', () => {
+        const store = createSupportStore('long-history');
+        const updated = updateSupportMessages(store, store.activeId, () => [
+            { role: 'user', text: 'question', status: 'complete' },
+            { role: 'assistant', text: 'answer'.repeat(1000), status: 'complete' },
+            { role: 'assistant', text: 'partial', status: 'cancelled' }
+        ]);
+        saveSupportStore(updated);
+        expect(loadSupportStore('long-history').threads[0].messages).toEqual(updated.threads[0].messages.map((item) => ({ ...item, cards: [] })));
     });
 });

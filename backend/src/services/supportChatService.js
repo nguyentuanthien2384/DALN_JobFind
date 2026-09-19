@@ -41,6 +41,21 @@ const providerError = (status) => {
     return Object.assign(new Error('Dịch vụ AI đang tạm gián đoạn. Vui lòng thử lại.'), { status: 502 });
 };
 
+// A slow DB lookup must not hold a streaming/concurrency slot after cancellation.
+const waitForTool = async (work, signal) => {
+    signal.throwIfAborted();
+    let onAbort;
+    try {
+        return await Promise.race([
+            Promise.resolve().then(work),
+            new Promise((_resolve, reject) => {
+                onAbort = () => reject(signal.reason);
+                signal.addEventListener('abort', onAbort, { once: true });
+            })
+        ]);
+    } finally { signal.removeEventListener('abort', onAbort); }
+};
+
 // SSE decoder tolerates TCP/UTF-8 chunk boundaries; never exposes raw provider errors.
 async function* parseGeminiSse(body, signal) {
     const reader = body.getReader();
@@ -116,6 +131,7 @@ const streamGemini = async ({ messages, signal, onText, onTool = async () => {},
                 // Preserve the model's original part and thought signature for the tool turn.
                 firstParts.push(part);
                 calls.push(part.functionCall);
+                if (calls.length > 2) throw Object.assign(new Error('AI yêu cầu quá nhiều công cụ. Vui lòng thử lại.'), { status: 502 });
             } else if (typeof part.text === 'string') {
                 if (calls.length) { buffered += part.text; if (buffered.length > MAX_OUTPUT_CHARS) throw providerError(502); }
                 else await emitText(part.text);
@@ -133,7 +149,7 @@ const streamGemini = async ({ messages, signal, onText, onTool = async () => {},
         for (const call of calls) {
             combined.throwIfAborted();
             let result;
-            try { result = await runTool(call.name, call.args || {}); }
+            try { result = await waitForTool(() => runTool(call.name, call.args || {}), combined); }
             catch { result = { error: 'Không truy vấn được dữ liệu tuyển dụng. Vui lòng thử lại sau.' }; }
             combined.throwIfAborted();
             await onTool({ name: call.name, ...result });

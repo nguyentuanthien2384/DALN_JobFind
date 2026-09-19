@@ -1,10 +1,9 @@
-const test = require('node:test');
 const assert = require('node:assert/strict');
 const { ReadableStream } = require('node:stream/web');
 const { streamGemini } = require('../../src/services/supportChatService');
 const oldKey = process.env.GEMINI_API_KEY;
 const oldFetch = global.fetch;
-test.after(() => {
+afterAll(() => {
     if (oldKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = oldKey;
     global.fetch = oldFetch;
@@ -51,4 +50,14 @@ test('blocks model from requesting an unapproved write tool', async () => {
     ] } }] }]);
     await assert.rejects(streamGemini({ messages: [{ role: 'user', text: 'Nộp đơn' }], onText: () => {},
         runTool: () => { throw Error('must not run'); } }), /không được hỗ trợ/);
+});
+
+test('cancels while a database tool is still pending', async () => {
+    process.env.GEMINI_API_KEY = 'mock-server-only-key';
+    global.fetch = async () => response([{ candidates: [{ content: { parts: [
+        { functionCall: { name: 'search_jobs', args: {} } }
+    ] } }] }]);
+    const controller = new AbortController();
+    await assert.rejects(streamGemini({ messages: [{ role: 'user', text: 'Tìm việc' }], signal: controller.signal,
+        onText: () => {}, runTool: () => { controller.abort(); return new Promise(() => {}); } }), { name: 'AbortError' });
 });
