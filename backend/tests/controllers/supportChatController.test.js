@@ -42,3 +42,18 @@ test('propagates browser disconnect to provider without sending completion', asy
     await handleSupportChat(req, res);
     expect(signal.aborted).toBe(true); expect(res.write).not.toHaveBeenCalled();
 });
+
+test('caps concurrent requests and releases all slots after failure', async () => {
+    const releases = [];
+    streamGemini.mockImplementation(() => new Promise((_resolve, reject) => releases.push(() => reject(new Error('temporary failure')))));
+    const running = Array.from({ length: 8 }, () => handleSupportChat(req, response()));
+    const overflow = response();
+    await handleSupportChat(req, overflow);
+    expect(overflow.status).toHaveBeenCalledWith(429);
+    expect(streamGemini).toHaveBeenCalledTimes(8);
+    for (const release of releases) release();
+    await Promise.all(running);
+    streamGemini.mockImplementation(async ({ onText }) => onText('Recovered'));
+    const recovered = response(); await handleSupportChat(req, recovered);
+    expect(recovered.write).toHaveBeenCalledWith('event: done\ndata: {}\n\n');
+});

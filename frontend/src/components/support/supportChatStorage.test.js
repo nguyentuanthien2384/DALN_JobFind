@@ -50,7 +50,8 @@ describe('support chat per-tab history', () => {
         const updated = updateSupportMessages(store, store.activeId, () => [
             { role: 'user', text: 'question', status: 'complete' },
             { role: 'assistant', text: 'answer'.repeat(1000), status: 'complete' },
-            { role: 'assistant', text: 'partial', status: 'cancelled' }
+            { role: 'assistant', text: 'partial', status: 'cancelled' },
+            { role: 'assistant', text: 'network interrupted', status: 'failed' }
         ]);
         saveSupportStore(updated);
         expect(loadSupportStore('long-history').threads[0].messages).toEqual(updated.threads[0].messages.map((item) => ({ ...item, cards: [] })));

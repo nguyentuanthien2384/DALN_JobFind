@@ -56,10 +56,15 @@ npm --prefix backend test -- --runTestsByPath tests/controllers/supportChatContr
 npm --prefix frontend run test:unit -- --testPathPattern="supportChat|SupportMarkdown|App.test" --silent
 npm --prefix microservices test -- tests/support-chat-proxy.test.js tests/gateway.test.js tests/http-contracts.test.js
 npm --prefix backend run test:support-chat:browser
+npm --prefix backend run test:support-chat:live
 npm --prefix frontend run build
 ```
 
 Browser test dùng Chromium của Playwright và SSE giả lập cục bộ, không gọi Gemini. Nếu máy khác thiếu Chromium, chạy `npx playwright install chromium` trong thư mục backend. Kiểm tra gửi, streaming, Markdown, thẻ tin, tạo lại, sửa, dừng, thử lại, lịch sử, tải lại và mobile; ảnh nằm ở `.local/support-chat-browser/`.
+
+`test:support-chat:live` dùng Gemini thật và dữ liệu công khai thật, cần API key/quota. Thiếu key thì thoát mã 2 và ghi trạng thái BLOCKED; tuyệt đối không thay bằng câu trả lời giả. Bộ 9 tình huống kiểm tra chào hỏi, hướng dẫn ứng tuyển, tìm việc, hỏi tiếp theo ID, không có kết quả, làm rõ nhu cầu, bộ lọc chưa hỗ trợ và yêu cầu dữ liệu riêng tư/chỉ dẫn sai. Câu hỏi tiếp chỉ chạy khi lượt tìm việc có tin hợp lệ. Kết quả, câu trả lời, công cụ và thời gian được lưu ở `.local/support-chat-evaluation.json`. Các kiểm tra tự động chỉ xác nhận cấu trúc; chất lượng câu trả lời vẫn cần người đọc chấm theo tiêu chí ghi trong mỗi ca. Công cụ này gọi trực tiếp service, không thay thế kiểm thử triển khai qua Gateway.
+
+Kiểm thử mở rộng đã sửa việc đánh dấu nhầm hoàn tất khi Gemini ngắt luồng/hết token/chặn nội dung. Chỉ `finishReason=STOP` được coi là hoàn tất. Câu trả lời bị lỗi giữ trạng thái chưa hoàn chỉnh và không đi vào ngữ cảnh tiếp theo. Công cụ chi tiết lấy tối đa 6.000 ký tự mô tả, có `descriptionTruncated` để AI biết dữ liệu chưa đầy đủ.
 
 ## Phạm vi hiện tại
 

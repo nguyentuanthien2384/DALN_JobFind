@@ -9,7 +9,7 @@ afterAll(() => {
     global.fetch = oldFetch;
 });
 const response = (packets) => ({ ok: true, status: 200, body: new ReadableStream({
-    start(controller) { for (const packet of packets) controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(packet)}\n\n`)); controller.close(); }
+    start(controller) { for (const packet of [...packets, { candidates: [{ finishReason: 'STOP' }] }]) controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(packet)}\n\n`)); controller.close(); }
 }) });
 test('Gemini invokes bounded public tool, returns verified cards and streams final answer', async () => {
     process.env.GEMINI_API_KEY = 'mock-server-only-key';

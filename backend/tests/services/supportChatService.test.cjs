@@ -36,7 +36,7 @@ test('streams UTF-8 SSE chunks and sends key only in a header', async () => {
     let observed;
     const payload = [
         'data: {"candidates":[{"content":{"parts":[{"text":"Xin "}]}}]}\n\n',
-        'data: {"candidates":[{"content":{"parts":[{"text":"chào 🌿"}]}}]}\n\n'
+        'data: {"candidates":[{"content":{"parts":[{"text":"chào 🌿"}]},"finishReason":"STOP"}]}\n\n'
     ].join('');
     const bytes = new TextEncoder().encode(payload);
     global.fetch = async (url, options) => {
@@ -76,7 +76,7 @@ test('accepts long previous answers within the total context budget', () => {
 
 test('never displays reasoning text and rejects cancellation instead of reporting success', async () => {
     process.env.GEMINI_API_KEY = 'local-test-secret';
-    const payload = { candidates: [{ content: { parts: [{ text: 'private reasoning', thought: true }, { text: 'public answer' }] } }] };
+    const payload = { candidates: [{ content: { parts: [{ text: 'private reasoning', thought: true }, { text: 'public answer' }] }, finishReason: 'STOP' }] };
     global.fetch = async () => ({ ok: true, body: new ReadableStream({ start(controller) {
         controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(payload)}\n\n`)); controller.close();
     } }) });

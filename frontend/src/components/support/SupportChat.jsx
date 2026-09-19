@@ -13,7 +13,8 @@ import './SupportChat.css';
 const convertMessage = (item) => ({
     id: item.id, role: item.role, content: [{ type: 'text', text: item.text }],
     ...(item.role === 'assistant' ? { status: item.status === 'pending' ? { type: 'running' }
-        : item.status === 'cancelled' ? { type: 'incomplete', reason: 'cancelled' } : { type: 'complete', reason: 'stop' } } : {}),
+        : item.status === 'cancelled' ? { type: 'incomplete', reason: 'cancelled' }
+        : item.status === 'failed' ? { type: 'incomplete', reason: 'error' } : { type: 'complete', reason: 'stop' } } : {}),
     metadata: { custom: item }
 });
 
@@ -171,7 +172,8 @@ const SupportChat = () => {
                         .map((item) => item.id === replyId ? { ...item, status: 'cancelled' } : item)));
             } else {
                 setStore((current) => updateSupportMessages(current, threadId,
-                    (items) => items.filter((item) => item.id !== replyId)));
+                    (items) => items.filter((item) => item.id !== replyId || item.text || item.cards?.length)
+                        .map((item) => item.id === replyId ? { ...item, status: 'failed' } : item)));
                 setError(cause.message || 'Không thể kết nối chatbot. Vui lòng thử lại.');
             }
         } finally {
@@ -264,6 +266,7 @@ const SupportChat = () => {
                                                 </Link>)}
                                             </div>}
                                             {item.status === 'cancelled'  && <small className="jf-support__interrupted">Đã dừng · câu trả lời chưa hoàn chỉnh</small>}
+                                            {item.status === 'failed' && <small className="jf-support__interrupted">Phản hồi bị gián đoạn · cần thử lại</small>}
                                             {item.role === 'user' && !busy && <button className="jf-support__copy" type="button" onClick={() => setEditing({ id: item.id, text: item.text })}>Sửa câu hỏi</button>}
                                             {item.role === 'assistant' && !busy && <ActionBarPrimitive.Reload className="jf-support__copy">Tạo lại</ActionBarPrimitive.Reload>}
                                             {item.role === 'assistant' && item.text && item.status === 'complete' && <button className="jf-support__copy" type="button" onClick={() => copyAnswer(item.text, `${thread.id}-${index}`)}>{copiedId === `${thread.id}-${index}` ? 'Đã sao chép' : 'Sao chép'}</button>}

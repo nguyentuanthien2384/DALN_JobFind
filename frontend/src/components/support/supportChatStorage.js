@@ -47,7 +47,7 @@ export const loadSupportStore = (ownerKey) => {
                 id: typeof message.id === 'string' ? message.id.slice(0, 100) : supportMessageId(),
                 role: message.role, text: message.text.slice(0, messageLimit(message.role)),
                 cards: message.role === 'assistant' ? normalizeSupportCards({ jobs: message.cards }) : [],
-                status: message.status === 'cancelled' ? 'cancelled' : 'complete'
+                status: ['cancelled', 'failed'].includes(message.status) ? message.status : 'complete'
             }))
         }));
         if (!threads.length) return createSupportStore(ownerKey);

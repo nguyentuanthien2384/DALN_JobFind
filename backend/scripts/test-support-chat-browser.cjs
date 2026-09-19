@@ -26,6 +26,10 @@ const { chromium } = require('@playwright/test');
                 req.socket.once('close', () => { aborted = true; });
                 return;
             }
+            if (question === 'partial-error') {
+                res.end('event: token\ndata: {"text":"Nội dung chưa hoàn chỉnh"}\n\nevent: error\ndata: {"message":"AI bị ngắt kết nối"}\n\n');
+                return;
+            }
             res.write('event: tool\ndata: {"name":"search_jobs","jobs":[{"id":42,"name":"Frontend React","company":"JobFind Demo","location":"Hà Nội","salary":"Thỏa thuận"}]}\n\n');
             res.write('event: token\ndata: {"text":"**Kết quả** cho "}\n\n');
             setTimeout(() => { if (!res.destroyed) res.end(`event: token\ndata: ${JSON.stringify({ text: question + '\n\n[Xem tin](/detail-job/42)' })}\n\nevent: done\ndata: {}\n\n`); }, 100);
@@ -66,6 +70,9 @@ const { chromium } = require('@playwright/test');
         assert.equal(requests.at(-1).messages.length, 1);
         await button('Mở rộng chatbot').click();
         await page.screenshot({ path: path.join(output, 'conversation.png') });
+        await send('partial-error');
+        await page.getByText('Phản hồi bị gián đoạn · cần thử lại').waitFor();
+        await page.getByText('Nội dung chưa hoàn chỉnh', { exact: true }).waitFor();
         await send('slow');
         await page.getByText('Đang trả lời', { exact: true }).waitFor();
         await button('Dừng trả lời').click();
@@ -76,11 +83,13 @@ const { chromium } = require('@playwright/test');
         await button('Gửi tin nhắn').waitFor();
         assert.equal(requests.at(-1).messages.at(-1).text, 'error');
         assert.ok(!requests.at(-1).messages.some((message) => message.text === 'Đang trả lời'));
+        assert.ok(!requests.at(-1).messages.some((message) => message.text === 'Nội dung chưa hoàn chỉnh'));
         await button('Cuộc trò chuyện mới').click();
         await page.getByText('Bạn cần hỗ trợ gì?').waitFor();
         await button('Lịch sử trò chuyện').click();
         await page.getByRole('button', { name: /Tìm việc Java/ }).first().click();
         await page.locator('.jf-support__markdown').filter({ hasText: 'Tìm việc Java' }).waitFor();
+        await page.getByText('Phản hồi bị gián đoạn · cần thử lại').waitFor();
         await page.reload();
         await button('Mở chatbot hỗ trợ JobFind').click();
         await page.locator('.jf-support__markdown').filter({ hasText: 'Tìm việc Java' }).waitFor();

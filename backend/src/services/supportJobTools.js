@@ -65,8 +65,12 @@ const safeJob = (row, details = false) => {
         workType: String(data.workTypePostData?.value || '').slice(0, 80),
         url: `/detail-job/${row.id}`
     };
-    if (details) result.description = String(data.descriptionMarkdown || '')
-        .replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
+    if (details) {
+        const description = String(data.descriptionMarkdown || '')
+            .replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        result.description = description.slice(0, 6000);
+        result.descriptionTruncated = description.length > 6000;
+    }
     return result;
 };
 const isOpen = (row, now) => Number.isFinite(Number(row.timeEnd)) && Number(row.timeEnd) >= now;

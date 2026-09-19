@@ -27,6 +27,14 @@ describe('public assistant SSE adapter', () => {
         expect(history.reduce((size, item) => size + item.text.length, 0)).toBeLessThanOrEqual(8500);
     });
 
+    test('never reuses failed answers in future model context', () => {
+        expect(prepareSupportHistory([
+            { role: 'user', text: 'Câu hỏi trước' },
+            { role: 'assistant', text: 'Câu trả lời chưa hoàn tất', status: 'failed' },
+            { role: 'user', text: 'Câu hỏi mới' }
+        ])).toEqual([{ role: 'user', text: 'Câu hỏi mới' }]);
+    });
+
     test('rejects truncated streams and releases the reader', async () => {
         const cancel = jest.fn(async () => {});
         const chunks = [Buffer.from('event: token\ndata: {"text":"partial"}\n\n')];
