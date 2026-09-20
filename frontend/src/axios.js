@@ -1,39 +1,49 @@
 import axios from 'axios';
 import { expireSession } from './auth/sessionExpiry';
 import { isLoginRequest, normalizeApiError, sentSessionToken } from './service/apiError';
-const url = process.env.REACT_APP_BACKEND_URL || "http://localhost:4000"
-
-
-const instance = axios.create({
-    baseURL: url,
-    //  withCredentials: true
-});
-instance.interceptors.request.use(
-    config =>{
-        const token = localStorage.getItem("token_user")
-        if(token){
+import { getAccessToken, isManagedSession, refreshSession } from './auth/authClient';
+const url = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000';
+const instance = axios.create({ baseURL: url, withCredentials: true });
+instance.interceptors.request.use(async config => {
+    const marker = localStorage.getItem('token_user');
+    config._sessionMarker = marker;
+    if (marker && !isLoginRequest(config)) {
+        const token = await getAccessToken();
+        if (token) {
             config.headers = config.headers || {};
-            config.headers.authorization = "Bearer " + token
+            config.headers.authorization = `Bearer ${token}`;
         }
-        return config
-    },
-    error =>{
-        return Promise.reject(error)
     }
-);
+    return config;
+}, error => Promise.reject(error));
 instance.interceptors.response.use(
-    (response) => {
-        // Thrown error for request with OK status code
-        return response.data
-    },
-    (error) => {
-        const result = normalizeApiError(error);
-        if (result.errorType === 'authentication' && !isLoginRequest(error.config)) {
-            expireSession(sentSessionToken(error.config), error.response?.data?.authReason === 'inactive' ? 'inactive' : 'expired');
+    response => response.data,
+    async error => {
+        const config = error.config || {};
+        const status = error.response?.status;
+        const isAuthFailure = status === 401 || (status === 403 && error.response?.data?.refresh === true);
+        if (config._sessionMarker && localStorage.getItem('token_user') !== config._sessionMarker) return normalizeApiError(error);
+        // Refresh even before reporting an expired write, but NEVER replay writes.
+        if (isAuthFailure && isManagedSession(config._sessionMarker) && !config._authRetried
+            && !isLoginRequest(config)) {
+            try {
+                await refreshSession();
+                if ((config.method || 'get').toLowerCase() === 'get')
+                    return instance({ ...config, _authRetried: true });
+                return { errCode: 401, errorType: 'authentication', httpStatus: 401,
+                    errMessage: 'Phiên đã được gia hạn. Vui lòng thực hiện lại thao tác.' };
+            } catch (refreshError) {
+                // A temporary network/IdP failure is not evidence of logout.
+                if (![401, 403].includes(refreshError?.response?.status))
+                    return normalizeApiError(refreshError);
+            }
         }
-        // Keep errors as data for old screens. Never automatically retry writes.
+        const result = normalizeApiError(error);
+        if (result.errorType === 'authentication' && !isLoginRequest(config)) {
+            expireSession(config._sessionMarker || sentSessionToken(config),
+                error.response?.data?.authReason === 'inactive' ? 'inactive' : 'expired');
+        }
         return result;
     }
 );
-
 export default instance;

@@ -1,5 +1,5 @@
 import React from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { SESSION_ENDED_EVENT } from './auth/sessionExpiry';
 import App from "./App";
 jest.mock('./components/support/SupportChat', () => () => <div>support-assistant</div>);
@@ -58,6 +58,10 @@ const renderAt = (path, user) => {
         localStorage.setItem("token_user", "valid-token");
     }
     window.history.replaceState({}, "", path);
+    if (!mockGetCurrentAuthorizationService.getMockImplementation()) mockGetCurrentAuthorizationService.mockImplementation(async () => {
+        const stored = JSON.parse(localStorage.getItem('userData') || 'null');
+        return { errCode: 0, data: { ...stored, userId: stored?.id } };
+    });
     return render(<App />);
 };
 
@@ -66,7 +70,8 @@ describe("application routes", () => {
         let resolve;
         mockGetCurrentAuthorizationService.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
         renderAt('/chat', { id: 1, roleCode: 'CANDIDATE' });
-        expect(screen.getByText('chat-page')).toBeInTheDocument();
+        expect(screen.getByRole('status')).toHaveTextContent('Đang xác minh');
+        await waitFor(() => expect(mockGetCurrentAuthorizationService).toHaveBeenCalled());
         act(() => {
             localStorage.removeItem('token_user');
             localStorage.removeItem('userData');
@@ -79,7 +84,8 @@ describe("application routes", () => {
     });
     beforeEach(() => {
         jest.clearAllMocks();
-        mockGetCurrentAuthorizationService.mockResolvedValue({ errCode: -1 });
+        mockGetCurrentAuthorizationService.mockReset();
+        mockGetCurrentAuthorizationService.mockImplementation(async () => { const stored = JSON.parse(localStorage.getItem('userData') || 'null'); return { errCode: 0, data: { ...stored, userId: stored?.id } }; });
     });
     afterEach(() => localStorage.clear());
 
@@ -121,9 +127,9 @@ describe("application routes", () => {
         ["EMPLOYER", 3],
     ])(
         "allows an authenticated %s with the required company context to use chat",
-        (roleCode, companyId) => {
+        async (roleCode, companyId) => {
             renderAt("/chat/9", { id: 1, roleCode, companyId });
-            expect(screen.getByText("chat-page")).toBeInTheDocument();
+            expect(await screen.findByText("chat-page")).toBeInTheDocument();
         }
     );
 
@@ -132,9 +138,9 @@ describe("application routes", () => {
         ["EMPLOYER", undefined],
     ])(
         "returns 403 for chat when %s lacks backend chat permission",
-        (roleCode, companyId) => {
+        async (roleCode, companyId) => {
             renderAt("/chat/9", { id: 1, roleCode, companyId });
-            expect(screen.getByText("navigate-/forbidden")).toBeInTheDocument();
+            expect(await screen.findByText("navigate-/forbidden")).toBeInTheDocument();
             expect(screen.queryByText("chat-page")).not.toBeInTheDocument();
         }
     );
@@ -143,16 +149,16 @@ describe("application routes", () => {
         renderAt("/chat");
         expect(screen.getByText("navigate-/login")).toBeInTheDocument();
     });
-    it('allows an unapproved recruiter to enter the dedicated support chat, with recipients authorized by the server', () => {
+    it('allows an unapproved recruiter to enter the dedicated support chat, with recipients authorized by the server', async () => {
         renderAt('/support/chat/9', { id: 1, roleCode: 'EMPLOYER' });
-        expect(screen.getByText('chat-page')).toBeInTheDocument();
+        expect(await screen.findByText('chat-page')).toBeInTheDocument();
     });
     it('requires authentication for the dedicated support chat', () => {
         renderAt('/support/chat/9');
         expect(screen.getByText('navigate-/login')).toBeInTheDocument();
     });
 
-    it("returns 403 for recruiter chat while the company is pending approval", () => {
+    it("returns 403 for recruiter chat while the company is pending approval", async () => {
         renderAt("/chat", {
             id: 1,
             roleCode: "COMPANY",
@@ -160,7 +166,7 @@ describe("application routes", () => {
             companyStatusCode: "S1",
             companyCensorCode: "CS3",
         });
-        expect(screen.getByText("navigate-/forbidden")).toBeInTheDocument();
+        expect(await screen.findByText("navigate-/forbidden")).toBeInTheDocument();
     });
 
     it("redirects a guest away from the admin area", () => {
@@ -168,9 +174,9 @@ describe("application routes", () => {
         expect(screen.getByText("navigate-/login")).toBeInTheDocument();
     });
 
-    it("sends an authenticated candidate to the forbidden page instead of login", () => {
+    it("sends an authenticated candidate to the forbidden page instead of login", async () => {
         renderAt("/admin/users", { id: 1, roleCode: "CANDIDATE" });
-        expect(screen.getByText("navigate-/forbidden")).toBeInTheDocument();
+        expect(await screen.findByText("navigate-/forbidden")).toBeInTheDocument();
         expect(screen.queryByText("admin-page")).not.toBeInTheDocument();
     });
 
@@ -247,16 +253,16 @@ describe("application routes", () => {
 
     it.each(["EMPLOYER", "COMPANY"])(
         "sends an authenticated recruiter role %s away from the candidate area",
-        (roleCode) => {
+        async (roleCode) => {
             renderAt("/candidate/info", { id: 1, roleCode, companyId: 4 });
-            expect(screen.getByText("navigate-/forbidden")).toBeInTheDocument();
+            expect(await screen.findByText("navigate-/forbidden")).toBeInTheDocument();
             expect(screen.queryByText("candidate-page")).not.toBeInTheDocument();
         }
     );
 
-    it("renders a dedicated forbidden route with the shared public layout", () => {
+    it("renders a dedicated forbidden route with the shared public layout", async () => {
         renderAt("/forbidden", { id: 1, roleCode: "CANDIDATE" });
-        expect(screen.getByText("forbidden-page")).toBeInTheDocument();
+        expect(await screen.findByText("forbidden-page")).toBeInTheDocument();
         expect(screen.getByText("site-header")).toBeInTheDocument();
         expect(screen.getByText("site-footer")).toBeInTheDocument();
     });

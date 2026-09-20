@@ -53,6 +53,6 @@ export const sentSessionToken = (config) => {
 };
 
 export const isLoginRequest = (config) => {
-    try { return /^\/api\/login\/?$/i.test(new URL(config?.url || '', config?.baseURL || 'http://localhost').pathname); }
+    try { return /^\/api\/(auth\/)?login\/?$/i.test(new URL(config?.url || '', config?.baseURL || 'http://localhost').pathname); }
     catch { return false; }
 };

@@ -1,3 +1,4 @@
+jest.mock('../../auth/authClient', () => ({ logoutServer: jest.fn().mockResolvedValue(undefined) }));
 import React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { disconnectSocket, getSocket } from "../../socket";
@@ -258,7 +259,7 @@ describe("system Header", () => {
         await screen.findByAltText("profile");
         fireEvent.click(screen.getByRole("button", { name: "Tài khoản" }));
         fireEvent.click(screen.getByText("Đăng xuất"));
-        expect(disconnectSocket).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(disconnectSocket).toHaveBeenCalledTimes(1));
         expect(localStorage.getItem("userData")).toBeNull();
         expect(localStorage.getItem("token_user")).toBeNull();
         consoleError.mockRestore();

@@ -4,12 +4,16 @@ import { Link } from "react-router-dom";
 import { handleLoginService } from "../../service/userService";
 import { toast } from "react-toastify";
 import { safeReturnPath } from '../../auth/sessionExpiry';
+import { establishSession, refreshSession, startGoogleLogin, getProviders } from '../../auth/authClient';
+import { useEffect } from 'react';
 const Login = () => {
     const [inputValues, setInputValues] = useState({
         password: "",
         phonenumber: "",
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [googleEnabled, setGoogleEnabled] = useState(false);
+    useEffect(() => { let active = true; getProviders().then(result => { if (active) setGoogleEnabled(result.google === true); }).catch(() => {}); return () => { active = false; }; }, []);
     const handleOnChange = (event) => {
         const { name, value } = event.target;
         setInputValues({ ...inputValues, [name]: value });
@@ -24,8 +28,7 @@ const Login = () => {
             });
 
             if (res && res.errCode === 0) {
-                localStorage.setItem("userData", JSON.stringify(res.user));
-                localStorage.setItem("token_user", res.token);
+                establishSession(res);
                 const lastUrl = safeReturnPath(localStorage.getItem("lastUrl"), window.location.origin);
                 localStorage.removeItem("lastUrl");
                 if (
@@ -50,6 +53,18 @@ const Login = () => {
             setIsSubmitting(false);
         }
     };
+    useEffect(() => {
+        if (new URLSearchParams(window.location.search).get('sso') !== 'success') return;
+        let active = true;
+        refreshSession().then((result) => {
+            if (!active) return;
+            establishSession(result);
+            const returnPath = safeReturnPath(localStorage.getItem('lastUrl'), window.location.origin);
+            localStorage.removeItem('lastUrl');
+            window.location.replace(returnPath || (['ADMIN', 'COMPANY', 'EMPLOYER'].includes(result.user.roleCode) ? '/admin/' : '/'));
+        }).catch(() => { if (active) toast.error('Không thể hoàn tất đăng nhập SSO.'); });
+        return () => { active = false; };
+    }, []);
     const handleSubmit = (event) => {
         event.preventDefault();
         handleLogin();
@@ -79,6 +94,9 @@ const Login = () => {
                                                 : 'Phiên đăng nhập đã hết hạn hoặc không còn hợp lệ. Vui lòng đăng nhập lại.'}
                                         </p>
                                     )}
+                                    {new URLSearchParams(window.location.search).get('sso') === 'not-linked' &&
+                                        <p role="alert">Tài khoản Google này chưa liên kết với JobFind. Hãy đăng nhập bằng số điện thoại trước và liên kết tài khoản trong phần cài đặt.</p>}
+                                    {new URLSearchParams(window.location.search).get('sso') === 'failed' && <p role="alert">Không thể xác thực Google. Yêu cầu có thể đã hết hạn hoặc bị hủy. Vui lòng thử lại.</p>}
                                     <form className="pt-3" onSubmit={handleSubmit}>
                                         <div className="form-group">
                                             <input
@@ -115,6 +133,10 @@ const Login = () => {
                                                 Đăng nhập
                                             </button>
                                         </div>
+                                        {googleEnabled &&
+                                            <button type="button" className="btn btn-outline-primary w-100 mt-3" onClick={startGoogleLogin}>
+                                                Đăng nhập bằng Google
+                                            </button>}
                                         <div className="my-2 d-flex justify-content-between align-items-center">
                                             {/* <a href="#" className="auth-link text-black">Forgot password?</a> */}
                                             <Link

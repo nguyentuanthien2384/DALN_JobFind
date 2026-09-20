@@ -109,6 +109,8 @@ describe('web routes', () => {
 
   test('every private legacy API visibly pairs authentication with a named permission', () => {
     const exceptions = new Set([
+      'post:/api/auth/login', 'post:/api/auth/refresh', 'post:/api/auth/logout',
+      'get:/api/auth/providers', 'get:/api/auth/sso/:provider/start', 'get:/api/auth/sso/:provider/callback',
       'post:/api/create-new-user', 'post:/api/login',
       'get:/api/check-phonenumber-user', 'post:/api/request-reset-password-otp',
       'post:/api/changepasswordbyPhone', 'get:/api/get-all-code',
@@ -124,8 +126,9 @@ describe('web routes', () => {
     for (const route of mockRoutes) latestRoutes.set(`${route.method}:${route.path}`, route);
     for (const [key, route] of latestRoutes) {
       if (!route.path.startsWith('/api/') || exceptions.has(key)) continue;
-      expect(route.handlers[0]).toBe(mockVerifyUser);
-      expect(route.handlers[1]?.permission).toEqual(expect.any(String));
+      const authIndex = route.handlers.indexOf(mockVerifyUser);
+      expect(authIndex).toBeGreaterThanOrEqual(0);
+      expect(route.handlers[authIndex + 1]?.permission).toEqual(expect.any(String));
     }
   });
 

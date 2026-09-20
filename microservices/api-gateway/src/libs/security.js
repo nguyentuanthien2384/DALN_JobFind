@@ -166,6 +166,8 @@ export const createSocketUpgradeHandler = ({ allowedOrigins, upgrade, logger }) 
     };
 };
 
-export const mountLoginRateLimit = (app, limiter) => {
+export const mountLoginRateLimit = (app, limiter, refreshLimiter = limiter) => {
     app.post('/api/login', limiter);
+    app.post('/api/auth/login', limiter);
+    app.post('/api/auth/refresh', refreshLimiter);
 };

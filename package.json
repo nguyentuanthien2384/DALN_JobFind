@@ -27,6 +27,8 @@
     "test:coverage": "npm run coverage:backend && npm run coverage:frontend && npm run coverage:microservices",
     "coverage:backend": "npm --prefix backend run test:coverage",
     "coverage:frontend": "npm --prefix frontend run test:coverage",
-    "coverage:microservices": "npm --prefix microservices run test:coverage"
+    "coverage:microservices": "npm --prefix microservices run test:coverage",
+    "auth:migrate": "node scripts/migrate-auth.mjs",
+    "test:auth:integration": "node backend/scripts/test-auth-integration.cjs"
   }
 }

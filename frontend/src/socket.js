@@ -1,5 +1,6 @@
 import { io } from "socket.io-client";
 import { expireSession } from "./auth/sessionExpiry";
+import { getAccessTokenSync, isManagedSession, refreshSession } from "./auth/authClient";
 
 /**
  * Ket noi Socket.IO dung chung cho ca ung dung.
@@ -16,7 +17,8 @@ let socket = null;
 let reconnectTimer;
 
 export const getSocket = () => {
-    const token = localStorage.getItem("token_user");
+    const owner = localStorage.getItem("token_user");
+    const token = getAccessTokenSync();
     if (!token) { disconnectSocket(); return null; }
 
     if (socket && socket.auth && socket.auth.token === token) {
@@ -39,23 +41,36 @@ export const getSocket = () => {
         autoConnect: true,
     });
     const current = socket;
+    let renewing = null;
+    const recoverAuthentication = code => {
+        if (code !== 'AUTH_EXPIRED' || !isManagedSession(owner)) return expireSession(owner, code === 'AUTH_INACTIVE' ? 'inactive' : 'expired');
+        if (renewing) return renewing;
+        renewing = refreshSession().then(() => {
+            if (socket === current && localStorage.getItem('token_user') === owner) {
+                current.auth.token = getAccessTokenSync();
+                current.connect();
+            }
+        }).catch(() => { /* refresh handles definitive expiry; transient failures retain the session */ })
+          .finally(() => { renewing = null; });
+        return renewing;
+    };
     socket.on('disconnect', (reason) => {
         if (reason !== 'io server disconnect') return;
         clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(() => {
-            if (socket === current && localStorage.getItem('token_user') === token && !current.connected) current.connect();
+            if (socket === current && localStorage.getItem('token_user') === owner && !current.connected) current.connect();
         }, 3000 + Math.random() * 2000);
     });
 
     socket.on('auth:expired', ({ code } = {}) => {
-        if (['AUTH_INVALID', 'AUTH_EXPIRED', 'AUTH_INACTIVE'].includes(code)) expireSession(token, code === 'AUTH_INACTIVE' ? 'inactive' : 'expired');
+        if (['AUTH_INVALID', 'AUTH_EXPIRED', 'AUTH_INACTIVE'].includes(code)) recoverAuthentication(code);
     });
     socket.on("connect_error", (err) => {
-        if (['AUTH_INVALID', 'AUTH_EXPIRED', 'AUTH_INACTIVE'].includes(err.data?.code)) expireSession(token, err.data.code === 'AUTH_INACTIVE' ? 'inactive' : 'expired');
+        if (['AUTH_INVALID', 'AUTH_EXPIRED', 'AUTH_INACTIVE'].includes(err.data?.code)) recoverAuthentication(err.data.code);
         if (['AUTH_UNAVAILABLE', 'RATE_LIMITED', 'CONNECTION_LIMITED'].includes(err.data?.code)) {
             clearTimeout(reconnectTimer);
             reconnectTimer = setTimeout(() => {
-                if (socket === current && localStorage.getItem('token_user') === token && !current.connected) current.connect();
+                if (socket === current && localStorage.getItem('token_user') === owner && !current.connected) current.connect();
             }, 30000 + Math.random() * 5000);
         }
         // Khong hien toast de khong lam phien nguoi dung: da co co che poll du phong.
@@ -76,10 +91,10 @@ export const disconnectSocket = () => {
 // Resume after an extended outage. Never reconnect with a superseded token.
 if (typeof window !== 'undefined') {
     window.addEventListener('online', () => {
-        if (socket && socket.auth?.token === localStorage.getItem('token_user') && !socket.connected) socket.connect();
+        if (socket && socket.auth?.token === getAccessTokenSync() && !socket.connected) socket.connect();
     });
     window.addEventListener('storage', (event) => {
-        if (event.key === 'token_user' && socket?.auth?.token !== localStorage.getItem('token_user')) disconnectSocket();
+        if ((event.key === 'token_user' || event.key === null) && socket?.auth?.token !== getAccessTokenSync()) disconnectSocket();
     });
 }
 export default getSocket;

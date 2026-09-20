@@ -144,7 +144,7 @@ describe('gateway authentication', () => {
             id: 9, roleCode: 'EMPLOYER', companyId: 7,
             companyStatusCode: 'S1', companyCensorCode: 'CS1'
         });
-        expect(mocks.resolveCurrentIdentity).toHaveBeenCalledWith(9);
+        expect(mocks.resolveCurrentIdentity).toHaveBeenCalledWith(9, null);
     });
 
     it('rejects inactive/unknown accounts and fails closed when identity DB is unavailable', async () => {

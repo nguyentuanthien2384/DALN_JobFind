@@ -15,7 +15,7 @@ import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../../.
 // khoi request cua client truoc khi Gateway tu dat lai). Nho vay logic xac thuc
 // chi nam mot cho, va service ben duoi khong can biet ve JWT.
 
-const decodeUserId = (req) => {
+const decodeIdentity = (req) => {
     const header = req.headers.authorization;
     if (!header) return null;
     const token = header.startsWith('Bearer ') ? header.slice(7) : header;
@@ -24,7 +24,9 @@ const decodeUserId = (req) => {
         const payload = jwt.verify(token, getJwtSecret(), getJwtVerifyOptions());
         if (!hasAccessTokenClaims(payload)) return null;
         const id = Number(payload.sub ?? payload.id);
-        return Number.isInteger(id) && id > 0 ? id : null;
+        if (!Number.isInteger(id) || id <= 0) return null;
+        if (!payload.sid && process.env.AUTH_ALLOW_LEGACY_TOKENS !== 'true') return null;
+        return { id, sid: payload.sid || null };
     } catch {
         return null;
     }
@@ -36,14 +38,14 @@ const authenticate = async (req) => {
     req.user = null;
     req.authFailure = null;
 
-    const userId = decodeUserId(req);
-    if (!userId) {
+    const identity = decodeIdentity(req);
+    if (!identity) {
         req.authFailure = 'invalid';
         return null;
     }
 
     try {
-        const current = await resolveCurrentIdentity(userId);
+        const current = await resolveCurrentIdentity(identity.id, identity.sid);
         if (!current) {
             req.authFailure = 'invalid';
             return null;

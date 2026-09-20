@@ -1,3 +1,4 @@
+jest.mock('../../src/services/accountSecurityService', () => ({ saveAndRevokeSessions: jest.fn(account => account.save()) }));
 const model = () => ({
   findOne: jest.fn(), findAll: jest.fn(), findAndCountAll: jest.fn(), create: jest.fn(),
   destroy: jest.fn(), bulkCreate: jest.fn()

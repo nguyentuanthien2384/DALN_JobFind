@@ -11,7 +11,7 @@ const config = {
   ...baseConfig,
   database: process.env.DB_NAME || baseConfig.database,
   username: process.env.DB_USER || baseConfig.username,
-  password: process.env.DB_PASSWORD || baseConfig.password,
+  password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : baseConfig.password,
   host: process.env.DB_HOST || baseConfig.host,
   port: Number(process.env.DB_PORT || baseConfig.port || 3306)
 };

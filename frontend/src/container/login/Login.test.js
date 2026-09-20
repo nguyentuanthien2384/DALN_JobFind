@@ -1,3 +1,4 @@
+jest.mock('../../auth/authClient', () => ({ ...jest.requireActual('../../auth/authClient'), getProviders: jest.fn().mockResolvedValue({ google: false }) }));
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-toastify";
@@ -85,7 +86,7 @@ describe("Login", () => {
         renderLogin();
         fillAndSubmit();
 
-        await waitFor(() => expect(localStorage.getItem("token_user")).toBe("token-4"));
+        await waitFor(() => expect(localStorage.getItem("token_user")).toMatch(/^jf-session:/));
         expect(JSON.parse(localStorage.getItem("userData"))).toEqual(user);
         expect(toast.error).not.toHaveBeenCalled();
         consoleError.mockRestore();
@@ -100,7 +101,7 @@ describe("Login", () => {
         fillAndSubmit();
 
         await waitFor(() => expect(localStorage.getItem("lastUrl")).toBeNull());
-        expect(localStorage.getItem("token_user")).toBe("token-5");
+        expect(localStorage.getItem("token_user")).toMatch(/^jf-session:/);
         consoleError.mockRestore();
     });
 });

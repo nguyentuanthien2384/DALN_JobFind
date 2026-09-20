@@ -1,3 +1,4 @@
+import { getAccessToken } from '../auth/authClient';
 const URL_API = process.env.REACT_APP_BACKEND_URL || "http://localhost:4000";
 const STORAGE_KEY = "jobfind:push-device";
 let pending = Promise.resolve();
@@ -13,12 +14,7 @@ export const supported = () =>
   "serviceWorker" in navigator &&
   "PushManager" in window &&
   "Notification" in window;
-const api = async (
-  method,
-  path,
-  body,
-  token = localStorage.getItem("token_user"),
-) => {
+const api = async (method, path, body, capturedToken) => {
   const controller = new AbortController(),
     timer = setTimeout(() => controller.abort(), 8000);
   try {
@@ -28,7 +24,7 @@ const api = async (
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${capturedToken ?? await getAccessToken() ?? ''}`,
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,
@@ -152,6 +148,8 @@ export const enable = async (userId, publicKey) => {
   return locked(async () => {
     if (localStorage.getItem("token_user") !== token)
       throw new Error("Phiên đăng nhập đã thay đổi.");
+    const bearer = await getAccessToken();
+    if (localStorage.getItem('token_user') !== token) throw new Error('Phiên đăng nhập đã thay đổi.');
     const registration = await navigator.serviceWorker.register("/push-sw.js", {
       scope: "/",
     });
@@ -177,7 +175,7 @@ export const enable = async (userId, publicKey) => {
         "POST",
         "/api/push/subscription",
         subscription.toJSON(),
-        token,
+        bearer,
       );
       if (localStorage.getItem("token_user") !== token)
         throw new Error("Phiên đăng nhập đã thay đổi. Hãy bật lại thông báo.");
@@ -194,7 +192,7 @@ export const enable = async (userId, publicKey) => {
           "DELETE",
           "/api/push/subscription",
           { id: saved.id },
-          token,
+          bearer,
         ).catch(() => {});
       await subscription.unsubscribe().catch(() => {});
       throw error;
@@ -205,7 +203,9 @@ export const disable = () => {
   const previous = device(),
     token = localStorage.getItem("token_user");
   if (!previous) return Promise.resolve();
+  const bearerPromise = getAccessToken().catch(() => null);
   return locked(async () => {
+    const bearer = await bearerPromise;
     if (device()?.id !== previous.id || device()?.userId !== previous.userId)
       return;
     const registration = await navigator.serviceWorker?.getRegistration("/");
@@ -227,7 +227,7 @@ export const disable = () => {
         "DELETE",
         "/api/push/subscription",
         { id: previous.id },
-        token,
+        bearer,
       ).catch(() => {});
   });
 };

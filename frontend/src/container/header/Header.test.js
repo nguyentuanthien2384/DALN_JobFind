@@ -1,3 +1,4 @@
+jest.mock('../../auth/authClient', () => ({ logoutServer: jest.fn().mockResolvedValue(undefined) }));
 import React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
@@ -342,7 +343,7 @@ describe("public Header", () => {
 
         fireEvent.click(screen.getByRole("button", { name: /Log Out/ }));
         fireEvent.click(screen.getByText("Đăng xuất"));
-        expect(disconnectSocket).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(disconnectSocket).toHaveBeenCalledTimes(1));
         expect(localStorage.getItem("userData")).toBeNull();
         expect(localStorage.getItem("token_user")).toBeNull();
         consoleError.mockRestore();

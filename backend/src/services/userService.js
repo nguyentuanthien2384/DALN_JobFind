@@ -1,3 +1,4 @@
+import { saveAndRevokeSessions } from './accountSecurityService';
 import db from "../models/index";
 import bcrypt from "bcryptjs";
 const { Op } = require("sequelize");
@@ -255,7 +256,7 @@ let banUser = (userId) => {
                     if (account)
                     {
                         account.statusCode = 'S2'
-                        await account.save()
+                        await saveAndRevokeSessions(account)
                         resolve({
                             errCode: 0,
                             message: `Người dùng đã ngừng kích hoạt`
@@ -532,7 +533,7 @@ let changePaswordByPhone = (data) => {
             }
 
             account.password = await hashUserPasswordFromBcrypt(data.password);
-            await account.save();
+            await saveAndRevokeSessions(account);
             resolve({
                 errCode: 0,
                 errMessage: 'ok'
@@ -641,7 +642,7 @@ let handleChangePassword = (data) => {
                 }
                 else if (await bcrypt.compareSync(data.oldpassword, account.password)) {
                     account.password = await hashUserPasswordFromBcrypt(data.password);
-                    await account.save();
+                    await saveAndRevokeSessions(account);
                     resolve({
                         errCode: 0,
                         errMessage: 'ok'

@@ -312,6 +312,7 @@ services:
       JWT_ISSUER: ${JWT_ISSUER:-jobfind-auth}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-jobfind-api}
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      AUTH_ALLOW_LEGACY_TOKENS: ${AUTH_ALLOW_LEGACY_TOKENS:-false}
       # Gateway doc identity hien tai tu MySQL, khong tin role/companyId cu trong JWT.
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
       MYSQL_PORT: ${MYSQL_PORT:-3333}

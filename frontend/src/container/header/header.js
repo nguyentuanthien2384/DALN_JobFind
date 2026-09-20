@@ -1,3 +1,4 @@
+import { logoutServer } from '../../auth/authClient';
 import { clearPushOnLogout } from '../../push/webPush';
 import { candidateAiEnabled } from '../../service/candidateWorkspace';
 import React from 'react'
@@ -87,6 +88,7 @@ const Header = () => {
     let handleLogout = async () => {
         const cleanup=clearPushOnLogout();
         if(cleanup)await cleanup;
+        try { await logoutServer(); } catch { window.alert('Chưa xác nhận được đăng xuất trên máy chủ. Vui lòng kiểm tra kết nối và thử lại.'); return; }
         disconnectSocket()
         localStorage.removeItem("userData");
         localStorage.removeItem("token_user")
@@ -266,6 +268,7 @@ const Header = () => {
                                                                 <i className="ti-settings text-primary" />
                                                                 Đổi mật khẩu
                                                             </Link>
+                                                            <Link className="dropdown-item" to="/account/security">Bảo mật và đăng nhập</Link>
                                                             <button type="button" onClick={() => handleLogout()} className="dropdown-item">
                                                                 <i className="ti-power-off text-primary" />
                                                                 Đăng xuất

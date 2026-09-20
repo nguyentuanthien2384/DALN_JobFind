@@ -69,11 +69,15 @@ export const createRateLimiter = ({ windowSeconds, max, name, countOnlyFailures 
                 // Dung cho dang nhap: chi lan that bai moi tinh vao han muc, nguoi
                 // dung dung mat khau se khong bao gio bi khoa.
                 const originalJson = res.json.bind(res);
+                let refunded = false;
+                const refund = () => { if (!refunded) { refunded = true; redis.decr(key).catch(() => {}); } };
                 res.json = (body) => {
                     const ok = res.statusCode < 400 && body?.errCode === 0;
-                    if (ok) redis.decr(key).catch(() => {});
+                    if (ok) refund();
                     return originalJson(body);
                 };
+                // Auth is an HTTP stream proxy, so successful responses bypass res.json.
+                res.on?.('finish', () => { if (res.statusCode >= 200 && res.statusCode < 300) refund(); });
             }
 
             return next();

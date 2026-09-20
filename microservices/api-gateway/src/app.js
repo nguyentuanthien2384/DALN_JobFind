@@ -11,6 +11,7 @@ import { listServices, startHealthPolling } from './libs/registry.js';
 import { createSupportChatProxy } from './middlewares/supportChatProxy.js';
 import { createSupportServiceProxy } from './middlewares/supportServiceProxy.js';
 import { createProxy, getBreakerStats } from './middlewares/proxy.js';
+import { createAuthProxy, authProxyPathGuard } from './middlewares/authProxy.js';
 import { optionalAuth, requireAuth, requireRole, requirePermission } from './middlewares/auth.js';
 import { PERMISSIONS } from '../../shared/accessControl.js';
 import { assertSecureJwtSecret, getJwtPolicy } from '../../shared/securityConfig.js';
@@ -95,6 +96,7 @@ app.use(auditMiddleware);
 const loginLimiter = createRateLimiter({
     name: 'login', windowSeconds: 900, max: 10, countOnlyFailures: true, failClosed: true
 });
+const ssoLimiter = createRateLimiter({ name: 'sso', windowSeconds: 900, max: 30, failClosed: true });
 const publicLimiter = createRateLimiter({ name: 'public', windowSeconds: 60, max: 120 });
 const writeLimiter = createRateLimiter({ name: 'write', windowSeconds: 60, max: 30 });
 // AI ton kem nen siet chat hon han cac API thuong.
@@ -102,7 +104,14 @@ const aiLimiter = createRateLimiter({ name: 'ai', windowSeconds: 3600, max: 30, 
 
 // Route nay tiep tuc roi xuong proxy legacy o cuoi file sau khi vuot qua limiter.
 // Dat rieng tai day de moi IP co toi da 10 lan dang nhap that bai / 15 phut.
-mountLoginRateLimit(app, loginLimiter);
+mountLoginRateLimit(app, loginLimiter, createRateLimiter({ name: 'auth-refresh', windowSeconds: 60, max: 120, failClosed: true }));
+app.post('/api/auth/identities/:identityId/unlink', ssoLimiter);
+app.get('/api/auth/sso/:provider/start', ssoLimiter);
+app.post('/api/auth/sso/:provider/link/start', ssoLimiter);
+app.get('/api/auth/sso/:provider/callback', ssoLimiter);
+// Must be before the generic legacy JSON proxy: preserve HttpOnly Set-Cookie and
+// OIDC 302/303 Location. Never expose /internal through this route.
+app.use(['/api/login', '/api/auth', '/api/changepassword', '/api/changepasswordbyPhone'], authProxyPathGuard, createAuthProxy());
 
 // ===================== GIAM SAT =====================
 app.get('/', (req, res) => {

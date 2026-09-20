@@ -1,3 +1,4 @@
+import * as authSessions from '../services/authSessionService';
 import userService from '../services/userService';
 import { canAccessCandidateProfile, canManageCompanyUser } from '../utils/authorization';
 import {
@@ -142,6 +143,9 @@ let handleChangePassword = async (req, res) => {
             ...req.body,
             id: req.user.id
         });
+        if (data.errCode === 0) {
+            authSessions.clearRefreshCookie(res);
+        }
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)
@@ -213,6 +217,9 @@ let requestResetPasswordOtp = async (req, res) => {
 let changePaswordByPhone = async (req, res) => {
     try {
     let data = await userService.changePaswordByPhone(req.body);
+        if (data.errCode === 0) {
+            authSessions.clearRefreshCookie(res);
+        }
         return res.status(200).json(data);
     } catch (error) {
         console.log(error)

@@ -1,4 +1,5 @@
 import { reconcilePushSession } from './push/webPush';
+import { getAccessToken, forgetAccess } from './auth/authClient';
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
     BrowserRouter as Router,
@@ -33,6 +34,7 @@ const SupportHelp = lazy(() => import('./components/support/SupportHelp'));
 // Chi tai cac goi nay khi nguoi dung thuc su vao dung khu vuc.
 const HomeAdmin = lazy(() => import("./container/system/HomeAdmin"));
 const HomeCandidate = lazy(() => import("./container/Candidate/HomeCandidate"));
+const SecuritySettings = lazy(() => import('./auth/SecuritySettings'));
 
 const RoutePageLoader = () => (
     <main className="route-page-loader" role="status" aria-live="polite">
@@ -55,12 +57,23 @@ function App() {
         && userData.companyId
         && (!userData.companyStatusCode || !userData.companyCensorCode)
     );
-    const [authorizationReady, setAuthorizationReady] = useState(!legacyCompanySession);
+    const [authorizationReady, setAuthorizationReady] = useState(!hasToken && !legacyCompanySession);
+    const [authorizationError, setAuthorizationError] = useState(false);
 
     useEffect(() => {
         const ended = () => { setUserData(null); setHasToken(false); setAuthorizationReady(true); };
+        const onStorage = event => {
+            if (event.key !== 'token_user' && event.key !== null) return;
+            forgetAccess();
+            if (!event.newValue) ended();
+            else window.location.reload(); // a different tab signed into another account
+        };
         window.addEventListener(SESSION_ENDED_EVENT, ended);
-        return () => window.removeEventListener(SESSION_ENDED_EVENT, ended);
+        window.addEventListener('storage', onStorage);
+        return () => {
+            window.removeEventListener(SESSION_ENDED_EVENT, ended);
+            window.removeEventListener('storage', onStorage);
+        };
     }, []);
 
     useEffect(() => {
@@ -68,13 +81,14 @@ function App() {
         const storedUser = initialSession.current.user;
         const requestToken = localStorage.getItem('token_user');
 
-        if (!initialSession.current.hasToken || !storedUser) {
+        if (!initialSession.current.hasToken) {
             setAuthorizationReady(true);
             return () => { active = false; };
         }
 
         const refreshAuthorization = async () => {
             try {
+                await getAccessToken();
                 const response = await getCurrentAuthorizationService();
                 if (!active || localStorage.getItem('token_user') !== requestToken) return;
 
@@ -89,9 +103,9 @@ function App() {
                     };
                     localStorage.setItem("userData", JSON.stringify(refreshedUser));
                     setUserData(refreshedUser);
-                }
+                } else if (localStorage.getItem('token_user') === requestToken) setAuthorizationError(true);
             } catch {
-                // Fail closed: giu nguyen quyen gioi han cua phien cu neu mang loi.
+                if (active && localStorage.getItem('token_user') === requestToken) setAuthorizationError(true);
             } finally {
                 if (active) setAuthorizationReady(true);
             }
@@ -109,10 +123,15 @@ function App() {
         );
     }
 
+    if (authorizationError && hasToken) return <main className="container py-5" role="alert">
+        Không thể xác minh quyền truy cập lúc này. Vui lòng kiểm tra kết nối.
+        <button className="btn btn-primary ml-3" onClick={() => window.location.reload()}>Thử lại</button>
+    </main>;
     return (
         <SessionContext.Provider value={userData}>
             <Router>
                 <Routes>
+                <Route path="/account/security" element={<RouteGuard user={userData} hasToken={hasToken} anyPermissions={[PERMISSIONS.MANAGE_PROFILE]}><Header /><Suspense fallback={<RoutePageLoader />}><SecuritySettings /></Suspense><Footer /></RouteGuard>} />
                 {/* Public Routes */}
                 <Route
                     path="/"

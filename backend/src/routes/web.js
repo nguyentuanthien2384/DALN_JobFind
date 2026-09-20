@@ -18,8 +18,9 @@ import { supportChatLimiter } from '../middlewares/rateLimit'
 import webPushController from '../controllers/webPushController'
 
 import middlewareControllers from '../middlewares/jwtVerify'
+import * as authController from '../controllers/authController'
 import { authorize, PERMISSIONS } from '../middlewares/authorize'
-import { loginLimiter, otpLimiter, registerLimiter, phoneCheckLimiter } from '../middlewares/rateLimit'
+import { loginLimiter, ssoLimiter, otpLimiter, registerLimiter, phoneCheckLimiter } from '../middlewares/rateLimit'
 import { emitNotification } from '../config/socket'
 let router = express.Router();
 
@@ -73,7 +74,18 @@ let initWebRoutes = (app) => {
     router.put('/api/update-user', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), userController.handleUpdateUser)
     router.post('/api/ban-user', ...protectedBy(PERMISSIONS.ADMINISTRATION), userController.handleBanUser)
     router.post('/api/unban-user', ...protectedBy(PERMISSIONS.ADMINISTRATION), userController.handleUnbanUser)
-    router.post('/api/login', loginLimiter, userController.handleLogin)
+    router.post('/api/login', loginLimiter, authController.login)
+    router.post('/api/auth/login', loginLimiter, authController.login)
+    router.get('/api/auth/providers', authController.providers)
+    router.get('/api/auth/security', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.securityOverview)
+    router.delete('/api/auth/sessions/:familyId', authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.revokeSession)
+    router.post('/api/auth/identities/:identityId/unlink', ssoLimiter, authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.unlinkIdentity)
+    router.post('/api/auth/refresh', authController.cookieOrigin, loginLimiter, authController.refresh)
+    router.post('/api/auth/logout', authController.cookieOrigin, middlewareControllers.verifyTokenOptional, authController.logout)
+    router.post('/api/auth/logout-all', authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.logoutAll)
+    router.get('/api/auth/sso/:provider/start', ssoLimiter, authController.ssoStart)
+    router.post('/api/auth/sso/:provider/link/start', ssoLimiter, authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.ssoStart)
+    router.get('/api/auth/sso/:provider/callback', ssoLimiter, authController.ssoCallback)
     router.post('/api/changepassword', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), userController.handleChangePassword)
     router.get('/api/get-all-user', ...protectedBy(PERMISSIONS.ADMINISTRATION), userController.getAllUser)
     router.get('/api/get-detail-user-by-id', ...protectedBy(PERMISSIONS.CANDIDATE_PROFILE_READ), userController.getDetailUserById)
