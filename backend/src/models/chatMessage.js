@@ -13,6 +13,9 @@ module.exports = (sequelize, DataTypes) => {
         senderId: DataTypes.INTEGER,
         receiverId: DataTypes.INTEGER,
         content: DataTypes.TEXT,
+        attachmentId: { type: DataTypes.UUID, allowNull: true },
+        jobPostId: { type: DataTypes.INTEGER, allowNull: true },
+        jobSnapshot: { type: DataTypes.JSON, allowNull: true },
         clientMessageId: { type: DataTypes.STRING(64), allowNull: true },
         isRead: DataTypes.TINYINT
     },

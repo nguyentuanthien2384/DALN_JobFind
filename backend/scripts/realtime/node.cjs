@@ -7,10 +7,13 @@ const { initSocket, emitDashboardChanged } = require('../../src/config/socket');
 const { connectSocketRedis, closeSocketRedis } = require('../../src/config/socketRedis');
 const { getJwtSecret, getJwtVerifyOptions } = require('../../src/utils/securityConfig');
 const controller = require('../../src/controllers/chatController');
+const mediaController = require('../../src/controllers/chatMediaController');
 let io;
 (async () => {
     await db.sequelize.authenticate();
-    const app = express(); app.use(express.json());
+    const app = express();
+    app.use('/api/chat-attachments', express.json({ limit: '8mb' }));
+    app.use(express.json());
     const authenticate = (req, res, next) => {
         try { req.user = { id: Number(jwt.verify(req.headers.authorization.slice(7), getJwtSecret(), getJwtVerifyOptions()).sub) }; next(); }
         catch { res.sendStatus(401); }
@@ -18,6 +21,9 @@ let io;
     app.post(['/send', '/api/send-chat-message'], authenticate, controller.handleSendMessage);
     app.get('/api/get-chat-conversation', authenticate, controller.getConversation);
     app.get('/api/get-list-chat-conversation', authenticate, controller.getListConversation);
+    app.post('/api/chat-attachments', authenticate, mediaController.upload);
+    app.get('/api/chat-attachments/:id', authenticate, mediaController.read);
+    app.get('/api/chat-jobs', authenticate, mediaController.jobs);
     app.get('/api/push/config', require('../../src/middlewares/jwtVerify').verifyTokenUser, require('../../src/controllers/webPushController').config);
     app.post('/api/test-read-notification', require('../../src/middlewares/jwtVerify').verifyTokenUser, require('../../src/controllers/notificationController').handleMarkReadNotification);
     if (process.env.CHAT_BROWSER_ASSETS) {

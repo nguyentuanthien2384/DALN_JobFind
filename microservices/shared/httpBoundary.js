@@ -6,13 +6,14 @@ const uploadPaths = new Set([
 export const bodyBudget = (path) => {
     const normalized = String(path).toLowerCase().replace(/\/+$/, '');
     if (normalized === '/api/support-chat') return '48kb';
+    if (normalized === '/api/chat-attachments') return '8mb';
     if (['/api/ai/parse-resume', '/ai/parse-resume'].includes(normalized)) return '12mb';
     if (uploadPaths.has(normalized)) return '50mb';
     return '1mb';
 };
 
 export const requestBodies = (express) => {
-    const parsers = Object.fromEntries(['48kb', '1mb', '12mb', '50mb'].map((limit) => [limit, [
+    const parsers = Object.fromEntries(['48kb', '1mb', '8mb', '12mb', '50mb'].map((limit) => [limit, [
         express.json({ limit }), express.urlencoded({ extended: false, limit, parameterLimit: 1000 })
     ]]));
     return (req, res, next) => {

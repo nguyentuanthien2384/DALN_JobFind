@@ -12,6 +12,10 @@ import { getSocket } from "../../socket";
 import { readPending, preparePending, clearPending, sendReliably } from "./reliableSend";
 import PushSettings from "../../push/PushSettings";
 import ChatAvatar from "./ChatAvatar";
+import ChatShareTools from '../../components/chat/ChatShareTools';
+import ChatMessageContent, { ChatFileCard, ChatJobCard } from '../../components/chat/ChatMessageContent';
+import ChatDocumentPreview from '../../components/chat/ChatDocumentPreview';
+import { chatMessageSummary } from '../../service/chatMediaService';
 import WaitingReply from "./WaitingReply";
 import { mergeMessages, synchronizeConversation } from './conversationSync';
 
@@ -28,6 +32,9 @@ const ChatPage = () => {
     const [partnerTyping, setPartnerTyping] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [sendUncertain, setSendUncertain] = useState(false);
+    const [mediaDraft, setMediaDraft] = useState(null);
+    const [uploading, setUploading] = useState(false);
+    const [preview, setPreview] = useState(null);
     const [partnerOnline, setPartnerOnline] = useState(null);
     const [partnerLastSeen, setPartnerLastSeen] = useState(null);
     const [hasOlder, setHasOlder] = useState(false);
@@ -219,6 +226,9 @@ const ChatPage = () => {
         setMessages([]); setPartnerData(null); setConversationMeta(null); setPartnerTyping(false); setPartnerOnline(null); setPartnerLastSeen(null);
         const pending = userData && partnerId ? readPending(userData.id, partnerId) : null;
         setContent(pending?.content || ''); setSendUncertain(Boolean(pending));
+        setMediaDraft(pending?.attachmentId ? { attachment: { id: pending.attachmentId, name: 'Tài liệu PDF đang chờ xác nhận' } }
+            : pending?.jobPostId ? { job: { id: pending.jobPostId, name: 'Công việc đang chờ xác nhận' } } : null);
+        setUploading(false); setPreview(null);
     }, [partnerId, userData]);
 
     useEffect(() => {
@@ -241,18 +251,19 @@ const ChatPage = () => {
     }, [isRealtime, partnerId]);
 
     const handleSend = async () => {
-        if (!content.trim() || !partnerId || sendLockRef.current) return;
+        if ((!content.trim() && !mediaDraft) || !partnerId || sendLockRef.current || uploading) return;
         const text = content.trim(), target = partnerId;
         sendLockRef.current = true;
         setIsSending(true);
         try {
             const wasPending = Boolean(readPending(userData.id, target));
-            const payload = preparePending(userData.id, target, text);
+            const payload = preparePending(userData.id, target, text, mediaDraft?.attachment ? { attachmentId: mediaDraft.attachment.id }
+                : mediaDraft?.job ? { jobPostId: mediaDraft.job.id } : {});
             const res = await sendReliably(getSocket(), payload, sendChatMessageService);
             if (res?.errCode === 0) {
                 clearPending(userData.id, target, payload.clientMessageId);
                 if (activePartnerRef.current === target) {
-                    setContent(''); setSendUncertain(false);
+                    setContent(''); setMediaDraft(null); setSendUncertain(false);
                     if (res.data) setMessages((prev) => prev.some((m) => +m.id === +res.data.id) ? prev : [...prev, res.data].sort((a, b) => a.id - b.id));
                     Promise.allSettled([fetchConversation(true), fetchListConversation()]);
                 }
@@ -316,6 +327,7 @@ const ChatPage = () => {
 
     return (
         <main>
+            {preview && <ChatDocumentPreview key={`${partnerId}:${preview.id}`} attachment={preview} onClose={() => setPreview(null)} />}
             <div className="container chat-page-container">
                 <h4 style={{ marginBottom: "20px" }}>
                     <i
@@ -374,7 +386,7 @@ const ChatPage = () => {
                                                 textOverflow: "ellipsis",
                                             }}
                                         >
-                                            {item.lastMessage.content}
+                                            {chatMessageSummary(item.lastMessage)}
                                         </div>
                                     </div>
                                     {item.unreadCount > 0 && (
@@ -491,7 +503,7 @@ const ChatPage = () => {
                                                 }}
                                             >
                                                 <div
-                                                    className="chat-bubble"
+                                                    className={`chat-bubble${item.attachment || item.jobSnapshot ? ' chat-bubble-rich' : ''}`}
                                                     style={{
                                                         padding: "9px 13px",
                                                         borderRadius: "14px",
@@ -507,7 +519,7 @@ const ChatPage = () => {
                                                         fontSize: "14px",
                                                     }}
                                                 >
-                                                      <div style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{item.content}</div>
+                                                    <ChatMessageContent message={item} onPreview={setPreview} />
                                                     <div
                                                         style={{
                                                             fontSize: "10px",
@@ -543,37 +555,32 @@ const ChatPage = () => {
                                     />
                                     <div ref={messagesEndRef} />
                                 </div>
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        gap: "10px",
-                                        padding: "12px",
-                                        borderTop: "1px solid #eee",
-                                    }}
-                                >
-                                    {sendUncertain && <span role="status" style={{ fontSize: 12 }}>Chưa xác nhận. Bấm gửi lại để kiểm tra cùng tin nhắn.</span>}
-                                    <input
-                                        type="text"
-                                        className="form-control"
-                                        placeholder="Nhập tin nhắn..."
-                                        value={content}
-                                        maxLength={2000}
-                                        disabled={isSending || sendUncertain}
-                                        onChange={(e) =>
-                                            handleTyping(e.target.value)
-                                        }
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") handleSend();
-                                        }}
-                                    />
-                                    <button
-                                        className="btn btn-primary"
-                                        aria-label={sendUncertain ? 'Gửi lại tin nhắn' : 'Gửi tin nhắn'}
-                                        onClick={() => handleSend()}
-                                        disabled={isSending || !content.trim()}
-                                    >
-                                        <i className="far fa-paper-plane" aria-hidden="true"></i> {isSending ? "Đang gửi…" : sendUncertain ? "Gửi lại" : "Gửi"}
-                                    </button>
+                                <div className="chat-composer">
+                                    {conversationMeta?.richContent && <ChatShareTools key={partnerId} partnerId={partnerId}
+                                        disabled={isSending || sendUncertain} onSelect={setMediaDraft} onBusy={setUploading} />}
+                                    {mediaDraft && <div className="chat-media-draft">
+                                        <div className="chat-media-draft-header"><span>{sendUncertain ? 'Đang chờ xác nhận gửi' : 'Sẵn sàng gửi · chỉ người trong cuộc trò chuyện được xem'}</span>
+                                            <button type="button" disabled={isSending || sendUncertain} onClick={() => setMediaDraft(null)}>Bỏ đính kèm</button></div>
+                                        {mediaDraft.attachment && <ChatFileCard attachment={mediaDraft.attachment} onPreview={setPreview} />}
+                                        {mediaDraft.job && <ChatJobCard job={mediaDraft.job} draft />}
+                                    </div>}
+                                    {sendUncertain && <p role="status" className="chat-media-status">Chưa xác nhận. Bấm gửi lại để kiểm tra cùng tin nhắn.</p>}
+                                    <div className="chat-composer-row">
+                                        <textarea className="form-control" placeholder="Nhập tin nhắn..." aria-label="Nội dung tin nhắn"
+                                            value={content} rows={1} maxLength={2000} disabled={isSending || sendUncertain}
+                                            onChange={event => handleTyping(event.target.value)}
+                                            onKeyDown={event => {
+                                                if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                                                    event.preventDefault(); handleSend();
+                                                }
+                                            }} />
+                                        <button type="button" className="btn btn-primary"
+                                            aria-label={sendUncertain ? 'Gửi lại tin nhắn' : 'Gửi tin nhắn'} onClick={handleSend}
+                                            disabled={isSending || uploading || (!content.trim() && !mediaDraft)}>
+                                            <i className="far fa-paper-plane" aria-hidden="true" /> {isSending ? 'Đang gửi…' : sendUncertain ? 'Gửi lại' : 'Gửi'}
+                                        </button>
+                                    </div>
+                                    <span className="chat-compose-hint">Enter để gửi · Shift + Enter để xuống dòng</span>
                                 </div>
                             </>
                         ) : (

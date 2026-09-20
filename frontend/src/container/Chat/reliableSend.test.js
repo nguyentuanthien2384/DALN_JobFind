@@ -1,6 +1,16 @@
 import { readPending, preparePending, clearPending, sendReliably } from './reliableSend';
 beforeAll(() => Object.defineProperty(globalThis, 'crypto', { configurable: true, value: require('crypto').webcrypto }));
 beforeEach(() => sessionStorage.clear());
+test('keeps only immutable media references in a pending send and detects attachment changes', () => {
+    const media = { attachmentId: '8546b1f1-5e0d-4f1e-9476-0fdb6dffac11', fileBase64: 'PRIVATE', name: 'CV.pdf' };
+    const pending = preparePending(7, 8, '', media);
+    expect(pending.attachmentId).toBe(media.attachmentId);
+    expect(JSON.stringify(pending)).not.toMatch(/PRIVATE|fileBase64|CV.pdf/);
+    expect(preparePending(7, 8, '', media).clientMessageId).toBe(pending.clientMessageId);
+    expect(() => preparePending(7, 8, '', { jobPostId: 4 })).toThrow('chưa được xác nhận');
+    clearPending(7, 8, pending.clientMessageId);
+    expect(preparePending(7, 8, '', { jobPostId: 4 })).toMatchObject({ jobPostId: 4 });
+});
 test('uncertain writes retain exactly the same key across reloads, scoped by user and partner', () => {
     const first = preparePending(7, 8, 'hello');
     expect(readPending(7, 8)).toEqual(first);

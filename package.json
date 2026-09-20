@@ -29,6 +29,7 @@
     "coverage:frontend": "npm --prefix frontend run test:coverage",
     "coverage:microservices": "npm --prefix microservices run test:coverage",
     "auth:migrate": "node scripts/migrate-auth.mjs",
+    "chat:migrate": "node scripts/migrate-chat-media.mjs",
     "test:auth:integration": "node backend/scripts/test-auth-integration.cjs",
     "test:auth:browser": "node backend/scripts/test-auth-browser.cjs"
   }

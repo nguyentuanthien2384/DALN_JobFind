@@ -6,15 +6,18 @@ export const readPending = (userId, partnerId) => {
             && typeof value.clientMessageId === 'string' ? value : null;
     } catch { return null; }
 };
-export const preparePending = (userId, partnerId, content) => {
+export const preparePending = (userId, partnerId, content, media = {}) => {
     const previous = readPending(userId, partnerId);
     if (previous) {
-        if (previous.content !== content) throw new Error('Tin nhắn trước chưa được xác nhận. Hãy gửi lại tin đó trước.');
+        if (previous.content !== content || (previous.attachmentId || null) !== (media.attachmentId || null)
+            || (previous.jobPostId || null) !== (media.jobPostId || null)) throw new Error('Tin nhắn trước chưa được xác nhận. Hãy gửi lại tin đó trước.');
         return previous;
     }
     const bytes = new Uint8Array(16);
     window.crypto.getRandomValues(bytes);
     const payload = { v: 1, receiverId: Number(partnerId), content,
+        ...(media.attachmentId ? { attachmentId: media.attachmentId } : {}),
+        ...(media.jobPostId ? { jobPostId: Number(media.jobPostId) } : {}),
         clientMessageId: Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('') };
     // Persist before sending; if storage is unavailable, do not risk a send
     // whose idempotency key would be lost when the page reloads.

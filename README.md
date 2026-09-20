@@ -720,6 +720,7 @@ Chi tiết: [Bộ triển khai và quay lui](microservices/docs/release-preparat
 - [Thư mời nhận việc & email](docs/recruitment-offer-email.md)
 - [Web Push Notifications](docs/web-push.md)
 - [WebSocket & Realtime upgrade](docs/websocket-upgrade.md)
+- [Gửi CV/PDF và chia sẻ công việc trong chat](docs/chat-documents.md)
 - [Trang chi tiết việc làm](docs/job-detail-page.md)
 
 ### Xác thực & Bảo mật

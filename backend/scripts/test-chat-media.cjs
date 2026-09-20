@@ -1,0 +1,113 @@
+// Isolated MySQL database, real chat services/socket and real React PDF renderer.
+require('@babel/register')({ presets: [[require.resolve('@babel/preset-env'), { targets: { node: 'current' } }]], ignore: [/node_modules/], babelrc: false, configFile: false });
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { randomBytes, randomUUID } = require('node:crypto');
+const { DataTypes } = require('sequelize');
+const root = path.resolve(__dirname, '../..');
+const database = `jobfind_chat_media_test_${randomBytes(6).toString('hex')}`;
+Object.assign(process.env, { JWT_SECRET: randomBytes(48).toString('hex'), AUTH_ALLOW_LEGACY_TOKENS: 'true', WEB_PUSH_ENABLED: 'false', REALTIME_REDIS_ENABLED: 'false' });
+let admin, db, server, io, browser;
+(async () => {
+    const env = require('dotenv').parse(await fs.readFile(path.join(root, 'backend/.env')));
+    admin = await require('mysql2/promise').createConnection({ host: env.DB_HOST, port: Number(env.DB_PORT || 3306), user: env.DB_USER, password: env.DB_PASSWORD || '' });
+    await admin.query(`CREATE DATABASE \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    db = require('./realtime/fixture.cjs')(`mysql://${encodeURIComponent(env.DB_USER)}:${encodeURIComponent(env.DB_PASSWORD || '')}@${env.DB_HOST}:${env.DB_PORT || 3306}/${database}`);
+    await db.sequelize.sync();
+    await require('../src/migrations/migrationzzzz-chat-reliability').up(db.sequelize.getQueryInterface(),DataTypes);
+    const migration = require('../src/migrations/migrationzzzzzzzzzz-chat-media');
+    await migration.up(db.sequelize.getQueryInterface(),DataTypes);
+    await migration.up(db.sequelize.getQueryInterface(),DataTypes);
+    await db.Company.bulkCreate([{id:10,name:'Công ty Công nghệ Mẫu',statusCode:'S1',censorCode:'CS1'},{id:20,name:'Công ty Khác',statusCode:'S1',censorCode:'CS1'}]);
+    await db.User.bulkCreate([{id:1,firstName:'Minh',lastName:'Nguyễn'},{id:2,firstName:'Lan',lastName:'Trần',companyId:10},{id:3,firstName:'Ứng viên khác'},{id:4,firstName:'Nhà tuyển dụng khác',companyId:20}]);
+    await db.Account.bulkCreate([['CANDIDATE',1],['COMPANY',2],['CANDIDATE',3],['COMPANY',4]].map(([roleCode,userId])=>({roleCode,userId,statusCode:'S1'})));
+    await db.Allcode.bulkCreate([{code:'SAL',value:'20–30 triệu'},{code:'EXP',value:'2 năm'},{code:'LOC',value:'Hà Nội'},{code:'WORK',value:'Toàn thời gian'}]);
+    await db.DetailPost.create({id:1,name:'Frontend Developer',descriptionHTML:'<h2>Mô tả công việc</h2><p>Phát triển sản phẩm tuyển dụng bằng React.</p><h2>Yêu cầu</h2><p>Hai năm kinh nghiệm, làm việc nhóm.</p>',salaryJobCode:'SAL',experienceJobCode:'EXP',addressCode:'LOC',categoryWorktypeCode:'WORK'});
+    await db.Post.bulkCreate([{id:1,userId:2,statusCode:'PS1',timeEnd:String(Date.now()+86400000),detailPostId:1},
+        {id:2,userId:4,statusCode:'PS1',timeEnd:String(Date.now()+86400000),detailPostId:1},
+        {id:3,userId:2,statusCode:'PS1',timeEnd:'1',detailPostId:1},
+        {id:4,userId:2,statusCode:'PS3',timeEnd:String(Date.now()+86400000),detailPostId:1}]);
+    const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+    const pdf=await PDFDocument.create();const font=await pdf.embedFont(StandardFonts.Helvetica);
+    for(let i=1;i<=2;i++){const page=pdf.addPage([595,842]);page.drawText(i===1?'NGUYEN MINH | FRONTEND DEVELOPER':'PROJECTS & EXPERIENCE',{x:45,y:775,size:18,font,color:rgb(.08,.23,.4)});page.drawText(`Sample CV for private chat verification - page ${i}`,{x:45,y:730,size:12,font});}
+    const bytes=Buffer.from(await pdf.save());
+    const media=require('../src/services/chatMediaService');const chat=require('../src/services/chatService');
+    const upload={receiverId:2,fileName:'CV-Nguyen-Minh.pdf',fileBase64:bytes.toString('base64')};
+    const attachment=await media.uploadChatAttachment(1,upload);assert.equal(attachment.errCode,0,attachment.errMessage);
+    assert.equal(attachment.data.pageCount,2);assert.equal(attachment.data.fileBase64,undefined);
+    assert.equal((await media.uploadChatAttachment(1,upload)).data.id,attachment.data.id);
+    assert.equal((await media.readChatAttachment(2,attachment.data.id)).httpStatus,404);
+    assert.equal((await media.readChatAttachment(3,attachment.data.id)).httpStatus,404);
+    const payload={senderId:1,receiverId:2,content:'Em gửi CV để anh/chị xem trước.',attachmentId:attachment.data.id,clientMessageId:randomUUID()};
+    const sent=await Promise.all([chat.handleSendMessage(payload),chat.handleSendMessage(payload)]);
+    assert.ok(sent.every(r=>r.errCode===0));assert.equal(await db.ChatMessage.count({where:{clientMessageId:payload.clientMessageId}}),1);
+    assert.equal((await media.readChatAttachment(2,attachment.data.id)).data.fileBase64,upload.fileBase64);
+    assert.notEqual((await chat.handleSendMessage({...payload,content:'changed'})).errCode,0);
+    assert.notEqual((await chat.handleSendMessage({...payload,senderId:2,receiverId:1,clientMessageId:randomUUID()})).errCode,0);
+    assert.deepEqual((await media.listChatJobs(1,{partnerId:2})).data.map(r=>r.id),[1]);
+    for(const jobPostId of [2,3,4]) assert.notEqual((await chat.handleSendMessage({senderId:2,receiverId:1,content:'',jobPostId,clientMessageId:randomUUID()})).errCode,0);
+    const jobPayload={senderId:2,receiverId:1,content:'Thông tin vị trí đang tuyển.',jobPostId:1,clientMessageId:randomUUID()};
+    const jobMessage=await chat.handleSendMessage(jobPayload);assert.equal(jobMessage.errCode,0,jobMessage.errMessage);
+    await db.DetailPost.update({descriptionHTML:'<h2>Nội dung cập nhật</h2><p>Làm việc kết hợp tại Hà Nội. React và TypeScript.</p>'},{where:{id:1}});
+    assert.equal((await chat.handleSendMessage(jobPayload)).data.jobSnapshot.descriptionText,jobMessage.data.jobSnapshot.descriptionText);
+    assert.match((await media.listChatJobs(1,{partnerId:2})).data[0].descriptionText,/Nội dung cập nhật/);
+    const history=await chat.getConversation({userId:1,partnerId:2});assert.equal(history.data[0].attachment.id,attachment.data.id);assert.ok(!JSON.stringify(history).includes(upload.fileBase64));
+    console.log('PASS MySQL: repeatable migration, private PDF upload/read, deduplication, concurrent retry, job scope and historical snapshot.');
+
+    if(!process.argv.includes('--browser')) return;
+    const assets=path.join(root,'.local/chat-media-checks');await fs.mkdir(assets,{recursive:true});
+    await require('esbuild').build({stdin:{contents:`import React from 'react'; import {createRoot} from 'react-dom/client';
+        import {BrowserRouter,Routes,Route} from 'react-router-dom'; import ChatPage from './src/container/Chat/ChatPage';
+        import {ToastContainer} from 'react-toastify'; import './src/css/App.css';
+        createRoot(document.getElementById('root')).render(<BrowserRouter><Routes><Route path='/chat/:partnerId' element={<ChatPage/>}/></Routes><ToastContainer/></BrowserRouter>);`,resolveDir:path.join(root,'frontend'),loader:'jsx'},
+        bundle:true,format:'esm',outfile:path.join(assets,'app.js'),loader:{'.js':'jsx'},define:{'process.env.REACT_APP_BACKEND_URL':JSON.stringify('/'),'process.env.PUBLIC_URL':JSON.stringify(''),'process.env.NODE_ENV':JSON.stringify('production')},logLevel:'warning'});
+    await fs.writeFile(path.join(assets,'index.html'),'<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><style>body{margin:0;font-family:Arial,sans-serif}*{box-sizing:border-box}</style><div id="root"></div><script type="module" src="/app.js"></script></html>');
+    const express=require('express'),jwt=require('jsonwebtoken');const security=require('../src/utils/securityConfig');const app=express();app.use(express.json({limit:'8mb'}));
+    const authenticate=(req,res,next)=>{try{req.user={id:Number(jwt.verify(req.headers.authorization.slice(7),security.getJwtSecret(),security.getJwtVerifyOptions()).sub)};next();}catch{res.sendStatus(401);}};
+    const controller=require('../src/controllers/chatController'),mediaController=require('../src/controllers/chatMediaController');
+    app.post('/api/send-chat-message',authenticate,controller.handleSendMessage);
+    app.get('/api/get-chat-conversation',authenticate,controller.getConversation);
+    app.get('/api/get-list-chat-conversation',authenticate,controller.getListConversation);
+    app.post('/api/chat-attachments',authenticate,mediaController.upload);app.get('/api/chat-attachments/:id',authenticate,mediaController.read);app.get('/api/chat-jobs',authenticate,mediaController.jobs);
+    app.get('/api/push/config',(req,res)=>res.json({errCode:0,enabled:false}));
+    app.use('/pdfjs',express.static(path.join(root,'frontend/public/pdfjs')));app.use(express.static(assets,{dotfiles:'allow'}));app.get('/chat/:partnerId',(req,res)=>res.sendFile(path.join(assets,'index.html'),{dotfiles:'allow'}));
+    server=require('http').createServer(app);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const url=`http://127.0.0.1:${server.address().port}`;process.env.URL_REACT=url;
+    io=require('../src/config/socket').initSocket(server);
+    let socketSends=0;io.on('connection',socket=>socket.on('chat:send',()=>socketSends++));
+    const {chromium,expect}=require('@playwright/test');browser=await chromium.launch({headless:true});
+    const errors=[];
+    const pageFor=async(id,partnerId)=>{const context=await browser.newContext({viewport:{width:1365,height:950}});await context.addInitScript(({id,token})=>{localStorage.setItem('userData',JSON.stringify({id,roleCode:id===1?'CANDIDATE':'COMPANY'}));localStorage.setItem('token_user',token);},{id,token:jwt.sign({sub:String(id)},security.getJwtSecret(),security.getJwtSignOptions())});const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(`${url}/chat/${partnerId}`);return page;};
+    const candidate=await pageFor(1,2),recruiter=await pageFor(2,1);
+    await expect(recruiter.getByRole('button',{name:'Xem PDF'})).toBeVisible();
+    await recruiter.getByRole('button',{name:'Xem PDF'}).click();
+    await expect(recruiter.locator('.react-pdf__Page canvas')).toBeVisible({timeout:20000});
+    await expect(recruiter.getByText('Trang 1 / 2',{exact:true})).toBeVisible();
+    await recruiter.getByRole('button',{name:'Trang PDF sau'}).click();await expect(recruiter.getByText('Trang 2 / 2',{exact:true})).toBeVisible();
+    await recruiter.getByRole('button',{name:'Phóng to PDF',exact:true}).click();await expect(recruiter.getByText('125%',{exact:true})).toBeVisible();
+    const [download]=await Promise.all([recruiter.waitForEvent('download'),recruiter.getByRole('link',{name:'Tải PDF'}).click()]);assert.equal(download.suggestedFilename(),upload.fileName);
+    await recruiter.screenshot({path:path.join(assets,'pdf-desktop.png')});
+    await recruiter.getByRole('button',{name:'Close',exact:true}).click();
+    await candidate.getByLabel('Chọn CV hoặc tài liệu PDF').setInputFiles({name:'CV-Xem-Truoc.pdf',mimeType:'application/pdf',buffer:bytes});
+    await expect(candidate.locator('.chat-media-draft')).toContainText('CV-Xem-Truoc.pdf');
+    const before=await db.ChatMessage.count();await candidate.getByRole('button',{name:'Gửi tin nhắn',exact:true}).click();
+    await expect(recruiter.getByRole('log').getByText('CV-Xem-Truoc.pdf',{exact:true})).toBeVisible();assert.equal(await db.ChatMessage.count(),before+1);
+    await recruiter.getByRole('button',{name:'Chia sẻ công việc',exact:true}).click();await recruiter.getByRole('button',{name:'Chọn công việc này'}).click();
+    await recruiter.getByRole('button',{name:'Gửi tin nhắn',exact:true}).click();
+    await expect(candidate.getByRole('log').getByText(/Làm việc kết hợp tại Hà Nội/)).toBeVisible();
+    await candidate.getByRole('button',{name:'Xem chi tiết bản đã gửi',exact:true}).last().click();
+    await expect(candidate.getByRole('dialog').getByText(/Nội dung cập nhật/)).toBeVisible();await candidate.getByRole('button',{name:'Close',exact:true}).click();
+    await candidate.screenshot({path:path.join(assets,'chat-desktop.png')});await candidate.setViewportSize({width:390,height:844});
+    assert.ok(await candidate.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await candidate.screenshot({path:path.join(assets,'chat-mobile.png')});
+    await candidate.getByRole('log').getByRole('button',{name:'Xem PDF'}).last().click();
+    await expect(candidate.locator('.react-pdf__Page canvas')).toBeVisible();assert.ok(await candidate.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await candidate.screenshot({path:path.join(assets,'pdf-mobile.png')});assert.deepEqual(errors,[]);
+    assert.equal(socketSends,2,'Both rich messages must use the real socket handler');
+    console.log('PASS browser: actual PDF worker/canvas, pages, zoom, download, attachment-only send, live receiver, updated job share, details, mobile width, no JS errors.');
+})().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{
+    await browser?.close();if(io)await new Promise(resolve=>io.close(resolve));else if(server)await new Promise(resolve=>server.close(resolve));
+    await require('../src/utils/realtimeTracing').close();await db?.sequelize.close();
+    if(admin){if(!/^jobfind_chat_media_test_[a-f0-9]{12}$/.test(database))throw new Error('Unsafe fixture database');await admin.query(`DROP DATABASE IF EXISTS \`${database}\``);await admin.end();}
+});

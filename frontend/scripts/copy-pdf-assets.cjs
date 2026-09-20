@@ -1,0 +1,11 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const { createRequire } = require('node:module');
+const reactPdfRequire = createRequire(require.resolve('react-pdf'));
+const source = path.dirname(reactPdfRequire.resolve('pdfjs-dist/package.json'));
+const version = reactPdfRequire('pdfjs-dist/package.json').version;
+const target = path.resolve(__dirname, '../public/pdfjs', version);
+fs.mkdirSync(target, { recursive: true });
+fs.copyFileSync(path.join(source, 'build/pdf.worker.min.mjs'), path.join(target, 'pdf.worker.min.mjs'));
+for (const directory of ['cmaps', 'standard_fonts', 'wasm']) fs.cpSync(path.join(source, directory), path.join(target, directory), { recursive: true });
+console.log(`Local PDF.js ${version} assets ready.`);

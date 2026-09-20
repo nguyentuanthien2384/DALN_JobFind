@@ -160,7 +160,8 @@ const initSocket = (server, adapter) => {
             metrics.ack(outcome,durationMs/1000);return {errCode:0};
         });
         register('chat:send', async (payload, traceId) => {
-            const result = await chatService.handleSendMessage({ senderId: userId, receiverId: payload.receiverId, content: payload.content, clientMessageId: payload.clientMessageId });
+            const result = await chatService.handleSendMessage({ senderId: userId, receiverId: payload.receiverId, content: payload.content, clientMessageId: payload.clientMessageId,
+                ...(payload.attachmentId ? { attachmentId: payload.attachmentId } : {}), ...(payload.jobPostId ? { jobPostId: payload.jobPostId } : {}) });
             if (result.duplicate) metrics.increment('chat_duplicate_replay_total');
             if (result.errCode === 0 && !result.duplicate) {
                 try { await tracing.run('chat.publish', async () => emitNewMessage(result.data, traceId)); }

@@ -150,6 +150,7 @@ async function serve() {
             return result === 'ready';
         }, 'Các dịch vụ API', 180000);
         await update('Khởi động giao diện tuyển dụng');
+        await exec(process.execPath, ['scripts/copy-pdf-assets.cjs'], { cwd: path.join(root, 'frontend'), windowsHide: true, timeout: 60000, signal: lifecycleSignal });
         await launchNode('frontend', path.join(root, 'frontend/node_modules/react-scripts/scripts/start.js'), [], path.join(root, 'frontend'), {
             ...process.env, NODE_ENV: 'development', BROWSER: 'none', HOST: '127.0.0.1', PORT: String(webPort),
             REACT_APP_BACKEND_URL: state.apiUrl,

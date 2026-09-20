@@ -46,12 +46,14 @@ const connect = async (url, id) => {
     await admin.query(`CREATE DATABASE ${name} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     require('@babel/register')({ presets: [['@babel/preset-env', { targets: { node: 'current' } }]], babelrc: false, configFile: false });
     db = require('./realtime/fixture.cjs')(fixtureUrl.href);
-    for (const model of [db.Company, db.User, db.Account]) await model.sync();
+    for (const model of [db.Company, db.User, db.Account, db.Allcode, db.DetailPost, db.Post]) await model.sync();
     const q = db.sequelize.getQueryInterface();
     await require('../src/migrations/migration-create-chatmessage').up(q, DataTypes);
     await q.bulkInsert('ChatMessages', [{ senderId: 7, receiverId: 8, content: 'legacy', isRead: 0, createdAt: new Date(), updatedAt: new Date() }]);
     const migration = require('../src/migrations/migrationzzzz-chat-reliability');
     await migration.up(q, DataTypes); await migration.up(q, DataTypes);
+    const mediaMigration = require('../src/migrations/migrationzzzzzzzzzz-chat-media');
+    await mediaMigration.up(q, DataTypes); await mediaMigration.up(q, DataTypes);
     await require('../src/migrations/migrationzzzzz-realtime-presence').up(q, DataTypes);
     const presence = require('../src/services/realtimePresenceService');
     await Promise.all([presence.touch(8, '2026-01-03T12:00:00Z'), presence.touch(8, '2026-01-01T12:00:00Z')]);

@@ -11,10 +11,12 @@ exports.build = async () => {
     await require('esbuild').build({stdin:{contents:`import React from 'react'; import {createRoot} from 'react-dom/client';
         import {BrowserRouter,Routes,Route} from 'react-router-dom'; import ChatPage from './src/container/Chat/ChatPage';
         import {ToastContainer} from 'react-toastify';
+        import './src/css/App.css';
         createRoot(document.getElementById('root')).render(<BrowserRouter><Routes><Route path='/chat/:partnerId' element={<ChatPage/>}/></Routes><ToastContainer/></BrowserRouter>);`,
         resolveDir:path.join(root,'frontend'),loader:'jsx'}, bundle:true, outfile:path.join(assets,'app.js'), loader:{'.js':'jsx'},
-        define:{'process.env.REACT_APP_BACKEND_URL':JSON.stringify('/'), 'process.env.NODE_ENV':JSON.stringify('production')},logLevel:'warning'});
-    await fs.copyFile(path.join(root,'frontend/src/css/App.css'),path.join(assets,'app.css'));
+        define:{'process.env.REACT_APP_BACKEND_URL':JSON.stringify('/'), 'process.env.PUBLIC_URL':JSON.stringify(''), 'process.env.NODE_ENV':JSON.stringify('production')},logLevel:'warning'});
+    require(path.join(root, 'frontend/scripts/copy-pdf-assets.cjs'));
+    await fs.cp(path.join(root, 'frontend/public/pdfjs'), path.join(assets, 'pdfjs'), { recursive: true });
     await fs.copyFile(path.join(root,'frontend/public/push-sw.js'),path.join(assets,'push-sw.js'));
     await fs.writeFile(path.join(assets,'index.html'),`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><style>body{margin:0;font-family:Arial,sans-serif}*{box-sizing:border-box}button{cursor:pointer;padding:8px}input{padding:10px;min-width:0;flex:1}a{text-decoration:none}</style><div id="root"></div><script src="/app.js"></script></html>`);
     return assets;

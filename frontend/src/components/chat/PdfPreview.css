@@ -1,0 +1,13 @@
+.chat-pdf-modal .ant-modal-title { padding-right: 24px; overflow-wrap: anywhere; }
+.chat-pdf-modal .ant-modal-body { min-width: 0; }
+.chat-pdf-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 15px 0; }
+.chat-pdf-toolbar > div { display: flex; align-items: center; gap: 9px; }
+.chat-pdf-toolbar button, .chat-pdf-toolbar a { border: 1px solid #d6e0e8; background: #fff; color: #234562; border-radius: 6px; padding: 6px 11px; font-size: 12px; cursor: pointer; }
+.chat-pdf-toolbar a { background: #167457; color: white; border-color: #167457; }
+.chat-pdf-toolbar button:disabled { opacity: .4; cursor: default; }
+.chat-pdf-toolbar span { font-size: 12px; color: #4e647b; }
+.chat-pdf-viewport { height: min(72vh, 850px); overflow: auto; background: #edf0f4; padding: 14px; border-radius: 8px; overscroll-behavior: contain; }
+.chat-pdf-viewport .react-pdf__Document { width: fit-content; margin: 0 auto; }
+.chat-pdf-viewport .react-pdf__Page { box-shadow: 0 2px 12px #18324a20; }
+.chat-pdf-status { padding: 35px 15px; font-size: 14px; color: #52677d; }
+@media(max-width:600px) { .chat-pdf-modal .ant-modal-content { padding: 15px 12px; } .chat-pdf-toolbar { gap: 8px; } .chat-pdf-toolbar button { padding: 6px 8px; } .chat-pdf-viewport { padding: 10px; height: 65vh; } }

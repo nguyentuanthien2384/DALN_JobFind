@@ -158,6 +158,7 @@ export const createProxy = (serviceKey, buildPath = (req) => req.path) => {
             });
 
             markHealth(serviceKey, true);
+            if (req.originalUrl.startsWith('/api/chat-attachments') || req.originalUrl.startsWith('/api/chat-jobs')) res.set('Cache-Control', 'no-store');
             return res.status(result.status).json(result.data);
         } catch (error) {
             // opossum danh dau request bi chan bang thuoc tinh nay.

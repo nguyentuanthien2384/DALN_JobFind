@@ -13,6 +13,7 @@ import companyReviewController from '../controllers/companyReviewController'
 import followCompanyController from '../controllers/followCompanyController'
 import notificationController from '../controllers/notificationController'
 import chatController from '../controllers/chatController'
+import * as chatMediaController from '../controllers/chatMediaController'
 import { handleSupportChat } from '../controllers/supportChatController'
 import { supportChatLimiter } from '../middlewares/rateLimit'
 import webPushController from '../controllers/webPushController'
@@ -201,6 +202,9 @@ let initWebRoutes = (app) => {
 
     //==================API CHAT (NHAN TIN)==================================//
     router.post('/api/send-chat-message', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), supportChatAccess, chatController.handleSendMessage)
+    router.post('/api/chat-attachments', ...protectedBy(PERMISSIONS.CHAT), chatMediaController.upload)
+    router.get('/api/chat-attachments/:id', ...protectedBy(PERMISSIONS.CHAT), chatMediaController.read)
+    router.get('/api/chat-jobs', ...protectedBy(PERMISSIONS.CHAT), chatMediaController.jobs)
     router.get('/api/get-chat-conversation', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), supportChatAccess, chatController.getConversation)
     router.get('/api/get-list-chat-conversation', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), supportChatAccess, chatController.getListConversation)
 

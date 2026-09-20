@@ -16,6 +16,8 @@ let handleSendMessage = (req, res) => tracing.run('http.chat.send', async (span)
             senderId: req.user.id,
             receiverId: req.body.receiverId,
             content: req.body.content,
+            ...(req.body.attachmentId !== undefined ? { attachmentId: req.body.attachmentId } : {}),
+            ...(req.body.jobPostId !== undefined ? { jobPostId: req.body.jobPostId } : {}),
             clientMessageId: req.body.clientMessageId
         });
         // Tin gui bang REST cung duoc day qua socket, nho vay nguoi nhan thay ngay

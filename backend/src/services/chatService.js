@@ -1,4 +1,5 @@
 import db from "../models/index";
+import { hydrateChatMessages, prepareChatMedia } from './chatMediaService';
 const { Op, QueryTypes } = require("sequelize");
 const protocol = require("../utils/chatProtocol");
 const tracing = require('../utils/realtimeTracing');
@@ -68,20 +69,22 @@ const canParticipantsChat = async (senderId, receiverId) => {
 let handleSendMessage = async (data) => {
     const content = typeof data.content === 'string' ? data.content.trim() : '';
     const senderId = Number(data.senderId), receiverId = Number(data.receiverId);
-    if (!Number.isSafeInteger(senderId) || senderId <= 0 || !Number.isSafeInteger(receiverId) || receiverId <= 0 || !content)
+    const media = { ...(data.attachmentId !== undefined ? { attachmentId: data.attachmentId } : {}), ...(data.jobPostId !== undefined ? { jobPostId: data.jobPostId } : {}) };
+    if (!Number.isSafeInteger(senderId) || senderId <= 0 || !Number.isSafeInteger(receiverId) || receiverId <= 0 || (!content && !data.attachmentId && !data.jobPostId))
         return protocol.error('PAYLOAD_INVALID', 'Missing required parameters !');
     if (content.length > 2000) return protocol.error('CHAT_MESSAGE_TOO_LONG', 'Tin nhắn không được vượt quá 2.000 ký tự', 4);
     if (senderId === receiverId) return protocol.error('CHAT_NOT_ALLOWED', 'Không thể tự gửi tin nhắn cho chính mình', 2);
     const clientMessageId = data.clientMessageId;
-    if (clientMessageId !== undefined && !protocol.validate('chat:send', { receiverId, content, clientMessageId }))
+    if ((clientMessageId !== undefined || Object.keys(media).length) && !protocol.validate('chat:send', { receiverId, content, clientMessageId, ...media }))
         return protocol.error('PAYLOAD_INVALID', 'Mã tin nhắn không hợp lệ');
     const attempts = await limiter.consume(`send-attempt:${senderId}`, 120, 60000);
     if (!attempts.allowed) return protocol.error('RATE_LIMITED', 'Bạn thao tác quá nhanh', 7, true, { retryAfterMs: attempts.retryAfterMs });
     const relationship = await tracing.run('chat.authorize', () => canParticipantsChat(senderId, receiverId));
     if (relationship.missingReceiver) return protocol.error('CHAT_RECEIVER_NOT_FOUND', 'Không tìm thấy người nhận', 3);
     if (!relationship.allowed) return protocol.error('CHAT_NOT_ALLOWED', 'Chỉ ứng viên và nhà tuyển dụng thuộc công ty đã duyệt mới được nhắn tin với nhau', 5);
-    const replay = (message) => Number(message.receiverId) === receiverId && message.content === content
-        ? { errCode: 0, data: message, duplicate: true }
+    const replay = async (message) => Number(message.receiverId) === receiverId && message.content === content
+        && (message.attachmentId || null) === (data.attachmentId || null) && (Number(message.jobPostId) || null) === (data.jobPostId || null)
+        ? { errCode: 0, data: (await hydrateChatMessages([message]))[0], duplicate: true }
         : protocol.error('IDEMPOTENCY_CONFLICT', 'Mã gửi lại đã được sử dụng cho một tin nhắn khác', 6);
     const where = { senderId, clientMessageId };
     if (clientMessageId) {
@@ -90,8 +93,10 @@ let handleSendMessage = async (data) => {
     }
     const rate = await limiter.consume(`send:${senderId}`, 30, 60000);
     if (!rate.allowed) return protocol.error('RATE_LIMITED', 'Bạn gửi quá nhanh. Vui lòng thử lại sau.', 7, true, { retryAfterMs: rate.retryAfterMs });
+    const prepared = await prepareChatMedia(senderId, receiverId, media);
+    if (prepared.errCode !== 0) return prepared;
     try {
-        const values={ senderId, receiverId, content, isRead:0, ...(clientMessageId ? {clientMessageId} : {}) };
+        const values={ senderId, receiverId, content, isRead:0, ...(clientMessageId ? {clientMessageId} : {}), ...prepared.values };
         const message = await tracing.run('chat.insert', () => {
             if (!require('../utils/webPushConfig').settings()) return db.ChatMessage.create(values);
             return db.sequelize.transaction(async transaction => {
@@ -100,7 +105,7 @@ let handleSendMessage = async (data) => {
                 return saved;
             });
         });
-        return { errCode: 0, data: message, errMessage: 'Gửi tin nhắn thành công' };
+        return { errCode: 0, data: (await hydrateChatMessages([message]))[0], errMessage: 'Gửi tin nhắn thành công' };
     } catch (error) {
         if (clientMessageId && error.name === 'SequelizeUniqueConstraintError') {
             const existing = await tracing.run('chat.lookup', () => db.ChatMessage.findOne({ where }));
@@ -194,9 +199,9 @@ let getConversation = (data) => {
                 })
                 resolve({
                     errCode: 0,
-                    data: messages,
+                    data: await hydrateChatMessages(messages),
                     partnerData: partner,
-                    conversationMeta: { waitingReply: relationship.waitingReply || null },
+                    conversationMeta: { waitingReply: relationship.waitingReply || null, richContent: Boolean(relationship.waitingReply) },
                     pageInfo: { hasMore, nextBeforeId: messages[0]?.id || null, nextAfterId: messages[messages.length - 1]?.id || null }
                 })
             }
@@ -232,7 +237,7 @@ let getListConversation = (data) => {
                 const latest = summaries.length ? await db.ChatMessage.findAll({
                     where: { id: { [Op.in]: summaries.map((row) => row.lastMessageId) } }, raw: true,
                 }) : [];
-                const byId = new Map(latest.map((message) => [Number(message.id), message]));
+                const byId = new Map((await hydrateChatMessages(latest)).map((message) => [Number(message.id), message]));
                 const mapConversation = Object.fromEntries(summaries.map((row) => [row.partnerId, {
                     partnerId: Number(row.partnerId), lastMessage: byId.get(Number(row.lastMessageId)), unreadCount: Number(row.unreadCount),
                 }]).filter(([, value]) => value.lastMessage));

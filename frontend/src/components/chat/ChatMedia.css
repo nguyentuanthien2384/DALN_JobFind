@@ -1,0 +1,51 @@
+.chat-message-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-message-content { min-width: 0; }
+.chat-message-content > * + * { margin-top: 10px; }
+.chat-file-card, .chat-job-card { background: #fff; color: #20354e; border: 1px solid #e0e6ed; border-radius: 11px; padding: 16px; min-width: 0; }
+.chat-file-card { display: flex; align-items: flex-start; gap: 13px; min-width: min(270px, 100%); }
+.chat-file-icon { flex-shrink: 0; display: grid; place-items: center; width: 42px; height: 50px; border-radius: 7px; background: #fff0f0; color: #bc3349; font-size: 11px; font-weight: 800; }
+.chat-file-info { display: flex; flex-direction: column; min-width: 0; align-items: flex-start; gap: 5px; }
+.chat-file-info strong { font-size: 14px; overflow-wrap: anywhere; }
+.chat-file-info > span { font-size: 11px; color: #708094; }
+.chat-file-info .chat-media-action { margin-top: 6px; }
+.chat-media-eyebrow { display: block; color: #147357; font-size: 10px; letter-spacing: 1px; font-weight: 750; margin-bottom: 9px; }
+.chat-job-card h3 { color: #20354e; font-size: 17px; font-weight: 700; margin: 0 0 5px; overflow-wrap: anywhere; }
+.chat-job-card p.chat-job-company { font-size: 12px; line-height: 1.6; color: #65758a; margin-bottom: 12px; }
+.chat-job-facts { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 12px 0; }
+.chat-job-facts dt { font-size: 10px; font-weight: 400; color: #738297; margin-bottom: 2px; }
+.chat-job-facts dd { font-size: 12px; margin: 0; font-weight: 600; }
+.chat-job-card p.chat-job-excerpt { font-size: 12px; color: #52677d; line-height: 1.65; white-space: pre-line; overflow-wrap: anywhere; margin-bottom: 14px; }
+.chat-media-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.chat-media-action { background: #edf5f2; border: 1px solid #cfe2d9; color: #16644c; border-radius: 6px; padding: 7px 10px; font-size: 12px; cursor: pointer; }
+.chat-media-action:hover { background: #dfefe7; }
+.chat-media-link, .chat-media-link:hover { font-size: 12px; color: #245e9c; text-decoration: underline; }
+.chat-media-caption { display: block; font-size: 10px; color: #788496; margin-top: 12px; }
+.chat-job-description { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; color: #30445b; }
+.chat-job-snapshot-note { background: #f0f5fa; border-radius: 8px; padding: 12px 14px; font-size: 12px; line-height: 1.6; }
+.chat-job-snapshot-note a, .chat-job-snapshot-note a:hover { color: #245e9c; text-decoration: underline; }
+.chat-composer { border-top: 1px solid #e6eaf0; padding: 10px 12px 12px; background: #fff; }
+.chat-composer-row { display: flex; gap: 10px; align-items: flex-end; }
+.chat-composer-row textarea { resize: vertical; min-height: 42px; max-height: 130px; min-width: 0; flex: 1; line-height: 1.5; }
+.chat-composer-row > button { min-height: 42px; flex-shrink: 0; }
+.chat-compose-hint { display: block; font-size: 10px; color: #8591a1; margin-top: 5px; }
+.chat-share-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; }
+.chat-share-toolbar button { display: flex; align-items: center; gap: 6px; border: 1px solid #dde5ed; background: #f8fafc; color: #36516e; font-size: 12px; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
+.chat-share-toolbar button:hover { background: #edf3f7; }
+.chat-share-toolbar button:disabled, .chat-media-action:disabled { opacity: .5; cursor: default; }
+.chat-share-toolbar > span { margin-left: auto; font-size: 10px; color: #8794a4; }
+.chat-media-draft { padding: 10px; margin-bottom: 10px; border: 1px dashed #b6cfc3; border-radius: 8px; background: #f3f8f6; max-height: 235px; overflow-y: auto; }
+.chat-media-draft-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 11px; color: #52677d; }
+.chat-media-draft-header button { color: #80505b; background: transparent; border: 0; text-decoration: underline; cursor: pointer; }
+.chat-media-draft .chat-job-excerpt, .chat-media-draft .chat-job-facts { display: none; }
+.chat-media-status, .chat-media-error { font-size: 12px; line-height: 1.5; margin: 0 0 8px; }
+.chat-media-status { color: #52677d; }.chat-media-error { color: #a33347; }
+.chat-job-picker > p { font-size: 13px; color: #65758a; line-height: 1.7; }
+.chat-job-picker > label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 6px; }
+.chat-job-picker > input { width: 100%; padding: 10px 12px; border: 1px solid #dce4ec; border-radius: 7px; margin-bottom: 14px; }
+.chat-job-option { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #e8edf2; }
+.chat-job-option .chat-job-card { border: 0; padding: 8px 0; }
+.chat-media-primary { background: #167457; color: #fff; border: 0; border-radius: 6px; padding: 9px 13px; font-size: 12px; cursor: pointer; }
+.chat-job-pages { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.chat-media-action:focus-visible, .chat-share-toolbar button:focus-visible, .chat-media-primary:focus-visible { outline: 3px solid #7fbbd6; outline-offset: 2px; }
+.chat-main .chat-bubble.chat-bubble-rich { width: 420px; max-width: 85%; }
+@media (max-width: 767px) { .chat-share-toolbar > span { width: 100%; margin: 0; } .chat-main .chat-bubble.chat-bubble-rich { max-width: 94%; } .chat-composer-row > button { padding-left: 10px; padding-right: 10px; } .chat-media-draft { max-height: 170px; } .chat-file-card,.chat-job-card { padding: 12px; } }
