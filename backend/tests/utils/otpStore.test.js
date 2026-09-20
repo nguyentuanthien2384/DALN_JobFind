@@ -2,7 +2,7 @@ describe('otpStore', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.useFakeTimers().setSystemTime(new Date('2026-01-01T00:00:00Z'));
-    jest.spyOn(Math, 'random').mockReturnValue(0.123456);
+    jest.spyOn(require('crypto'), 'randomInt').mockReturnValue(211110);
   });
 
   afterEach(() => {

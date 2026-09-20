@@ -94,6 +94,8 @@ const Login = () => {
                                                 : 'Phiên đăng nhập đã hết hạn hoặc không còn hợp lệ. Vui lòng đăng nhập lại.'}
                                         </p>
                                     )}
+                                    {new URLSearchParams(window.location.search).get('sso') === 'cancelled' &&
+                                        <p className="alert alert-info" role="status">Bạn đã hủy đăng nhập Google. Có thể thử lại hoặc đăng nhập bằng mật khẩu.</p>}
                                     {new URLSearchParams(window.location.search).get('sso') === 'not-linked' &&
                                         <p role="alert">Tài khoản Google này chưa liên kết với JobFind. Hãy đăng nhập bằng số điện thoại trước và liên kết tài khoản trong phần cài đặt.</p>}
                                     {new URLSearchParams(window.location.search).get('sso') === 'failed' && <p role="alert">Không thể xác thực Google. Yêu cầu có thể đã hết hạn hoặc bị hủy. Vui lòng thử lại.</p>}

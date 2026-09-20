@@ -19,6 +19,7 @@ import webPushController from '../controllers/webPushController'
 
 import middlewareControllers from '../middlewares/jwtVerify'
 import * as authController from '../controllers/authController'
+import { authResponseHeaders } from '../middlewares/authResponseHeaders'
 import { authorize, PERMISSIONS } from '../middlewares/authorize'
 import { loginLimiter, ssoLimiter, otpLimiter, registerLimiter, phoneCheckLimiter } from '../middlewares/rateLimit'
 import { emitNotification } from '../config/socket'
@@ -33,6 +34,7 @@ const protectedBy = (permission) => [
 ];
 
 let initWebRoutes = (app) => {
+    router.use(['/api/auth', '/api/login'], authResponseHeaders);
     router.post('/internal/support/public-tool', trustedSupport, publicTool);
     router.post('/internal/support/handoff', trustedSupport, deliverHandoff);
     router.post('/api/support-chat', supportChatLimiter, handleSupportChat);
@@ -78,6 +80,7 @@ let initWebRoutes = (app) => {
     router.post('/api/auth/login', loginLimiter, authController.login)
     router.get('/api/auth/providers', authController.providers)
     router.get('/api/auth/security', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.securityOverview)
+    router.get('/api/auth/security/events', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.securityEvents)
     router.delete('/api/auth/sessions/:familyId', authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.revokeSession)
     router.post('/api/auth/identities/:identityId/unlink', ssoLimiter, authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.unlinkIdentity)
     router.post('/api/auth/refresh', authController.cookieOrigin, loginLimiter, authController.refresh)

@@ -24,9 +24,9 @@ test('login passes password proof into the locked session issuance and never exp
   mockUserService.handleLogin.mockResolvedValue({ errCode: 0, user: { id: 7 } });
   mockSessions.createSession.mockResolvedValue({ user: { id: 7 }, token: 'access', refreshToken: 'private-refresh' });
   const response = res(); await controller.login(request(), response);
-  expect(mockSessions.createSession).toHaveBeenCalledWith(7, 'password', { password: 'fixture' });
+  expect(mockSessions.createSession).toHaveBeenCalledWith(7, 'password', { password: 'fixture', deviceLabel: 'Trình duyệt khác · Thiết bị khác' });
   expect(response.json).toHaveBeenCalledWith({ errCode: 0, user: { id: 7 }, token: 'access' });
-  expect(mockSessions.setRefreshCookie).toHaveBeenCalledWith(response, 'private-refresh');
+  expect(mockSessions.setRefreshCookie).toHaveBeenCalledWith(response, 'private-refresh', undefined);
   expect(response.set).toHaveBeenCalledWith('Cache-Control', 'no-store');
 });
 test('revoking another user session fails without any mutation', async () => {

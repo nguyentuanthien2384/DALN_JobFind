@@ -4,6 +4,7 @@ import db from '../models/index';
 import { getJwtSecret, getJwtSignOptions } from '../utils/securityConfig';
 import { Op } from 'sequelize';
 import bcrypt from 'bcryptjs';
+import { recordSecurityEvent } from './authAuditService';
 const REFRESH_TTL = 14 * 24 * 60 * 60;
 const uuid = () => crypto.randomUUID();
 const secret = () => crypto.randomBytes(48).toString('base64url');
@@ -12,8 +13,8 @@ export const refreshCookieName = () => process.env.NODE_ENV === 'production' ? '
 export const cookieSettings = () => ({
   httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/',
 });
-export const setRefreshCookie = (res, token) => res.cookie(refreshCookieName(), token, {
-  ...cookieSettings(), maxAge: REFRESH_TTL * 1000,
+export const setRefreshCookie = (res, token, expiresAt) => res.cookie(refreshCookieName(), token, {
+  ...cookieSettings(), maxAge: expiresAt ? Math.max(0, new Date(expiresAt).getTime() - Date.now()) : REFRESH_TTL * 1000,
 });
 export const clearRefreshCookie = (res) => res.clearCookie(refreshCookieName(), cookieSettings());
 export const readRefreshCookie = (req) => {
@@ -53,11 +54,14 @@ export const createSession = async (userId, method = 'password', proof = {}) => 
   if (!user) throw new Error('INACTIVE_ACCOUNT');
   const familyId = uuid();
   const refreshToken = secret();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + REFRESH_TTL * 1000);
   await db.AuthSession.create({
     id: uuid(), familyId, userId: user.id, tokenHash: digest(refreshToken), method,
-    expiresAt: new Date(Date.now() + REFRESH_TTL * 1000),
+    expiresAt, startedAt: now, lastUsedAt: now, deviceLabel: proof.deviceLabel || null,
   }, { transaction });
-  return { refreshToken, token: signAccess(user, familyId), user: publicUser(user) };
+  await recordSecurityEvent({ event: 'login_succeeded', userId: user.id, device: proof.deviceLabel }, transaction);
+  return { refreshToken, expiresAt, token: signAccess(user, familyId), user: publicUser(user) };
   });
 };
 export const activeFamily = async (familyId, userId, transaction) => {
@@ -66,25 +70,29 @@ export const activeFamily = async (familyId, userId, transaction) => {
     familyId, userId, revokedAt: null, rotatedAt: null, expiresAt: { [Op.gt]: new Date() },
   }, attributes: ['id'], transaction }));
 };
-export const revokeFamily = async (familyId, transaction) => {
+export const revokeFamily = async (familyId, transaction, event = 'session_revoked') => {
   if (!familyId) return;
   if (!transaction) {
     const row = await db.AuthSession.findOne({ where: { familyId }, attributes: ['userId'] });
     if (!row) return;
     return db.sequelize.transaction(async tx => {
       await lockAccount(row.userId, tx);
-      return revokeFamily(familyId, tx);
+      return revokeFamily(familyId, tx, event);
     });
   }
-  await db.AuthSession.update({ revokedAt: new Date() }, { where: { familyId, revokedAt: null }, transaction });
+  const owner = await db.AuthSession.findOne({ where: { familyId }, attributes: ['userId', 'deviceLabel'], transaction });
+  const changed = await db.AuthSession.update({ revokedAt: new Date() }, { where: { familyId, revokedAt: null }, transaction });
+  if (owner && changed?.[0]) await recordSecurityEvent({ event, userId: owner.userId, device: owner.deviceLabel }, transaction);
 };
 export const lockAccount = (userId, transaction) => db.Account.findOne({ where: { userId }, transaction, lock: transaction.LOCK.UPDATE });
-export const revokeAll = async (userId, transaction) => {
+export const revokeAll = async (userId, transaction, event = 'sessions_revoked_all') => {
   if (!transaction) return db.sequelize.transaction(async tx => {
     await lockAccount(userId, tx);
-    return revokeAll(userId, tx);
+    return revokeAll(userId, tx, event);
   });
-  return db.AuthSession.update({ revokedAt: new Date() }, { where: { userId, revokedAt: null }, transaction });
+  const changed = await db.AuthSession.update({ revokedAt: new Date() }, { where: { userId, revokedAt: null }, transaction });
+  await recordSecurityEvent({ event, userId }, transaction);
+  return changed;
 };
 export const revokeByRefresh = async (raw) => {
   if (!validToken(raw)) return;
@@ -104,7 +112,7 @@ export const rotateSession = async (raw) => {
       lock: transaction.LOCK.UPDATE });
     if (!old) return null;
     if (old.rotatedAt) {
-      await revokeFamily(old.familyId, transaction); // reuse: invalidate the full token family
+      await revokeFamily(old.familyId, transaction, 'refresh_reuse_detected'); // reuse: invalidate the full token family
       return null;
     }
     if (old.revokedAt || old.expiresAt <= new Date()) return null;
@@ -119,8 +127,9 @@ export const rotateSession = async (raw) => {
     await db.AuthSession.create({
       id: uuid(), familyId: old.familyId, userId: old.userId, tokenHash: digest(nextToken),
       method: old.method, expiresAt: old.expiresAt,
+      deviceLabel: old.deviceLabel, startedAt: old.startedAt || old.createdAt, lastUsedAt: now,
     }, { transaction });
-    return { refreshToken: nextToken, token: signAccess(user, old.familyId), user: publicUser(user) };
+    return { refreshToken: nextToken, expiresAt: old.expiresAt, token: signAccess(user, old.familyId), user: publicUser(user) };
   });
 };
 export const hashOpaque = digest;

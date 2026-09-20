@@ -24,7 +24,8 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     await sequelize.sync();
     await require('../src/migrations/migrationzzzzzzz-auth-sessions-sso').up(sequelize.getQueryInterface(), DataTypes);
     await require('../src/migrations/migrationzzzzzzzz-auth-link-binding').up(sequelize.getQueryInterface(), DataTypes);
-    for (const [name, file] of [['AuthSession', 'authSession'], ['AuthIdentity', 'authIdentity'], ['OidcTransaction', 'oidcTransaction']]) db[name] = require('../src/models/' + file)(sequelize, DataTypes);
+    await require('../src/migrations/migrationzzzzzzzzz-auth-audit-device').up(sequelize.getQueryInterface(), DataTypes);
+    for (const [name, file] of [['AuthSession', 'authSession'], ['AuthIdentity', 'authIdentity'], ['OidcTransaction', 'oidcTransaction'], ['AuthSecurityEvent', 'authSecurityEvent']]) db[name] = require('../src/models/' + file)(sequelize, DataTypes);
     const modelsPath = require.resolve('../src/models/index');
     require.cache[modelsPath] = { id: modelsPath, filename: modelsPath, loaded: true, exports: db };
     process.env.AUTH_ALLOW_LEGACY_TOKENS = 'false';
@@ -100,6 +101,7 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     assert.equal((await fetch(base + '/api/auth/logout', { method: 'POST', headers: { ...headers, Cookie: cookie, Authorization: 'Bearer ' + body.token }, body: '{}' })).status, 204);
     assert.equal((await fetch(base + '/api/auth/me', { headers: { Authorization: 'Bearer ' + body.token } })).status, 401);
     assert.equal((await fetch(base + '/api/auth/refresh', { method: 'POST', headers: { ...headers, Cookie: cookie }, body: '{}' })).status, 401);
+    await require('./auth/oidc-acceptance.cjs')({ db, app, base, user, headers, password });
     console.log('PASS: real MySQL migrations, login/cookies/CSRF, refresh rotation/replay, concurrent refresh/logout/logout-all, password revocation and protected HTTP endpoints.');
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));

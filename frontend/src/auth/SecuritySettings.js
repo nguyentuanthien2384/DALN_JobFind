@@ -4,6 +4,14 @@ import { forgetAccess, startGoogleLink } from './authClient';
 import { disconnectSocket } from '../socket';
 import { clearPushOnLogout } from '../push/webPush';
 
+const eventLabels = {
+  login_succeeded: 'Đăng nhập thành công', login_failed: 'Đăng nhập không thành công',
+  identity_linked: 'Đã liên kết tài khoản Google', identity_unlinked: 'Đã hủy liên kết tài khoản Google',
+  session_revoked: 'Đã đăng xuất một phiên', sessions_revoked_all: 'Đã đăng xuất tất cả thiết bị',
+  refresh_reuse_detected: 'Đã thu hồi phiên do phát hiện mã phiên bị sử dụng lại',
+  account_security_changed: 'Đã thay đổi mật khẩu hoặc trạng thái tài khoản', sso_rejected: 'Đăng nhập Google không thành công',
+};
+
 export default function SecuritySettings() {
   const [data, setData] = useState(null);
   const [password, setPassword] = useState('');
@@ -35,6 +43,15 @@ export default function SecuritySettings() {
     finally { setPassword(''); setBusy(false); }
   };
   const date = value => value ? new Date(value).toLocaleString('vi-VN') : 'Chưa đăng nhập';
+  const loadMore = async () => {
+    setBusy(true); setError('');
+    try {
+      const next = await api.get('/api/auth/security/events', { params: { before: data.nextCursor } });
+      if (next?.errCode !== 0) throw new Error('Không tải được lịch sử bảo mật.');
+      setData(previous => ({ ...previous, events: [...previous.events, ...next.events], nextCursor: next.nextCursor }));
+    } catch { setError('Không tải được lịch sử bảo mật. Vui lòng thử lại.'); }
+    finally { setBusy(false); }
+  };
   return <main className="container py-5" style={{ maxWidth: 900 }}>
     <h1>Bảo mật và đăng nhập</h1>
     <p>Quản lý tài khoản Google và các phiên đang đăng nhập vào JobFind.</p>
@@ -66,6 +83,9 @@ export default function SecuritySettings() {
         <ul className="list-unstyled">
           {data.sessions.map(session => <li key={session.familyId} className="border rounded p-3 mb-3 d-flex flex-wrap justify-content-between align-items-center">
             <div><strong>{session.current ? 'Phiên hiện tại' : 'Phiên khác'} · {session.method === 'password' ? 'Mật khẩu' : 'Google'}</strong>
+              <p className="mb-1">{session.deviceLabel || 'Chưa có thông tin thiết bị'}</p>
+              <p className="mb-1">Đăng nhập: {date(session.startedAt || session.createdAt)}</p>
+              {session.lastUsedAt && <p className="mb-1">Cập nhật phiên gần nhất: {date(session.lastUsedAt)}</p>}
               <p className="mb-1">Hết hạn: {date(session.expiresAt)}</p></div>
             <button className="btn btn-outline-danger" disabled={busy} onClick={() => {
               if (window.confirm('Đăng xuất phiên này?')) perform(() => api.delete(`/api/auth/sessions/${session.familyId}`), session.current);
@@ -75,6 +95,18 @@ export default function SecuritySettings() {
         <button className="btn btn-danger" disabled={busy} onClick={() => {
           if (window.confirm('Đăng xuất tất cả thiết bị, bao gồm phiên hiện tại?')) perform(() => api.post('/api/auth/logout-all', {}), true);
         }}>Đăng xuất tất cả thiết bị</button>
+      </section>
+      <section className="card p-4 mt-4" aria-labelledby="history-title">
+        <h2 id="history-title">Lịch sử bảo mật</h2>
+        <p>Thông tin trình duyệt và thiết bị chỉ mang tính tham khảo. Nếu thấy phiên lạ, hãy đăng xuất tất cả thiết bị và đổi mật khẩu.</p>
+        {!(data.events || []).length && <p>Chưa có hoạt động bảo mật được ghi nhận.</p>}
+        <ul className="list-unstyled">
+          {(data.events || []).map(event => <li key={event.id} className="border rounded p-3 mb-2">
+            <strong>{eventLabels[event.event] || 'Hoạt động bảo mật'}</strong>
+            <p className="mb-0">{date(event.createdAt)}{event.deviceLabel ? ` · ${event.deviceLabel}` : ''}</p>
+          </li>)}
+        </ul>
+        {data.nextCursor && <button className="btn btn-outline-secondary" disabled={busy} onClick={loadMore}>Xem hoạt động trước đó</button>}
       </section>
     </>}
   </main>;

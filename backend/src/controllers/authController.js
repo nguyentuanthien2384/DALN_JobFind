@@ -3,6 +3,7 @@ import * as sessions from '../services/authSessionService';
 import * as oidc from '../services/oidcService';
 import db from '../models/index';
 import bcrypt from 'bcryptjs';
+import { deviceLabel, recordSecurityEvent, recentSecurityEvents } from '../services/authAuditService';
 const allowedOrigins = () => (process.env.URL_REACT || 'http://localhost:3000,http://localhost:3001')
   .split(',').map(x => x.trim()).filter(Boolean);
 const validOrigin = (req) => {
@@ -16,9 +17,12 @@ export const login = async (req, res) => {
   if (!validOrigin(req)) return res.status(403).json({ errCode: 403, errMessage: 'Invalid request origin' });
   try {
     const result = await userService.handleLogin(req.body || {});
-    if (result.errCode !== 0) return res.status(401).json({ errCode: result.errCode, errMessage: result.errMessage });
-    const issued = await sessions.createSession(result.user.id, 'password', { password: req.body.password });
-    sessions.setRefreshCookie(res, issued.refreshToken);
+    if (result.errCode !== 0) {
+      await recordSecurityEvent({ event: 'login_failed', device: deviceLabel(req) });
+      return res.status(401).json({ errCode: result.errCode, errMessage: result.errMessage });
+    }
+    const issued = await sessions.createSession(result.user.id, 'password', { password: req.body.password, deviceLabel: deviceLabel(req) });
+    sessions.setRefreshCookie(res, issued.refreshToken, issued.expiresAt);
     res.set('Cache-Control', 'no-store');
     return res.json({ errCode: 0, user: issued.user, token: issued.token });
   } catch (err) {
@@ -30,7 +34,7 @@ export const refresh = async (req, res) => {
   try {
     const result = await sessions.rotateSession(sessions.readRefreshCookie(req));
     if (!result) { sessions.clearRefreshCookie(res); return failed(res); }
-    sessions.setRefreshCookie(res, result.refreshToken);
+    sessions.setRefreshCookie(res, result.refreshToken, result.expiresAt);
     res.set('Cache-Control', 'no-store');
     return res.json({ errCode: 0, token: result.token, user: result.user });
   } catch (err) {
@@ -71,13 +75,14 @@ export const ssoCallback = async (req, res) => {
   try {
     const result = await oidc.complete(req.params.provider, req, res);
     if (result.linked) return res.redirect(303, `${frontend}/account/security?sso=linked`);
-    const issued = await sessions.createSession(result.userId, result.method, { identityId: result.identityId });
-    sessions.setRefreshCookie(res, issued.refreshToken);
+    const issued = await sessions.createSession(result.userId, result.method, { identityId: result.identityId, deviceLabel: deviceLabel(req) });
+    sessions.setRefreshCookie(res, issued.refreshToken, issued.expiresAt);
     res.set('Cache-Control', 'no-store');
     return res.redirect(303, `${frontend}/login?sso=success`);
   } catch (err) {
     console.error('SSO callback rejected');
-    const reason = err.message === 'OIDC_NOT_LINKED' ? 'not-linked' : 'failed';
+    await recordSecurityEvent({ event: 'sso_rejected', device: deviceLabel(req) });
+    const reason = err.message === 'OIDC_NOT_LINKED' ? 'not-linked' : err.message === 'OIDC_CANCELLED' ? 'cancelled' : 'failed';
     return res.redirect(303, `${frontend}/login?sso=${reason}`);
   }
 };
@@ -90,14 +95,25 @@ const confirmPassword = async (req) => {
 export const providers = (_req, res) => res.json({ errCode: 0, google: oidc.googleAvailable() });
 export const securityOverview = async (req, res) => {
   try {
-    const [active, identities] = await Promise.all([
+    const [active, identities, history] = await Promise.all([
       db.AuthSession.findAll({ raw: false, where: { userId: req.user.id, revokedAt: null, rotatedAt: null,
-        expiresAt: { [db.Sequelize.Op.gt]: new Date() } }, attributes: ['familyId', 'method', 'createdAt', 'expiresAt'], order: [['createdAt', 'DESC']] }),
+        expiresAt: { [db.Sequelize.Op.gt]: new Date() } }, attributes: ['familyId', 'method', 'createdAt', 'expiresAt', 'deviceLabel', 'startedAt', 'lastUsedAt'], order: [['createdAt', 'DESC']] }),
       db.AuthIdentity.findAll({ where: { userId: req.user.id }, attributes: ['id', 'provider', 'emailAtLink', 'createdAt', 'lastLoginAt'] }),
+      recentSecurityEvents(req.user.id),
     ]);
     res.set('Cache-Control', 'no-store');
-    return res.json({ errCode: 0, sessions: active.map(row => ({ ...row.toJSON(), current: row.familyId === req.auth.sid })), identities, google: oidc.googleAvailable() });
+    return res.json({ errCode: 0, sessions: active.map(row => ({ ...row.toJSON(), current: row.familyId === req.auth.sid })), identities, ...history, google: oidc.googleAvailable() });
   } catch { return res.status(503).json({ errCode: 503, errMessage: 'Không tải được thông tin bảo mật' }); }
+};
+export const securityEvents = async (req, res) => {
+  try {
+    const history = await recentSecurityEvents(req.user.id, req.query.before);
+    res.set('Cache-Control', 'no-store');
+    return res.json({ errCode: 0, ...history });
+  } catch (err) {
+    const status = err.message === 'INVALID_CURSOR' ? 400 : 503;
+    return res.status(status).json({ errCode: status, errMessage: 'Không tải được lịch sử bảo mật' });
+  }
 };
 export const revokeSession = async (req, res) => {
   try {
@@ -112,11 +128,19 @@ export const unlinkIdentity = async (req, res) => {
   try {
     if (!await confirmPassword(req)) return res.status(403).json({ errCode: 403, errMessage: 'Mật khẩu hiện tại không chính xác' });
     await db.sequelize.transaction(async transaction => {
-      await sessions.lockAccount(req.user.id, transaction);
-      await db.AuthIdentity.destroy({ where: { id: req.params.identityId, userId: req.user.id }, transaction });
+      const account = await sessions.lockAccount(req.user.id, transaction);
+      // Recheck under the same lock as password changes and session revocation.
+      if (!account || account.statusCode !== 'S1' || !await bcrypt.compare(req.body.password, account.password)
+        || !await sessions.activeFamily(req.auth.sid, req.user.id, transaction)) throw new Error('REAUTH_REQUIRED');
+      const count = await db.AuthIdentity.destroy({ where: { id: req.params.identityId, userId: req.user.id }, transaction });
+      if (!count) throw new Error('IDENTITY_NOT_FOUND');
       await sessions.revokeAll(req.user.id, transaction);
+      await recordSecurityEvent({ event: 'identity_unlinked', userId: req.user.id, device: deviceLabel(req) }, transaction);
     });
     sessions.clearRefreshCookie(res);
     return res.json({ errCode: 0 });
-  } catch { return res.status(503).json({ errCode: 503, errMessage: 'Không hủy được liên kết' }); }
+  } catch (err) {
+    const status = err.message === 'IDENTITY_NOT_FOUND' ? 404 : err.message === 'REAUTH_REQUIRED' ? 403 : 503;
+    return res.status(status).json({ errCode: status, errMessage: 'Không hủy được liên kết. Hãy kiểm tra tài khoản và đăng nhập lại nếu cần.' });
+  }
 };

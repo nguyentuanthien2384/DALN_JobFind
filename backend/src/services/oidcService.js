@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import db from '../models/index';
 import { hashOpaque, loadUser, activeFamily, readRefreshCookie, lockAccount } from './authSessionService';
+import { recordSecurityEvent } from './authAuditService';
 // openid-client v6 verifies ID token signature, issuer, audience, expiry and nonce.
 // Install on the backend only: npm install openid-client@^6
 const OIDC_COOKIE = 'jobfind_oidc_tx';
@@ -65,7 +66,9 @@ export const complete = async (name, req, res) => {
     await stored.destroy({ transaction });
     return data;
   });
-  if (!tx || typeof req.query.code !== 'string' || req.query.code.length > 4096) throw new Error('OIDC_STATE');
+  if (!tx) throw new Error('OIDC_STATE');
+  if (req.query.error === 'access_denied') throw new Error('OIDC_CANCELLED');
+  if (typeof req.query.code !== 'string' || req.query.code.length > 4096) throw new Error('OIDC_STATE');
   const settings = providerSettings(name);
   const { client, config } = await clientFor(settings);
   // Use the fixed registered callback URL, never X-Forwarded-Host or an arbitrary request URL.
@@ -89,10 +92,15 @@ export const complete = async (name, req, res) => {
     let linkedIdentity = await db.AuthIdentity.findOne({ raw: false, where: { issuer: claims.iss, subject: claims.sub }, transaction });
     const current = await loadUser(tx.linkUserId, transaction);
     if (!current || (linkedIdentity && linkedIdentity.userId !== current.id)) throw new Error('OIDC_LINK_DENIED');
-    if (!linkedIdentity) linkedIdentity = await db.AuthIdentity.create({
+    if (!linkedIdentity) {
+    linkedIdentity = await db.AuthIdentity.create({
       userId: current.id, provider: name, issuer: claims.iss, subject: claims.sub,
       emailAtLink: claims.email_verified === true ? String(claims.email || '').slice(0, 254) : null,
+      emailVerifiedAtLink: claims.email_verified === true,
+      displayNameAtLink: typeof claims.name === 'string' ? claims.name.slice(0, 120) : null,
     }, { transaction });
+    await recordSecurityEvent({ event: 'identity_linked', userId: current.id }, transaction);
+    }
     return linkedIdentity;
     });
   }

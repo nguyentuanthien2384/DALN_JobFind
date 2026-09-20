@@ -37,7 +37,7 @@ const middlewareControllers = {
             const accessToken = token.split(' ')[1]
             jwt.verify(accessToken, getJwtSecret(), getJwtVerifyOptions(), async (err, payload) => {
                 if (err || !hasAccessTokenClaims(payload)) {
-                    return res.status(403).json({
+                    return res.status(401).json({
                         status: false,
                         errMessage: 'Token is not valid!',
                         refresh: true,
@@ -56,7 +56,7 @@ const middlewareControllers = {
                         nest: true
                     })
                     if (!user) {
-                        return res.status(404).json({
+                        return res.status(401).json({
                             status: false,
                             errMessage: 'User is not exits',
                             refresh: true,
@@ -113,7 +113,7 @@ const middlewareControllers = {
             const accessToken = token.split(' ')[1]
             jwt.verify(accessToken, getJwtSecret(), getJwtVerifyOptions(), async (err, payload) => {
                 if (err || !hasAccessTokenClaims(payload)) {
-                    return res.status(403).json({
+                    return res.status(401).json({
                         status: false,
                         errMessage: 'Token is not valid!',
                         refresh: true,
@@ -136,7 +136,7 @@ const middlewareControllers = {
                         }
                     )
                     if (!user) {
-                        return res.status(404).json({
+                        return res.status(401).json({
                             status: false,
                             errMessage: 'User is not exits',
                             refresh: true,

@@ -7,6 +7,8 @@ module.exports = (sequelize, DataTypes) => {
     issuer: { type: DataTypes.STRING(255), allowNull: false },
     subject: { type: DataTypes.STRING(255), allowNull: false },
     emailAtLink: DataTypes.STRING(254),
+    emailVerifiedAtLink: DataTypes.BOOLEAN,
+    displayNameAtLink: DataTypes.STRING(120),
     lastLoginAt: DataTypes.DATE,
   }, { tableName: 'AuthIdentities', timestamps: true, indexes: [{ unique: true, fields: ['issuer', 'subject'] }] });
   AuthIdentity.associate = (db) => { AuthIdentity.belongsTo(db.User, { foreignKey: 'userId' }); };

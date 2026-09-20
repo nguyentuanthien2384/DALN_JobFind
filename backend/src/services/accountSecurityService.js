@@ -6,5 +6,5 @@ import { lockAccount, revokeAll } from './authSessionService';
 export const saveAndRevokeSessions = account => db.sequelize.transaction(async transaction => {
   await lockAccount(account.userId, transaction);
   await account.save({ transaction });
-  await revokeAll(account.userId, transaction);
+  await revokeAll(account.userId, transaction, 'account_security_changed');
 });

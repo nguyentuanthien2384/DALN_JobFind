@@ -5,6 +5,9 @@
 // Neu sau nay chay nhieu tien trinh (pm2 cluster) thi doi cho luu nay sang Redis,
 // vi moi tien trinh dang giu mot Map rieng.
 
+const crypto = require('crypto');
+const memoryKey = crypto.randomBytes(32);
+const hashCode = code => crypto.createHmac('sha256', memoryKey).update(String(code)).digest();
 const OTP_TTL_MS = 5 * 60 * 1000;      // ma het han sau 5 phut
 const RESEND_COOLDOWN_MS = 60 * 1000;  // cho 60s moi duoc gui lai
 const MAX_ATTEMPTS = 5;                // nhap sai 5 lan thi huy ma
@@ -21,7 +24,7 @@ const purgeExpired = () => {
     }
 };
 
-const generateCode = () => String(Math.floor(100000 + Math.random() * 900000));
+const generateCode = () => String(crypto.randomInt(100000, 1000000));
 
 // Tra ve { code, error } - error khac null nghia la chua duoc phep gui.
 const issueOtp = (phonenumber) => {
@@ -34,7 +37,7 @@ const issueOtp = (phonenumber) => {
 
     const code = generateCode();
     store.set(phonenumber, {
-        code,
+        codeHash: hashCode(code),
         issuedAt: Date.now(),
         expiresAt: Date.now() + OTP_TTL_MS,
         attempts: 0
@@ -53,7 +56,7 @@ const verifyOtp = (phonenumber, code) => {
         store.delete(phonenumber);
         return { valid: false, errMessage: 'Bạn đã nhập sai quá nhiều lần, vui lòng yêu cầu mã mới' };
     }
-    if (String(entry.code) !== String(code)) {
+    if (!/^[0-9]{6}$/.test(String(code)) || !crypto.timingSafeEqual(entry.codeHash, hashCode(code))) {
         entry.attempts += 1;
         return { valid: false, errMessage: 'Mã xác thực không đúng hoặc đã hết hạn' };
     }

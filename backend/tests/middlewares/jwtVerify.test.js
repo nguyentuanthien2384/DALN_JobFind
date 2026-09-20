@@ -41,7 +41,7 @@ describe('JWT middleware', () => {
     middleware[method](req, res, next);
     await flush();
     expect(mockVerify).toHaveBeenCalledWith('broken', expect.anything(), expect.objectContaining({ algorithms: ['HS256'] }), expect.any(Function));
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ refresh: true }));
   });
 
@@ -66,7 +66,7 @@ describe('JWT middleware', () => {
     const next = jest.fn();
     middleware.verifyTokenUser(createRequest({ headers: { authorization: 'Bearer valid' } }), res, next);
     await flush();
-    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.status).toHaveBeenCalledWith(401);
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -133,7 +133,7 @@ describe('JWT middleware', () => {
     const res = createResponse();
     middleware.verifyTokenAdmin(createRequest({ headers: { authorization: 'Bearer valid' } }), res, jest.fn());
     await flush();
-    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errMessage: 'User is not exits' }));
   });
 

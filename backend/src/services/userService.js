@@ -6,7 +6,6 @@ import CommonUtils from '../utils/CommonUtils';
 const cloudinary = require('../utils/cloudinary');
 const otpStore = require('../utils/otpStore');
 const { getFrontendLink } = require('../utils/frontendUrl');
-const salt = bcrypt.genSaltSync(10);
 require('dotenv').config();
 let nodemailer = require('nodemailer');
 const normalizeEmail = (email) => typeof email === 'string'
@@ -72,7 +71,7 @@ let sendmail = (note, userMail, link = null) => {
 let hashUserPasswordFromBcrypt = (password) => {
     return new Promise(async (resolve, reject) => {
         try {
-            let hashPassword = await bcrypt.hashSync(password, salt);
+            let hashPassword = await bcrypt.hashSync(password, bcrypt.genSaltSync(10));
             resolve(hashPassword);
         } catch (error) {
             reject(error)
@@ -473,12 +472,6 @@ let requestResetPasswordOtp = (data) => {
                         <p>Mã xác thực của bạn là: <b style="font-size:20px;letter-spacing:3px">${code}</b></p>
                         <p>Mã có hiệu lực trong 5 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>`
             sendmail(note, email)
-
-            // Khi chua cau hinh EMAIL_APP (moi truong dev) thi mail khong the gui di
-            // duoc, in ma ra console de con chay thu duoc luong nay.
-            if (!process.env.EMAIL_APP || process.env.EMAIL_APP.includes('youremail')) {
-                console.log(`[DEV] Ma OTP dat lai mat khau cho ${data.phonenumber}: ${code}`)
-            }
 
             resolve({
                 errCode: 0,
