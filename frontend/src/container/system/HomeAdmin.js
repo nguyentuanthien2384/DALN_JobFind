@@ -55,6 +55,7 @@ import {
     PERMISSIONS,
 } from "../../auth/accessControl";
 import { readJsonStorage } from "../../util/storage";
+import './AdminLayout.css';
 
 const HomeAdmin = ({ user: suppliedUser }) => {
     const user = suppliedUser || readJsonStorage("userData");
@@ -66,7 +67,7 @@ const HomeAdmin = ({ user: suppliedUser }) => {
     );
 
     return (
-        <div className="container-scroller">
+        <div className="container-scroller jf-admin">
             {/* partial:partials/_navbar.html */}
             <Header user={user} />
             {/* partial */}

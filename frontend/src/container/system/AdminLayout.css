@@ -1,0 +1,53 @@
+/* Keep the header, sidebar and flexible content on the same grid. */
+.jf-admin { --admin-sidebar-width: 281px; }
+.jf-admin .sidebar { flex-shrink: 0; }
+.jf-admin .main-panel { flex: 1; min-width: 0; }
+.jf-admin .content-wrapper { min-width: 0; }
+.jf-admin .navbar .navbar-brand-wrapper { width: var(--admin-sidebar-width); flex-shrink: 0; }
+.jf-admin .navbar .navbar-menu-wrapper { flex: 1; min-width: 0; }
+@media (min-width: 992px) {
+    .sidebar-icon-only .jf-admin { --admin-sidebar-width: 70px; }
+}
+@media (max-width: 991px) {
+    .jf-admin { --admin-sidebar-width: 55px; }
+    /* The theme hides 235px, but its sidebar is actually 281px wide. */
+    .jf-admin .sidebar-offcanvas { width: 281px; right: -281px; }
+    .jf-admin .sidebar-offcanvas.active { right: 0; }
+    .jf-admin .tu-dong-cap-nhat { max-width: 100%; flex-wrap: wrap; }
+    .jf-admin #system-notification-menu {
+        position: fixed;
+        top: 68px;
+        right: 12px;
+        width: min(330px, calc(100vw - 24px));
+        max-height: calc(100dvh - 84px);
+    }
+}
+.jf-admin__notifications {
+    position: absolute;
+    top: 34px;
+    right: -10px;
+    width: 330px;
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .15);
+    z-index: 999;
+}
+/* Leave the fixed header and the support widget accessible while toasts appear. */
+body:has(.jf-admin) .jf-notifications.Toastify__toast-container--top-right {
+    top: max(76px, env(safe-area-inset-top));
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(360px, calc(100vw - 24px));
+}
+body:has(.jf-admin) .jf-notifications .Toastify__toast {
+    border-radius: 10px;
+    overflow-wrap: anywhere;
+}
+.jf-admin__chart { margin-bottom: 24px; }
+.jf-admin__chart-canvas { height: 300px; min-width: 0; }
+.jf-admin__chart-state { padding: 20px; margin-bottom: 24px; background: #fff; border-radius: 12px; color: #596579; }
+.jf-admin__statistics { margin-bottom: 24px; }

@@ -25,6 +25,7 @@ const Home = () => {
     const formattedToday = yyyy + "-" + mm + "-" + dd;
     const [user, setUser] = useState({});
     const [dataStatisticalTypePost, setDataStatisticalTypePost] = useState([]);
+    const [chartError, setChartError] = useState('');
     const [dataStatisticalPackagePost, setDataStatisticalPackagePost] =
         useState([]);
     const [dataStatisticalPackageCv, setDataStatisticalPackageCv] = useState(
@@ -186,7 +187,13 @@ const Home = () => {
     const daBaoLoiBieuDo = useRef(false);
 
     const getData = async (limit) => {
-        let res = await getStatisticalTypePost(limit);
+        let res;
+        try {
+            res = await getStatisticalTypePost(limit);
+        } catch {
+            res = { errCode: -1 };
+        }
+        if (!res) res = { errCode: -1 };
         let other = res.totalPost;
         let otherPercent = 100;
         let color = ["red", "yellow", "green", "blue", "orange"];
@@ -213,14 +220,16 @@ const Home = () => {
                 });
             }
             setDataStatisticalTypePost(newdata);
+            setChartError('');
             daBaoLoiBieuDo.current = false;
-        } else if (!daBaoLoiBieuDo.current) {
-            daBaoLoiBieuDo.current = true;
-            // API tra ve truong 'errMessage'; truoc doc nham 'message' nen khi loi
-            // chi hien mot toast trong. Van giu 'message' de phong truong hop cu.
-            toast.error(
-                res.errMessage || res.message || "Không tải được biểu đồ thống kê"
-            );
+        } else {
+            const message = res.errMessage && res.errMessage !== 'Error from server'
+                ? res.errMessage : res.message || 'Không tải được biểu đồ thống kê. Vui lòng thử Làm mới.';
+            setChartError(message);
+            if (!daBaoLoiBieuDo.current) {
+                daBaoLoiBieuDo.current = true;
+                toast.error(message);
+            }
         }
     };
 
@@ -273,7 +282,8 @@ const Home = () => {
                     </div>
                 </div>
             </div>
-            <div className="row">
+            {chartError && <div className="jf-admin__chart-state" role="status">{chartError}</div>}
+            {dataStatisticalTypePost.length > 0 ? <div className="row jf-admin__chart">
                 <div className="col-md-4">
                     {dataStatisticalTypePost.map((item, index) => {
                         return (
@@ -292,10 +302,7 @@ const Home = () => {
                         );
                     })}
                 </div>
-                <div
-                    style={{ width: "300px", height: "300px" }}
-                    className="col-md-8"
-                >
+                <div className="col-md-8 jf-admin__chart-canvas">
                     <PieChart
                         label={({ x, y, dx, dy, dataEntry }) => (
                             <text
@@ -313,9 +320,11 @@ const Home = () => {
                         data={dataStatisticalTypePost}
                     />
                 </div>
-            </div>
+            </div> : !chartError && <div className="jf-admin__chart-state" role="status">
+                {dangTai ? 'Đang tải biểu đồ thống kê...' : 'Chưa có dữ liệu thống kê lĩnh vực.'}
+            </div>}
             {user.companyId && (
-                <div className="col-12 grid-margin">
+                <div className="jf-admin__statistics">
                     <div className="card">
                         <div className="card-body">
                             <h4 className="card-title">

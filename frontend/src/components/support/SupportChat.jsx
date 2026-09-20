@@ -85,7 +85,7 @@ const SupportChat = () => {
     }, [isOpen, ownerKey, view, historyRefresh]);
     useEffect(() => {
         if (isOpen && view === 'chat') inputRef.current?.focus();
-    }, [isOpen, view]);
+    }, [isOpen, view, thread?.id]);
     useEffect(() => {
         if (!isOpen) return undefined;
         const onKeyDown = (event) => {
@@ -129,6 +129,7 @@ const SupportChat = () => {
     const cancelRequest = () => {
         speechRef.current?.abort();
         setEditing(null);
+        setCopiedId(null);
         generation.current += 1;
         activeRequest.current?.abort();
         activeRequest.current = null;
@@ -155,6 +156,7 @@ const SupportChat = () => {
         try {
             const value = item.remoteId ? await supportApi.get(item.remoteId) : item;
             if (requestGeneration !== generation.current) return;
+            runtime.thread.composer.setText('');
             setStore(current => ({ ...current, activeId: item.id, threads: current.threads.map(entry => entry.id === item.id ? { ...entry, ...value, id: item.id, remoteId: item.remoteId, loaded: true } : entry) }));
             setView('chat');
         } catch (cause) { setError(cause.message); }
@@ -339,6 +341,7 @@ const SupportChat = () => {
                                 {user.roleCode === 'CANDIDATE' && <><button type="button" disabled={privateBusy} onClick={() => lookup('getMyApplications')}>Đơn ứng tuyển của tôi</button><button type="button" disabled={privateBusy} onClick={() => lookup('getMySavedJobs')}>Việc đã lưu</button></>}
                                 {['COMPANY', 'EMPLOYER'].includes(user.roleCode) && <><button type="button" disabled={privateBusy} onClick={() => lookup('getMyCompanyJobs')}>Tin công ty</button><button type="button" disabled={privateBusy} onClick={() => lookup('getSubscriptionStatus')}>Hạn mức gói</button></>}
                             </div>}
+                            <div className="jf-support__conversation">
                             <ThreadPrimitive.Viewport className="jf-support__messages" role="log" aria-live="polite" aria-label="Nội dung trò chuyện">
                                 {!messages.length ? (
                                     <div className="jf-support__welcome">
@@ -371,9 +374,10 @@ const SupportChat = () => {
                                     </MessagePrimitive.Root>
                                 ); }}</ThreadPrimitive.Messages>}
                             </ThreadPrimitive.Viewport>
+                            <ThreadPrimitive.ScrollToBottom className="jf-support__scroll" aria-label="Đến tin nhắn mới nhất">↓ Tin mới nhất</ThreadPrimitive.ScrollToBottom>
+                            </div>
                             {privateResult && <div className="jf-support__private-result" role="status"><strong>{privateResult.title}</strong><button type="button" onClick={() => setPrivateResult(null)} aria-label="Đóng kết quả tra cứu">×</button><ul>{privateResult.lines?.length ? privateResult.lines.map((line, index) => <li key={index}>{line}</li>) : <li>Chưa có dữ liệu.</li>}</ul><small>Tra cứu trực tiếp, không gửi cho AI.</small>{/^\/(candidate|admin)\/[a-z-]+$/.test(privateResult.href || '') && <Link to={privateResult.href} onClick={() => setOpen(false)}>Mở trang quản lý ↗</Link>}</div>}
                             {thread.handoff && <div className="jf-support__login">{thread.handoff.status === 'resolved' ? 'Yêu cầu đã được xử lý.' : thread.handoff.agentId ? 'Nhân viên đã tiếp nhận. ' : 'Đã lưu yêu cầu. Đang chờ nhân viên tiếp nhận.'}{thread.handoff.agentId && <Link to={`/support/chat/${thread.handoff.agentId}`} onClick={() => setOpen(false)}>Mở tin nhắn</Link>}<button type="button" onClick={() => openThread(thread)}>Cập nhật</button></div>}
-                            <ThreadPrimitive.ScrollToBottom className="jf-support__scroll" aria-label="Đến tin nhắn mới nhất">↓ Tin mới nhất</ThreadPrimitive.ScrollToBottom>
                             {error && <div className="jf-support__error" role="alert">{error}<button type="button" onClick={ready ? retryLast : () => setHistoryRefresh(value => value + 1)} disabled={busy}><Icon name="retry" size={15}/>{ready ? 'Thử lại' : 'Kết nối lại'}</button>{!ready && !user?.id && <button type="button" onClick={() => { supportApi.resetGuest(); setHistoryRefresh(value => value + 1); }}>Bắt đầu phiên khách mới</button>}</div>}
                             <div className="jf-support__compose-area">
                                 {editing && <form className="jf-support__edit" onSubmit={(event) => {
@@ -388,7 +392,7 @@ const SupportChat = () => {
                                 </form>}
                                 <ComposerPrimitive.Root className="jf-support__composer">
                                     <label htmlFor="jf-support-input" className="jf-support__sr-only">Nhập câu hỏi cho trợ lý</label>
-                                    <ComposerPrimitive.Input id="jf-support-input" ref={inputRef} rows={1} maxLength={1400}
+                                    <ComposerPrimitive.Input id="jf-support-input" ref={inputRef} minRows={1} maxRows={4} maxLength={1400}
                                         placeholder="Đặt câu hỏi hỗ trợ..." aria-label="Đặt câu hỏi hỗ trợ"/>
                                     <button type="button" className={`jf-support__mic${listening ? ' jf-support__mic--active' : ''}`}
                                         onClick={startSpeech} disabled={busy || !(window.SpeechRecognition || window.webkitSpeechRecognition)}

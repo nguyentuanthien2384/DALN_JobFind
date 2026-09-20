@@ -212,12 +212,7 @@ const Header = ({ user: suppliedUser }) => {
                         {showNotification && (
                             <div
                                 id="system-notification-menu"
-                                style={{
-                                    position: "absolute", top: "34px", right: "-10px", width: "330px",
-                                    background: "#fff", borderRadius: "8px",
-                                    boxShadow: "0 4px 16px rgba(0,0,0,0.15)", zIndex: 999,
-                                    maxHeight: "400px", overflowY: "auto",
-                                }}
+                                className="jf-admin__notifications"
                             >
                                 <div
                                     style={{

@@ -160,4 +160,26 @@ describe("system home dashboard", () => {
         await waitFor(() => expect(getStatisticalTypePost).toHaveBeenCalledTimes(3));
         expect(toast.error).toHaveBeenCalledTimes(1);
     });
+
+    it('keeps company CV statistics available when the chart request rejects and recovers on refresh', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 8, companyId: 42, roleCode: 'EMPLOYER' }));
+        getStatisticalTypePost.mockRejectedValueOnce(new Error('Network unavailable'));
+        render(<Home />);
+        await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Không tải được biểu đồ thống kê'));
+        expect(screen.queryByTestId('job-type-chart')).not.toBeInTheDocument();
+        expect(await screen.findByText('Frontend Engineer')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Làm mới dashboard' }));
+        expect(await screen.findByTestId('job-type-chart')).toBeInTheDocument();
+        expect(screen.queryByText(/Không tải được biểu đồ thống kê/)).not.toBeInTheDocument();
+    });
+
+    it('shows an empty state without reserving an empty chart when there are no jobs', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 8, companyId: 42, roleCode: 'EMPLOYER' }));
+        getStatisticalTypePost.mockResolvedValue({ errCode: 0, totalPost: 0, data: [] });
+        render(<Home />);
+        expect(await screen.findByText('Frontend Engineer')).toBeInTheDocument();
+        expect(screen.getByRole('status')).toHaveTextContent('Chưa có dữ liệu thống kê lĩnh vực.');
+        expect(screen.queryByTestId('job-type-chart')).not.toBeInTheDocument();
+        expect(toast.error).not.toHaveBeenCalled();
+    });
 });

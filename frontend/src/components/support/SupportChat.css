@@ -21,8 +21,9 @@
 .jf-support__tools button:hover, .jf-support__history-heading button:hover { background: #f1f5fa; color: #1b2638; }
 .jf-support__login { font-size: 12px; line-height: 1.55; color: #5d6674; padding: 9px 19px; background: #f9fbfe; border-bottom: 1px solid #eff1f5; }
 .jf-support__login a { font-weight: 650; white-space: nowrap; }
-.jf-support__messages { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; gap: 17px; padding: 21px 17px; scrollbar-color: #c7d0dc transparent; }
-.jf-support__welcome { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px 4px; text-align: center; }
+.jf-support__conversation { position: relative; display: flex; flex: 1; min-height: 0; }
+.jf-support__messages { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; gap: 17px; padding: 21px 17px; scrollbar-color: #c7d0dc transparent; }
+.jf-support__welcome { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px 4px; text-align: center; }
 .jf-support__welcome-icon { display: flex; align-items: center; justify-content: center; width: 59px; height: 59px; background: #edf3ff; border-radius: 20px; color: #2967c3; margin-bottom: 17px; }
 .jf-support__welcome h2 { font: 750 21px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #192942; margin: 0 0 5px; }
 .jf-support__welcome p { margin: 0 0 23px; max-width: 260px; color: #718098; line-height: 1.55; font-size: 13px; }
@@ -50,7 +51,7 @@
 .jf-support__compose-area { flex: none; padding: 0 14px 11px; background: #fff; }
 .jf-support__composer { display: flex; align-items: flex-end; gap: 8px; border: 1px solid #dce2ec; border-radius: 17px; padding: 9px 9px 9px 13px; box-shadow: 0 2px 8px rgba(21, 44, 74, .045); margin: 0; }
 .jf-support__composer:focus-within { border-color: #7ca7df; box-shadow: 0 0 0 3px rgba(69, 131, 219, .10); }
-.jf-support__composer textarea { display: block; flex: 1; width: 100%; min-width: 0; height: 35px; max-height: 105px; resize: vertical; padding: 8px 0; border: 0 !important; background: transparent; outline: none !important; box-shadow: none !important; font-size: 13px; line-height: 1.45; color: #253349; }
+.jf-support__composer textarea { display: block; flex: 1; width: 100%; min-width: 0; resize: none; padding: 8px 0; border: 0 !important; background: transparent; outline: none !important; box-shadow: none !important; font-size: 13px; line-height: 1.45; color: #253349; }
 .jf-support__composer textarea::placeholder { color: #8b97a8; }
 .jf-support__send { flex: none; display: grid; place-items: center; width: 33px; height: 33px; min-width: 33px; border: 0; border-radius: 50%; padding: 0; color: #fff; background: #1b2c47; line-height: 1; }
 .jf-support__send:hover:not(:disabled) { background: #315e98; }
@@ -92,7 +93,8 @@
 .jf-support__markdown table { display: block; overflow-x: auto; border-collapse: collapse; }
 .jf-support__markdown th, .jf-support__markdown td { padding: 7px; border: 1px solid #d8e1ee; }
 .jf-support__markdown blockquote { padding-left: 10px; border-left: 3px solid #aac1e2; margin: 8px 0; }
-.jf-support__scroll { align-self: center; background: #edf3ff; color: #205fc0; border: 0; border-radius: 20px; padding: 5px 12px; font-size: 12px !important; }
+/* Toggling this control must not resize the viewport its observer measures. */
+.jf-support__scroll { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: #edf3ff; color: #205fc0; border: 0; border-radius: 20px; padding: 5px 12px; font-size: 12px !important; }
 .jf-support__scroll:disabled { display: none; }
 .jf-support__edit { padding: 10px; margin-bottom: 8px; background: #edf3ff; border-radius: 10px; }
 .jf-support__edit label { display: block; font-size: 12px; }

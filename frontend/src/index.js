@@ -12,6 +12,7 @@ root.render(
     <React.StrictMode>
         <App />
         <ToastContainer
+            className="jf-notifications"
             position="top-right"
             autoClose={4000}
             hideProgressBar={false}
