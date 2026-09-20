@@ -54,9 +54,9 @@ export default function SecuritySettings() {
               perform(() => api.post(`/api/auth/identities/${identity.id}/unlink`, { password }), true);
           }}>Hủy liên kết</button>
         </div>)}
-        <label htmlFor="security-password">Mật khẩu JobFind hiện tại</label>
+        {(data.google || data.identities.length > 0) && <><label htmlFor="security-password">Mật khẩu JobFind hiện tại</label>
         <input id="security-password" className="form-control mb-3" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} />
-        <small className="d-block mb-3">Nhập mật khẩu để xác nhận việc liên kết hoặc hủy liên kết Google.</small>
+        <small className="d-block mb-3">Nhập mật khẩu để xác nhận việc liên kết hoặc hủy liên kết Google.</small></>}
         {data.google ? <button className="btn btn-primary" disabled={busy || !password} onClick={() => perform(() => startGoogleLink(password))}>Liên kết tài khoản Google</button>
           : <p role="status">Đăng nhập Google chưa được quản trị viên cấu hình.</p>}
       </section>

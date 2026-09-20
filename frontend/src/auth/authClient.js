@@ -28,6 +28,12 @@ export const establishSession = ({ token, user }) => {
   assignAccess(token);
 };
 export const forgetAccess = () => { accessToken = null; accessOwner = null; accessExpiresAt = 0; revision += 1; };
+export const endLocalSession = () => {
+  localStorage.removeItem('token_user');
+  localStorage.removeItem('userData');
+  forgetAccess();
+  window.dispatchEvent(new Event('jobfind:session-ended'));
+};
 export const refreshSession = async () => {
   if (pendingRefresh) return pendingRefresh;
   const marker = localStorage.getItem('token_user');
@@ -49,10 +55,7 @@ export const refreshSession = async () => {
   pendingRefresh = task().catch(error => {
     if (error?.response?.status === 401 && isManagedSession(marker)
         && localStorage.getItem('token_user') === marker) {
-      localStorage.removeItem('token_user');
-      localStorage.removeItem('userData');
-      forgetAccess();
-      window.dispatchEvent(new Event('jobfind:session-ended'));
+      endLocalSession();
     }
     throw error;
   }).finally(() => { pendingRefresh = null; });
@@ -70,9 +73,7 @@ export const logoutServer = async () => {
     await pendingRefresh?.catch(() => {});
     const token = getAccessTokenSync();
     await withSessionLock(() => api.post('/api/auth/logout', {}, token ? { headers: { Authorization: `Bearer ${token}` } } : {}));
-    localStorage.removeItem('token_user');
-    localStorage.removeItem('userData');
-    window.dispatchEvent(new Event('jobfind:session-ended'));
+    endLocalSession();
   }
   finally { loggingOut = false; forgetAccess(); }
 };

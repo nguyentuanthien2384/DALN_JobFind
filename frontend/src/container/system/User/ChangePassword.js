@@ -2,6 +2,7 @@ import React from 'react'
 import { useEffect, useState } from 'react';
 import { handleChangePassword } from '../../../service/userService';
 import { toast } from 'react-toastify';
+import { endLocalSession } from '../../../auth/authClient';
 const ChangePassword = (props) => {
     const [inputValues, setInputValues] = useState({
         password: '', oldPassword: '', confirmPassword: ''
@@ -28,6 +29,8 @@ const ChangePassword = (props) => {
         })
         if (res && res.errCode === 0) {
             toast.success("Đổi mật khẩu thành công")
+            endLocalSession();
+            window.location.assign('/login?reason=password-changed');
             setInputValues({
                 ...inputValues,
                 "oldPassword": '',

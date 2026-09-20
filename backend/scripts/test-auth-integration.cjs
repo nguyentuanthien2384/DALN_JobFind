@@ -60,6 +60,20 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     account.password = await require('bcryptjs').hash(password, 10);
     await require('../src/services/accountSecurityService').saveAndRevokeSessions(account);
     assert.equal(await sessions.activeFamily(jwt.decode(changed.token).sid, user.id), false);
+    const originalHash = account.password;
+    const originalUpdate = db.AuthSession.update;
+    db.AuthSession.update = async () => { throw new Error('simulated revocation outage'); };
+    account.password = 'must-not-be-committed';
+    try {
+      await assert.rejects(require('../src/services/accountSecurityService').saveAndRevokeSessions(account), /revocation outage/);
+      assert.equal((await db.Account.findOne({ where: { userId: user.id }, raw: true })).password, originalHash);
+    } finally { db.AuthSession.update = originalUpdate; }
+    // OIDC subject case must not collapse under the application's default collation.
+    await db.AuthIdentity.create({ userId: user.id, provider: 'google', issuer: 'https://accounts.google.com', subject: 'Subject-A' });
+    await db.AuthIdentity.create({ userId: user.id, provider: 'google', issuer: 'https://accounts.google.com', subject: 'subject-a' });
+    assert.equal(await db.AuthIdentity.count(), 2);
+    await assert.rejects(sessions.createSession(user.id, 'password', { password: 'wrong-password' }), /CREDENTIALS_CHANGED/);
+    await assert.rejects(sessions.createSession(user.id, 'oidc:google', { identityId: 999999 }), /IDENTITY_REMOVED/);
     const express = require('express');
     const app = express(); app.use(express.json());
     app.post('/api/login', controller.login);

@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-toastify";
 import { handleLoginService } from "../../service/userService";
 import Login from "./Login";
+import { getProviders } from '../../auth/authClient';
 
 jest.mock("../../service/userService", () => ({
     handleLoginService: jest.fn(),
@@ -42,6 +43,7 @@ describe("Login", () => {
     beforeEach(() => {
         localStorage.clear();
         jest.clearAllMocks();
+        getProviders.mockResolvedValue({ google: false });
         window.history.replaceState({}, "", "/login");
     });
 

@@ -11,6 +11,7 @@ const mockClient = {
   discovery: jest.fn(), randomState: () => 'state', randomNonce: () => 'nonce', randomPKCECodeVerifier: () => 'verifier',
   calculatePKCECodeChallenge: jest.fn(async () => 'challenge'), buildAuthorizationUrl: jest.fn(() => new URL('https://accounts.google.com/authorize')),
   authorizationCodeGrant: jest.fn(),
+  enableNonRepudiationChecks: jest.fn(),
 };
 jest.mock('../../src/models/index', () => mockDb);
 jest.mock('../../src/services/authSessionService', () => mockSessions);
@@ -49,6 +50,7 @@ test('callback consumes state once and delegates all token validation checks to 
   expect(result).toEqual({ userId: 7, identityId: 9, method: 'oidc:google', linked: false });
   expect(result.role).toBeUndefined();
   expect(transaction.destroy).toHaveBeenCalled();
+  expect(mockClient.enableNonRepudiationChecks).toHaveBeenCalledWith(mockConfig);
   expect(mockClient.authorizationCodeGrant).toHaveBeenCalledWith(mockConfig, expect.any(URL), { pkceCodeVerifier: 'verifier', expectedState: 'state', expectedNonce: 'nonce', idTokenExpected: true });
   mockDb.OidcTransaction.findByPk.mockResolvedValue(null);
   await expect(oidc.complete('google', request(), response())).rejects.toThrow('OIDC_STATE');

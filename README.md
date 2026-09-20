@@ -133,12 +133,18 @@ job_find/
 
 ## Điều kiện chạy
 
-- Node.js 20+ (khuyến nghị Node.js 22)
+- Node.js 22.12 trở lên
 - Docker Desktop
 - XAMPP/MySQL với database `jobfindtest`
 - MySQL legacy chạy ở cổng `3333` theo cấu hình mặc định; nếu máy dùng cổng khác, cập nhật đồng thời `backend/.env` và `microservices/.env`.
 
 ## Cài đặt và khởi chạy
+
+### Xác thực và Google SSO
+
+Hệ thống hỗ trợ phiên đăng nhập bằng cookie HttpOnly, tự gia hạn, thu hồi phiên khi đổi mật khẩu/khóa tài khoản và quản lý phiên tại `/account/security`. Quyền truy cập vẫn được kiểm tra theo tài khoản/công ty hiện tại trong database.
+
+Sau khi cập nhật mã nguồn, chạy `npm run auth:migrate` trước khi khởi động. Lệnh này sao lưu MySQL và áp dụng riêng các bảng xác thực. Google SSO đang tắt cho đến khi có OAuth Client; xem [hướng dẫn cấu hình và kiểm thử](docs/AUTHENTICATION_SSO_INTEGRATION.md). Node.js tối thiểu cho backend là 22.12.
 
 ### Khởi chạy thống nhất trên máy hiện tại
 

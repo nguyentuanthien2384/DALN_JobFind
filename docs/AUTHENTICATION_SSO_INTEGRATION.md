@@ -67,10 +67,13 @@ Tham chiếu: [Google OpenID Connect](https://developers.google.com/identity/ope
 ```powershell
 npm test
 npm run test:auth:integration
+npm run test:auth:browser
 npm run build --prefix frontend
 ```
 
 `test:auth:integration` tạo database MySQL riêng mang tên `jobfind_auth_test_<random>`, chạy migration và luồng HTTP thật rồi dọn database thử đó; cần quyền tạo/xóa database thử. Không sửa dữ liệu của `jobfindtest`.
+
+`test:auth:browser` cần ứng dụng local đang chạy (`npm start`), tạo một tài khoản QA tạm với mật khẩu ngẫu nhiên, thử đăng nhập/tải lại/đa tab/đăng xuất/đổi mật khẩu qua trình duyệt rồi dọn tài khoản đó. Ảnh desktop/mobile lưu trong `.local/auth-browser/`.
 
 Kiểm thử bao gồm cookie/Origin, JWT có session ID, xoay vòng/replay refresh, gia hạn đồng thời, gia hạn đua với logout/logout-all, đổi mật khẩu thu hồi phiên, HTTP sau logout, proxy giữ cookie/redirect và bỏ header giả mạo, state/browser/nonce/PKCE và chính sách liên kết SSO, phản hồi refresh đến muộn sau đổi tài khoản, RBAC và ranh giới công ty hiện có.
 

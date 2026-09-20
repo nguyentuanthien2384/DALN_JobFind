@@ -1,0 +1,100 @@
+const path = require('path');
+const fs = require('fs/promises');
+const assert = require('node:assert/strict');
+const { randomBytes } = require('crypto');
+const mysql = require('mysql2/promise');
+const bcrypt = require('bcryptjs');
+const { chromium } = require('../../microservices/node_modules/playwright');
+require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true });
+
+(async () => {
+  const connection = await mysql.createConnection({ host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 3306), user: process.env.DB_USER, password: process.env.DB_PASSWORD || '', database: process.env.DB_NAME });
+  let userId, browser, lastPage;
+  const phone = '09' + String(Date.now()).slice(-8);
+  const password = randomBytes(18).toString('base64url');
+  const output = path.join(__dirname, '../../.local/auth-browser');
+  try {
+    const [user] = await connection.query('INSERT INTO users (firstName,lastName,email) VALUES (?,?,?)', ['Auth', 'QA', `auth-${randomBytes(6).toString('hex')}@example.invalid`]);
+    userId = user.insertId;
+    await connection.query('INSERT INTO accounts (userId,phonenumber,password,roleCode,statusCode,createdAt,updatedAt) VALUES (?,?,?,?,?,NOW(),NOW())', [userId, phone, await bcrypt.hash(password, 10), 'CANDIDATE', 'S1']);
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const page = await context.newPage();
+    lastPage = page;
+    const faults = [];
+    page.on('pageerror', error => faults.push(error.message));
+    const base = process.env.AUTH_TEST_WEB_URL || 'http://localhost:3001';
+    await page.goto(base + '/login');
+    await page.getByPlaceholder('Số điện thoại').fill(phone);
+    await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    await page.waitForURL(base + '/', { timeout: 30000 });
+    await page.getByText('Auth QA', { exact: true }).first().waitFor();
+    await page.goto(base + '/account/security');
+    await page.getByRole('heading', { name: 'Các phiên đăng nhập' }).waitFor();
+    assert.match(await page.evaluate(() => localStorage.getItem('token_user')), /^jf-session:/);
+    const cookies = await context.cookies('http://localhost:4000');
+    assert.ok(cookies.some(cookie => cookie.name === 'jobfind_rt' && cookie.httpOnly && cookie.sameSite === 'Lax'));
+    await page.getByText('Đăng nhập Google chưa được quản trị viên cấu hình.').waitFor();
+    await fs.mkdir(output, { recursive: true });
+    await page.screenshot({ path: path.join(output, 'security-desktop.png'), fullPage: true });
+    await page.reload();
+    await page.getByRole('heading', { name: 'Các phiên đăng nhập' }).waitFor();
+    const tab = await context.newPage();
+    await tab.goto(base + '/account/security');
+    await tab.getByRole('heading', { name: 'Các phiên đăng nhập' }).waitFor();
+    await Promise.all([page.reload(), tab.reload()]);
+    await Promise.all([page.getByRole('heading', { name: 'Các phiên đăng nhập' }).waitFor(), tab.getByRole('heading', { name: 'Các phiên đăng nhập' }).waitFor()]);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: path.join(output, 'security-mobile.png'), fullPage: true });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Đăng xuất tất cả thiết bị' }).click();
+    await page.waitForURL(/\/login/, { timeout: 15000 });
+    await tab.waitForURL(/\/login/, { timeout: 15000 });
+    assert.equal(await page.evaluate(() => localStorage.getItem('token_user')), null);
+    assert.equal((await context.cookies('http://localhost:4000')).some(cookie => cookie.name === 'jobfind_rt'), false);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByPlaceholder('Số điện thoại').fill(phone);
+    await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(password);
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    await page.waitForURL(base + '/', { timeout: 30000 });
+    await page.getByText('Auth QA', { exact: true }).first().waitFor();
+    await page.goto(base + '/candidate/changepassword');
+    await page.locator('input[name="oldPassword"]').fill(password);
+    const nextPassword = randomBytes(18).toString('base64url');
+    await page.locator('input[name="password"]').fill(nextPassword);
+    await page.locator('input[name="confirmPassword"]').fill(nextPassword);
+    const proof = await page.evaluate(async () => {
+      const response = await fetch('http://localhost:4000/api/auth/refresh', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      return (await response.json()).token;
+    });
+    assert.ok(proof);
+    await page.getByRole('button', { name: /Lưu/ }).click();
+    await page.waitForURL(/\/login\/?\?reason=password-changed/, { timeout: 15000 });
+    await page.getByText('Đã đổi mật khẩu và đăng xuất các phiên cũ. Vui lòng đăng nhập bằng mật khẩu mới.').waitFor();
+    assert.equal((await context.cookies('http://localhost:4000')).some(cookie => cookie.name === 'jobfind_rt'), false);
+    const revoked = await context.request.get('http://localhost:4000/api/my-applications', { headers: { Authorization: 'Bearer ' + proof } });
+    assert.equal(revoked.status(), 401);
+    await page.getByPlaceholder('Số điện thoại').fill(phone);
+    await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(nextPassword);
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    await page.waitForURL(base + '/', { timeout: 30000 });
+    assert.deepEqual(faults, []);
+    console.log('PASS: browser login through Gateway, HttpOnly cookies, refresh after reload, simultaneous tabs, desktop/mobile security page, logout-all across tabs, password change/re-login and Gateway rejection of revoked tokens.');
+  } catch (error) {
+    if (lastPage) {
+      await fs.mkdir(output, { recursive: true });
+      await lastPage.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {});
+      console.error('Failed page:', lastPage.url());
+    }
+    throw error;
+  } finally {
+    if (browser) await browser.close();
+    if (userId) {
+      await connection.query('DELETE FROM accounts WHERE userId = ? AND phonenumber = ?', [userId, phone]);
+      await connection.query('DELETE FROM users WHERE id = ? AND firstName = ? AND lastName = ?', [userId, 'Auth', 'QA']);
+    }
+    await connection.end();
+  }
+})().catch(error => { console.error('Auth browser test failed:', error.message); process.exitCode = 1; });

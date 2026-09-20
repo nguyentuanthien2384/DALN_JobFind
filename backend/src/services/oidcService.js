@@ -21,6 +21,9 @@ const clientFor = async (settings) => {
   const client = require('openid-client'); // v6 with Node >=22.12 (supports require(esm))
   const config = await client.discovery(new URL(settings.issuer), settings.id, settings.secret);
   if (config.serverMetadata().issuer !== settings.issuer) throw new Error('OIDC_ISSUER');
+  // Require ID-token JWS verification against the provider's JWKS in addition
+  // to the authenticated TLS token endpoint and standard claim validation.
+  client.enableNonRepudiationChecks(config);
   return { client, config };
 };
 export const begin = async (name, res, linkUserId = null, linkSessionId = null) => {

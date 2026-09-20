@@ -3,6 +3,7 @@ const createResponse = () => {
   res.status = jest.fn(() => res);
   res.json = jest.fn((body) => body);
   res.setHeader = jest.fn();
+  res.clearCookie = jest.fn(() => res);
   return res;
 };
 

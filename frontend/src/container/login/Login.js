@@ -97,6 +97,7 @@ const Login = () => {
                                     {new URLSearchParams(window.location.search).get('sso') === 'not-linked' &&
                                         <p role="alert">Tài khoản Google này chưa liên kết với JobFind. Hãy đăng nhập bằng số điện thoại trước và liên kết tài khoản trong phần cài đặt.</p>}
                                     {new URLSearchParams(window.location.search).get('sso') === 'failed' && <p role="alert">Không thể xác thực Google. Yêu cầu có thể đã hết hạn hoặc bị hủy. Vui lòng thử lại.</p>}
+                                    {new URLSearchParams(window.location.search).get('reason') === 'password-changed' && <p role="status">Đã đổi mật khẩu và đăng xuất các phiên cũ. Vui lòng đăng nhập bằng mật khẩu mới.</p>}
                                     <form className="pt-3" onSubmit={handleSubmit}>
                                         <div className="form-group">
                                             <input

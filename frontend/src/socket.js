@@ -90,6 +90,7 @@ export const disconnectSocket = () => {
 
 // Resume after an extended outage. Never reconnect with a superseded token.
 if (typeof window !== 'undefined') {
+    window.addEventListener('jobfind:session-ended', disconnectSocket);
     window.addEventListener('online', () => {
         if (socket && socket.auth?.token === getAccessTokenSync() && !socket.connected) socket.connect();
     });
