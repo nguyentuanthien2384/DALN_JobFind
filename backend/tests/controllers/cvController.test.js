@@ -1,7 +1,7 @@
 const mockService = {
   handleCreateCv: jest.fn(), getAllListCvByPost: jest.fn(), getDetailCvById: jest.fn(),
   getAllCvByUserId: jest.fn(), getStatisticalCv: jest.fn(), fillterCVBySelection: jest.fn(),
-  checkSeeCandiate: jest.fn()
+  checkSeeCandiate: jest.fn(), listCandidateSearchJobs: jest.fn()
 };
 const mockFindCv = jest.fn();
 const mockAuth = {
@@ -27,6 +27,23 @@ const request = () => createRequest({
 });
 
 describe('cvController', () => {
+  test('job suggestions ignore a forged company id and use the authenticated tenant', async () => {
+    mockService.listCandidateSearchJobs.mockResolvedValue({ errCode: 0, data: [] });
+    const req = request(); req.query.companyId = '999';
+    await controller.listCandidateSearchJobs(req, createResponse());
+    expect(mockService.listCandidateSearchJobs).toHaveBeenCalledWith(req.query, 11);
+  });
+
+  test('job suggestions reject non-recruiters and surface validation errors', async () => {
+    mockAuth.isRecruiter.mockReturnValueOnce(false);
+    const denied = createResponse();
+    await controller.listCandidateSearchJobs(request(), denied);
+    expect(denied.status).toHaveBeenCalledWith(403);
+    mockService.listCandidateSearchJobs.mockResolvedValueOnce({ errCode: 1, httpStatus: 400 });
+    const invalid = createResponse();
+    await controller.listCandidateSearchJobs(request(), invalid);
+    expect(invalid.status).toHaveBeenCalledWith(400);
+  });
   beforeAll(() => jest.spyOn(console, 'log').mockImplementation(() => {}));
   afterAll(() => console.log.mockRestore());
 
@@ -136,7 +153,7 @@ describe('cvController', () => {
     expect(denied.status).toHaveBeenCalledWith(403);
     mockService.fillterCVBySelection.mockResolvedValueOnce({ errCode: 0 });
     await controller.fillterCVBySelection(request(), createResponse());
-    expect(mockService.fillterCVBySelection).toHaveBeenCalledWith(request().query);
+    expect(mockService.fillterCVBySelection).toHaveBeenCalledWith(request().query, 11);
   });
 
   test('candidate-view quota is charged only to the authenticated company', async () => {

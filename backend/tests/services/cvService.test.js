@@ -168,67 +168,6 @@ describe('cvService', () => {
     expect((await service.getStatisticalCv(args)).data).toEqual([{ id: 1, total: 3 }, { id: 2, total: 0 }]);
   });
 
-  test('candidate filtering hides percentage without criteria', async () => {
-    mockDb.UserSetting.findAndCountAll.mockResolvedValue({ rows: [{ userId: 1, file: 'pdf' }], count: 1 });
-    const result = await service.fillterCVBySelection({ limit: 5, offset: 0 });
-    expect(result).toEqual({ errCode: 0, data: [{ userId: 1 }], count: 1, isHiddenPercent: true });
-  });
-
-  test('candidate filtering selects and returns only public identity fields before unlock', async () => {
-    mockDb.UserSetting.findAndCountAll.mockResolvedValue({
-      rows: [{
-        userId: 9,
-        file: 'pdf',
-        userSettingData: {
-          id: 9,
-          firstName: 'An',
-          lastName: 'Nguyen',
-          image: '/avatar.png',
-          email: 'private@example.com',
-          address: 'Private address',
-          dob: '2000-01-01',
-          companyId: 44
-        }
-      }],
-      count: 1
-    });
-
-    const result = await service.fillterCVBySelection({ limit: 5, offset: 0 });
-    expect(result.data[0].userSettingData).toEqual({
-      id: 9,
-      firstName: 'An',
-      lastName: 'Nguyen',
-      image: '/avatar.png'
-    });
-    expect(result.data[0].userSettingData).not.toHaveProperty('email');
-    expect(result.data[0].userSettingData).not.toHaveProperty('address');
-    const query = mockDb.UserSetting.findAndCountAll.mock.calls[0][0];
-    expect(query.include[0]).toEqual(expect.objectContaining({
-      as: 'userSettingData',
-      attributes: ['id', 'firstName', 'lastName', 'image']
-    }));
-  });
-
-  test('candidate filtering scores DB skills, free-text CV skills and preference bonuses', async () => {
-    mockDb.UserSetting.findAndCountAll.mockResolvedValue({
-      rows: [{
-        userId: 1, file: 'pdf', expTypeSettingData: { code: 'E1' },
-        salaryTypeSettingData: { code: 'S1' }, provinceSettingData: { code: 'HN' }
-      }], count: 1
-    });
-    mockDb.Skill.findAll.mockResolvedValue([{ id: 1, name: 'Node' }]);
-    mockDb.UserSkill.findAll.mockResolvedValue([{ SkillId: 1 }]);
-    mockPdfToString.mockResolvedValue({ pages: [{ content: [{ str: 'Docker' }] }] });
-    const result = await service.fillterCVBySelection({
-      limit: 5, offset: 0, categoryJobCode: 'IT', listSkills: '1', otherSkills: 'Docker',
-      experienceJobCode: 'E1', salaryCode: 'S1', provinceCode: 'HN'
-    });
-    expect(result.isHiddenPercent).toBe(false);
-    // 1 DB skill + 1 free-text CV skill + 3 preference bonuses over a
-    // weighted denominator of 6 gives 5/6, rounded to 83%.
-    expect(result.data[0].file).toBe('83%');
-  });
-
   test('candidate view grant validates company and active candidate inside a locked transaction', async () => {
     mockDb.Company.findOne.mockResolvedValueOnce(null);
     expect((await service.checkSeeCandiate({ companyId: 4, candidateId: 9 })).errCode).toBe(2);

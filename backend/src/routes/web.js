@@ -133,6 +133,7 @@ let initWebRoutes = (app) => {
     router.get('/api/get-all-cv-by-userId', ...protectedBy(PERMISSIONS.CANDIDATE_PROFILE_READ), cvController.getAllCvByUserId)
     router.get('/api/get-statistical-cv', ...protectedBy(PERMISSIONS.RECRUITMENT_REPORT_READ), cvController.getStatisticalCv)
     router.get('/api/fillter-cv-by-selection', ...protectedBy(PERMISSIONS.CANDIDATE_SEARCH), cvController.fillterCVBySelection)
+    router.get('/api/candidate-search-jobs', ...protectedBy(PERMISSIONS.CANDIDATE_SEARCH), cvController.listCandidateSearchJobs)
     router.get('/api/check-see-candiate', ...protectedBy(PERMISSIONS.CANDIDATE_SEARCH), cvController.checkSeeCandiate)
     //==================API POST==========================//
     router.post('/api/create-new-post', ...protectedBy(PERMISSIONS.JOB_MANAGE), postController.handleCreateNewPost)

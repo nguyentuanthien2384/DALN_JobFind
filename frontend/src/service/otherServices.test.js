@@ -34,13 +34,22 @@ beforeEach(() => {
 });
 
 describe("cvService", () => {
+    it("encodes special skills and keyword characters without changing their meaning", async () => {
+        await cv.getFilterCv({ limit: 5, offset: 0, otherSkills: ['C++', 'C#', '.NET'], keyword: 'R&D', skillMode: 'all', minMatch: 70, sort: 'name' });
+        const params = new URL(axios.get.mock.calls[0][0], 'https://jobfind.test').searchParams;
+        expect(params.get('otherSkills')).toBe('C++,C#,.NET');
+        expect(params.get('keyword')).toBe('R&D');
+        expect(params.get('minMatch')).toBe('70');
+        expect(params.get('skillMode')).toBe('all');
+        expect(params.get('sort')).toBe('name');
+    });
     runCases(cv, [
         ["createNewCv", "post", [{ postId: 2 }], "/api/create-new-cv", { postId: 2 }],
         ["getAllListCvByPostService", "get", [{ limit: 10, offset: 1, postId: 2 }], "/api/get-all-list-cv-by-post?limit=10&offset=1&postId=2"],
         ["getDetailCvService", "get", [2, "EMPLOYER"], "/api/get-detail-cv-by-id?cvId=2&roleCode=EMPLOYER"],
         ["getAllListCvByUserIdService", "get", [{ limit: 10, offset: 1, userId: 3 }], "/api/get-all-cv-by-userId?limit=10&offset=1&userId=3"],
         ["getStatisticalCv", "get", [{ limit: 5, offset: 0, fromDate: "a", toDate: "b", companyId: 4 }], "/api/get-statistical-cv?limit=5&offset=0&fromDate=a&toDate=b&companyId=4"],
-        ["getFilterCv", "get", [{ limit: 5, offset: 0, experienceJobCode: "E", categoryJobCode: "IT", listSkills: "JS,TS", otherSkills: "Go", salaryCode: "S", provinceCode: "HN" }], "/api/fillter-cv-by-selection?limit=5&offset=0&experienceJobCode=E&categoryJobCode=IT&listSkills=JS,TS&otherSkills=Go&salaryCode=S&provinceCode=HN"],
+        ["getFilterCv", "get", [{ limit: 5, offset: 0, experienceJobCode: "E", categoryJobCode: "IT", listSkills: "JS,TS", otherSkills: "Go", salaryCode: "S", provinceCode: "HN" }], "/api/fillter-cv-by-selection?limit=5&offset=0&experienceJobCode=E&categoryJobCode=IT&listSkills=JS%2CTS&otherSkills=Go&salaryCode=S&provinceCode=HN"],
         ["checkSeeCandiate", "get", [{ candidateId: 3 }], "/api/check-see-candiate?candidateId=3"],
     ]);
 });

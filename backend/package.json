@@ -10,6 +10,8 @@
     "dev": "nodemon --exec babel-node src/server.js",
     "test:smoke": "node scripts/smoke-test.js",
     "test:smoke:entitlement": "babel-node scripts/smoke-entitlement.js",
+    "test:candidate-search": "node scripts/test-candidate-search.cjs",
+    "test:candidate-search:browser": "node scripts/test-candidate-search-browser.cjs",
     "restore:sample-data": "node scripts/restore-sample-data.js",
     "seed:test-accounts": "node scripts/create-test-accounts.js",
     "seed:demo-data": "node scripts/setup-demo-data.js",

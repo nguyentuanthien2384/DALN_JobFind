@@ -1,446 +1,224 @@
-import React from "react";
-import { useCallback, useEffect, useState } from "react";
-import { getFilterCv } from "../../../service/cvService";
-import {
-    getAllSkillByJobCode,
-    getDetailCompanyByUserId,
-} from "../../../service/userService";
-import { useFetchAllcode } from "../../../util/fetch";
-import { PAGINATION } from "../../../util/constant";
-import ReactPaginate from "react-paginate";
-import { Col, Row, Select, Modal } from "antd";
-import { ExclamationCircleOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
-const { confirm } = Modal;
+import React, { useEffect, useState } from 'react';
+import { Select, Modal } from 'antd';
+import { ExclamationCircleOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import ReactPaginate from 'react-paginate';
+import { getFilterCv, getCandidateSearchJobs } from '../../../service/cvService';
+import { getAllSkillByJobCode } from '../../../service/userService';
+import { useFetchAllcode } from '../../../util/fetch';
+import { PAGINATION } from '../../../util/constant';
+import './FilterCv.css';
+
+const emptyFilters = () => ({ keyword: '', categoryJobCode: '', experienceJobCode: '',
+    provinceCode: '', salaryCode: '', listSkills: [], skillMode: 'any', minMatch: 0, sort: 'match' });
+const hasCriteria = filters => Boolean(filters.categoryJobCode || filters.experienceJobCode ||
+    filters.provinceCode || filters.salaryCode || filters.listSkills.length);
+const criterionLabels = { categoryJobCode: 'Ngành nghề', experienceJobCode: 'Kinh nghiệm',
+    provinceCode: 'Địa điểm', salaryCode: 'Mức lương' };
+const filterOption = (input, option) => (option?.label || '').toLocaleLowerCase('vi').includes(input.toLocaleLowerCase('vi'));
 
 const FilterCv = () => {
-    const [dataCv, setdataCv] = useState([]);
-    const [count, setCount] = useState("");
-    const [numberPage, setnumberPage] = useState("");
-    const [inputValue, setInputValue] = useState({
-        categoryJobCode: "",
-        experienceJobCode: "",
-        listSkills: [],
-        provinceCode: "",
-        salaryCode: "",
-    });
-    const [listSkills, setListSkills] = useState([]);
-    const [isHiddenPercent, setIsHiddenPercent] = useState(true);
-    const [companySeeAllow, setCompanySeeAllow] = useState({
-        free: 0,
-        notFree: 0,
-    });
     const navigate = useNavigate();
-    const fetchCompany = useCallback(async (userId, companyId = null) => {
-        let res = await getDetailCompanyByUserId(userId, companyId);
-        if (res && res.errCode === 0) {
-            setCompanySeeAllow({
-                free: res.data.allowCvFree,
-                notFree: res.data.allowCv,
-            });
-        }
-    }, []);
-
-    const confirmSeeCandiate = (id) => {
-        confirm({
-            title: "Khi xem bạn sẽ mất 1 lần xem thông tin ứng viên",
-            icon: <ExclamationCircleOutlined />,
-            onOk() {
-                navigate(`/admin/candiate/${id}/`);
-            },
-
-            onCancel() {},
-        });
-    };
-    const fetchData = useCallback(async () => {
-        let listSkills = [];
-        let otherSkills = [];
-        inputValue.listSkills.forEach((item) => {
-            if (typeof item === "number") {
-                listSkills.push(item);
-            } else {
-                otherSkills.push(item);
-            }
-        });
-        let arrData = await getFilterCv({
-            limit: PAGINATION.pagerow,
-            offset: 0,
-            categoryJobCode: inputValue.categoryJobCode,
-            experienceJobCode: inputValue.experienceJobCode,
-            salaryCode: inputValue.salaryCode,
-            provinceCode: inputValue.provinceCode,
-            listSkills: listSkills,
-            otherSkills: otherSkills,
-        });
-        if (arrData && arrData.errCode === 0) {
-            setdataCv(arrData.data);
-            setIsHiddenPercent(arrData.isHiddenPercent);
-            setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
-        }
-    }, [inputValue]);
-    useEffect(() => {
-        fetchData().catch((error) => console.log(error));
-    }, [fetchData]);
+    const [user] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('userData')) || {}; } catch { return {}; }
+    });
+    const [filters, setFilters] = useState(emptyFilters);
+    const [page, setPage] = useState(0);
+    const [result, setResult] = useState({ data: [], count: 0 });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [retry, setRetry] = useState(0);
+    const [skills, setSkills] = useState([]);
+    const [skillError, setSkillError] = useState('');
+    const [allowance, setAllowance] = useState(null);
+    const [jobs, setJobs] = useState([]);
+    const [jobSearch, setJobSearch] = useState('');
+    const [jobLoading, setJobLoading] = useState(false);
+    const [jobError, setJobError] = useState('');
+    const [selectedJob, setSelectedJob] = useState(null);
+    const [jobCount, setJobCount] = useState(0);
+    const { data: provinces } = useFetchAllcode('PROVINCE');
+    const { data: experiences } = useFetchAllcode('EXPTYPE');
+    const { data: salaries } = useFetchAllcode('SALARYTYPE');
+    const { data: categories } = useFetchAllcode('JOBTYPE');
 
     useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem("userData"));
-        if (userData) {
-            fetchCompany(userData.id, userData.companyId);
-        }
-    }, [fetchCompany]);
-
-    let { data: dataProvince } = useFetchAllcode("PROVINCE");
-    let { data: dataExp } = useFetchAllcode("EXPTYPE");
-    let { data: dataSalary } = useFetchAllcode("SALARYTYPE");
-    let { data: dataJobType } = useFetchAllcode("JOBTYPE");
-
-    dataProvince = dataProvince.map((item) => ({
-        value: item.code,
-        label: item.value,
-        type: "provinceCode",
-    }));
-
-    dataExp = dataExp.map((item) => ({
-        value: item.code,
-        label: item.value,
-        type: "experienceJobCode",
-    }));
-
-    dataSalary = dataSalary.map((item) => ({
-        value: item.code,
-        label: item.value,
-        type: "salaryCode",
-    }));
-
-    dataJobType = dataJobType.map((item) => ({
-        value: item.code,
-        label: item.value,
-        type: "categoryJobCode",
-    }));
-
-    const handleChange = async (value, detail, type) => {
-        if (!value && !detail) {
-            setInputValue({
-                ...inputValue,
-                [type]: "",
-            });
-        }
-        if (Array.isArray(detail)) {
-            setInputValue({
-                ...inputValue,
-                listSkills: value,
-            });
-        } else {
-            if (detail.type === "categoryJobCode") {
-                let res = await getAllSkillByJobCode(value);
-                let listSkills = res.data.map((item) => ({
-                    value: item.id,
-                    label: item.name,
-                }));
-                setListSkills(listSkills);
-                setInputValue({
-                    ...inputValue,
-                    [detail.type]: value,
-                    listSkills: [],
+        let active = true;
+        setLoading(true); setError(''); setResult({ data: [], count: 0 });
+        const timer = setTimeout(async () => {
+            try {
+                const response = await getFilterCv({ ...filters, limit: PAGINATION.pagerow,
+                    offset: page * PAGINATION.pagerow,
+                    listSkills: filters.listSkills.filter(value => typeof value === 'number'),
+                    otherSkills: filters.listSkills.filter(value => typeof value === 'string'),
                 });
-            } else {
-                setInputValue({
-                    ...inputValue,
-                    [detail.type]: value,
-                });
-            }
-        }
-    };
+                if (!active) return;
+                if (!response || response.errCode !== 0 || !Array.isArray(response.data)) {
+                    throw new Error(response?.errMessage || 'Không tải được ứng viên. Vui lòng thử lại.');
+                }
+                if (page > 0 && page * PAGINATION.pagerow >= response.count) { setPage(0); return; }
+                setResult(response);
+                setAllowance(response.allowance || null);
+            } catch (failure) {
+                if (active) setError(failure.message || 'Không tải được ứng viên. Vui lòng thử lại.');
+            } finally { if (active) setLoading(false); }
+        }, 250);
+        return () => { active = false; clearTimeout(timer); };
+    }, [filters, page, retry]);
 
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected);
-        let arrData = await getFilterCv({
-            limit: PAGINATION.pagerow,
-            offset: number.selected * PAGINATION.pagerow,
-            categoryJobCode: inputValue.categoryJobCode,
-            experienceJobCode: inputValue.experienceJobCode,
-            listSkills: inputValue.listSkills,
+    useEffect(() => {
+        let active = true;
+        setSkills([]); setSkillError('');
+        if (filters.categoryJobCode) {
+            (async () => {
+                try {
+                    const response = await getAllSkillByJobCode(filters.categoryJobCode);
+                    if (response?.errCode !== 0) throw new Error();
+                    if (active) setSkills((response.data || []).map(skill => ({ value: Number(skill.id), label: skill.name })));
+                } catch { if (active) setSkillError('Chưa tải được gợi ý kỹ năng. Bạn vẫn có thể nhập tên kỹ năng.'); }
+            })();
+        }
+        return () => { active = false; };
+    }, [filters.categoryJobCode, retry]);
+
+    useEffect(() => {
+        if (!user.companyId) return;
+        let active = true;
+        setJobLoading(true); setJobError('');
+        const timer = setTimeout(async () => {
+            try {
+                const response = await getCandidateSearchJobs({ search: jobSearch });
+                if (response?.errCode !== 0) throw new Error(response?.errMessage);
+                if (active) { setJobs(response.data || []); setJobCount(response.count || 0); }
+            } catch { if (active) { setJobs([]); setJobError('Chưa tải được tin tuyển dụng. Bạn có thể tự chọn tiêu chí bên dưới.'); } }
+            finally { if (active) setJobLoading(false); }
+        }, 250);
+        return () => { active = false; clearTimeout(timer); };
+    }, [jobSearch, user.companyId, retry]);
+
+    const change = (key, value) => {
+        setPage(0);
+        setFilters(current => {
+            const next = { ...current, [key]: value ?? '', ...(key === 'categoryJobCode' ? { listSkills: [] } : {}) };
+            if (!hasCriteria(next)) next.minMatch = 0;
+            return next;
         });
-        if (arrData && arrData.errCode === 0) {
-            setdataCv(arrData.data);
-        }
     };
-    return (
-        <div>
-            <div className="col-12 grid-margin">
-                <div className="card">
-                    <div className="card-body">
-                        <h4 className="card-title">Danh sách ứng viên</h4>
-                        <div>
-                            <p>{`Số lượt xem miễn phí: ${companySeeAllow.free}`}</p>
-                            <p>{`Số lượt xem: ${companySeeAllow.notFree}`}</p>
-                        </div>
-                        <Row justify="space-around" className="mt-5 mb-5 ml-3">
-                            <Col xs={12} xxl={12}>
-                                <div>
-                                    <label className="mr-2">
-                                        Lĩnh vực:{" "}
-                                        <span style={{ color: "red" }}>*</span>
-                                    </label>
-                                </div>
-                                <Select
-                                    filterOption={(input, option) =>
-                                        (option?.label ?? "")
-                                            .toLowerCase()
-                                            .includes(input.toLowerCase())
-                                    }
-                                    showSearch
-                                    allowClear
-                                    style={{ width: "90%" }}
-                                    size="default"
-                                    onChange={(value, detail) =>
-                                        handleChange(
-                                            value,
-                                            detail,
-                                            "categoryJobCode"
-                                        )
-                                    }
-                                    value={inputValue.categoryJobCode}
-                                    options={dataJobType}
-                                ></Select>
-                            </Col>
-                            <Col xs={12} xxl={12}>
-                                <div>
-                                    <label className="mr-2">
-                                        Kinh nghiệm:{" "}
-                                    </label>
-                                </div>
-                                <Select
-                                    filterOption={(input, option) =>
-                                        (option?.label ?? "")
-                                            .toLowerCase()
-                                            .includes(input.toLowerCase())
-                                    }
-                                    showSearch
-                                    allowClear
-                                    style={{ width: "90%" }}
-                                    size="default"
-                                    onChange={(value, detail) =>
-                                        handleChange(
-                                            value,
-                                            detail,
-                                            "experienceJobCode"
-                                        )
-                                    }
-                                    value={inputValue.experienceJobCode}
-                                    options={dataExp}
-                                ></Select>
-                            </Col>
-                        </Row>
-                        <Row justify="space-around" className="mt-5 mb-5 ml-3">
-                            <Col xs={12} xxl={12}>
-                                <div>
-                                    <label className="mr-2">
-                                        Khoảng lương:{" "}
-                                    </label>
-                                </div>
-                                <Select
-                                    filterOption={(input, option) =>
-                                        (option?.label ?? "")
-                                            .toLowerCase()
-                                            .includes(input.toLowerCase())
-                                    }
-                                    showSearch
-                                    allowClear
-                                    style={{ width: "90%" }}
-                                    size="default"
-                                    onChange={(value, detail) =>
-                                        handleChange(
-                                            value,
-                                            detail,
-                                            "salaryCode"
-                                        )
-                                    }
-                                    value={inputValue.salaryCode}
-                                    options={dataSalary}
-                                ></Select>
-                            </Col>
-                            <Col xs={12} xxl={12}>
-                                <div>
-                                    <label className="mr-2">
-                                        Khu vực làm việc:{" "}
-                                    </label>
-                                </div>
-                                <Select
-                                    filterOption={(input, option) =>
-                                        (option?.label ?? "")
-                                            .toLowerCase()
-                                            .includes(input.toLowerCase())
-                                    }
-                                    showSearch
-                                    allowClear
-                                    style={{ width: "90%" }}
-                                    size="default"
-                                    onChange={(value, detail) =>
-                                        handleChange(
-                                            value,
-                                            detail,
-                                            "provinceCode"
-                                        )
-                                    }
-                                    value={inputValue.provinceCode}
-                                    options={dataProvince}
-                                ></Select>
-                            </Col>
-                        </Row>
-                        <Row justify="space-around" className="mt-5 mb-5 ml-3">
-                            <Col xs={24} xxl={24}>
-                                <div>
-                                    <label className="mr-2">Kỹ năng: </label>
-                                </div>
-                                <Select
-                                    disabled={!inputValue.categoryJobCode}
-                                    mode="tags"
-                                    allowClear
-                                    style={{
-                                        width: "100%",
-                                    }}
-                                    placeholder="Chọn kĩ năng của bạn"
-                                    onChange={handleChange}
-                                    options={listSkills}
-                                    value={inputValue.listSkills}
-                                    filterOption={(input, option) =>
-                                        (option?.label ?? "")
-                                            .toLowerCase()
-                                            .includes(input.toLowerCase())
-                                    }
-                                    showSearch
-                                ></Select>
-                            </Col>
-                        </Row>
-                        <div className="table-responsive pt-2">
-                            <table className="table table-bordered">
-                                <thead>
-                                    <tr>
-                                        <th>STT</th>
-                                        <th>Tên ứng viên</th>
-                                        <th>Lĩnh vực</th>
-                                        {!isHiddenPercent && (
-                                            <>
-                                                <th>Tỉ lệ phù hợp</th>
-                                                <th>Đánh giá</th>
-                                            </>
-                                        )}
-                                        <th>Thao tác</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {dataCv &&
-                                        dataCv.length > 0 &&
-                                        dataCv.map((item, index) => {
-                                            return (
-                                                <tr key={index}>
-                                                    <td>
-                                                        {index +
-                                                            1 +
-                                                            numberPage *
-                                                                PAGINATION.pagerow}
-                                                    </td>
-                                                    <td>
-                                                        {item.userSettingData
-                                                            .firstName +
-                                                            " " +
-                                                            item.userSettingData
-                                                                .lastName}
-                                                    </td>
-                                                    <td>
-                                                        {
-                                                            item
-                                                                .jobTypeSettingData
-                                                                .value
-                                                        }
-                                                    </td>
-                                                    {!isHiddenPercent && (
-                                                        <>
-                                                            <td>{item.file}</td>
-                                                            <td>
-                                                                <label
-                                                                    className={
-                                                                        +item.file.split(
-                                                                            "%"
-                                                                        )[0] >=
-                                                                        70
-                                                                            ? "badge badge-success"
-                                                                            : +item.file.split(
-                                                                                  "%"
-                                                                              )[0] >
-                                                                              30
-                                                                            ? "badge badge-warning"
-                                                                            : "badge badge-danger"
-                                                                    }
-                                                                >
-                                                                    {+item.file.split(
-                                                                        "%"
-                                                                    )[0] >= 70
-                                                                        ? "Tốt"
-                                                                        : +item.file.split(
-                                                                              "%"
-                                                                          )[0] >
-                                                                          30
-                                                                        ? "Tạm chấp nhận"
-                                                                        : "Tệ"}
-                                                                </label>
-                                                            </td>
-                                                        </>
-                                                    )}
-                                                    <td>
-                                                        <span
-                                                            style={{
-                                                                color: "#4B49AC",
-                                                                cursor: "pointer",
-                                                            }}
-                                                            onClick={() =>
-                                                                confirmSeeCandiate(
-                                                                    item.userId
-                                                                )
-                                                            }
-                                                        >
-                                                            Xem chi tiết ứng
-                                                            viên
-                                                        </span>
-                                                        &nbsp; &nbsp;
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                </tbody>
-                            </table>
-                                            {dataCv && dataCv.length === 0 && (
-                                <div style={{ textAlign: "center" }}>
-                                    Không có dữ liệu
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <ReactPaginate
-                        previousLabel={"Quay lại"}
-                        nextLabel={"Tiếp"}
-                        breakLabel={"..."}
-                        pageCount={count}
-                        marginPagesDisplayed={3}
-                        containerClassName={
-                            "pagination justify-content-center pb-3"
-                        }
-                        pageClassName={"page-item"}
-                        pageLinkClassName={"page-link"}
-                        previousLinkClassName={"page-link"}
-                        previousClassName={"page-item"}
-                        nextClassName={"page-item"}
-                        nextLinkClassName={"page-link"}
-                        breakLinkClassName={"page-link"}
-                        breakClassName={"page-item"}
-                        activeClassName={"active"}
-                        onPageChange={handleChangePage}
-                    />
-                </div>
+    const reset = () => { setFilters(emptyFilters()); setPage(0); setSelectedJob(null); setJobSearch(''); };
+    const applyJob = id => {
+        const job = jobs.find(item => item.id === id);
+        if (!job) { setSelectedJob(null); return; }
+        setSelectedJob(job); setPage(0);
+        setFilters({ ...emptyFilters(), ...job.criteria, listSkills: job.criteria.listSkills.map(skill => Number(skill.id)) });
+    };
+    const openCandidate = id => {
+        const open = () => navigate(`/admin/candiate/${id}/`);
+        if (user.roleCode === 'ADMIN') { open(); return; }
+        Modal.confirm({ title: 'Xem CV và thông tin liên hệ', icon: <ExclamationCircleOutlined />,
+            content: 'Công ty sẽ dùng 1 lượt xem nếu chưa mở quyền với ứng viên này. Xem lại hồ sơ đã mở không trừ thêm lượt.',
+            okText: 'Xem hồ sơ', cancelText: 'Hủy', onOk: open });
+    };
+    const select = (key, label, values) => <div className="cv-search-field" key={key}>
+        <label htmlFor={`cv-filter-${key}`}>{label}</label>
+        <Select id={`cv-filter-${key}`} aria-label={label} placeholder={`Tất cả ${label.toLocaleLowerCase('vi')}`}
+            allowClear showSearch filterOption={filterOption} value={filters[key] || undefined}
+            onChange={value => change(key, value)} options={(values || []).map(item => ({ value: item.code, label: item.value }))} />
+    </div>;
+    const selectedSkillOptions = (selectedJob?.criteria.listSkills || []).map(skill => ({ value: Number(skill.id), label: skill.name }));
+    const skillOptions = [...new Map([...selectedSkillOptions, ...skills].map(skill => [skill.value, skill])).values()];
+    const activeCount = Object.keys(criterionLabels).filter(key => filters[key]).length + filters.listSkills.length + (filters.keyword ? 1 : 0);
+
+    return <div className="cv-search">
+        <header className="cv-search-header">
+            <div><span className="cv-search-eyebrow">KHÔNG GIAN TUYỂN DỤNG</span><h1>Tìm ứng viên phù hợp</h1>
+                <p>Khám phá hồ sơ đang tìm việc và đối chiếu với nhu cầu tuyển dụng của công ty.</p></div>
+            {allowance && <div className="cv-search-allowance"><strong>Lượt xem CV</strong>
+                <span>Số lượt xem miễn phí: {allowance.free}</span><span>Số lượt xem: {allowance.paid}</span></div>}
+        </header>
+        {user.companyId && <section className="cv-search-job" aria-label="Gợi ý từ tin tuyển dụng">
+            <div><h2>Bắt đầu từ tin tuyển dụng</h2><p>Lấy ngành nghề, kinh nghiệm, lương, địa điểm và gợi ý kỹ năng từ tin của công ty.</p></div>
+            <div><Select aria-label="Chọn tin tuyển dụng" placeholder="Tìm tên tin tuyển dụng của công ty"
+                showSearch allowClear filterOption={false} loading={jobLoading} onSearch={setJobSearch}
+                value={selectedJob?.id} onChange={applyJob}
+                options={[...new Map([...(selectedJob ? [selectedJob] : []), ...jobs].map(job => [job.id, job])).values()]
+                    .map(job => ({ value: job.id, label: `#${job.id} · ${job.name}` }))}
+                notFoundContent={jobLoading ? 'Đang tải tin...' : 'Không có tin phù hợp'} />
+                {jobCount > jobs.length && <small>Nhập tên để tìm trong {jobCount} tin tuyển dụng.</small>}
+                {jobError && <small role="status">{jobError}</small>}
+                {selectedJob && <small>Đã lấy gợi ý từ “{selectedJob.name}”. Bạn có thể điều chỉnh tiêu chí bên dưới.</small>}
             </div>
+        </section>}
+        <div className="cv-search-layout">
+            <aside className="cv-search-filters" aria-label="Bộ lọc ứng viên">
+                <div className="cv-search-filter-heading"><h2>Bộ lọc {activeCount > 0 && <span>{activeCount}</span>}</h2>
+                    <button type="button" className="cv-search-text-button" onClick={reset}>Xóa bộ lọc</button></div>
+                <div className="cv-search-field"><label htmlFor="cv-keyword">Từ khóa</label>
+                    <input id="cv-keyword" type="search" placeholder="Tên ứng viên hoặc kỹ năng" maxLength={120}
+                        value={filters.keyword} onChange={event => change('keyword', event.target.value)} /></div>
+                {select('categoryJobCode', 'Ngành nghề', categories)}
+                {select('provinceCode', 'Địa điểm', provinces)}
+                {select('experienceJobCode', 'Kinh nghiệm', experiences)}
+                {select('salaryCode', 'Mức lương', salaries)}
+                <div className="cv-search-field"><label htmlFor="cv-skills">Kỹ năng cần có</label>
+                    <Select id="cv-skills" aria-label="Kỹ năng cần có" mode="tags" allowClear showSearch
+                        placeholder="Chọn hoặc nhập kỹ năng" filterOption={filterOption} value={filters.listSkills}
+                        options={skillOptions} onChange={value => change('listSkills', value.slice(0, 30))} tokenSeparators={[',']} />
+                    <small>Chọn ngành để xem gợi ý. Có thể nhập C++, C#, .NET hoặc kỹ năng khác rồi nhấn Enter.</small>
+                    {skillError && <small role="status">{skillError}</small>}</div>
+                <div className="cv-search-field"><label htmlFor="cv-skill-mode">Cách khớp kỹ năng</label>
+                    <Select id="cv-skill-mode" aria-label="Cách khớp kỹ năng" value={filters.skillMode}
+                        onChange={value => change('skillMode', value)} options={[
+                            { value: 'any', label: 'Có ít nhất một kỹ năng' }, { value: 'all', label: 'Có tất cả kỹ năng' },
+                            { value: 'rank', label: 'Chỉ xếp hạng, không loại hồ sơ' }]} /></div>
+                <div className="cv-search-field"><label htmlFor="cv-min-match">Điểm phù hợp tối thiểu</label>
+                    <Select id="cv-min-match" aria-label="Điểm phù hợp tối thiểu" disabled={!hasCriteria(filters)}
+                        value={filters.minMatch} onChange={value => change('minMatch', value)}
+                        options={[0, 50, 70, 90, 100].map(value => ({ value, label: value ? `Từ ${value}%` : 'Không giới hạn' }))} /></div>
+                <p className="cv-search-help">Ngành, địa điểm, kinh nghiệm và mức lương được lọc theo đúng lựa chọn. Chỉ hiển thị ứng viên đang tìm việc và đã có CV.</p>
+            </aside>
+            <section className="cv-search-results" aria-label="Kết quả tìm ứng viên" aria-busy={loading}>
+                <div className="cv-search-toolbar"><h2>{loading ? 'Đang tìm ứng viên…' : `${result.count} ứng viên`}</h2>
+                    <div><label htmlFor="cv-sort">Sắp xếp</label><Select id="cv-sort" aria-label="Sắp xếp"
+                        value={filters.sort} onChange={value => change('sort', value)} options={[
+                            { value: 'match', label: 'Phù hợp nhất' }, { value: 'name', label: 'Tên A–Z' }]} /></div></div>
+                <p className="cv-search-method">Điểm = số tiêu chí khớp / số tiêu chí đã chọn. Mỗi kỹ năng tính một lần, dựa trên hồ sơ khai báo; chưa phân tích nội dung tệp PDF. Điểm hỗ trợ sàng lọc, không tự quyết định tuyển dụng.</p>
+                {loading && <div className="cv-search-state" role="status"><span className="cv-search-loader" />Đang đối chiếu hồ sơ với bộ lọc…</div>}
+                {!loading && error && <div className="cv-search-state" role="alert"><h3>Chưa tải được kết quả</h3><p>{error}</p>
+                    <button type="button" className="cv-search-primary" onClick={() => setRetry(value => value + 1)}>Thử lại</button></div>}
+                {!loading && !error && result.data.length === 0 && <div className="cv-search-state"><h3>Chưa có ứng viên phù hợp</h3>
+                    <p>Thử bớt tiêu chí, giảm điểm tối thiểu hoặc đổi cách khớp kỹ năng.</p>
+                    <button type="button" className="cv-search-primary" onClick={reset}>Xóa bộ lọc</button></div>}
+                {!loading && !error && result.data.map(candidate => {
+                    const name = [candidate.userSettingData?.firstName, candidate.userSettingData?.lastName].filter(Boolean).join(' ') || 'Ứng viên';
+                    const scored = candidate.matchScore !== null && candidate.matchScore !== undefined;
+                    return <article className="cv-search-candidate" key={candidate.userId}>
+                        <div className="cv-search-candidate-top"><div className="cv-search-identity"><div className="cv-search-avatar" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</div>
+                            <div><h3>{name}</h3><p>{candidate.jobTypeSettingData?.value || 'Chưa cập nhật ngành nghề'}</p></div></div>
+                            {scored && <div className="cv-search-score"><strong>{candidate.matchScore}%</strong><span>khớp tiêu chí</span></div>}
+                        </div>
+                        <dl className="cv-search-facts"><div><dt>Địa điểm</dt><dd>{candidate.provinceSettingData?.value || 'Chưa cập nhật'}</dd></div>
+                            <div><dt>Kinh nghiệm</dt><dd>{candidate.expTypeSettingData?.value || 'Chưa cập nhật'}</dd></div>
+                            <div><dt>Lương mong muốn</dt><dd>{candidate.salaryTypeSettingData?.value || 'Chưa cập nhật'}</dd></div></dl>
+                        <div className="cv-search-skills" aria-label={`Kỹ năng của ${name}`}>
+                            {(candidate.skills || []).map(skill => <span key={skill.id}>{skill.name}</span>)}
+                            {!candidate.skills?.length && <small>Chưa khai báo kỹ năng</small>}</div>
+                        {scored && <details className="cv-search-explanation"><summary>Vì sao có điểm này?</summary>
+                            <p>Tiêu chí khớp: {(candidate.matchedCriteria || []).map(key => criterionLabels[key]).join(', ') || 'Chưa chọn tiêu chí ngoài kỹ năng'}.</p>
+                            {!!candidate.matchedSkills?.length && <p><strong>Kỹ năng khớp:</strong> {candidate.matchedSkills.join(', ')}</p>}
+                            {!!candidate.missingSkills?.length && <p><strong>Chưa thấy khai báo:</strong> {candidate.missingSkills.join(', ')}</p>}
+                        </details>}
+                        <footer><span>Thông tin liên hệ hiển thị sau khi mở hồ sơ</span>
+                            <button type="button" className="cv-search-primary" onClick={() => openCandidate(candidate.userId)}>Xem chi tiết ứng viên</button></footer>
+                    </article>;
+                })}
+                {!loading && !error && result.count > PAGINATION.pagerow && <nav aria-label="Phân trang ứng viên">
+                    <ReactPaginate forcePage={page} previousLabel="Trước" nextLabel="Sau" breakLabel="…"
+                        pageCount={Math.ceil(result.count / PAGINATION.pagerow)} pageRangeDisplayed={3} marginPagesDisplayed={1}
+                        onPageChange={({ selected }) => setPage(selected)} containerClassName="cv-search-pagination" activeClassName="is-active" />
+                </nav>}
+            </section>
         </div>
-    );
+    </div>;
 };
 
 export default FilterCv;

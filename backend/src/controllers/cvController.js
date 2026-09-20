@@ -142,8 +142,8 @@ let fillterCVBySelection= async (req, res) => {
         if (!isRecruiter(req) && !isAdmin(req)) {
             return forbidden(res, 'Chỉ nhà tuyển dụng mới được tìm kiếm ứng viên');
         }
-        let data = await cvService.fillterCVBySelection(req.query);
-        return res.status(200).json(data);
+        let data = await cvService.fillterCVBySelection(req.query, getCompanyId(req));
+        return res.status(data.httpStatus || 200).json(data);
     } catch (error) {
         console.log(error)
         return res.status(200).json({
@@ -152,6 +152,15 @@ let fillterCVBySelection= async (req, res) => {
         })
     }
 }
+const listCandidateSearchJobs = async (req, res) => {
+    if (!isRecruiter(req) && !isAdmin(req)) return forbidden(res);
+    try {
+        const data = await cvService.listCandidateSearchJobs(req.query, getCompanyId(req));
+        return res.status(data.httpStatus || 200).json(data);
+    } catch {
+        return res.status(500).json({ errCode: -1, errMessage: 'Không tải được tin tuyển dụng. Vui lòng thử lại.' });
+    }
+};
 let checkSeeCandiate= async (req, res) => {
     try {
         // Admin kiem tra du lieu he thong ma khong tieu hao goi cua bat ky cong ty.
@@ -193,5 +202,6 @@ module.exports = {
     getAllCvByUserId: getAllCvByUserId,
     getStatisticalCv: getStatisticalCv,
     fillterCVBySelection: fillterCVBySelection,
+    listCandidateSearchJobs,
     checkSeeCandiate:checkSeeCandiate
 }

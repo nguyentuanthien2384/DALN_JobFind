@@ -73,6 +73,7 @@ JobFind là nền tảng tuyển dụng toàn diện, kết hợp trải nghiệ
 
 - **Quản lý công ty**: Cập nhật thông tin, logo, mô tả; quản lý nhân sự tuyển dụng thuộc công ty.
 - **Tin tuyển dụng**: Đăng tin mới, chỉnh sửa, đăng lại; quản lý gói đăng tin và lượt xem CV. Hỗ trợ AI gợi ý nội dung (tùy chọn).
+- **Tìm ứng viên phù hợp** tại `/admin/list-candiate/`: lọc theo từ khóa tên/kỹ năng, ngành nghề, địa điểm, kinh nghiệm và mức lương; lấy tiêu chí từ tin của công ty, khớp một/tất cả kỹ năng, lọc theo điểm và xếp hạng trên toàn bộ kết quả. Điểm có giải thích kỹ năng khớp/còn thiếu, dựa trên hồ sơ khai báo. Xem [hướng dẫn lọc CV](docs/candidate-search.md).
 - **Pipeline Kanban**: Xem hồ sơ ứng viên trên bảng 6 cột trạng thái:
 
   | Trạng thái | Mô tả |

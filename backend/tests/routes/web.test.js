@@ -101,6 +101,10 @@ describe('web routes', () => {
     expect(latest('/api/create-new-post').handlers[1].permission).toBe('JOB_MANAGE');
     expect(latest('/api/get-recommended-post').handlers[0]).toBe(mockVerifyUser);
     expect(latest('/api/get-recommended-post').handlers[1].permission).toBe('RECOMMENDATION_READ');
+    for (const path of ['/api/candidate-search-jobs', '/api/fillter-cv-by-selection']) {
+      expect(latest(path).handlers[0]).toBe(mockVerifyUser);
+      expect(latest(path).handlers[1].permission).toBe('CANDIDATE_SEARCH');
+    }
     expect(latest('/api/get-detail-post-by-id').handlers[0]).toBe(mockVerifyOptional);
     expect(latest('/api/auth/me').handlers[1].permission).toBe('ACCOUNT_SELF');
     expect(latest('/api/request-reset-password-otp').handlers[0]).toBe(mockOtpLimiter);
