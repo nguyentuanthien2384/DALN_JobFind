@@ -15,6 +15,8 @@ import { toast } from "react-toastify";
 import "react-image-lightbox/style.css";
 import { Select } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
+import PdfPreviewButton from "../../../components/documents/PdfPreviewButton";
+import { SESSION_ENDED_EVENT } from "../../../auth/sessionExpiry";
 
 const DetailFilterUser = () => {
     const [listSkills, setListSkills] = useState([]);
@@ -33,63 +35,83 @@ const DetailFilterUser = () => {
     });
     const { id } = useParams();
     const navigate = useNavigate();
+    const token = localStorage.getItem('token_user');
+    const sessionUser = localStorage.getItem('userData');
+    const scope = JSON.stringify([id, token, sessionUser]);
+    const [loadState, setLoadState] = useState(null);
+    const [ended, setEnded] = useState(false);
 
     useEffect(() => {
+        const end = () => setEnded(true);
+        const storage = event => { if (event.key === null || ['userData', 'token_user'].includes(event.key)) end(); };
+        window.addEventListener(SESSION_ENDED_EVENT, end);
+        window.addEventListener('storage', storage);
+        return () => { window.removeEventListener(SESSION_ENDED_EVENT, end); window.removeEventListener('storage', storage); };
+    }, []);
+
+    useEffect(() => {
+        let active = true, redirect;
+        const isCurrent = () => active && !ended && localStorage.getItem('token_user') === token && localStorage.getItem('userData') === sessionUser;
+        setLoadState({ scope, loading: true });
+        setHoSo(null);
+        setDsCv([]);
+        setListSkills([]);
         const getListSkill = async (jobType) => {
-            const res = await getAllSkillByJobCode(jobType);
-            const skills = (res?.data || []).map((item) => ({
-                value: item.id,
-                label: item.name,
-            }));
-            setListSkills(skills);
+            try {
+                const res = await getAllSkillByJobCode(jobType);
+                if (isCurrent()) setListSkills((res?.data || []).map((item) => ({ value: item.id, label: item.name })));
+            } catch { if (isCurrent()) setListSkills([]); }
         };
 
         const setStateUser = (data) => {
-            getListSkill(data.userAccountData.userSettingData.categoryJobCode);
+            const settings = data?.userAccountData?.userSettingData || {};
+            if (settings.categoryJobCode) getListSkill(settings.categoryJobCode);
             const skills = Array.isArray(data.listSkills)
                 ? data.listSkills.map((item) => item.SkillId)
                 : [];
             setInputValues((currentValues) => ({
                 ...currentValues,
-                jobType: data.userAccountData.userSettingData.categoryJobCode,
-                salary: data.userAccountData.userSettingData.salaryJobCode,
+                jobType: settings.categoryJobCode || "",
+                salary: settings.salaryJobCode || "",
                 skills,
-                jobProvince: data.userAccountData.userSettingData.addressCode,
-                exp: data.userAccountData.userSettingData.experienceJobCode,
-                isFindJob: data.userAccountData.userSettingData.isFindJob,
-                isTakeMail: data.userAccountData.userSettingData.isTakeMail,
-                file: data.userAccountData.userSettingData.file,
+                jobProvince: settings.addressCode || "",
+                exp: settings.experienceJobCode || "",
+                isFindJob: settings.isFindJob,
+                isTakeMail: settings.isTakeMail,
+                file: settings.file || "",
             }));
         };
 
-        if (id) {
+        if (id && !ended) {
             let fetchUser = async () => {
-                let check = await checkSeeCandiate({
-                    candidateId: id,
-                });
-                if (check.errCode === 0) {
-                    let user = await getDetailUserById(id);
-                    if (user && user.errCode === 0) {
+                try {
+                    const check = await checkSeeCandiate({ candidateId: id });
+                    if (!isCurrent()) return;
+                    if (check?.errCode !== 0 || check.httpStatus >= 400) {
+                        const message = check?.errMessage || 'Không có quyền xem hồ sơ này.';
+                        setLoadState({ scope, error: message });
+                        toast.error(message);
+                        redirect = setTimeout(() => { if (isCurrent()) navigate("/admin/list-candiate/"); }, 1000);
+                        return;
+                    }
+                    const user = await getDetailUserById(id);
+                    if (!isCurrent()) return;
+                    if (user?.errCode === 0 && !(user.httpStatus >= 400) && user.data) {
                         setStateUser(user.data);
                         setHoSo(user.data);
-                    }
-                    // Lich su ung tuyen cua ung vien nay
-                    let cv = await getAllListCvByUserIdService({
-                        userId: id,
-                        limit: 20,
-                        offset: 0,
-                    });
-                    if (cv && cv.errCode === 0) setDsCv(cv.data || []);
-                } else {
-                    toast.error(check.errMessage);
-                    setTimeout(() => {
-                        navigate("/admin/list-candiate/");
-                    }, 1000);
+                    } else throw new Error(user?.errMessage || 'Không tải được hồ sơ ứng viên.');
+                    const cv = await getAllListCvByUserIdService({ userId: id, limit: 20, offset: 0 });
+                    if (!isCurrent()) return;
+                    if (cv?.errCode === 0) setDsCv(cv.data || []);
+                    setLoadState({ scope, loading: false });
+                } catch (error) {
+                    if (isCurrent()) setLoadState({ scope, error: error.message || 'Không tải được hồ sơ ứng viên.' });
                 }
             };
             fetchUser();
         }
-    }, [id, navigate]);
+        return () => { active = false; clearTimeout(redirect); };
+    }, [id, navigate, scope, token, sessionUser, ended]);
 
     let { data: dataProvince } = useFetchAllcode("PROVINCE");
     let { data: dataExp } = useFetchAllcode("EXPTYPE");
@@ -115,6 +137,9 @@ const DetailFilterUser = () => {
         value: item.code,
         label: item.value,
     }));
+    if (ended) return <p role="alert">Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại để xem hồ sơ.</p>;
+    if (loadState?.scope !== scope || loadState.loading) return <p role="status">Đang tải hồ sơ ứng viên…</p>;
+    if (loadState.error) return <p role="alert">{loadState.error}</p>;
     return (
         <div className="">
             <div className="col-12 grid-margin">
@@ -350,12 +375,10 @@ const DetailFilterUser = () => {
                             {inputValues.file && (
                                 <div className="col-md-12">
                                     <div className="form-group row">
-                                        <iframe
-                                            title="Hồ sơ CV của ứng viên"
-                                            width={"100%"}
-                                            height={"700px"}
-                                            src={inputValues.file}
-                                        ></iframe>
+                                        <div>
+                                            <PdfPreviewButton key={scope} source={inputValues.file} fileName={`CV-ung-vien-${id}.pdf`} label="Xem CV của ứng viên" />
+                                            <p className="mt-2">Đây là CV hiện tại trong hồ sơ tìm việc của ứng viên.</p>
+                                        </div>
                                     </div>
                                 </div>
                             )}

@@ -15,6 +15,7 @@ import "react-markdown-editor-lite/lib/index.css";
 import { Spinner, Modal } from "reactstrap";
 import "../../../components/modal/modal.css";
 import { useNavigate, useParams } from "react-router-dom";
+import PdfPreviewButton from "../../../components/documents/PdfPreviewButton";
 const AddCompany = () => {
     const { id } = useParams();
     const mdParser = new MarkdownIt();
@@ -37,6 +38,7 @@ const AddCompany = () => {
         isActionADD: true,
         id: "",
         file: "",
+        fileName: "",
         imageClick: "",
         isFileChange: false,
     });
@@ -60,6 +62,7 @@ const AddCompany = () => {
                 "isActionADD": false,
                 "id": res.data.id,
                 "file": res.data.file,
+                "fileName": `Ho-so-cong-ty-${res.data.id}.pdf`,
             }));
         }
     }, []);
@@ -102,11 +105,12 @@ const AddCompany = () => {
             }
             let base64 = await CommonUtils.getBase64(file);
 
-            setInputValues({
-                ...inputValues,
+            setInputValues(currentValues => ({
+                ...currentValues,
                 file: base64,
+                fileName: file.name,
                 isFileChange: true,
-            });
+            }));
         }
     };
     let openPreviewImage = (event) => {
@@ -483,7 +487,8 @@ const AddCompany = () => {
                                                             ? true
                                                             : false
                                                     }
-                                                    name="coverImage"
+                                                    name="certificate"
+                                                    aria-label="Chọn hồ sơ chứng nhận PDF"
                                                     onChange={(event) =>
                                                         handleOnChangeFile(
                                                             event
@@ -502,12 +507,14 @@ const AddCompany = () => {
                                                 <label className="col-sm-3 col-form-label">
                                                     Hiển thị
                                                 </label>
-                                                <iframe
-                                                    title="Tệp giới thiệu công ty"
-                                                    width={"100%"}
-                                                    height={"700px"}
-                                                    src={inputValues.file}
-                                                ></iframe>
+                                                <div className="col-sm-9">
+                                                    <PdfPreviewButton
+                                                        source={inputValues.file}
+                                                        fileName={inputValues.fileName || "Ho-so-cong-ty.pdf"}
+                                                        label="Xem hồ sơ chứng nhận PDF"
+                                                    />
+                                                    <p className="mt-2">Xem từng trang, phóng to và tải tài liệu chứng nhận của công ty.</p>
+                                                </div>
                                             </div>
                                         </div>
                                     )}

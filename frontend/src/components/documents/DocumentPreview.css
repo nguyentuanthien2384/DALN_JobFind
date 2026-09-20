@@ -1,0 +1,6 @@
+.document-preview-control { display: inline-block; max-width: 100%; }
+.document-preview-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; max-width: 100%; padding: 9px 14px; border: 1px solid #bddacc; border-radius: 8px; background: #edf7f2; color: #16644c; font: inherit; font-size: 13px; line-height: 1.5; font-weight: 600; cursor: pointer; white-space: normal; text-align: left; }
+.document-preview-button svg { flex-shrink: 0; }
+.document-preview-button:hover { background: #deefe5; color: #124f3e; }
+.document-preview-button:focus-visible { outline: 3px solid #84b6d4; outline-offset: 3px; }
+.document-preview-button:disabled { opacity: .55; cursor: default; }

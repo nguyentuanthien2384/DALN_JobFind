@@ -9,7 +9,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `${assetBase}pdf.worker.min.mjs`;
 const options = { isEvalSupported: false, cMapUrl: `${assetBase}cmaps/`, cMapPacked: true,
     standardFontDataUrl: `${assetBase}standard_fonts/`, wasmUrl: `${assetBase}wasm/`, maxImageSize: 16000000 };
 
-const PdfPreview = ({ file, fileName = 'Tài liệu.pdf', onClose }) => {
+const PdfPreview = ({ file, fileName = 'Tài liệu.pdf', onClose, maxPages = 300 }) => {
     const [page, setPage] = useState(1);
     const [pages, setPages] = useState(0);
     const [zoom, setZoom] = useState(1);
@@ -34,8 +34,9 @@ const PdfPreview = ({ file, fileName = 'Tài liệu.pdf', onClose }) => {
         return () => { window.removeEventListener('resize', resize); observer?.disconnect(); };
     }, []);
     const fail = () => setError('Không đọc được PDF này. Tệp có thể bị hỏng hoặc không được hỗ trợ.');
-    return <Modal open title={fileName} onCancel={onClose} footer={null} width="min(1000px, 96vw)" className="chat-pdf-modal"
-        centered keyboard maskClosable={false}>
+    return <span onKeyDown={event => event.stopPropagation()} onKeyUp={event => event.stopPropagation()}>
+        <Modal open title={fileName} onCancel={onClose} footer={null} width="min(1000px, 96vw)" className="chat-pdf-modal"
+        centered keyboard maskClosable={false} zIndex={1200}>
         <div className="chat-pdf-toolbar">
             <div><button type="button" aria-label="Trang PDF trước" disabled={page <= 1 || !pages} onClick={() => setPage(value => value - 1)}>‹</button>
                 <span aria-live="polite">Trang {page} / {pages || '…'}</span>
@@ -47,7 +48,7 @@ const PdfPreview = ({ file, fileName = 'Tài liệu.pdf', onClose }) => {
         </div>
         <div ref={viewport} className="chat-pdf-viewport">
             {error ? <p role="alert" className="chat-pdf-status">{error}</p> : <Document file={source} options={options}
-                onLoadSuccess={({ numPages }) => { if (numPages > 100) setError('PDF vượt quá giới hạn 100 trang.'); else setPages(numPages); }}
+                onLoadSuccess={({ numPages }) => { if (numPages > maxPages) setError(`PDF vượt quá giới hạn xem trước ${maxPages} trang. Bạn có thể tải bản gốc để đọc.`); else setPages(numPages); }}
                 onLoadError={fail} onSourceError={fail} onPassword={() => setError('PDF có mật khẩu. Vui lòng dùng bản PDF không có mật khẩu.')}
                 loading={<p role="status" className="chat-pdf-status">Đang đọc PDF…</p>} error={<p role="alert">Không đọc được PDF.</p>}>
                 <Page pageNumber={page} width={width} scale={zoom} devicePixelRatio={Math.min(window.devicePixelRatio || 1, 2)}
@@ -55,7 +56,7 @@ const PdfPreview = ({ file, fileName = 'Tài liệu.pdf', onClose }) => {
                     loading={<p role="status" className="chat-pdf-status">Đang hiển thị trang…</p>} />
             </Document>}
         </div>
-    </Modal>;
+    </Modal></span>;
 };
 
 export default PdfPreview;

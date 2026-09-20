@@ -9,6 +9,7 @@ import { readJsonStorage } from '../../util/storage';
 import SessionContext from '../../auth/SessionContext';
 import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
 import PreparedCvPicker from './PreparedCvPicker';
+import PdfPreviewButton from '../documents/PdfPreviewButton';
 import './modal.css';
 import './SendCvModal.css';
 
@@ -22,7 +23,7 @@ const pdfBlob = value => {
 
 function ApplicationForm({ user, token, postId, jobTitle, onHide, onSubmitted }) {
     const [type, setType] = useState('pcCv'), [description, setDescription] = useState('');
-    const [file, setFile] = useState(''), [savedFile, setSavedFile] = useState(''), [fileUrl, setFileUrl] = useState('');
+    const [file, setFile] = useState(''), [savedFile, setSavedFile] = useState(''), [fileName, setFileName] = useState('CV-ung-tuyen.pdf');
     const [savedLoading, setSavedLoading] = useState(true), [savedError, setSavedError] = useState('');
     const [reading, setReading] = useState(false), [isLoading, setIsLoading] = useState(false);
     const [prepared, setPrepared] = useState(null), [reviewed, setReviewed] = useState(false), [feedback, setFeedback] = useState('');
@@ -50,14 +51,6 @@ function ApplicationForm({ user, token, postId, jobTitle, onHide, onSubmitted })
     }, [user.id, token]);
 
     const selectedFile = type === 'userCv' ? savedFile : type === 'preparedCv' ? prepared?.file || '' : file;
-    useEffect(() => {
-        setFileUrl('');
-        if (!selectedFile || type === 'preparedCv') return undefined;
-        let url;
-        try { url = URL.createObjectURL(pdfBlob(selectedFile)); setFileUrl(url); } catch { return undefined; }
-        return () => URL.revokeObjectURL(url);
-    }, [selectedFile, type]);
-
     const chooseType = event => {
         if (sending.current) return;
         const value = event.target.value;
@@ -69,14 +62,14 @@ function ApplicationForm({ user, token, postId, jobTitle, onHide, onSubmitted })
     const chooseFile = async event => {
         if (sending.current) return;
         const selected = event.target.files?.[0], version = ++fileVersion.current;
-        setFile(''); setFeedback('');
+        setFile(''); setFileName('CV-ung-tuyen.pdf'); setFeedback('');
         if (!selected) { setReading(false); return; }
         if (selected.size > PDF_LIMIT) { setReading(false); toast.error('File của bạn quá lớn. Chỉ gửi file dưới 2MB'); return; }
         if (!/\.pdf$/i.test(selected.name) || !selected.size) { setReading(false); toast.error('Chọn tệp PDF hợp lệ để ứng tuyển.'); return; }
         setReading(true);
         try {
             const value = await CommonUtils.getBase64(selected); pdfBlob(value);
-            if (current() && version === fileVersion.current) setFile(value);
+            if (current() && version === fileVersion.current) { setFile(value); setFileName(selected.name); }
         } catch (failure) { if (current() && version === fileVersion.current) toast.error(failure.message || 'Không đọc được tệp PDF.'); }
         finally { if (current() && version === fileVersion.current) setReading(false); }
     };
@@ -115,7 +108,8 @@ function ApplicationForm({ user, token, postId, jobTitle, onHide, onSubmitted })
                 {savedLoading && <p role="status">Đang tải CV online…</p>}
                 {type === 'pcCv' && <input type="file" aria-label="Chọn tệp CV" accept="application/pdf,.pdf" onChange={chooseFile} />}
                 {reading && <p role="status">Đang đọc tệp CV…</p>}
-                {fileUrl && <p><a href={fileUrl} target="_blank" rel="noreferrer">Nhấn vào đây để xem lại CV của bạn</a></p>}
+                {selectedFile && type !== 'preparedCv' && <p><PdfPreviewButton source={selectedFile}
+                    fileName={type === 'userCv' ? 'CV-online.pdf' : fileName} label="Xem lại CV của bạn" disabled={isLoading} /></p>}
                 {type === 'preparedCv' && <>
                     <PreparedCvPicker token={token} disabled={isLoading} onPrepared={acceptPrepared} />
                     {prepared && <label className="cv-review-check"><input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} /> Tôi đã xem và chọn bản PDF này để ứng tuyển</label>}

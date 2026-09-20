@@ -1,27 +1,40 @@
 import React from 'react'
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getDetailUserById, UpdateUserSettingService, getAllSkillByJobCode } from '../../service/userService';
 import { useFetchAllcode } from '../../util/fetch';
 import { toast } from 'react-toastify';
 import 'react-image-lightbox/style.css';
 import CommonUtils from '../../util/CommonUtils';
 import { Select } from 'antd'
+import PdfPreviewButton from '../../components/documents/PdfPreviewButton';
 const SettingUser = () => {
     const [listSkills,setListSkills] = useState([])
+    const [fileName, setFileName] = useState('CV.pdf');
+    const fileVersion = useRef(0);
     const [inputValues, setInputValues] = useState({
         jobType: '', salary: '', skills: [], jobProvince: '', exp: '', isFindJob: 0, isTakeMail: 0, file: ''
     });
     let handleOnChangeFile = async (event) => {
+        const version = ++fileVersion.current;
         let data = event.target.files;
         let file = data[0];
         if (file) {
+            if (!/\.pdf$/i.test(file.name) || !file.size) {
+                toast.error('Hãy chọn tệp CV định dạng PDF.');
+                return;
+            }
             if (file.size > 2097152) {
                 toast.error("File của bạn quá lớn. Chỉ gửi file dưới 2MB")
                 return
             }
-            let base64 = await CommonUtils.getBase64(file);
-
-            setInputValues({ ...inputValues, file: base64 })
+            try {
+                let base64 = await CommonUtils.getBase64(file);
+                if (version !== fileVersion.current) return;
+                setInputValues(currentValues => ({ ...currentValues, file: base64 }));
+                setFileName(file.name);
+            } catch {
+                if (version === fileVersion.current) toast.error('Không đọc được tệp CV. Hãy chọn lại tệp.');
+            }
         }
     }
 
@@ -92,6 +105,7 @@ const SettingUser = () => {
             }
             fetchUser()
         }
+        return () => { fileVersion.current += 1; };
     }, [])
 
     let { data: dataProvince } = useFetchAllcode('PROVINCE');
@@ -324,7 +338,7 @@ const SettingUser = () => {
                                 <div className="col-md-12">
                                     <div className="form-group row">
                                         
-                                        <iframe title="CV đã tải" width={'100%'} height={'700px'} src={inputValues.file}></iframe>
+                                        <PdfPreviewButton source={inputValues.file} fileName={fileName} label="Xem trước CV" />
                                     </div>
                                 </div>
                             }

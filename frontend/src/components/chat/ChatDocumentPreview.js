@@ -2,7 +2,7 @@ import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Modal } from 'antd';
 import { chatPdfBlob, getChatPdf } from '../../service/chatMediaService';
 
-const PdfPreview = lazy(() => import('./PdfPreview'));
+const PdfPreview = lazy(() => import('../documents/PdfPreview'));
 
 class PreviewBoundary extends React.Component {
     state = { failed: false };
@@ -38,7 +38,7 @@ const ChatDocumentPreview = ({ attachment, onClose }) => {
             : <p role="status">Đang tải tài liệu PDF…</p>}
     </Modal>;
     return file ? <PreviewBoundary onClose={onClose}><Suspense fallback={loading}>
-        <PdfPreview file={file} fileName={name} onClose={onClose} />
+        <PdfPreview file={file} fileName={name} onClose={onClose} maxPages={100} />
     </Suspense></PreviewBoundary> : loading;
 };
 

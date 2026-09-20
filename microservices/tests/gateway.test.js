@@ -533,6 +533,16 @@ describe('gateway HTTP and WebSocket security configuration', () => {
 });
 
 describe('circuit-breaker proxy', () => {
+    it('does not cache private chat PDFs or job selection responses', async () => {
+        const { createProxy } = await import('../api-gateway/src/middlewares/proxy.js');
+        mocks.axios.mockResolvedValue({ status: 200, headers: {}, data: { errCode: 0 } });
+        for (const path of ['/api/chat-attachments/fixture', '/api/chat-jobs']) {
+            const res = makeRes();
+            await createProxy('legacy')(makeReq({ path, originalUrl: path }), res, vi.fn());
+            expect(res.statusCode).toBe(200);
+            expect(res.headers['Cache-Control']).toBe('no-store');
+        }
+    });
     beforeEach(() => {
         mocks.axios.mockReset();
         mocks.breakerInstances.length = 0;

@@ -8,6 +8,7 @@ import { renderPreparedCv } from '../../service/preparedCvPdf';
 import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
 import { emptyCv } from '../../service/candidateWorkspace';
 import { toast } from 'react-toastify';
+import PdfPreviewButton from '../documents/PdfPreviewButton';
 
 jest.mock('reactstrap', () => {
     const React = require('react');
@@ -19,6 +20,7 @@ jest.mock('../../service/aiSearchService', () => ({ listMyCvs: jest.fn() }));
 jest.mock('../../service/cvService', () => ({ createNewCv: jest.fn() }));
 jest.mock('../../service/userService', () => ({ getDetailUserById: jest.fn() }));
 jest.mock('../../service/preparedCvPdf', () => ({ renderPreparedCv: jest.fn() }));
+jest.mock('../documents/PdfPreviewButton', () => jest.fn(), { virtual: true });
 const first = { ...emptyCv(), _id: '507f1f77bcf86cd799439011', title: 'CV kỹ sư', fullName: 'Nguyễn Thị Ánh' };
 const second = { ...first, _id: '507f1f77bcf86cd799439012', title: 'CV quản lý' };
 const pdf = 'data:application/pdf;base64,JVBERi0xLjcKZml4dHVyZQ==';
@@ -33,17 +35,17 @@ const choose = async () => {
 };
 const prepare = async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tạo bản PDF để xem lại' }));
-    await screen.findByRole('link', { name: 'Mở bản PDF sẽ gửi' });
+    await screen.findByRole('button', { name: 'Xem bản PDF sẽ gửi' });
 };
 const review = () => fireEvent.click(screen.getByLabelText('Tôi đã xem và chọn bản PDF này để ứng tuyển'));
 beforeEach(() => {
     jest.clearAllMocks(); localStorage.clear(); sessionStorage.clear();
+    PdfPreviewButton.mockImplementation(({ label, disabled }) => <button type="button" disabled={disabled}>{label}</button>);
     localStorage.setItem('token_user', 'current-token'); localStorage.setItem('userData', JSON.stringify({ id: 8, roleCode: 'CANDIDATE' }));
     process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'true';
     getDetailUserById.mockResolvedValue({ errCode: 0, data: {} });
     listMyCvs.mockResolvedValue({ errCode: 0, data: [first, second] });
     renderPreparedCv.mockResolvedValue(result()); createNewCv.mockResolvedValue({ errCode: 0, cvId: 22 });
-    URL.createObjectURL = jest.fn(() => 'blob:prepared'); URL.revokeObjectURL = jest.fn();
 });
 afterEach(() => { delete process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED; });
 
@@ -52,17 +54,18 @@ test('requires explicit source, selection, PDF review and send; submits the froz
     expect(listMyCvs).not.toHaveBeenCalled(); await choose();
     expect(renderPreparedCv).not.toHaveBeenCalled(); expect(send()).toBeDisabled();
     await prepare(); expect(send()).toBeDisabled(); expect(createNewCv).not.toHaveBeenCalled(); review();
+    expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: pdf, fileName: `${first.title}.pdf` }), expect.anything());
+    expect(document.querySelector('iframe')).toBeNull();
     listMyCvs.mockResolvedValue({ errCode: 0, data: [{ ...first, fullName: 'Changed on server' }] });
     fireEvent.click(send()); await waitFor(() => expect(onHide).toHaveBeenCalledTimes(1));
     expect(createNewCv).toHaveBeenCalledWith({ userId: 8, postId: 7, file: pdf, description: 'Tôi muốn ứng tuyển vị trí này.' });
     expect(listMyCvs).toHaveBeenCalledTimes(1); expect(renderPreparedCv).toHaveBeenCalledTimes(1);
     expect(sessionStorage.length).toBe(0); expect(localStorage.length).toBe(2);
 });
-test('changing selection or refreshing revokes the preview and invalidates approval', async () => {
+test('changing selection or refreshing removes the preview and invalidates approval', async () => {
     render(<SendCvModal isOpen postId={7} onHide={jest.fn()} />); await choose(); await prepare(); review();
     fireEvent.change(screen.getByLabelText('CV đã lưu'), { target: { value: second._id } });
-    expect(send()).toBeDisabled(); expect(screen.queryByRole('link', { name: 'Mở bản PDF sẽ gửi' })).not.toBeInTheDocument();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:prepared');
+    expect(send()).toBeDisabled(); expect(screen.queryByRole('button', { name: 'Xem bản PDF sẽ gửi' })).not.toBeInTheDocument();
     await prepare(); review(); fireEvent.click(screen.getByRole('button', { name: 'Tải lại CV đã chuẩn bị' }));
     await waitFor(() => expect(listMyCvs).toHaveBeenCalledTimes(2)); expect(send()).toBeDisabled();
     expect(screen.getByLabelText('CV đã lưu')).toHaveValue(''); expect(createNewCv).not.toHaveBeenCalled();
@@ -72,7 +75,7 @@ test('a source change discards a PDF that completes late', async () => {
     render(<SendCvModal isOpen postId={7} onHide={jest.fn()} />); await choose();
     fireEvent.click(screen.getByRole('button', { name: 'Tạo bản PDF để xem lại' }));
     await waitFor(() => expect(renderPreparedCv).toHaveBeenCalled()); fireEvent.click(screen.getByLabelText('Tự chọn CV'));
-    await act(async () => pending.resolve(result())); expect(URL.createObjectURL).not.toHaveBeenCalled(); expect(createNewCv).not.toHaveBeenCalled();
+    await act(async () => pending.resolve(result())); expect(PdfPreviewButton).not.toHaveBeenCalled(); expect(createNewCv).not.toHaveBeenCalled();
 });
 test.each(['close', 'job', 'session'])('discarding the %s clears the prepared CV and ignores a late result', async kind => {
     const pending = deferred(); renderPreparedCv.mockReturnValue(pending.promise);
@@ -81,7 +84,7 @@ test.each(['close', 'job', 'session'])('discarding the %s clears the prepared CV
     if (kind === 'session') act(() => { localStorage.setItem('token_user', 'another-token'); window.dispatchEvent(new Event(SESSION_ENDED_EVENT)); });
     else view.rerender(<SendCvModal isOpen={kind !== 'close'} postId={8} onHide={jest.fn()} />);
     await act(async () => pending.resolve(result()));
-    expect(URL.createObjectURL).not.toHaveBeenCalled(); expect(createNewCv).not.toHaveBeenCalled();
+    expect(PdfPreviewButton).not.toHaveBeenCalled(); expect(createNewCv).not.toHaveBeenCalled();
 });
 test('lost response and duplicate replies keep the reviewed bytes and never resend automatically', async () => {
     const pending = deferred(); createNewCv.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ errCode: 5, httpStatus: 409 });

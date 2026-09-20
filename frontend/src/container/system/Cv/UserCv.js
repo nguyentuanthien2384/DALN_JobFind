@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getDetailCvService } from '../../../service/cvService';
 import { readJsonStorage } from '../../../util/storage';
 import { SESSION_ENDED_EVENT } from '../../../auth/sessionExpiry';
+import PdfPreviewButton from '../../../components/documents/PdfPreviewButton';
+import { isPdfSource } from '../../../components/documents/documentSource';
 import './UserCv.css';
 
 const UserCv = () => {
@@ -12,7 +14,7 @@ const UserCv = () => {
     const navigate = useNavigate();
     const scope = JSON.stringify([id, user?.id, role, token]);
     const [state, setState] = useState(null), [refresh, setRefresh] = useState(0);
-    const [ended, setEnded] = useState(false), [attachment, setAttachment] = useState(null);
+    const [ended, setEnded] = useState(false);
     const data = state?.scope === scope && !ended ? state.data : null;
     const file = data?.file;
 
@@ -43,25 +45,9 @@ const UserCv = () => {
         return () => { active = false; };
     }, [id, role, token, scope, ended, refresh]);
 
-    useEffect(() => {
-        let objectUrl;
-        setAttachment(null);
-        if (typeof file === 'string' && file) {
-            if (file.startsWith('data:application/pdf;base64,')) {
-                try {
-                    const binary = atob(file.slice('data:application/pdf;base64,'.length));
-                    if (!binary.startsWith('%PDF-')) throw new Error('Invalid PDF');
-                    objectUrl = URL.createObjectURL(new Blob([Uint8Array.from(binary, char => char.charCodeAt(0))], { type: 'application/pdf' }));
-                    setAttachment({ file, url: objectUrl });
-                } catch { /* Historical invalid files must not become an HTML frame. */ }
-            } else if (/^\/(?!\/)/.test(file) || /^https?:\/\//i.test(file)) {
-                setAttachment({ file, url: file });
-            }
-        }
-        return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-    }, [file]);
-
-    const url = attachment?.file === file ? attachment?.url : null;
+    // The shared viewer verifies the bytes; historical missing/unsupported values
+    // still have a clear empty state without turning them into a browser frame.
+    const hasPdfSource = isPdfSource(file);
     return <div className="col-12 grid-margin submitted-cv-view"><div className="card"><div className="card-body">
         <button type="button" className="cv-back" onClick={() => navigate(-1)}>Quay lại</button>
         {ended ? <p role="alert">Phiên đăng nhập đã kết thúc. Vui lòng đăng nhập lại để xem hồ sơ.</p>
@@ -74,13 +60,11 @@ const UserCv = () => {
                             <footer className="blockquote-footer"><cite>{[data.userCvData?.firstName, data.userCvData?.lastName].filter(Boolean).join(' ') || 'Thông tin ứng viên không còn khả dụng'}</cite></footer>
                         </blockquote>
                         <h4 className="card-title">FILE CV</h4>
-                        {url ? <>
+                        {hasPdfSource ? <>
                             <div className="cv-file-actions">
-                                <a href={url} target="_blank" rel="noopener noreferrer">Mở PDF đã nộp</a>
-                                <a href={url} download={`CV-${id}.pdf`}>Tải CV đã nộp</a>
+                                <PdfPreviewButton key={scope} source={file} fileName={`CV-${id}.pdf`} label="Xem CV đã nộp" />
                             </div>
-                            <p>Mở hoặc tải PDF để xem đầy đủ nội dung. Đây là bản đã nộp khi ứng tuyển.</p>
-                            <iframe className="submitted-cv-frame" title="CV của ứng viên" src={url} />
+                            <p>Đây là bản CV đã nộp khi ứng tuyển. Bạn có thể xem từng trang, phóng to và tải xuống trong trình xem PDF.</p>
                         </> : <p>Hồ sơ này không còn tệp PDF hợp lệ để xem.</p>}
                     </>}
     </div></div></div>;

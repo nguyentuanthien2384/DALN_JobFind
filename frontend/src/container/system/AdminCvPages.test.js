@@ -20,9 +20,12 @@ import FilterCv from "./Cv/FilterCv";
 import ManageCv from "./Cv/ManageCv";
 import UserCv from "./Cv/UserCv";
 import DetailFilterUser from "./Cv/DetailFilterUser";
+import { SESSION_ENDED_EVENT } from "../../auth/sessionExpiry";
 
 let mockParams = {};
 const mockNavigate = jest.fn();
+jest.mock('../../components/documents/PdfPreviewButton', () => ({ source, fileName, label }) =>
+    <button type="button" data-source={source} data-filename={fileName}>{label}</button>);
 
 jest.mock("xlsx/xlsx.mjs", () => ({
     utils: { book_new: jest.fn(), json_to_sheet: jest.fn(), book_append_sheet: jest.fn() },
@@ -233,7 +236,8 @@ describe("CV list and detail", () => {
         const { container } = render(<UserCv />);
         expect(await screen.findByText("Tôi có 5 năm kinh nghiệm")).toBeInTheDocument();
         expect(getDetailCvService).toHaveBeenCalledWith("31", "EMPLOYER");
-        expect(container.querySelector("iframe")).toHaveAttribute("src", "/files/cv-31.pdf");
+        expect(screen.getByRole('button', { name: 'Xem CV đã nộp' })).toHaveAttribute('data-source', '/files/cv-31.pdf');
+        expect(container.querySelector("iframe")).toBeNull();
         fireEvent.click(screen.getByText("Quay lại"));
         expect(mockNavigate).toHaveBeenCalledWith(-1);
     });
@@ -290,7 +294,8 @@ describe("candidate access detail", () => {
         expect(within(historyRow).getByText("Đã xem")).toBeInTheDocument();
         expect(checkSeeCandiate).toHaveBeenCalledWith({ candidateId: "99" });
         expect(getAllListCvByUserIdService).toHaveBeenCalledWith({ userId: "99", limit: 20, offset: 0 });
-        expect(container.querySelector("iframe")).toHaveAttribute("src", "/files/profile.pdf");
+        expect(screen.getByRole('button', { name: 'Xem CV của ứng viên' })).toHaveAttribute('data-source', '/files/profile.pdf');
+        expect(container.querySelector("iframe")).toBeNull();
     });
 
     it("reports denied access and returns to the candidate list", async () => {
@@ -302,6 +307,33 @@ describe("candidate access detail", () => {
         act(() => jest.advanceTimersByTime(1000));
         expect(mockNavigate).toHaveBeenCalledWith("/admin/list-candiate/");
         expect(getDetailUserById).not.toHaveBeenCalled();
+        expect(screen.queryByRole('button', { name: 'Xem CV của ứng viên' })).not.toBeInTheDocument();
         jest.useRealTimers();
+    });
+
+    it('does not let a late authorized profile replace a newly denied candidate route', async () => {
+        let finishProfile;
+        checkSeeCandiate.mockResolvedValueOnce({ errCode: 0 }).mockResolvedValue({ errCode: 1, errMessage: 'Không có quyền xem' });
+        getDetailUserById.mockImplementationOnce(() => new Promise(resolve => { finishProfile = resolve; }));
+        const view = render(<DetailFilterUser />);
+        await waitFor(() => expect(getDetailUserById).toHaveBeenCalledWith('99'));
+        mockParams = { id: '100' }; view.rerender(<DetailFilterUser />);
+        expect(await screen.findByRole('alert')).toHaveTextContent('Không có quyền xem');
+        await act(async () => finishProfile({ errCode: 0, data: detailedUser }));
+        expect(screen.queryByRole('button', { name: 'Xem CV của ứng viên' })).not.toBeInTheDocument();
+        expect(screen.queryByText('mai@example.com')).not.toBeInTheDocument();
+        expect(getAllListCvByUserIdService).not.toHaveBeenCalled();
+    });
+
+    it('removes the current candidate document on session expiry without reopening access', async () => {
+        checkSeeCandiate.mockResolvedValue({ errCode: 0 });
+        getDetailUserById.mockResolvedValue({ errCode: 0, data: detailedUser });
+        getAllListCvByUserIdService.mockResolvedValue({ errCode: 0, data: [] });
+        render(<DetailFilterUser />);
+        await screen.findByRole('button', { name: 'Xem CV của ứng viên' });
+        fireEvent(window, new Event(SESSION_ENDED_EVENT));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Phiên đăng nhập đã kết thúc');
+        expect(screen.queryByRole('button', { name: 'Xem CV của ứng viên' })).not.toBeInTheDocument();
+        expect(checkSeeCandiate).toHaveBeenCalledTimes(1);
     });
 });

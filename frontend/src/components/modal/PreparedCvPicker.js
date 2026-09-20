@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { listMyCvs } from '../../service/aiSearchService';
 import { validateCvList } from '../../service/candidateWorkspace';
+import PdfPreviewButton from '../documents/PdfPreviewButton';
 
 export default function PreparedCvPicker({ token, disabled, onPrepared }) {
     const [cvs, setCvs] = useState([]), [selected, setSelected] = useState('');
@@ -20,7 +21,6 @@ export default function PreparedCvPicker({ token, disabled, onPrepared }) {
         })();
         return () => { active = false; generation.current += 1; };
     }, [token, refresh, onPrepared]);
-    useEffect(() => () => { if (preview) URL.revokeObjectURL(preview.url); }, [preview]);
 
     const prepare = async () => {
         if (disabled || preparing.current || !selected || localStorage.getItem('token_user') !== token) return;
@@ -32,7 +32,7 @@ export default function PreparedCvPicker({ token, disabled, onPrepared }) {
             const { renderPreparedCv } = await import('../../service/preparedCvPdf');
             const result = await renderPreparedCv(cv);
             if (version !== generation.current || localStorage.getItem('token_user') !== token) return;
-            setPreview({ url: URL.createObjectURL(result.blob), title: cv.title, pages: result.pages });
+            setPreview({ file: result.file, title: cv.title, pages: result.pages });
             onPrepared({ file: result.file, title: cv.title, cvId: cv._id });
         } catch (failure) {
             if (version === generation.current) setError(failure.message || 'Không tạo được PDF. Hãy thử lại.');
@@ -54,10 +54,9 @@ export default function PreparedCvPicker({ token, disabled, onPrepared }) {
         <button type="button" disabled={disabled || loading || busy || !selected} onClick={prepare}>{busy ? 'Đang tạo PDF…' : 'Tạo bản PDF để xem lại'}</button>
         {preview && <div className="prepared-cv-preview">
             <p><strong>{preview.title || 'CV ứng tuyển'}</strong> · {preview.pages} trang</p>
-            <a href={preview.url} target="_blank" rel="noreferrer">Mở bản PDF sẽ gửi</a>{' · '}
-            <a href={preview.url} download="CV-ung-tuyen.pdf">Tải bản PDF</a>
-            <p className="prepared-cv-mobile-note">Mở bản PDF để xem đầy đủ nội dung trước khi chọn gửi.</p>
-            <iframe title="Bản PDF sẽ gửi" src={preview.url} />
+            <PdfPreviewButton source={preview.file} fileName={`${preview.title || 'CV-ung-tuyen'}.pdf`}
+                label="Xem bản PDF sẽ gửi" disabled={disabled} />
+            <p>Xem đầy đủ nội dung trước khi chọn gửi. Bạn có thể chuyển trang, phóng to và tải bản PDF trong cửa sổ xem.</p>
         </div>}
     </section>;
 }

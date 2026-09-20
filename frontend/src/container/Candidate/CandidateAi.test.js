@@ -6,6 +6,13 @@ import CandidateAi from './CandidateAi';
 import * as api from '../../service/aiSearchService';
 import { intentStorageKey, mutationStorageKey, emptyCv } from '../../service/candidateWorkspace';
 import SessionContext from '../../auth/SessionContext';
+import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
+import { renderPreparedCv } from '../../service/preparedCvPdf';
+import PdfPreviewButton from '../../components/documents/PdfPreviewButton';
+import DocumentPreviewModal from '../../components/documents/DocumentPreviewModal';
+jest.mock('../../service/preparedCvPdf', () => ({ renderPreparedCv: jest.fn() }));
+jest.mock('../../components/documents/PdfPreviewButton', () => jest.fn(({ label }) => <button type="button">{label}</button>));
+jest.mock('../../components/documents/DocumentPreviewModal', () => jest.fn(({ fileName, onClose }) => <div role="dialog" aria-label={fileName}><button type="button" onClick={onClose}>Đóng xem trước</button></div>));
 jest.mock('../../service/aiSearchService',()=>({
     createAiRequestOptions:()=>({idempotencyKey:'a'.repeat(32)}),
     parseResumeAi:jest.fn(),matchCvAi:jest.fn(),coverLetterAi:jest.fn(),getAiTask:jest.fn(),
@@ -20,8 +27,12 @@ beforeEach(()=>{
     localStorage.setItem('token_user','session-7');localStorage.setItem('userData',JSON.stringify(user));
     api.matchCvAi.mockResolvedValue({errCode:0,taskId:'task-1'});api.getAiTask.mockResolvedValue(completed);
     api.listMyCvs.mockResolvedValue({errCode:0,data:[]});window.confirm=jest.fn(()=>true);
+    process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'true';
+    renderPreparedCv.mockResolvedValue({ blob: new Blob(['%PDF-1.7'], { type: 'application/pdf' }), pages: 1 });
+    PdfPreviewButton.mockImplementation(({ label }) => <button type="button">{label}</button>);
+    DocumentPreviewModal.mockImplementation(({ fileName, onClose }) => <div role="dialog" aria-label={fileName}><button type="button" onClick={onClose}>Đóng xem trước</button></div>);
 });
-afterEach(()=>delete process.env.REACT_APP_CANDIDATE_AI_ENABLED);
+afterEach(()=>{ delete process.env.REACT_APP_CANDIDATE_AI_ENABLED; delete process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED; });
 const fillMatch=()=>{
     fireEvent.change(screen.getByLabelText('Chức năng'),{target:{value:'match_cv'}});
     fireEvent.change(screen.getByLabelText('Nội dung CV'),{target:{value:'Synthetic Node experience'}});
@@ -99,4 +110,77 @@ test('uncertain CV save blocks repeats across refresh until explicit list reconc
     expect(screen.getByText('Lưu CV')).toBeDisabled();expect(screen.getByText('Đã đối chiếu danh sách CV')).toBeDisabled();
     fireEvent.click(screen.getByText('Tải danh sách CV'));await waitFor(()=>expect(screen.getByText('Đã đối chiếu danh sách CV')).toBeEnabled());
     expect(screen.getByText('Lưu CV')).toBeDisabled();fireEvent.click(screen.getByText('Đã đối chiếu danh sách CV'));expect(sessionStorage.getItem(mutationStorageKey(7))).toBeNull();
+});
+
+test('selected PDF is passed directly to preview without AI request or browser persistence', () => {
+    render(<CandidateAi />);
+    const file = new File(['%PDF-1.7'], 'my-cv.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByLabelText('Tệp CV PDF (tối đa 5 MiB)'), { target: { files: [file] } });
+    expect(screen.getByRole('button', { name: 'Xem trước PDF đã chọn' })).toBeEnabled();
+    expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: file, fileName: 'my-cv.pdf' }), expect.anything());
+    expect(api.parseResumeAi).not.toHaveBeenCalled();
+    expect(sessionStorage.length).toBe(0);
+});
+
+test('draft preview renders current unsaved values without creating, updating or storing a CV', async () => {
+    render(<CandidateAi />);
+    fireEvent.change(screen.getByLabelText('Tên CV'), { target: { value: 'Frontend CV' } });
+    fireEvent.change(screen.getByLabelText('Họ và tên'), { target: { value: 'Ứng Viên Mẫu' } });
+    fireEvent.change(screen.getByLabelText('Giới thiệu'), { target: { value: 'Nội dung chưa lưu' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' }));
+    expect(await screen.findByRole('dialog', { name: 'Frontend CV.pdf' })).toBeInTheDocument();
+    expect(renderPreparedCv).toHaveBeenCalledWith(expect.objectContaining({ fullName: 'Ứng Viên Mẫu', summary: 'Nội dung chưa lưu' }));
+    expect(DocumentPreviewModal).toHaveBeenLastCalledWith(expect.objectContaining({ source: expect.any(Blob) }), expect.anything());
+    expect(api.createMyCv).not.toHaveBeenCalled(); expect(api.updateMyCv).not.toHaveBeenCalled();
+    expect(sessionStorage.length).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng xem trước' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Giới thiệu')).toHaveValue('Nội dung chưa lưu');
+});
+
+test('an edit cancels an older PDF preview and allows generating the latest draft', async () => {
+    let resolve;
+    renderPreparedCv.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    render(<CandidateAi />);
+    fireEvent.change(screen.getByLabelText('Họ và tên'), { target: { value: 'First draft' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' }));
+    expect(screen.getByRole('button', { name: 'Đang tạo bản PDF…' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Họ và tên'), { target: { value: 'Latest draft' } });
+    await act(async () => resolve({ blob: new Blob(['old']) }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' }));
+    expect(await screen.findByRole('dialog', { name: 'Latest draft.pdf' })).toBeInTheDocument();
+    expect(renderPreparedCv).toHaveBeenLastCalledWith(expect.objectContaining({ fullName: 'Latest draft' }));
+});
+
+test('session expiry hides the workspace and ignores a late PDF generation', async () => {
+    let resolve;
+    renderPreparedCv.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    render(<CandidateAi />);
+    fireEvent.click(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' }));
+    act(() => window.dispatchEvent(new Event(SESSION_ENDED_EVENT)));
+    await act(async () => resolve({ blob: new Blob(['private']) }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('đăng nhập');
+});
+
+test('PDF generation errors keep the draft available for correction and retry', async () => {
+    renderPreparedCv.mockRejectedValueOnce(new Error('Bổ sung họ và tên trong CV trước khi tạo bản ứng tuyển.'));
+    render(<CandidateAi />);
+    fireEvent.change(screen.getByLabelText('Tên CV'), { target: { value: 'Keep this draft' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Bổ sung họ và tên');
+    expect(screen.getByLabelText('Tên CV')).toHaveValue('Keep this draft');
+    expect(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' })).toBeEnabled();
+});
+
+test('prepared PDF preview follows feature flags and unresolved CV mutation rules', () => {
+    process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'false';
+    const view = render(<CandidateAi />);
+    expect(screen.queryByRole('button', { name: 'Xem trước / tải PDF bản nháp' })).not.toBeInTheDocument();
+    view.unmount(); process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'true';
+    sessionStorage.setItem(mutationStorageKey(7), JSON.stringify({ action: 'save', cvId: null }));
+    render(<CandidateAi />);
+    expect(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' })).toBeDisabled();
+    expect(renderPreparedCv).not.toHaveBeenCalled();
 });

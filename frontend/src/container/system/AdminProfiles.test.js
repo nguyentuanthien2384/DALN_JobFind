@@ -14,6 +14,8 @@ import AddCompany from "./Company/AddCompany";
 
 let mockParams = {};
 const mockNavigate = jest.fn();
+jest.mock('../../components/documents/PdfPreviewButton', () => ({ source, fileName, label }) =>
+    <button type="button" data-source={source} data-filename={fileName}>{label}</button>);
 
 jest.mock("react-router-dom", () => ({
     useNavigate: () => mockNavigate,
@@ -201,6 +203,8 @@ describe("company profile", () => {
         const certificate = new File(["certificate"], "new-company.pdf", { type: "application/pdf" });
         fireEvent.change(container.querySelector('input[accept=".pdf"]'), { target: { files: [certificate] } });
         await act(async () => Promise.resolve());
+        expect(screen.getByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).toHaveAttribute('data-source', 'data:new-company.pdf');
+        expect(screen.getByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).toHaveAttribute('data-filename', 'new-company.pdf');
         fireEvent.change(screen.getByLabelText("Giới thiệu công ty"), { target: { value: "Môi trường tốt" } });
         fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
         await act(async () => Promise.resolve());
@@ -224,12 +228,14 @@ describe("company profile", () => {
         const { container } = render(<AddCompany />);
         await act(async () => Promise.resolve());
         await waitFor(() => expect(container.querySelector('input[name="name"]')).toHaveValue("Công ty Cũ"));
+        expect(screen.getByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).toHaveAttribute('data-source', '/certificate.pdf');
         const certificate = container.querySelector('input[accept=".pdf"]');
         const tooLarge = new File(["x"], "large.pdf", { type: "application/pdf" });
         Object.defineProperty(tooLarge, "size", { value: 2097153 });
         fireEvent.change(certificate, { target: { files: [tooLarge] } });
         expect(toast.error).toHaveBeenCalledWith("File của bạn quá lớn. Chỉ gửi file dưới 2MB");
         expect(CommonUtils.getBase64).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).toHaveAttribute('data-source', '/certificate.pdf');
 
         const logo = new File(["logo"], "logo-new.png", { type: "image/png" });
         const cover = new File(["cover"], "cover-new.png", { type: "image/png" });
@@ -290,6 +296,8 @@ describe("company profile", () => {
         expect(await screen.findByText("Xem thông tin công ty")).toBeInTheDocument();
         expect(getDetailCompanyByUserId).toHaveBeenCalledWith(null, "44");
         expect(container.querySelector('input[name="name"]')).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).toHaveAttribute('data-source', '/certificate.pdf');
+        expect(container.querySelector('iframe')).toBeNull();
         expect(screen.queryByRole("button", { name: "Lưu" })).not.toBeInTheDocument();
     });
 });

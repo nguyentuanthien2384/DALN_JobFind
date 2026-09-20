@@ -102,6 +102,18 @@ describe('operations endpoints over real HTTP', () => {
 });
 
 describe('HTTP body boundaries', () => {
+    it('accepts a 5 MiB PDF encoded as JSON only on the chat upload route', async () => {
+        const { get } = await start({}, (app) => {
+            app.use(requestBodies(express));
+            app.post(['/api/chat-attachments', '/api/send-chat-message'], (req, res) => res.json({ ok: true }));
+            app.use(safeHttpError);
+        });
+        const headers = { 'content-type': 'application/json' };
+        const body = JSON.stringify({ fileBase64: Buffer.alloc(5 * 1024 * 1024).toString('base64') });
+        expect((await get('/api/chat-attachments', { method: 'POST', headers, body })).status).toBe(200);
+        expect((await get('/api/send-chat-message', { method: 'POST', headers, body })).status).toBe(413);
+        expect((await get('/api/chat-attachments', { method: 'POST', headers, body: JSON.stringify({ text: 'a'.repeat(8 * 1024 * 1024) }) })).status).toBe(413);
+    });
     it('uses a small default budget and a separate resume upload budget', async () => {
         const { get } = await start({}, (app) => {
             app.use(requestBodies(express));

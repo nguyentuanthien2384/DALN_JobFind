@@ -16,6 +16,9 @@ import CandidateInfo from "./CandidateInfo";
 import ManageCvCandidate from "./ManageCvCandidate";
 import SavedJobs from "./SavedJobs";
 import SettingUser from "./SettingUser";
+jest.mock("../../components/documents/PdfPreviewButton", () => ({ source, fileName, label }) => (
+    <button type="button" data-source={typeof source === 'string' ? source : ''} data-filename={fileName}>{label || 'Xem PDF'}</button>
+));
 
 jest.mock("../../service/cvService", () => ({
     getAllListCvByUserIdService: jest.fn(),
@@ -275,8 +278,8 @@ describe("SettingUser", () => {
     it("loads settings, selected skills and the saved CV", async () => {
         render(<SettingUser />);
 
-        expect(await screen.findByTitle("CV đã tải")).toHaveAttribute(
-            "src",
+        expect(await screen.findByRole("button", { name: "Xem trước CV" })).toHaveAttribute(
+            "data-source",
             "data:application/pdf;base64,OLD"
         );
         expect(getDetailUserById).toHaveBeenCalledWith(7);
@@ -287,7 +290,7 @@ describe("SettingUser", () => {
 
     it("reloads skills when the job field changes and submits all settings", async () => {
         render(<SettingUser />);
-        await screen.findByTitle("CV đã tải");
+        await screen.findByRole("button", { name: "Xem trước CV" });
         fireEvent.click(screen.getByRole("button", { name: "Chọn lĩnh vực: Marketing" }));
         await waitFor(() => expect(getAllSkillByJobCode).toHaveBeenLastCalledWith("MKT"));
         fireEvent.click(await screen.findByRole("button", { name: "Chọn kĩ năng của bạn: Node.js" }));
@@ -345,7 +348,7 @@ describe("SettingUser", () => {
 
     it("rejects a CV larger than 2 MB and encodes an accepted PDF", async () => {
         const { rerender } = render(<SettingUser />);
-        await screen.findByTitle("CV đã tải");
+        await screen.findByRole("button", { name: "Xem trước CV" });
         const large = new File([new Uint8Array(2097153)], "large.pdf", {
             type: "application/pdf",
         });
@@ -362,10 +365,25 @@ describe("SettingUser", () => {
         });
         expect(CommonUtils.getBase64).toHaveBeenCalledWith(pdf);
         rerender(<SettingUser />);
-        expect(screen.getByTitle("CV đã tải")).toHaveAttribute(
-            "src",
+        expect(screen.getByRole("button", { name: "Xem trước CV" })).toHaveAttribute(
+            "data-source",
             "data:application/pdf;base64,CV"
         );
+        expect(screen.getByRole("button", { name: "Xem trước CV" })).toHaveAttribute('data-filename', 'cv.pdf');
+    });
+
+    it("keeps the most recently selected PDF when an older file read finishes later", async () => {
+        render(<SettingUser />);
+        await screen.findByRole('button', { name: 'Xem trước CV' });
+        let resolveFirst;
+        CommonUtils.getBase64.mockReturnValueOnce(new Promise(resolve => { resolveFirst = resolve; }));
+        CommonUtils.getBase64.mockResolvedValueOnce('data:application/pdf;base64,NEW');
+        fireEvent.change(screen.getByLabelText('Tải CV'), { target: { files: [new File(['old'], 'old.pdf')] } });
+        fireEvent.change(screen.getByLabelText('Tải CV'), { target: { files: [new File(['new'], 'new.pdf')] } });
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Xem trước CV' })).toHaveAttribute('data-filename', 'new.pdf'));
+        await act(async () => resolveFirst('data:application/pdf;base64,STALE'));
+        expect(screen.getByRole('button', { name: 'Xem trước CV' })).toHaveAttribute('data-source', 'data:application/pdf;base64,NEW');
+        expect(UpdateUserSettingService).not.toHaveBeenCalled();
     });
 });
 
