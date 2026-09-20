@@ -1,14 +1,27 @@
 import React from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { getAllCodeService } from "../service/userService";
-import { useFetchAllcode } from "./fetch";
+import { clearAllCodeCache, useFetchAllcode } from "./fetch";
 
 jest.mock("../service/userService", () => ({
     getAllCodeService: jest.fn(),
 }));
 
 describe("useFetchAllcode", () => {
-    beforeEach(() => jest.clearAllMocks());
+    beforeEach(() => { jest.clearAllMocks(); clearAllCodeCache(); });
+
+    it('restores filter options synchronously and preserves them when refresh fails', async () => {
+        const rows = [{ code: 'remote', value: 'Remote' }];
+        getAllCodeService.mockResolvedValueOnce({ errCode: 0, data: rows });
+        const first = renderHook(() => useFetchAllcode('WORKTYPE', { retain: true }));
+        await waitFor(() => expect(first.result.current.data).toEqual(rows));
+        first.unmount();
+        getAllCodeService.mockRejectedValueOnce(new Error('Offline'));
+        const second = renderHook(() => useFetchAllcode('WORKTYPE', { retain: true }));
+        expect(second.result.current.data).toEqual(rows);
+        await waitFor(() => expect(getAllCodeService).toHaveBeenCalledTimes(2));
+        expect(second.result.current.data).toEqual(rows);
+    });
 
     it("loads all-code data for the requested type", async () => {
         const rows = [{ code: "ADMIN", value: "Admin" }];

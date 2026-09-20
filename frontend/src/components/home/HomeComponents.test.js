@@ -83,7 +83,7 @@ describe("home job components", () => {
     it("renders the legacy Job card fields", () => {
         render(<Job data={job(3, "QA Engineer")} />);
         expect(screen.getByText("QA Engineer")).toBeInTheDocument();
-        expect(screen.getByText("Senior")).toBeInTheDocument();
+        expect(screen.getByText("Nhân viên cao cấp")).toBeInTheDocument();
         expect(screen.getByText("20 triệu")).toBeInTheDocument();
         expect(screen.getByText("Toàn thời gian").tagName).toBe("SPAN");
     });

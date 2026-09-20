@@ -2,7 +2,7 @@ import React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import moment from "moment";
+import { formatJobTime } from '../../util/jobLocale';
 import {
     getReviewByCompanyService,
     createCompanyReviewService,
@@ -217,9 +217,7 @@ const CompanyReview = (props) => {
                                                     marginLeft: "8px",
                                                 }}
                                             >
-                                                {moment(
-                                                    item.createdAt
-                                                ).fromNow()}
+                                                {formatJobTime(item.createdAt)}
                                             </span>
                                         </div>
                                     </div>

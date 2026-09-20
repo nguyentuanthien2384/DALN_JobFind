@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import Job from '../../../components/Job/Job'
 import JobSearchAutocomplete from './JobSearchAutocomplete'
 import { prefetchJobDetail } from '../../JobDetail/jobDetailResource'
+import './JobResults.css';
 const RightContent = (props) => {
     return (
         <>
@@ -14,7 +15,7 @@ const RightContent = (props) => {
                             <div className="col-lg-12">
                                 <div className="count-job mb-35">
                                     <span>{props.loading ? 'Đang tìm việc…' : props.error ? 'Chưa tải được kết quả' : `${props.count} công việc được tìm thấy`}</span>
-                                    <JobSearchAutocomplete onSearch={props.handleSearch} />
+                                    <JobSearchAutocomplete onSearch={props.handleSearch} initialValue={props.searchDraft} onValueChange={props.onSearchDraftChange} />
 
                                     {/* <!-- Select job items start --> */}
                                     {/* <div class="select-job-items">
@@ -34,6 +35,7 @@ const RightContent = (props) => {
                             return (
                                 <Link
                                     key={data.id}
+                                    className="job-result-link"
                                     to={`/detail-job/${data.id}`}
                                     onMouseEnter={() => prefetchJobDetail(data.id)}
                                     onFocus={() => prefetchJobDetail(data.id)}

@@ -2,7 +2,7 @@ import React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
-import moment from "moment";
+import { formatJobTime, jobLabel } from '../../util/jobLocale';
 import ReactPaginate from "react-paginate";
 import {
     getFavoritePostByUserService,
@@ -116,10 +116,7 @@ const SavedJobs = () => {
                                                     .provincePostData.value
                                             }
                                             {" · "}
-                                            {
-                                                post.postDetailData
-                                                    .salaryTypePostData.value
-                                            }
+                                            {jobLabel(post.postDetailData.salaryTypePostData)}
                                         </div>
                                         <div
                                             style={{
@@ -129,9 +126,7 @@ const SavedJobs = () => {
                                         >
                                             <span style={{ color: "#999" }}>
                                                 Đã lưu{" "}
-                                                {moment(
-                                                    item.createdAt
-                                                ).fromNow()}
+                                                {formatJobTime(item.createdAt)}
                                             </span>
                                             {" · "}
                                             {isExpired ? (

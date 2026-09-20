@@ -1,12 +1,14 @@
 import React from 'react'
 import { useFetchAllcode } from '../../../util/fetch'
+import { jobLabel } from '../../../util/jobLocale';
 const LeftBar = (props) => {
-    const { data: dataJobType } = useFetchAllcode('JOBTYPE')
-    const { data: dataJobLevel } = useFetchAllcode('JOBLEVEL')
-    const { data: dataSalaryType } = useFetchAllcode('SALARYTYPE')
-    const { data: dataExpType } = useFetchAllcode('EXPTYPE')
-    const { data: dataWorkType } = useFetchAllcode('WORKTYPE')
-    const { data: dataJobLocation } = useFetchAllcode('PROVINCE')
+    const selected = props.selected || {};
+    const { data: dataJobType } = useFetchAllcode('JOBTYPE', { retain: true })
+    const { data: dataJobLevel } = useFetchAllcode('JOBLEVEL', { retain: true })
+    const { data: dataSalaryType } = useFetchAllcode('SALARYTYPE', { retain: true })
+    const { data: dataExpType } = useFetchAllcode('EXPTYPE', { retain: true })
+    const { data: dataWorkType } = useFetchAllcode('WORKTYPE', { retain: true })
+    const { data: dataJobLocation } = useFetchAllcode('PROVINCE', { retain: true })
 
     return (
         <>
@@ -18,13 +20,13 @@ const LeftBar = (props) => {
                     </div>
                     {/* <!-- Select job items start --> */}
                     <div className="select-job-items2">
-                        <select name="select" onChange={(e) => {
+                        <select name="categoryJobCode" aria-label="Lĩnh vực" value={selected.jobType || ''} onChange={(e) => {
                             props.recieveJobType(e.target.value)
                         }}>
                             <option value="">Tất cả</option>
                             {dataJobType.map((data, index) => {
                                 return (
-                                    <option value={data.code} key={index}>{data.value}</option>
+                                    <option value={data.code} key={index}>{jobLabel(data)}</option>
                                 )
                             })}
                         </select>
@@ -37,8 +39,8 @@ const LeftBar = (props) => {
                         </div>
                         {dataWorkType.map((data, index) => {
                             return (
-                                <label className="container" key={index}>{data.value}
-                                    <input type="checkbox" value={data.code} onChange={(e) => {
+                                <label className="container" key={index}>{jobLabel(data)}
+                                    <input type="checkbox" checked={(selected.workType || []).includes(data.code)} value={data.code} onChange={(e) => {
 
                                         props.worktype(e.target.value)
                                     }} required />
@@ -52,17 +54,17 @@ const LeftBar = (props) => {
                 {/* <!-- single two --> */}
                 <div className="single-listing">
                     <div className="small-section-tittle2">
-                        <h4>Vị trí</h4>
+                            <h4>Địa điểm</h4>
                     </div>
                     {/* <!-- Select job items start --> */}
                     <div className="select-job-items2">
-                        <select name="select" onChange={(e) => {
+                        <select name="addressCode" aria-label="Địa điểm" value={selected.jobLocation || ''} onChange={(e) => {
                             props.recieveLocation(e.target.value);
                         }}>
                             <option value="">Tất cả</option>
                             {dataJobLocation.map((data, index) => {
                                 return (
-                                    <option value={data.code} key={index}>{data.value}</option>
+                                    <option value={data.code} key={index}>{jobLabel(data)}</option>
                                 )
                             })}
                         </select>
@@ -75,8 +77,8 @@ const LeftBar = (props) => {
                         </div>
                         {dataExpType.map((data, index) => {
                             return (
-                                <label className="container" key={index}>{data.value}
-                                    <input type="checkbox" value={data.code} onChange={(e) => props.recieveExp(e.target.value)} />
+                                <label className="container" key={index}>{jobLabel(data)}
+                                    <input type="checkbox" checked={(selected.exp || []).includes(data.code)} value={data.code} onChange={(e) => props.recieveExp(e.target.value)} />
                                     <span className="checkmark"></span>
                                 </label>
                             )
@@ -93,8 +95,8 @@ const LeftBar = (props) => {
                         </div>
                         {dataJobLevel.map((data, index) => {
                             return (
-                                <label className="container" key={index}>{data.value}
-                                    <input type="checkbox" value={data.code} onChange={(e) => {
+                                <label className="container" key={index}>{jobLabel(data)}
+                                    <input type="checkbox" checked={(selected.jobLevel || []).includes(data.code)} value={data.code} onChange={(e) => {
                                         props.recieveJobLevel(e.target.value)
                                     }} />
                                     <span className="checkmark"></span>
@@ -107,12 +109,12 @@ const LeftBar = (props) => {
                         {/* <!-- select-Categories start --> */}
                         <div className="select-Categories pb-50">
                             <div className="small-section-tittle2">
-                                <h4>Lương bổng</h4>
+                                <h4>Mức lương</h4>
                             </div>
                             {dataSalaryType.map((data, index) => {
                                 return (
-                                    <label className="container" key={index}>{data.value}
-                                        <input type="checkbox" value={data.code} onChange={(e) => {
+                                    <label className="container" key={index}>{jobLabel(data)}
+                                        <input type="checkbox" checked={(selected.salary || []).includes(data.code)} value={data.code} onChange={(e) => {
                                             props.recieveSalary(e.target.value)
 
                                         }}

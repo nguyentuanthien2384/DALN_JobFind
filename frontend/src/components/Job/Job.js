@@ -1,9 +1,6 @@
 import React from 'react'
-import moment from 'moment';
+import { formatJobTime, jobLabel } from '../../util/jobLocale';
 const Job = (props) => {
-    const handleSplitTime = (time) => {
-        return moment(new Date(+time)).fromNow();
-    }
     return (
         <>
             <div className="job-items">
@@ -23,15 +20,15 @@ const Job = (props) => {
                         <h5>{props.data.postDetailData.name}</h5>
                     </div>
                     <ul className='my-font'>
-                        <li>{props.data.postDetailData.jobLevelPostData.value}</li>
+                        <li>{jobLabel(props.data.postDetailData.jobLevelPostData)}</li>
                         <li><i className="fas fa-map-marker-alt"></i>{props.data.postDetailData.provincePostData.value}</li>
-                        <li>{props.data.postDetailData.salaryTypePostData.value}</li>
+                        <li>{jobLabel(props.data.postDetailData.salaryTypePostData)}</li>
                     </ul>
                 </div>
             </div>
             <div className="items-link items-link2 f-right">
-                <span className='my-font'>{props.data.postDetailData.workTypePostData.value}</span>
-                <span style={{ position: 'absolute', right: '70px' }}>{handleSplitTime(props.data.timePost)}</span>
+                <span className='my-font'>{jobLabel(props.data.postDetailData.workTypePostData)}</span>
+                <span>{formatJobTime(props.data.timePost)}</span>
             </div>
 
         </>

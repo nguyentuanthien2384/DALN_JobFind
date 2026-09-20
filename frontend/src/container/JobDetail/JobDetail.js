@@ -10,6 +10,7 @@ import { readJsonStorage } from '../../util/storage';
 import { getCachedJobDetail, invalidateJobDetail, loadFavoriteState, loadJobDetail, loadRelatedJobs, prefetchJobDetail } from './jobDetailResource';
 import { getJobSections, jobTimestamp } from './jobDescription';
 import './JobDetail.css';
+import { jobLabel } from '../../util/jobLocale';
 
 const paths = {
     pin: 'M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
@@ -42,7 +43,7 @@ const JobDetailSkeleton = () => <div className="jd-shell" role="status" aria-lab
     <span className="jd-sr-only">Đang tải thông tin công việc…</span>
 </div>;
 const benefitIcon = html => /bảo hiểm|sức khỏe|khám/i.test(html) ? 'shield' : /hybrid|remote|từ xa|thiết bị|laptop/i.test(html) ? 'laptop' : /đào tạo|học|phát triển/i.test(html) ? 'graduate' : /lương|thưởng|thu nhập/i.test(html) ? 'money' : 'check';
-const label = data => data?.value || 'Chưa cập nhật';
+const label = jobLabel;
 const EMPTY_DETAIL = {};
 
 export default function JobDetail() {
@@ -177,13 +178,13 @@ export default function JobDetail() {
                     <section className="jd-section"><h2>Mô tả công việc</h2>{sections.description.trim() ? <div className="jd-richtext" dangerouslySetInnerHTML={{ __html: sections.description }} /> : <p className="jd-muted">Nhà tuyển dụng chưa cập nhật mô tả công việc.</p>}</section>
                     {sections.requirements.trim() && <section className="jd-section jd-requirements"><h2>Yêu cầu ứng viên</h2><div className="jd-richtext" dangerouslySetInnerHTML={{ __html: sections.requirements }} /></section>}
                     {sections.benefits.length > 0 && <section className="jd-section"><h2>Quyền lợi</h2><div className="jd-benefits">{sections.benefits.map((html, index) => <div className="jd-benefit" key={index}><span className={`jd-benefit-icon jd-benefit-icon--${benefitIcon(html)}`}><Icon name={benefitIcon(html)} /></span><div className="jd-richtext" dangerouslySetInnerHTML={{ __html: html }} /></div>)}</div></section>}
-                    {related.length > 0 && <section className="jd-section jd-related"><h2>Việc làm tương tự</h2>{related.map(item => <Link key={item.id} to={`/detail-job/${item.id}`} onMouseEnter={() => prefetchJobDetail(item.id)} onFocus={() => prefetchJobDetail(item.id)} onTouchStart={() => prefetchJobDetail(item.id)} className="jd-related-job"><CompanyLogo company={item.userPostData?.userCompanyData || {}} small /><div><h3>{item.postDetailData?.name}</h3><p>{item.userPostData?.userCompanyData?.name}</p><span>{item.postDetailData?.provincePostData?.value} · {item.postDetailData?.salaryTypePostData?.value}</span></div></Link>)}</section>}
+                    {related.length > 0 && <section className="jd-section jd-related"><h2>Việc làm tương tự</h2>{related.map(item => <Link key={item.id} to={`/detail-job/${item.id}`} onMouseEnter={() => prefetchJobDetail(item.id)} onFocus={() => prefetchJobDetail(item.id)} onTouchStart={() => prefetchJobDetail(item.id)} className="jd-related-job"><CompanyLogo company={item.userPostData?.userCompanyData || {}} small /><div><h3>{item.postDetailData?.name}</h3><p>{item.userPostData?.userCompanyData?.name}</p><span>{item.postDetailData?.provincePostData?.value} · {jobLabel(item.postDetailData?.salaryTypePostData)}</span></div></Link>)}</section>}
                 </article>
                 <aside className="jd-sidebar" aria-label="Thông tin tuyển dụng">
                     <section className="jd-card jd-company-card" aria-label="Thông tin công ty">
                         <div className="jd-company-heading"><CompanyLogo company={company} small /><div><h2>{company.name}</h2><Link to={`/detail-company/${company.id}`}>Xem trang công ty</Link></div></div>
                         <dl className="jd-company-facts"><div><dt>Quy mô:</dt><dd>{Number(company.amountEmployer) > 0 ? `${Number(company.amountEmployer).toLocaleString('vi-VN')} nhân viên` : 'Chưa cập nhật'}</dd></div><div><dt>Lĩnh vực công việc:</dt><dd>{label(detail.jobTypePostData)}</dd></div><div><dt>Địa điểm:</dt><dd>{company.address || 'Chưa cập nhật'}</dd></div></dl>
-                        {(company.website || company.phonenumber || company.taxnumber) && <details className="jd-company-more"><summary>Thông tin liên hệ</summary><dl className="jd-company-facts">{company.website && <div><dt>Website:</dt><dd>{company.website}</dd></div>}{company.phonenumber && <div><dt>Điện thoại:</dt><dd>{company.phonenumber}</dd></div>}{company.taxnumber && <div><dt>Mã số thuế:</dt><dd>{company.taxnumber}</dd></div>}</dl></details>}
+                        {(company.website || company.phonenumber || company.taxnumber) && <details className="jd-company-more"><summary>Thông tin liên hệ</summary><dl className="jd-company-facts">{company.website && <div><dt>Trang web:</dt><dd>{company.website}</dd></div>}{company.phonenumber && <div><dt>Điện thoại:</dt><dd>{company.phonenumber}</dd></div>}{company.taxnumber && <div><dt>Mã số thuế:</dt><dd>{company.taxnumber}</dd></div>}</dl></details>}
                     </section>
                     <section className="jd-card"><h2>Thông tin chung</h2><dl className="jd-job-facts">{[['level', 'Cấp bậc', label(detail.jobLevelPostData)], ['experience', 'Kinh nghiệm', label(detail.expTypePostData)], ['people', 'Số lượng tuyển', Number(detail.amount) > 0 ? `${String(detail.amount).padStart(2, '0')} người` : 'Chưa cập nhật']].map(([icon, title, value]) => <div key={title}><Icon name={icon} /><div><dt>{title}</dt><dd>{value}</dd></div></div>)}</dl>
                         <div className="jd-progress"><div className="jd-progress-heading"><span>Tiến độ ứng tuyển</span><strong>{applicationCount === null ? 'Chưa có số liệu' : `${applicationCount.toLocaleString('vi-VN')} lượt ứng tuyển`}</strong></div>{elapsed !== null && <progress max="100" value={elapsed} aria-label="Thời gian tuyển dụng đã qua" />}<p>{closed ? 'Tin tuyển dụng đã đóng nhận hồ sơ.' : `Nhận hồ sơ đến ${deadline}.`}</p></div>

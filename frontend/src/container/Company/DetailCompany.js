@@ -4,7 +4,7 @@ import './DetailCompany.scss';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from "react-router-dom";
 import CommonUtils from '../../util/CommonUtils';
-import moment from 'moment';
+import { formatJobTime, jobLabel } from '../../util/jobLocale';
 import CompanyReview from './CompanyReview';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
@@ -205,9 +205,9 @@ const DetailCompany = () => {
                                                         </div>
                                                         <div style={{margin:"10px 0"}} className="d-flex">
                                                             <div className="label-content ml-auto">
-                                                                <label className="salary">{item.postDetailData.salaryTypePostData.value}</label>
+                                                                <label className="salary">{jobLabel(item.postDetailData.salaryTypePostData)}</label>
                                                                 <label style={{margin:"0px 10px"}} className="address" data-toggle="tooltip" title={item.postDetailData.provincePostData.value} data-placement="top" data-container="body">{item.postDetailData.provincePostData.value}</label>
-                                                                <label className="time">{moment(item.createdAt).fromNow()}</label>
+                                                                <label className="time">{formatJobTime(item.createdAt)}</label>
                                                             </div>
                                                         </div>
                                                     </div>

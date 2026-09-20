@@ -1,10 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import moment from 'moment';
+import { formatJobTime, jobLabel } from '../../util/jobLocale';
 const FeatureJob = (props) => {
-    const handleSplitTime = (time) => {
-        return moment(new Date(+time)).fromNow();
-    }
     return (
         <>
             <div className="single-job-items mb-30">
@@ -15,15 +12,15 @@ const FeatureJob = (props) => {
                     <div className="job-tittle">
                         <Link to={`/detail-job/${props.data.id}`}><h4>{props.data.postDetailData.name}</h4></Link>
                         <ul>
-                            <li>{props.data.postDetailData.jobLevelPostData.value}</li>
+                            <li>{jobLabel(props.data.postDetailData.jobLevelPostData)}</li>
                             <li><i className="fas fa-map-marker-alt"></i>{props.data.postDetailData.provincePostData.value}</li>
-                            <li>{props.data.postDetailData.salaryTypePostData.value}</li>
+                            <li>{jobLabel(props.data.postDetailData.salaryTypePostData)}</li>
                         </ul>
                     </div>
                 </div>
                 <div className="items-link items-link2 f-right">
-                    <Link to={`/detail-job/${props.data.id}`}>{props.data.postDetailData.workTypePostData.value}</Link>
-                    <span style={{ position: 'absolute', right: '70px' }}>{handleSplitTime(props.data.timePost)}</span>
+                    <Link to={`/detail-job/${props.data.id}`}>{jobLabel(props.data.postDetailData.workTypePostData)}</Link>
+                    <span>{formatJobTime(props.data.timePost)}</span>
                 </div>
             </div>
         </>

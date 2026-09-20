@@ -134,7 +134,11 @@ try {
             await send('partial-error');await page.getByText('Phản hồi bị gián đoạn · cần thử lại').waitFor();
             await send('slow');await page.getByText('Đang trả lời',{exact:true}).waitFor();await button('Dừng trả lời').click();await page.getByText('Đã dừng · câu trả lời chưa hoàn chỉnh').waitFor();await delay(200);
             await page.reload();await button('Mở chatbot hỗ trợ JobFind').click();await button('Lịch sử trò chuyện').click();await page.getByRole('button',{name:/^Tạo CV và ứng tuyển /}).first().click();await page.getByText('Đã dừng · câu trả lời chưa hoàn chỉnh').waitFor();
-            await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'mobile.png')});const box=await page.getByRole('dialog').boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390);
+            // The widget dismisses on desktop pointer leave. Reopen it after
+            // resizing so this check measures the mobile panel, not its launcher.
+            await page.mouse.move(0,0);await button('Mở chatbot hỗ trợ JobFind').waitFor();
+            await page.setViewportSize({width:390,height:844});await button('Mở chatbot hỗ trợ JobFind').click();
+            await page.screenshot({path:path.join(output,'mobile.png')});const box=await page.getByRole('dialog').boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390);
             await button('Lịch sử trò chuyện').click();await page.getByRole('button',{name:'Xóa Tạo CV và ứng tuyển',exact:true}).click();await page.getByRole('button',{name:'Xóa Tạo CV và ứng tuyển',exact:true}).waitFor({state:'detached'});
         });
         await check('browser private lookup, consent-based handoff and staff inbox',async()=>{
@@ -145,7 +149,7 @@ try {
             await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:path.join(output,'inbox.png'),fullPage:true});
             page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Đánh dấu đã xử lý',exact:true}).click();
             await page.getByText('Đã đánh dấu yêu cầu hoàn tất.').waitFor();
-            await page.reload();await page.getByLabel('Trạng thái',{exact:true}).selectOption('resolved');
+            await page.reload();await page.getByRole('combobox',{name:/Trạng thái/}).selectOption('resolved');
             await page.getByRole('button',{name:/Tôi cần nhân viên hỗ trợ/}).click();await page.getByRole('heading',{name:'Chi tiết yêu cầu',exact:true}).waitFor();
             await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
             await page.screenshot({path:path.join(output,'inbox-mobile.png'),fullPage:true});

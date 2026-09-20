@@ -2,6 +2,14 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { getListPostService } from "../../service/userService";
 import JobPage from "./JobPage";
+import { BrowserRouter, MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { clearJobSearchHistory, SEARCH_SNAPSHOT_TTL } from "./jobSearchHistory";
+
+jest.mock("react-router-dom", () => {
+    global.TextEncoder = require('util').TextEncoder;
+    global.TextDecoder = require('util').TextDecoder;
+    return jest.requireActual("react-router");
+});
 
 jest.mock("../../service/userService", () => ({
     getListPostService: jest.fn(),
@@ -46,20 +54,82 @@ const expectLatestQuery = async (expected) => {
     await waitFor(() => expect(getListPostService).toHaveBeenLastCalledWith(
         expect.objectContaining(expected)
     ));
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
 };
 
 describe("JobPage", () => {
+    it('keeps an expired snapshot visible while refreshing and on a temporary network failure', async () => {
+        const Navigation = () => {
+            const navigate = useNavigate();
+            return <><button onClick={() => navigate('/detail-job/1')}>open-detail</button>
+                <button onClick={() => navigate(-1)}>browser-back</button></>;
+        };
+        const now = Date.now();
+        const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
+        try {
+            render(<MemoryRouter initialEntries={['/job']}><Navigation /><Routes>
+                <Route path="/job" element={<JobPage />} />
+                <Route path="/detail-job/:id" element={<p>Detail</p>} />
+            </Routes></MemoryRouter>);
+            await screen.findByText('React Developer');
+            fireEvent.click(screen.getByRole('button', { name: 'open-detail' }));
+            clock.mockReturnValue(now + SEARCH_SNAPSHOT_TTL + 1);
+            let reject;
+            getListPostService.mockImplementationOnce(() => new Promise((resolve, failure) => { reject = failure; }));
+            fireEvent.click(screen.getByRole('button', { name: 'browser-back' }));
+            expect(screen.getByText('React Developer')).toBeInTheDocument();
+            expect(screen.queryByRole('status')).not.toBeInTheDocument();
+            expect(getListPostService).toHaveBeenCalledTimes(2);
+            reject(new Error('Mất kết nối'));
+            await screen.findByText('Mất kết nối');
+            expect(screen.getByText('React Developer')).toBeInTheDocument();
+            expect(screen.getByTestId('page-count')).toHaveTextContent('3');
+        } finally { clock.mockRestore(); }
+    });
+    it('restores filters, results and page immediately on Back without refetching', async () => {
+        const Navigation = () => {
+            const navigate = useNavigate();
+            return <><button onClick={() => navigate('/detail-job/1')}>open-detail</button>
+                <button onClick={() => navigate(-1)}>browser-back</button>
+                <button onClick={() => navigate('/job')}>fresh-search</button></>;
+        };
+        render(<React.StrictMode><MemoryRouter initialEntries={['/job']}>
+            <Navigation /><Routes><Route path="/job" element={<JobPage />} />
+                <Route path="/detail-job/:id" element={<p>Detail</p>} /></Routes>
+        </MemoryRouter></React.StrictMode>);
+        await screen.findByText('React Developer');
+        fireEvent.click(screen.getByRole('button', { name: 'work-type' }));
+        await expectLatestQuery({ categoryWorktypeCode: ['REMOTE'] });
+        fireEvent.click(screen.getByRole('button', { name: 'search' }));
+        await expectLatestQuery({ search: 'React Engineer' });
+        fireEvent.click(screen.getByRole('button', { name: 'page-three' }));
+        await expectLatestQuery({ offset: 10 });
+        Object.defineProperty(window, 'scrollY', { value: 950, configurable: true });
+        fireEvent.scroll(window);
+        fireEvent.click(screen.getByRole('button', { name: 'open-detail' }));
+        const requests = getListPostService.mock.calls.length;
+        window.scrollTo.mockClear();
+        fireEvent.click(screen.getByRole('button', { name: 'browser-back' }));
+        expect(screen.getByText('React Developer')).toBeInTheDocument();
+        expect(screen.getByTestId('force-page')).toHaveTextContent('2');
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(window.scrollTo).toHaveBeenCalledWith(0, 950);
+        expect(getListPostService).toHaveBeenCalledTimes(requests);
+        fireEvent.click(screen.getByRole('button', { name: 'fresh-search' }));
+        await expectLatestQuery({ offset: 0, search: '', categoryWorktypeCode: [] });
+        Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+    });
     it('discards a late response from the old filter and shows only the latest results', async () => {
         let release;
         getListPostService.mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
-        render(<JobPage />);
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
         fireEvent.click(screen.getByRole('button', { name:'search' }));
         await screen.findByText('React Developer');
         release({errCode:0,count:1,data:[{id:9,name:'Obsolete result'}]});
         await waitFor(()=>expect(screen.queryByText('Obsolete result')).not.toBeInTheDocument());
     });
     it('clears old rows on failure and retries the same filters explicitly', async () => {
-        render(<JobPage />);await screen.findByText('React Developer');
+        render(<BrowserRouter><JobPage /></BrowserRouter>);await screen.findByText('React Developer');
         getListPostService.mockRejectedValueOnce(new Error('Offline'));
         fireEvent.click(screen.getByRole('button',{name:'salary'}));await screen.findByText('Offline');
         expect(screen.queryByText('React Developer')).not.toBeInTheDocument();
@@ -68,13 +138,14 @@ describe("JobPage", () => {
     });
     beforeEach(() => {
         jest.clearAllMocks();
+        clearJobSearchHistory();
         window.history.replaceState({}, "", "/job");
         getListPostService.mockResolvedValue(success);
     });
 
     it("applies a category filter supplied by a home-page deep link", async () => {
         window.history.replaceState({}, "", "/job?categoryJobCode=IT%20%26%20Data");
-        render(<JobPage />);
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
 
         await expectLatestQuery({
             categoryJobCode: "IT & Data",
@@ -83,7 +154,7 @@ describe("JobPage", () => {
     });
 
     it("loads the first page and displays returned jobs and pagination", async () => {
-        render(<JobPage />);
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
 
         await expectLatestQuery({
             limit: 5,
@@ -108,7 +179,7 @@ describe("JobPage", () => {
         ["experience", "experienceJobCode", "SENIOR"],
         ["job-level", "categoryJoblevelCode", "LEAD"],
     ])("adds and removes the %s multi-select filter", async (button, field, value) => {
-        render(<JobPage />);
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
         await waitFor(() => expect(getListPostService).toHaveBeenCalledTimes(1));
 
         fireEvent.click(screen.getByRole("button", { name: button }));
@@ -122,7 +193,7 @@ describe("JobPage", () => {
         ["job-type", "categoryJobCode", "TECH"],
         ["location", "addressCode", "HCM"],
     ])("toggles the %s single-select filter", async (button, field, value) => {
-        render(<JobPage />);
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
         await waitFor(() => expect(getListPostService).toHaveBeenCalledTimes(1));
 
         fireEvent.click(screen.getByRole("button", { name: button }));
@@ -133,7 +204,7 @@ describe("JobPage", () => {
     });
 
     it("normalizes a search and keeps active filters when changing page", async () => {
-        render(<JobPage />);
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
         await waitFor(() => expect(getListPostService).toHaveBeenCalledTimes(1));
 
         fireEvent.click(screen.getByRole("button", { name: "work-type" }));
@@ -153,7 +224,7 @@ describe("JobPage", () => {
     });
 
     it("returns to the first unfiltered page after the search keyword is cleared", async () => {
-        render(<JobPage />);
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
         await waitFor(() => expect(getListPostService).toHaveBeenCalledTimes(1));
 
         fireEvent.click(screen.getByRole("button", { name: "search" }));
@@ -168,7 +239,7 @@ describe("JobPage", () => {
 
     it("keeps the current empty result when the API returns an error", async () => {
         getListPostService.mockResolvedValue({ errCode: 1, data: [{ id: 9, name: "ignored" }] });
-        render(<JobPage />);
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
 
         await waitFor(() => expect(getListPostService).toHaveBeenCalled());
         expect(screen.queryByText("ignored")).not.toBeInTheDocument();

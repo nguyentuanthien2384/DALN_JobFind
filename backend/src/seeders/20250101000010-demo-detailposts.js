@@ -1,4 +1,5 @@
 'use strict';
+const { localizeJobContent } = require('../../scripts/data/localize-job-content.cjs');
 
 /**
  * Seeder dữ liệu mẫu cho bảng `detailposts` (28 bản ghi).
@@ -400,7 +401,7 @@ module.exports = {
     "genderPostCode": "ca-hai"
   }
 ];
-    await queryInterface.bulkInsert('DetailPosts', rows, {});
+    await queryInterface.bulkInsert('DetailPosts', rows.map(row => ({ ...row, ...localizeJobContent(row) })), {});
   },
 
   async down(queryInterface, Sequelize) {

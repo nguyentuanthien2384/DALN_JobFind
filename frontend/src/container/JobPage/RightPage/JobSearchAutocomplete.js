@@ -34,8 +34,9 @@ const HighlightedText = ({ text, query }) => {
     );
 };
 
-const JobSearchAutocomplete = ({ onSearch }) => {
-    const [value, setValue] = useState("");
+const JobSearchAutocomplete = ({ onSearch, initialValue = '', onValueChange }) => {
+    const [value, setValue] = useState(initialValue);
+    useEffect(() => { onValueChange?.(value); }, [value, onValueChange]);
     const [suggestions, setSuggestions] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);

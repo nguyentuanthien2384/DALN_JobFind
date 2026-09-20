@@ -3,7 +3,7 @@
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const assert = require('node:assert/strict');
-const { randomBytes } = require('node:crypto');
+const { randomBytes, randomUUID } = require('node:crypto');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const { chromium } = require('@playwright/test');
@@ -39,13 +39,18 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     await fs.mkdir(output, { recursive: true });
     await page.screenshot({ path: path.join(output, 'admin-desktop.png'), fullPage: true });
     const response = page.waitForResponse(r => r.url().includes('/api/support/handoffs') && r.request().method() === 'GET');
-    await refresh.click(); assert.equal((await response).status(), 200);
+    await refresh.click(); const refreshed = await response; assert.equal(refreshed.status(), 200);
+    const detail = await context.request.get(`http://localhost:4000/api/support/handoffs/${randomUUID()}`, {
+      headers: { Authorization: await refreshed.request().headerValue('authorization') }
+    });
+    assert.equal(detail.status(), 404);
+    assert.equal((await detail.json()).errMessage, 'Yêu cầu không còn tồn tại hoặc đã hết thời gian lưu.');
     await refresh.waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: path.join(output, 'admin-mobile.png'), fullPage: true });
     assert.equal(await page.locator('.jf-support-inbox').evaluate(element => element.scrollWidth > element.clientWidth), false);
     assert.deepEqual(errors, []);
-    console.log('PASS: real admin login, support queue through Gateway, teal/white refresh button, working refresh, desktop/mobile layout. No real tickets or messages modified.');
+    console.log('PASS: real admin login, support queue and detail route through Gateway, teal/white refresh button, working refresh, desktop/mobile layout. No real tickets or messages modified.');
   } catch (error) {
     await fs.mkdir(output, { recursive: true });
     if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {});

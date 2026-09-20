@@ -1,32 +1,41 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom';
 import LeftBar from './LeftPage/LeftBar'
 import RightContent from './RightPage/RightContent'
 import { PAGINATION } from '../../util/constant';
 import ReactPaginate from 'react-paginate';
 import { loadSearchPage, loadSearchLabels, searchMode } from '../../service/searchWorkspace';
 import CommonUtils from '../../util/CommonUtils';
-const JobPage = () => {
+import { SEARCH_SNAPSHOT_TTL, useJobSearchHistory } from './jobSearchHistory';
+const JobSearchPage = ({ historyKey }) => {
+    const [restored, remember] = useJobSearchHistory(historyKey);
+    const saved = restored || {};
+    const loadedQuery = useRef(saved.loadedQuery);
 
-    const [countPage, setCountPage] = useState(1)
-    const [post, setPost] = useState([])
-    const [count, setCount] = useState(0)
-    const [numberPage, setNumberPage] = useState(0)
-    const [loading, setLoading] = useState(true);
+    const [countPage, setCountPage] = useState(saved.countPage ?? 0)
+    const [post, setPost] = useState(saved.post || [])
+    const [count, setCount] = useState(saved.count ?? 0)
+    const [numberPage, setNumberPage] = useState(saved.numberPage ?? 0)
+    const [loading, setLoading] = useState(!saved.loadedQuery);
     const [error, setError] = useState('');
-    const [retry, setRetry] = useState(0);
-    const [labels, setLabels] = useState({});
+    const [retry, setRetry] = useState(saved.retry || 0);
+    const [labels, setLabels] = useState(saved.labels || {});
     const mode = searchMode();
+    const [labelsReady, setLabelsReady] = useState(mode === 'legacy' || Boolean(saved.labelsReady));
     const limit = PAGINATION.pagerow
 
-    const [workType, setWorkType] = useState([])
+    const [workType, setWorkType] = useState(saved.workType || [])
     const [jobType, setJobType] = useState(() => (
-        new URLSearchParams(window.location.search).get('categoryJobCode') || ''
+        saved.jobType ?? (new URLSearchParams(window.location.search).get('categoryJobCode') || '')
     ))
-    const [salary, setSalary] = useState([])
-    const [exp, setExp] = useState([])
-    const [jobLevel, setJobLevel] = useState([])
-    const [jobLocation, setJobLocation] = useState('')
-    const [search,setSearch] = useState('')
+    const [salary, setSalary] = useState(saved.salary || [])
+    const [exp, setExp] = useState(saved.exp || [])
+    const [jobLevel, setJobLevel] = useState(saved.jobLevel || [])
+    const [jobLocation, setJobLocation] = useState(saved.jobLocation || '')
+    const [search,setSearch] = useState(saved.search || '')
+    const [searchDraft, setSearchDraft] = useState(saved.searchDraft || saved.search || '');
+    remember({ countPage, post, count, numberPage, labels, labelsReady, workType, jobType, salary, exp,
+        jobLevel, jobLocation, search, searchDraft, retry, loadedQuery: loadedQuery.current });
     const handleSearch = (value) => {
         setNumberPage(0);
         setSearch(value)
@@ -81,25 +90,39 @@ const JobPage = () => {
     }
     useEffect(() => {
         let active = true;
-        if (mode === 'core') loadSearchLabels().then(data => { if (active) setLabels(data); });
+        if (mode === 'core') loadSearchLabels().then(data => {
+            if (active) {
+                setLabels(previous => JSON.stringify(previous) === JSON.stringify(data) ? previous : data);
+                setLabelsReady(true);
+            }
+        });
         return () => { active = false; };
     }, [mode]);
     useEffect(() => {
+        if (!labelsReady) return;
         let active = true;
-        setLoading(true); setError(''); setPost([]); setCount(0);
         const params = { limit, offset: numberPage * limit, categoryJobCode: jobType,
             addressCode: jobLocation, salaryJobCode: salary, categoryJoblevelCode: jobLevel,
             categoryWorktypeCode: workType, experienceJobCode: exp,
             search: CommonUtils.removeSpace(search), sortName: undefined };
+        const queryKey = JSON.stringify({ params, mode, labels, retry });
+        const sameQuery = loadedQuery.current?.key === queryKey;
+        if (sameQuery && loadedQuery.current.expiresAt > Date.now()) return;
+        setError('');
+        if (!sameQuery) {
+            loadedQuery.current = null;
+            setLoading(true); setPost([]); setCount(0); setCountPage(0);
+        }
         loadSearchPage(params, mode, labels).then(result => {
             if (!active) return;
+            loadedQuery.current = { key: queryKey, expiresAt: Date.now() + SEARCH_SNAPSHOT_TTL };
             setPost(result.data); setCount(result.count);
             setCountPage(Math.ceil((mode === 'core' ? Math.min(result.count, 10000) : result.count) / limit));
         }).catch(failure => {
-            if (active) { setError(failure.message); setCountPage(0); }
+            if (active) { setError(failure.message); if (!sameQuery) setCountPage(0); }
         }).finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
-    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels]);
+    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels, labelsReady]);
     const handleChangePage = (number) => { setNumberPage(number.selected); };
     return (
         <>
@@ -145,19 +168,20 @@ const JobPage = () => {
                                     </div>
                                 </div>
                                 {/* <!-- Job Category Listing start --> */}
-                                <LeftBar worktype={recieveWorkType} recieveSalary={recieveSalary} recieveExp={recieveExp}
+                                <LeftBar selected={{ workType, salary, exp, jobType, jobLevel, jobLocation }}
+                                    worktype={recieveWorkType} recieveSalary={recieveSalary} recieveExp={recieveExp}
                                     recieveJobType={recieveJobType} recieveJobLevel={recieveJobLevel} recieveLocation={recieveLocation}
                                 />
                                 {/* <!-- Job Category Listing End --> */}
                             </div>
                             {/* <!-- Right content --> */}
                             <div className="col-xl-9 col-lg-9 col-md-8">
-                            <RightContent handleSearch={handleSearch} count={count} post={post} loading={loading} error={error} />
+                            <RightContent handleSearch={handleSearch} searchDraft={searchDraft} onSearchDraftChange={setSearchDraft} count={count} post={post} loading={loading} error={error} />
                             {loading && <p role="status">Đang tìm việc…</p>}
                             {error && <div role="alert">{error} <button type="button" onClick={() => setRetry(value => value + 1)}>Thử lại</button></div>}
                             {!loading && !error && count === 0 && <p>Không tìm thấy công việc phù hợp. Hãy thử đổi từ khóa hoặc bộ lọc.</p>}
                             {mode === 'core' && count > 10000 && <p>Đang hiển thị tối đa 10.000 kết quả. Hãy thêm bộ lọc để thu hẹp tìm kiếm.</p>}
-                            <ReactPaginate
+                            {countPage > 0 && <ReactPaginate
                             forcePage={numberPage}
                             previousLabel={'Quay lại'}
                             nextLabel={'Tiếp'}
@@ -175,7 +199,7 @@ const JobPage = () => {
                             breakClassName={"page-item"}
                             activeClassName={"active"}
                             onPageChange={handleChangePage}
-                        />
+                        />}
                             </div>
                         </div>
                     </div>
@@ -188,5 +212,11 @@ const JobPage = () => {
         </>
     )
 }
+
+const JobPage = () => {
+    const location = useLocation();
+    const historyKey = `${searchMode()}:${location.key}:${location.search}`;
+    return <JobSearchPage key={`${historyKey}:${localStorage.getItem('token_user') || ''}`} historyKey={historyKey} />;
+};
 
 export default JobPage

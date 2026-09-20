@@ -10,6 +10,7 @@ import Header from "./container/header/header";
 import Footer from "./container/footer/Footer";
 import Home from "./container/home/home";
 import JobPage from "./container/JobPage/JobPage";
+import { JobNavigationScroll } from './container/JobPage/jobSearchHistory';
 import DetailPage from "./container/JobDetail/JobDetail";
 import About from "./container/About/About";
 import Contact from "./container/Contact/Contact";
@@ -130,6 +131,7 @@ function App() {
     return (
         <SessionContext.Provider value={userData}>
             <Router>
+                <JobNavigationScroll />
                 <Routes>
                 <Route path="/account/security" element={<RouteGuard user={userData} hasToken={hasToken} anyPermissions={[PERMISSIONS.MANAGE_PROFILE]}><Header /><Suspense fallback={<RoutePageLoader />}><SecuritySettings /></Suspense><Footer /></RouteGuard>} />
                 {/* Public Routes */}
