@@ -146,6 +146,8 @@ Hệ thống hỗ trợ phiên đăng nhập bằng cookie HttpOnly, tự gia h�
 
 Sau khi cập nhật mã nguồn, chạy `npm run auth:migrate` trước khi khởi động. Lệnh này sao lưu MySQL và áp dụng riêng các bảng xác thực. Google SSO đang tắt cho đến khi có OAuth Client; xem [hướng dẫn cấu hình và kiểm thử](docs/AUTHENTICATION_SSO_INTEGRATION.md). Node.js tối thiểu cho backend là 22.12.
 
+Đã bổ sung lịch sử bảo mật, thông tin thiết bị và kiểm thử OIDC với chữ ký/JWKS qua HTTP và trình duyệt thật. Xem [đối chiếu tiêu chí báo cáo và các phần còn cần nghiệm thu](docs/AUTH_REPORT_ACCEPTANCE.md).
+
 ### Khởi chạy thống nhất trên máy hiện tại
 
 Từ thư mục gốc `D:\job_find`, chạy `npm start`, sau đó mở **http://localhost:3001** khi `npm run dev:status` báo `running`.

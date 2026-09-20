@@ -42,8 +42,14 @@ const isValidRecipientEmail = (email) => {
 }
 
 let sendmail = (note, userMail, link = null) => {
+    if (!process.env.EMAIL_APP || !process.env.EMAIL_APP_PASSWORD || process.env.EMAIL_APP.includes('youremail')) {
+        return Promise.resolve(false);
+    }
     let transporter = nodemailer.createTransport({
         service: 'gmail',
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
         auth: {
             user: process.env.EMAIL_APP,
             pass: process.env.EMAIL_APP_PASSWORD,
@@ -61,12 +67,10 @@ let sendmail = (note, userMail, link = null) => {
         mailOptions.html = note + ` xem thông tin <a href='${getFrontendLink(link)}'>Tại đây</a> `
     }
 
-    transporter.sendMail(mailOptions, function (error, info) {
-        if (error) {
-            console.log(error.message)
-        } else {
-        }
-    });
+    return new Promise(resolve => transporter.sendMail(mailOptions, error => {
+        if (error) console.error('AUTH_EMAIL_DELIVERY_FAILED');
+        resolve(!error);
+    }));
 }
 let hashUserPasswordFromBcrypt = (password) => {
     return new Promise(async (resolve, reject) => {
@@ -471,7 +475,11 @@ let requestResetPasswordOtp = (data) => {
             let note = `<h3>Đặt lại mật khẩu Job Finder</h3>
                         <p>Mã xác thực của bạn là: <b style="font-size:20px;letter-spacing:3px">${code}</b></p>
                         <p>Mã có hiệu lực trong 5 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>`
-            sendmail(note, email)
+            if (!await sendmail(note, email)) {
+                otpStore.clearOtp(data.phonenumber)
+                resolve({ errCode: 503, errMessage: 'Chưa gửi được mã xác thực. Dịch vụ email chưa sẵn sàng, vui lòng thử lại sau hoặc liên hệ quản trị viên.' })
+                return
+            }
 
             resolve({
                 errCode: 0,

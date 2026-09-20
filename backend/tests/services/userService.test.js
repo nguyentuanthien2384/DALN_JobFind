@@ -35,6 +35,9 @@ const reset = () => {
   for (const fn of [mockBcrypt.hashSync, mockBcrypt.compareSync, mockEncodeToken, mockUpload, mockIssueOtp, mockVerifyOtp, mockClearOtp, mockSendMail]) fn.mockReset();
   mockBcrypt.hashSync.mockReturnValue('hashed');
   mockEncodeToken.mockReturnValue('token');
+  process.env.EMAIL_APP = 'fixture@example.invalid';
+  process.env.EMAIL_APP_PASSWORD = 'fixture-only';
+  mockSendMail.mockImplementation((_options, callback) => callback(null, {}));
 };
 
 const validUser = (extra = {}) => ({
@@ -264,6 +267,20 @@ describe('userService', () => {
     expect((await service.changePaswordByPhone({ phonenumber: '0901', password: '123456', otp: '1' })).errCode).toBe(0);
     expect(account.password).toBe('hashed');
     expect(account.save).toHaveBeenCalled();
+  });
+
+  test.each(['not-configured', 'delivery-failed'])('OTP never reports sent or retains a usable code when mail is %s', async mode => {
+    mockDb.Account.findOne.mockResolvedValue({ userAccountData: { email: 'fixture@example.invalid' } });
+    mockIssueOtp.mockReturnValue({ code: '123456', waitSeconds: 0 });
+    if (mode === 'not-configured') process.env.EMAIL_APP_PASSWORD = '';
+    else mockSendMail.mockImplementation((_options, callback) => callback(new Error('private transport details')));
+    const logger = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await service.requestResetPasswordOtp({ phonenumber: '0901' });
+    expect(result.errCode).toBe(503);
+    expect(mockClearOtp).toHaveBeenCalledWith('0901');
+    expect(JSON.stringify(console.log.mock.calls)).not.toContain('123456');
+    expect(JSON.stringify(logger.mock.calls)).not.toContain('private transport details');
+    logger.mockRestore();
   });
 
   test('login covers unknown phone, wrong password, locked account and success token claims', async () => {

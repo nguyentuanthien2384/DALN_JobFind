@@ -36,6 +36,9 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     const cookies = await context.cookies('http://localhost:4000');
     assert.ok(cookies.some(cookie => cookie.name === 'jobfind_rt' && cookie.httpOnly && cookie.sameSite === 'Lax'));
     await page.getByText('Đăng nhập Google chưa được quản trị viên cấu hình.').waitFor();
+    await page.getByRole('heading', { name: 'Lịch sử bảo mật' }).waitFor();
+    await page.getByText('Đăng nhập thành công', { exact: true }).first().waitFor();
+    await page.getByText(/Chrome · (Windows|Linux|macOS)/).first().waitFor();
     await fs.mkdir(output, { recursive: true });
     await page.screenshot({ path: path.join(output, 'security-desktop.png'), fullPage: true });
     await page.reload();
@@ -92,6 +95,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
   } finally {
     if (browser) await browser.close();
     if (userId) {
+      await connection.query('DELETE FROM AuthSecurityEvents WHERE userId = ?', [userId]);
       await connection.query('DELETE FROM accounts WHERE userId = ? AND phonenumber = ?', [userId, phone]);
       await connection.query('DELETE FROM users WHERE id = ? AND firstName = ? AND lastName = ?', [userId, 'Auth', 'QA']);
     }

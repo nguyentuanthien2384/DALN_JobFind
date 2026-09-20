@@ -77,10 +77,11 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     await assert.rejects(sessions.createSession(user.id, 'oidc:google', { identityId: 999999 }), /IDENTITY_REMOVED/);
     const express = require('express');
     const app = express(); app.use(express.json());
+    app.use(['/api/auth', '/api/login'], require('../src/middlewares/authResponseHeaders').authResponseHeaders);
     app.post('/api/login', controller.login);
     app.post('/api/auth/refresh', controller.cookieOrigin, controller.refresh);
     app.post('/api/auth/logout', controller.cookieOrigin, middleware.verifyTokenOptional, controller.logout);
-    app.get('/api/auth/me', middleware.verifyTokenUser, (req, res) => res.json({ role: req.user.userAccountData.roleCode }));
+    app.get('/api/auth/me', middleware.verifyTokenUser, require('../src/controllers/userController').getCurrentAuthorization);
     app.get('/api/auth/security', middleware.verifyTokenUser, controller.securityOverview);
     server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
     const base = 'http://127.0.0.1:' + server.address().port;
@@ -91,6 +92,9 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     assert.equal(login.status, 200);
     assert.match(login.headers.get('set-cookie'), /HttpOnly/);
     assert.match(login.headers.get('set-cookie'), /SameSite=Lax/);
+    assert.equal(login.headers.get('cache-control'), 'no-store');
+    assert.equal(login.headers.get('referrer-policy'), 'no-referrer');
+    assert.match(login.headers.get('content-security-policy'), /frame-ancestors 'none'/);
     const body = await login.json(); assert.ok(jwt.decode(body.token).sid);
     const cookie = login.headers.get('set-cookie').split(';')[0];
     assert.equal((await fetch(base + '/api/auth/me', { headers: { Authorization: 'Bearer ' + body.token } })).status, 200);
@@ -101,6 +105,16 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     assert.equal((await fetch(base + '/api/auth/logout', { method: 'POST', headers: { ...headers, Cookie: cookie, Authorization: 'Bearer ' + body.token }, body: '{}' })).status, 204);
     assert.equal((await fetch(base + '/api/auth/me', { headers: { Authorization: 'Bearer ' + body.token } })).status, 401);
     assert.equal((await fetch(base + '/api/auth/refresh', { method: 'POST', headers: { ...headers, Cookie: cookie }, body: '{}' })).status, 401);
+    const expirySession = await sessions.createSession(user.id);
+    const { getJwtSecret, getJwtPolicy } = require('../src/utils/securityConfig');
+    const policy = getJwtPolicy(), now = Math.floor(Date.now() / 1000);
+    const expiredAccess = jwt.sign({ sub: user.id, sid: jwt.decode(expirySession.token).sid, iat: now - 960, exp: now - 60 },
+      getJwtSecret(), { algorithm: 'HS256', issuer: policy.issuer, audience: policy.audience });
+    assert.equal((await fetch(base + '/api/auth/me', { headers: { Authorization: 'Bearer ' + expiredAccess } })).status, 401);
+    const recovered = await fetch(base + '/api/auth/refresh', { method: 'POST', headers: { ...headers, Cookie: 'jobfind_rt=' + expirySession.refreshToken }, body: '{}' });
+    assert.equal(recovered.status, 200);
+    const recoveredBody = await recovered.json();
+    assert.equal((await fetch(base + '/api/auth/me', { headers: { Authorization: 'Bearer ' + recoveredBody.token } })).status, 200);
     await require('./auth/oidc-acceptance.cjs')({ db, app, base, user, headers, password });
     console.log('PASS: real MySQL migrations, login/cookies/CSRF, refresh rotation/replay, concurrent refresh/logout/logout-all, password revocation and protected HTTP endpoints.');
   } finally {
@@ -111,4 +125,4 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     await admin.query('DROP DATABASE IF EXISTS ??', [database]);
     await admin.end();
   }
-})().catch(error => { console.error('Auth integration failed:', error.message); process.exitCode = 1; });
+})().catch(error => { console.error('Auth integration failed:', error.stack); process.exitCode = 1; });

@@ -1,4 +1,5 @@
 const mockRows = new Map();
+jest.mock('../../src/services/authAuditService', () => ({ recordSecurityEvent: jest.fn() }));
 const mockFindUser = jest.fn();
 const mockCreate = jest.fn(async data => {
   const row = { ...data, async update(patch) { Object.assign(this, patch); } };
@@ -55,4 +56,17 @@ test('logout revokes all generations; inactive accounts cannot refresh', async (
   const next = await sessions.createSession(7);
   mockFindUser.mockResolvedValueOnce(null);
   expect(await sessions.rotateSession(next.refreshToken)).toBeNull();
+});
+
+test('rotation preserves device and original login time without extending absolute expiry', async () => {
+  const first = await sessions.createSession(7, 'password', { deviceLabel: 'Firefox · Windows' });
+  const initial = { ...mockRows.get(sessions.hashOpaque(first.refreshToken)) };
+  const next = await sessions.rotateSession(first.refreshToken);
+  const current = mockRows.get(sessions.hashOpaque(next.refreshToken));
+  expect(current.deviceLabel).toBe('Firefox · Windows');
+  expect(current.startedAt).toEqual(initial.startedAt);
+  expect(current.expiresAt).toEqual(initial.expiresAt);
+  const res = { cookie: jest.fn() };
+  sessions.setRefreshCookie(res, next.refreshToken, new Date(Date.now() + 60000));
+  expect(res.cookie.mock.calls[0][2].maxAge).toBeLessThanOrEqual(60000);
 });

@@ -41,3 +41,16 @@ test('a failed load can be retried without losing the page', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
   expect(await screen.findByText(/Phiên hiện tại/)).toBeInTheDocument();
 });
+
+test('shows device metadata and loads earlier private history', async () => {
+  api.get.mockResolvedValueOnce({ ...data, sessions: [{ ...data.sessions[0], deviceLabel: 'Firefox · Windows', startedAt: '2026-09-20', lastUsedAt: '2026-09-20' }],
+    events: [{ id: 22, event: 'login_succeeded', createdAt: '2026-09-20' }], nextCursor: '22' });
+  api.get.mockResolvedValueOnce({ errCode: 0, events: [{ id: 20, event: 'refresh_reuse_detected', createdAt: '2026-09-19' }], nextCursor: null });
+  render(<SecuritySettings />);
+  expect(await screen.findByText('Firefox · Windows')).toBeInTheDocument();
+  expect(screen.getByText('Đăng nhập thành công')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Xem hoạt động trước đó' }));
+  expect(await screen.findByText('Đã thu hồi phiên do phát hiện mã phiên bị sử dụng lại')).toBeInTheDocument();
+  expect(api.get).toHaveBeenLastCalledWith('/api/auth/security/events', { params: { before: '22' } });
+  expect(screen.queryByRole('button', { name: 'Xem hoạt động trước đó' })).toBeNull();
+});

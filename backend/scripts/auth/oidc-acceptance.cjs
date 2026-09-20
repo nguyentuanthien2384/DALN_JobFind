@@ -86,6 +86,8 @@ module.exports = async ({ db, app, base, user, headers, password }) => {
   app.post('/api/auth/sso/:provider/link/start', controller.cookieOrigin, middleware.verifyTokenUser, controller.ssoStart);
   app.post('/api/auth/identities/:identityId/unlink', controller.cookieOrigin, middleware.verifyTokenUser, controller.unlinkIdentity);
   app.get('/api/auth/security/events', middleware.verifyTokenUser, controller.securityEvents);
+  app.get('/api/auth/providers', controller.providers);
+  app.post('/api/auth/logout-all', controller.cookieOrigin, middleware.verifyTokenUser, controller.logoutAll);
   app.get('/fixture/jobs', middleware.verifyTokenUser, authorize(PERMISSIONS.JOB_MANAGE), (_req, res) => res.json({ allowed: true }));
   app.get('/fixture/admin', middleware.verifyTokenUser, authorize(PERMISSIONS.ADMINISTRATION), (_req, res) => res.json({ allowed: true }));
   const cookie = response => response.headers.getSetCookie().find(c => c.startsWith('jobfind_rt='))?.split(';')[0];
@@ -160,7 +162,7 @@ module.exports = async ({ db, app, base, user, headers, password }) => {
       await db.Account.update({ roleCode }, { where: { userId: user.id } });
       assert.equal((await fetch(base + '/api/auth/me', { headers: access(payload.token) })).status, 200);
       assert.equal((await fetch(base + '/fixture/admin', { headers: access(payload.token) })).status, roleCode === 'ADMIN' ? 200 : 403);
-      assert.equal((await fetch(base + '/fixture/jobs', { headers: access(payload.token) })).status, ['EMPLOYER', 'COMPANY'].includes(roleCode) ? 200 : 403);
+      assert.equal((await fetch(base + '/fixture/jobs', { headers: access(payload.token) })).status, ['EMPLOYER', 'COMPANY', 'ADMIN'].includes(roleCode) ? 200 : 403);
     }
     await db.Account.update({ roleCode: 'EMPLOYER' }, { where: { userId: user.id } });
     for (const status of [{ statusCode: 'S2', censorCode: 'CS1' }, { statusCode: 'S1', censorCode: 'CS2' }]) {
@@ -180,6 +182,13 @@ module.exports = async ({ db, app, base, user, headers, password }) => {
     const history = await (await fetch(base + '/api/auth/security/events?userId=' + other.id, { headers: access(payload.token) })).json();
     assert.ok(history.events.every(e => e.deviceLabel !== 'PRIVATE OTHER USER'));
     assert.equal((await fetch(base + '/api/auth/security/events?before=invalid', { headers: access(payload.token) })).status, 400);
+    if (process.env.AUTH_TEST_FRONTEND_BUILD) {
+      await require('./oidc-browser.cjs')({ app, base, providerBase, setMode: value => { mode = value; } });
+      // Browser logout-all also revokes the HTTP fixture session; create fresh
+      // proof before checking unlink below.
+      const fresh = await sessions.createSession(user.id);
+      payload.token = fresh.token;
+    }
     // Unknown/foreign identity IDs cannot revoke the caller's sessions.
     const unlinkHeaders = { ...localHeaders, ...access(payload.token) };
     const missing = await fetch(base + '/api/auth/identities/999999/unlink', { method: 'POST', headers: unlinkHeaders, body: JSON.stringify({ password }) });

@@ -5,6 +5,7 @@ const mockDb = {
   AuthIdentity: { findOne: jest.fn(), create: jest.fn() },
   AuthSession: { findOne: jest.fn() },
 };
+jest.mock('../../src/services/authAuditService', () => ({ recordSecurityEvent: jest.fn() }));
 const mockSessions = { hashOpaque: x => x, loadUser: jest.fn(), activeFamily: jest.fn(), readRefreshCookie: jest.fn(), lockAccount: jest.fn() };
 const mockConfig = { serverMetadata: () => ({ issuer: 'https://accounts.google.com' }) };
 const mockClient = {

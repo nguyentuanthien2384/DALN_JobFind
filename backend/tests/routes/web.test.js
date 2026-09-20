@@ -1,5 +1,5 @@
 const mockRoutes = [];
-const mockRouter = {};
+const mockRouter = { use: jest.fn() };
 for (const method of ['get', 'post', 'put', 'delete']) {
   mockRouter[method] = jest.fn((path, ...handlers) => mockRoutes.push({ method, path, handlers }));
 }

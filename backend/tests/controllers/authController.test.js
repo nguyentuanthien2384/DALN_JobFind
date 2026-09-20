@@ -1,4 +1,4 @@
-const mockSessions = { createSession: jest.fn(), setRefreshCookie: jest.fn(), clearRefreshCookie: jest.fn(), rotateSession: jest.fn(), readRefreshCookie: jest.fn(), revokeByRefresh: jest.fn(), revokeFamily: jest.fn(), revokeAll: jest.fn(), lockAccount: jest.fn() };
+const mockSessions = { createSession: jest.fn(), setRefreshCookie: jest.fn(), clearRefreshCookie: jest.fn(), rotateSession: jest.fn(), readRefreshCookie: jest.fn(), revokeByRefresh: jest.fn(), revokeFamily: jest.fn(), revokeAll: jest.fn(), lockAccount: jest.fn(), activeFamily: jest.fn() };
 const mockDb = { Sequelize: { Op: { gt: Symbol('gt') } }, Account: { findOne: jest.fn() }, AuthSession: { findOne: jest.fn(), findAll: jest.fn() }, AuthIdentity: { findAll: jest.fn(), destroy: jest.fn() }, sequelize: { transaction: jest.fn(fn => fn({})) } };
 const mockOidc = { googleAvailable: jest.fn(), begin: jest.fn(), complete: jest.fn() };
 const mockUserService = { handleLogin: jest.fn() };
@@ -8,6 +8,7 @@ jest.mock('../../src/services/userService', () => mockUserService);
 jest.mock('../../src/services/oidcService', () => mockOidc);
 jest.mock('../../src/models/index', () => mockDb);
 jest.mock('bcryptjs', () => ({ compare: mockCompare }));
+jest.mock('../../src/services/authAuditService', () => ({ deviceLabel: () => 'Trình duyệt khác · Thiết bị khác', recordSecurityEvent: jest.fn(), recentSecurityEvents: jest.fn() }));
 const controller = require('../../src/controllers/authController');
 const res = () => { const r = {}; for (const name of ['status', 'json', 'end', 'set', 'redirect']) r[name] = jest.fn(() => r); return r; };
 const request = () => ({ get: key => key === 'Origin' ? 'http://localhost:3001' : undefined, body: { password: 'fixture' }, user: { id: 7 }, auth: { sid: 'own-family' }, params: { familyId: 'foreign-family', identityId: '42', provider: 'google' } });
@@ -62,4 +63,23 @@ test('logout-all always derives the user id from the authenticated account', asy
   const req = request(); req.body.userId = 99;
   await controller.logoutAll(req, res());
   expect(mockSessions.revokeAll).toHaveBeenCalledWith(7);
+});
+
+test.each(['password-changed', 'session-revoked'])('unlink rechecks %s inside the account lock', async kind => {
+  mockSessions.lockAccount.mockResolvedValue({ statusCode: 'S1', password: 'latest-hash' });
+  mockSessions.activeFamily.mockResolvedValue(kind !== 'session-revoked');
+  if (kind === 'password-changed') mockCompare.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+  const response = res(); await controller.unlinkIdentity(request(), response);
+  expect(response.status).toHaveBeenCalledWith(403);
+  expect(mockDb.AuthIdentity.destroy).not.toHaveBeenCalled();
+  expect(mockSessions.revokeAll).not.toHaveBeenCalled();
+});
+test('a missing/foreign identity does not revoke sessions or clear the caller cookie', async () => {
+  mockSessions.lockAccount.mockResolvedValue({ statusCode: 'S1', password: 'latest-hash' });
+  mockSessions.activeFamily.mockResolvedValue(true);
+  mockDb.AuthIdentity.destroy.mockResolvedValue(0);
+  const response = res(); await controller.unlinkIdentity(request(), response);
+  expect(response.status).toHaveBeenCalledWith(404);
+  expect(mockSessions.revokeAll).not.toHaveBeenCalled();
+  expect(mockSessions.clearRefreshCookie).not.toHaveBeenCalled();
 });

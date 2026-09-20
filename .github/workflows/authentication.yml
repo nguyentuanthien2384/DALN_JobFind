@@ -1,0 +1,51 @@
+name: Authentication and OIDC acceptance
+on:
+  push:
+    paths: ['backend/**', 'frontend/**', 'scripts/migrate-auth.mjs', '.github/workflows/authentication.yml']
+  pull_request:
+    paths: ['backend/**', 'frontend/**', 'scripts/migrate-auth.mjs', '.github/workflows/authentication.yml']
+permissions:
+  contents: read
+jobs:
+  mysql-oidc-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: auth-ci-disposable
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pauth-ci-disposable"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_USER: root
+      DB_PASSWORD: auth-ci-disposable
+      JWT_SECRET: ci-auth-only-0123456789-abcdefghijklmnopqrstuvwxyz
+      AUTH_ALLOW_LEGACY_TOKENS: 'false'
+      EMAIL_APP: ''
+      EMAIL_APP_PASSWORD: ''
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+        working-directory: backend
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: npx --no-install playwright install --with-deps chromium
+        working-directory: backend
+      - name: Build real frontend against same-origin disposable API
+        run: npm --prefix frontend run build
+        env:
+          REACT_APP_BACKEND_URL: /
+          BUILD_PATH: ../.local/auth-acceptance-build
+          CI: 'false'
+      - name: Accept sessions, OIDC signatures and browser journeys on isolated MySQL
+        run: npm run test:auth:integration
+        env:
+          AUTH_TEST_FRONTEND_BUILD: .local/auth-acceptance-build
