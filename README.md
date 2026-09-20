@@ -1,4 +1,4 @@
-<![CDATA[<div align="center">
+<div align="center">
 
 # 🚀 JobFind
 
@@ -749,4 +749,3 @@ Chi tiết: [Bộ triển khai và quay lui](microservices/docs/release-preparat
 **Made with ❤️ by JobFind Team**
 
 </div>
-]]>
