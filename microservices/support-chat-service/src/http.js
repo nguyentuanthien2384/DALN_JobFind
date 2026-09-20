@@ -32,6 +32,7 @@ export function registerSupportRoutes(app, { store, respond, tools, env = proces
         return data(res, await store.handoff(req.supportOwner, req.params.id, req.user.id));
     });
     contractRoute(app, 'supportQueue', manage, async (_req, res) => data(res, await store.queue()));
+    contractRoute(app, 'supportTicket', manage, async (req, res) => data(res, await store.ticket(req.params.id)));
     contractRoute(app, 'supportClaim', manage, async (req, res) => {
         const ticket = await store.claim(req.params.id, req.user.id);
         if (!ticket.delivered) {

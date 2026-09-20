@@ -65,8 +65,12 @@ try {
         const results=await Promise.allSettled([store.claim(ticket.id,21),store.claim(ticket.id,22)]);
         assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
         const agent=results.find(r=>r.status==='fulfilled').value.agentId;
+        await assert.rejects(store.claim(ticket.id,agent,true),e=>e.status===409);
+        await store.delivered(ticket.id);
         assert.equal((await store.claim(ticket.id,agent,true)).status,'resolved');
+        assert.equal((await store.ticket(ticket.id)).status,'resolved');
         await store.remove(owner,state.id);
+        await assert.rejects(store.ticket(ticket.id),e=>e.status===404);
         assert.equal((await store.queue()).length,0);
         const expired=await begin();await store.finish(owner,expired,{text:'old',status:'complete'});
         await pool.query('UPDATE support_conversations SET expires_at=1 WHERE id=?',[expired.id]);
@@ -100,6 +104,13 @@ try {
         assert.equal((await api('/conversations/'+question.requestId+'/handoff',{consent:false})).status,400);
         ticket=(await(await api('/conversations/'+question.requestId+'/handoff',{consent:true})).json()).data;
         assert.equal((await api('/handoffs')).status,403);
+        assert.equal((await api(`/handoffs/${ticket.id}`)).status,403);
+        const preview=(await(await api(`/handoffs/${ticket.id}`,undefined,'Bearer test-admin')).json()).data;
+        assert.equal(preview.status,'waiting');assert.equal(preview.agentId,null);assert.equal(delivered.length,0);
+        await pool.query('UPDATE support_conversations SET title=? WHERE id=?',['Nội dung riêng sau khi chia sẻ',question.requestId]);
+        const queue=(await(await api('/handoffs',undefined,'Bearer test-admin')).json()).data;
+        assert.equal(queue.find(item=>item.id===ticket.id).title,question.text);
+        assert.equal((await store.ticket(ticket.id)).messages[0].text,question.text);
         const claim=(await(await api(`/handoffs/${ticket.id}/claim`,{},'Bearer test-admin')).json()).data;
         assert.equal(claim.agentId,21);assert.equal(claim.delivered,true);
         await api(`/handoffs/${ticket.id}/claim`,{},'Bearer test-admin');assert.equal(delivered.length,1);
@@ -131,7 +142,13 @@ try {
             await button('Đóng kết quả tra cứu').click();await send('Tôi cần nhân viên hỗ trợ');await button('Gửi tin nhắn').waitFor();
             await page.getByRole('checkbox',{name:'Đồng ý chia sẻ hội thoại này với nhân viên.'}).check();await button('Chuyển hội thoại cho hỗ trợ').click();await page.getByText('Đã lưu yêu cầu. Đang chờ nhân viên tiếp nhận.').waitFor();
             await page.evaluate(()=>localStorage.setItem('token_user','test-admin'));await page.goto(origin+'/admin/support');await page.getByRole('button',{name:'Tiếp nhận',exact:true}).first().click();await page.getByRole('link',{name:'Mở tin nhắn với người dùng ↗'}).waitFor();
-            await page.screenshot({path:path.join(output,'inbox.png')});await page.getByRole('button',{name:'Đánh dấu đã xử lý',exact:true}).click();
+            await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:path.join(output,'inbox.png'),fullPage:true});
+            page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Đánh dấu đã xử lý',exact:true}).click();
+            await page.getByText('Đã đánh dấu yêu cầu hoàn tất.').waitFor();
+            await page.reload();await page.getByLabel('Trạng thái',{exact:true}).selectOption('resolved');
+            await page.getByRole('button',{name:/Tôi cần nhân viên hỗ trợ/}).click();await page.getByRole('heading',{name:'Chi tiết yêu cầu',exact:true}).waitFor();
+            await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+            await page.screenshot({path:path.join(output,'inbox-mobile.png'),fullPage:true});
             await page.goto(origin+'/support/help#cv');await page.getByRole('heading',{name:'Tạo CV và ứng tuyển',exact:true}).waitFor();assert.deepEqual(errors,[]);
         });
     }

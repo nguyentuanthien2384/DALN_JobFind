@@ -115,11 +115,9 @@
 .jf-support__handoff label { margin: 0; }
 .jf-support__handoff input { margin-right: 5px; }
 .jf-support button:disabled { opacity: .55; cursor: not-allowed; }
-.jf-support-help, .jf-support-inbox { padding: 30px; max-width: 1100px; margin: auto; width: 100%; box-sizing: border-box; font-family: system-ui, sans-serif; color: #183e73; line-height: 1.6; }
-.jf-support-help section, .jf-support-inbox article { background: #fff; border: 1px solid #dce4ef; padding: 20px; margin: 16px 0; border-radius: 12px; }
-.jf-support-help h1, .jf-support-inbox h1 { font-size: 28px; margin: 20px 0; }
-.jf-support-help h2, .jf-support-inbox h2 { font-size: 19px; }
+.jf-support-help { padding: 30px; max-width: 1100px; margin: auto; width: 100%; box-sizing: border-box; font-family: system-ui, sans-serif; color: #183e73; line-height: 1.6; }
+.jf-support-help section { background: #fff; border: 1px solid #dce4ef; padding: 20px; margin: 16px 0; border-radius: 12px; }
+.jf-support-help h1 { font-size: 28px; margin: 20px 0; }
+.jf-support-help h2 { font-size: 19px; }
 .jf-support-help section { scroll-margin-top: 30px; }
-.jf-support-inbox button { padding: 8px 12px; border: 1px solid #b6c8df; border-radius: 6px; background: #f3f7fc; display: block; margin-top: 8px; }
-.jf-support-inbox__columns { display: grid; grid-template-columns: 1fr 1.5fr; gap: 25px; }
-@media(max-width: 700px) { .jf-support-inbox__columns { grid-template-columns: 1fr; } .jf-support-help, .jf-support-inbox { padding: 16px; } }
+@media(max-width: 700px) { .jf-support-help { padding: 16px; } }

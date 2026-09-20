@@ -19,7 +19,7 @@ export const responseDefinitions = {
     SupportArticle: object({ id: text(64), title: text(200), href: text(200), text: text(4000), version: integer(1) }, ['id', 'title', 'href', 'text', 'version']),
     SupportMessage: record({ id: { type: 'string', format: 'uuid' }, role: { enum: ['user', 'assistant'] }, text: text(12000), status: { enum: ['pending', 'complete', 'failed', 'cancelled'] }, sources: list(ref('SupportSource')), cards: list(ref('Job')) }, ['id', 'role', 'text', 'status']),
     SupportConversation: record({ id: { type: 'string', format: 'uuid' }, title: text(140), version: integer(), createdAt: numeric, updatedAt: numeric, expiresAt: numeric, messages: list(ref('SupportMessage')), handoff: nullable(ref('SupportTicket')) }, ['id', 'title', 'version', 'createdAt', 'updatedAt', 'expiresAt']),
-    SupportTicket: record({ id: { type: 'string', format: 'uuid' }, status: { enum: ['waiting', 'assigned', 'resolved'] }, userId: id, agentId: nullable(id), title: text(140), createdAt: numeric, messages: list(ref('SupportMessage')), delivered: bool, deliveryPending: bool }, ['id', 'status']),
+    SupportTicket: record({ id: { type: 'string', format: 'uuid' }, status: { enum: ['waiting', 'assigned', 'resolved'] }, userId: id, agentId: nullable(id), title: text(140), createdAt: numeric, updatedAt: numeric, messages: list(ref('SupportMessage')), delivered: bool, deliveryPending: bool }, ['id', 'status']),
     SupportPrivate: record({ title: text(200), lines: list(text(1000)), count: integer(), href: text(200) }, ['title', 'lines', 'href']),
     ManagedJobRow: object({ id, name: nullable(text(255)), statusCode: nullable(text(32)), timeEnd: nullable(text(32)),
         isHot: nullable(integer(0, 1)), updatedAt: nullable(date), userId: id, companyId: id,
@@ -67,7 +67,7 @@ export const responseDefinitions = {
     ReindexResponse: record({ errCode: { const: 0 }, indexed: integer(), reconciliation: record({ total: integer(), changed: integer(), deleted: integer() }) })
 };
 const resultNames = {
-    supportTurn: 'SupportConversation', supportKnowledge: 'SupportArticle', supportList: 'SupportConversation', supportGet: 'SupportConversation', supportHandoff: 'SupportTicket', supportPrivate: 'SupportPrivate', supportQueue: 'SupportTicket', supportClaim: 'SupportTicket', supportResolve: 'SupportTicket',
+    supportTurn: 'SupportConversation', supportKnowledge: 'SupportArticle', supportList: 'SupportConversation', supportGet: 'SupportConversation', supportHandoff: 'SupportTicket', supportPrivate: 'SupportPrivate', supportQueue: 'SupportTicket', supportTicket: 'SupportTicket', supportClaim: 'SupportTicket', supportResolve: 'SupportTicket',
     searchJobs: 'SearchJob', searchSuggest: 'Suggestion', searchFacets: 'Facets', searchRelated: 'SearchJob',
     applicationStages: 'StageLabel', applicationBoard: 'Board', applicationFunnel: 'Funnel', applicationNote: 'ApplicationNote',
     myApplications: 'MyApplication', talentList: 'Talent', talentSave: 'Talent',

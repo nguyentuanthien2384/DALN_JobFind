@@ -1,0 +1,91 @@
+/* Scoped admin inbox styles, independent of public template button defaults. */
+.jf-support-inbox, .jf-support-inbox * { box-sizing: border-box; }
+.jf-support-inbox { width: 100%; max-width: 1480px; margin: 0 auto; padding: 28px 24px 72px; color: #243451; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; line-height: 1.6; }
+.jf-support-inbox button, .jf-support-inbox input, .jf-support-inbox select { font: inherit; letter-spacing: normal; text-transform: none; }
+.jf-support-inbox button { cursor: pointer; }
+.jf-support-inbox button:disabled { opacity: .6; cursor: not-allowed; }
+.jf-support-inbox :is(button, a, input, select):focus-visible { outline: 3px solid #72c8c2; outline-offset: 3px; }
+.jf-support-inbox__header { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 26px; }
+.jf-support-inbox__eyebrow { color: #64748b; font-size: 11px; font-weight: 750; letter-spacing: .12em; }
+.jf-support-inbox h1 { font-size: clamp(24px, 2.2vw, 32px); color: #192d4c; margin: 5px 0 7px; line-height: 1.35; font-weight: 700; }
+.jf-support-inbox__header p { font-size: 14px; color: #65748b; margin: 0; }
+.jf-support-inbox__refresh-area { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; flex-shrink: 0; }
+.jf-support-inbox__refresh-area small { font-size: 11px; color: #6b7c92; }
+.jf-support-inbox .jf-support-inbox__button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border: 1px solid transparent; border-radius: 9px; min-height: 42px; font-size: 13px; font-weight: 650; text-decoration: none; line-height: 1.4; transition: background .15s, box-shadow .15s; }
+.jf-support-inbox .jf-support-inbox__button--refresh { background: #087f8c; border-color: #087f8c; color: #fff; box-shadow: 0 4px 10px #087f8c20; }
+.jf-support-inbox .jf-support-inbox__button--refresh:hover:not(:disabled) { background: #066874; border-color: #066874; }
+.jf-support-inbox .jf-support-inbox__button--primary { background: #5048b4; color: #fff; }
+.jf-support-inbox .jf-support-inbox__button--primary:hover:not(:disabled) { background: #403892; }
+.jf-support-inbox .jf-support-inbox__button--secondary { border-color: #ced9e6; background: #fff; color: #344965; }
+.jf-support-inbox .jf-support-inbox__button--secondary:hover:not(:disabled) { background: #f2f6fa; }
+.jf-support-inbox__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+.jf-support-inbox .jf-support-inbox__stat { display: flex; align-items: center; gap: 15px; text-align: left; background: #fff; border: 1px solid #e5e9f1; border-radius: 13px; padding: 20px; color: #283954; box-shadow: 0 3px 12px #172b4d03; }
+.jf-support-inbox__stat[aria-pressed="true"] { border-color: #ada8df; box-shadow: 0 0 0 1px #ada8df40; }
+.jf-support-inbox__stat small { display: block; font-size: 12px; color: #65748b; }
+.jf-support-inbox__stat strong { display: block; font-size: 27px; line-height: 1.35; font-weight: 750; }
+.jf-support-inbox__stat-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 12px; background: #f0edff; color: #6456bd; }
+.jf-support-inbox__stat--waiting .jf-support-inbox__stat-icon { background: #fff4dd; color: #a16b08; }
+.jf-support-inbox__stat--assigned .jf-support-inbox__stat-icon { background: #eaf2ff; color: #3372c0; }
+.jf-support-inbox__stat--resolved .jf-support-inbox__stat-icon { background: #e6f5ed; color: #238458; }
+.jf-support-inbox__privacy { display: flex; align-items: flex-start; gap: 9px; background: #edf5fa; color: #48657b; padding: 12px 16px; border-radius: 9px; font-size: 12px; margin-bottom: 22px; }
+.jf-support-inbox__privacy svg { flex: none; margin-top: 1px; }
+.jf-support-inbox__toolbar { display: flex; gap: 16px; align-items: flex-end; margin-bottom: 20px; }
+.jf-support-inbox__search { flex: 1; display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #dfe5ee; border-radius: 9px; padding: 0 14px; margin: 0; color: #8190a5; }
+.jf-support-inbox__search input { width: 100%; min-width: 0; height: 44px; border: 0; background: transparent; color: #283954; font-size: 13px; }
+.jf-support-inbox__search input::placeholder { color: #7e8b9e; }
+.jf-support-inbox__filter { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 12px; color: #596a81; }
+.jf-support-inbox__filter select { height: 46px; padding: 8px 30px 8px 12px; border: 1px solid #dfe5ee; border-radius: 9px; background: #fff; color: #334660; font-size: 13px; }
+.jf-support-inbox__columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 22px; align-items: start; }
+.jf-support-inbox__list, .jf-support-inbox__detail { background: #fff; border: 1px solid #e2e7ef; border-radius: 13px; overflow: hidden; min-width: 0; }
+.jf-support-inbox__section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 17px 20px; border-bottom: 1px solid #edf0f5; }
+.jf-support-inbox__section-heading h2 { margin: 0; color: #263a56; font-size: 15px; font-weight: 700; }
+.jf-support-inbox__section-heading > span { font-size: 11px; color: #7b8ba1; }
+.jf-support-inbox__empty { padding: 50px 24px; text-align: center; color: #76859b; }
+.jf-support-inbox__empty-icon { display: grid; place-items: center; margin: 0 auto 18px; width: 68px; height: 68px; border-radius: 22px; color: #7888b3; background: #f0f3fa; }
+.jf-support-inbox__empty h3 { color: #304660; font-size: 17px; line-height: 1.5; margin: 12px 0 8px; font-weight: 650; }
+.jf-support-inbox__empty p { max-width: 360px; margin: 0 auto 20px; font-size: 13px; color: #6f7f93; }
+.jf-support-inbox__auto { display: inline-block; font-size: 11px; color: #6c8092; padding: 6px 11px; background: #f5f8fb; border-radius: 20px; }
+.jf-support-inbox__list ul { list-style: none; padding: 12px; margin: 0; display: grid; gap: 10px; max-height: 660px; overflow-y: auto; }
+.jf-support-inbox__list li { list-style: none; border: 1px solid #e7ebf3; border-radius: 10px; overflow: hidden; }
+.jf-support-inbox__list li.is-selected { border-color: #aaa1e1; background: #f9f8ff; }
+.jf-support-inbox .jf-support-inbox__ticket { display: block; text-align: left; width: 100%; padding: 15px 16px 6px; border: 0; background: transparent; color: #354965; }
+.jf-support-inbox__ticket:hover { background: #f7f8fd; }
+.jf-support-inbox__ticket h3 { margin: 9px 0 5px; font-size: 14px; font-weight: 650; color: #263d59; line-height: 1.5; overflow-wrap: anywhere; }
+.jf-support-inbox__ticket-meta, .jf-support-inbox__ticket small { display: block; font-size: 11px; color: #718197; }
+.jf-support-inbox__ticket-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 16px 12px; font-size: 10px; color: #8290a5; }
+.jf-support-inbox .jf-support-inbox__text-button { background: #f0edff; border: 0; padding: 6px 10px; border-radius: 6px; color: #5048a7; font-size: 12px; font-weight: 650; }
+.jf-support-inbox__badge { display: inline-block; padding: 3px 9px; border-radius: 6px; background: #eef2f7; color: #57687f; font-size: 10px; font-weight: 650; }
+.jf-support-inbox__badge--waiting { background: #fff5df; color: #906006; }
+.jf-support-inbox__badge--assigned { background: #eaf2ff; color: #2b62a5; }
+.jf-support-inbox__badge--resolved { background: #e8f6ed; color: #25714a; }
+.jf-support-inbox__list-note { margin: 0; padding: 10px 17px 16px; color: #7d8b9f; font-size: 10px; }
+.jf-support-inbox__guide { padding: 22px; }
+.jf-support-inbox__guide > p { font-size: 13px; color: #6d7c91; margin: 0 0 25px; }
+.jf-support-inbox__guide ol { list-style: none; padding: 0; margin: 0; }
+.jf-support-inbox__guide li { display: flex; gap: 14px; list-style: none; margin-bottom: 23px; }
+.jf-support-inbox__guide li > span { display: grid; place-items: center; background: #f1effb; color: #7063b7; width: 30px; height: 30px; border-radius: 9px; font-size: 12px; font-weight: 700; flex: none; }
+.jf-support-inbox__guide strong { font-size: 13px; color: #354963; }
+.jf-support-inbox__guide li p { font-size: 12px; color: #738197; line-height: 1.7; margin: 3px 0 0; }
+.jf-support-inbox .jf-support-inbox__help-link { color: #5360a1; font-size: 12px; font-weight: 600; text-decoration: none; }
+.jf-support-inbox__detail-heading { padding: 19px 22px 0; }
+.jf-support-inbox__detail-heading h3 { font-size: 18px; color: #233b59; line-height: 1.5; margin: 10px 0 6px; overflow-wrap: anywhere; }
+.jf-support-inbox__detail-heading p, .jf-support-inbox__detail-heading small { font-size: 11px; margin: 0; color: #7b899b; overflow-wrap: anywhere; }
+.jf-support-inbox__actions { padding: 19px 22px; display: flex; gap: 8px; flex-wrap: wrap; }
+.jf-support-inbox__transcript-title { font-size: 12px; font-weight: 650; padding: 0 22px; color: #60728b; margin: 0 0 10px; }
+.jf-support-inbox__transcript { padding: 0 22px 22px; max-height: 560px; overflow-y: auto; }
+.jf-support-inbox .jf-support-inbox__message { margin: 0 0 12px; padding: 13px 15px; border: 1px solid #e9edf3; border-radius: 10px; background: #f7f9fc; overflow-wrap: anywhere; }
+.jf-support-inbox__message > strong { display: block; margin-bottom: 5px; font-size: 11px; color: #587198; }
+.jf-support-inbox__message--user { background: #f2f0fc !important; }
+.jf-support-inbox__message .jf-support__markdown { font-size: 13px; color: #3b4d66; }
+.jf-support-inbox__message p { margin: 0 0 7px; }
+.jf-support-inbox__message pre { white-space: pre-wrap; }
+.jf-support-inbox__message table { display: block; overflow-x: auto; }
+.jf-support-inbox__placeholder { color: #718198; font-size: 13px; padding: 30px 22px; }
+.jf-support-inbox__alert, .jf-support-inbox__warning { font-size: 13px; background: #fff4e8; color: #86551e; border: 1px solid #f3d7b0; border-radius: 9px; padding: 12px 15px; margin-bottom: 18px; }
+.jf-support-inbox__alert button { border: 0; background: transparent; text-decoration: underline; color: #80501b; font-weight: 650; padding: 4px; }
+.jf-support-inbox__notice { border-radius: 9px; padding: 12px 16px; background: #eaf6ef; color: #27734b; font-size: 13px; }
+.jf-support-inbox__warning, .jf-support-inbox__info { margin: 15px 22px 0; }
+.jf-support-inbox__info { font-size: 12px; color: #697e96; }
+@media (max-width: 1000px) { .jf-support-inbox__stats { gap: 10px; } .jf-support-inbox .jf-support-inbox__stat { padding: 15px; gap: 10px; } .jf-support-inbox__stat-icon { width: 36px; height: 36px; } .jf-support-inbox__columns { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .jf-support-inbox { padding: 16px 4px 90px; } .jf-support-inbox__header { align-items: flex-start; flex-direction: column; gap: 15px; } .jf-support-inbox__refresh-area { align-items: flex-start; } .jf-support-inbox__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .jf-support-inbox__toolbar { flex-direction: column; align-items: stretch; gap: 10px; } .jf-support-inbox__filter { justify-content: space-between; } .jf-support-inbox__filter select { flex: 1; } .jf-support-inbox__search input { font-size: 12px; } }
+@media (prefers-reduced-motion: reduce) { .jf-support-inbox * { transition: none !important; } }

@@ -103,8 +103,17 @@ export function createStore(pool, retentionDays = 30) {
             });
         },
         async queue() {
-            const [rows] = await pool.query("SELECT h.id,h.user_id AS userId,h.status,h.agent_id AS agentId,h.created_at AS createdAt,c.title FROM support_handoffs h JOIN support_conversations c ON c.id=h.conversation_id WHERE c.expires_at>? ORDER BY (h.status='waiting') DESC,(h.status='assigned') DESC,h.created_at ASC LIMIT 100", [Date.now()]);
-            return rows;
+            const [rows] = await pool.query("SELECT h.id,h.user_id AS userId,h.status,h.agent_id AS agentId,h.created_at AS createdAt,h.updated_at AS updatedAt,h.delivered_at AS deliveredAt,LEFT(JSON_UNQUOTE(JSON_EXTRACT(h.transcript,'$[0].text')),140) AS title FROM support_handoffs h JOIN support_conversations c ON c.id=h.conversation_id WHERE c.expires_at>? ORDER BY (h.status='waiting') DESC,(h.status='assigned') DESC,h.created_at ASC LIMIT 100", [Date.now()]);
+            return rows.map(({ deliveredAt, ...row }) => ({ ...row, title: row.title || 'Yêu cầu hỗ trợ', delivered: !!deliveredAt }));
+        },
+        async ticket(id) {
+            const [rows] = await pool.query('SELECT h.id,h.user_id AS userId,h.status,h.agent_id AS agentId,h.created_at AS createdAt,h.updated_at AS updatedAt,h.delivered_at AS deliveredAt,h.transcript FROM support_handoffs h JOIN support_conversations c ON c.id=h.conversation_id WHERE h.id=? AND c.expires_at>?', [id, Date.now()]);
+            if (!rows[0]) throw failure(404, 'Yêu cầu không còn tồn tại hoặc đã hết thời gian lưu.');
+            const { transcript, deliveredAt, ...row } = rows[0];
+            const messages = typeof transcript === 'string' ? JSON.parse(transcript) : transcript;
+            // Read only the snapshot explicitly shared with support. Viewing
+            // details never claims the ticket or sends a chat message.
+            return { ...row, title: messages.find(m => m.role === 'user')?.text.slice(0, 140) || 'Yêu cầu hỗ trợ', messages, delivered: !!deliveredAt };
         },
         async claim(id, agentId, resolve = false) {
             return transaction(async db => {
@@ -114,6 +123,7 @@ export function createStore(pool, retentionDays = 30) {
                 if (row.user_id === agentId) throw failure(409, 'Bạn không thể tự tiếp nhận yêu cầu của mình.');
                 if ((row.agent_id && row.agent_id !== agentId) || row.status === 'resolved') throw failure(409, 'Yêu cầu đã được nhân viên khác xử lý hoặc đã đóng.');
                 if (resolve && row.agent_id !== agentId) throw failure(409, 'Hãy tiếp nhận yêu cầu trước.');
+                if (resolve && !row.delivered_at) throw failure(409, 'Hãy chuyển hội thoại vào Tin nhắn trước khi đánh dấu đã xử lý.');
                 await db.query('UPDATE support_handoffs SET agent_id=?,status=?,updated_at=? WHERE id=?', [agentId, resolve ? 'resolved' : 'assigned', Date.now(), id]);
                 return { id, userId: row.user_id, agentId, delivered: !!row.delivered_at, status: resolve ? 'resolved' : 'assigned', messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages };
             });
