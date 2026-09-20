@@ -38,7 +38,7 @@ Thứ tự: OpenAI → Gemini được cho phép → Ollama đã cấu hình →
 
 Đánh dấu đồng ý chia sẻ rồi chọn Chuyển hội thoại cho hỗ trợ. Hệ thống chụp các tin đã hoàn tất ở thời điểm đó. ADMIN mở Hỗ trợ chatbot → Yêu cầu hỗ trợ (`/admin/support`), tiếp nhận, mở Tin nhắn và đánh dấu đã xử lý. Chỉ một nhân viên được nhận mỗi yêu cầu.
 
-Nếu chuyển sang Tin nhắn lỗi, ticket vẫn tồn tại và có nút thử lại với cùng mã tin nhắn để tránh trùng. Ngoại tuyến vẫn giữ hàng đợi, không hứa thời gian phản hồi. Nhà tuyển dụng chưa đủ điều kiện tuyển dụng vẫn được liên hệ ADMIN; các quan hệ tuyển dụng khác giữ kiểm tra quyền hiện có.
+Nếu chuyển sang Tin nhắn lỗi, ticket vẫn tồn tại và có nút thử lại với cùng mã tin nhắn để tránh trùng. Ngoại tuyến vẫn giữ hàng đợi, không hứa thời gian phản hồi. Người dùng mở tin nhắn hỗ trợ tại `/support/chat/:partnerId`. Nhà tuyển dụng chưa đủ điều kiện tuyển dụng vẫn được liên hệ ADMIN qua đường hỗ trợ riêng; các đường chat tuyển dụng cũ giữ nguyên điều kiện truy cập.
 
 Xóa hội thoại xóa ticket và bản chụp. **Bản tóm tắt đã gửi sang Tin nhắn có chính sách lưu trữ riêng, không bị xóa bằng nút xóa chatbot.**
 

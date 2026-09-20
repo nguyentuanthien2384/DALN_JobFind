@@ -47,7 +47,7 @@ const ChatPage = () => {
     const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
     const chatBasePath = location.pathname.startsWith("/admin/chat")
         ? "/admin/chat"
-        : "/chat";
+        : location.pathname.startsWith("/support/chat") ? "/support/chat" : "/chat";
 
     const scrollToBottom = useCallback(() => {
         if (messagesEndRef.current) {

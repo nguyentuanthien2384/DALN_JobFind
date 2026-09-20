@@ -143,6 +143,14 @@ describe("application routes", () => {
         renderAt("/chat");
         expect(screen.getByText("navigate-/login")).toBeInTheDocument();
     });
+    it('allows an unapproved recruiter to enter the dedicated support chat, with recipients authorized by the server', () => {
+        renderAt('/support/chat/9', { id: 1, roleCode: 'EMPLOYER' });
+        expect(screen.getByText('chat-page')).toBeInTheDocument();
+    });
+    it('requires authentication for the dedicated support chat', () => {
+        renderAt('/support/chat/9');
+        expect(screen.getByText('navigate-/login')).toBeInTheDocument();
+    });
 
     it("returns 403 for recruiter chat while the company is pending approval", () => {
         renderAt("/chat", {

@@ -34,6 +34,7 @@ jest.mock("./Menu", () => () => <nav>ADMIN MENU</nav>);
 jest.mock("./Home", () => () => <main>ADMIN HOME</main>);
 jest.mock("./Report/ReportDashboard", () => () => <main>ADMIN REPORT</main>);
 jest.mock("../Chat/ChatPage", () => () => <main>ADMIN CHAT</main>);
+jest.mock("../../components/support/SupportInbox", () => () => <main>SUPPORT INBOX</main>);
 jest.mock("./Company/AddCompany", () => () => <main>ADD COMPANY</main>);
 jest.mock("./User/UserInfo", () => () => <main>USER INFO</main>);
 jest.mock("./Post/ManagePost", () => () => <main>MANAGE POST</main>);
@@ -90,6 +91,13 @@ describe("admin layout shell", () => {
         renderAdmin("/chat", ADMIN);
         expect(screen.getByText("ADMIN CHAT")).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Tin nhắn tuyển dụng" })).toHaveAttribute("href", "/admin/chat");
+    });
+    it('allows only ADMIN to open the support queue', () => {
+        const view = renderAdmin('/support', ADMIN);
+        expect(screen.getByText('SUPPORT INBOX')).toBeInTheDocument();
+        view.unmount();
+        renderAdmin('/support', COMPANY);
+        expect(screen.getByTestId('redirect')).toHaveTextContent('/forbidden');
     });
 
     it("allows an attached employer to use recruiting and chat routes", () => {

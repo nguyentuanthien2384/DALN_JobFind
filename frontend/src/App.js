@@ -191,7 +191,7 @@ function App() {
                         <RouteGuard
                             user={userData}
                             hasToken={hasToken}
-                            anyPermissions={[PERMISSIONS.USE_CHAT, PERMISSIONS.SUPPORT_USE]}
+                            anyPermissions={[PERMISSIONS.USE_CHAT]}
                         >
                             <>
                                 <Header />
@@ -207,7 +207,7 @@ function App() {
                         <RouteGuard
                             user={userData}
                             hasToken={hasToken}
-                            anyPermissions={[PERMISSIONS.USE_CHAT, PERMISSIONS.SUPPORT_USE]}
+                            anyPermissions={[PERMISSIONS.USE_CHAT]}
                         >
                             <>
                                 <Header />
@@ -293,6 +293,8 @@ function App() {
                         </>
                     }
                 />
+                <Route path="/support/chat" element={<RouteGuard user={userData} hasToken={hasToken} anyPermissions={[PERMISSIONS.SUPPORT_USE]}><Header /><ChatPage /><Footer /></RouteGuard>} />
+                <Route path="/support/chat/:partnerId" element={<RouteGuard user={userData} hasToken={hasToken} anyPermissions={[PERMISSIONS.SUPPORT_USE]}><Header /><ChatPage /><Footer /></RouteGuard>} />
                 <Route path="/support/help" element={<SupportHelp />} />
                 <Route path="*" element={<NotFound />} />
                 </Routes>

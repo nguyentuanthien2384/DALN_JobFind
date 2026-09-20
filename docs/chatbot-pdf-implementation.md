@@ -29,6 +29,8 @@ Báo cáo tích hợp: `.local/support-chat-browser/validation.json`; ảnh tron
 
 ## Những giới hạn cần biết
 
+Kết quả xác minh 19–20/09/2026: backend 54 bộ / 894 ca đạt; microservices 63 bộ / 1.224 ca đạt; frontend 78 bộ / 1.472 ca đạt; vận hành local 20 ca đạt. Tám kịch bản tích hợp MySQL/Chromium đạt. Image Docker hỗ trợ khởi động dưới user không phải root, kiểm tra readiness khi DB offline và chặn truy cập không có khóa nội bộ đều đạt. Kiểm tra contracts/OpenAPI đạt. Các số này bao gồm kiểm thử hồi quy toàn dự án, không phải điểm đánh giá chất lượng câu trả lời AI.
+
 1. **Môi trường hiện chưa có API key hoặc model local.** Chưa thể kết luận chất lượng bằng chatbot thương mại. Cần cấu hình provider, chạy live eval, chấm độ đúng/nguồn và đo chi phí/độ trễ.
 2. Chưa triển khai lại toàn bộ stack đang dùng của người dùng. Khởi động/rebuild theo CHATBOT_SETUP.md để Gateway, service và backend bridge cùng phiên bản. Không tạo tin tuyển dụng hoặc sửa tài khoản thật để làm đẹp kết quả.
 3. Không mở upload file trong chatbot hỗ trợ. CV dùng luồng CV hiện có; nếu thêm support upload phải có giới hạn MIME/size và quét mã độc như checklist PDF.
