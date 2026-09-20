@@ -537,7 +537,9 @@ let getStatisticalTypePost = (data) => {
                 raw: true,
                 nest: true
             })
-            let totalPost = await db.Post.findAndCountAll({
+            // Only the count is needed. Loading joined Post rows also triggers
+            // instance hydration, incompatible with the legacy query.raw default.
+            const totalPost = await db.Post.count({
                 where: {
                     statusCode: 'PS1'
                 },
@@ -546,7 +548,7 @@ let getStatisticalTypePost = (data) => {
             resolve({
                 errCode: 0,
                 data: res,
-                totalPost: totalPost.count
+                totalPost
             })
         }
         catch (error) {

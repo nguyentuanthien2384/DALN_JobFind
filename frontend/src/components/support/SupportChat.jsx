@@ -298,7 +298,10 @@ const SupportChat = () => {
 
     return (
         <AssistantRuntimeProvider runtime={runtime}>
-        <div className={`jf-support${expanded ? ' jf-support--expanded' : ''}`}>
+        <div className={`jf-support${expanded ? ' jf-support--expanded' : ''}`}
+            onPointerLeave={(event) => {
+                if (event.pointerType === 'mouse') setOpen(false);
+            }}>
             {isOpen ? (
                 <ThreadPrimitive.Root className="jf-support__panel" role="dialog" aria-label="Trợ lý hỗ trợ JobFind" aria-modal="false">
                     <div className="jf-support__topbar">

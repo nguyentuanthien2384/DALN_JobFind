@@ -437,8 +437,30 @@ describe('postService', () => {
 
   test('returns type statistics and total active post count', async () => {
     mockDb.Post.findAll.mockResolvedValue([{ amount: 2 }]);
-    mockDb.Post.findAndCountAll.mockResolvedValue({ count: 9 });
+    mockDb.Post.count.mockResolvedValue(9);
     expect(await service.getStatisticalTypePost({ limit: 4 })).toEqual({ errCode: 0, data: [{ amount: 2 }], totalPost: 9 });
+    expect(mockDb.Post.count).toHaveBeenCalledWith({ where: { statusCode: 'PS1' }, include: [] });
+    expect(mockDb.Post.findAndCountAll).not.toHaveBeenCalled();
+  });
+
+  test('scopes both category statistics and the count to the recruiting company', async () => {
+    mockDb.Post.findAll.mockResolvedValue([{ amount: 2 }]);
+    mockDb.Post.count.mockResolvedValue(2);
+    expect(await service.getStatisticalTypePost({ limit: 4, companyId: 11 }))
+      .toEqual({ errCode: 0, data: [{ amount: 2 }], totalPost: 2 });
+    for (const query of [mockDb.Post.findAll.mock.calls[0][0], mockDb.Post.count.mock.calls[0][0]]) {
+      expect(query.where).toEqual({ statusCode: 'PS1' });
+      expect(query.include).toContainEqual({ model: mockDb.User, as: 'userPostData', attributes: [], where: { companyId: 11 }, required: true });
+    }
+    expect(mockDb.Post.findAndCountAll).not.toHaveBeenCalled();
+  });
+
+  test('returns an empty company overview and propagates count failures', async () => {
+    mockDb.Post.findAll.mockResolvedValue([]);
+    mockDb.Post.count.mockResolvedValueOnce(0).mockRejectedValueOnce(new Error('count unavailable'));
+    expect(await service.getStatisticalTypePost({ limit: 4, companyId: 11 }))
+      .toEqual({ errCode: 0, data: [], totalPost: 0 });
+    await expect(service.getStatisticalTypePost({ limit: 4, companyId: 11 })).rejects.toThrow('count unavailable');
   });
 
   test('paginates post notes', async () => {
