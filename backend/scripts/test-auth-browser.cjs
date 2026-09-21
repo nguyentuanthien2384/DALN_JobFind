@@ -24,7 +24,38 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     const faults = [];
     page.on('pageerror', error => faults.push(error.message));
     const base = process.env.AUTH_TEST_WEB_URL || 'http://localhost:3001';
+    const providersRoute = '**/api/auth/providers';
+    // Exercise the deliberately unconfigured SSO state without contacting Google.
+    const disabledGoogle = route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ google: false }) });
+    await page.route(providersRoute, disabledGoogle);
     await page.goto(base + '/login');
+    const login = page.locator('.jf-login');
+    await login.waitFor({ state: 'visible' });
+    await page.getByText('Đăng nhập Google chưa được bật. Bạn vẫn có thể dùng số điện thoại và mật khẩu.', { exact: true }).waitFor();
+    const googleLogin = page.getByRole('button', { name: 'Đăng nhập bằng Google', exact: true });
+    assert.equal(await googleLogin.isVisible(), true);
+    assert.equal(await googleLogin.isDisabled(), true);
+    const phoneInput = page.getByPlaceholder('Số điện thoại');
+    const passwordInput = page.getByPlaceholder('Mật khẩu', { exact: true });
+    assert.equal(await phoneInput.getAttribute('type'), 'tel');
+    assert.equal(await phoneInput.getAttribute('autocomplete'), 'username');
+    assert.equal(await passwordInput.getAttribute('autocomplete'), 'current-password');
+    assert.equal(await passwordInput.getAttribute('type'), 'password');
+    await page.getByRole('button', { name: 'Hiện mật khẩu', exact: true }).click();
+    assert.equal(await passwordInput.getAttribute('type'), 'text');
+    await page.getByRole('button', { name: 'Ẩn mật khẩu', exact: true }).click();
+    assert.equal(await passwordInput.getAttribute('type'), 'password');
+    await fs.mkdir(output, { recursive: true });
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: path.join(output, 'login-desktop.png'), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await login.evaluate(element => {
+      const bounds = element.getBoundingClientRect();
+      return bounds.left >= -1 && bounds.right <= innerWidth + 1 && element.scrollWidth <= element.clientWidth + 1;
+    }), true, 'Login content must fit the 390px mobile viewport without horizontal overflow');
+    await page.screenshot({ path: path.join(output, 'login-mobile.png'), fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.unroute(providersRoute, disabledGoogle);
     await page.getByPlaceholder('Số điện thoại').fill(phone);
     await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(password);
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
@@ -84,7 +115,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.waitForURL(base + '/', { timeout: 30000 });
     assert.deepEqual(faults, []);
-    console.log('PASS: browser login through Gateway, HttpOnly cookies, refresh after reload, simultaneous tabs, desktop/mobile security page, logout-all across tabs, password change/re-login and Gateway rejection of revoked tokens.');
+    console.log('PASS: desktop/mobile login layout, unavailable Google state, accessible credential inputs, password visibility, browser login through Gateway, HttpOnly cookies, refresh after reload, simultaneous tabs, desktop/mobile security page, logout-all across tabs, password change/re-login and Gateway rejection of revoked tokens.');
   } catch (error) {
     if (lastPage) {
       await fs.mkdir(output, { recursive: true });

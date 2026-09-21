@@ -1,358 +1,144 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { createNewUser, handleLoginService } from '../../service/userService';
 import { establishSession } from '../../auth/authClient';
-import React from "react";
-import { useState } from "react";
-import { toast } from "react-toastify";
-import {
-    checkUserPhoneService,
-    createNewUser,
-    handleLoginService,
-} from "../../service/userService";
-import { useFetchAllcode } from "../../util/fetch";
-import handleValidate from "../../util/Validation";
-import { Link } from "react-router-dom";
-const Register = () => {
-    const [inputValidates, setValidates] = useState({
-        phonenumber: '',
-        password: '',
-        firstName: '',
-        lastName: '',
-        email: '',
-        againPass: '',
-    });
-    const [inputValues, setInputValues] = useState({
-        phonenumber: "",
-        firstName: "",
-        lastName: "",
-        password: "",
-        roleCode: "",
-        email: "",
-        againPass: "",
-        genderCode: "",
-    });
-    let { data: dataRole } = useFetchAllcode("ROLE");
-    let { data: dataGender } = useFetchAllcode("GENDER");
+import './Login.css';
+import './Register.css';
 
-    if (dataRole && dataRole.length > 0) {
-        dataRole = dataRole.filter(
-            (item) => item.code !== "ADMIN" && item.code !== "COMPANY"
-        );
-    }
-    if (
-        dataGender &&
-        dataGender.length > 0 &&
-        inputValues.genderCode === "" &&
-        dataRole &&
-        dataRole.length > 0 &&
-        inputValues.roleCode === ""
-    ) {
-        setInputValues({
-            ...inputValues,
-            "genderCode": dataGender[0].code,
-            "roleCode": dataRole[0].code,
-        });
-    }
-
-    const handleOnChange = (event) => {
-        const { name, value } = event.target;
-        setInputValues({ ...inputValues, [name]: value });
-    };
-
-    let handleLogin = async (phonenumber, password) => {
-        let res = await handleLoginService({
-            phonenumber: phonenumber,
-            password: password,
-        });
-
-        if (res && res.errCode === 0) {
-            establishSession(res);
-            if (
-                res.user.roleCode === "ADMIN" ||
-                res.user.roleCode === "EMPLOYER"
-            ) {
-                window.location.href = "/admin/";
-            } else {
-                window.location.href = "/";
-            }
-        } else {
-            toast.error(res.errMessage);
-        }
-    };
-
-    let handleRegister = async () => {
-        let checkPhonenumber = handleValidate(inputValues.phonenumber, "phone");
-        let checkPassword = handleValidate(inputValues.password, "password");
-        let checkFirstName = handleValidate(inputValues.firstName, "isEmpty");
-        let checkLastName = handleValidate(inputValues.lastName, "isEmpty");
-        let checkEmail = handleValidate(inputValues.email, "email");
-        if (
-            !(
-                checkPhonenumber === true &&
-                checkPassword === true &&
-                checkFirstName === true &&
-                checkLastName === true &&
-                checkEmail === true
-            )
-        ) {
-            setValidates({
-                phonenumber: checkPhonenumber,
-                password: checkPassword,
-                firstName: checkFirstName,
-                lastName: checkLastName,
-                email: checkEmail,
-            });
-            return;
-        }
-
-        if (inputValues.againPass !== inputValues.password) {
-            toast.error("Mật khẩu nhập lại không trùng khớp!");
-            return;
-        }
-        let res = await checkUserPhoneService(inputValues.phonenumber);
-        if (res === true) {
-            toast.error("Số điện thoại đã tồn tại !");
-        } else {
-            let createUser = async () => {
-                let res = await createNewUser({
-                    password: inputValues.password,
-                    firstName: inputValues.firstName,
-                    lastName: inputValues.lastName,
-                    phonenumber: inputValues.phonenumber,
-                    roleCode: inputValues.roleCode,
-                    email: inputValues.email,
-                    image: "https://res.cloudinary.com/bingo2706/image/upload/v1642521841/dev_setups/l60Hf_blyqhb.png",
-                });
-                if (res && res.errCode === 0) {
-                    toast.success("Tạo tài khoản thành công");
-                    handleLogin(inputValues.phonenumber, inputValues.password);
-                } else {
-                    toast.error(res.errMessage);
-                }
-            };
-            createUser();
-        }
-    };
-    return (
-        <>
-            <div className="container-scroller">
-                <div className="container-fluid page-body-wrapper full-page-wrapper">
-                    <div className="content-wrapper d-flex align-items-center auth px-0">
-                        <div className="row w-100 mx-0">
-                            <div className="col-lg-4 mx-auto">
-                                <div className="auth-form-light text-left py-5 px-4 px-sm-5">
-                                    <div className="brand-logo">
-                                        <img
-                                            src="/assets/img/logo/logo.png"
-                                            alt="logo"
-                                        />
-                                    </div>
-                                    <h4>Người mới?</h4>
-                                    <h6 className="font-weight-light">
-                                        Đăng ký dễ dàng chỉ vài bước đơn giản
-                                    </h6>
-                                    <form className="pt-3">
-                                        <div className="form-group">
-                                            <input
-                                                type="text"
-                                                value={inputValues.firstName}
-                                                name="firstName"
-                                                onChange={(event) =>
-                                                    handleOnChange(event)
-                                                }
-                                                className="form-control form-control-lg"
-                                                id="exampleInputUsername1"
-                                                placeholder="Họ"
-                                            />
-                                            {inputValidates.firstName !== '' && inputValidates.firstName !== true && (
-                                                <p style={{ color: "red" }}>
-                                                    {inputValidates.firstName}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="form-group">
-                                            <input
-                                                type="text"
-                                                value={inputValues.lastName}
-                                                name="lastName"
-                                                onChange={(event) =>
-                                                    handleOnChange(event)
-                                                }
-                                                className="form-control form-control-lg"
-                                                id="exampleInputUsername1"
-                                                placeholder="Tên"
-                                            />
-                                            {inputValidates.lastName !== '' && inputValidates.lastName !== true && (
-                                                <p style={{ color: "red" }}>
-                                                    {inputValidates.lastName}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="form-group">
-                                            <input
-                                                type="number"
-                                                value={inputValues.phonenumber}
-                                                name="phonenumber"
-                                                onChange={(event) =>
-                                                    handleOnChange(event)
-                                                }
-                                                className="form-control form-control-lg"
-                                                id="exampleInputEmail1"
-                                                placeholder="Số điện thoại"
-                                            />
-                                            {inputValidates.phonenumber !== '' && inputValidates.phonenumber !== true && (
-                                                <p style={{ color: "red" }}>
-                                                    {inputValidates.phonenumber}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="form-group">
-                                            <input
-                                                type="text"
-                                                value={inputValues.email}
-                                                name="email"
-                                                onChange={(event) =>
-                                                    handleOnChange(event)
-                                                }
-                                                className="form-control form-control-lg"
-                                                placeholder="Email"
-                                            />
-                                            {inputValidates.email !== '' && inputValidates.email !== true && (
-                                                <p style={{ color: "red" }}>
-                                                    {inputValidates.email}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="form-group">
-                                            <input
-                                                type="password"
-                                                value={inputValues.password}
-                                                name="password"
-                                                onChange={(event) =>
-                                                    handleOnChange(event)
-                                                }
-                                                className="form-control form-control-lg"
-                                                id="exampleInputPassword1"
-                                                placeholder="Mật khẩu"
-                                            />
-                                            {inputValidates.password !== '' && inputValidates.password !== true && (
-                                                <p style={{ color: "red" }}>
-                                                    {inputValidates.password}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="form-group">
-                                            <input
-                                                type="password"
-                                                value={inputValues.againPass}
-                                                name="againPass"
-                                                onChange={(event) =>
-                                                    handleOnChange(event)
-                                                }
-                                                className="form-control form-control-lg"
-                                                placeholder="Nhập lại mật khẩu"
-                                            />
-                                            {inputValidates.againPass !== '' && inputValidates.againPass !== true && (
-                                                <p style={{ color: "red" }}>
-                                                    {inputValidates.againPass}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="form-group">
-                                            <select
-                                                style={{ color: "black" }}
-                                                className="form-control"
-                                                value={inputValues.roleCode}
-                                                name="roleCode"
-                                                onChange={(event) =>
-                                                    handleOnChange(event)
-                                                }
-                                            >
-                                                {dataRole &&
-                                                    dataRole.length > 0 &&
-                                                    dataRole.map(
-                                                        (item, index) => {
-                                                            if (
-                                                                item.code !==
-                                                                    "ADMIN" &&
-                                                                item.code !==
-                                                                    "COMPANY"
-                                                            ) {
-                                                                return (
-                                                                    <option
-                                                                        key={
-                                                                            index
-                                                                        }
-                                                                        value={
-                                                                            item.code
-                                                                        }
-                                                                    >
-                                                                        {
-                                                                            item.value
-                                                                        }
-                                                                    </option>
-                                                                );
-                                                            }
-                                                            return null;
-                                                        }
-                                                    )}
-                                            </select>
-                                        </div>
-                                        <div className="form-group">
-                                            <select
-                                                style={{ color: "black" }}
-                                                className="form-control"
-                                                value={inputValues.genderCode}
-                                                name="genderCode"
-                                                onChange={(event) =>
-                                                    handleOnChange(event)
-                                                }
-                                            >
-                                                {dataGender &&
-                                                    dataGender.length > 0 &&
-                                                    dataGender.map(
-                                                        (item, index) => {
-                                                            return (
-                                                                <option
-                                                                    key={index}
-                                                                    value={
-                                                                        item.code
-                                                                    }
-                                                                >
-                                                                    {item.value}
-                                                                </option>
-                                                            );
-                                                        }
-                                                    )}
-                                            </select>
-                                        </div>
-                                        <div className="mt-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRegister()}
-                                                className="btn1 btn1-block btn1-primary1 btn1-lg font-weight-medium auth-form-btn1"
-                                            >
-                                                Đăng ký
-                                            </button>
-                                        </div>
-                                        <div className="text-center mt-4 font-weight-light">
-                                            Bạn đã có tài khoản rồi?{" "}
-                                            <Link
-                                                to="/login"
-                                                className="text-primary"
-                                            >
-                                                Đăng nhập ngay
-                                            </Link>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {/* content-wrapper ends */}
-                </div>
-                {/* page-body-wrapper ends */}
-            </div>
-        </>
-    );
+const publicRoles = [
+    { code: 'CANDIDATE', title: 'Ứng viên', description: 'Tìm việc phù hợp' },
+    { code: 'EMPLOYER', title: 'Nhà tuyển dụng', description: 'Kết nối ứng viên' }
+];
+const profileFields = ['roleCode', 'firstName', 'lastName', 'email'];
+const accountFields = ['phonenumber', 'password', 'againPass'];
+const validate = (name, values) => {
+    const value = values[name];
+    if (name === 'roleCode') return publicRoles.some(role => role.code === value) ? '' : 'Vui lòng chọn loại tài khoản.';
+    if (!value || !value.trim()) return 'Không được để trống.';
+    if (['firstName', 'lastName'].includes(name) && value.trim().length > 100) return 'Vui lòng nhập tối đa 100 ký tự.';
+    if (name === 'email' && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) || value.trim().length > 254)) return 'Email chưa đúng định dạng.';
+    if (name === 'phonenumber' && !/^\d{10}$/.test(value.trim())) return 'Số điện thoại cần đủ 10 chữ số.';
+    if (name === 'password' && !/^[a-zA-Z0-9]{6,20}$/.test(value)) return 'Dùng 6–20 ký tự, chỉ gồm chữ không dấu hoặc số.';
+    if (name === 'againPass' && value !== values.password) return 'Mật khẩu nhập lại chưa trùng khớp.';
+    return '';
 };
+const Eye = ({ visible }) => <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{visible && <path d="m3 3 18 18"/>}</svg>;
 
-export default Register;
+export default function Register() {
+    const [values, setValues] = useState({ firstName: '', lastName: '', email: '', phonenumber: '', password: '', againPass: '', roleCode: 'CANDIDATE' });
+    const [step, setStep] = useState(1), [errors, setErrors] = useState({});
+    const [visible, setVisible] = useState({ password: false, againPass: false });
+    const [busy, setBusy] = useState(false), [created, setCreated] = useState(false), [error, setError] = useState('');
+    const submitting = useRef(false), mounted = useRef(true), formRef = useRef(null), headingRef = useRef(null);
+    useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+    const change = event => {
+        const { name, value } = event.target;
+        const next = { ...values, [name]: value };
+        setValues(next); setError('');
+        setErrors(current => ({
+            ...current, [name]: current[name] ? validate(name, next) : '',
+            ...(name === 'password' && next.againPass ? { againPass: validate('againPass', next) } : {})
+        }));
+    };
+    const validateFields = fields => {
+        const invalid = Object.fromEntries(fields.map(name => [name, validate(name, values)]));
+        setErrors(invalid);
+        const first = fields.find(name => invalid[name]);
+        if (first) formRef.current?.elements.namedItem(first)?.focus?.();
+        return !first;
+    };
+    const goTo = next => {
+        setStep(next); setError(''); setErrors({});
+        setVisible({ password: false, againPass: false });
+        headingRef.current?.focus({ preventScroll: true });
+    };
+    const login = async () => {
+        const result = await handleLoginService({ phonenumber: values.phonenumber.trim(), password: values.password });
+        if (!mounted.current) return;
+        if (result?.errCode !== 0) throw new Error('Tài khoản đã được tạo. Chưa đăng nhập tự động được, vui lòng đăng nhập bằng số điện thoại và mật khẩu vừa đăng ký.');
+        establishSession(result);
+        window.location.href = ['ADMIN', 'EMPLOYER', 'COMPANY'].includes(result.user.roleCode) ? '/admin/' : '/';
+    };
+    const submit = async event => {
+        event.preventDefault();
+        if (submitting.current || created) return;
+        if (step === 1) { if (validateFields(profileFields)) goTo(2); return; }
+        if (!validateFields(accountFields)) return;
+        submitting.current = true; setBusy(true); setError('');
+        let accountCreated = false;
+        try {
+            const result = await createNewUser({
+                firstName: values.firstName.trim(), lastName: values.lastName.trim(),
+                email: values.email.trim().toLowerCase(), phonenumber: values.phonenumber.trim(),
+                roleCode: values.roleCode, password: values.password
+            });
+            if (!mounted.current) return;
+            if (result?.errCode !== 0) {
+                const message = result?.errMessage || 'Chưa tạo được tài khoản. Vui lòng thử lại.';
+                if (result?.errCode === 1) setErrors({ phonenumber: message });
+                else if (result?.errCode === 4) { setStep(1); setErrors({ email: message }); }
+                setError(message); return;
+            }
+            accountCreated = true; setCreated(true);
+            toast.success('Tạo tài khoản thành công');
+            await login();
+        } catch {
+            if (mounted.current) setError(accountCreated
+                ? 'Tài khoản đã được tạo. Chưa đăng nhập tự động được, vui lòng đăng nhập bằng số điện thoại và mật khẩu vừa đăng ký.'
+                : 'Chưa xác nhận được kết quả tạo tài khoản. Vui lòng kiểm tra kết nối; nếu đã đăng ký, hãy chuyển sang đăng nhập.');
+        } finally {
+            submitting.current = false;
+            if (mounted.current) { setBusy(false); if (accountCreated) setValues(current => ({ ...current, password: '', againPass: '' })); }
+        }
+    };
+    const input = (name, label, { type = 'text', autoComplete, hint, maxLength } = {}) => {
+        const secret = name === 'password' || name === 'againPass';
+        const toggleLabel = name === 'password' ? 'mật khẩu' : 'mật khẩu nhập lại';
+        return <div className="jf-login__field">
+            <label htmlFor={'register-' + name}>{label}</label>
+            <div className={'jf-login__input' + (errors[name] ? ' jf-login__input--invalid' : '')}>
+                <input id={'register-' + name} name={name} type={secret ? visible[name] ? 'text' : 'password' : type}
+                    inputMode={type === 'tel' ? 'tel' : undefined} autoComplete={autoComplete} value={values[name]}
+                    onChange={change} onBlur={() => setErrors(current => ({ ...current, [name]: validate(name, values) }))}
+                    placeholder={label} maxLength={maxLength} required disabled={busy}
+                    aria-invalid={!!errors[name]} aria-describedby={errors[name] ? 'register-error-' + name : hint ? 'register-hint-' + name : undefined}/>
+                {secret && <button className="jf-login__password-toggle" type="button" disabled={busy}
+                    onClick={() => setVisible(current => ({ ...current, [name]: !current[name] }))}
+                    aria-label={(visible[name] ? 'Ẩn ' : 'Hiện ') + toggleLabel} aria-pressed={visible[name]}><Eye visible={visible[name]}/></button>}
+            </div>
+            {errors[name] ? <span id={'register-error-' + name} className="jf-login__field-error" role="alert">{errors[name]}</span>
+                : hint && <small id={'register-hint-' + name} className="jf-register__hint">{hint}</small>}
+        </div>;
+    };
+
+    return <main className="jf-login jf-register">
+        <div className="jf-login__shell">
+            <section className="jf-login__form-panel" aria-labelledby="register-title">
+                <div className="jf-login__heading"><h1 id="register-title" ref={headingRef} tabIndex={-1}>{created ? 'Tài khoản đã sẵn sàng' : 'Tạo tài khoản'}</h1><p>{created ? 'Chào mừng bạn đến với JobFind.' : 'Bắt đầu chỉ với hai bước đơn giản.'}</p></div>
+                {!created && <ol className="jf-register__steps" aria-label="Tiến trình đăng ký"><li aria-current={step === 1 ? 'step' : undefined} className={step === 1 ? 'is-current' : 'is-complete'}><span>{step === 1 ? '1' : '✓'}</span>Thông tin của bạn</li><li aria-current={step === 2 ? 'step' : undefined} className={step === 2 ? 'is-current' : ''}><span>2</span>Bảo mật tài khoản</li></ol>}
+                {error && <p role="alert" className="jf-login__notice jf-login__notice--error">{error}</p>}
+                {created ? <div className="jf-register__success">
+                    <span className="jf-register__success-icon" aria-hidden="true">✓</span>
+                    <p role="status">{busy ? 'Đang đăng nhập vào tài khoản của bạn...' : 'Tạo tài khoản thành công. Bạn có thể đăng nhập ngay.'}</p>
+                    {!busy && <Link className="jf-login__submit" to="/login">Đến trang đăng nhập →</Link>}
+                </div> : <form ref={formRef} aria-label="Đăng ký JobFind" onSubmit={submit} noValidate aria-busy={busy}>
+                    {step === 1 ? <>
+                        <fieldset className="jf-register__roles" disabled={busy}><legend>Bạn muốn sử dụng JobFind để</legend><div>{publicRoles.map(role => <label key={role.code} className={values.roleCode === role.code ? 'is-selected' : ''}><input type="radio" name="roleCode" value={role.code} checked={values.roleCode === role.code} onChange={change}/><span><strong>{role.title}</strong><small>{role.description}</small></span></label>)}</div></fieldset>
+                        <div className="jf-register__names">{input('firstName', 'Họ', { autoComplete: 'family-name', maxLength: 100 })}{input('lastName', 'Tên', { autoComplete: 'given-name', maxLength: 100 })}</div>
+                        {input('email', 'Email', { type: 'email', autoComplete: 'email', maxLength: 254 })}
+                    </> : <>
+                        {input('phonenumber', 'Số điện thoại', { type: 'tel', autoComplete: 'username', maxLength: 10 })}
+                        {input('password', 'Mật khẩu', { autoComplete: 'new-password', maxLength: 20, hint: '6–20 ký tự, chỉ gồm chữ không dấu hoặc số.' })}
+                        {input('againPass', 'Nhập lại mật khẩu', { autoComplete: 'new-password', maxLength: 20 })}
+                    </>}
+                    <div className="jf-register__actions">
+                        {step === 2 && <button type="button" className="jf-register__back" disabled={busy} onClick={() => goTo(1)}>← Quay lại</button>}
+                        <button type="submit" className="jf-login__submit" disabled={busy}>{busy ? 'Đang tạo tài khoản...' : step === 1 ? 'Tiếp tục' : 'Tạo tài khoản'}{busy ? <span className="jf-login__spinner" aria-hidden="true"/> : <span aria-hidden="true">→</span>}</button>
+                    </div>
+                </form>}
+                {!created && <p className="jf-login__register">Đã có tài khoản? <Link to="/login">Đăng nhập ngay</Link></p>}
+            </section>
+        </div>
+    </main>;
+}

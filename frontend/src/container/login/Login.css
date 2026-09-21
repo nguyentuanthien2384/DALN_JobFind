@@ -1,0 +1,58 @@
+.jf-login, .jf-login * { box-sizing: border-box; }
+.jf-login-page { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; background: #f4f5fb; }
+.jf-login-page > header { flex: none; }
+.jf-login-page__footer { flex: none; padding: 6px 16px 12px; color: #8a91a2; text-align: center; font: 11px/18px system-ui, sans-serif; }
+.jf-login { flex: 1; display: flex; align-items: center; padding: 20px 24px 12px; background: #f4f5fb; color: #25344d; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.jf-login__shell { display: grid; grid-template-columns: 1fr; width: 100%; max-width: 480px; margin: 0 auto; background: #fff; border: 1px solid #e5e7f2; border-radius: 20px; overflow: hidden; box-shadow: 0 16px 48px #25365b0c; }
+.jf-login__eyebrow { display: block; font-size: 10px; line-height: 1.6; letter-spacing: .12em; font-weight: 750; color: #8177d0; }
+.jf-login__form-panel { padding: 24px 34px; min-width: 0; }
+.jf-login__heading { margin-bottom: 16px; }
+.jf-login__heading > .jf-login__eyebrow { display: none; }
+.jf-login__heading h1 { font-family: inherit; font-size: 28px; font-weight: 720; letter-spacing: -.025em; line-height: 1.3; color: #243451; margin: 0 0 5px; }
+.jf-login__heading p { color: #7b8596; font-size: 13px; line-height: 1.7; margin: 0; }
+.jf-login button, .jf-login input { font: inherit; text-transform: none; letter-spacing: normal; }
+.jf-login button { cursor: pointer; }
+.jf-login button:disabled { cursor: not-allowed; }
+.jf-login :is(button, a, input):focus-visible { outline: 3px solid #b1a6f1; outline-offset: 3px; }
+.jf-login .jf-login__google { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 44px; border: 1px solid #dfe3eb; border-radius: 10px; color: #354158; background: #fff; font-size: 13px; font-weight: 600; transition: background .15s, border-color .15s; }
+.jf-login .jf-login__google:hover:enabled { border-color: #ada5da; background: #faf9ff; }
+.jf-login .jf-login__google:disabled { color: #70798c; background: #f8f9fc; border-color: #e4e7ef; }
+.jf-login__google svg { flex: none; }
+.jf-login__provider-note { font-size: 11px; line-height: 1.6; color: #7a8597; margin: 8px 0 0; }
+.jf-login__provider-note--unavailable { padding-left: 10px; border-left: 2px solid #dfdaef; }
+.jf-login__provider-note--error { color: #986222; }
+.jf-login__provider-note button { border: 0; background: transparent; color: #5a4ca6; font-weight: 650; text-decoration: underline; padding: 2px 4px; }
+.jf-login__divider { display: flex; align-items: center; gap: 15px; margin: 14px 0; color: #9199aa; font-size: 11px; }
+.jf-login__divider::before, .jf-login__divider::after { content: ''; height: 1px; background: #eaeaf2; flex: 1; }
+.jf-login__field { margin-bottom: 12px; }
+.jf-login__field label { display: block; font-size: 12px; font-weight: 650; color: #43506a; margin: 0 0 6px; }
+.jf-login__label-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.jf-login__label-row a { color: #6656af; font-size: 11px; text-decoration: none; font-weight: 550; }
+.jf-login__input { display: flex; align-items: center; gap: 11px; border: 1px solid #dfe3ed; border-radius: 10px; min-height: 44px; padding: 0 14px; color: #939bb1; background: #fff; transition: border-color .15s, box-shadow .15s; }
+.jf-login__input:focus-within { border-color: #9382d3; box-shadow: 0 0 0 3px #9382d313; }
+.jf-login__input > svg { flex: none; width: 18px; }
+.jf-login__input input { min-width: 0; width: 100%; height: 42px; border: 0; padding: 0; background: transparent; color: #273651; font-size: 13px; box-shadow: none; border-radius: 0; }
+.jf-login__input input:focus-visible { outline: 0; }
+.jf-login__input input::placeholder { color: #a4abba; }
+.jf-login__input input:disabled { opacity: .7; }
+.jf-login .jf-login__password-toggle { display: grid; place-items: center; flex: none; border: 0; padding: 9px; margin-right: -9px; background: transparent; border-radius: 7px; color: #7e86a0; }
+.jf-login .jf-login__password-toggle:hover:enabled { background: #f2f0fa; color: #5c4eb0; }
+.jf-login__input--invalid { border-color: #ca777b; }
+.jf-login__field-error { display: block; color: #b13f48; font-size: 11px; margin-top: 6px; }
+.jf-login__caps { color: #997027; font-size: 11px; display: block; margin-top: 6px; }
+.jf-login .jf-login__submit { width: 100%; min-height: 44px; border: 1px solid #5549ac; border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 14px; background: #5549ac; color: #fff; font-size: 13px; font-weight: 650; box-shadow: 0 6px 15px #5549ac1c; transition: background .15s; margin-top: 16px; }
+.jf-login .jf-login__submit:hover:enabled { background: #44378f; }
+.jf-login .jf-login__submit:disabled { opacity: .65; }
+.jf-login__register { color: #81899b; font-size: 12px; line-height: 1.7; text-align: center; margin: 16px 0 0; }
+.jf-login__register a { font-weight: 650; color: #6654b0; text-decoration: none; white-space: nowrap; }
+.jf-login a:hover { text-decoration: underline; }
+.jf-login__safety { display: none; }
+.jf-login__safety svg { flex: none; color: #959cae; }
+.jf-login__notice { color: #46627b; background: #edf4fa; border: 1px solid #dbe8f3; border-radius: 10px; padding: 12px 14px; margin: 0 0 18px; font-size: 12px; line-height: 1.7; }
+.jf-login__notice--error { color: #a4424e; background: #fff4f4; border-color: #f1d9dc; }
+.jf-login__spinner { width: 16px; height: 16px; border: 2px solid #ffffff55; border-top-color: #fff; border-radius: 50%; animation: jf-login-spin .8s linear infinite; }
+@keyframes jf-login-spin { to { transform: rotate(360deg); } }
+@media (max-width: 1000px) { .jf-login__form-panel { padding: 24px; } }
+@media (max-width: 760px) { .jf-login { padding: 12px 16px; } .jf-login__shell { max-width: 440px; grid-template-columns: 1fr; border-radius: 16px; } .jf-login__form-panel { padding: 24px; } .jf-login__input input { font-size: 16px; } }
+@media (max-height: 740px) { .jf-login { padding-top: 10px; padding-bottom: 8px; } .jf-login__form-panel { padding-top: 18px; padding-bottom: 18px; } .jf-login__heading { margin-bottom: 12px; } .jf-login__divider { margin: 10px 0; } .jf-login__register { margin-top: 12px; } .jf-login-page__footer { padding-top: 4px; padding-bottom: 8px; } }
+@media (prefers-reduced-motion: reduce) { .jf-login *, .jf-login *::before, .jf-login *::after { transition: none !important; animation: none !important; } }

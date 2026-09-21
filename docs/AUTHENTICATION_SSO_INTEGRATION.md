@@ -4,7 +4,11 @@
 
 Mã trong ZIP đã được đối chiếu và đồng bộ với dự án, sau đó sửa lỗi tích hợp và bổ sung kiểm thử. Xác thực chạy tại backend; API Gateway chuyển tiếp cookie và redirect nguyên vẹn. Quyền nghiệp vụ lấy từ tài khoản/công ty hiện tại trong MySQL, không lấy quyền do Google hoặc trình duyệt khai báo.
 
-Google SSO **chưa bật** vì chưa có Google OAuth Client. Đăng nhập số điện thoại/mật khẩu hoạt động độc lập. Nút Google chỉ hiện khi `/api/auth/providers` xác nhận cấu hình backend sẵn sàng; không cần cờ riêng hoặc secret trong frontend.
+Google SSO **chưa bật** vì chưa có Google OAuth Client. Đăng nhập số điện thoại/mật khẩu hoạt động độc lập. Trang đăng nhập luôn hiển thị nút Google và trạng thái; nút chỉ bấm được khi `/api/auth/providers` xác nhận backend sẵn sàng. Nếu chưa bật, giao diện hướng dẫn dùng số điện thoại/mật khẩu; lỗi kiểm tra có nút thử lại. Không cần cờ riêng hoặc secret trong frontend.
+
+Trang `/login` đã có bố cục riêng cho máy tính/điện thoại, nhãn nhập liệu và tự điền mật khẩu, hiện/ẩn mật khẩu, kiểm tra trường trống, lỗi ngay trong form, chặn gửi trùng và trạng thái chờ hoàn tất Google. Sau khi đăng nhập, mở menu tài khoản → **Bảo mật và đăng nhập** để quản lý liên kết Google và các phiên. Google chỉ đăng nhập tài khoản đã liên kết; chưa tự tạo tài khoản mới từ Google.
+
+Trang `/register` dùng cùng bố cục gọn, gồm hai bước: chọn Ứng viên/Nhà tuyển dụng và nhập họ tên/email, rồi nhập số điện thoại và mật khẩu. Có quay lại giữ dữ liệu, hiện/ẩn mật khẩu, xác nhận mật khẩu, báo lỗi theo từng trường và chặn gửi trùng. Tạo xong sẽ đăng nhập tự động; nếu đăng nhập lỗi, trang xác nhận tài khoản đã tạo và dẫn sang đăng nhập, không gửi lại lệnh tạo tài khoản. Không gửi ảnh mặc định sang Cloudinary; ảnh và thông tin hồ sơ bổ sung được cập nhật sau. Chính sách mật khẩu của form vẫn giữ 6–20 chữ không dấu hoặc số như trước.
 
 ## Chức năng
 
@@ -78,6 +82,8 @@ npm run build --prefix frontend
 `test:auth:integration` tạo database MySQL riêng mang tên `jobfind_auth_test_<random>`, chạy migration và luồng HTTP thật rồi dọn database thử đó; cần quyền tạo/xóa database thử. Không sửa dữ liệu của `jobfindtest`.
 
 `test:auth:browser` cần ứng dụng local đang chạy (`npm start`), tạo một tài khoản QA tạm với mật khẩu ngẫu nhiên, thử đăng nhập/tải lại/đa tab/đăng xuất/đổi mật khẩu qua trình duyệt rồi dọn tài khoản đó. Ảnh desktop/mobile lưu trong `.local/auth-browser/`.
+
+`node backend/scripts/test-register-browser.cjs` kiểm tra hai bước đăng ký ở desktop/mobile, dữ liệu khi quay lại, lỗi và vai trò; tạo một ứng viên QA qua API thật, kiểm tra đăng nhập/cookie và dữ liệu được lưu, rồi dọn đúng tài khoản thử. Script luôn truyền mật khẩu và không truyền ảnh nên không gửi email hay upload ảnh. Ảnh nằm trong `.local/register-browser/`; mỗi lần chạy dùng một lượt đăng ký thật trong giới hạn chống spam.
 
 Kiểm thử bao gồm cookie/Origin, JWT có session ID, xoay vòng/replay refresh, gia hạn đồng thời, gia hạn đua với logout/logout-all, đổi mật khẩu thu hồi phiên, HTTP sau logout, proxy giữ cookie/redirect và bỏ header giả mạo, state/browser/nonce/PKCE và chính sách liên kết SSO, phản hồi refresh đến muộn sau đổi tài khoản, RBAC và ranh giới công ty hiện có.
 

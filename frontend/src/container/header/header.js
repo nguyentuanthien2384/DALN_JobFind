@@ -277,10 +277,10 @@ const Header = () => {
                                                     </li>
                                                 </ul>
                                                 :
-                                                <>
-                                                    <Link to={'/register'} className="btn head-btn1">Đăng kí</Link>
-                                                    <Link to={'/login'} className="btn head-btn2">Đăng nhập</Link>
-                                                </>
+                                                <div className="public-auth-links">
+                                                    <NavLink to="/register" className="public-auth-link">Đăng kí</NavLink>
+                                                    <NavLink to="/login" className="public-auth-link">Đăng nhập</NavLink>
+                                                </div>
                                             }
 
 
@@ -345,8 +345,8 @@ const Header = () => {
                                                 ) : (
                                                     <>
                                                         <li className="public-mobile-menu-divider" />
-                                                        <li><Link to="/register" onClick={closeHeaderMenus}>Đăng kí</Link></li>
-                                                        <li><Link to="/login" onClick={closeHeaderMenus}>Đăng nhập</Link></li>
+                                                        <li><NavLink to="/register" className="public-auth-mobile-link" onClick={closeHeaderMenus}>Đăng kí</NavLink></li>
+                                                        <li><NavLink to="/login" className="public-auth-mobile-link" onClick={closeHeaderMenus}>Đăng nhập</NavLink></li>
                                                     </>
                                                 )}
                                             </ul>

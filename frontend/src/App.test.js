@@ -104,7 +104,8 @@ describe("application routes", () => {
         renderAt(path);
         expect(screen.getByText(pageText)).toBeInTheDocument();
         expect(screen.getByText("site-header")).toBeInTheDocument();
-        expect(screen.getByText("site-footer")).toBeInTheDocument();
+        if (['/login', '/register'].includes(path)) expect(screen.getByRole('contentinfo')).toHaveTextContent('JobFind');
+        else expect(screen.getByText("site-footer")).toBeInTheDocument();
     });
 
     it.each([

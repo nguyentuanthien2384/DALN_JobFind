@@ -243,21 +243,21 @@ function App() {
                 <Route
                     path="/login"
                     element={
-                        <>
+                        <div className="jf-login-page">
                             <Header />
                             <Login />
-                            <Footer />
-                        </>
+                            <footer className="jf-login-page__footer">© {new Date().getFullYear()} JobFind</footer>
+                        </div>
                     }
                 />
                 <Route
                     path="/register"
                     element={
-                        <>
+                        <div className="jf-login-page">
                             <Header />
                             <Register />
-                            <Footer />
-                        </>
+                            <footer className="jf-login-page__footer">© {new Date().getFullYear()} JobFind</footer>
+                        </div>
                     }
                 />
                 <Route

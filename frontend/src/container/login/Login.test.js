@@ -1,10 +1,11 @@
-jest.mock('../../auth/authClient', () => ({ ...jest.requireActual('../../auth/authClient'), getProviders: jest.fn().mockResolvedValue({ google: false }) }));
+jest.mock('../../auth/authClient', () => ({ ...jest.requireActual('../../auth/authClient'), getProviders: jest.fn(), startGoogleLogin: jest.fn(), refreshSession: jest.fn() }));
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-toastify";
 import { handleLoginService } from "../../service/userService";
 import Login from "./Login";
-import { getProviders } from '../../auth/authClient';
+import { getProviders, startGoogleLogin, refreshSession } from '../../auth/authClient';
+import { useLocation } from 'react-router-dom';
 
 jest.mock("../../service/userService", () => ({
     handleLoginService: jest.fn(),
@@ -16,6 +17,7 @@ jest.mock("react-router-dom", () => {
     const React = require("react");
     return {
         Link: ({ to, children, ...props }) => React.createElement("a", { href: to, ...props }, children),
+        useLocation: jest.fn(() => ({ state: null })),
     };
 });
 
@@ -28,10 +30,11 @@ const fillAndSubmit = (phone = "0912345678", password = "secret1") => {
 };
 
 describe("Login", () => {
-    it('explains an expired session on the login page', () => {
+    it('explains an expired session on the login page', async () => {
         window.history.replaceState({}, '', '/login?reason=expired');
         renderLogin();
         expect(screen.getByRole('status')).toHaveTextContent('Phiên đăng nhập đã hết hạn');
+        await screen.findByText(/Đăng nhập Google chưa được bật/);
     });
     it('handles a rejected login request without leaving the submit button stuck', async () => {
         handleLoginService.mockRejectedValueOnce(new Error('network failure'));
@@ -43,6 +46,7 @@ describe("Login", () => {
     beforeEach(() => {
         localStorage.clear();
         jest.clearAllMocks();
+        useLocation.mockReturnValue({ state: null });
         getProviders.mockResolvedValue({ google: false });
         window.history.replaceState({}, "", "/login");
     });
@@ -64,7 +68,8 @@ describe("Login", () => {
         handleLoginService.mockResolvedValue(null);
         renderLogin();
         fillAndSubmit();
-        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Dang nhap that bai. Vui long thu lai."));
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Đăng nhập thất bại. Vui lòng thử lại."));
+        expect(screen.getByRole('alert')).toHaveTextContent('Đăng nhập thất bại');
     });
 
     it("disables submit and prevents duplicate requests while logging in", async () => {
@@ -72,7 +77,7 @@ describe("Login", () => {
         handleLoginService.mockImplementation(() => new Promise((resolve) => { resolveLogin = resolve; }));
         renderLogin();
         fillAndSubmit();
-        const submit = screen.getByRole("button", { name: "Đăng nhập" });
+        const submit = screen.getByRole("button", { name: "Đang đăng nhập..." });
         await waitFor(() => expect(submit).toBeDisabled());
         fireEvent.click(submit);
         expect(handleLoginService).toHaveBeenCalledTimes(1);
@@ -105,5 +110,113 @@ describe("Login", () => {
         await waitFor(() => expect(localStorage.getItem("lastUrl")).toBeNull());
         expect(localStorage.getItem("token_user")).toMatch(/^jf-session:/);
         consoleError.mockRestore();
+    });
+});
+
+describe('Login methods and form feedback', () => {
+    beforeEach(() => {
+        localStorage.clear(); jest.clearAllMocks();
+        useLocation.mockReturnValue({ state: null });
+        getProviders.mockResolvedValue({ google: false });
+        window.history.replaceState({}, '', '/login');
+    });
+    it('keeps Google visible and explains why it cannot be used before configuration', async () => {
+        renderLogin();
+        await screen.findByText(/Đăng nhập Google chưa được bật/);
+        const google = screen.getByRole('button', { name: 'Đăng nhập bằng Google' });
+        expect(google).toBeDisabled(); fireEvent.click(google);
+        expect(startGoogleLogin).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled();
+    });
+    it('checks empty fields without sending credentials and focuses the missing input', async () => {
+        renderLogin();
+        fireEvent.submit(screen.getByRole('form', { name: 'Đăng nhập JobFind' }));
+        expect(screen.getByText('Vui lòng nhập số điện thoại.')).toBeInTheDocument();
+        expect(screen.getByLabelText('Số điện thoại')).toHaveFocus();
+        fireEvent.change(screen.getByLabelText('Số điện thoại'), { target: { value: '0912345678' } });
+        fireEvent.submit(screen.getByRole('form'));
+        expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveFocus();
+        expect(handleLoginService).not.toHaveBeenCalled();
+        await screen.findByText(/Đăng nhập Google chưa được bật/);
+    });
+    it('supports phone/password autofill and toggles password visibility without submitting', async () => {
+        renderLogin();
+        expect(screen.getByLabelText('Số điện thoại')).toHaveAttribute('type', 'tel');
+        expect(screen.getByLabelText('Số điện thoại')).toHaveAttribute('autocomplete', 'username');
+        const password = screen.getByLabelText('Mật khẩu', { exact: true });
+        expect(password).toHaveAttribute('autocomplete', 'current-password');
+        fireEvent.change(password, { target: { value: 'not-a-real-password' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Hiện mật khẩu' }));
+        expect(password).toHaveAttribute('type', 'text');
+        expect(password).toHaveValue('not-a-real-password');
+        fireEvent.click(screen.getByRole('button', { name: 'Ẩn mật khẩu' }));
+        expect(password).toHaveAttribute('type', 'password');
+        expect(handleLoginService).not.toHaveBeenCalled();
+        await screen.findByText(/Đăng nhập Google chưa được bật/);
+    });
+    it('recovers provider lookup after failure while keeping local login available', async () => {
+        getProviders.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ google: true });
+        renderLogin();
+        await screen.findByText(/Chưa kiểm tra được đăng nhập Google/);
+        expect(screen.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeEnabled());
+        fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập bằng Google' }));
+        expect(startGoogleLogin).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('button', { name: /Đang chuyển đến Google/ })).toBeDisabled();
+    });
+    it('treats a malformed provider response as a load error', async () => {
+        getProviders.mockResolvedValueOnce({ google: 'true' });
+        renderLogin();
+        await screen.findByText(/Chưa kiểm tra được đăng nhập Google/);
+        expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeDisabled();
+    });
+    it.each([
+        ['/account/security', '/account/security'],
+        ['https://untrusted.example/path', null]
+    ])('remembers only safe protected routes before Google (%s)', async (from, expected) => {
+        useLocation.mockReturnValue({ state: { from } });
+        getProviders.mockResolvedValueOnce({ google: true });
+        renderLogin();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeEnabled());
+        fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập bằng Google' }));
+        expect(localStorage.getItem('lastUrl')).toBe(expected);
+    });
+    it('disables local login during SSO completion and recovers on failure', async () => {
+        let rejectSso;
+        refreshSession.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectSso = reject; }));
+        window.history.replaceState({}, '', '/login?sso=success');
+        renderLogin();
+        expect(screen.getByRole('button', { name: 'Đang xác thực...' })).toBeDisabled();
+        expect(screen.getByRole('status')).toHaveTextContent('Đang hoàn tất đăng nhập Google');
+        rejectSso(new Error('invalid callback'));
+        await screen.findByText('Không thể hoàn tất đăng nhập Google. Vui lòng đăng nhập lại.');
+        expect(screen.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled();
+    });
+    it('establishes the returned SSO session and consumes the remembered route', async () => {
+        const user = { id: 21, roleCode: 'CANDIDATE' };
+        refreshSession.mockResolvedValueOnce({ errCode: 0, token: 'sso-test-token', user });
+        localStorage.setItem('lastUrl', '/account/security');
+        window.history.replaceState({}, '', '/login?sso=success');
+        // jsdom does not implement cross-document navigation; the browser suite
+        // covers the real redirects for local login.
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            renderLogin();
+            await waitFor(() => expect(localStorage.getItem('token_user')).toMatch(/^jf-session:/));
+            expect(JSON.parse(localStorage.getItem('userData'))).toEqual(user);
+            expect(localStorage.getItem('lastUrl')).toBeNull();
+            expect(screen.queryByRole('alert')).toBeNull();
+        } finally { consoleError.mockRestore(); }
+    });
+    it.each([
+        ['cancelled', /Bạn đã hủy đăng nhập Google/],
+        ['not-linked', /Tài khoản Google này chưa liên kết/],
+        ['failed', /Không thể xác thực Google/]
+    ])('explains SSO result %s without starting a new session', async (status, message) => {
+        window.history.replaceState({}, '', '/login?sso=' + status);
+        renderLogin(); expect(screen.getByText(message)).toBeInTheDocument();
+        await screen.findByText(/Đăng nhập Google chưa được bật/);
+        expect(refreshSession).not.toHaveBeenCalled();
     });
 });
