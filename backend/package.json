@@ -18,6 +18,7 @@
     "test:chat:infrastructure": "node scripts/test-chat-infrastructure.cjs",
     "test:chat:media": "node scripts/test-chat-media.cjs",
     "test:chat:media:browser": "node scripts/test-chat-media.cjs --browser",
+    "test:documents:browser": "node scripts/test-document-preview-browser.cjs",
     "test:support-chat": "jest --runInBand --runTestsByPath tests/services/supportChatService.test.cjs tests/services/supportJobTools.test.cjs tests/services/supportToolCalling.test.cjs tests/services/supportReadiness.test.cjs",
     "test:support-chat:browser": "node scripts/test-support-chat-browser.cjs",
     "test:support-chat:live": "node scripts/evaluate-support-chat.cjs",

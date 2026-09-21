@@ -1,5 +1,5 @@
 import React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import Lightbox from "react-image-lightbox";
 import "react-image-lightbox/style.css";
@@ -16,8 +16,15 @@ import { Spinner, Modal } from "reactstrap";
 import "../../../components/modal/modal.css";
 import { useNavigate, useParams } from "react-router-dom";
 import PdfPreviewButton from "../../../components/documents/PdfPreviewButton";
+import usePreviewSession, { getPreviewSessionKey as previewSessionKey } from "../../../components/documents/usePreviewSession";
 const AddCompany = () => {
     const { id } = useParams();
+    const previewSessionActive = usePreviewSession();
+    const previewScope = JSON.stringify([id, previewSessionKey()]);
+    const currentPreview = useRef({ scope: previewScope, active: previewSessionActive });
+    currentPreview.current = { scope: previewScope, active: previewSessionActive };
+    const mounted = useRef(false), companyRequest = useRef(0), certificateSelection = useRef(0);
+    const [fileScope, setFileScope] = useState(null);
     const mdParser = new MarkdownIt();
     const [user, setUser] = useState({});
     const [isLoading, setIsLoading] = useState(false);
@@ -42,9 +49,22 @@ const AddCompany = () => {
         imageClick: "",
         isFileChange: false,
     });
+    useEffect(() => {
+        mounted.current = true;
+        return () => { mounted.current = false; companyRequest.current += 1; certificateSelection.current += 1; };
+    }, []);
     const fetchCompany = useCallback(async (userId, companyId = null) => {
-        let res = await getDetailCompanyByUserId(userId, companyId);
+        const request = ++companyRequest.current;
+        const sourceScope = currentPreview.current.scope;
+        const session = previewSessionKey();
+        const selection = certificateSelection.current;
+        let res;
+        try { res = await getDetailCompanyByUserId(userId, companyId); }
+        catch { return; }
+        if (!mounted.current || request !== companyRequest.current || !currentPreview.current.active ||
+            sourceScope !== currentPreview.current.scope || session !== previewSessionKey()) return;
         if (res && res.errCode === 0) {
+            const canReplaceFile = selection === certificateSelection.current;
             setInputValues((currentValues) => ({
                 ...currentValues,
                 "name": res.data.name,
@@ -61,13 +81,19 @@ const AddCompany = () => {
                 "coverImageReview": res.data.coverimage,
                 "isActionADD": false,
                 "id": res.data.id,
-                "file": res.data.file,
-                "fileName": `Ho-so-cong-ty-${res.data.id}.pdf`,
+                ...(canReplaceFile ? {
+                    file: res.data.file,
+                    fileName: `Ho-so-cong-ty-${res.data.id}.pdf`,
+                    isFileChange: false,
+                } : {}),
             }));
+            if (canReplaceFile) setFileScope(sourceScope);
         }
     }, []);
 
     useEffect(() => {
+        setFileScope(null);
+        setInputValues(currentValues => ({ ...currentValues, file: '', fileName: '', isFileChange: false }));
         const userData = JSON.parse(localStorage.getItem("userData"));
         if (userData && userData.roleCode !== "ADMIN") {
             fetchCompany(userData.id);
@@ -75,7 +101,8 @@ const AddCompany = () => {
             fetchCompany(null, id);
         }
         setUser(userData);
-    }, [fetchCompany, id]);
+        return () => { companyRequest.current += 1; certificateSelection.current += 1; };
+    }, [fetchCompany, id, previewScope]);
     const handleOnChange = (event) => {
         const { name, value } = event.target;
         setInputValues({ ...inputValues, [name]: value });
@@ -87,15 +114,19 @@ const AddCompany = () => {
         if (file) {
             let base64 = await CommonUtils.getBase64(file);
             let objectUrl = URL.createObjectURL(file);
-            setInputValues({
-                ...inputValues,
+            setInputValues(currentValues => ({
+                ...currentValues,
                 [name]: base64,
                 [`${name}Review`]: objectUrl,
-            });
+            }));
         }
     };
 
     let handleOnChangeFile = async (event) => {
+        const selection = ++certificateSelection.current;
+        const sourceScope = previewScope, session = previewSessionKey();
+        const isCurrent = () => mounted.current && selection === certificateSelection.current && currentPreview.current.active &&
+            sourceScope === currentPreview.current.scope && session === previewSessionKey();
         let data = event.target.files;
         let file = data[0];
         if (file) {
@@ -103,7 +134,13 @@ const AddCompany = () => {
                 toast.error("File của bạn quá lớn. Chỉ gửi file dưới 2MB");
                 return;
             }
-            let base64 = await CommonUtils.getBase64(file);
+            let base64;
+            try { base64 = await CommonUtils.getBase64(file); }
+            catch {
+                if (isCurrent()) toast.error('Không đọc được tài liệu. Vui lòng chọn lại tệp PDF.');
+                return;
+            }
+            if (!isCurrent()) return;
 
             setInputValues(currentValues => ({
                 ...currentValues,
@@ -111,6 +148,7 @@ const AddCompany = () => {
                 fileName: file.name,
                 isFileChange: true,
             }));
+            setFileScope(sourceScope);
         }
     };
     let openPreviewImage = (event) => {
@@ -501,7 +539,7 @@ const AddCompany = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    {inputValues.file && (
+                                    {inputValues.file && previewSessionActive && fileScope === previewScope && (
                                         <div className="col-md-12">
                                             <div className="form-group row">
                                                 <label className="col-sm-3 col-form-label">
@@ -509,6 +547,7 @@ const AddCompany = () => {
                                                 </label>
                                                 <div className="col-sm-9">
                                                     <PdfPreviewButton
+                                                        key={previewScope}
                                                         source={inputValues.file}
                                                         fileName={inputValues.fileName || "Ho-so-cong-ty.pdf"}
                                                         label="Xem hồ sơ chứng nhận PDF"

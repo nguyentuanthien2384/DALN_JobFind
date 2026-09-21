@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Modal } from 'antd';
 import { chatPdfBlob, getChatPdf } from '../../service/chatMediaService';
+import usePreviewSession from '../documents/usePreviewSession';
 
 const PdfPreview = lazy(() => import('../documents/PdfPreview'));
 
@@ -15,11 +16,13 @@ class PreviewBoundary extends React.Component {
 }
 
 const ChatDocumentPreview = ({ attachment, onClose }) => {
+    const activeSession = usePreviewSession();
     const [file, setFile] = useState(null);
     const [name, setName] = useState(attachment.name || 'Tài liệu.pdf');
     const [error, setError] = useState('');
     const [retry, setRetry] = useState(0);
     useEffect(() => {
+        if (!activeSession) return undefined;
         let active = true;
         setFile(null); setError('');
         (async () => {
@@ -32,7 +35,8 @@ const ChatDocumentPreview = ({ attachment, onClose }) => {
             } catch (failure) { if (active) setError(failure.message || 'Không tải được tài liệu.'); }
         })();
         return () => { active = false; };
-    }, [attachment.id, retry]);
+    }, [attachment.id, retry, activeSession]);
+    if (!activeSession) return null;
     const loading = <Modal open title={name} footer={null} onCancel={onClose}>
         {error ? <><p role="alert">{error}</p><button className="chat-media-action" type="button" onClick={() => setRetry(value => value + 1)}>Thử tải lại PDF</button></>
             : <p role="status">Đang tải tài liệu PDF…</p>}

@@ -721,6 +721,7 @@ Chi tiết: [Bộ triển khai và quay lui](microservices/docs/release-preparat
 - [Web Push Notifications](docs/web-push.md)
 - [WebSocket & Realtime upgrade](docs/websocket-upgrade.md)
 - [Gửi CV/PDF và chia sẻ công việc trong chat](docs/chat-documents.md)
+- [Xem trước CV và tài liệu PDF trong toàn hệ thống](docs/document-preview.md)
 - [Trang chi tiết việc làm](docs/job-detail-page.md)
 
 ### Xác thực & Bảo mật

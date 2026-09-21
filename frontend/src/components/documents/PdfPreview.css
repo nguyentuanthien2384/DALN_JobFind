@@ -10,4 +10,5 @@
 .chat-pdf-viewport .react-pdf__Document { width: fit-content; margin: 0 auto; }
 .chat-pdf-viewport .react-pdf__Page { box-shadow: 0 2px 12px #18324a20; }
 .chat-pdf-status { padding: 35px 15px; font-size: 14px; color: #52677d; }
+.chat-pdf-size-note { color: #52677d; font-size: 12px; max-width: 320px; }
 @media(max-width:600px) { .chat-pdf-modal .ant-modal-content { padding: 15px 12px; } .chat-pdf-toolbar { gap: 8px; } .chat-pdf-toolbar button { padding: 6px 8px; } .chat-pdf-viewport { padding: 10px; height: 65vh; } }

@@ -11,6 +11,7 @@ import {
 } from "../../service/userService";
 import UserInfo from "./User/UserInfo";
 import AddCompany from "./Company/AddCompany";
+import { SESSION_ENDED_EVENT } from "../../auth/sessionExpiry";
 
 let mockParams = {};
 const mockNavigate = jest.fn();
@@ -299,5 +300,57 @@ describe("company profile", () => {
         expect(screen.getByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).toHaveAttribute('data-source', '/certificate.pdf');
         expect(container.querySelector('iframe')).toBeNull();
         expect(screen.queryByRole("button", { name: "Lưu" })).not.toBeInTheDocument();
+    });
+
+    it('keeps the newest certificate when file reads finish out of order', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'COMPANY', companyId: 44 }));
+        getDetailCompanyByUserId.mockResolvedValue({ errCode: 0, data: companyDetail });
+        const view = render(<AddCompany />);
+        await screen.findByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' });
+        let finishOld;
+        CommonUtils.getBase64.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }))
+            .mockResolvedValueOnce('data:newest.pdf');
+        const input = screen.getByLabelText('Chọn hồ sơ chứng nhận PDF');
+        fireEvent.change(input, { target: { files: [new File(['first'], 'first.pdf', { type: 'application/pdf' })] } });
+        fireEvent.change(input, { target: { files: [new File(['newest'], 'newest.pdf', { type: 'application/pdf' })] } });
+        await act(async () => Promise.resolve());
+        await act(async () => finishOld('data:first.pdf'));
+        expect(screen.getByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).toHaveAttribute('data-source', 'data:newest.pdf');
+        fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+        await act(async () => Promise.resolve());
+        expect(updateCompanyService).toHaveBeenCalledWith(expect.objectContaining({ file: 'data:newest.pdf' }));
+        view.unmount();
+    });
+
+    it('hides the previous certificate immediately on company route changes and ignores older responses', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 1, roleCode: 'ADMIN' }));
+        mockParams = { id: '44' };
+        let finishMiddle;
+        getDetailCompanyByUserId.mockResolvedValueOnce({ errCode: 0, data: companyDetail })
+            .mockImplementationOnce(() => new Promise(resolve => { finishMiddle = resolve; }))
+            .mockResolvedValueOnce({ errCode: 0, data: { ...companyDetail, id: 46, file: '/company-46.pdf' } });
+        const view = render(<AddCompany />);
+        await screen.findByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' });
+        mockParams = { id: '45' }; view.rerender(<AddCompany />);
+        expect(screen.queryByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).not.toBeInTheDocument();
+        mockParams = { id: '46' }; view.rerender(<AddCompany />);
+        expect(await screen.findByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).toHaveAttribute('data-source', '/company-46.pdf');
+        await act(async () => finishMiddle({ errCode: 0, data: { ...companyDetail, id: 45, file: '/company-45.pdf' } }));
+        expect(screen.getByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).toHaveAttribute('data-source', '/company-46.pdf');
+    });
+
+    it('does not restore a pending certificate after the session ends', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'COMPANY', companyId: 44 }));
+        getDetailCompanyByUserId.mockResolvedValue({ errCode: 0, data: companyDetail });
+        render(<AddCompany />);
+        await screen.findByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' });
+        let finishFile;
+        CommonUtils.getBase64.mockImplementationOnce(() => new Promise(resolve => { finishFile = resolve; }));
+        fireEvent.change(screen.getByLabelText('Chọn hồ sơ chứng nhận PDF'), {
+            target: { files: [new File(['late'], 'late.pdf', { type: 'application/pdf' })] },
+        });
+        fireEvent(window, new Event(SESSION_ENDED_EVENT));
+        await act(async () => finishFile('data:late.pdf'));
+        expect(screen.queryByRole('button', { name: 'Xem hồ sơ chứng nhận PDF' })).not.toBeInTheDocument();
     });
 });

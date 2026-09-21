@@ -8,6 +8,7 @@ let appServer,fileServer,browser;
     const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);
     for(let i=1;i<=2;i++){const page=pdf.addPage([595,842]);page.drawText(i===1?'JOBFIND | CANDIDATE PROFILE':'EXPERIENCE & PROJECTS',{x:45,y:770,size:20,font});page.drawText(`Shared PDF preview verification - page ${i}`,{x:45,y:728,size:12,font});}
     const bytes=Buffer.from(await pdf.save()),data=`data:application/pdf;base64,${bytes.toString('base64')}`;
+    const tall=await PDFDocument.create();tall.addPage([100,10000]);const tallData=`data:application/pdf;base64,${Buffer.from(await tall.save()).toString('base64')}`;
     let crossOriginReads=0;
     fileServer=http.createServer((req,res)=>{assert.equal(req.headers.cookie,undefined);assert.equal(req.headers.authorization,undefined);crossOriginReads++;res.writeHead(200,{'content-type':'application/pdf','access-control-allow-origin':'*'});res.end(bytes);});
     await new Promise(resolve=>fileServer.listen(0,'127.0.0.1',resolve));
@@ -16,12 +17,13 @@ let appServer,fileServer,browser;
     require('node:child_process').execFileSync(process.execPath,[path.join(root,'frontend/scripts/copy-pdf-assets.cjs')],{windowsHide:true,stdio:'ignore'});
     await require('esbuild').build({stdin:{contents:`import React,{useState} from 'react';import{createRoot}from'react-dom/client';
         import{Modal,ModalBody,ModalFooter,Button}from'reactstrap';import PdfPreviewButton from './src/components/documents/PdfPreviewButton';
-        const data=${JSON.stringify(data)},remote=${JSON.stringify(remote)};
+        const data=${JSON.stringify(data)},remote=${JSON.stringify(remote)},tallData=${JSON.stringify(tallData)};
         function App(){const[parent,setParent]=useState(false),[file,setFile]=useState(null);return <main><h1>Hồ sơ & tài liệu</h1><p>Xem lại tài liệu trước khi gửi hoặc tải xuống.</p>
             <section><h2>CV đã nộp</h2><PdfPreviewButton source={data} fileName='CV-da-nop.pdf' label='Xem CV đã nộp'/></section>
             <section><h2>Chọn CV trên máy</h2><input type='file' aria-label='Chọn PDF' onChange={e=>setFile(e.target.files[0])}/>{file&&<PdfPreviewButton source={file} fileName={file.name} label='Xem PDF vừa chọn'/>}</section>
             <section><h2>Hồ sơ công ty</h2><PdfPreviewButton source={remote} fileName='Ho-so-cong-ty.pdf' label='Xem hồ sơ công ty'/></section>
             <section><PdfPreviewButton source='data:application/pdf;base64,PGh0bWw+YmFkPC9odG1sPg==' label='Tài liệu lỗi'/></section>
+            <section><PdfPreviewButton source={tallData} fileName='Trang-dai.pdf' label='Trang PDF lớn'/></section>
             <button onClick={()=>setParent(true)}>Mở form ứng tuyển</button>
             <Modal isOpen={parent} toggle={()=>setParent(false)} centered><ModalBody><h2>Ứng tuyển công việc</h2><label>Lời giới thiệu<input aria-label='Lời giới thiệu'/></label><PdfPreviewButton source={data} fileName='CV-ung-tuyen.pdf' label='Xem trước khi nộp'/></ModalBody><ModalFooter><Button onClick={()=>setParent(false)}>Đóng form</Button></ModalFooter></Modal>
         </main>}createRoot(document.getElementById('root')).render(<App/>);`,resolveDir:path.join(root,'frontend'),loader:'jsx'},bundle:true,format:'esm',outfile:path.join(assets,'app.js'),loader:{'.js':'jsx'},define:{'process.env.NODE_ENV':JSON.stringify('production'),'process.env.PUBLIC_URL':JSON.stringify(''),'process.env.REACT_APP_BACKEND_URL':JSON.stringify('/')},logLevel:'warning'});
@@ -39,14 +41,16 @@ let appServer,fileServer,browser;
     await page.getByLabel('Chọn PDF').setInputFiles({name:'CV-local.pdf',mimeType:'application/pdf',buffer:bytes});await page.getByRole('button',{name:'Xem PDF vừa chọn'}).click();await checkPdf();assert.equal(crossOriginReads,0);await close();
     await page.getByRole('button',{name:'Xem hồ sơ công ty'}).click();await checkPdf();assert.equal(crossOriginReads,1);await close();
     await page.getByRole('button',{name:'Tài liệu lỗi'}).click();await expect(page.getByRole('alert')).toContainText('không phải PDF');await expect(page.locator('iframe')).toHaveCount(0);await close();
+    await page.getByRole('button',{name:'Trang PDF lớn'}).click();await expect(page.locator('.react-pdf__Page canvas')).toBeVisible();
+    assert.ok(await page.locator('.react-pdf__Page canvas').evaluate(canvas=>canvas.width*canvas.height<=8*1024*1024&&canvas.height<=8192&&canvas.width<=8192));await close();
     await page.getByRole('button',{name:'Mở form ứng tuyển'}).click();await page.getByRole('button',{name:'Xem trước khi nộp'}).click();await checkPdf();
     await page.getByRole('link',{name:'Tải PDF',exact:true}).focus();await page.keyboard.press('Shift+Tab');
     assert.ok(await page.evaluate(()=>Boolean(document.activeElement.closest('.ant-modal'))),'Keyboard focus stays in PDF viewer');
     await page.keyboard.press('Escape');await expect(page.locator('.react-pdf__Page canvas')).toHaveCount(0);await expect(page.getByRole('heading',{name:'Ứng tuyển công việc'})).toBeVisible();
     await page.getByRole('button',{name:'Đóng form'}).click();
     await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Xem CV đã nộp',exact:true}).click();await checkPdf();
-    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(assets,'document-mobile.png')});await close();
-    await page.setViewportSize({width:1280,height:950});await page.getByRole('button',{name:'Xem CV đã nộp',exact:true}).click();await checkPdf();await page.screenshot({path:path.join(assets,'document-desktop.png')});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(assets,'document-mobile.png'),animations:'disabled'});await close();
+    await page.setViewportSize({width:1280,height:950});await page.getByRole('button',{name:'Xem CV đã nộp',exact:true}).click();await checkPdf();await page.screenshot({path:path.join(assets,'document-desktop.png'),animations:'disabled'});
     await page.evaluate(()=>window.dispatchEvent(new Event('jobfind:session-ended')));await expect(page.locator('.react-pdf__Page canvas')).toHaveCount(0);await expect(page.getByRole('button',{name:'Xem CV đã nộp',exact:true})).toBeDisabled();
     assert.deepEqual(errors,[]);console.log('PASS: data/local/remote PDF canvas, original-byte download, private credentials, invalid documents, nested form focus/Escape, mobile, session expiry, no JS errors.');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{await browser?.close();for(const server of [appServer,fileServer])if(server)await new Promise(resolve=>server.close(resolve));});

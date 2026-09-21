@@ -5,7 +5,7 @@ const TOO_LARGE = 'Tài liệu vượt quá giới hạn xem trước 20 MB.';
 const abortError = () => new DOMException('Đã đóng trình xem.', 'AbortError');
 
 export const pdfSourceUrl = source => {
-    if (typeof source !== 'string' || source.length > 8192 || /[\\\x00-\x20]/.test(source)) return null;
+    if (typeof source !== 'string' || source.length > 8192 || source.includes('\\') || Array.from(source).some(char => char.charCodeAt(0) <= 32)) return null;
     if (!/^https?:\/\//i.test(source) && !/^\/(?!\/)/.test(source)) return null;
     try {
         const url = new URL(source, window.location.origin);
@@ -25,7 +25,7 @@ export const isPdfSource = source => {
 };
 
 export const pdfFileName = (value = 'Tài liệu.pdf') => {
-    const name = String(value || 'Tài liệu.pdf').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 180);
+    const name = Array.from(String(value || 'Tài liệu.pdf')).map(char => char.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(char) ? '_' : char).join('').slice(0, 180);
     return /\.pdf$/i.test(name) ? name : `${name}.pdf`;
 };
 

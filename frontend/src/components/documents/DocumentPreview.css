@@ -4,3 +4,5 @@
 .document-preview-button:hover { background: #deefe5; color: #124f3e; }
 .document-preview-button:focus-visible { outline: 3px solid #84b6d4; outline-offset: 3px; }
 .document-preview-button:disabled { opacity: .55; cursor: default; }
+.document-preview-original { margin-top: 14px; font-size: 13px; }
+.document-preview-original a { color: #245e9c; text-decoration: underline; }

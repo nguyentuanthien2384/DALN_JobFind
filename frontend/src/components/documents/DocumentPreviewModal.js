@@ -1,6 +1,6 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Modal } from 'antd';
-import { pdfFileName, resolvePdfSource } from './documentSource';
+import { pdfFileName, pdfSourceUrl, resolvePdfSource } from './documentSource';
 import usePreviewSession from './usePreviewSession';
 import './DocumentPreview.css';
 
@@ -32,8 +32,11 @@ export default function DocumentPreviewModal({ source, fileName, onClose }) {
     }, [source, retry, activeSession]);
     if (!activeSession) return null;
     const current = state?.source === source ? state : null;
+    const original = pdfSourceUrl(source);
     const loading = <Modal open zIndex={1200} title={name} footer={null} onCancel={onClose} centered>
-        {current?.error ? <div role="alert"><p>{current.error}</p><button type="button" className="document-preview-button" onClick={() => setRetry(value => value + 1)}>Thử tải lại PDF</button></div>
+        {current?.error ? <div role="alert"><p>{current.error}</p><button type="button" className="document-preview-button" onClick={() => setRetry(value => value + 1)}>Thử tải lại PDF</button>
+            {original && original.origin !== window.location.origin && <p className="document-preview-original"><a href={original.href} target="_blank" rel="noopener noreferrer">Mở tài liệu gốc ↗</a></p>}
+        </div>
             : <p role="status">Đang tải tài liệu PDF…</p>}
     </Modal>;
     return <span onKeyDown={event => event.stopPropagation()} onKeyUp={event => event.stopPropagation()}>
