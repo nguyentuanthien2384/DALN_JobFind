@@ -46,6 +46,8 @@ const SupportChat = () => {
     const ownerKey = `jobfind-support-v1:${user?.id || 'guest'}`;
     const [store, setStore] = useState(() => createSupportStore(ownerKey));
     const [ready, setReady] = useState(false);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [openingThread, setOpeningThread] = useState(false);
     const [historyRefresh, setHistoryRefresh] = useState(0);
     const [privateResult, setPrivateResult] = useState(null);
     const [privateBusy, setPrivateBusy] = useState(false);
@@ -62,51 +64,55 @@ const SupportChat = () => {
     const activeRequest = useRef(null);
     const generation = useRef(0);
     const inputRef = useRef(null);
+    const runtimeRef = useRef(null);
 
     const thread = store.threads.find((item) => item.id === store.activeId) || store.threads[0];
     const messages = thread?.messages || [];
+
+    useEffect(() => {
+        generation.current += 1;
+        activeRequest.current?.abort();
+        activeRequest.current = null;
+        speechRef.current?.abort();
+        runtimeRef.current?.thread.composer.setText('');
+        setBusy(false);
+        setPrivateBusy(false);
+        setListening(false);
+        setOpeningThread(false);
+        setStore(createSupportStore(ownerKey));
+        setReady(false); setPrivateResult(null); setHandoffConsent(false);
+        setError(''); setEditing(null); setView('chat');
+    }, [ownerKey]);
 
     // Server history is authoritative. Do not cache private conversations in browser storage.
     useEffect(() => {
         if (!isOpen) return undefined;
         let current = true;
         const controller = new AbortController();
+        setHistoryLoading(true);
         supportApi.list(controller.signal).then(rows => {
             if (!current) return;
             setStore(previous => {
+                if (previous.ownerKey !== ownerKey) return previous;
                 const drafts = previous.threads.filter(item => !item.remoteId);
-                const remote = rows.map(row => { const existing = previous.threads.find(item => item.remoteId === row.id); return { ...existing, ...row, id: existing?.id || row.id, remoteId: row.id, messages: existing?.messages || [], loaded: !!existing?.loaded }; });
+                const remote = rows.map(row => { const existing = previous.threads.find(item => item.remoteId === row.id); return { ...existing, ...row, id: existing?.id || row.id, remoteId: row.id, messages: existing?.messages || [], loaded: !!existing?.loaded,
+                    // A metadata refresh must not let stale messages overwrite a newer turn from another tab.
+                    version: existing?.loaded ? existing.version : row.version }; });
                 const threads = [...drafts, ...remote];
+                const active = previous.threads.find(item => item.id === previous.activeId);
+                if (active && !threads.some(item => item.id === active.id)) threads.unshift(active);
                 return { ...previous, threads: threads.length ? threads : previous.threads };
             });
             setReady(true);
-        }).catch(cause => { if (current && cause.name !== 'AbortError') { setError(cause.message); setReady(false); } });
+        }).catch(cause => { if (current && cause.name !== 'AbortError') { setError(cause.message); setReady(false); } })
+            .finally(() => { if (current) setHistoryLoading(false); });
         return () => { current = false; controller.abort(); };
     }, [isOpen, ownerKey, view, historyRefresh]);
     useEffect(() => {
         if (isOpen && view === 'chat') inputRef.current?.focus();
     }, [isOpen, view, thread?.id]);
-    useEffect(() => {
-        if (!isOpen) return undefined;
-        const onKeyDown = (event) => {
-            if (event.key === 'Escape') setOpen(false);
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [isOpen]);
     useEffect(() => () => { generation.current += 1; activeRequest.current?.abort(); speechRef.current?.abort(); }, []);
     useEffect(() => { if (!isOpen) speechRef.current?.abort(); }, [isOpen]);
-    useEffect(() => {
-        generation.current += 1;
-        activeRequest.current?.abort();
-        activeRequest.current = null;
-        speechRef.current?.abort();
-        setBusy(false);
-        setListening(false);
-        setOpen(false);
-        setStore(createSupportStore(ownerKey));
-        setReady(false); setPrivateResult(null); setHandoffConsent(false);
-    }, [ownerKey]);
 
     const startSpeech = () => {
         const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -134,6 +140,8 @@ const SupportChat = () => {
         activeRequest.current?.abort();
         activeRequest.current = null;
         setBusy(false);
+        setPrivateBusy(false);
+        setOpeningThread(false);
         // Preserve any partial answer but exclude it from future model context.
         setStore((current) => updateSupportMessages(current, current.activeId,
             (items) => items.filter((item) => item.status !== 'pending' || item.text)
@@ -153,17 +161,28 @@ const SupportChat = () => {
     const openThread = async (item) => {
         cancelRequest(); setError(''); setPrivateResult(null); setHandoffConsent(false);
         const requestGeneration = generation.current;
+        setOpeningThread(true);
         try {
             const value = item.remoteId ? await supportApi.get(item.remoteId) : item;
             if (requestGeneration !== generation.current) return;
             runtime.thread.composer.setText('');
             setStore(current => ({ ...current, activeId: item.id, threads: current.threads.map(entry => entry.id === item.id ? { ...entry, ...value, id: item.id, remoteId: item.remoteId, loaded: true } : entry) }));
             setView('chat');
-        } catch (cause) { setError(cause.message); }
+        } catch (cause) { if (requestGeneration === generation.current) setError(cause.message); }
+        finally { if (requestGeneration === generation.current) setOpeningThread(false); }
     };
     const removeThread = async (item) => {
-        try { if (item.remoteId) await supportApi.remove(item.remoteId); setStore(current => deleteSupportThread(current, item.id)); }
-        catch (cause) { setError(cause.message); }
+        const requestGeneration = generation.current;
+        try {
+            if (item.remoteId) await supportApi.remove(item.remoteId);
+            if (requestGeneration !== generation.current) return;
+            setStore(current => {
+                const remaining = deleteSupportThread(current, item.id);
+                // Start a draft instead of showing an unloaded conversation as empty.
+                return current.activeId === item.id ? addSupportThread(remaining) : remaining;
+            });
+        }
+        catch (cause) { if (requestGeneration === generation.current) setError(cause.message); }
     };
     const exportThread = async (item) => {
         try {
@@ -174,22 +193,28 @@ const SupportChat = () => {
     };
     const lookup = async (name) => {
         setPrivateBusy(true); setPrivateResult(null); setError('');
-        try { setPrivateResult(await supportApi.privateTool(name)); }
-        catch (cause) { setError(cause.message); }
-        finally { setPrivateBusy(false); }
+        const requestGeneration = generation.current;
+        try {
+            const result = await supportApi.privateTool(name);
+            if (requestGeneration === generation.current) setPrivateResult(result);
+        }
+        catch (cause) { if (requestGeneration === generation.current) setError(cause.message); }
+        finally { if (requestGeneration === generation.current) setPrivateBusy(false); }
     };
     const handoff = async () => {
         setPrivateBusy(true); setError('');
+        const requestGeneration = generation.current;
         try {
             const value = await supportApi.handoff(thread.remoteId);
+            if (requestGeneration !== generation.current) return;
             setStore(current => ({ ...current, threads: current.threads.map(item => item.id === thread.id ? { ...item, handoff: value } : item) }));
             setHandoffConsent(false);
-        } catch (cause) { setError(cause.message); }
-        finally { setPrivateBusy(false); }
+        } catch (cause) { if (requestGeneration === generation.current) setError(cause.message); }
+        finally { if (requestGeneration === generation.current) setPrivateBusy(false); }
     };
 
     const sendMessage = async (raw, retry = false, history) => {
-        if (activeRequest.current || !ready) return;
+        if (activeRequest.current || !ready || openingThread || (thread.remoteId && !thread.loaded)) return;
         const question = String(raw || '').trim();
         if (!retry && (!question || question.length > 1400)) return;
         const base = retry ? (history || messages) : [...(history || messages), { role: 'user', text: question, status: 'complete' }];
@@ -207,6 +232,7 @@ const SupportChat = () => {
         const requestGeneration = ++generation.current;
         activeRequest.current = controller;
         setBusy(true);
+        setPrivateBusy(false);
         setError('');
         setView('chat');
         runtime.thread.composer.setText('');
@@ -295,13 +321,11 @@ const SupportChat = () => {
             if (index >= 0) await sendMessage('', true, messages.slice(0, index + 1));
         }
     });
+    runtimeRef.current = runtime;
 
     return (
         <AssistantRuntimeProvider runtime={runtime}>
-        <div className={`jf-support${expanded ? ' jf-support--expanded' : ''}`}
-            onPointerLeave={(event) => {
-                if (event.pointerType === 'mouse') setOpen(false);
-            }}>
+        <div className={`jf-support${expanded ? ' jf-support--expanded' : ''}`}>
             {isOpen ? (
                 <ThreadPrimitive.Root className="jf-support__panel" role="dialog" aria-label="Trợ lý hỗ trợ JobFind" aria-modal="false">
                     <div className="jf-support__topbar">
@@ -322,12 +346,15 @@ const SupportChat = () => {
                                 <button type="button" onClick={() => setView('chat')} aria-label="Quay lại"><Icon name="back"/></button>
                                 <h2>Lịch sử hội thoại</h2>
                             </div>
-                            <p>Lưu trên máy chủ, mặc định 30 ngày. Khách cần giữ phiên trình duyệt để mở lại. Xóa hội thoại sẽ xóa cả yêu cầu hỗ trợ liên quan; bản tóm tắt đã gửi trong Tin nhắn được lưu riêng.</p>
-                            {store.threads.map((item) => (
+                            <p>Hội thoại được lưu trên máy chủ, mặc định 30 ngày. {user?.id ? 'Đăng nhập cùng tài khoản để xem lại trên thiết bị khác.' : 'Khách có thể xem lại trên cùng trình duyệt, kể cả sau khi đóng rồi mở lại. Xóa dữ liệu trình duyệt hoặc dùng cửa sổ riêng tư có thể làm mất quyền truy cập lịch sử.'} Xóa hội thoại sẽ xóa cả yêu cầu hỗ trợ liên quan; bản tóm tắt đã gửi trong Tin nhắn được lưu riêng.</p>
+                            <button className="jf-support__history-refresh" type="button" disabled={historyLoading || openingThread} onClick={() => setHistoryRefresh(value => value + 1)}><Icon name="retry" size={15}/> Làm mới lịch sử</button>
+                            {(historyLoading || openingThread) && <p role="status">{openingThread ? 'Đang mở hội thoại…' : 'Đang tải lịch sử…'}</p>}
+                            {!historyLoading && !store.threads.some(item => item.remoteId || item.messages.length) && <p>Chưa có hội thoại. Gửi câu hỏi để bắt đầu lưu lịch sử.</p>}
+                            {store.threads.filter(item => item.remoteId || item.messages.length).map((item) => (
                                 <div className="jf-support__thread" key={item.id}>
-                                    <button type="button" className="jf-support__thread-open" onClick={() => openThread(item)}>
+                                    <button type="button" className="jf-support__thread-open" disabled={openingThread} onClick={() => openThread(item)}>
                                         <span>{item.title}</span>
-                                        <small>{new Date(item.createdAt).toLocaleString('vi-VN')}</small>
+                                        <small>{new Date(item.updatedAt || item.createdAt).toLocaleString('vi-VN')}</small>
                                     </button>
                                     <button type="button" className="jf-support__thread-delete" onClick={() => exportThread(item)} aria-label={`Tải xuống ${item.title}`}>↓</button>
                                     <button type="button" className="jf-support__thread-delete" title="Xóa cuộc trò chuyện" aria-label={`Xóa ${item.title}`} onClick={() => removeThread(item)}><Icon name="trash" size={18}/></button>
@@ -338,7 +365,7 @@ const SupportChat = () => {
                         </div>
                     ) : (
                         <>
-                            {!user?.id && <div className="jf-support__login">Đăng nhập để sử dụng các chức năng cá nhân của JobFind. <Link to="/login" onClick={() => setOpen(false)}>Đăng nhập</Link></div>}
+                            {!user?.id && <div className="jf-support__login">Đăng nhập để sử dụng các chức năng cá nhân của JobFind. <Link to="/login">Đăng nhập</Link></div>}
                             {user?.id && <div className="jf-support__private-actions" aria-label="Tra cứu riêng tư">
                                 <button type="button" disabled={privateBusy} onClick={() => lookup('getMyProfileSummary')}>Hồ sơ của tôi</button>
                                 {user.roleCode === 'CANDIDATE' && <><button type="button" disabled={privateBusy} onClick={() => lookup('getMyApplications')}>Đơn ứng tuyển của tôi</button><button type="button" disabled={privateBusy} onClick={() => lookup('getMySavedJobs')}>Việc đã lưu</button></>}
@@ -352,7 +379,7 @@ const SupportChat = () => {
                                         <h2>Bạn cần hỗ trợ gì?</h2>
                                         <p>Hỏi về tìm việc, tạo CV và cách sử dụng JobFind.</p>
                                         <div className="jf-support__suggestions">
-                                            {QUICK_QUESTIONS.map((question) => <button key={question} type="button" onClick={() => sendMessage(question)} disabled={busy || !ready}>{question}<span aria-hidden="true">↗</span></button>)}
+                                            {QUICK_QUESTIONS.map((question) => <button key={question} type="button" onClick={() => sendMessage(question)} disabled={busy || !ready || openingThread}>{question}<span aria-hidden="true">↗</span></button>)}
                                         </div>
                                     </div>
                                 ) : <ThreadPrimitive.Messages>{({ message }) => { const item = message.metadata.custom; const index = messages.findIndex((entry) => entry.id === message.id); return (
@@ -361,13 +388,13 @@ const SupportChat = () => {
                                         <div className="jf-support__message-body">
                                             <div className="jf-support__bubble">{item.text ? (item.role === 'assistant' ? <SupportMarkdown text={item.text}/> : item.text) : (item.cards?.length ? 'Đang tổng hợp kết quả...' : <span className="jf-support__dots" aria-label="Đang trả lời"><i/><i/><i/></span>)}</div>
                                             {item.role === 'assistant' && item.cards?.length > 0 && <div className="jf-support__results" aria-label="Tin tuyển dụng từ JobFind">
-                                                {item.cards.map((job) => <Link key={job.id} to={`/detail-job/${job.id}`} className="jf-support__result" onClick={() => setOpen(false)}>
+                                                {item.cards.map((job) => <Link key={job.id} to={`/detail-job/${job.id}`} className="jf-support__result">
                                                     <strong>{job.name}</strong><span>{job.company || 'Công ty tuyển dụng'}{job.location ? ` · ${job.location}` : ''}</span>
                                                     <small>{job.salary || 'Chưa công bố lương'}{job.workType ? ` · ${job.workType}` : ''} · Xem tin #{job.id} ↗</small>
                                                 </Link>)}
                                             </div>}
                                             {item.status === 'cancelled'  && <small className="jf-support__interrupted">Đã dừng · câu trả lời chưa hoàn chỉnh</small>}
-                                            {item.sources?.length > 0 && <div className="jf-support__sources" aria-label="Nguồn hướng dẫn">{item.sources.filter(source => /^\/support\/help#[a-z-]+$/.test(source.href || '')).map(source => <Link key={source.id} to={source.href} onClick={() => setOpen(false)}>{source.title} ↗</Link>)}</div>}
+                                            {item.sources?.length > 0 && <div className="jf-support__sources" aria-label="Nguồn hướng dẫn">{item.sources.filter(source => /^\/support\/help#[a-z-]+$/.test(source.href || '')).map(source => <Link key={source.id} to={source.href}>{source.title} ↗</Link>)}</div>}
                                             {item.mode === 'knowledge' && <small>Chế độ hướng dẫn dự phòng</small>}
                                             {item.status === 'failed' && <small className="jf-support__interrupted">Phản hồi bị gián đoạn · cần thử lại</small>}
                                             {item.role === 'user' && !busy && <button className="jf-support__copy" type="button" onClick={() => setEditing({ id: item.id, serverId: item.serverId, text: item.text })}>Sửa câu hỏi</button>}
@@ -379,8 +406,8 @@ const SupportChat = () => {
                             </ThreadPrimitive.Viewport>
                             <ThreadPrimitive.ScrollToBottom className="jf-support__scroll" aria-label="Đến tin nhắn mới nhất">↓ Tin mới nhất</ThreadPrimitive.ScrollToBottom>
                             </div>
-                            {privateResult && <div className="jf-support__private-result" role="status"><strong>{privateResult.title}</strong><button type="button" onClick={() => setPrivateResult(null)} aria-label="Đóng kết quả tra cứu">×</button><ul>{privateResult.lines?.length ? privateResult.lines.map((line, index) => <li key={index}>{line}</li>) : <li>Chưa có dữ liệu.</li>}</ul><small>Tra cứu trực tiếp, không gửi cho AI.</small>{/^\/(candidate|admin)\/[a-z-]+$/.test(privateResult.href || '') && <Link to={privateResult.href} onClick={() => setOpen(false)}>Mở trang quản lý ↗</Link>}</div>}
-                            {thread.handoff && <div className="jf-support__login">{thread.handoff.status === 'resolved' ? 'Yêu cầu đã được xử lý.' : thread.handoff.agentId ? 'Nhân viên đã tiếp nhận. ' : 'Đã lưu yêu cầu. Đang chờ nhân viên tiếp nhận.'}{thread.handoff.agentId && <Link to={`/support/chat/${thread.handoff.agentId}`} onClick={() => setOpen(false)}>Mở tin nhắn</Link>}<button type="button" onClick={() => openThread(thread)}>Cập nhật</button></div>}
+                            {privateResult && <div className="jf-support__private-result" role="status"><strong>{privateResult.title}</strong><button type="button" onClick={() => setPrivateResult(null)} aria-label="Đóng kết quả tra cứu">×</button><ul>{privateResult.lines?.length ? privateResult.lines.map((line, index) => <li key={index}>{line}</li>) : <li>Chưa có dữ liệu.</li>}</ul><small>Tra cứu trực tiếp, không gửi cho AI.</small>{/^\/(candidate|admin)\/[a-z-]+$/.test(privateResult.href || '') && <Link to={privateResult.href}>Mở trang quản lý ↗</Link>}</div>}
+                            {thread.handoff && <div className="jf-support__login">{thread.handoff.status === 'resolved' ? 'Yêu cầu đã được xử lý.' : thread.handoff.agentId ? 'Nhân viên đã tiếp nhận. ' : 'Đã lưu yêu cầu. Đang chờ nhân viên tiếp nhận.'}{thread.handoff.agentId && <Link to={`/support/chat/${thread.handoff.agentId}`}>Mở tin nhắn</Link>}<button type="button" onClick={() => openThread(thread)}>Cập nhật</button></div>}
                             {error && <div className="jf-support__error" role="alert">{error}<button type="button" onClick={ready ? retryLast : () => setHistoryRefresh(value => value + 1)} disabled={busy}><Icon name="retry" size={15}/>{ready ? 'Thử lại' : 'Kết nối lại'}</button>{!ready && !user?.id && <button type="button" onClick={() => { supportApi.resetGuest(); setHistoryRefresh(value => value + 1); }}>Bắt đầu phiên khách mới</button>}</div>}
                             <div className="jf-support__compose-area">
                                 {editing && <form className="jf-support__edit" onSubmit={(event) => {
@@ -404,10 +431,11 @@ const SupportChat = () => {
                                         <Icon name="mic" size={17}/>
                                     </button>
                                     {busy ? <ComposerPrimitive.Cancel className="jf-support__send" aria-label="Dừng trả lời" title="Dừng trả lời"><Icon name="stop" size={18}/></ComposerPrimitive.Cancel>
-                                        : <ComposerPrimitive.Send disabled={!ready} className="jf-support__send" aria-label="Gửi tin nhắn" title="Gửi"><Icon name="send" size={18}/></ComposerPrimitive.Send>}
+                                        : <ComposerPrimitive.Send disabled={!ready || openingThread} className="jf-support__send" aria-label="Gửi tin nhắn" title="Gửi"><Icon name="send" size={18}/></ComposerPrimitive.Send>}
                                 </ComposerPrimitive.Root>
+                                {thread.remoteId && !busy && <small className="jf-support__saved" role="status">Đã lưu hội thoại · Xem lại trong Lịch sử</small>}
                                 {user?.id && thread.remoteId && !thread.handoff && <div className="jf-support__handoff"><label><input type="checkbox" checked={handoffConsent} onChange={event => setHandoffConsent(event.target.checked)}/> Đồng ý chia sẻ hội thoại này với nhân viên.</label><button type="button" disabled={!handoffConsent || busy || privateBusy} onClick={handoff}>Chuyển hội thoại cho hỗ trợ</button></div>}
-                                <p>AI có thể mắc lỗi. Không nhập mật khẩu, OTP hoặc CV. <Link to="/support/help#privacy" onClick={() => setOpen(false)}>Dữ liệu và quyền riêng tư</Link> · <Link to="/contact" onClick={() => setOpen(false)}>Liên hệ</Link></p>
+                                <p>AI có thể mắc lỗi. Không nhập mật khẩu, OTP hoặc CV. <Link to="/support/help#privacy">Dữ liệu và quyền riêng tư</Link> · <Link to="/contact">Liên hệ</Link></p>
                             </div>
                         </>
                     )}

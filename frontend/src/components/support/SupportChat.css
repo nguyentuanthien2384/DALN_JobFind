@@ -67,6 +67,8 @@
 .jf-support__thread-delete { display: grid; place-items: center; background: transparent; border: 0; color: #8290a3; padding: 10px; }
 .jf-support__thread-delete:hover { color: #aa332f; }
 .jf-support__history-new { display: flex; align-items: center; gap: 7px; width: 100%; justify-content: center; padding: 11px; border-radius: 11px; border: 1px dashed #9ab4d8; background: #f7faff; color: #205ba5; }
+.jf-support__history-refresh { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; padding: 6px 0; border: 0; background: transparent; color: #205ba5; font-size: 12px !important; }
+.jf-support__saved { display: block; text-align: center; margin-top: 7px; color: #526f62; font-size: 11px; }
 @media (max-width: 520px) { .jf-support { right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); } .jf-support__panel { width: calc(100vw - 20px); height: min(670px, calc(100dvh - 26px - env(safe-area-inset-bottom, 0px))); border-radius: 17px; } .jf-support__launcher { padding: 14px 16px; } }
 @media (prefers-reduced-motion: reduce) { .jf-support * { animation: none !important; transition: none !important; } }
 

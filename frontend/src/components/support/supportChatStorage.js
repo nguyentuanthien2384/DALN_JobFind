@@ -1,4 +1,5 @@
-// Browser-tab-only history; never put tokens or confidential records in storage.
+// Live conversation state plus the legacy, bounded browser-tab history helpers.
+// Never put tokens or confidential records in the legacy history storage.
 const MAX_THREADS = 6;
 const MAX_MESSAGES = 40;
 const MAX_CHARS = 1400;
@@ -84,7 +85,7 @@ export const updateSupportMessages = (store, threadId, updater) => ({
         if (thread.id !== threadId) return thread;
         const messages = updater(thread.messages).map((message) => message.id ? message : { ...message, id: supportMessageId() });
         const firstQuestion = messages.find((message) => message.role === 'user');
-        return { ...thread, messages: messages.slice(-MAX_MESSAGES),
+        return { ...thread, messages,
             title: firstQuestion ? firstQuestion.text.slice(0, 55) : 'Cuộc trò chuyện mới' };
     })
 });

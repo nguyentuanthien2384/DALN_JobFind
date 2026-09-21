@@ -1,5 +1,7 @@
 # Kiểm thử chatbot JobFind — 19/09/2026
 
+> Báo cáo dưới đây là kết quả ngày 19/09. Các cập nhật về lưu lịch sử trên máy chủ, phiên khách và hỏi thử trên ứng dụng ngày 21/09 nằm trong [chatbot-widget-history.md](chatbot-widget-history.md).
+
 ## Kết luận
 
 Các luồng giao diện và xử lý kỹ thuật đã qua kiểm thử. **Chưa có đủ bằng chứng để xác nhận chất lượng trả lời AI hoặc sẵn sàng vận hành thực tế.** Không dùng số lượng unit test làm điểm chất lượng câu trả lời.

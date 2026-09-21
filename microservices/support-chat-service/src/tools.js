@@ -6,6 +6,8 @@ export const privateToolNames = ['getMyProfileSummary', 'getMyApplications', 'ge
 export function privateIntent(text) {
     const value = normalize(text);
     if (!/\b(toi|minh)\b/.test(value)) return null;
+    // A how-to question is public guidance even if the speaker says "tôi".
+    if (/\b(lam sao|cach|o dau|huong dan|bat dau|can lam gi)\b/.test(value)) return null;
     if (/don ung tuyen|da ung tuyen|trang thai ho so/.test(value)) return 'getMyApplications';
     if (/viec.*da luu|tin.*da luu/.test(value)) return 'getMySavedJobs';
     if (/han muc|goi cuoc|goi dang tin/.test(value)) return 'getSubscriptionStatus';

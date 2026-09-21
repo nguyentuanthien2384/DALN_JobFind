@@ -62,6 +62,15 @@ const expectLatestQuery = async (expected) => {
 };
 
 describe("JobPage", () => {
+    it('settles a new history entry with the same URL rather than staying busy indefinitely', async () => {
+        const Navigation = () => { const navigate = useNavigate(); return <button onClick={() => navigate('/job')}>Same URL</button>; };
+        render(<MemoryRouter initialEntries={['/job']}><Navigation /><JobPage /></MemoryRouter>);
+        await expectLatestQuery({ offset: 0 });
+        fireEvent.click(screen.getByText('Same URL'));
+        await expectLatestQuery({ offset: 0 });
+        expect(getListPostService).toHaveBeenCalledTimes(2);
+        expect(screen.getByText('React Developer').closest('[inert]')).toBeNull();
+    });
     it('keeps the page mounted and rows visible but inactive while paging without scrolling to top', async () => {
         render(<BrowserRouter><JobPage /></BrowserRouter>);
         await expectLatestQuery({ offset: 0 });

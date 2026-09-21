@@ -56,4 +56,35 @@ describe('support chat per-tab history', () => {
         saveSupportStore(updated);
         expect(loadSupportStore('long-history').threads[0].messages).toEqual(updated.threads[0].messages.map((item) => ({ ...item, cards: [] })));
     });
+
+    test('keeps the complete live transcript during streaming beyond the legacy 40-message limit', () => {
+        const store = createSupportStore('server-history');
+        const earlier = Array.from({ length: 100 }, (_, index) => ({
+            id: `saved-${index}`, role: index % 2 ? 'assistant' : 'user',
+            text: `Message ${index}`, status: 'complete'
+        }));
+        const loaded = updateSupportMessages(store, store.activeId, () => earlier);
+        const updated = updateSupportMessages(loaded, store.activeId, messages => [
+            ...messages, { role: 'user', text: 'New question', status: 'complete' },
+            { role: 'assistant', text: 'New partial answer', status: 'pending' }
+        ]);
+        expect(updated.threads[0].messages).toHaveLength(102);
+        expect(updated.threads[0].messages.slice(0, 100)).toEqual(earlier);
+        expect(updated.threads[0].title).toBe('Message 0');
+
+        const edited = updateSupportMessages(updated, store.activeId, messages => messages.slice(0, 10));
+        expect(edited.threads[0].messages).toEqual(earlier.slice(0, 10));
+    });
+
+    test('keeps the legacy browser snapshot bounded without mutating the live transcript', () => {
+        const store = createSupportStore('legacy-history');
+        const updated = updateSupportMessages(store, store.activeId, () => Array.from({ length: 60 }, (_, index) => ({
+            id: `message-${index}`, role: index % 2 ? 'assistant' : 'user', text: `Message ${index}`, status: 'complete'
+        })));
+        saveSupportStore(updated);
+        expect(updated.threads[0].messages).toHaveLength(60);
+        const legacy = loadSupportStore('legacy-history').threads[0].messages;
+        expect(legacy).toHaveLength(40);
+        expect(legacy[0].id).toBe('message-20');
+    });
 });

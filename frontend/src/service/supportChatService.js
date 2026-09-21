@@ -2,20 +2,70 @@ import { getAccessToken } from '../auth/authClient';
 // Dedicated fetch client: the shared Axios client buffers JSON and cannot read SSE.
 const API_BASE = (process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000').replace(/\/$/, '');
 const GUEST_KEY = 'jobfind-support-guest';
+let guestInMemory = null;
+let guestRevision = 0;
+let guestResetPending = false;
+const readGuestStorage = storage => {
+    try { return window[storage].getItem(GUEST_KEY); } catch { return null; }
+};
+const writeGuestStorage = (storage, token) => {
+    try {
+        if (token) window[storage].setItem(GUEST_KEY, token);
+        else window[storage].removeItem(GUEST_KEY);
+        return true;
+    } catch { return false; }
+};
+const guestIdentity = () => {
+    if (guestResetPending) return guestInMemory;
+    // Only the opaque capability is stored here; conversation text stays on the server.
+    // A shared identity takes precedence over an older tab's sessionStorage value.
+    const persistent = readGuestStorage('localStorage');
+    if (persistent) {
+        guestInMemory = persistent;
+        writeGuestStorage('sessionStorage', null);
+        return persistent;
+    }
+    if (guestInMemory) return guestInMemory;
+    const legacy = readGuestStorage('sessionStorage');
+    if (legacy) {
+        guestInMemory = legacy;
+        if (writeGuestStorage('localStorage', legacy)) writeGuestStorage('sessionStorage', null);
+    }
+    return guestInMemory;
+};
 const supportHeaders = async () => {
     const headers = { 'Content-Type': 'application/json' };
-    const token = await getAccessToken();
+    let token;
+    try { token = await getAccessToken(); }
+    catch (error) {
+        // The authentication client also reads browser storage. Guest support can
+        // still run in memory when the browser blocks that storage entirely.
+        if (error?.name !== 'SecurityError') throw error;
+    }
     if (token) headers.Authorization = `Bearer ${token}`;
-    else { const guest = sessionStorage.getItem(GUEST_KEY); if (guest) headers['X-Support-Guest'] = guest; }
+    else { const guest = guestIdentity(); if (guest) headers['X-Support-Guest'] = guest; }
     return headers;
 };
-const rememberGuest = response => {
+const rememberGuest = (response, headers, revision) => {
+    if (revision !== guestRevision || headers.Authorization) return;
     const token = response.headers?.get('X-Support-Guest');
-    if (token) sessionStorage.setItem(GUEST_KEY, token);
+    if (!token) return;
+    const persistent = readGuestStorage('localStorage');
+    // A response from an older tab/request must not overwrite the shared identity.
+    if (!guestResetPending && persistent && persistent !== headers['X-Support-Guest'] && persistent !== token) {
+        guestInMemory = persistent;
+        return;
+    }
+    guestInMemory = token;
+    guestResetPending = false;
+    if (writeGuestStorage('localStorage', token)) writeGuestStorage('sessionStorage', null);
+    else writeGuestStorage('sessionStorage', token);
 };
 export const supportRequest = async (path, { method = 'GET', body, signal } = {}) => {
-    const response = await fetch(`${API_BASE}/api/support${path}`, { method, headers: await supportHeaders(), ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal });
-    rememberGuest(response);
+    const revision = guestRevision;
+    const headers = await supportHeaders();
+    const response = await fetch(`${API_BASE}/api/support${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal });
+    rememberGuest(response, headers, revision);
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload.errCode) throw new Error(payload.errMessage || 'Không kết nối được dịch vụ hỗ trợ.');
     return payload.data;
@@ -26,7 +76,13 @@ export const supportApi = {
     remove: id => supportRequest(`/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     privateTool: name => supportRequest(`/private/${encodeURIComponent(name)}`),
     handoff: id => supportRequest(`/conversations/${encodeURIComponent(id)}/handoff`, { method: 'POST', body: { consent: true } }),
-    resetGuest: () => sessionStorage.removeItem(GUEST_KEY)
+    resetGuest: () => {
+        guestRevision += 1;
+        guestInMemory = null;
+        guestResetPending = true;
+        writeGuestStorage('localStorage', null);
+        writeGuestStorage('sessionStorage', null);
+    }
 };
 
 export const prepareSupportHistory = (messages) => {
@@ -49,13 +105,15 @@ export const prepareSupportHistory = (messages) => {
 };
 
 export const streamSupportReply = async (messages, { signal, onText, onTool = () => {}, onState = () => {}, onSources = () => {}, onMode = () => {}, turn }) => {
+    const revision = guestRevision;
+    const headers = { ...(turn ? await supportHeaders() : { 'Content-Type': 'application/json' }), Accept: 'text/event-stream' };
     const response = await fetch(`${API_BASE}${turn ? '/api/support/turn' : '/api/support-chat'}`, {
         method: 'POST',
-        headers: { ...(turn ? await supportHeaders() : { 'Content-Type': 'application/json' }), Accept: 'text/event-stream' },
+        headers,
         body: JSON.stringify(turn || { messages: prepareSupportHistory(messages) }),
         signal
     });
-    if (turn) rememberGuest(response);
+    if (turn) rememberGuest(response, headers, revision);
     if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.errMessage || `Máy chủ trả về lỗi ${response.status}.`);

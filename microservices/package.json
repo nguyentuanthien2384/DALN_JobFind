@@ -17,7 +17,7 @@
     "support-chat-service"
   ],
   "scripts": {
-    "test:support": "vitest run tests/support-service.test.js tests/support-chat-proxy.test.js",
+    "test:support": "vitest run tests/support-service.test.js tests/support-chat-proxy.test.js tests/support-store.test.js",
     "test:support:integration": "node scripts/test-support-chat.mjs",
     "test:support:browser": "node scripts/test-support-chat.mjs --browser",
     "test:support:live": "node scripts/evaluate-support-chat.mjs",

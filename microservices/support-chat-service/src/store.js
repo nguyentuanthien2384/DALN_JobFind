@@ -18,6 +18,7 @@ export const ddl = [
 ];
 const decode = row => row && ({ id: row.id, title: row.title, messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
     version: row.version, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at), expiresAt: Number(row.expires_at) });
+const MAX_CONVERSATION_MESSAGES = 200;
 export function createStore(pool, retentionDays = 30) {
     const ttl = Math.max(1, Math.min(90, Number(retentionDays) || 30)) * 86400000;
     async function transaction(work) {
@@ -78,9 +79,13 @@ export function createStore(pool, retentionDays = 30) {
                     if (index < 0) throw failure(409, 'Lịch sử đã thay đổi.');
                     messages = messages.slice(0, index + 1);
                 } else if (messages.length) throw failure(409, 'Thiếu mốc nối tiếp hội thoại.');
+                // Bound each record without silently discarding earlier questions.
+                // Explicit edits/regeneration above may shorten an existing branch.
+                if (messages.length + 2 > MAX_CONVERSATION_MESSAGES)
+                    throw failure(409, 'Hội thoại đã đạt giới hạn 100 lượt hỏi đáp. Hãy tạo cuộc trò chuyện mới; lịch sử hiện tại vẫn được giữ nguyên.');
                 const answerId = randomUUID();
                 messages = [...messages, { id: input.requestId, role: 'user', text: input.text, status: 'complete' },
-                    { id: answerId, role: 'assistant', text: '', status: 'pending', cards: [], sources: [] }].slice(-40);
+                    { id: answerId, role: 'assistant', text: '', status: 'pending', cards: [], sources: [] }];
                 await db.query('UPDATE support_conversations SET title=?,messages=?,version=version+1,request_id=?,lease_until=?,updated_at=?,expires_at=? WHERE id=?',
                     [messages.find(message => message.role === 'user').text.slice(0,55), JSON.stringify(messages), input.requestId, now + 90000, now, now + ttl, id]);
                 return { ...state, messages, id, answerId, version: state.version + 1 };

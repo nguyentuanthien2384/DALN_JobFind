@@ -319,7 +319,7 @@ function App() {
                 <Route path="/support/help" element={<SupportHelp />} />
                 <Route path="*" element={<NotFound />} />
                 </Routes>
-                <Suspense fallback={null}><SupportChat key={userData?.id || 'guest'} /></Suspense>
+                <Suspense fallback={null}><SupportChat /></Suspense>
             </Router>
         </SessionContext.Provider>
     );

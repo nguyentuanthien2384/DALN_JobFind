@@ -1,5 +1,7 @@
 # Đối chiếu chatbot với tài liệu nghiên cứu
 
+> Cập nhật kiểm thử và triển khai local ngày 21/09/2026: [chatbot-widget-history.md](chatbot-widget-history.md), gồm lịch sử bền vững, sửa khung tự đóng và hai câu hỏi trực tiếp.
+
 Ngày triển khai: 19/09/2026. Nguồn: “Nghiên cứu lựa chọn chatbot hỗ trợ cho dự án JobFind.pdf”, 34 trang, do người dùng cung cấp. Chọn phương án A; Chatwoot, Dify, Flowise, Botpress và Rasa là các phương án thay thế, không cài đồng thời.
 
 ## Các luồng đã phát triển

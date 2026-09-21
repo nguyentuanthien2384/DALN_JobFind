@@ -41,7 +41,7 @@ const JobSearchPage = ({ historyKey }) => {
             setPost(saved.post || []); setCount(saved.count || 0); setCountPage(saved.countPage || 0);
             setLabels(saved.labels || {}); setLabelsReady(mode === 'legacy' || Boolean(saved.labelsReady));
             setLoading(!saved.loadedQuery);
-        } else setLoading(true);
+        } else { loadedQuery.current = null; setLoading(true); }
     }
     remember({ countPage, post, count, numberPage, labels, labelsReady, workType, jobType, salary, exp,
         jobLevel, jobLocation, search, searchDraft, retry, loadedQuery: loadedQuery.current });
@@ -96,7 +96,7 @@ const JobSearchPage = ({ historyKey }) => {
             }
         }).finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
-    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels, labelsReady, setQuery]);
+    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels, labelsReady, setQuery, historyKey]);
     const handleChangePage = (number) => { setQuery({ page: number.selected }); };
     return (
         <>

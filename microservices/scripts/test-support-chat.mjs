@@ -120,26 +120,86 @@ try {
         await fs.mkdir(output,{recursive:true});
         gateway.get('/app.js',(_req,res)=>res.sendFile(path.join(output,'app.js')));gateway.get('/app.css',(_req,res)=>res.sendFile(path.join(output,'app.css')));
         gateway.get('*',(_req,res)=>res.type('html').send('<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><div id="root"></div><script src="/app.js"></script></html>'));
-        await build({stdin:{contents:`import React from 'react';import{createRoot}from'react-dom/client';import{BrowserRouter,Routes,Route}from'react-router-dom';import SupportChat from './src/components/support/SupportChat';import SupportInbox from './src/components/support/SupportInbox';import SupportHelp from './src/components/support/SupportHelp';import SessionContext from './src/auth/SessionContext';const token=localStorage.getItem('token_user');const user=token==='test-admin'?{id:21,roleCode:'ADMIN'}:token==='test-candidate'?{id:7,roleCode:'CANDIDATE'}:null;createRoot(document.getElementById('root')).render(<BrowserRouter><SessionContext.Provider value={user}><Routes><Route path='/admin/support' element={<SupportInbox/>}/><Route path='/support/help' element={<SupportHelp/>}/><Route path='*' element={<SupportChat/>}/></Routes></SessionContext.Provider></BrowserRouter>);`,resolveDir:path.join(root,'frontend'),loader:'jsx'},bundle:true,outfile:path.join(output,'app.js'),loader:{'.js':'jsx'},define:{'process.env.NODE_ENV':'"production"','process.env.REACT_APP_BACKEND_URL':JSON.stringify(origin)}});
+        await build({stdin:{contents:`
+            import React from 'react';import{createRoot}from'react-dom/client';import{BrowserRouter,Routes,Route}from'react-router-dom';
+            import SupportChat from './src/components/support/SupportChat';import SupportInbox from './src/components/support/SupportInbox';
+            import SupportHelp from './src/components/support/SupportHelp';import SessionContext from './src/auth/SessionContext';
+            const identity=token=>token==='test-admin'?{id:21,roleCode:'ADMIN'}:token==='test-candidate'?{id:7,roleCode:'CANDIDATE'}:null;
+            function Fixture(){
+                const[user,setUser]=React.useState(()=>identity(localStorage.getItem('token_user')));
+                const change=token=>{if(token)localStorage.setItem('token_user',token);else localStorage.removeItem('token_user');setUser(identity(token));};
+                return <BrowserRouter><SessionContext.Provider value={user}>
+                    <button onClick={()=>change('test-candidate')}>Test candidate</button><button onClick={()=>change(null)}>Test guest</button>
+                    <Routes><Route path='/admin/support' element={<SupportInbox/>}/><Route path='/support/help' element={<SupportHelp/>}/><Route path='*' element={<main>Trang JobFind</main>}/></Routes>
+                    <SupportChat/>
+                </SessionContext.Provider></BrowserRouter>;
+            }
+            createRoot(document.getElementById('root')).render(<Fixture/>);`,resolveDir:path.join(root,'frontend'),loader:'jsx'},bundle:true,outfile:path.join(output,'app.js'),loader:{'.js':'jsx'},define:{'process.env.NODE_ENV':'"production"','process.env.REACT_APP_BACKEND_URL':JSON.stringify(origin)}});
         browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1280,height:900}}),errors=[];browserPage=page;
         page.on('pageerror',error=>errors.push(error.message));await page.goto(origin);
         const button=name=>page.getByRole('button',{name,exact:true});const send=async text=>{await page.getByRole('textbox',{name:'Đặt câu hỏi hỗ trợ'}).fill(text);await button('Gửi tin nhắn').click();};
+        await check('widget stays open on mouse leave, outside click, Escape and navigation; only X closes',async()=>{
+            const panel=page.getByRole('dialog',{name:'Trợ lý hỗ trợ JobFind'}),input=page.getByRole('textbox',{name:'Đặt câu hỏi hỗ trợ'});
+            await button('Mở chatbot hỗ trợ JobFind').click();await input.fill('Bản nháp đang soạn');
+            await page.mouse.move(10,10);await page.getByText('Trang JobFind',{exact:true}).click();await page.keyboard.press('Escape');
+            assert.equal(await panel.isVisible(),true);assert.equal(await input.inputValue(),'Bản nháp đang soạn');
+            await button('Mở rộng chatbot').click();await page.mouse.move(10,10);assert.equal(await panel.isVisible(),true);
+            await page.getByRole('link',{name:'Dữ liệu và quyền riêng tư',exact:true}).click();await page.getByRole('heading',{name:'Dữ liệu hội thoại và quyền riêng tư',exact:true}).waitFor();
+            assert.equal(await panel.isVisible(),true);assert.equal(await input.inputValue(),'Bản nháp đang soạn');
+            await button('Đóng chatbot').click();assert.equal(await panel.isVisible(),false);
+            await button('Mở chatbot hỗ trợ JobFind').click();assert.equal(await input.inputValue(),'Bản nháp đang soạn');
+            await button('Thu nhỏ chatbot').click();await button('Đóng chatbot').click();
+        });
         await check('browser guest send, job cards, regenerate, edit and source links',async()=>{
             await button('Mở chatbot hỗ trợ JobFind').click();await send('Tìm việc React');await page.getByText('Kết quả thử nghiệm',{exact:true}).waitFor();await page.getByRole('link',{name:/Frontend React/}).waitFor();await button('Gửi tin nhắn').waitFor();
             await button('Tạo lại').click();await button('Gửi tin nhắn').waitFor();await button('Sửa câu hỏi').click();await page.getByLabel('Sửa câu hỏi và tạo câu trả lời mới').fill('Tạo CV và ứng tuyển');await button('Gửi lại').click();
             await page.getByText('Chế độ hướng dẫn dự phòng').waitFor();await page.getByRole('link',{name:'Tạo CV và ứng tuyển ↗',exact:true}).waitFor();
             await button('Mở rộng chatbot').click();await page.screenshot({path:path.join(output,'conversation.png')});
         });
+        await check('guest history survives a new browser session and continues the same saved conversation',async()=>{
+            await page.getByText('Đã lưu hội thoại · Xem lại trong Lịch sử',{exact:true}).waitFor();
+            const savedText=await page.locator('.jf-support__message--assistant .jf-support__bubble').last().innerText();
+            // storageState contains localStorage, not sessionStorage: models closing/reopening the browser.
+            const nextContext=await browser.newContext({storageState:await page.context().storageState()}),next=await nextContext.newPage();
+            try {
+                await next.goto(origin);await next.getByRole('button',{name:'Mở chatbot hỗ trợ JobFind',exact:true}).click();
+                await next.getByRole('button',{name:'Lịch sử trò chuyện',exact:true}).click();
+                await next.getByRole('button',{name:/^Tạo CV và ứng tuyển /}).first().click();
+                assert.equal(await next.locator('.jf-support__message--assistant .jf-support__bubble').last().innerText(),savedText);
+                await next.getByRole('textbox',{name:'Đặt câu hỏi hỗ trợ'}).fill('Làm sao nhắn tin với nhà tuyển dụng?');
+                await next.getByRole('button',{name:'Gửi tin nhắn',exact:true}).click();await next.getByText('Đã lưu hội thoại · Xem lại trong Lịch sử',{exact:true}).waitFor();
+                assert.equal(await next.locator('.jf-support__message--user').count(),2);
+                await next.reload();await next.getByRole('button',{name:'Mở chatbot hỗ trợ JobFind',exact:true}).click();await next.getByRole('button',{name:'Lịch sử trò chuyện',exact:true}).click();await next.getByRole('button',{name:/^Tạo CV và ứng tuyển /}).first().click();
+                await next.getByText('Làm sao nhắn tin với nhà tuyển dụng?',{exact:true}).waitFor();
+                await next.screenshot({path:path.join(output,'reopened-history.png')});
+            } finally {await nextContext.close();}
+            await page.reload();await button('Mở chatbot hỗ trợ JobFind').click();await button('Lịch sử trò chuyện').click();await page.getByRole('button',{name:/^Tạo CV và ứng tuyển /}).first().click();
+        });
         await check('browser partial error, cancellation, reload from MySQL and deletion',async()=>{
             await send('partial-error');await page.getByText('Phản hồi bị gián đoạn · cần thử lại').waitFor();
             await send('slow');await page.getByText('Đang trả lời',{exact:true}).waitFor();await button('Dừng trả lời').click();await page.getByText('Đã dừng · câu trả lời chưa hoàn chỉnh').waitFor();await delay(200);
             await page.reload();await button('Mở chatbot hỗ trợ JobFind').click();await button('Lịch sử trò chuyện').click();await page.getByRole('button',{name:/^Tạo CV và ứng tuyển /}).first().click();await page.getByText('Đã dừng · câu trả lời chưa hoàn chỉnh').waitFor();
-            // The widget dismisses on desktop pointer leave. Reopen it after
-            // resizing so this check measures the mobile panel, not its launcher.
-            await page.mouse.move(0,0);await button('Mở chatbot hỗ trợ JobFind').waitFor();
-            await page.setViewportSize({width:390,height:844});await button('Mở chatbot hỗ trợ JobFind').click();
+            await page.mouse.move(0,0);assert.equal(await page.getByRole('dialog').isVisible(),true);
+            await page.setViewportSize({width:390,height:844});
             await page.screenshot({path:path.join(output,'mobile.png')});const box=await page.getByRole('dialog').boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390);
             await button('Lịch sử trò chuyện').click();await page.getByRole('button',{name:'Xóa Tạo CV và ứng tuyển',exact:true}).click();await page.getByRole('button',{name:'Xóa Tạo CV và ứng tuyển',exact:true}).waitFor({state:'detached'});
+        });
+        await check('account changes keep the panel open while clearing private results and drafts',async()=>{
+            await page.setViewportSize({width:1280,height:900});await button('Test candidate').click();
+            assert.equal(await page.getByRole('dialog',{name:'Trợ lý hỗ trợ JobFind'}).isVisible(),true);
+            await send('Kiểm tra lịch sử riêng của tài khoản');await page.getByText('Đã lưu hội thoại · Xem lại trong Lịch sử',{exact:true}).waitFor();
+            await button('Đơn ứng tuyển của tôi').click();await page.getByText('Đơn riêng của tài khoản 7',{exact:true}).waitFor();
+            await page.getByRole('textbox',{name:'Đặt câu hỏi hỗ trợ'}).fill('Bản nháp riêng của tài khoản');
+            await button('Test guest').click();
+            await page.getByRole('heading',{name:'Bạn cần hỗ trợ gì?',exact:true}).waitFor();
+            assert.equal(await page.getByRole('dialog',{name:'Trợ lý hỗ trợ JobFind'}).isVisible(),true);
+            assert.equal(await page.getByRole('textbox',{name:'Đặt câu hỏi hỗ trợ'}).inputValue(),'');
+            assert.equal(await page.getByText('Đơn riêng của tài khoản 7',{exact:true}).count(),0);
+            await button('Lịch sử trò chuyện').click();await button('Làm mới lịch sử').isEnabled();
+            assert.equal(await page.getByRole('button',{name:/^Kiểm tra lịch sử riêng của tài khoản /}).count(),0);
+            await button('Test candidate').click();await button('Lịch sử trò chuyện').click();
+            await page.getByRole('button',{name:/^Kiểm tra lịch sử riêng của tài khoản /}).click();
+            await page.getByText('Kiểm tra lịch sử riêng của tài khoản',{exact:true}).waitFor();
         });
         await check('browser private lookup, consent-based handoff and staff inbox',async()=>{
             await page.evaluate(()=>localStorage.setItem('token_user','test-candidate'));await page.goto(origin);await button('Mở chatbot hỗ trợ JobFind').click();await button('Đơn ứng tuyển của tôi').click();await page.getByText('Đơn riêng của tài khoản 7',{exact:true}).waitFor();
