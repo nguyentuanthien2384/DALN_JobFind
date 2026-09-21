@@ -138,3 +138,24 @@ test('removing the final employee of the last page reloads the preceding page', 
     await waitFor(() => expect(services.getAllUserByCompanyIdService).toHaveBeenLastCalledWith({ limit: 5, offset: 5, companyId: 7 }));
     expect(screen.getByTestId('url')).toHaveTextContent('page=2');
 });
+
+
+test('pending employee pages retain layout while blocking actions on the previous rows', async () => {
+    const employee = { id: 22, firstName: 'Lan', lastName: 'Nguyen', genderData: { value: 'Nữ' },
+        userAccountData: { phonenumber: '0900', roleData: { value: 'Employer' }, statusAccountData: { value: 'Active' } } };
+    services.getAllUserByCompanyIdService.mockResolvedValueOnce(listResult(6, [employee]));
+    const view = mount(ManageEmployer, '/manage');
+    await screen.findByText('Lan Nguyen');
+    const pager = view.container.querySelector('.pagination');
+    let finish;
+    services.getAllUserByCompanyIdService.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    fireEvent.click(screen.getByLabelText('Page 2'));
+    expect(view.container.querySelector('.stable-list')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByText('Lan Nguyen').closest('[inert]')).not.toBeNull();
+    expect(view.container.querySelector('.pagination')).toBe(pager);
+    fireEvent.click(screen.getByText('Thôi việc'));
+    expect(services.QuitCompanyService).not.toHaveBeenCalled();
+    await act(async () => finish(listResult(6, [{ ...employee, firstName: 'Mai' }])));
+    expect(screen.getByRole('table')).toHaveTextContent('Mai Nguyen');
+    expect(screen.queryByText('Lan Nguyen')).not.toBeInTheDocument();
+});

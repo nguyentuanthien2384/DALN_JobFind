@@ -11,17 +11,21 @@ import { Link } from 'react-router-dom';
 import moment from 'moment';
 import './ApplicationHistory.css';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
+import StableList from '../../components/common/StableList';
 
 function History({ user, token }) {
     const [rows,setRows] = useState([]), [count,setCount] = useState(0);
     const [{ page }, setQuery] = useListQuery({ page: 0 });
     const [loading,setLoading] = useState(true), [error,setError] = useState(''), [refresh,setRefresh] = useState(0);
     const [progress,setProgress] = useState(new Map()), [progressError,setProgressError] = useState(''), [progressLoading,setProgressLoading] = useState(false);
+    const [settledRequest,setSettledRequest] = useState(''), [rowsPage,setRowsPage] = useState(page);
+    const requestKey = JSON.stringify([user.id, token, page, refresh]);
+    const busy = loading || settledRequest !== requestKey;
     const enabled = applicationProgressEnabled() && user.roleCode === 'CANDIDATE';
     useEffect(() => {
         let active = true;
         const current = () => active && localStorage.getItem('token_user') === token;
-        setLoading(true); setError(''); setRows([]);
+        setLoading(true); setError('');
         (async () => {
             try {
                 const response = await getAllListCvByUserIdService({userId:user.id,limit:PAGINATION.pagerow,offset:page*PAGINATION.pagerow});
@@ -31,12 +35,12 @@ function History({ user, token }) {
                     || response.data.some(row => !row || !Number.isSafeInteger(Number(row.id)) || Number(row.id) <= 0 || (row.userId != null && Number(row.userId) !== Number(user.id)))) throw Error('Không tải được danh sách hồ sơ đã nộp.');
                 const validPage = clampListPage(page, response.count, PAGINATION.pagerow);
                 if (validPage !== page) { setQuery({ page: validPage }, { replace: true }); return; }
-                setRows(response.data); setCount(response.count);
-            } catch (failure) { if (current()) { setError('Không tải được danh sách hồ sơ đã nộp.'); setCount(0); } }
-            finally { if (current()) setLoading(false); }
+                setRows(response.data); setRowsPage(page); setCount(response.count);
+            } catch (failure) { if (current()) { setError('Không tải được danh sách hồ sơ đã nộp.'); setRows([]); } }
+            finally { if (current()) { setLoading(false); setSettledRequest(requestKey); } }
         })();
         return () => { active=false; };
-    },[user.id,token,page,refresh,setQuery]);
+    },[user.id,token,page,refresh,requestKey,setQuery]);
     useEffect(() => {
         let active=true;
         setProgress(new Map()); setProgressError('');
@@ -52,17 +56,17 @@ function History({ user, token }) {
     },[enabled,token,refresh]);
     return <div className="col-12 grid-margin application-history"><div className="card"><div className="card-body">
         <h4 className="card-title">Danh sách Công Việc Đã Nộp</h4>
-        <button type="button" className="history-refresh" disabled={loading || progressLoading} onClick={()=>setRefresh(value=>value+1)}>Tải lại hồ sơ</button>
-        {loading && <p role="status">Đang tải hồ sơ đã nộp…</p>}
-        {error && <p role="alert">{error}</p>}
+        <button type="button" className="history-refresh" disabled={busy || progressLoading} onClick={()=>setRefresh(value=>value+1)}>Tải lại hồ sơ</button>
         {enabled && <p>Tiến trình do nhà tuyển dụng cập nhật và có thể hiển thị chậm. “Đã xem” là trạng thái đọc CV, không phải quyết định tuyển dụng.</p>}
         {enabled && progressError && <p role="alert">{progressError} Hồ sơ đã nộp vẫn được giữ nguyên; dùng Tải lại hồ sơ để kiểm tra lại.</p>}
-        {!loading && !error && rows.length===0 && <p>Chưa có hồ sơ trên trang này.</p>}
+        <StableList busy={busy} resetKey={user.id} label="Đang tải hồ sơ đã nộp…">
+        {error && <p role="alert">{error}</p>}
+        {!busy && !error && rows.length===0 && <p>Chưa có hồ sơ trên trang này.</p>}
         <div className="table-responsive pt-2"><table className="table table-bordered"><thead><tr>
             {['STT','Công việc','Thời gian nộp','Trạng thái đọc',...(enabled?['Tiến trình tuyển dụng']:[]),'Thao tác'].map(label=><th key={label}>{label}</th>)}
         </tr></thead><tbody>{rows.map((cv,index)=>{
             const post=cv.postCvData, detail=post?.postDetailData;
-            return <tr key={cv.id}><td data-label="STT">{index+1+page*PAGINATION.pagerow}</td>
+            return <tr key={cv.id}><td data-label="STT">{index+1+rowsPage*PAGINATION.pagerow}</td>
                 <td data-label="Công việc"><strong>{detail?.name || 'Tin tuyển dụng không còn thông tin'}</strong><small>
                     {[detail?.jobTypePostData?.value,detail?.jobLevelPostData?.value,detail?.provincePostData?.value].filter(Boolean).join(' · ') || 'Chưa có thông tin phân loại'}</small></td>
                 <td data-label="Thời gian nộp">{cv.createdAt && moment(cv.createdAt).isValid()?moment(cv.createdAt).format('DD-MM-YYYY HH:mm:ss'):'Chưa xác định'}</td>
@@ -71,6 +75,7 @@ function History({ user, token }) {
                 <td data-label="Thao tác">{post?.id && <><Link style={{color:'#4B49AC'}} to={`/detail-job/${post.id}/`}>Xem công việc</Link>{' · '}</>}
                     <Link style={{color:'#4B49AC'}} to={`/candidate/cv-detail/${cv.id}`}>Xem CV đã nộp</Link></td></tr>;
         })}</tbody></table></div>
+        </StableList>
         <ReactPaginate forcePage={page} pageCount={Math.max(page+1,Math.ceil(count/PAGINATION.pagerow))} previousLabel="Quay lại" nextLabel="Tiếp" breakLabel="…"
             containerClassName="pagination justify-content-center pb-3" pageClassName="page-item" pageLinkClassName="page-link" previousClassName="page-item" previousLinkClassName="page-link"
             nextClassName="page-item" nextLinkClassName="page-link" activeClassName="active" onPageChange={value=>setQuery({ page: value.selected })} />

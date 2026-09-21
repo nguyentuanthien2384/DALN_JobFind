@@ -21,6 +21,17 @@ const finishDebounce = async () => {
 };
 
 describe("JobSearchAutocomplete", () => {
+    it('updates the restored URL keyword in place without remounting or reporting another input change', () => {
+        const onValueChange = jest.fn(), onSearch = jest.fn();
+        const view = render(<JobSearchAutocomplete value="React" onValueChange={onValueChange} onSearch={onSearch} />);
+        const input = screen.getByRole('combobox', { name: 'Tìm kiếm việc làm' });
+        typeKeyword('Vue');
+        expect(onValueChange).toHaveBeenLastCalledWith('Vue');
+        view.rerender(<JobSearchAutocomplete value="Node" onValueChange={onValueChange} onSearch={onSearch} />);
+        expect(screen.getByRole('combobox', { name: 'Tìm kiếm việc làm' })).toBe(input);
+        expect(input).toHaveValue('Node');
+        expect(onValueChange).toHaveBeenCalledTimes(1);
+    });
     let scrollIntoViewMock;
 
     beforeEach(() => {

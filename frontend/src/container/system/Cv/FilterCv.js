@@ -9,6 +9,7 @@ import { useFetchAllcode } from '../../../util/fetch';
 import { PAGINATION } from '../../../util/constant';
 import './FilterCv.css';
 import useListQuery, { clampListPage } from '../../../util/useListQuery';
+import StableList from '../../../components/common/StableList';
 
 const emptyFilters = () => ({ keyword: '', categoryJobCode: '', experienceJobCode: '',
     provinceCode: '', salaryCode: '', listSkills: [], skillMode: 'any', minMatch: 0, sort: 'match' });
@@ -33,6 +34,10 @@ const FilterCv = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [retry, setRetry] = useState(0);
+    const [settledRequest, setSettledRequest] = useState('');
+    const filterKey = JSON.stringify(filters);
+    const requestKey = JSON.stringify([filterKey, page, retry]);
+    const busy = loading || settledRequest !== requestKey;
     const [skills, setSkills] = useState([]);
     const [skillError, setSkillError] = useState('');
     const [allowance, setAllowance] = useState(null);
@@ -49,7 +54,7 @@ const FilterCv = () => {
 
     useEffect(() => {
         let active = true;
-        setLoading(true); setError(''); setResult({ data: [], count: 0 });
+        setLoading(true); setError('');
         const timer = setTimeout(async () => {
             try {
                 const response = await getFilterCv({ ...filters, limit: PAGINATION.pagerow,
@@ -66,11 +71,11 @@ const FilterCv = () => {
                 setResult(response);
                 setAllowance(response.allowance || null);
             } catch (failure) {
-                if (active) setError(failure.message || 'Không tải được ứng viên. Vui lòng thử lại.');
-            } finally { if (active) setLoading(false); }
+                if (active) { setResult({ data: [], count: 0 }); setError(failure.message || 'Không tải được ứng viên. Vui lòng thử lại.'); }
+            } finally { if (active) { setLoading(false); setSettledRequest(requestKey); } }
         }, 250);
         return () => { active = false; clearTimeout(timer); };
-    }, [filters, page, retry, setQuery]);
+    }, [filters, page, retry, requestKey, setQuery]);
 
     useEffect(() => {
         let active = true;
@@ -181,19 +186,19 @@ const FilterCv = () => {
                         options={[0, 50, 70, 90, 100].map(value => ({ value, label: value ? `Từ ${value}%` : 'Không giới hạn' }))} /></div>
                 <p className="cv-search-help">Ngành, địa điểm, kinh nghiệm và mức lương được lọc theo đúng lựa chọn. Chỉ hiển thị ứng viên đang tìm việc và đã có CV.</p>
             </aside>
-            <section className="cv-search-results" aria-label="Kết quả tìm ứng viên" aria-busy={loading}>
-                <div className="cv-search-toolbar"><h2>{loading ? 'Đang tìm ứng viên…' : `${result.count} ứng viên`}</h2>
+            <section className="cv-search-results" aria-label="Kết quả tìm ứng viên" aria-busy={busy}>
+                <div className="cv-search-toolbar"><h2>{busy ? 'Đang tìm ứng viên…' : `${result.count} ứng viên`}</h2>
                     <div><label htmlFor="cv-sort">Sắp xếp</label><Select id="cv-sort" aria-label="Sắp xếp"
                         value={filters.sort} onChange={value => change('sort', value)} options={[
                             { value: 'match', label: 'Phù hợp nhất' }, { value: 'name', label: 'Tên A–Z' }]} /></div></div>
                 <p className="cv-search-method">Điểm = số tiêu chí khớp / số tiêu chí đã chọn. Mỗi kỹ năng tính một lần, dựa trên hồ sơ khai báo; chưa phân tích nội dung tệp PDF. Điểm hỗ trợ sàng lọc, không tự quyết định tuyển dụng.</p>
-                {loading && <div className="cv-search-state" role="status"><span className="cv-search-loader" />Đang đối chiếu hồ sơ với bộ lọc…</div>}
-                {!loading && error && <div className="cv-search-state" role="alert"><h3>Chưa tải được kết quả</h3><p>{error}</p>
+                <StableList busy={busy} resetKey={filterKey} label="Đang đối chiếu hồ sơ với bộ lọc…">
+                {!busy && error && <div className="cv-search-state" role="alert"><h3>Chưa tải được kết quả</h3><p>{error}</p>
                     <button type="button" className="cv-search-primary" onClick={() => setRetry(value => value + 1)}>Thử lại</button></div>}
-                {!loading && !error && result.data.length === 0 && <div className="cv-search-state"><h3>Chưa có ứng viên phù hợp</h3>
+                {!busy && !error && result.data.length === 0 && <div className="cv-search-state"><h3>Chưa có ứng viên phù hợp</h3>
                     <p>Thử bớt tiêu chí, giảm điểm tối thiểu hoặc đổi cách khớp kỹ năng.</p>
                     <button type="button" className="cv-search-primary" onClick={reset}>Xóa bộ lọc</button></div>}
-                {!loading && !error && result.data.map(candidate => {
+                {!error && result.data.map(candidate => {
                     const name = [candidate.userSettingData?.firstName, candidate.userSettingData?.lastName].filter(Boolean).join(' ') || 'Ứng viên';
                     const scored = candidate.matchScore !== null && candidate.matchScore !== undefined;
                     return <article className="cv-search-candidate" key={candidate.userId}>
@@ -216,9 +221,10 @@ const FilterCv = () => {
                             <button type="button" className="cv-search-primary" onClick={() => openCandidate(candidate.userId)}>Xem chi tiết ứng viên</button></footer>
                     </article>;
                 })}
-                {!loading && !error && result.count > PAGINATION.pagerow && <nav aria-label="Phân trang ứng viên">
+                </StableList>
+                {!error && result.count > PAGINATION.pagerow && <nav aria-label="Phân trang ứng viên">
                     <ReactPaginate forcePage={page} previousLabel="Trước" nextLabel="Sau" breakLabel="…"
-                        pageCount={Math.ceil(result.count / PAGINATION.pagerow)} pageRangeDisplayed={3} marginPagesDisplayed={1}
+                        pageCount={Math.max(page + 1, Math.ceil(result.count / PAGINATION.pagerow))} pageRangeDisplayed={3} marginPagesDisplayed={1}
                         onPageChange={({ selected }) => setQuery({ page: selected })} containerClassName="cv-search-pagination" activeClassName="is-active" />
                 </nav>}
             </section>

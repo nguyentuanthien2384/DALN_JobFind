@@ -4,6 +4,7 @@ import Job from '../../../components/Job/Job'
 import JobSearchAutocomplete from './JobSearchAutocomplete'
 import { prefetchJobDetail } from '../../JobDetail/jobDetailResource'
 import './JobResults.css';
+import StableList from '../../../components/common/StableList';
 const RightContent = (props) => {
     return (
         <>
@@ -15,7 +16,7 @@ const RightContent = (props) => {
                             <div className="col-lg-12">
                                 <div className="count-job mb-35">
                                     <span>{props.loading ? 'Đang tìm việc…' : props.error ? 'Chưa tải được kết quả' : `${props.count} công việc được tìm thấy`}</span>
-                                    <JobSearchAutocomplete onSearch={props.handleSearch} initialValue={props.searchDraft} onValueChange={props.onSearchDraftChange} />
+                                    <JobSearchAutocomplete onSearch={props.handleSearch} value={props.searchDraft} onValueChange={props.onSearchDraftChange} />
 
                                     {/* <!-- Select job items start --> */}
                                     {/* <div class="select-job-items">
@@ -31,6 +32,7 @@ const RightContent = (props) => {
                                 </div>
                             </div>
                         </div>
+                        <StableList busy={props.loading} resetKey={props.resetKey} label="Đang tìm việc…">
                         {props.post.map((data) => {
                             return (
                                 <Link
@@ -47,6 +49,7 @@ const RightContent = (props) => {
                                 </Link>
                             )
                         })}
+                        </StableList>
 
 
                         {/* <div class="single-job-items mb-30">

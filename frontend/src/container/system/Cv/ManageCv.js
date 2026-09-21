@@ -1,3 +1,5 @@
+import useListLoading from '../useListLoading';
+import StableList from '../../../components/common/StableList';
 import React from "react";
 import { useEffect, useState } from "react";
 import { getAllListCvByPostService } from "../../../service/cvService";
@@ -15,6 +17,7 @@ const ManageCv = () => {
     const [{ page: numberPage }, setQuery] = useListQuery({ page: 0 });
     const { id } = useParams();
     const [post, setPost] = useState("");
+    const [loading, setLoading] = useListLoading(JSON.stringify([id, numberPage]));
     useEffect(() => {
         let active = true;
         setPost('');
@@ -25,7 +28,7 @@ const ManageCv = () => {
     }, [id]);
     useEffect(() => {
         let active = true;
-        setdataCv([]);
+        setLoading(true);
         if (id) {
             try {
                 let fetchData = async () => {
@@ -34,6 +37,8 @@ const ManageCv = () => {
                         offset: numberPage * PAGINATION.pagerow,
                         postId: id,
                     });
+                    if (!active) return;
+                    if (arrData?.errCode !== 0) throw new Error();
                     if (active && arrData && arrData.errCode === 0) {
                         setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
                         const page = clampListPage(numberPage, arrData.count, PAGINATION.pagerow);
@@ -41,13 +46,14 @@ const ManageCv = () => {
                         setdataCv(arrData.data);
                     }
                 };
-                fetchData().catch(() => {});
+                fetchData().catch(() => { if (active) { setdataCv([]); setCount(0); } })
+                    .finally(() => { if (active) setLoading(false); });
             } catch (error) {
-                console.log(error);
+                setdataCv([]); setCount(0); setLoading(false);
             }
-        }
+        } else { setdataCv([]); setCount(0); setLoading(false); }
         return () => { active = false; };
-    }, [id, numberPage, setQuery]);
+    }, [id, numberPage, setQuery, setLoading]);
 
     const handleChangePage = number => setQuery({ page: number.selected });
     const navigate = useNavigate();
@@ -67,7 +73,7 @@ const ManageCv = () => {
                         <div className="text-center">
                             <h3>{post && post.postDetailData.name}</h3>
                         </div>
-                        <div className="table-responsive pt-2">
+                        <StableList busy={loading} resetKey={id}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -159,7 +165,7 @@ const ManageCv = () => {
                                     Không có dữ liệu
                                 </div>
                             )}
-                        </div>
+                        </div></StableList>
                     </div>
                     {count > 0 && <ReactPaginate
                         forcePage={Math.min(numberPage, count - 1)}

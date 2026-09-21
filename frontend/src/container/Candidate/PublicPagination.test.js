@@ -121,3 +121,41 @@ test('an old company response cannot clamp a newly selected page', async () => {
     expect(screen.getByTestId('url').textContent).toContain('page=2');
     expect(screen.getByText('Company description')).toBeInTheDocument();
 });
+
+
+test.each([
+    ['companies', ListCompany, getListCompany, 'Company description'],
+    ['saved jobs', SavedJobs, getFavoritePostByUserService, 'Saved job 21'],
+    ['submitted applications', ManageCvCandidate, getAllListCvByUserIdService, 'Applied job'],
+])('%s keep existing rows during a slow page request and remove stale rows on failure', async (name, Component, service, label) => {
+    const view = show(Component, '/list');
+    const row = await screen.findByText(label);
+    const retainedLink = view.container.querySelector('.stable-list a');
+    let failPage;
+    service.mockImplementationOnce(() => new Promise((resolve, reject) => { failPage = reject; }));
+    fireEvent.click(screen.getByRole('button', { name: 'Page 2' }));
+    expect(row).toBeInTheDocument();
+    expect(row.closest('[inert]')).not.toBeNull();
+    expect(view.container.querySelector('.stable-list')).toHaveAttribute('aria-busy', 'true');
+    expect(fireEvent.click(retainedLink)).toBe(false);
+    expect(screen.getByRole('button', { name: 'Page 2' })).toBeInTheDocument();
+    expect(screen.getByTestId('url')).toHaveTextContent('page=2');
+    await act(async () => failPage(new Error('Network unavailable')));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByText(label)).not.toBeInTheDocument();
+    expect(view.container.querySelector('.stable-list')).toHaveAttribute('aria-busy', 'false');
+    expect(screen.getByTestId('url')).toHaveTextContent('page=2');
+});
+
+test('retained saved-job actions cannot remove a job from the previous page while loading', async () => {
+    show(SavedJobs, '/candidate/saved');
+    const remove = await screen.findByRole('button', { name: /Bỏ lưu/ });
+    let finishPage;
+    getFavoritePostByUserService.mockImplementationOnce(() => new Promise(resolve => { finishPage = resolve; }));
+    fireEvent.click(screen.getByRole('button', { name: 'Page 2' }));
+    fireEvent.click(remove);
+    expect(toggleFavoritePostService).not.toHaveBeenCalled();
+    await act(async () => finishPage({ errCode: 0, count: 30, data: [saved(22)] }));
+    expect(await screen.findByText('Saved job 22')).toBeInTheDocument();
+    expect(screen.queryByText('Saved job 21')).not.toBeInTheDocument();
+});

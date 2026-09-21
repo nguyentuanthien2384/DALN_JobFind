@@ -1,3 +1,4 @@
+import StableList from '../../components/common/StableList';
 import React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
@@ -32,6 +33,7 @@ const useStatisticsQuery = (defaults, prefix) => {
 const useStatisticsTable = (query, setQuery, service, enabled, companyId) => {
     const [result, setResult] = useState({ data: [], count: 0, sum: 0 });
     const [failure, setFailure] = useState(null);
+    const [loading, setLoading] = useState(enabled);
     const sequence = useRef(0);
     const key = JSON.stringify([query.page, query.fromDate, query.toDate, enabled, companyId]);
     const currentKey = useRef(key);
@@ -40,6 +42,7 @@ const useStatisticsTable = (query, setQuery, service, enabled, companyId) => {
         if (!enabled) return;
         const request = ++sequence.current;
         setFailure(null);
+        setLoading(true);
         try {
             const response = await service({
                 limit: PAGINATION.pagerow,
@@ -60,16 +63,19 @@ const useStatisticsTable = (query, setQuery, service, enabled, companyId) => {
             if (request === sequence.current && currentKey.current === key) {
                 setFailure({ key, message: 'Không tải được dữ liệu thống kê. Vui lòng thử Làm mới.' });
             }
+        } finally {
+            if (request === sequence.current && currentKey.current === key) setLoading(false);
         }
     }, [query.page, query.fromDate, query.toDate, enabled, companyId, service, setQuery, key]);
     useEffect(() => {
         reload();
         return () => { sequence.current += 1; };
     }, [reload]);
-    // Same-query refreshes may show the last good result; a new page/date never
-    // displays rows belonging to a previous query, even if its request fails.
+    // Retain the previous table geometry while its replacement loads. StableList
+    // marks these rows unavailable until the current request succeeds.
     return {
-        ...(result.key === key ? result : { data: [], count: 0, sum: 0 }),
+        ...(result.key !== key && failure?.key === key ? { data: [], count: 0, sum: 0 } : result),
+        loading: enabled && (loading || (result.key !== key && failure?.key !== key)),
         error: failure?.key === key ? failure.message : '',
         reload,
     };
@@ -297,7 +303,7 @@ const Home = () => {
                                 value={[dayjs(locCv.fromDate), dayjs(locCv.toDate)]}
                                 onChange={(values) => onDatePicker(values)}
                             ></RangePicker>
-                            <div className="table-responsive pt-2">
+                            <StableList busy={cvTable.loading} resetKey={JSON.stringify([locCv.fromDate, locCv.toDate])}><div className="table-responsive pt-2">
                                 <table className="table table-bordered">
                                     <thead>
                                         <tr>
@@ -347,7 +353,7 @@ const Home = () => {
                                         Không có dữ liệu
                                     </div>
                                 )}
-                            </div>
+                            </div></StableList>
                         </div>
                         <ReactPaginate
                             disableInitialCallback
@@ -400,7 +406,7 @@ const Home = () => {
                                     format={"DD/MM/YYYY"}
                                 ></RangePicker>
 
-                                <div className="table-responsive pt-2">
+                                <StableList busy={postTable.loading} resetKey={JSON.stringify([locPost.fromDate, locPost.toDate])}><div className="table-responsive pt-2">
                                     <table className="table table-bordered">
                                         <thead>
                                             <tr>
@@ -465,7 +471,7 @@ const Home = () => {
                                                 Không có dữ liệu
                                             </div>
                                         )}
-                                </div>
+                                </div></StableList>
                             </div>
                             {dataStatisticalPackagePost &&
                                 dataStatisticalPackagePost.length > 0 && (
@@ -530,7 +536,7 @@ const Home = () => {
                                     format={"DD/MM/YYYY"}
                                 ></RangePicker>
 
-                                <div className="table-responsive pt-2">
+                                <StableList busy={packageCvTable.loading} resetKey={JSON.stringify([locPkgCv.fromDate, locPkgCv.toDate])}><div className="table-responsive pt-2">
                                     <table className="table table-bordered">
                                         <thead>
                                             <tr>
@@ -588,7 +594,7 @@ const Home = () => {
                                                 Không có dữ liệu
                                             </div>
                                         )}
-                                </div>
+                                </div></StableList>
                             </div>
                             {dataStatisticalPackageCv &&
                                 dataStatisticalPackageCv.length > 0 && (

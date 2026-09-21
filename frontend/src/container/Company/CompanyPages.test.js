@@ -187,7 +187,8 @@ describe("ListCompany", () => {
         render(<ListCompany />);
         await waitFor(() => expect(getListCompany).toHaveBeenCalled());
         expect(screen.queryByText("Công ty Sao Việt")).not.toBeInTheDocument();
-        expect(screen.getByText("0 công ty được tìm thấy")).toBeInTheDocument();
+        expect(await screen.findByRole("alert")).toHaveTextContent("Không tải được danh sách công ty");
+        expect(screen.getByText("Chưa tải được danh sách công ty")).toBeInTheDocument();
     });
 });
 

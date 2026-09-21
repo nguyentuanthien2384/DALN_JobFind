@@ -1,3 +1,4 @@
+import StableList from '../../../components/common/StableList';
 import React from 'react'
 
 import { DeleteAllcodeService, getListAllCodeService } from '../../../service/userService';
@@ -11,7 +12,7 @@ import { ExclamationCircleOutlined } from '@ant-design/icons';
 const {confirm} = Modal
 
 const ManageWorkType = () => {
-    const { rows: dataWorkType, count, loading, numberPage, searchDraft, setSearchDraft,
+    const { rows: dataWorkType, count, loading, numberPage, search, searchDraft, setSearchDraft,
         handleChangePage, handleSearch, refresh } = useCatalogList(getListAllCodeService, { type: 'WORKTYPE' });
     let handleDeleteWorkType = async (code) => {
         let res = await DeleteAllcodeService(code)
@@ -41,7 +42,7 @@ const ManageWorkType = () => {
                         <Input.Search value={searchDraft} onChange={event => setSearchDraft(event.target.value)} onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên hình thức" allowClear enterButton="Tìm kiếm">
                                     
                                     </Input.Search>
-                        <div className="table-responsive pt-2">
+                        <StableList busy={loading} resetKey={search}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -90,7 +91,7 @@ const ManageWorkType = () => {
                                                 </div>
                                             )
                                         }
-                        </div>
+                        </div></StableList>
                     </div>
                     {count > 0 && <ReactPaginate
                     forcePage={Math.min(numberPage, count - 1)}

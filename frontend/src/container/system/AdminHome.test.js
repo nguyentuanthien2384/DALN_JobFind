@@ -305,4 +305,25 @@ describe("system home dashboard", () => {
         }
     });
 
+    it('keeps only the changing statistics table busy until its new page is ready', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 1, roleCode: 'ADMIN' }));
+        const view = render(<Home />);
+        await screen.findByText('Gói bài hot');
+        await screen.findByText('Gói xem CV');
+        const tables = [...view.container.querySelectorAll('.stable-list')];
+        const pagers = screen.getAllByTestId('dashboard-pager');
+        let finish;
+        getStatisticalPackagePost.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        fireEvent.click(pagers[0]);
+        expect(tables[0]).toHaveAttribute('aria-busy', 'true');
+        expect(tables[1]).toHaveAttribute('aria-busy', 'false');
+        expect(screen.getByText('Gói bài hot').closest('[inert]')).not.toBeNull();
+        expect(screen.getAllByTestId('dashboard-pager')[0]).toBe(pagers[0]);
+        expect(screen.getByRole('table')).toHaveTextContent('Gói xem CV');
+        await act(async () => finish({ ...postPackageStats, data: [{ ...postPackageStats.data[0], name: 'Gói trang kế tiếp' }] }));
+        expect(tables[0]).toHaveAttribute('aria-busy', 'false');
+        expect(screen.queryByText('Gói bài hot')).not.toBeInTheDocument();
+        expect(screen.getByText('Gói trang kế tiếp')).toBeInTheDocument();
+    });
+
 });

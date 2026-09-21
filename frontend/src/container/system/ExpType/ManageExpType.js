@@ -1,3 +1,4 @@
+import StableList from '../../../components/common/StableList';
 import React from 'react'
 
 import { DeleteAllcodeService, getListAllCodeService } from '../../../service/userService';
@@ -11,7 +12,7 @@ import {Input, Modal} from 'antd'
 const {confirm} = Modal
 
 const ManageExpType = () => {
-    const { rows: dataExpType, count, loading, numberPage, searchDraft, setSearchDraft,
+    const { rows: dataExpType, count, loading, numberPage, search, searchDraft, setSearchDraft,
         handleChangePage, handleSearch, refresh } = useCatalogList(getListAllCodeService, { type: 'EXPTYPE' });
     let handleDeleteExpType = async (code) => {
         let res = await DeleteAllcodeService(code)
@@ -41,7 +42,7 @@ const ManageExpType = () => {
                         <Input.Search value={searchDraft} onChange={event => setSearchDraft(event.target.value)} onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên công việc" allowClear enterButton="Tìm kiếm">
                                     
                                     </Input.Search>
-                        <div className="table-responsive pt-2">
+                        <StableList busy={loading} resetKey={search}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -90,7 +91,7 @@ const ManageExpType = () => {
                                                 </div>
                                             )
                                         }
-                        </div>
+                        </div></StableList>
                     </div>
                     {count > 0 && <ReactPaginate
                     forcePage={Math.min(numberPage, count - 1)}

@@ -146,3 +146,42 @@ it('ignores an older response so it cannot reset the new query or replace its ro
     expect(screen.queryByText('Old result')).not.toBeInTheDocument();
     expect(screen.getByText('Fast result')).toBeInTheDocument();
 });
+
+
+it.each(configs)('%s keeps its table and pager stable while the next page loads', async (_, Component, fetch) => {
+    const measure = jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+        return { width: 800, height: this.textContent.includes('Catalog item') ? 450 : 180, top: 0, left: 0, right: 800, bottom: 450 };
+    });
+    try {
+        const view = show(Component, '/catalog');
+        await screen.findAllByText('Catalog item');
+        const tableArea = view.container.querySelector('.stable-list');
+        expect(tableArea).toHaveStyle({ minHeight: '450px' });
+        const pager = view.container.querySelector('.pagination');
+        let finish;
+        fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        fireEvent.click(screen.getByLabelText('Page 2'));
+        expect(tableArea).toHaveAttribute('aria-busy', 'true');
+        expect(screen.getAllByText('Catalog item')[0].closest('[inert]')).not.toBeNull();
+        expect(screen.queryByRole('table')).not.toBeInTheDocument();
+        expect(view.container.querySelector('.pagination')).toBe(pager);
+        expect(tableArea).toHaveStyle({ minHeight: '450px' });
+        await act(async () => finish(response('Short last page', 6)));
+        expect(screen.getByRole('table')).toHaveTextContent('Short last page');
+        expect(screen.queryByText('Catalog item')).not.toBeInTheDocument();
+        expect(tableArea).toHaveAttribute('aria-busy', 'false');
+        expect(tableArea).toHaveStyle({ minHeight: '450px' });
+    } finally { measure.mockRestore(); }
+});
+
+it('removes retained catalog rows when the new page request fails', async () => {
+    const view = show(ManageExpType, '/catalog');
+    await screen.findByText('Catalog item');
+    let fail;
+    getListAllCodeService.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
+    fireEvent.click(screen.getByLabelText('Page 2'));
+    await act(async () => fail(new Error('offline')));
+    expect(screen.queryByText('Catalog item')).not.toBeInTheDocument();
+    expect(view.container.querySelector('.stable-list')).toHaveAttribute('aria-busy', 'false');
+    expect(params().get('page')).toBe('2');
+});

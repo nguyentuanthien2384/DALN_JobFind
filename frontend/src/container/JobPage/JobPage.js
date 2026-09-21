@@ -30,6 +30,19 @@ const JobSearchPage = ({ historyKey }) => {
 
     // Every history entry shows the keyword that produced its results.
     const [searchDraft, setSearchDraft] = useState(search);
+    const [renderedEntry, setRenderedEntry] = useState(historyKey);
+    if (renderedEntry !== historyKey) {
+        setRenderedEntry(historyKey);
+        setSearchDraft(search);
+        setError('');
+        setRetry(saved.retry || 0);
+        if (restored) {
+            loadedQuery.current = saved.loadedQuery;
+            setPost(saved.post || []); setCount(saved.count || 0); setCountPage(saved.countPage || 0);
+            setLabels(saved.labels || {}); setLabelsReady(mode === 'legacy' || Boolean(saved.labelsReady));
+            setLoading(!saved.loadedQuery);
+        } else setLoading(true);
+    }
     remember({ countPage, post, count, numberPage, labels, labelsReady, workType, jobType, salary, exp,
         jobLevel, jobLocation, search, searchDraft, retry, loadedQuery: loadedQuery.current });
     const handleSearch = value => setQuery({ page: 0, search: value });
@@ -66,7 +79,7 @@ const JobSearchPage = ({ historyKey }) => {
         setError('');
         if (!sameQuery) {
             loadedQuery.current = null;
-            setLoading(true); setPost([]); setCount(0); setCountPage(0);
+            setLoading(true);
         }
         loadSearchPage(params, mode, labels).then(result => {
             if (!active) return;
@@ -77,7 +90,10 @@ const JobSearchPage = ({ historyKey }) => {
             setPost(result.data); setCount(result.count);
             setCountPage(Math.ceil((mode === 'core' ? Math.min(result.count, 10000) : result.count) / limit));
         }).catch(failure => {
-            if (active) { setError(failure.message); if (!sameQuery) setCountPage(0); }
+            if (active) {
+                setError(failure.message);
+                if (!sameQuery) { loadedQuery.current = null; setPost([]); setCount(0); setCountPage(0); }
+            }
         }).finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
     }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels, labelsReady, setQuery]);
@@ -134,8 +150,8 @@ const JobSearchPage = ({ historyKey }) => {
                             </div>
                             {/* <!-- Right content --> */}
                             <div className="col-xl-9 col-lg-9 col-md-8">
-                            <RightContent handleSearch={handleSearch} searchDraft={searchDraft} onSearchDraftChange={setSearchDraft} count={count} post={post} loading={loading} error={error} />
-                            {loading && <p role="status">Đang tìm việc…</p>}
+                            <RightContent handleSearch={handleSearch} searchDraft={searchDraft} onSearchDraftChange={setSearchDraft} count={count} post={post} loading={loading} error={error}
+                                resetKey={JSON.stringify({ workType, jobLevel, exp, jobType, jobLocation, salary, search })} />
                             {error && <div role="alert">{error} <button type="button" onClick={() => setRetry(value => value + 1)}>Thử lại</button></div>}
                             {!loading && !error && count === 0 && <p>Không tìm thấy công việc phù hợp. Hãy thử đổi từ khóa hoặc bộ lọc.</p>}
                             {mode === 'core' && count > 10000 && <p>Đang hiển thị tối đa 10.000 kết quả. Hãy thêm bộ lọc để thu hẹp tìm kiếm.</p>}
@@ -144,7 +160,7 @@ const JobSearchPage = ({ historyKey }) => {
                             previousLabel={'Quay lại'}
                             nextLabel={'Tiếp'}
                             breakLabel={'...'}
-                            pageCount={countPage}
+                            pageCount={Math.max(numberPage + 1, countPage)}
                             marginPagesDisplayed={3}
                             containerClassName={"pagination justify-content-center pb-3"}
                             pageClassName={"page-item"}
@@ -174,7 +190,7 @@ const JobSearchPage = ({ historyKey }) => {
 const JobPage = () => {
     const location = useLocation();
     const historyKey = `${searchMode()}:${location.key}:${location.search}`;
-    return <JobSearchPage key={`${historyKey}:${localStorage.getItem('token_user') || ''}`} historyKey={historyKey} />;
+    return <JobSearchPage key={`${searchMode()}:${localStorage.getItem('token_user') || ''}`} historyKey={historyKey} />;
 };
 
 export default JobPage

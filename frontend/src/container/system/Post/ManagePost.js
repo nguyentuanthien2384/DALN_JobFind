@@ -1,3 +1,5 @@
+import useListLoading from '../useListLoading';
+import StableList from '../../../components/common/StableList';
 import React from 'react'
 import { useEffect, useState, useRef } from 'react';
 import { isJobRevision, jobDeadlineDate, jobStatusLabel } from '../../../service/jobFormAdapter';
@@ -27,7 +29,6 @@ const ManagePost = () => {
     const [{ page: numberPage, search, censorCode }, setQuery] = useListQuery({ page: 0, search: id || '', censorCode: id ? '' : 'PS3' });
     const [total, setTotal] = useState(0);
     const [propsModal, setPropsModal] = useState({ isActive: false, postId: '', action: '', handlePost: () => {} });
-    const [loading, setLoading] = useState(true);
     const [pending, setPending] = useState(false);
     const [loadError, setLoadError] = useState('');
     const [actionWarning, setActionWarning] = useState('');
@@ -40,10 +41,11 @@ const ManagePost = () => {
         { value: 'PS2', label: 'Đã bị từ chối' }, { value: 'PS3', label: 'Chờ kiểm duyệt' },
         { value: 'PS4', label: 'Bài viết đã bị chặn' }
     ];
+    const [loading, setLoading] = useListLoading(JSON.stringify([search, censorCode, numberPage, id, refreshVersion]));
     useEffect(() => {
         let active = true;
         viewEpoch.current += 1;
-        setLoading(true); setLoadError(''); setdataPost([]); setTotal(0); setCount(0);
+        setLoading(true); setLoadError('');
         setPropsModal(current => ({ ...current, isActive: false }));
         const load = async () => {
             try {
@@ -67,12 +69,12 @@ const ManagePost = () => {
                 const page = clampListPage(numberPage, result.count, PAGINATION.pagerow);
                 if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
                 setdataPost(result.data); setTotal(result.count); setCount(Math.ceil(result.count / PAGINATION.pagerow));
-            } catch (error) { if (active) setLoadError(error.message || 'Không đọc được danh sách tin'); }
+            } catch (error) { if (active) { setdataPost([]); setTotal(0); setCount(0); setLoadError(error.message || 'Không đọc được danh sách tin'); } }
             finally { if (active) setLoading(false); }
         };
         load();
         return () => { active = false; viewEpoch.current += 1; };
-    }, [search, censorCode, numberPage, id, refreshVersion, user, workspace, setQuery]);
+    }, [search, censorCode, numberPage, id, refreshVersion, user, workspace, setQuery, setLoading]);
 
     const handleChangePage = number => { if (!busy.current && !propsModal.isActive) setQuery({ page: number.selected }); };
     const handleOnChangeCensor = value => { if (busy.current || propsModal.isActive) return; setQuery({ censorCode: value, page: 0 }); };
@@ -133,7 +135,6 @@ const ManagePost = () => {
                     <div className="card-body">
                         <h4 className="card-title">Danh sách bài đăng</h4>
                         {workspace.mode === 'core' && <p>Danh sách riêng của công ty qua Job Core, gồm cả tin chưa công khai và hết hạn. Trạng thái là lúc tải; không phải xác nhận kết quả của lần đăng đang chờ đối chiếu.</p>}
-                        {loading && <p role="status">Đang tải danh sách tin...</p>}
                         {(loadError || actionWarning) && <p role="alert">{loadError || actionWarning}</p>}
                         {user.roleCode === 'ADMIN' && !loading && dataPost.some(row => !isJobRevision(row.editRevision)) &&
                             <p role="alert">Một số tin thiếu phiên bản. Cần cập nhật backend và tải lại trước khi kiểm duyệt.</p>}
@@ -152,8 +153,8 @@ const ManagePost = () => {
                             </Col>
 
                         </Row>
-                        {!loading && !loadError && <div>Số lượng bài viết: {total}</div>}
-                        <div className="table-responsive pt-2">
+                        {!loadError && <div>Số lượng bài viết: {total}</div>}
+                        <StableList busy={loading} resetKey={JSON.stringify([search, censorCode, id])}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -250,9 +251,9 @@ const ManagePost = () => {
                                                 </div>
                                             )
                             }
-                        </div>
+                        </div></StableList>
                     </div>
-                    {!loading && !loadError && count > 0 && <ReactPaginate
+                    {!loadError && count > 0 && <ReactPaginate
                                         forcePage={Math.min(numberPage, count - 1)}
 
                         previousLabel={'Quay lại'}

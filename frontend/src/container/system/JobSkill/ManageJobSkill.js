@@ -1,3 +1,4 @@
+import StableList from '../../../components/common/StableList';
 import React from 'react'
 
 import { DeleteSkillService, getListSkill } from '../../../service/userService';
@@ -13,7 +14,7 @@ import { useFetchAllcode } from '../../../util/fetch';
 const {confirm} = Modal
 
 const ManageJobSkill = () => {
-    const { rows: dataJobSkill, count, loading, numberPage, searchDraft, setSearchDraft,
+    const { rows: dataJobSkill, count, loading, numberPage, search, searchDraft, setSearchDraft,
         handleChangePage, handleSearch, refresh, categoryJobCode, handleCategoryChange } = useCatalogList(getListSkill, { withCategory: true });
     let { data: listCategoryJobCode } = useFetchAllcode('JOBTYPE');
     listCategoryJobCode = listCategoryJobCode.map(item=> ({
@@ -63,7 +64,7 @@ const ManageJobSkill = () => {
                             </Col>
 
                         </Row>
-                        <div className="table-responsive pt-2">
+                        <StableList busy={loading} resetKey={JSON.stringify([search, categoryJobCode])}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -111,7 +112,7 @@ const ManageJobSkill = () => {
                                                 </div>
                                             )
                             }
-                        </div>
+                        </div></StableList>
                     </div>
                     {count > 0 && <ReactPaginate
                     forcePage={Math.min(numberPage, count - 1)}

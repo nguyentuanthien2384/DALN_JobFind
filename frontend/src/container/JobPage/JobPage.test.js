@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { getListPostService } from "../../service/userService";
 import JobPage from "./JobPage";
 import { BrowserRouter, MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
@@ -28,16 +28,18 @@ jest.mock("./LeftPage/LeftBar", () => (props) => (
         <button onClick={() => props.recieveLocation("HCM")}>location</button>
     </div>
 ));
-jest.mock("./RightPage/RightContent", () => (props) => (
+jest.mock("./RightPage/RightContent", () => (props) => {
+    const StableList = require('../../components/common/StableList').default;
+    return (
     <div>
         <span data-testid="job-count">{props.count}</span>
         <input aria-label="Search draft" value={props.searchDraft} onChange={event => props.onSearchDraftChange(event.target.value)} />
         <button onClick={() => props.handleSearch(props.searchDraft)}>submit-draft</button>
-        {props.post.map((item) => <span key={item.id}>{item.name}</span>)}
+        <StableList busy={props.loading} resetKey={props.resetKey}>{props.post.map((item) => <span key={item.id}>{item.name}</span>)}</StableList>
         <button onClick={() => props.handleSearch("  React   Engineer  ")}>search</button>
         <button onClick={() => props.handleSearch("")}>clear-search</button>
     </div>
-));
+); });
 jest.mock("react-paginate", () => (props) => (
     <div>
         <span data-testid="page-count">{props.pageCount}</span>
@@ -60,6 +62,23 @@ const expectLatestQuery = async (expected) => {
 };
 
 describe("JobPage", () => {
+    it('keeps the page mounted and rows visible but inactive while paging without scrolling to top', async () => {
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
+        await expectLatestQuery({ offset: 0 });
+        const input = screen.getByLabelText('Search draft');
+        let complete;
+        getListPostService.mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
+        window.scrollTo.mockClear();
+        fireEvent.click(screen.getByText('page-three'));
+        expect(screen.getByLabelText('Search draft')).toBe(input);
+        expect(window.scrollTo).not.toHaveBeenCalled();
+        expect(screen.getByText('React Developer').closest('[inert]')).toBeInTheDocument();
+        expect(screen.getByTestId('page-count')).toHaveTextContent('3');
+        await act(async () => complete({ ...success, data: [{ id: 3, name: 'Trang mới' }] }));
+        expect(screen.getByText('Trang mới').closest('[inert]')).toBeNull();
+        expect(screen.queryByText('React Developer')).not.toBeInTheDocument();
+        expect(window.scrollTo).not.toHaveBeenCalled();
+    });
     it('Back restores the applied keyword instead of the draft submitted on the next history entry', async () => {
         const Navigation = () => { const navigate = useNavigate(); return <button onClick={() => navigate(-1)}>Back</button>; };
         render(<MemoryRouter initialEntries={['/job?page=3&search=React']}><Navigation /><JobPage /></MemoryRouter>);

@@ -1,3 +1,5 @@
+import useListLoading from '../useListLoading';
+import StableList from '../../../components/common/StableList';
 import React from "react";
 import { useEffect, useState } from "react";
 import useListQuery, { clampListPage } from "../../../util/useListQuery";
@@ -22,19 +24,22 @@ const ManageUser = () => {
     const [refresh, setRefresh] = useState(0);
     const [total, setTotal] = useState(0);
 
+    const [loading, setLoading] = useListLoading(JSON.stringify([numberPage, search, refresh]));
     useEffect(() => {
         let active = true;
-        setdataUser([]);
+        setLoading(true);
         getAllUsers({ limit: PAGINATION.pagerow, offset: numberPage * PAGINATION.pagerow,
             search: CommonUtils.removeSpace(search) }).then(res => {
-            if (!active || res?.errCode !== 0) return;
+            if (!active) return;
+            if (res?.errCode !== 0) throw new Error();
             const page = clampListPage(numberPage, res.count, PAGINATION.pagerow);
             setCount(Math.ceil(res.count / PAGINATION.pagerow)); setTotal(res.count);
             if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
             setdataUser(res.data);
-        }).catch(() => { if (active) toast.error("Không tải được danh sách người dùng"); });
+        }).catch(() => { if (active) { setdataUser([]); setCount(0); setTotal(0); toast.error("Không tải được danh sách người dùng"); } })
+            .finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
-    }, [numberPage, search, refresh, setQuery]);
+    }, [numberPage, search, refresh, setQuery, setLoading]);
     const handleChangePage = number => setQuery({ page: number.selected });
     let handlebanUser = async (event, item) => {
         event.preventDefault();
@@ -71,7 +76,7 @@ const ManageUser = () => {
                         ></Input.Search>
                         <div>Số lượng người dùng: {total}</div>
 
-                        <div className="table-responsive pt-2">
+                        <StableList busy={loading} resetKey={search}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -177,7 +182,7 @@ const ManageUser = () => {
                                     Không có dữ liệu
                                 </div>
                             )}
-                        </div>
+                        </div></StableList>
                     </div>
                     {count > 0 && <ReactPaginate
                         forcePage={Math.min(numberPage, count - 1)}

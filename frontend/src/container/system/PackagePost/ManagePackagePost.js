@@ -1,3 +1,4 @@
+import StableList from '../../../components/common/StableList';
 import React from 'react'
 
 import { getAllPackage, setActiveTypePackage } from '../../../service/userService';
@@ -8,7 +9,7 @@ import { toast } from 'react-toastify';
 import useCatalogList from '../useCatalogList';
 import {Input} from 'antd'
 const ManagePackagePost = () => {
-    const { rows: dataPackagePost, count, loading, numberPage, searchDraft, setSearchDraft,
+    const { rows: dataPackagePost, count, loading, numberPage, search, searchDraft, setSearchDraft,
         handleChangePage, handleSearch, refresh } = useCatalogList(getAllPackage);
     let hanndleSetActivePackage = async (event,id, isActive) => {
         event.preventDefault();
@@ -30,7 +31,7 @@ const ManagePackagePost = () => {
                         <Input.Search value={searchDraft} onChange={event => setSearchDraft(event.target.value)} onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên gói bài đăng" allowClear enterButton="Tìm kiếm">
                                     
                                     </Input.Search>
-                        <div className="table-responsive pt-2">
+                        <StableList busy={loading} resetKey={search}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -96,7 +97,7 @@ const ManagePackagePost = () => {
                                                 </div>
                                             )
                             }
-                        </div>
+                        </div></StableList>
                     </div>
                     {count > 0 && <ReactPaginate
                                         forcePage={Math.min(numberPage, count - 1)}

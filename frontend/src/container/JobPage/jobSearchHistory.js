@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 // Keep a bounded snapshot per browser history entry, never across accounts.
@@ -35,28 +35,37 @@ export function useJobSearchHistory(key) {
         entries.clear();
         sessionToken = token;
     }
-    const [restored] = useState(() => entries.get(key));
-    const latest = useRef(restored);
-    const position = useRef(restored?.position || { x: 0, y: 0 });
+    const entry = useMemo(() => {
+        const restored = entries.get(key);
+        return { key, token, restored, latest: restored, position: restored?.position || { x: window.scrollX, y: window.scrollY } };
+    }, [key, token]);
+    const mounted = useRef(false);
 
     useLayoutEffect(() => {
-        const track = () => { position.current = { x: window.scrollX, y: window.scrollY }; };
-        const root = document.documentElement;
-        const previousBehavior = root.style.scrollBehavior;
-        root.style.scrollBehavior = 'auto';
-        window.scrollTo(position.current.x, position.current.y);
-        root.style.scrollBehavior = previousBehavior;
+        const track = () => { entry.position = { x: window.scrollX, y: window.scrollY }; };
+        // Paging stays mounted and retains the viewport. Only restore an actual
+        // history snapshot (or start a fresh route at its top).
+        if (entry.restored || !mounted.current) {
+            const position = entry.restored?.position || { x: 0, y: 0 };
+            const root = document.documentElement;
+            const previousBehavior = root.style.scrollBehavior;
+            root.style.scrollBehavior = 'auto';
+            window.scrollTo(position.x, position.y);
+            root.style.scrollBehavior = previousBehavior;
+            entry.position = position;
+        }
+        mounted.current = true;
         window.addEventListener('scroll', track, { passive: true });
         window.addEventListener('click', track, true);
         return () => {
             window.removeEventListener('scroll', track);
             window.removeEventListener('click', track, true);
-            if (localStorage.getItem('token_user') !== token) return;
-            entries.delete(key);
-            entries.set(key, { ...latest.current, position: position.current });
+            if (localStorage.getItem('token_user') !== entry.token) return;
+            entries.delete(entry.key);
+            entries.set(entry.key, { ...entry.latest, position: entry.position });
             while (entries.size > 20) entries.delete(entries.keys().next().value);
         };
-    }, [key, token]);
+    }, [entry]);
 
-    return [restored, snapshot => { latest.current = snapshot; }];
+    return [entry.restored, snapshot => { entry.latest = snapshot; }];
 }

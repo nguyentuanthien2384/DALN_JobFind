@@ -1,3 +1,4 @@
+import useListLoading from './useListLoading';
 import { useCallback, useEffect, useState } from 'react';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
 import { PAGINATION } from '../../util/constant';
@@ -13,15 +14,14 @@ export default function useCatalogList(fetchList, { type, withCategory = false }
     const { page, search, categoryJobCode } = query;
     const [rows, setRows] = useState([]);
     const [count, setCount] = useState(0);
-    const [loading, setLoading] = useState(true);
     const [revision, setRevision] = useState(0);
     const [searchDraft, setSearchDraft] = useState(search);
+    const [loading, setLoading] = useListLoading(JSON.stringify([type, withCategory, categoryJobCode, page, search, revision]));
     useEffect(() => setSearchDraft(search), [search]);
 
     useEffect(() => {
         let active = true;
         setLoading(true);
-        setRows([]);
         const load = async () => {
             try {
                 const result = await fetchList({
@@ -41,17 +41,18 @@ export default function useCatalogList(fetchList, { type, withCategory = false }
                     }
                     setRows(result.data || []);
                 } else {
+                    setRows([]);
                     setCount(0);
                 }
             } catch (error) {
-                if (active) setCount(0);
+                if (active) { setRows([]); setCount(0); }
             } finally {
                 if (active) setLoading(false);
             }
         };
         load();
         return () => { active = false; };
-    }, [fetchList, type, withCategory, categoryJobCode, page, search, revision, setQuery]);
+    }, [fetchList, type, withCategory, categoryJobCode, page, search, revision, setQuery, setLoading]);
 
     const refresh = useCallback(() => setRevision(value => value + 1), []);
     const handleChangePage = ({ selected }) => setQuery({ page: selected });
@@ -67,6 +68,6 @@ export default function useCatalogList(fetchList, { type, withCategory = false }
         categoryJobCode: value,
         page: previous.categoryJobCode === value ? previous.page : 0,
     }));
-    return { rows, count, loading, numberPage: page, categoryJobCode, searchDraft,
+    return { rows, count, loading, numberPage: page, categoryJobCode, search, searchDraft,
         setSearchDraft, handleChangePage, handleSearch, handleCategoryChange, refresh };
 }

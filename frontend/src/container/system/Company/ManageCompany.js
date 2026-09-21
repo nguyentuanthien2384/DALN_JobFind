@@ -1,3 +1,5 @@
+import useListLoading from '../useListLoading';
+import StableList from '../../../components/common/StableList';
 import React from 'react'
 import { useEffect, useState } from 'react';
 import { getAllCompany, accecptCompanyService, banCompanyService, unbanCompanyService } from '../../../service/userService';
@@ -46,9 +48,10 @@ const ManageCompany = () => {
     let handleOnChangeCensor = (value) => {
         setQuery({ censorCode: value, page: 0 })
     }
+    const [loading, setLoading] = useListLoading(JSON.stringify([search, censorCode, numberPage, refresh]));
     useEffect(() => {
         let active = true;
-        setdataCompany([]);
+        setLoading(true);
         try {
             const userData = JSON.parse(localStorage.getItem('userData'));
             if (userData) {
@@ -62,6 +65,8 @@ const ManageCompany = () => {
 
 
                     })
+                    if (!active) return;
+                    if (arrData?.errCode !== 0) throw new Error();
                     if (active && arrData && arrData.errCode === 0) {
                         setTotal(arrData.count)
                         setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
@@ -70,16 +75,17 @@ const ManageCompany = () => {
                         setdataCompany(arrData.data)
                     }
                 }
-                fetchData().catch(() => { if (active) toast.error('Không tải được danh sách công ty'); });
+                fetchData().catch(() => { if (active) { setdataCompany([]); setCount(0); setTotal(0); toast.error('Không tải được danh sách công ty'); } })
+                    .finally(() => { if (active) setLoading(false); });
                 setUser(userData)
-            }
+            } else { setdataCompany([]); setCount(0); setTotal(0); setLoading(false); }
 
         } catch (error) {
-            console.log(error)
+            setdataCompany([]); setCount(0); setTotal(0); setLoading(false);
         }
 
         return () => { active = false; };
-    }, [search, censorCode, numberPage, refresh, setQuery])
+    }, [search, censorCode, numberPage, refresh, setQuery, setLoading])
 
     const handleChangePage = number => setQuery({ page: number.selected });
     let handleBanCompany = async(id) => {
@@ -160,7 +166,7 @@ const ManageCompany = () => {
                         </Row>
                         <div>Số lượng công ty: {total}</div>
 
-                        <div className="table-responsive pt-2">
+                        <StableList busy={loading} resetKey={JSON.stringify([search, censorCode])}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -259,7 +265,7 @@ const ManageCompany = () => {
                                     </div>
                                 )
                             }
-                        </div>
+                        </div></StableList>
                     </div>
                     {count > 0 && <ReactPaginate
                         forcePage={Math.min(numberPage, count - 1)}

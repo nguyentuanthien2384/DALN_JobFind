@@ -1,3 +1,5 @@
+import useListLoading from '../useListLoading';
+import StableList from '../../../components/common/StableList';
 import React from "react";
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
@@ -24,10 +26,11 @@ const HistoryTradeCv = () => {
     const [error, setError] = useState("");
     const numberPage = query.page;
 
+    const [loading, setLoading] = useListLoading(JSON.stringify([query.page, query.fromDate, query.toDate, user.companyId]));
     useEffect(() => {
         let current = true;
         setError("");
-        setData([]);
+        setLoading(true);
         const load = async () => {
             try {
                 const result = await getHistoryTradeCv({
@@ -47,12 +50,14 @@ const HistoryTradeCv = () => {
                 }
                 setData(result.data || []);
             } catch {
-                if (current) setError("Không tải được lịch sử thanh toán. Vui lòng thử lại.");
+                if (current) { setData([]); setCount(0); setError("Không tải được lịch sử thanh toán. Vui lòng thử lại."); }
+            } finally {
+                if (current) setLoading(false);
             }
         };
         load();
         return () => { current = false; };
-    }, [query.page, query.fromDate, query.toDate, user.companyId, setQuery]);
+    }, [query.page, query.fromDate, query.toDate, user.companyId, setQuery, setLoading]);
 
     const onDatePicker = (values) => {
         const fromDate = values?.[0]?.format("YYYY-MM-DD") || "";
@@ -115,7 +120,7 @@ const HistoryTradeCv = () => {
                     ></RangePicker>
 
                     {error && <div role="alert">{error}</div>}
-                    <div className="table-responsive pt-2">
+                    <StableList busy={loading} resetKey={JSON.stringify([query.fromDate, query.toDate, user.companyId])}><div className="table-responsive pt-2">
                         <table className="table table-bordered">
                             <thead>
                                 <tr>
@@ -183,7 +188,7 @@ const HistoryTradeCv = () => {
                                 Không có dữ liệu
                             </div>
                         )}
-                    </div>
+                    </div></StableList>
                 </div>
                 <ReactPaginate
                     previousLabel={"Quay lại"}

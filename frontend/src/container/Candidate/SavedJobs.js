@@ -10,6 +10,7 @@ import {
 } from "../../service/userService";
 import CommonUtils from "../../util/CommonUtils";
 import useListQuery, { clampListPage } from '../../util/useListQuery';
+import StableList from '../../components/common/StableList';
 
 const SavedJobs = () => {
     const [dataFavorite, setDataFavorite] = useState([]);
@@ -17,12 +18,16 @@ const SavedJobs = () => {
     const [{ page: numberPage }, setQuery] = useListQuery({ page: 0 });
     const [refresh, setRefresh] = useState(0);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [settledRequest, setSettledRequest] = useState('');
+    const requestKey = JSON.stringify([numberPage, refresh]);
+    const busy = loading || settledRequest !== requestKey;
     const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
 
     useEffect(() => {
         let active = true;
-        if (!userData) return;
-        setError(''); setDataFavorite([]);
+        if (!userData) { setLoading(false); setSettledRequest(requestKey); return; }
+        setError(''); setLoading(true);
         (async () => {
             try {
                 const res = await getFavoritePostByUserService({ userId: userData.id, limit: 10, offset: numberPage * 10 });
@@ -31,10 +36,11 @@ const SavedJobs = () => {
                 const validPage = clampListPage(numberPage, res.count, 10);
                 if (validPage !== numberPage) { setQuery({ page: validPage }, { replace: true }); return; }
                 setDataFavorite(res.data); setCount(Math.ceil(res.count / 10));
-            } catch { if (active) setError('Không tải được việc làm đã lưu. Vui lòng tải lại.'); }
+            } catch { if (active) { setDataFavorite([]); setError('Không tải được việc làm đã lưu. Vui lòng tải lại.'); } }
+            finally { if (active) { setLoading(false); setSettledRequest(requestKey); } }
         })();
         return () => { active = false; };
-    }, [userData, numberPage, refresh, setQuery]);
+    }, [userData, numberPage, refresh, requestKey, setQuery]);
 
     const handleChangePage = number => setQuery({ page: number.selected });
 
@@ -62,6 +68,7 @@ const SavedJobs = () => {
                         ></i>
                         Việc làm đã lưu
                     </h4>
+                    <StableList busy={busy} resetKey={userData?.id} label="Đang tải việc làm đã lưu…">
                     {error && <p role="alert">{error}</p>}
                     {dataFavorite && dataFavorite.length > 0 ? (
                         dataFavorite.map((item, index) => {
@@ -158,7 +165,7 @@ const SavedJobs = () => {
                                 </div>
                             );
                         })
-                    ) : (
+                    ) : !busy && !error ? (
                         <div
                             style={{
                                 textAlign: "center",
@@ -169,7 +176,8 @@ const SavedJobs = () => {
                             Bạn chưa lưu tin tuyển dụng nào.{" "}
                             <Link to="/job">Tìm việc ngay</Link>
                         </div>
-                    )}
+                    ) : null}
+                    </StableList>
                     {count > 1 && (
                         <ReactPaginate
                             forcePage={numberPage}

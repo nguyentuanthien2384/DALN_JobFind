@@ -1,3 +1,5 @@
+import useListLoading from '../useListLoading';
+import StableList from '../../../components/common/StableList';
 import React from 'react'
 import { useEffect, useState } from 'react';
 import { getAllUserByCompanyIdService, QuitCompanyService } from '../../../service/userService';
@@ -13,21 +15,25 @@ const ManageEmployer = () => {
     const [count, setCount] = useState(0)
     const [{ page: numberPage }, setQuery] = useListQuery({ page: 0 })
     const [refresh, setRefresh] = useState(0)
+    const [loading, setLoading] = useListLoading(JSON.stringify([user.companyId, numberPage, refresh]));
     useEffect(() => {
         let active = true;
-        setdataUser([]);
+        setLoading(true);
         if (user.companyId) {
             getAllUserByCompanyIdService({ limit: PAGINATION.pagerow,
                 offset: numberPage * PAGINATION.pagerow, companyId: user.companyId }).then(res => {
-                if (!active || res?.errCode !== 0) return;
+                if (!active) return;
+                if (res?.errCode !== 0) throw new Error();
                 setCount(Math.ceil(res.count / PAGINATION.pagerow));
                 const page = clampListPage(numberPage, res.count, PAGINATION.pagerow);
                 if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
                 setdataUser(res.data);
-            }).catch(() => { if (active) toast.error('Không tải được danh sách nhân viên'); });
+            }).catch(() => { if (active) { setdataUser([]); setCount(0); toast.error('Không tải được danh sách nhân viên'); } })
+                .finally(() => { if (active) setLoading(false); });
         }
+        else { setdataUser([]); setCount(0); setLoading(false); }
         return () => { active = false; };
-    }, [user.companyId, numberPage, refresh, setQuery]);
+    }, [user.companyId, numberPage, refresh, setQuery, setLoading]);
     const handleChangePage = number => setQuery({ page: number.selected });
     let handleQuitCompany = async (userId) => {
         let res = await QuitCompanyService({
@@ -47,7 +53,7 @@ const ManageEmployer = () => {
                     <div className="card-body">
                         <h4 className="card-title">Danh sách nhân viên</h4>
 
-                        <div className="table-responsive pt-2">
+                        <StableList busy={loading} resetKey={user.companyId}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -101,7 +107,7 @@ const ManageEmployer = () => {
 
                                 </tbody>
                             </table>
-                        </div>
+                        </div></StableList>
                     </div>
                     {count > 0 && <ReactPaginate
                         forcePage={Math.min(numberPage, count - 1)}

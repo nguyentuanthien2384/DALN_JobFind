@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
 import FilterCv from './FilterCv';
 import { getFilterCv } from '../../../service/cvService';
@@ -26,7 +26,10 @@ function Navigation() {
     return <><button onClick={() => navigate(-1)}>Back</button><button onClick={() => navigate(1)}>Forward</button></>;
 }
 const mount = () => render(<BrowserRouter><Navigation /><FilterCv /></BrowserRouter>);
-const ready = () => screen.findByText('Ứng Viên');
+const ready = async () => {
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Kết quả tìm ứng viên' })).toHaveAttribute('aria-busy', 'false'), { timeout: 3000 });
+    return screen.findByText('Ứng Viên');
+};
 beforeEach(() => {
     jest.clearAllMocks(); localStorage.clear();
     localStorage.setItem('userData', JSON.stringify({ id: 1, roleCode: 'ADMIN' }));
@@ -64,4 +67,26 @@ test('successful counts clamp to the last page while a temporary failure keeps t
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại' })); await ready();
     expect(getFilterCv).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10, keyword: 'React' }));
     expect(new URLSearchParams(window.location.search).get('page')).toBe('3');
+});
+
+
+test('pending pages keep candidate cards stable but block stale actions, then clear them if the page fails', async () => {
+    const first = mount(); await ready();
+    let failPage;
+    getFilterCv.mockImplementationOnce(() => new Promise((resolve, reject) => { failPage = reject; }));
+    const oldCandidate = screen.getByText('Ứng Viên');
+    const staleOpen = screen.getByRole('button', { name: 'Xem chi tiết ứng viên' });
+    fireEvent.click(screen.getByRole('button', { name: 'Trang 3' }));
+    expect(oldCandidate).toBeInTheDocument();
+    expect(oldCandidate.closest('[inert]')).not.toBeNull();
+    fireEvent.click(staleOpen);
+    expect(window.location.pathname).toBe('/admin/filter-cv');
+    expect(screen.getByLabelText('Từ khóa')).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Trang 3' })).toBeInTheDocument();
+    await waitFor(() => expect(failPage).toBeDefined());
+    await act(async () => failPage(new Error('Mất kết nối trang mới')));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Mất kết nối trang mới');
+    expect(screen.queryByText('Ứng Viên')).not.toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get('page')).toBe('3');
+    first.unmount();
 });
