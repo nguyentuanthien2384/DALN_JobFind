@@ -1,11 +1,18 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as renderView, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-toastify";
 import CommonUtils from "../../util/CommonUtils";
 import { getStatisticalCv } from "../../service/cvService";
 import { getStatisticalPackageCv, getStatisticalPackagePost, getStatisticalTypePost } from "../../service/userService";
 import Home from "./Home";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 
+// CRA's Jest resolver predates React Router's /dom package export.
+jest.mock('react-router-dom', () => {
+    global.TextEncoder = require('util').TextEncoder;
+    global.TextDecoder = require('util').TextDecoder;
+    return jest.requireActual('react-router');
+});
 jest.mock("xlsx/xlsx.mjs", () => ({
     utils: { book_new: jest.fn(), json_to_sheet: jest.fn(), book_append_sheet: jest.fn() },
     writeFile: jest.fn(),
@@ -33,18 +40,25 @@ jest.mock("./AutoRefreshInfo", () => ({ onLamMoi }) => (
     <button type="button" onClick={onLamMoi}>Làm mới dashboard</button>
 ));
 jest.mock("react-paginate", () => (props) => (
-    <button type="button" data-testid="dashboard-pager" onClick={() => props.onPageChange({ selected: 1 })}>page</button>
+    <button type="button" data-testid="dashboard-pager" data-page={props.forcePage} onClick={() => props.onPageChange({ selected: 1 })}>page</button>
 ));
 jest.mock("antd", () => ({
     DatePicker: {
-        RangePicker: ({ onChange }) => (
-            <button type="button" data-testid="dashboard-range" onClick={() => onChange([
+        RangePicker: ({ onChange, value }) => (
+            <button type="button" data-testid="dashboard-range" data-range={value?.map(date => date.format("YYYY-MM-DD")).join("/")} onClick={() => onChange([
                 { format: () => "2026-08-01" },
                 { format: () => "2026-08-20" },
             ])}>range</button>
         ),
     },
 }));
+
+const LocationProbe = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+    return <><span data-testid="location">{location.pathname + location.search}</span><button onClick={() => navigate(-1)}>Back</button></>;
+};
+const render = (view, entry = '/admin') => renderView(<MemoryRouter initialEntries={[entry]}>{view}<LocationProbe /></MemoryRouter>);
 
 const typeStats = {
     errCode: 0,
@@ -182,4 +196,113 @@ describe("system home dashboard", () => {
         expect(screen.queryByTestId('job-type-chart')).not.toBeInTheDocument();
         expect(toast.error).not.toHaveBeenCalled();
     });
+    it('restores independent revenue pages and dates after reload, refresh and back navigation', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 1, roleCode: 'ADMIN' }));
+        getStatisticalPackagePost.mockResolvedValue({ ...postPackageStats, count: 30 });
+        getStatisticalPackageCv.mockResolvedValue({ ...cvPackageStats, count: 30 });
+        const entry = '/admin?post.page=3&post.fromDate=2026-07-01&post.toDate=2026-07-31&packageCv.page=4&packageCv.fromDate=2026-08-01&packageCv.toDate=2026-08-15&campaign=keep';
+        const first = render(<Home />, entry);
+        await waitFor(() => expect(getStatisticalPackagePost).toHaveBeenCalledWith({ fromDate: '2026-07-01', toDate: '2026-07-31', limit: 5, offset: 10 }));
+        expect(getStatisticalPackageCv).toHaveBeenCalledWith({ fromDate: '2026-08-01', toDate: '2026-08-15', limit: 5, offset: 15 });
+        expect(getStatisticalPackagePost).toHaveBeenCalledTimes(1);
+        expect(screen.getAllByTestId('dashboard-pager').map(el => el.dataset.page)).toEqual(['2', '3']);
+        expect(screen.getAllByTestId('dashboard-range').map(el => el.dataset.range)).toEqual(['2026-07-01/2026-07-31', '2026-08-01/2026-08-15']);
+        fireEvent.click(screen.getAllByTestId('dashboard-pager')[0]);
+        await waitFor(() => expect(getStatisticalPackagePost).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5 })));
+        expect(getStatisticalPackageCv).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('location').textContent).toContain('packageCv.page=4');
+        expect(screen.getByTestId('location').textContent).toContain('campaign=keep');
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+        await waitFor(() => expect(getStatisticalPackagePost).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10 })));
+        fireEvent.click(screen.getByRole('button', { name: 'Làm mới dashboard' }));
+        await waitFor(() => expect(getStatisticalPackagePost).toHaveBeenCalledTimes(4));
+        const restoredUrl = screen.getByTestId('location').textContent;
+        first.unmount();
+        render(<Home />, restoredUrl);
+        await waitFor(() => expect(getStatisticalPackagePost).toHaveBeenCalledTimes(5));
+        expect(getStatisticalPackagePost).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10, fromDate: '2026-07-01' }));
+        expect(getStatisticalPackageCv).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 15, fromDate: '2026-08-01' }));
+    });
+
+    it('does not let a late page response clamp or replace a newer dashboard page', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 8, companyId: 42, roleCode: 'EMPLOYER' }));
+        let completeOld;
+        getStatisticalCv.mockImplementationOnce(() => new Promise(resolve => { completeOld = resolve; }));
+        const next = { errCode: 0, count: 15, data: [{ id: 91, total: 2, postDetailData: { name: 'Newest page' }, userPostData: { firstName: 'A', lastName: 'B' } }] };
+        getStatisticalCv.mockResolvedValue(next);
+        render(<Home />, '/admin?cv.page=3');
+        fireEvent.click(screen.getByTestId('dashboard-pager'));
+        expect(await screen.findByText('Newest page')).toBeInTheDocument();
+        await act(async () => completeOld({ errCode: 0, count: 0, data: [] }));
+        expect(screen.getByText('Newest page')).toBeInTheDocument();
+        expect(screen.getByTestId('location').textContent).toContain('cv.page=2');
+    });
+
+    it('clamps both dashboard tables without losing the other table query', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 1, roleCode: 'ADMIN' }));
+        getStatisticalPackagePost.mockResolvedValue({ ...postPackageStats, count: 7 });
+        getStatisticalPackageCv.mockResolvedValue({ ...cvPackageStats, count: 12 });
+        render(<Home />, '/admin?post.page=10&post.fromDate=2026-07-01&post.toDate=2026-07-31&packageCv.page=10&packageCv.fromDate=2026-08-01&packageCv.toDate=2026-08-15');
+        await waitFor(() => expect(screen.getAllByTestId('dashboard-pager').map(el => el.dataset.page)).toEqual(['1', '2']));
+        expect(getStatisticalPackagePost).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5, fromDate: '2026-07-01' }));
+        expect(getStatisticalPackageCv).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10, fromDate: '2026-08-01' }));
+        expect(screen.getByTestId('location').textContent).toContain('post.page=2');
+        expect(screen.getByTestId('location').textContent).toContain('packageCv.page=3');
+    });
+
+    it('repairs malformed dashboard dates without discarding the restored page', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 8, companyId: 42, roleCode: 'EMPLOYER' }));
+        getStatisticalCv.mockResolvedValue({ errCode: 0, count: 15, data: [] });
+        render(<Home />, '/admin?cv.page=3&cv.fromDate=2026-02-31&cv.toDate=invalid');
+        await waitFor(() => expect(getStatisticalCv).toHaveBeenCalled());
+        const today = require('dayjs')().format('YYYY-MM-DD');
+        expect(getStatisticalCv).toHaveBeenLastCalledWith({ companyId: 42, limit: 5, offset: 10, fromDate: today, toDate: today });
+        expect(screen.getByTestId('dashboard-range')).toHaveAttribute('data-range', `${today}/${today}`);
+        expect(screen.getByTestId('location').textContent).toContain('cv.page=3');
+        expect(screen.getByTestId('location').textContent).not.toContain('invalid');
+        expect(screen.getByTestId('location').textContent).not.toContain('2026-02-31');
+    });
+
+    it('retains rows after same-page refresh failure but hides them on a failed page change', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 8, companyId: 42, roleCode: 'EMPLOYER' }));
+        render(<Home />);
+        expect(await screen.findByText('Frontend Engineer')).toBeInTheDocument();
+        getStatisticalCv.mockRejectedValue(new Error('offline'));
+        fireEvent.click(screen.getByRole('button', { name: 'Làm mới dashboard' }));
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Không tải được dữ liệu thống kê'));
+        expect(screen.getByText('Frontend Engineer')).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('dashboard-pager'));
+        await waitFor(() => expect(getStatisticalCv).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5 })));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được dữ liệu thống kê');
+        expect(screen.queryByText('Frontend Engineer')).not.toBeInTheDocument();
+        expect(screen.getByTestId('location').textContent).toContain('cv.page=2');
+    });
+
+    it('keeps the original default date when a saved dashboard page is reopened the next day', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 8, companyId: 42, roleCode: 'EMPLOYER' }));
+        const NativeDate = global.Date;
+        let now = new NativeDate('2026-09-21T12:00:00').getTime();
+        global.Date = class extends NativeDate {
+            constructor(...args) { super(...(args.length ? args : [now])); }
+            static now() { return now; }
+        };
+        try {
+            const first = render(<Home />);
+            await screen.findByText('Frontend Engineer');
+            fireEvent.click(screen.getByTestId('dashboard-pager'));
+            await waitFor(() => expect(getStatisticalCv).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5 })));
+            const url = screen.getByTestId('location').textContent;
+            expect(url).toContain('cv.fromDate=2026-09-21');
+            expect(url).toContain('cv.toDate=2026-09-21');
+            first.unmount();
+            now = new NativeDate('2026-09-22T12:00:00').getTime();
+            render(<Home />, url);
+            await screen.findByText('Frontend Engineer');
+            expect(getStatisticalCv).toHaveBeenLastCalledWith({ companyId: 42, limit: 5, offset: 5, fromDate: '2026-09-21', toDate: '2026-09-21' });
+            expect(screen.getByTestId('dashboard-range')).toHaveAttribute('data-range', '2026-09-21/2026-09-21');
+        } finally {
+            global.Date = NativeDate;
+        }
+    });
+
 });

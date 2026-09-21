@@ -1,5 +1,5 @@
 import React from 'react'
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { DeleteAllcodeService, getListAllCodeService } from '../../../service/userService';
 import { PAGINATION } from '../../../util/constant';
 import ReactPaginate from 'react-paginate';
@@ -7,39 +7,16 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Lightbox from 'react-image-lightbox';
 import 'react-image-lightbox/style.css';
-import CommonUtils from '../../../util/CommonUtils';
+import useCatalogList from '../useCatalogList';
 import {Input, Modal} from 'antd'
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 const {confirm} = Modal
 
 const ManageJobType = () => {
-    const [dataJobType, setdataJobType] = useState([])
-    const [count, setCount] = useState('')
-    const [numberPage, setnumberPage] = useState('')
+    const { rows: dataJobType, count, loading, numberPage, searchDraft, setSearchDraft,
+        handleChangePage, handleSearch, refresh } = useCatalogList(getListAllCodeService, { type: 'JOBTYPE' });
     const [imgPreview, setimgPreview] = useState('')
     const [isOpen, setisOpen] = useState(false)
-    const [search,setSearch] = useState('')
-    useEffect(() => {
-        try {
-            let fetchData = async () => {
-                let arrData = await getListAllCodeService({
-                    type: 'JOBTYPE',
-                    limit: PAGINATION.pagerow,
-                    offset: 0,
-                    search: CommonUtils.removeSpace(search)
-                })
-                if (arrData && arrData.errCode === 0) {
-                    setnumberPage(0)
-                    setdataJobType(arrData.data)
-                    setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
-                }
-            }
-            fetchData();
-        } catch (error) {
-            console.log(error)
-        }
-
-    }, [search])
     let openPreviewImage = (url) => {
         setimgPreview(url);
         setisOpen(true);
@@ -48,36 +25,8 @@ const ManageJobType = () => {
         let res = await DeleteAllcodeService(id)
         if (res && res.errCode === 0) {
             toast.success(res.errMessage)
-            let arrData = await getListAllCodeService({
-                type: 'JOBTYPE',
-                limit: PAGINATION.pagerow,
-                offset: numberPage * PAGINATION.pagerow,
-                search: CommonUtils.removeSpace(search)
-            })
-            if (arrData && arrData.errCode === 0) {
-                setdataJobType(arrData.data)
-                setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
-            }
-
+            refresh();
         } else toast.error(res.errMessage)
-    }
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected)
-        let arrData = await getListAllCodeService({
-
-            type: 'JOBTYPE',
-            limit: PAGINATION.pagerow,
-            offset: number.selected * PAGINATION.pagerow,
-            search: CommonUtils.removeSpace(search)
-
-        })
-        if (arrData && arrData.errCode === 0) {
-            setdataJobType(arrData.data)
-
-        }
-    }
-    const handleSearch = (value) => {
-        setSearch(value)
     }
     const confirmDelete = (id) => {
         confirm({
@@ -97,7 +46,7 @@ const ManageJobType = () => {
                 <div className="card">
                     <div className="card-body">
                         <h4 className="card-title">Danh sách loại công việc</h4>
-                        <Input.Search onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên công việc" allowClear enterButton="Tìm kiếm">
+                        <Input.Search value={searchDraft} onChange={event => setSearchDraft(event.target.value)} onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên công việc" allowClear enterButton="Tìm kiếm">
                                     
                                     </Input.Search>
                         <div className="table-responsive pt-2">
@@ -147,15 +96,16 @@ const ManageJobType = () => {
                                 dataJobType && dataJobType.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
-                                                    Không có dữ liệu
+                                                    {loading ? 'Đang tải dữ liệu…' : 'Không có dữ liệu'}
 
                                                 </div>
                                             )
                             }
                         </div>
                     </div>
-                    <ReactPaginate
-                    forcePage={numberPage}
+                    {count > 0 && <ReactPaginate
+                    forcePage={Math.min(numberPage, count - 1)}
+                        disableInitialCallback={true}
                         previousLabel={'Quay lại'}
                         nextLabel={'Tiếp'}
                         breakLabel={'...'}
@@ -172,7 +122,7 @@ const ManageJobType = () => {
                         breakClassName={"page-item"}
                         activeClassName={"active"}
                         onPageChange={handleChangePage}
-                    />
+                    />}
                 </div>
 
             </div>

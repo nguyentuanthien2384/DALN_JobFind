@@ -5,6 +5,19 @@ import { getAllPostByAdminService, getAllPostByRoleAdminService, getListNoteByPo
 import ManagePost from './ManagePost';
 import NotePost from './NotePost';
 
+jest.mock('../../../util/useListQuery', () => {
+    const React = require('react');
+    return { ...jest.requireActual('../../../util/useListQuery'), __esModule: true,
+        default: defaults => {
+            const [query, setQuery] = React.useState(defaults);
+            const update = React.useCallback(patch => setQuery(previous => ({
+                ...previous, ...(typeof patch === 'function' ? patch(previous) : patch)
+            })), []);
+            return [query, update];
+        }
+    };
+});
+
 let mockParams = {};
 const mockNavigate = jest.fn();
 jest.mock('react-router-dom', () => ({ useParams: () => mockParams, useNavigate: () => mockNavigate,
@@ -82,9 +95,9 @@ test('account change during a list read rejects the old company response', async
     localStorage.setItem('userData', JSON.stringify({ ...user, companyId: 4 })); await act(async () => finish(listing()));
     await screen.findByRole('alert'); expect(screen.queryByText('Tin công ty')).not.toBeInTheDocument();
 });
-test('out-of-range empty list allows returning to first page', async () => {
+test('out-of-range empty list automatically clamps to the first page', async () => {
     render(<ManagePost />); await screen.findByText('Tin công ty'); axios.get.mockResolvedValueOnce({ errCode: 0, data: [], count: 0 }); page2();
-    fireEvent.click(await screen.findByRole('button', { name: 'Về trang đầu' })); await screen.findByText('Tin công ty'); expect(query().offset).toBe('0');
+    await screen.findByText('Tin công ty'); await waitFor(() => expect(query().offset).toBe('0')); expect(axios.get).toHaveBeenCalledTimes(3);
 });
 test('historical unknown status/date displays safely without an edit action', async () => {
     mockParams = { id: '55' }; axios.get.mockResolvedValueOnce(listing({ timeEnd: 'bad', statusCode: null, name: null })); render(<ManagePost />);

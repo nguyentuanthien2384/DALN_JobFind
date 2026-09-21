@@ -24,6 +24,15 @@ import { SESSION_ENDED_EVENT } from "../../auth/sessionExpiry";
 
 let mockParams = {};
 const mockNavigate = jest.fn();
+jest.mock('../../util/useListQuery', () => {
+    const React = require('react');
+    return { __esModule: true, ...jest.requireActual('../../util/useListQuery'), default: defaults => {
+        const [query, setState] = React.useState(defaults);
+        const setQuery = React.useCallback(patch => setState(previous => ({ ...previous,
+            ...(typeof patch === 'function' ? patch(previous) : patch) })), []);
+        return [query, setQuery];
+    } };
+});
 jest.mock('../../components/documents/PdfPreviewButton', () => ({ source, fileName, label }) =>
     <button type="button" data-source={source} data-filename={fileName}>{label}</button>);
 

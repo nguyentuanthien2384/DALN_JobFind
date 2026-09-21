@@ -1,69 +1,74 @@
 import React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import dayjs from "dayjs";
+import useListQuery, { clampListPage } from "../../../util/useListQuery";
 import { PAGINATION } from "../../../util/constant";
 import ReactPaginate from "react-paginate";
 import moment from "moment";
 import { DatePicker } from "antd";
 import CommonUtils from "../../../util/CommonUtils";
 import { getHistoryTradePost } from "../../../service/userService";
+const validDate = value => value === '' || (/^\d{4}-\d{2}-\d{2}$/.test(value) && dayjs(value).isValid() && dayjs(value).format('YYYY-MM-DD') === value);
 const HistoryTradePost = () => {
     const { RangePicker } = DatePicker;
     const [user] = useState(() => JSON.parse(localStorage.getItem("userData")) || {});
-    const [fromDatePost, setFromDatePost] = useState("");
-    const [toDatePost, setToDatePost] = useState("");
-
+    const [savedQuery, setQuery] = useListQuery({ page: 0, fromDate: "", toDate: "" });
+    const validRange = validDate(savedQuery.fromDate) && validDate(savedQuery.toDate)
+        && (!savedQuery.fromDate || !savedQuery.toDate || savedQuery.fromDate <= savedQuery.toDate);
+    const query = validRange ? savedQuery : { ...savedQuery, fromDate: '', toDate: '' };
+    useEffect(() => {
+        if (!validRange) setQuery({ fromDate: '', toDate: '' }, { replace: true });
+    }, [validRange, setQuery]);
     const [data, setData] = useState([]);
-    const [count, setCount] = useState("");
+    const [count, setCount] = useState(0);
+    const [error, setError] = useState("");
+    const numberPage = query.page;
 
-    const [numberPage, setnumberPage] = useState("");
+    useEffect(() => {
+        let current = true;
+        setError("");
+        setData([]);
+        const load = async () => {
+            try {
+                const result = await getHistoryTradePost({
+                    limit: PAGINATION.pagerow,
+                    offset: query.page * PAGINATION.pagerow,
+                    fromDate: query.fromDate,
+                    toDate: query.toDate,
+                    companyId: user.companyId,
+                });
+                if (!current) return;
+                if (!result || result.errCode !== 0) throw new Error('history-unavailable');
+                const page = clampListPage(query.page, result.count, PAGINATION.pagerow);
+                setCount(Math.ceil(result.count / PAGINATION.pagerow));
+                if (page !== query.page) {
+                    setQuery({ page }, { replace: true });
+                    return;
+                }
+                setData(result.data || []);
+            } catch {
+                if (current) setError("Không tải được lịch sử thanh toán. Vui lòng thử lại.");
+            }
+        };
+        load();
+        return () => { current = false; };
+    }, [query.page, query.fromDate, query.toDate, user.companyId, setQuery]);
 
-    const sendParams = useMemo(() => ({
-        limit: PAGINATION.pagerow,
-        offset: 0,
-        fromDate: "",
-        toDate: "",
-        companyId: user.companyId,
-    }), [user.companyId]);
-
-    let getData = async (params) => {
-        let arrData = await getHistoryTradePost(params);
-        if (arrData && arrData.errCode === 0) {
-            setData(arrData.data);
-            setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
+    const onDatePicker = (values) => {
+        const fromDate = values?.[0]?.format("YYYY-MM-DD") || "";
+        const toDate = values?.[1]?.format("YYYY-MM-DD") || "";
+        if (fromDate !== query.fromDate || toDate !== query.toDate) {
+            setQuery({ fromDate, toDate, page: 0 });
         }
     };
-
-    let onDatePicker = async (values) => {
-        let fromDate = "";
-        let toDate = "";
-        if (values) {
-            fromDate = values[0].format("YYYY-MM-DD");
-            toDate = values[1].format("YYYY-MM-DD");
-        }
-        getData({
-            ...sendParams,
-            fromDate,
-            toDate,
-            offset: 0,
-        });
-        setFromDatePost(fromDate);
-        setToDatePost(toDate);
-    };
-
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected);
-        getData({
-            ...sendParams,
-            offset: number.selected * PAGINATION.pagerow,
-        });
-    };
+    const handleChangePage = ({ selected }) => setQuery({ page: selected });
     let handleOnClickExport = async () => {
         let res = await getHistoryTradePost({
-            ...sendParams,
+            companyId: user.companyId,
             limit: "",
             offset: "",
-            fromDate: fromDatePost,
-            toDate: toDatePost,
+            fromDate: query.fromDate,
+            toDate: query.toDate,
         });
         if (res.errCode === 0) {
             let formatData = res.data.map((item) => {
@@ -94,10 +99,6 @@ const HistoryTradePost = () => {
         }
     };
 
-    useEffect(() => {
-        getData(sendParams);
-    }, [sendParams]);
-
     return (
         <div className="col-12 grid-margin">
             <div className="card">
@@ -112,10 +113,12 @@ const HistoryTradePost = () => {
                         Xuất excel <i className="fa-solid fa-file-excel"></i>
                     </button>
                     <RangePicker
+                        value={query.fromDate && query.toDate ? [dayjs(query.fromDate), dayjs(query.toDate)] : null}
                         onChange={onDatePicker}
                         format={"DD/MM/YYYY"}
                     ></RangePicker>
 
+                    {error && <div role="alert">{error}</div>}
                     <div className="table-responsive pt-2">
                         <table className="table table-bordered">
                             <thead>
@@ -194,7 +197,9 @@ const HistoryTradePost = () => {
                     previousLabel={"Quay lại"}
                     nextLabel={"Tiếp"}
                     breakLabel={"..."}
-                    pageCount={count}
+                    pageCount={Math.max(1, count, query.page + 1)}
+                    forcePage={query.page}
+                    disableInitialCallback
                     marginPagesDisplayed={3}
                     containerClassName={
                         "pagination justify-content-center pb-3"

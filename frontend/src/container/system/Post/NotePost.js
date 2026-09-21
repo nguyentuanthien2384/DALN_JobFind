@@ -7,6 +7,7 @@ import moment from 'moment';
 import { PAGINATION } from '../../../util/constant';
 import ReactPaginate from 'react-paginate';
 import { useNavigate, useParams } from 'react-router-dom';
+import useListQuery, { clampListPage } from '../../../util/useListQuery';
 
 const NotePost = () => {
     const { id } = useParams(), navigate = useNavigate();
@@ -14,10 +15,10 @@ const NotePost = () => {
         try { return JSON.parse(localStorage.getItem('userData')) || {}; } catch { return {}; }
     });
     const [workspace] = useState(() => workspaceSelection(user));
-    const [notes, setNotes] = useState([]), [count, setCount] = useState(0), [page, setPage] = useState(0);
+    const [notes, setNotes] = useState([]), [count, setCount] = useState(0);
+    const [{ page }, setQuery] = useListQuery({ page: 0 });
     const [job, setJob] = useState(null), [loading, setLoading] = useState(true), [error, setError] = useState('');
     const [refresh, setRefresh] = useState(0);
-    useEffect(() => setPage(0), [id]);
     useEffect(() => {
         let active = true;
         setLoading(true); setError(''); setNotes([]); setCount(0); setJob(null);
@@ -33,11 +34,15 @@ const NotePost = () => {
                 assertJobEditorIdentity(user);
                 if (workspace.mode === 'core') {
                     const result = readManagedJobReview(response, id, user, query);
+                    const nextPage = clampListPage(page, result.count, PAGINATION.pagerow);
+                    if (nextPage !== page) { setQuery({ page: nextPage }, { replace: true }); return; }
                     setJob(result.job); setNotes(result.notes); setCount(result.count);
                 } else {
                     if (response?.errCode !== 0 || !Array.isArray(response.data) || !Number.isSafeInteger(response.count) || response.count < 0) {
                         throw new Error(response?.errMessage || 'Không đọc được ghi chú');
                     }
+                    const nextPage = clampListPage(page, response.count, PAGINATION.pagerow);
+                    if (nextPage !== page) { setQuery({ page: nextPage }, { replace: true }); return; }
                     setNotes(response.data); setCount(response.count);
                 }
             } catch (failure) { if (active) setError(failure.message || 'Không đọc được thông tin kiểm duyệt'); }
@@ -45,7 +50,7 @@ const NotePost = () => {
         };
         load();
         return () => { active = false; };
-    }, [id, page, refresh, user, workspace]);
+    }, [id, page, refresh, user, workspace, setQuery]);
     return <div className="col-12 grid-margin"><div className="card"><div className="card-body">
         <div onClick={() => navigate(-1)} className="mb-2 hover-pointer" style={{ color: 'red' }}>
             <i className="fa-solid fa-arrow-left mr-2" />Quay lại
@@ -71,14 +76,14 @@ const NotePost = () => {
             </tr>)}</tbody>
         </table>
             {!loading && !error && notes.length === 0 && <p>{workspace.mode === 'core' ? 'Không có ghi chú thủ công ở trang này; không có nghĩa tin chưa được AI kiểm duyệt.' : 'Không có dữ liệu'}</p>}
-            {!loading && !error && notes.length === 0 && page > 0 && <button type="button" onClick={() => setPage(0)}>Về trang đầu</button>}
+            {!loading && !error && notes.length === 0 && page > 0 && <button type="button" onClick={() => setQuery({ page: 0 })}>Về trang đầu</button>}
         </div>
-        <ReactPaginate forcePage={page} previousLabel="Quay lại" nextLabel="Tiếp" breakLabel="..."
+        {!loading && !error && count > 0 && <ReactPaginate forcePage={Math.min(page, Math.ceil(count / PAGINATION.pagerow) - 1)} previousLabel="Quay lại" nextLabel="Tiếp" breakLabel="..."
             pageCount={Math.ceil(count / PAGINATION.pagerow)} marginPagesDisplayed={3}
             containerClassName="pagination justify-content-center pb-3" pageClassName="page-item" pageLinkClassName="page-link"
             previousClassName="page-item" previousLinkClassName="page-link" nextClassName="page-item" nextLinkClassName="page-link"
             breakClassName="page-item" breakLinkClassName="page-link" activeClassName="active"
-            onPageChange={number => { if (!loading) setPage(number.selected); }} />
+            onPageChange={number => { if (!loading) setQuery({ page: number.selected }); }} />}
     </div></div></div>;
 };
 export default NotePost;

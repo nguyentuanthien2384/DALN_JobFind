@@ -1,5 +1,6 @@
 import React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import useListQuery, { clampListPage } from "../../../util/useListQuery";
 import {
     getAllUsers,
     BanUserService,
@@ -14,44 +15,27 @@ import CommonUtils from "../../../util/CommonUtils";
 import { Input } from "antd";
 
 const ManageUser = () => {
-    const [user, setUser] = useState({});
+    const [user] = useState(() => JSON.parse(localStorage.getItem("userData")) || {});
     const [dataUser, setdataUser] = useState([]);
-    const [count, setCount] = useState("");
-    const [numberPage, setnumberPage] = useState(0);
-    const [search, setSearch] = useState("");
+    const [count, setCount] = useState(0);
+    const [{ page: numberPage, search }, setQuery] = useListQuery({ page: 0, search: "" });
+    const [refresh, setRefresh] = useState(0);
     const [total, setTotal] = useState(0);
 
-    const fetchAllUser = useCallback(async () => {
-        const userData = JSON.parse(localStorage.getItem("userData"));
-        setUser(userData);
-
-        let res = await getAllUsers({
-            limit: PAGINATION.pagerow,
-            offset: 0,
-            search: CommonUtils.removeSpace(search),
-        });
-        if (res && res.errCode === 0) {
-            setnumberPage(0);
-            setdataUser(res.data);
-            setCount(Math.ceil(res.count / PAGINATION.pagerow));
-            setTotal(res.count);
-        }
-    }, [search]);
     useEffect(() => {
-        fetchAllUser();
-    }, [fetchAllUser]);
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected);
-        let arrData = await getAllUsers({
-            limit: PAGINATION.pagerow,
-            offset: number.selected * PAGINATION.pagerow,
-            search: CommonUtils.removeSpace(search),
-        });
-        if (arrData && arrData.errCode === 0) {
-            setdataUser(arrData.data);
-            setTotal(arrData.count);
-        }
-    };
+        let active = true;
+        setdataUser([]);
+        getAllUsers({ limit: PAGINATION.pagerow, offset: numberPage * PAGINATION.pagerow,
+            search: CommonUtils.removeSpace(search) }).then(res => {
+            if (!active || res?.errCode !== 0) return;
+            const page = clampListPage(numberPage, res.count, PAGINATION.pagerow);
+            setCount(Math.ceil(res.count / PAGINATION.pagerow)); setTotal(res.count);
+            if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
+            setdataUser(res.data);
+        }).catch(() => { if (active) toast.error("Không tải được danh sách người dùng"); });
+        return () => { active = false; };
+    }, [numberPage, search, refresh, setQuery]);
+    const handleChangePage = number => setQuery({ page: number.selected });
     let handlebanUser = async (event, item) => {
         event.preventDefault();
         let res = {};
@@ -62,21 +46,13 @@ const ManageUser = () => {
         }
         if (res && res.errCode === 0) {
             toast.success(res.errMessage);
-            let user = await getAllUsers({
-                limit: PAGINATION.pagerow,
-                offset: numberPage * PAGINATION.pagerow,
-            });
-            if (user && user.errCode === 0) {
-                setdataUser(user.data);
-                setTotal(user.count);
-                setCount(Math.ceil(user.count / PAGINATION.pagerow));
-            }
+            setRefresh(value => value + 1);
         } else {
             toast.error(res.errMessage);
         }
     };
     const handleSearch = (value) => {
-        setSearch(value);
+        setQuery({ search: value, page: 0 });
     };
     return (
         <div>
@@ -85,6 +61,8 @@ const ManageUser = () => {
                     <div className="card-body">
                         <h4 className="card-title">Danh sách người dùng</h4>
                         <Input.Search
+                            key={search}
+                            defaultValue={search}
                             onSearch={handleSearch}
                             className="mt-5 mb-5"
                             placeholder="Nhập tên hoặc số điện thoại"
@@ -201,8 +179,8 @@ const ManageUser = () => {
                             )}
                         </div>
                     </div>
-                    <ReactPaginate
-                        forcePage={numberPage}
+                    {count > 0 && <ReactPaginate
+                        forcePage={Math.min(numberPage, count - 1)}
                         previousLabel={"Quay lại"}
                         nextLabel={"Tiếp"}
                         breakLabel={"..."}
@@ -221,7 +199,7 @@ const ManageUser = () => {
                         breakClassName={"page-item"}
                         activeClassName={"active"}
                         onPageChange={handleChangePage}
-                    />
+                    />}
                 </div>
             </div>
         </div>

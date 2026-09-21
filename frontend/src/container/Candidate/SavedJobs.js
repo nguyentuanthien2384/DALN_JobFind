@@ -1,5 +1,5 @@
 import React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import { formatJobTime, jobLabel } from '../../util/jobLocale';
@@ -9,35 +9,34 @@ import {
     toggleFavoritePostService,
 } from "../../service/userService";
 import CommonUtils from "../../util/CommonUtils";
+import useListQuery, { clampListPage } from '../../util/useListQuery';
 
 const SavedJobs = () => {
     const [dataFavorite, setDataFavorite] = useState([]);
     const [count, setCount] = useState(0);
-    const [numberPage, setNumberPage] = useState(0);
+    const [{ page: numberPage }, setQuery] = useListQuery({ page: 0 });
+    const [refresh, setRefresh] = useState(0);
+    const [error, setError] = useState('');
     const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
 
-    const fetchData = useCallback(async (page) => {
-        let res = await getFavoritePostByUserService({
-            userId: userData.id,
-            limit: 10,
-            offset: page * 10,
-        });
-        if (res && res.errCode === 0) {
-            setDataFavorite(res.data);
-            setCount(Math.ceil(res.count / 10));
-        }
-    }, [userData]);
-
     useEffect(() => {
-        if (userData) {
-            fetchData(0);
-        }
-    }, [fetchData, userData]);
+        let active = true;
+        if (!userData) return;
+        setError(''); setDataFavorite([]);
+        (async () => {
+            try {
+                const res = await getFavoritePostByUserService({ userId: userData.id, limit: 10, offset: numberPage * 10 });
+                if (!active) return;
+                if (res?.errCode !== 0) throw Error();
+                const validPage = clampListPage(numberPage, res.count, 10);
+                if (validPage !== numberPage) { setQuery({ page: validPage }, { replace: true }); return; }
+                setDataFavorite(res.data); setCount(Math.ceil(res.count / 10));
+            } catch { if (active) setError('Không tải được việc làm đã lưu. Vui lòng tải lại.'); }
+        })();
+        return () => { active = false; };
+    }, [userData, numberPage, refresh, setQuery]);
 
-    const handleChangePage = (number) => {
-        setNumberPage(number.selected);
-        fetchData(number.selected);
-    };
+    const handleChangePage = number => setQuery({ page: number.selected });
 
     const handleUnsave = async (postId) => {
         let res = await toggleFavoritePostService({
@@ -46,7 +45,7 @@ const SavedJobs = () => {
         });
         if (res && res.errCode === 0) {
             toast.success(res.errMessage);
-            fetchData(numberPage);
+            setRefresh(value => value + 1);
         } else {
             toast.error(res && res.errMessage ? res.errMessage : "Có lỗi xảy ra");
         }
@@ -63,6 +62,7 @@ const SavedJobs = () => {
                         ></i>
                         Việc làm đã lưu
                     </h4>
+                    {error && <p role="alert">{error}</p>}
                     {dataFavorite && dataFavorite.length > 0 ? (
                         dataFavorite.map((item, index) => {
                             const post = item.postFavoriteData;
@@ -172,10 +172,11 @@ const SavedJobs = () => {
                     )}
                     {count > 1 && (
                         <ReactPaginate
+                            forcePage={numberPage}
                             previousLabel={"Quay lại"}
                             nextLabel={"Tiếp"}
                             breakLabel={"..."}
-                            pageCount={count}
+                            pageCount={Math.max(numberPage + 1, count)}
                             marginPagesDisplayed={3}
                             containerClassName={
                                 "pagination justify-content-center pb-3"

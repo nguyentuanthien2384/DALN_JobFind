@@ -1,45 +1,20 @@
 import React from 'react'
-import { useEffect, useState } from 'react';
+
 import { DeleteSkillService, getListSkill } from '../../../service/userService';
 import { PAGINATION } from '../../../util/constant';
 import ReactPaginate from 'react-paginate';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-image-lightbox/style.css';
-import CommonUtils from '../../../util/CommonUtils';
+import useCatalogList from '../useCatalogList';
 import {Input, Modal, Row, Col, Select} from 'antd'
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { useFetchAllcode } from '../../../util/fetch';
 const {confirm} = Modal
 
 const ManageJobSkill = () => {
-    const [dataJobSkill, setdataJobSkill] = useState([])
-    const [count, setCount] = useState('')
-    const [numberPage, setnumberPage] = useState('')
-    const [search,setSearch] = useState('')
-    const [categoryJobCode,setCategoryJobCode] = useState('')
-    useEffect(() => {
-        try {
-            let fetchData = async () => {
-                let arrData = await getListSkill({
-                    categoryJobCode: categoryJobCode,
-                    limit: PAGINATION.pagerow,
-                    offset: 0,
-                    search: CommonUtils.removeSpace(search)
-                })
-                if (arrData && arrData.errCode === 0) {
-                    setnumberPage(0)
-                    setdataJobSkill(arrData.data)
-                    setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
-                }
-            }
-            fetchData();
-        } catch (error) {
-            console.log(error)
-        }
-
-    }, [search,categoryJobCode])
-
+    const { rows: dataJobSkill, count, loading, numberPage, searchDraft, setSearchDraft,
+        handleChangePage, handleSearch, refresh, categoryJobCode, handleCategoryChange } = useCatalogList(getListSkill, { withCategory: true });
     let { data: listCategoryJobCode } = useFetchAllcode('JOBTYPE');
     listCategoryJobCode = listCategoryJobCode.map(item=> ({
         value: item.code,
@@ -54,39 +29,8 @@ const ManageJobSkill = () => {
         let res = await DeleteSkillService(id)
         if (res && res.errCode === 0) {
             toast.success(res.errMessage)
-            let arrData = await getListSkill({
-                categoryJobCode: '',
-                limit: PAGINATION.pagerow,
-                offset: numberPage * PAGINATION.pagerow,
-                search: CommonUtils.removeSpace(search)
-            })
-            if (arrData && arrData.errCode === 0) {
-                setdataJobSkill(arrData.data)
-                setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
-            }
-
+            refresh();
         } else toast.error(res.errMessage)
-    }
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected)
-        let arrData = await getListSkill({
-
-            categoryJobCode: categoryJobCode,
-            limit: PAGINATION.pagerow,
-            offset: number.selected * PAGINATION.pagerow,
-            search: CommonUtils.removeSpace(search)
-
-        })
-        if (arrData && arrData.errCode === 0) {
-            setdataJobSkill(arrData.data)
-
-        }
-    }
-    let handleOnChangeCategoryJobCode = async(value) => {
-        setCategoryJobCode(value)
-    }
-    const handleSearch = (value) => {
-        setSearch(value)
     }
     const confirmDelete = (id) => {
         confirm({
@@ -108,12 +52,12 @@ const ManageJobSkill = () => {
                         <h4 className="card-title">Danh sách các kĩ năng</h4>
                         <Row justify='space-around' className='mt-5 mb-5'>
                             <Col xs={12} xxl={12}>
-                        <Input.Search  onSearch={handleSearch} placeholder="Nhập tên kĩ năng " allowClear enterButton="Tìm kiếm">
+                        <Input.Search value={searchDraft} onChange={event => setSearchDraft(event.target.value)}  onSearch={handleSearch} placeholder="Nhập tên kĩ năng " allowClear enterButton="Tìm kiếm">
                         </Input.Search>
                             </Col>
                             <Col xs={8} xxl={8}>
                                 <label className='mr-2'>Loại trạng thái: </label>
-                                <Select onChange={(value)=> handleOnChangeCategoryJobCode(value)} defaultValue={listCategoryJobCode[0]} style={{width:'50%'}} size='default' options={listCategoryJobCode ? listCategoryJobCode : []}>
+                                <Select onChange={handleCategoryChange} value={categoryJobCode} style={{width:'50%'}} size='default' options={listCategoryJobCode ? listCategoryJobCode : []}>
                                     
                                 </Select>
                             </Col>
@@ -162,15 +106,16 @@ const ManageJobSkill = () => {
                                 dataJobSkill && dataJobSkill.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
-                                                    Không có dữ liệu
+                                                    {loading ? 'Đang tải dữ liệu…' : 'Không có dữ liệu'}
 
                                                 </div>
                                             )
                             }
                         </div>
                     </div>
-                    <ReactPaginate
-                    forcePage={numberPage}
+                    {count > 0 && <ReactPaginate
+                    forcePage={Math.min(numberPage, count - 1)}
+                        disableInitialCallback={true}
                         previousLabel={'Quay lại'}
                         nextLabel={'Tiếp'}
                         breakLabel={'...'}
@@ -187,7 +132,7 @@ const ManageJobSkill = () => {
                         breakClassName={"page-item"}
                         activeClassName={"active"}
                         onPageChange={handleChangePage}
-                    />
+                    />}
                 </div>
 
             </div>

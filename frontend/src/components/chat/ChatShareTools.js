@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Modal } from 'antd';
 import { getChatJobs, readChatPdf, uploadChatPdf } from '../../service/chatMediaService';
 import { ChatJobCard } from './ChatMessageContent';
+import useListQuery, { clampListPage } from '../../util/useListQuery';
 
 const JobPicker = ({ partnerId, onSelect, onClose }) => {
-    const [search, setSearch] = useState('');
-    const [page, setPage] = useState(0);
+    const [{ search, page }, setQuery] = useListQuery({ search: '', page: 0 }, { prefix: 'sharedJob.' });
     const [result, setResult] = useState({ data: [], count: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -18,18 +18,20 @@ const JobPicker = ({ partnerId, onSelect, onClose }) => {
                 const response = await getChatJobs({ partnerId: Number(partnerId), search, limit: 10, offset: page * 10 });
                 if (!active) return;
                 if (response?.errCode !== 0 || !Array.isArray(response.data)) throw new Error(response?.errMessage || 'Không tải được tin tuyển dụng.');
+                const validPage = clampListPage(page, response.count, 10);
+                if (validPage !== page) { setQuery({ page: validPage }, { replace: true }); return; }
                 setResult(response);
             } catch (failure) { if (active) setError(failure.message || 'Không tải được tin tuyển dụng.'); }
             finally { if (active) setLoading(false); }
         }, 250);
         return () => { active = false; clearTimeout(timer); };
-    }, [partnerId, search, page, retry]);
+    }, [partnerId, search, page, retry, setQuery]);
     return <Modal open title="Chia sẻ công việc" footer={null} onCancel={onClose} width={700}>
         <div className="chat-job-picker">
             <p>Chọn tin đang tuyển của công ty trong cuộc trò chuyện. Bạn sẽ xem lại trước khi gửi.</p>
             <label htmlFor="chat-job-search">Tìm theo tên công việc</label>
             <input id="chat-job-search" type="search" value={search} maxLength={120} placeholder="Ví dụ: Frontend Developer"
-                onChange={event => { setSearch(event.target.value); setPage(0); }} />
+                onChange={event => setQuery({ search: event.target.value, page: 0 }, { replace: true })} />
             {loading && <p role="status">Đang tải tin tuyển dụng…</p>}
             {!loading && error && <div role="alert"><p>{error}</p><button className="chat-media-action" type="button" onClick={() => setRetry(value => value + 1)}>Thử lại</button></div>}
             {!loading && !error && !result.data.length && <p>Chưa có tin đang tuyển phù hợp. Thử thay đổi từ khóa tìm kiếm.</p>}
@@ -38,9 +40,9 @@ const JobPicker = ({ partnerId, onSelect, onClose }) => {
                 <button type="button" className="chat-media-primary" onClick={() => onSelect(job)}>Chọn công việc này</button>
             </article>)}
             {!loading && !error && result.count > 10 && <div className="chat-job-pages">
-                <button type="button" className="chat-media-action" disabled={page === 0} onClick={() => setPage(value => value - 1)}>Trang trước</button>
+                <button type="button" className="chat-media-action" disabled={page === 0} onClick={() => setQuery({ page: page - 1 })}>Trang trước</button>
                 <span>Trang {page + 1} / {Math.ceil(result.count / 10)}</span>
-                <button type="button" className="chat-media-action" disabled={(page + 1) * 10 >= result.count} onClick={() => setPage(value => value + 1)}>Trang sau</button>
+                <button type="button" className="chat-media-action" disabled={(page + 1) * 10 >= result.count} onClick={() => setQuery({ page: page + 1 })}>Trang sau</button>
             </div>}
         </div>
     </Modal>;
@@ -52,7 +54,8 @@ const ChatShareTools = ({ partnerId, disabled, onSelect, onBusy }) => {
     const busy = useRef(false);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState('');
-    const [showJobs, setShowJobs] = useState(false);
+    const [{ open: showJobs }, setPickerQuery] = useListQuery({ open: false }, { prefix: 'sharedJob.' });
+    const setShowJobs = open => setPickerQuery({ open });
     useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
     const chooseFile = async event => {
         const file = event.target.files?.[0];

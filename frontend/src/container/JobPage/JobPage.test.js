@@ -31,6 +31,8 @@ jest.mock("./LeftPage/LeftBar", () => (props) => (
 jest.mock("./RightPage/RightContent", () => (props) => (
     <div>
         <span data-testid="job-count">{props.count}</span>
+        <input aria-label="Search draft" value={props.searchDraft} onChange={event => props.onSearchDraftChange(event.target.value)} />
+        <button onClick={() => props.handleSearch(props.searchDraft)}>submit-draft</button>
         {props.post.map((item) => <span key={item.id}>{item.name}</span>)}
         <button onClick={() => props.handleSearch("  React   Engineer  ")}>search</button>
         <button onClick={() => props.handleSearch("")}>clear-search</button>
@@ -58,6 +60,42 @@ const expectLatestQuery = async (expected) => {
 };
 
 describe("JobPage", () => {
+    it('Back restores the applied keyword instead of the draft submitted on the next history entry', async () => {
+        const Navigation = () => { const navigate = useNavigate(); return <button onClick={() => navigate(-1)}>Back</button>; };
+        render(<MemoryRouter initialEntries={['/job?page=3&search=React']}><Navigation /><JobPage /></MemoryRouter>);
+        await expectLatestQuery({ offset: 10, search: 'React' });
+        fireEvent.change(screen.getByLabelText('Search draft'), { target: { value: 'Vue' } });
+        fireEvent.click(screen.getByText('submit-draft'));
+        await expectLatestQuery({ offset: 0, search: 'Vue' });
+        fireEvent.click(screen.getByText('Back'));
+        expect(screen.getByLabelText('Search draft')).toHaveValue('React');
+        expect(screen.getByTestId('force-page')).toHaveTextContent('2');
+    });
+    it('keeps page and every selected filter after a browser remount with no saved snapshot', async () => {
+        const first = render(<BrowserRouter><JobPage /></BrowserRouter>);
+        await screen.findByText('React Developer');
+        for (const button of ['work-type', 'salary', 'experience', 'job-type', 'job-level', 'location', 'search']) {
+            fireEvent.click(screen.getByRole('button', { name: button }));
+            await screen.findByText('React Developer');
+        }
+        fireEvent.click(screen.getByRole('button', { name: 'page-three' }));
+        await expectLatestQuery({ offset: 10 });
+        expect(new URLSearchParams(window.location.search).get('page')).toBe('3');
+        first.unmount(); clearJobSearchHistory(); getListPostService.mockClear();
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
+        await expectLatestQuery({ offset: 10, search: 'React Engineer', categoryWorktypeCode: ['REMOTE'],
+            salaryJobCode: ['HIGH'], experienceJobCode: ['SENIOR'], categoryJobCode: 'TECH',
+            categoryJoblevelCode: ['LEAD'], addressCode: 'HCM' });
+        expect(screen.getByTestId('force-page')).toHaveTextContent('2');
+        expect(getListPostService).toHaveBeenCalledTimes(1);
+    });
+    it('repairs an out-of-range URL to the last page after a successful response', async () => {
+        window.history.replaceState({}, '', '/job?page=99&categoryJobCode=TECH');
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
+        await expectLatestQuery({ offset: 10, categoryJobCode: 'TECH' });
+        expect(new URLSearchParams(window.location.search).get('page')).toBe('3');
+        expect(getListPostService).toHaveBeenNthCalledWith(1, expect.objectContaining({ offset: 490 }));
+    });
     it('keeps an expired snapshot visible while refreshing and on a temporary network failure', async () => {
         const Navigation = () => {
             const navigate = useNavigate();

@@ -4,6 +4,21 @@ import ManageCvCandidate from './ManageCvCandidate';
 import { getAllListCvByUserIdService } from '../../service/cvService';
 import { getMyApplications } from '../../service/applicationService';
 import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
+// Editor/session tests use a lightweight router; PublicPagination tests exercise real URLs.
+jest.mock("../../util/useListQuery", () => {
+    const React = require("react");
+    return {
+        __esModule: true,
+        ...jest.requireActual("../../util/useListQuery"),
+        default: defaults => {
+            const [query, setState] = React.useState(defaults);
+            const setQuery = React.useCallback(patch => setState(previous => ({
+                ...previous, ...(typeof patch === "function" ? patch(previous) : patch),
+            })), []);
+            return [query, setQuery];
+        },
+    };
+});
 jest.mock('../../service/cvService',()=>({getAllListCvByUserIdService:jest.fn()}));
 jest.mock('../../service/applicationService',()=>({getMyApplications:jest.fn()}));
 jest.mock('react-router-dom',()=>({Link:({to,children})=><a href={to}>{children}</a>}));
@@ -36,7 +51,7 @@ test('missing projection is pending, not rejection or proof that submission fail
     getMyApplications.mockResolvedValue({errCode:0,data:[]});render(<ManageCvCandidate/>);await screen.findByText('Đang chờ đồng bộ');expect(screen.queryByText('Từ chối')).not.toBeInTheDocument();
 });
 test('late page response cannot replace the selected page',async()=>{
-    let finish;getAllListCvByUserIdService.mockReturnValueOnce(new Promise(resolve=>{finish=resolve;})).mockResolvedValueOnce({...response,data:[{...cv,id:13,postCvData:{id:91,postDetailData:{name:'Current page'}}}]});
+    let finish;getAllListCvByUserIdService.mockReturnValueOnce(new Promise(resolve=>{finish=resolve;})).mockResolvedValueOnce({...response,count:6,data:[{...cv,id:13,postCvData:{id:91,postDetailData:{name:'Current page'}}}]});
     render(<ManageCvCandidate/>);fireEvent.click(screen.getByText('Trang tiếp'));await screen.findByText('Current page');
     await act(async()=>finish(response));expect(screen.queryByText('React job')).not.toBeInTheDocument();
 });

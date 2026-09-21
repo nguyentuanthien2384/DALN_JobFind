@@ -1,82 +1,24 @@
 import React from 'react'
-import { useEffect, useState } from 'react';
+
 import { DeleteAllcodeService, getListAllCodeService } from '../../../service/userService';
 import { PAGINATION } from '../../../util/constant';
 import ReactPaginate from 'react-paginate';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import CommonUtils from '../../../util/CommonUtils';
+import useCatalogList from '../useCatalogList';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import {Input, Modal} from 'antd'
 const {confirm} = Modal
 
 const ManageExpType = () => {
-    const [dataExpType, setdataExpType] = useState([])
-    const [count, setCount] = useState('')
-    const [numberPage, setnumberPage] = useState('')
-    const [search,setSearch] = useState('')
-
-    useEffect(() => {
-        try {
-            let fetchData = async () => {
-                let arrData = await getListAllCodeService({
-
-                    type: 'EXPTYPE',
-                    limit: PAGINATION.pagerow,
-                    offset: 0,
-                    search: CommonUtils.removeSpace(search)
-
-                })
-                if (arrData && arrData.errCode === 0) {
-                    setdataExpType(arrData.data)
-                    setnumberPage(0)
-                    setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
-                }
-            }
-            fetchData();
-        } catch (error) {
-            console.log(error)
-        }
-
-    }, [search])
+    const { rows: dataExpType, count, loading, numberPage, searchDraft, setSearchDraft,
+        handleChangePage, handleSearch, refresh } = useCatalogList(getListAllCodeService, { type: 'EXPTYPE' });
     let handleDeleteExpType = async (code) => {
         let res = await DeleteAllcodeService(code)
         if (res && res.errCode === 0) {
             toast.success(res.errMessage)
-            let arrData = await getListAllCodeService({
-
-                type: 'EXPTYPE',
-                limit: PAGINATION.pagerow,
-                offset: numberPage * PAGINATION.pagerow,
-                search: CommonUtils.removeSpace(search)
-
-
-            })
-            if (arrData && arrData.errCode === 0) {
-                setdataExpType(arrData.data)
-                setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
-            }
-
+            refresh();
         } else toast.error(res.errMessage)
-    }
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected)
-        let arrData = await getListAllCodeService({
-
-            type: 'EXPTYPE',
-            limit: PAGINATION.pagerow,
-            offset: number.selected * PAGINATION.pagerow,
-            search: CommonUtils.removeSpace(search)
-
-
-        })
-        if (arrData && arrData.errCode === 0) {
-            setdataExpType(arrData.data)
-
-        }
-    }
-    const handleSearch = (value) => {
-        setSearch(value)
     }
     const confirmDelete = (id) => {
         confirm({
@@ -96,7 +38,7 @@ const ManageExpType = () => {
                 <div className="card">
                     <div className="card-body">
                         <h4 className="card-title">Danh sách khoảng kinh nghiệm làm việc</h4>
-                        <Input.Search onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên công việc" allowClear enterButton="Tìm kiếm">
+                        <Input.Search value={searchDraft} onChange={event => setSearchDraft(event.target.value)} onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên công việc" allowClear enterButton="Tìm kiếm">
                                     
                                     </Input.Search>
                         <div className="table-responsive pt-2">
@@ -143,15 +85,16 @@ const ManageExpType = () => {
                                 dataExpType && dataExpType.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
-                                                    Không có dữ liệu
+                                                    {loading ? 'Đang tải dữ liệu…' : 'Không có dữ liệu'}
 
                                                 </div>
                                             )
                                         }
                         </div>
                     </div>
-                    <ReactPaginate
-                    forcePage={numberPage}
+                    {count > 0 && <ReactPaginate
+                    forcePage={Math.min(numberPage, count - 1)}
+                        disableInitialCallback={true}
                         previousLabel={'Quay lại'}
                         nextLabel={'Tiếp'}
                         breakLabel={'...'}
@@ -168,7 +111,7 @@ const ManageExpType = () => {
                         breakClassName={"page-item"}
                         activeClassName={"active"}
                         onPageChange={handleChangePage}
-                    />
+                    />}
                 </div>
 
             </div>

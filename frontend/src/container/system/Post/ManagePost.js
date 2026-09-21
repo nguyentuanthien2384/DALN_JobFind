@@ -14,6 +14,7 @@ import { Col, Modal, Row, Select } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import CommonUtils from '../../../util/CommonUtils';
 import {Input} from 'antd'
+import useListQuery, { clampListPage } from '../../../util/useListQuery';
 const {confirm} = Modal
 const ManagePost = () => {
     const { id } = useParams();
@@ -23,9 +24,7 @@ const ManagePost = () => {
     const [dataPost, setdataPost] = useState([]);
     const [workspace] = useState(() => workspaceSelection(user));
     const [count, setCount] = useState(0);
-    const [numberPage, setnumberPage] = useState(0);
-    const [search, setSearch] = useState(id || '');
-    const [censorCode, setCensorCode] = useState(id ? '' : 'PS3');
+    const [{ page: numberPage, search, censorCode }, setQuery] = useListQuery({ page: 0, search: id || '', censorCode: id ? '' : 'PS3' });
     const [total, setTotal] = useState(0);
     const [propsModal, setPropsModal] = useState({ isActive: false, postId: '', action: '', handlePost: () => {} });
     const [loading, setLoading] = useState(true);
@@ -41,9 +40,6 @@ const ManagePost = () => {
         { value: 'PS2', label: 'Đã bị từ chối' }, { value: 'PS3', label: 'Chờ kiểm duyệt' },
         { value: 'PS4', label: 'Bài viết đã bị chặn' }
     ];
-    useEffect(() => {
-        setSearch(id || ''); setCensorCode(id ? '' : 'PS3'); setnumberPage(0);
-    }, [id]);
     useEffect(() => {
         let active = true;
         viewEpoch.current += 1;
@@ -62,21 +58,25 @@ const ManagePost = () => {
                 if (!active) return;
                 assertJobEditorIdentity(user);
                 if (workspace.mode === 'core') {
-                    const page = readManagedJobList(result, user, coreQuery);
-                    setdataPost(page.data); setTotal(page.count); setCount(Math.ceil(page.count / PAGINATION.pagerow)); return;
+                    const resultPage = readManagedJobList(result, user, coreQuery);
+                    const page = clampListPage(numberPage, resultPage.count, PAGINATION.pagerow);
+                    if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
+                    setdataPost(resultPage.data); setTotal(resultPage.count); setCount(Math.ceil(resultPage.count / PAGINATION.pagerow)); return;
                 }
                 if (!result || result.errCode !== 0 || !Array.isArray(result.data)) throw new Error(result?.errMessage || 'Không đọc được danh sách tin');
+                const page = clampListPage(numberPage, result.count, PAGINATION.pagerow);
+                if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
                 setdataPost(result.data); setTotal(result.count); setCount(Math.ceil(result.count / PAGINATION.pagerow));
             } catch (error) { if (active) setLoadError(error.message || 'Không đọc được danh sách tin'); }
             finally { if (active) setLoading(false); }
         };
         load();
         return () => { active = false; viewEpoch.current += 1; };
-    }, [search, censorCode, numberPage, id, refreshVersion, user, workspace]);
+    }, [search, censorCode, numberPage, id, refreshVersion, user, workspace, setQuery]);
 
-    const handleChangePage = number => { if (!busy.current && !propsModal.isActive) setnumberPage(number.selected); };
-    const handleOnChangeCensor = value => { if (busy.current || propsModal.isActive) return; setCensorCode(value); setnumberPage(0); };
-    const handleSearch = value => { if (busy.current || propsModal.isActive) return; setSearch(value); setnumberPage(0); };
+    const handleChangePage = number => { if (!busy.current && !propsModal.isActive) setQuery({ page: number.selected }); };
+    const handleOnChangeCensor = value => { if (busy.current || propsModal.isActive) return; setQuery({ censorCode: value, page: 0 }); };
+    const handleSearch = value => { if (busy.current || propsModal.isActive) return; setQuery({ search: value, page: 0 }); };
     const disabled = loading || pending || !!loadError || !!actionWarning;
     const performModeration = async (row, action, note, epoch) => {
         if (busy.current || blocked.current || disabled || user.roleCode !== 'ADMIN' || epoch !== viewEpoch.current || !isJobRevision(row.editRevision)) return false;
@@ -141,7 +141,7 @@ const ManagePost = () => {
                             <button type="button" disabled={pending || loading || propsModal.isActive} onClick={reload}>Tải lại danh sách</button>}
                         <Row justify='space-around' className='mt-5 mb-5'>
                             <Col xs={12} xxl={12}>
-                        <Input.Search  onSearch={handleSearch} placeholder={user?.roleCode === "ADMIN" ? "Nhập tên hoặc mã bài đăng, tên công ty" :"Nhập tên hoặc mã bài đăng"} allowClear enterButton="Tìm kiếm">
+                        <Input.Search key={search} defaultValue={search} onSearch={handleSearch} placeholder={user?.roleCode === "ADMIN" ? "Nhập tên hoặc mã bài đăng, tên công ty" :"Nhập tên hoặc mã bài đăng"} allowClear enterButton="Tìm kiếm">
                         </Input.Search>
                             </Col>
                             <Col xs={8} xxl={8}>
@@ -245,15 +245,15 @@ const ManagePost = () => {
                                                 <div style={{ textAlign: 'center' }}>
 
                                                     Không có dữ liệu
-                                                    {numberPage > 0 && <button type="button" onClick={() => setnumberPage(0)}>Về trang đầu</button>}
+                                                    {numberPage > 0 && <button type="button" onClick={() => setQuery({ page: 0 })}>Về trang đầu</button>}
 
                                                 </div>
                                             )
                             }
                         </div>
                     </div>
-                    <ReactPaginate
-                                        forcePage={numberPage}
+                    {!loading && !loadError && count > 0 && <ReactPaginate
+                                        forcePage={Math.min(numberPage, count - 1)}
 
                         previousLabel={'Quay lại'}
                         nextLabel={'Tiếp'}
@@ -271,7 +271,7 @@ const ManagePost = () => {
                         breakClassName={"page-item"}
                         activeClassName={"active"}
                         onPageChange={handleChangePage}
-                    />
+                    />}
                 </div>
 
             </div>

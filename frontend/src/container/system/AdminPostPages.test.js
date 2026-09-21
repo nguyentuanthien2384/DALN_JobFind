@@ -19,6 +19,19 @@ import ManagePost from "./Post/ManagePost";
 import NotePost from "./Post/NotePost";
 import AddPost from "./Post/AddPost";
 
+jest.mock('../../util/useListQuery', () => {
+    const React = require('react');
+    return { ...jest.requireActual('../../util/useListQuery'), __esModule: true,
+        default: defaults => {
+            const [query, setQuery] = React.useState(defaults);
+            const update = React.useCallback(patch => setQuery(previous => ({
+                ...previous, ...(typeof patch === 'function' ? patch(previous) : patch)
+            })), []);
+            return [query, update];
+        }
+    };
+});
+
 let mockParams = {};
 const mockNavigate = jest.fn();
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Select, Modal } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ import { getAllSkillByJobCode } from '../../../service/userService';
 import { useFetchAllcode } from '../../../util/fetch';
 import { PAGINATION } from '../../../util/constant';
 import './FilterCv.css';
+import useListQuery, { clampListPage } from '../../../util/useListQuery';
 
 const emptyFilters = () => ({ keyword: '', categoryJobCode: '', experienceJobCode: '',
     provinceCode: '', salaryCode: '', listSkills: [], skillMode: 'any', minMatch: 0, sort: 'match' });
@@ -22,8 +23,12 @@ const FilterCv = () => {
     const [user] = useState(() => {
         try { return JSON.parse(localStorage.getItem('userData')) || {}; } catch { return {}; }
     });
-    const [filters, setFilters] = useState(emptyFilters);
-    const [page, setPage] = useState(0);
+    const [query, setQuery] = useListQuery({ ...emptyFilters(), page: 0 });
+    const { page } = query;
+    const filters = useMemo(() => {
+        const { page: unusedPage, ...criteria } = query;
+        return criteria;
+    }, [query]);
     const [result, setResult] = useState({ data: [], count: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -56,7 +61,8 @@ const FilterCv = () => {
                 if (!response || response.errCode !== 0 || !Array.isArray(response.data)) {
                     throw new Error(response?.errMessage || 'Không tải được ứng viên. Vui lòng thử lại.');
                 }
-                if (page > 0 && page * PAGINATION.pagerow >= response.count) { setPage(0); return; }
+                const validPage = clampListPage(page, response.count, PAGINATION.pagerow);
+                if (validPage !== page) { setQuery({ page: validPage }, { replace: true }); return; }
                 setResult(response);
                 setAllowance(response.allowance || null);
             } catch (failure) {
@@ -64,7 +70,7 @@ const FilterCv = () => {
             } finally { if (active) setLoading(false); }
         }, 250);
         return () => { active = false; clearTimeout(timer); };
-    }, [filters, page, retry]);
+    }, [filters, page, retry, setQuery]);
 
     useEffect(() => {
         let active = true;
@@ -97,19 +103,18 @@ const FilterCv = () => {
     }, [jobSearch, user.companyId, retry]);
 
     const change = (key, value) => {
-        setPage(0);
-        setFilters(current => {
-            const next = { ...current, [key]: value ?? '', ...(key === 'categoryJobCode' ? { listSkills: [] } : {}) };
+        setQuery(current => {
+            const next = { ...current, page: 0, [key]: value ?? '', ...(key === 'categoryJobCode' ? { listSkills: [] } : {}) };
             if (!hasCriteria(next)) next.minMatch = 0;
             return next;
-        });
+        }, { replace: key === 'keyword' });
     };
-    const reset = () => { setFilters(emptyFilters()); setPage(0); setSelectedJob(null); setJobSearch(''); };
+    const reset = () => { setQuery({ ...emptyFilters(), page: 0 }); setSelectedJob(null); setJobSearch(''); };
     const applyJob = id => {
         const job = jobs.find(item => item.id === id);
         if (!job) { setSelectedJob(null); return; }
-        setSelectedJob(job); setPage(0);
-        setFilters({ ...emptyFilters(), ...job.criteria, listSkills: job.criteria.listSkills.map(skill => Number(skill.id)) });
+        setSelectedJob(job);
+        setQuery({ ...emptyFilters(), ...job.criteria, page: 0, listSkills: job.criteria.listSkills.map(skill => Number(skill.id)) });
     };
     const openCandidate = id => {
         const open = () => navigate(`/admin/candiate/${id}/`);
@@ -214,7 +219,7 @@ const FilterCv = () => {
                 {!loading && !error && result.count > PAGINATION.pagerow && <nav aria-label="Phân trang ứng viên">
                     <ReactPaginate forcePage={page} previousLabel="Trước" nextLabel="Sau" breakLabel="…"
                         pageCount={Math.ceil(result.count / PAGINATION.pagerow)} pageRangeDisplayed={3} marginPagesDisplayed={1}
-                        onPageChange={({ selected }) => setPage(selected)} containerClassName="cv-search-pagination" activeClassName="is-active" />
+                        onPageChange={({ selected }) => setQuery({ page: selected })} containerClassName="cv-search-pagination" activeClassName="is-active" />
                 </nav>}
             </section>
         </div>

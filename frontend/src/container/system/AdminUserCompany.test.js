@@ -25,6 +25,19 @@ import ManageCompany from "./Company/ManageCompany";
 import ManageEmployer from "./Company/ManageEmployer";
 import Recruitment from "./Company/Recruitment";
 
+jest.mock('../../util/useListQuery', () => {
+    const React = require('react');
+    return { ...jest.requireActual('../../util/useListQuery'), __esModule: true,
+        default: defaults => {
+            const [query, setQuery] = React.useState(defaults);
+            const update = React.useCallback(patch => setQuery(previous => ({
+                ...previous, ...(typeof patch === 'function' ? patch(previous) : patch)
+            })), []);
+            return [query, update];
+        }
+    };
+});
+
 let mockParams = {};
 const mockNavigate = jest.fn();
 
@@ -163,11 +176,11 @@ describe("ManageUser", () => {
         await waitFor(() => expect(BanUserService).toHaveBeenCalledWith(102));
         expect(UnbanUserService).not.toHaveBeenCalled();
         expect(toast.success).toHaveBeenCalledWith("Đã chặn");
-        expect(getAllUsers).toHaveBeenCalledTimes(2);
+        await waitFor(() => expect(getAllUsers).toHaveBeenCalledTimes(2));
     });
 
     it("normalizes searches, paginates and activates a blocked account", async () => {
-        getAllUsers.mockResolvedValue({ errCode: 0, count: 1, data: [account({ id: 2, statusCode: "S2" })] });
+        getAllUsers.mockResolvedValue({ errCode: 0, count: 8, data: [account({ id: 2, statusCode: "S2" })] });
         render(<ManageUser />);
         await screen.findByText("Kích hoạt");
         const input = screen.getByLabelText("Nhập tên hoặc số điện thoại");
@@ -313,9 +326,10 @@ describe("ManageCompany moderation", () => {
         expect(await screen.findByText("Công ty 5")).toBeInTheDocument();
         fireEvent.change(screen.getByLabelText("Loại kiểm duyệt"), { target: { value: "CS3" } });
         await waitFor(() => expect(getAllCompany).toHaveBeenLastCalledWith(expect.objectContaining({ censorCode: "CS3" })));
-        fireEvent.click(screen.getByText("Dừng kích hoạt"));
+        fireEvent.click(await screen.findByText("Dừng kích hoạt"));
         await waitFor(() => expect(banCompanyService).toHaveBeenCalledWith({ id: 5 }));
-        fireEvent.click(screen.getByText("Duyệt"));
+        await waitFor(() => expect(getAllCompany).toHaveBeenCalledTimes(3));
+        fireEvent.click(await screen.findByText("Duyệt"));
         await waitFor(() => expect(accecptCompanyService).toHaveBeenCalledWith({ companyId: 5, note: "null" }));
     });
 

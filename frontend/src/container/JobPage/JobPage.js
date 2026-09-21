@@ -7,6 +7,7 @@ import ReactPaginate from 'react-paginate';
 import { loadSearchPage, loadSearchLabels, searchMode } from '../../service/searchWorkspace';
 import CommonUtils from '../../util/CommonUtils';
 import { SEARCH_SNAPSHOT_TTL, useJobSearchHistory } from './jobSearchHistory';
+import useListQuery, { clampListPage } from '../../util/useListQuery';
 const JobSearchPage = ({ historyKey }) => {
     const [restored, remember] = useJobSearchHistory(historyKey);
     const saved = restored || {};
@@ -15,7 +16,10 @@ const JobSearchPage = ({ historyKey }) => {
     const [countPage, setCountPage] = useState(saved.countPage ?? 0)
     const [post, setPost] = useState(saved.post || [])
     const [count, setCount] = useState(saved.count ?? 0)
-    const [numberPage, setNumberPage] = useState(saved.numberPage ?? 0)
+    const [query, setQuery] = useListQuery({ page: 0, search: '', categoryJobCode: '', addressCode: '',
+        categoryWorktypeCode: [], salaryJobCode: [], experienceJobCode: [], categoryJoblevelCode: [] });
+    const { page: numberPage, search, categoryJobCode: jobType, addressCode: jobLocation,
+        categoryWorktypeCode: workType, salaryJobCode: salary, experienceJobCode: exp, categoryJoblevelCode: jobLevel } = query;
     const [loading, setLoading] = useState(!saved.loadedQuery);
     const [error, setError] = useState('');
     const [retry, setRetry] = useState(saved.retry || 0);
@@ -24,70 +28,21 @@ const JobSearchPage = ({ historyKey }) => {
     const [labelsReady, setLabelsReady] = useState(mode === 'legacy' || Boolean(saved.labelsReady));
     const limit = PAGINATION.pagerow
 
-    const [workType, setWorkType] = useState(saved.workType || [])
-    const [jobType, setJobType] = useState(() => (
-        saved.jobType ?? (new URLSearchParams(window.location.search).get('categoryJobCode') || '')
-    ))
-    const [salary, setSalary] = useState(saved.salary || [])
-    const [exp, setExp] = useState(saved.exp || [])
-    const [jobLevel, setJobLevel] = useState(saved.jobLevel || [])
-    const [jobLocation, setJobLocation] = useState(saved.jobLocation || '')
-    const [search,setSearch] = useState(saved.search || '')
-    const [searchDraft, setSearchDraft] = useState(saved.searchDraft || saved.search || '');
+    // Every history entry shows the keyword that produced its results.
+    const [searchDraft, setSearchDraft] = useState(search);
     remember({ countPage, post, count, numberPage, labels, labelsReady, workType, jobType, salary, exp,
         jobLevel, jobLocation, search, searchDraft, retry, loadedQuery: loadedQuery.current });
-    const handleSearch = (value) => {
-        setNumberPage(0);
-        setSearch(value)
-    }
-    const recieveWorkType = (data) => {
-        setNumberPage(0);
-        setWorkType(prev => {
-            let isCheck = prev.includes(data)
-            if (isCheck)
-                return prev.filter(item => item !== data)
-            else
-                return [...prev, data]
-        })
-    }
-    const recieveSalary = (data) => {
-        setNumberPage(0);
-        setSalary(prev => {
-            let isCheck = prev.includes(data)
-            if (isCheck)
-                return prev.filter(item => item !== data)
-            else
-                return [...prev, data]
-        })
-    }
-    const recieveExp = (data) => {
-        setNumberPage(0);
-        setExp(prev => {
-            let isCheck = prev.includes(data)
-            if (isCheck)
-                return prev.filter(item => item !== data)
-            else
-                return [...prev, data]
-        })
-    }
-    const recieveJobType = (data) => {
-        setNumberPage(0);
-        jobType === data ? setJobType('') : setJobType(data)
-    }
-    const recieveJobLevel = (data) => {
-        setNumberPage(0);
-        setJobLevel(prev => {
-            let isCheck = prev.includes(data)
-            if (isCheck)
-                return prev.filter(item => item !== data)
-            else
-                return [...prev, data]
-        })
-    }
-    const recieveLocation = (data) => {
-        setNumberPage(0);
-        jobLocation === data ? setJobLocation('') : setJobLocation(data)
-    }
+    const handleSearch = value => setQuery({ page: 0, search: value });
+    const toggleFilter = (key, value) => setQuery(current => ({ page: 0,
+        [key]: Array.isArray(current[key]) ? (current[key].includes(value)
+            ? current[key].filter(item => item !== value) : [...current[key], value])
+            : (current[key] === value ? '' : value) }));
+    const recieveWorkType = value => toggleFilter('categoryWorktypeCode', value);
+    const recieveSalary = value => toggleFilter('salaryJobCode', value);
+    const recieveExp = value => toggleFilter('experienceJobCode', value);
+    const recieveJobType = value => toggleFilter('categoryJobCode', value);
+    const recieveJobLevel = value => toggleFilter('categoryJoblevelCode', value);
+    const recieveLocation = value => toggleFilter('addressCode', value);
     useEffect(() => {
         let active = true;
         if (mode === 'core') loadSearchLabels().then(data => {
@@ -115,6 +70,9 @@ const JobSearchPage = ({ historyKey }) => {
         }
         loadSearchPage(params, mode, labels).then(result => {
             if (!active) return;
+            const available = mode === 'core' ? Math.min(result.count, 10000) : result.count;
+            const validPage = clampListPage(numberPage, available, limit);
+            if (validPage !== numberPage) { setQuery({ page: validPage }, { replace: true }); return; }
             loadedQuery.current = { key: queryKey, expiresAt: Date.now() + SEARCH_SNAPSHOT_TTL };
             setPost(result.data); setCount(result.count);
             setCountPage(Math.ceil((mode === 'core' ? Math.min(result.count, 10000) : result.count) / limit));
@@ -122,8 +80,8 @@ const JobSearchPage = ({ historyKey }) => {
             if (active) { setError(failure.message); if (!sameQuery) setCountPage(0); }
         }).finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
-    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels, labelsReady]);
-    const handleChangePage = (number) => { setNumberPage(number.selected); };
+    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels, labelsReady, setQuery]);
+    const handleChangePage = (number) => { setQuery({ page: number.selected }); };
     return (
         <>
 

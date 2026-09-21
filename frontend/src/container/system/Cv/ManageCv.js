@@ -7,52 +7,49 @@ import { PAGINATION } from "../../../util/constant";
 import ReactPaginate from "react-paginate";
 import { Link, useNavigate } from "react-router-dom";
 import { useParams } from "react-router-dom";
+import useListQuery, { clampListPage } from "../../../util/useListQuery";
 
 const ManageCv = () => {
     const [dataCv, setdataCv] = useState([]);
-    const [count, setCount] = useState("");
-    const [numberPage, setnumberPage] = useState("");
+    const [count, setCount] = useState(0);
+    const [{ page: numberPage }, setQuery] = useListQuery({ page: 0 });
     const { id } = useParams();
     const [post, setPost] = useState("");
     useEffect(() => {
+        let active = true;
+        setPost('');
+        if (id) getDetailPostByIdService(id).then(res => {
+            if (active && res?.errCode === 0) setPost(res.data);
+        }).catch(() => {});
+        return () => { active = false; };
+    }, [id]);
+    useEffect(() => {
+        let active = true;
+        setdataCv([]);
         if (id) {
             try {
-                const fetchPost = async () => {
-                    const res = await getDetailPostByIdService(id);
-                    if (res && res.errCode === 0) {
-                        setPost(res.data);
-                    }
-                };
                 let fetchData = async () => {
                     let arrData = await getAllListCvByPostService({
                         limit: PAGINATION.pagerow,
-                        offset: 0,
+                        offset: numberPage * PAGINATION.pagerow,
                         postId: id,
                     });
-                    if (arrData && arrData.errCode === 0) {
-                        setdataCv(arrData.data);
+                    if (active && arrData && arrData.errCode === 0) {
                         setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
+                        const page = clampListPage(numberPage, arrData.count, PAGINATION.pagerow);
+                        if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
+                        setdataCv(arrData.data);
                     }
                 };
-                fetchData();
-                fetchPost();
+                fetchData().catch(() => {});
             } catch (error) {
                 console.log(error);
             }
         }
-    }, [id]);
+        return () => { active = false; };
+    }, [id, numberPage, setQuery]);
 
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected);
-        let arrData = await getAllListCvByPostService({
-            limit: PAGINATION.pagerow,
-            offset: number.selected * PAGINATION.pagerow,
-            postId: id,
-        });
-        if (arrData && arrData.errCode === 0) {
-            setdataCv(arrData.data);
-        }
-    };
+    const handleChangePage = number => setQuery({ page: number.selected });
     const navigate = useNavigate();
     return (
         <div>
@@ -164,7 +161,8 @@ const ManageCv = () => {
                             )}
                         </div>
                     </div>
-                    <ReactPaginate
+                    {count > 0 && <ReactPaginate
+                        forcePage={Math.min(numberPage, count - 1)}
                         previousLabel={"Quay lại"}
                         nextLabel={"Tiếp"}
                         breakLabel={"..."}
@@ -183,7 +181,7 @@ const ManageCv = () => {
                         breakClassName={"page-item"}
                         activeClassName={"active"}
                         onPageChange={handleChangePage}
-                    />
+                    />}
                 </div>
             </div>
         </div>

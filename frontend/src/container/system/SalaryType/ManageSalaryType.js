@@ -1,82 +1,24 @@
 import React from 'react'
-import { useEffect, useState } from 'react';
+
 import { DeleteAllcodeService, getListAllCodeService } from '../../../service/userService';
 import { PAGINATION } from '../../../util/constant';
 import ReactPaginate from 'react-paginate';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import CommonUtils from '../../../util/CommonUtils';
+import useCatalogList from '../useCatalogList';
 import {Input, Modal} from 'antd'
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 const {confirm} = Modal
 
 const ManageSalaryType = () => {
-    const [dataSalaryType, setdataSalaryType] = useState([])
-    const [count, setCount] = useState('')
-    const [numberPage, setnumberPage] = useState('')
-    const [search,setSearch] = useState('')
-
-    useEffect(() => {
-        try {
-            let fetchData = async () => {
-                let arrData = await getListAllCodeService({
-
-                    type: 'SALARYTYPE',
-                    limit: PAGINATION.pagerow,
-                    offset: 0,
-                    search: CommonUtils.removeSpace(search)
-
-                })
-                if (arrData && arrData.errCode === 0) {
-                    setdataSalaryType(arrData.data)
-                    setnumberPage(0)
-                    setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
-                }
-            }
-            fetchData();
-        } catch (error) {
-            console.log(error)
-        }
-
-    }, [search])
+    const { rows: dataSalaryType, count, loading, numberPage, searchDraft, setSearchDraft,
+        handleChangePage, handleSearch, refresh } = useCatalogList(getListAllCodeService, { type: 'SALARYTYPE' });
     let handleDeleteSalaryType = async (code) => {
         let res = await DeleteAllcodeService(code)
         if (res && res.errCode === 0) {
             toast.success(res.errMessage)
-            let arrData = await getListAllCodeService({
-
-                type: 'SALARYTYPE',
-                limit: PAGINATION.pagerow,
-                offset: numberPage * PAGINATION.pagerow,
-                search: CommonUtils.removeSpace(search)
-
-
-            })
-            if (arrData && arrData.errCode === 0) {
-                setdataSalaryType(arrData.data)
-                setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
-            }
-
+            refresh();
         } else toast.error(res.errMessage)
-    }
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected)
-        let arrData = await getListAllCodeService({
-
-            type: 'SALARYTYPE',
-            limit: PAGINATION.pagerow,
-            offset: number.selected * PAGINATION.pagerow,
-            search: CommonUtils.removeSpace(search)
-
-
-        })
-        if (arrData && arrData.errCode === 0) {
-            setdataSalaryType(arrData.data)
-
-        }
-    }
-    const handleSearch = (value) => {
-        setSearch(value)
     }
     const confirmDelete = (id) => {
         confirm({
@@ -96,7 +38,7 @@ const ManageSalaryType = () => {
                 <div className="card">
                     <div className="card-body">
                         <h4 className="card-title">Danh sách khoảng lương</h4>
-                        <Input.Search onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên khoảng lương" allowClear enterButton="Tìm kiếm">
+                        <Input.Search value={searchDraft} onChange={event => setSearchDraft(event.target.value)} onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên khoảng lương" allowClear enterButton="Tìm kiếm">
                                     
                                     </Input.Search>
                         <div className="table-responsive pt-2">
@@ -145,15 +87,16 @@ const ManageSalaryType = () => {
                                 dataSalaryType && dataSalaryType.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
-                                                    Không có dữ liệu
+                                                    {loading ? 'Đang tải dữ liệu…' : 'Không có dữ liệu'}
 
                                                 </div>
                                             )
                                         }
                         </div>
                     </div>
-                    <ReactPaginate
-                    forcePage={numberPage}
+                    {count > 0 && <ReactPaginate
+                    forcePage={Math.min(numberPage, count - 1)}
+                        disableInitialCallback={true}
                         previousLabel={'Quay lại'}
                         nextLabel={'Tiếp'}
                         breakLabel={'...'}
@@ -170,7 +113,7 @@ const ManageSalaryType = () => {
                         breakClassName={"page-item"}
                         activeClassName={"active"}
                         onPageChange={handleChangePage}
-                    />
+                    />}
                 </div>
 
             </div>

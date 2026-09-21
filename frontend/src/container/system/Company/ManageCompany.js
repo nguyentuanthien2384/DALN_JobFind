@@ -10,14 +10,14 @@ import NoteModal from '../../../components/modal/NoteModal';
 import { Modal, Input, Row, Col, Select } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import CommonUtils from '../../../util/CommonUtils';
+import useListQuery, { clampListPage } from '../../../util/useListQuery';
 const { confirm } = Modal
 const ManageCompany = () => {
     const [dataCompany, setdataCompany] = useState([])
-    const [count, setCount] = useState('')
-    const [numberPage, setnumberPage] = useState('')
+    const [count, setCount] = useState(0)
+    const [{ page: numberPage, search, censorCode }, setQuery] = useListQuery({ page: 0, search: '', censorCode: '' })
+    const [refresh, setRefresh] = useState(0)
     const [user, setUser] = useState({})
-    const [search, setSearch] = useState('')
-    const [censorCode, setCensorCode] = useState('')
     const [propsModal, setPropsModal] = useState({
         isActive: false,
         handleCompany: () => { },
@@ -44,9 +44,11 @@ const ManageCompany = () => {
         },
     ]
     let handleOnChangeCensor = (value) => {
-        setCensorCode(value)
+        setQuery({ censorCode: value, page: 0 })
     }
     useEffect(() => {
+        let active = true;
+        setdataCompany([]);
         try {
             const userData = JSON.parse(localStorage.getItem('userData'));
             if (userData) {
@@ -54,22 +56,21 @@ const ManageCompany = () => {
                     let arrData = []
                     arrData = await getAllCompany({
                         limit: PAGINATION.pagerow,
-                        offset: 0,
+                        offset: numberPage * PAGINATION.pagerow,
                         search: CommonUtils.removeSpace(search),
                         censorCode: censorCode
 
 
                     })
-                    if (arrData && arrData.errCode === 0) {
-                        setdataCompany(arrData.data)
-                            setTotal(arrData.count)
-
-                        
-                        setnumberPage(0)
+                    if (active && arrData && arrData.errCode === 0) {
+                        setTotal(arrData.count)
                         setCount(Math.ceil(arrData.count / PAGINATION.pagerow))
+                        const page = clampListPage(numberPage, arrData.count, PAGINATION.pagerow);
+                        if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
+                        setdataCompany(arrData.data)
                     }
                 }
-                fetchData();
+                fetchData().catch(() => { if (active) toast.error('Không tải được danh sách công ty'); });
                 setUser(userData)
             }
 
@@ -77,40 +78,14 @@ const ManageCompany = () => {
             console.log(error)
         }
 
-    }, [search, censorCode])
+        return () => { active = false; };
+    }, [search, censorCode, numberPage, refresh, setQuery])
 
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected)
-        let arrData = await getAllCompany({
-            limit: PAGINATION.pagerow,
-            offset: number.selected * PAGINATION.pagerow,
-            search: CommonUtils.removeSpace(search),
-            censorCode: censorCode
-
-
-        })
-        if (arrData && arrData.errCode === 0) {
-            setdataCompany(arrData.data)
-                            setTotal(arrData.count)
-
-            
-        }
-    }
+    const handleChangePage = number => setQuery({ page: number.selected });
     let handleBanCompany = async(id) => {
         let res = await banCompanyService({id: id})
         if (res && res.errCode === 0) {
-            let arrData = await getAllCompany({
-                limit: PAGINATION.pagerow,
-                offset: numberPage * PAGINATION.pagerow,
-                search: CommonUtils.removeSpace(search),
-                censorCode: censorCode
-            })
-            if (arrData && arrData.errCode === 0) {
-                setdataCompany(arrData.data)
-                            setTotal(arrData.count)
-
-                
-            }
+            setRefresh(value => value + 1);
             toast.success(res.errMessage)
         } else {
             toast.error(res.errMessage)
@@ -120,18 +95,7 @@ const ManageCompany = () => {
     let handleUnBanCompany = async(id) => {
         let res = await unbanCompanyService({id: id})
         if (res && res.errCode === 0) {
-            let arrData = await getAllCompany({
-                limit: PAGINATION.pagerow,
-                offset: numberPage * PAGINATION.pagerow,
-                search: CommonUtils.removeSpace(search),
-                censorCode: censorCode
-            })
-            if (arrData && arrData.errCode === 0) {
-                setdataCompany(arrData.data)
-                            setTotal(arrData.count)
-
-                
-            }
+            setRefresh(value => value + 1);
             toast.success(res.errMessage)
         } else {
             toast.error(res.errMessage)
@@ -144,20 +108,7 @@ const ManageCompany = () => {
             note: note,
         })
         if (res && res.errCode === 0) {
-            let arrData = await getAllCompany({
-                limit: PAGINATION.pagerow,
-                offset: numberPage * PAGINATION.pagerow,
-                search: CommonUtils.removeSpace(search),
-                censorCode: censorCode
-
-
-            })
-            if (arrData && arrData.errCode === 0) {
-                setdataCompany(arrData.data)
-                            setTotal(arrData.count)
-
-                
-            }
+            setRefresh(value => value + 1);
             toast.success(res.errMessage)
         } else {
             toast.error(res.errMessage)
@@ -186,7 +137,7 @@ const ManageCompany = () => {
         });
     }
     const handleSearch = (value) => {
-        setSearch(value)
+        setQuery({ search: value, page: 0 })
     }
     return (
         <div>
@@ -196,12 +147,12 @@ const ManageCompany = () => {
                         <h4 className="card-title">Danh sách công ty</h4>
                         <Row justify='space-around' className='mt-5 mb-5'>
                             <Col xs={12} xxl={12}>
-                                <Input.Search onSearch={handleSearch} placeholder="Nhập tên hoặc mã công ty" allowClear enterButton="Tìm kiếm">
+                                <Input.Search key={search} defaultValue={search} onSearch={handleSearch} placeholder="Nhập tên hoặc mã công ty" allowClear enterButton="Tìm kiếm">
                                 </Input.Search>
                             </Col>
                             <Col xs={8} xxl={8}>
                                 <label className='mr-2'>Loại kiểm duyệt: </label>
-                                <Select onChange={(value) => handleOnChangeCensor(value)} style={{ width: '50%' }} size='default' defaultValue={censorOptions[0].value} options={censorOptions}>
+                                <Select onChange={(value) => handleOnChangeCensor(value)} style={{ width: '50%' }} size='default' value={censorCode} options={censorOptions}>
 
                                 </Select>
                             </Col>
@@ -310,8 +261,8 @@ const ManageCompany = () => {
                             }
                         </div>
                     </div>
-                    <ReactPaginate
-                        forcePage={numberPage}
+                    {count > 0 && <ReactPaginate
+                        forcePage={Math.min(numberPage, count - 1)}
                         previousLabel={'Quay lại'}
                         nextLabel={'Tiếp'}
                         breakLabel={'...'}
@@ -328,7 +279,7 @@ const ManageCompany = () => {
                         breakClassName={"page-item"}
                         activeClassName={"active"}
                         onPageChange={handleChangePage}
-                    />
+                    />}
                 </div>
 
             </div>

@@ -1,5 +1,7 @@
 import React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import dayjs from "dayjs";
+import useListQuery, { clampListPage } from "../../util/useListQuery";
 import { toast } from "react-toastify";
 import {
     getStatisticalTypePost,
@@ -14,6 +16,65 @@ import { DatePicker } from "antd";
 import CommonUtils from "../../util/CommonUtils";
 import useAutoRefresh from "../../util/useAutoRefresh";
 import AutoRefreshInfo from "./AutoRefreshInfo";
+const useStatisticsQuery = (defaults, prefix) => {
+    const [savedQuery, setQuery] = useListQuery(defaults, { prefix, persistDefaults: ['fromDate', 'toDate'] });
+    const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && dayjs(value).isValid() && dayjs(value).format('YYYY-MM-DD') === value;
+    const validRange = validDate(savedQuery.fromDate) && validDate(savedQuery.toDate) && savedQuery.fromDate <= savedQuery.toDate;
+    const { fromDate, toDate } = defaults;
+    useEffect(() => {
+        if (!validRange) setQuery({ fromDate, toDate }, { replace: true });
+    }, [validRange, fromDate, toDate, setQuery]);
+    return [validRange ? savedQuery : { ...savedQuery, fromDate, toDate }, setQuery];
+};
+
+// Each table owns its request sequence so a slow response cannot replace a
+// newer page, including requests made by dashboard auto-refresh.
+const useStatisticsTable = (query, setQuery, service, enabled, companyId) => {
+    const [result, setResult] = useState({ data: [], count: 0, sum: 0 });
+    const [failure, setFailure] = useState(null);
+    const sequence = useRef(0);
+    const key = JSON.stringify([query.page, query.fromDate, query.toDate, enabled, companyId]);
+    const currentKey = useRef(key);
+    currentKey.current = key;
+    const reload = useCallback(async () => {
+        if (!enabled) return;
+        const request = ++sequence.current;
+        setFailure(null);
+        try {
+            const response = await service({
+                limit: PAGINATION.pagerow,
+                offset: query.page * PAGINATION.pagerow,
+                fromDate: query.fromDate,
+                toDate: query.toDate,
+                ...(companyId ? { companyId } : {}),
+            });
+            if (request !== sequence.current || currentKey.current !== key) return;
+            if (response?.errCode !== 0) throw Error('statistics-unavailable');
+            const page = clampListPage(query.page, response.count, PAGINATION.pagerow);
+            if (page !== query.page) {
+                setQuery({ page }, { replace: true });
+                return;
+            }
+            setResult({ key, data: response.data || [], count: Math.ceil(response.count / PAGINATION.pagerow), sum: response.sum || 0 });
+        } catch {
+            if (request === sequence.current && currentKey.current === key) {
+                setFailure({ key, message: 'Không tải được dữ liệu thống kê. Vui lòng thử Làm mới.' });
+            }
+        }
+    }, [query.page, query.fromDate, query.toDate, enabled, companyId, service, setQuery, key]);
+    useEffect(() => {
+        reload();
+        return () => { sequence.current += 1; };
+    }, [reload]);
+    // Same-query refreshes may show the last good result; a new page/date never
+    // displays rows belonging to a previous query, even if its request fails.
+    return {
+        ...(result.key === key ? result : { data: [], count: 0, sum: 0 }),
+        error: failure?.key === key ? failure.message : '',
+        reload,
+    };
+};
+
 const Home = () => {
     const { RangePicker } = DatePicker;
     const today = new Date();
@@ -23,115 +84,31 @@ const Home = () => {
     if (dd < 10) dd = "0" + dd;
     if (mm < 10) mm = "0" + mm;
     const formattedToday = yyyy + "-" + mm + "-" + dd;
-    const [user, setUser] = useState({});
+    const [user] = useState(() => JSON.parse(localStorage.getItem("userData")) || {});
     const [dataStatisticalTypePost, setDataStatisticalTypePost] = useState([]);
     const [chartError, setChartError] = useState('');
-    const [dataStatisticalPackagePost, setDataStatisticalPackagePost] =
-        useState([]);
-    const [dataStatisticalPackageCv, setDataStatisticalPackageCv] = useState(
-        []
-    );
-    const [dataSum, setDataSum] = useState(0);
-    const [dataSumCv, setDataSumCv] = useState(0);
+    const defaults = { fromDate: formattedToday, toDate: formattedToday, page: 0 };
+    const [locCv, setLocCv] = useStatisticsQuery(defaults, 'cv.');
+    const [locPost, setLocPost] = useStatisticsQuery(defaults, 'post.');
+    const [locPkgCv, setLocPkgCv] = useStatisticsQuery(defaults, 'packageCv.');
+    const cvTable = useStatisticsTable(locCv, setLocCv, getStatisticalCv, Boolean(user.companyId) && user.roleCode !== 'ADMIN', user.companyId);
+    const postTable = useStatisticsTable(locPost, setLocPost, getStatisticalPackagePost, user.roleCode === 'ADMIN');
+    const packageCvTable = useStatisticsTable(locPkgCv, setLocPkgCv, getStatisticalPackageCv, user.roleCode === 'ADMIN');
+    const { data: dataCv } = cvTable;
+    const { data: dataStatisticalPackagePost, sum: dataSum } = postTable;
+    const { data: dataStatisticalPackageCv, sum: dataSumCv } = packageCvTable;
 
-    const [dataCv, setDataCv] = useState([]);
-    const [count, setCount] = useState(0);
-    const [countCv, setCountCv] = useState(0);
-
-    // Bo loc dang ap dung cua tung bang (khoang ngay + trang dang xem).
-    //
-    // Truoc day cac tham so nay nam rai rac trong tung ham, thieu truoc hut sau:
-    // khoang ngay cua bang CV khong duoc luu vao state nen chon xong roi chuyen
-    // trang la mat; toDate cua hai bang doanh thu khong bao gio duoc ghi lai nen
-    // xuat Excel luon lay den hom nay du dang xem khoang khac. Gom lai mot cho
-    // vua sua duoc may loi do, vua de tu dong cap nhat tai lai DUNG nhung gi
-    // nguoi dung dang xem thay vi nhay ve "hom nay, trang 1".
-    const locMacDinh = {
-        fromDate: formattedToday,
-        toDate: formattedToday,
-        page: 0,
+    const onDatePicker = (values, type = "") => {
+        const fromDate = values?.[0]?.format("YYYY-MM-DD") || formattedToday;
+        const toDate = values?.[1]?.format("YYYY-MM-DD") || formattedToday;
+        const [query, update] = user.roleCode !== "ADMIN" ? [locCv, setLocCv]
+            : type === "packagePost" ? [locPost, setLocPost] : [locPkgCv, setLocPkgCv];
+        if (fromDate !== query.fromDate || toDate !== query.toDate) update({ fromDate, toDate, page: 0 });
     };
-    const [locCv, setLocCv] = useState(locMacDinh); // bang so luong CV (cong ty)
-    const [locPost, setLocPost] = useState(locMacDinh); // doanh thu goi bai dang (admin)
-    const [locPkgCv, setLocPkgCv] = useState(locMacDinh); // doanh thu goi xem UV (admin)
-
-    let taiBangCv = async (loc, companyId) => {
-        let arrData = await getStatisticalCv({
-            limit: PAGINATION.pagerow,
-            offset: loc.page * PAGINATION.pagerow,
-            fromDate: loc.fromDate,
-            toDate: loc.toDate,
-            companyId,
-        });
-        if (arrData && arrData.errCode === 0) {
-            setDataCv(arrData.data);
-            setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
-        }
-    };
-
-    let taiBangGoiBaiDang = async (loc) => {
-        let arrData = await getStatisticalPackagePost({
-            fromDate: loc.fromDate,
-            toDate: loc.toDate,
-            limit: PAGINATION.pagerow,
-            offset: loc.page * PAGINATION.pagerow,
-        });
-        if (arrData && arrData.errCode === 0) {
-            setDataStatisticalPackagePost(arrData.data);
-            setDataSum(arrData.sum);
-            setCount(Math.ceil(arrData.count / PAGINATION.pagerow));
-        }
-    };
-
-    let taiBangGoiXemUngVien = async (loc) => {
-        let arrData = await getStatisticalPackageCv({
-            fromDate: loc.fromDate,
-            toDate: loc.toDate,
-            limit: PAGINATION.pagerow,
-            offset: loc.page * PAGINATION.pagerow,
-        });
-        if (arrData && arrData.errCode === 0) {
-            setDataStatisticalPackageCv(arrData.data);
-            setDataSumCv(arrData.sum);
-            setCountCv(Math.ceil(arrData.count / PAGINATION.pagerow));
-        }
-    };
-
-    let onDatePicker = async (values, type = "") => {
-        let fromDate = formattedToday;
-        let toDate = formattedToday;
-        if (values) {
-            fromDate = values[0].format("YYYY-MM-DD");
-            toDate = values[1].format("YYYY-MM-DD");
-        }
-        // Doi khoang ngay thi ve trang 1: so trang cua khoang moi thuong it hon,
-        // giu nguyen trang cu de dang o trang khong con du lieu.
-        let loc = { fromDate, toDate, page: 0 };
-        if (user.roleCode !== "ADMIN") {
-            setLocCv(loc);
-            await taiBangCv(loc, user.companyId);
-        } else if (type === "packagePost") {
-            setLocPost(loc);
-            await taiBangGoiBaiDang(loc);
-        } else {
-            setLocPkgCv(loc);
-            await taiBangGoiXemUngVien(loc);
-        }
-    };
-    let handleChangePage = async (number, type = "") => {
-        if (user.roleCode !== "ADMIN") {
-            let loc = { ...locCv, page: number.selected };
-            setLocCv(loc);
-            await taiBangCv(loc, user.companyId);
-        } else if (type === "packagePost") {
-            let loc = { ...locPost, page: number.selected };
-            setLocPost(loc);
-            await taiBangGoiBaiDang(loc);
-        } else {
-            let loc = { ...locPkgCv, page: number.selected };
-            setLocPkgCv(loc);
-            await taiBangGoiXemUngVien(loc);
-        }
+    const handleChangePage = ({ selected }, type = "") => {
+        const update = user.roleCode !== "ADMIN" ? setLocCv
+            : type === "packagePost" ? setLocPost : setLocPkgCv;
+        update({ page: selected });
     };
     let handleOnClickExport = async (type) => {
         let res = [];
@@ -233,29 +210,14 @@ const Home = () => {
         }
     };
 
-    // Tai lai toan bo so lieu dang hien tren man hinh, giu nguyen bo loc.
-    // Doc vai tro tu localStorage chu khong tu state `user`: lan chay dau tien
-    // xay ra ngay khi mo trang, luc do setUser chua kip co hieu luc.
     const taiTatCaThongKe = async () => {
-        const userData = JSON.parse(localStorage.getItem("userData"));
-        if (!userData) return;
-        await getData(4);
-        if (userData.roleCode !== "ADMIN") {
-            if (userData.companyId) await taiBangCv(locCv, userData.companyId);
-        } else {
-            await taiBangGoiBaiDang(locPost);
-            await taiBangGoiXemUngVien(locPkgCv);
-        }
+        await Promise.all([getData(4), cvTable.reload(), postTable.reload(), packageCvTable.reload()]);
     };
-
-    // Truoc day trang nay chi goi API dung mot lan luc mo, so lieu dung yen cho
-    // toi khi bam F5. Hook nay tai lai khi backend bao co du lieu moi (socket),
-    // dinh ky phong khi socket khong ket noi duoc, va khi quay lai tab.
     const { capNhatLuc, dangTai, lamMoi } = useAutoRefresh(taiTatCaThongKe);
 
     useEffect(() => {
-        setUser(JSON.parse(localStorage.getItem("userData")) || {});
-        lamMoi();
+        getData(4);
+        // Table effects separately load the restored URL filters.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     return (
@@ -330,7 +292,9 @@ const Home = () => {
                             <h4 className="card-title">
                                 Bảng thông kê số lượng CV
                             </h4>
+                            {cvTable.error && <p role="alert">{cvTable.error}</p>}
                             <RangePicker
+                                value={[dayjs(locCv.fromDate), dayjs(locCv.toDate)]}
                                 onChange={(values) => onDatePicker(values)}
                             ></RangePicker>
                             <div className="table-responsive pt-2">
@@ -386,10 +350,11 @@ const Home = () => {
                             </div>
                         </div>
                         <ReactPaginate
+                            disableInitialCallback
                             previousLabel={"Quay lại"}
                             nextLabel={"Tiếp"}
                             breakLabel={"..."}
-                            pageCount={Math.max(1, Number(count) || 0)}
+                            pageCount={Math.max(1, cvTable.count, locCv.page + 1)}
                             marginPagesDisplayed={3}
                             containerClassName={
                                 "pagination justify-content-center pb-3"
@@ -426,7 +391,9 @@ const Home = () => {
                                     Xuất excel{" "}
                                     <i className="fa-solid fa-file-excel"></i>
                                 </button>
+                                {postTable.error && <p role="alert">{postTable.error}</p>}
                                 <RangePicker
+                                    value={[dayjs(locPost.fromDate), dayjs(locPost.toDate)]}
                                     onChange={(values) =>
                                         onDatePicker(values, "packagePost")
                                     }
@@ -513,10 +480,11 @@ const Home = () => {
                                     </div>
                                 )}
                             <ReactPaginate
-                                previousLabel={"Quay lại"}
+                                disableInitialCallback
+                            previousLabel={"Quay lại"}
                                 nextLabel={"Tiếp"}
                                 breakLabel={"..."}
-                                pageCount={Math.max(1, Number(count) || 0)}
+                                pageCount={Math.max(1, postTable.count, locPost.page + 1)}
                                 marginPagesDisplayed={3}
                                 containerClassName={
                                     "pagination justify-content-center pb-3"
@@ -553,7 +521,9 @@ const Home = () => {
                                     Xuất excel{" "}
                                     <i className="fa-solid fa-file-excel"></i>
                                 </button>
+                                {packageCvTable.error && <p role="alert">{packageCvTable.error}</p>}
                                 <RangePicker
+                                    value={[dayjs(locPkgCv.fromDate), dayjs(locPkgCv.toDate)]}
                                     onChange={(values) =>
                                         onDatePicker(values, "packageCv")
                                     }
@@ -633,10 +603,11 @@ const Home = () => {
                                     </div>
                                 )}
                             <ReactPaginate
-                                previousLabel={"Quay lại"}
+                                disableInitialCallback
+                            previousLabel={"Quay lại"}
                                 nextLabel={"Tiếp"}
                                 breakLabel={"..."}
-                                pageCount={Math.max(1, Number(countCv) || 0)}
+                                pageCount={Math.max(1, packageCvTable.count, locPkgCv.page + 1)}
                                 marginPagesDisplayed={3}
                                 containerClassName={
                                     "pagination justify-content-center pb-3"

@@ -43,6 +43,22 @@ jest.mock("react-router-dom", () => {
         useParams: () => mockParams,
     };
 });
+// Existing editor tests deliberately replace the router. URL navigation is covered
+// separately by CatalogPagination.test.js using a real MemoryRouter.
+jest.mock("../../util/useListQuery", () => {
+    const React = require("react");
+    return {
+        __esModule: true,
+        ...jest.requireActual("../../util/useListQuery"),
+        default: defaults => {
+            const [query, setState] = React.useState(defaults);
+            const setQuery = React.useCallback(patch => setState(previous => ({
+                ...previous, ...(typeof patch === "function" ? patch(previous) : patch),
+            })), []);
+            return [query, setQuery];
+        },
+    };
+});
 jest.mock("../../service/userService", () => ({
     createAllCodeService: jest.fn(),
     createSkilleService: jest.fn(),

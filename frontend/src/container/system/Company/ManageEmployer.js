@@ -6,64 +6,36 @@ import { PAGINATION } from '../../../util/constant';
 import ReactPaginate from 'react-paginate';
 
 import { toast } from 'react-toastify';
+import useListQuery, { clampListPage } from '../../../util/useListQuery';
 const ManageEmployer = () => {
-    const [user, setUser] = useState({})
+    const [user] = useState(() => JSON.parse(localStorage.getItem('userData')) || {})
     const [dataUser, setdataUser] = useState([]);
-    const [count, setCount] = useState('')
-    const [numberPage, setnumberPage] = useState('')
+    const [count, setCount] = useState(0)
+    const [{ page: numberPage }, setQuery] = useListQuery({ page: 0 })
+    const [refresh, setRefresh] = useState(0)
     useEffect(() => {
-        const userData = JSON.parse(localStorage.getItem('userData'));
-        setUser(userData)
-        if (userData && userData.companyId) {
-            fetchAllUser(userData.companyId)
+        let active = true;
+        setdataUser([]);
+        if (user.companyId) {
+            getAllUserByCompanyIdService({ limit: PAGINATION.pagerow,
+                offset: numberPage * PAGINATION.pagerow, companyId: user.companyId }).then(res => {
+                if (!active || res?.errCode !== 0) return;
+                setCount(Math.ceil(res.count / PAGINATION.pagerow));
+                const page = clampListPage(numberPage, res.count, PAGINATION.pagerow);
+                if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
+                setdataUser(res.data);
+            }).catch(() => { if (active) toast.error('Không tải được danh sách nhân viên'); });
         }
-
-
-    }, [])
-    let fetchAllUser = async (userId) => {
-        let res = await getAllUserByCompanyIdService({
-            limit: PAGINATION.pagerow,
-            offset: 0,
-            companyId: userId
-        })
-        if (res && res.errCode === 0) {
-
-            setdataUser(res.data);
-            setCount(Math.ceil(res.count / PAGINATION.pagerow))
-        }
-    }
-
-    let handleChangePage = async (number) => {
-        setnumberPage(number.selected)
-        let arrData = await getAllUserByCompanyIdService({
-
-
-            limit: PAGINATION.pagerow,
-            offset: number.selected * PAGINATION.pagerow,
-            companyId: user.companyId
-
-        })
-        if (arrData && arrData.errCode === 0) {
-            setdataUser(arrData.data)
-
-        }
-    }
+        return () => { active = false; };
+    }, [user.companyId, numberPage, refresh, setQuery]);
+    const handleChangePage = number => setQuery({ page: number.selected });
     let handleQuitCompany = async (userId) => {
         let res = await QuitCompanyService({
             userId: userId
         })
         if (res && res.errCode === 0) {
             toast.success("Thôi việc thành công !")
-            let response = await getAllUserByCompanyIdService({
-                limit: PAGINATION.pagerow,
-                offset: numberPage * PAGINATION.pagerow,
-                companyId: user.companyId
-            })
-            if (response && response.errCode === 0) {
-
-                setdataUser(response.data);
-                setCount(Math.ceil(response.count / PAGINATION.pagerow))
-            }
+            setRefresh(value => value + 1);
         } else {
             toast.error(res.errMessage)
         }
@@ -131,7 +103,8 @@ const ManageEmployer = () => {
                             </table>
                         </div>
                     </div>
-                    <ReactPaginate
+                    {count > 0 && <ReactPaginate
+                        forcePage={Math.min(numberPage, count - 1)}
                         previousLabel={'Quay lại'}
                         nextLabel={'Tiếp'}
                         breakLabel={'...'}
@@ -148,7 +121,7 @@ const ManageEmployer = () => {
                         breakClassName={"page-item"}
                         activeClassName={"active"}
                         onPageChange={handleChangePage}
-                    />
+                    />}
                 </div>
 
             </div>

@@ -10,9 +10,11 @@ import ReactPaginate from 'react-paginate';
 import { Link } from 'react-router-dom';
 import moment from 'moment';
 import './ApplicationHistory.css';
+import useListQuery, { clampListPage } from '../../util/useListQuery';
 
 function History({ user, token }) {
-    const [rows,setRows] = useState([]), [count,setCount] = useState(0), [page,setPage] = useState(0);
+    const [rows,setRows] = useState([]), [count,setCount] = useState(0);
+    const [{ page }, setQuery] = useListQuery({ page: 0 });
     const [loading,setLoading] = useState(true), [error,setError] = useState(''), [refresh,setRefresh] = useState(0);
     const [progress,setProgress] = useState(new Map()), [progressError,setProgressError] = useState(''), [progressLoading,setProgressLoading] = useState(false);
     const enabled = applicationProgressEnabled() && user.roleCode === 'CANDIDATE';
@@ -27,12 +29,14 @@ function History({ user, token }) {
                 if (response?.errCode !== 0 || response.httpStatus >= 400 || !Array.isArray(response.data)
                     || !Number.isSafeInteger(response.count) || response.count < 0
                     || response.data.some(row => !row || !Number.isSafeInteger(Number(row.id)) || Number(row.id) <= 0 || (row.userId != null && Number(row.userId) !== Number(user.id)))) throw Error('Không tải được danh sách hồ sơ đã nộp.');
+                const validPage = clampListPage(page, response.count, PAGINATION.pagerow);
+                if (validPage !== page) { setQuery({ page: validPage }, { replace: true }); return; }
                 setRows(response.data); setCount(response.count);
             } catch (failure) { if (current()) { setError('Không tải được danh sách hồ sơ đã nộp.'); setCount(0); } }
             finally { if (current()) setLoading(false); }
         })();
         return () => { active=false; };
-    },[user.id,token,page,refresh]);
+    },[user.id,token,page,refresh,setQuery]);
     useEffect(() => {
         let active=true;
         setProgress(new Map()); setProgressError('');
@@ -69,7 +73,7 @@ function History({ user, token }) {
         })}</tbody></table></div>
         <ReactPaginate forcePage={page} pageCount={Math.max(page+1,Math.ceil(count/PAGINATION.pagerow))} previousLabel="Quay lại" nextLabel="Tiếp" breakLabel="…"
             containerClassName="pagination justify-content-center pb-3" pageClassName="page-item" pageLinkClassName="page-link" previousClassName="page-item" previousLinkClassName="page-link"
-            nextClassName="page-item" nextLinkClassName="page-link" activeClassName="active" onPageChange={value=>setPage(value.selected)} />
+            nextClassName="page-item" nextLinkClassName="page-link" activeClassName="active" onPageChange={value=>setQuery({ page: value.selected })} />
     </div></div></div>;
 }
 export default function ManageCvCandidate() {

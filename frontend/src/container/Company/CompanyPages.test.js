@@ -18,6 +18,21 @@ import ListCompany from "./ListCompany";
 const mockNavigate = jest.fn();
 let mockCompanyId = "42";
 
+// Editor/session tests use a lightweight router; PublicPagination tests exercise real URLs.
+jest.mock("../../util/useListQuery", () => {
+    const React = require("react");
+    return {
+        __esModule: true,
+        ...jest.requireActual("../../util/useListQuery"),
+        default: defaults => {
+            const [query, setState] = React.useState(defaults);
+            const setQuery = React.useCallback(patch => setState(previous => ({
+                ...previous, ...(typeof patch === "function" ? patch(previous) : patch),
+            })), []);
+            return [query, setQuery];
+        },
+    };
+});
 jest.mock("../../service/userService", () => ({
     getListCompany: jest.fn(),
     getDetailCompanyById: jest.fn(),

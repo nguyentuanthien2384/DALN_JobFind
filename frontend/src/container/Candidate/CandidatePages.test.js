@@ -16,6 +16,21 @@ import CandidateInfo from "./CandidateInfo";
 import ManageCvCandidate from "./ManageCvCandidate";
 import SavedJobs from "./SavedJobs";
 import SettingUser from "./SettingUser";
+// Editor/session tests use a lightweight router; PublicPagination tests exercise real URLs.
+jest.mock("../../util/useListQuery", () => {
+    const React = require("react");
+    return {
+        __esModule: true,
+        ...jest.requireActual("../../util/useListQuery"),
+        default: defaults => {
+            const [query, setState] = React.useState(defaults);
+            const setQuery = React.useCallback(patch => setState(previous => ({
+                ...previous, ...(typeof patch === "function" ? patch(previous) : patch),
+            })), []);
+            return [query, setQuery];
+        },
+    };
+});
 jest.mock("../../components/documents/PdfPreviewButton", () => ({ source, fileName, label }) => (
     <button type="button" data-source={typeof source === 'string' ? source : ''} data-filename={fileName}>{label || 'Xem PDF'}</button>
 ));
@@ -490,7 +505,7 @@ describe("SavedJobs", () => {
             expect(toggleFavoritePostService).toHaveBeenCalledWith({ userId: 7, postId: 21 })
         );
         expect(toast.success).toHaveBeenCalledWith("Đã bỏ lưu");
-        expect(getFavoritePostByUserService).toHaveBeenCalledTimes(2);
+        await waitFor(() => expect(getFavoritePostByUserService).toHaveBeenCalledTimes(2));
     });
 
     it("shows the service error and keeps the list when unsave fails", async () => {

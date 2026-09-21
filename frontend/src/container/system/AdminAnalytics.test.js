@@ -1,5 +1,6 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
+import { act, fireEvent, render as renderView, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-toastify";
 import CommonUtils from "../../util/CommonUtils";
 import { getHistoryTradeCv, getHistoryTradePost, getSumByYearCv, getSumByYearPost } from "../../service/userService";
@@ -10,6 +11,12 @@ import HistoryTradePost from "./HistoryTrade/HistoryTradePost";
 import HistoryTradeCv from "./HistoryTrade/HistoryTradeCv";
 import ReportDashboard from "./Report/ReportDashboard";
 
+// CRA's Jest resolver predates React Router's /dom package export.
+jest.mock('react-router-dom', () => {
+    global.TextEncoder = require('util').TextEncoder;
+    global.TextDecoder = require('util').TextDecoder;
+    return jest.requireActual('react-router');
+});
 jest.mock("xlsx/xlsx.mjs", () => ({
     utils: { book_new: jest.fn(), json_to_sheet: jest.fn(), book_append_sheet: jest.fn() },
     writeFile: jest.fn(),
@@ -45,7 +52,7 @@ jest.mock("./AutoRefreshInfo", () => ({ onLamMoi }) => (
     <button type="button" onClick={onLamMoi}>Làm mới</button>
 ));
 jest.mock("react-paginate", () => (props) => (
-    <button type="button" data-testid="next-page" onClick={() => props.onPageChange({ selected: 1 })}>page</button>
+    <button type="button" data-testid="next-page" data-page={props.forcePage} onClick={() => props.onPageChange({ selected: 1 })}>page</button>
 ));
 jest.mock("antd", () => {
     const Select = ({ options = [], value, onChange }) => (
@@ -53,7 +60,7 @@ jest.mock("antd", () => {
             {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
     );
-    const RangePicker = ({ onChange }) => <div>
+    const RangePicker = ({ onChange, value }) => <div data-testid="range-value" data-value={value?.map(date => date.format("YYYY-MM-DD")).join("/")}>
         <button type="button" data-testid="set-range" onClick={() => onChange([
             { format: () => "2026-08-01" },
             { format: () => "2026-08-20" },
@@ -86,6 +93,13 @@ jest.mock("recharts", () => {
         Legend: () => <span />,
     };
 });
+
+const LocationProbe = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+    return <><span data-testid="location">{location.pathname + location.search}</span><button onClick={() => navigate(-1)}>Back</button></>;
+};
+const render = (view, entry = '/admin/history') => renderView(<MemoryRouter initialEntries={[entry]}>{view}<LocationProbe /></MemoryRouter>);
 
 const chartPages = [
     { label: "post", Component: ChartPost, service: getSumByYearPost, heading: "Đồ thị doanh thu các gói bài đăng" },
@@ -171,6 +185,75 @@ describe("trade history", () => {
             limit: "", offset: "", fromDate: "2026-08-01", toDate: "2026-08-20", companyId: 42,
         }));
     });
+    it.each(historyPages)('restores $label history page and filters on reload and browser back', async (config) => {
+        config.service.mockResolvedValue({ errCode: 0, count: 30, data: [config.item] });
+        const first = render(<config.Component />, '/admin/history?page=3&fromDate=2026-07-01&toDate=2026-07-31&source=keep');
+        expect(await screen.findByText(config.item.id)).toBeInTheDocument();
+        expect(config.service).toHaveBeenCalledTimes(1);
+        expect(config.service).toHaveBeenLastCalledWith({ limit: 5, offset: 10, fromDate: '2026-07-01', toDate: '2026-07-31', companyId: 42 });
+        expect(screen.getByTestId('next-page')).toHaveAttribute('data-page', '2');
+        expect(screen.getByTestId('range-value')).toHaveAttribute('data-value', '2026-07-01/2026-07-31');
+        fireEvent.click(screen.getByTestId('next-page'));
+        await waitFor(() => expect(config.service).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5, fromDate: '2026-07-01', toDate: '2026-07-31' })));
+        const url = screen.getByTestId('location').textContent;
+        expect(url).toContain('page=2');
+        expect(url).toContain('source=keep');
+        first.unmount();
+        render(<config.Component />, url);
+        await waitFor(() => expect(config.service).toHaveBeenCalledTimes(3));
+        expect(config.service).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5, fromDate: '2026-07-01', toDate: '2026-07-31' }));
+        fireEvent.click(screen.getByTestId('set-range'));
+        await waitFor(() => expect(config.service).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0, fromDate: '2026-08-01', toDate: '2026-08-20' })));
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+        await waitFor(() => expect(config.service).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5, fromDate: '2026-07-01', toDate: '2026-07-31' })));
+        fireEvent.click(screen.getByRole('button', { name: /Xuất excel/ }));
+        await waitFor(() => expect(config.service).toHaveBeenLastCalledWith(expect.objectContaining({ limit: '', offset: '', fromDate: '2026-07-01', toDate: '2026-07-31' })));
+    });
+
+    it.each(historyPages)('clamps $label history only after a successful total and ignores obsolete responses', async (config) => {
+        let finishOld;
+        config.service.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+        config.service.mockResolvedValue({ errCode: 0, count: 30, data: [config.item] });
+        render(<config.Component />, '/admin/history?page=8');
+        expect(screen.getByTestId('next-page')).toHaveAttribute('data-page', '7');
+        fireEvent.click(screen.getByTestId('next-page'));
+        expect(await screen.findByText(config.item.id)).toBeInTheDocument();
+        await act(async () => finishOld({ errCode: 0, count: 0, data: [] }));
+        expect(screen.getByTestId('location').textContent).toContain('page=2');
+        expect(screen.getByText(config.item.id)).toBeInTheDocument();
+    });
+
+    it.each(historyPages)('returns an out-of-range $label history URL to the final available page', async (config) => {
+        config.service.mockResolvedValue({ errCode: 0, count: 7, data: [config.item] });
+        render(<config.Component />, '/admin/history?page=8&fromDate=2026-07-01&toDate=2026-07-31');
+        expect(await screen.findByText(config.item.id)).toBeInTheDocument();
+        expect(config.service).toHaveBeenCalledTimes(2);
+        expect(config.service).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5, fromDate: '2026-07-01', toDate: '2026-07-31' }));
+        expect(screen.getByTestId('location').textContent).toContain('page=2');
+    });
+
+    it.each(historyPages)('repairs invalid $label history dates while retaining its page', async (config) => {
+        config.service.mockResolvedValue({ errCode: 0, count: 30, data: [config.item] });
+        render(<config.Component />, '/admin/history?page=3&fromDate=2026-02-31&toDate=invalid');
+        await screen.findByText(config.item.id);
+        expect(config.service).toHaveBeenLastCalledWith({ companyId: 42, limit: 5, offset: 10, fromDate: '', toDate: '' });
+        expect(screen.getByTestId('location').textContent).toContain('page=3');
+        expect(screen.getByTestId('location').textContent).not.toContain('fromDate');
+        expect(screen.getByTestId('location').textContent).not.toContain('toDate');
+        expect(screen.getByTestId('range-value')).not.toHaveAttribute('data-value');
+    });
+
+    it.each(historyPages)('does not display rows from the previous $label history page after a load failure', async (config) => {
+        config.service.mockResolvedValueOnce({ errCode: 0, count: 30, data: [config.item] });
+        config.service.mockRejectedValue(new Error('offline'));
+        render(<config.Component />, '/admin/history?page=3');
+        await screen.findByText(config.item.id);
+        fireEvent.click(screen.getByTestId('next-page'));
+        await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Không tải được lịch sử thanh toán'));
+        expect(screen.queryByText(config.item.id)).not.toBeInTheDocument();
+        expect(screen.getByTestId('location').textContent).toContain('page=2');
+    });
+
 });
 
 const reportResponses = () => ({
