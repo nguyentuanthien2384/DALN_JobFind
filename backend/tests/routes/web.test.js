@@ -99,6 +99,8 @@ describe('web routes', () => {
     expect(latest('/api/ban-user').handlers[1].permission).toBe('ADMINISTRATION');
     expect(latest('/api/create-new-post').handlers[0]).toBe(mockVerifyUser);
     expect(latest('/api/create-new-post').handlers[1].permission).toBe('JOB_MANAGE');
+    expect(latest('/api/create-new-cv').handlers[0]).toBe(mockVerifyUser);
+    expect(latest('/api/create-new-cv').handlers[1].permission).toBe('CANDIDATE_APPLY');
     expect(latest('/api/get-recommended-post').handlers[0]).toBe(mockVerifyUser);
     expect(latest('/api/get-recommended-post').handlers[1].permission).toBe('RECOMMENDATION_READ');
     for (const path of ['/api/candidate-search-jobs', '/api/fillter-cv-by-selection']) {

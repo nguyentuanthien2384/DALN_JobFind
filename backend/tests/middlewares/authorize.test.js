@@ -31,7 +31,7 @@ describe('central backend authorization policy', () => {
   });
 
   test.each([
-    ['ADMIN', null, Object.values(PERMISSIONS)],
+    ['ADMIN', null, Object.values(PERMISSIONS).filter(permission => permission !== PERMISSIONS.CANDIDATE_APPLY)],
     ['COMPANY', 4, [
       'account:self', 'company:private:read', 'company:manage',
       'company:team:manage', 'company:team:exit', 'job:manage',
@@ -94,12 +94,11 @@ describe('central backend authorization policy', () => {
     expect(isPermissionGranted(reqFor('COMPANY', 3), PERMISSIONS.COMPANY_MANAGE)).toBe(true);
   });
 
-  test('companyless ADMIN passes every known permission family through the middleware', () => {
+  test('companyless ADMIN retains access to other permission families', () => {
     const representativePermissions = [
       PERMISSIONS.COMPANY_MANAGE,
       PERMISSIONS.JOB_MANAGE,
       PERMISSIONS.PACKAGE_PURCHASE,
-      PERMISSIONS.CANDIDATE_APPLY,
       PERMISSIONS.SOCIAL_INTERACT,
       PERMISSIONS.CHAT
     ];
@@ -121,6 +120,29 @@ describe('central backend authorization policy', () => {
     }
 
     expect(isPermissionGranted(reqFor('ADMIN'), 'missing:permission')).toBe(false);
+  });
+
+  test.each([
+    [null, 401],
+    ['ADMIN', 403],
+    ['COMPANY', 403],
+    ['EMPLOYER', 403],
+    ['CANDIDATE', null]
+  ])('application submission accepts only candidates: role=%s', (roleCode, deniedStatus) => {
+    const req = roleCode ? reqFor(roleCode, roleCode === 'CANDIDATE' ? null : 4) : {};
+    const res = createResponse();
+    const next = jest.fn();
+
+    authorize(PERMISSIONS.CANDIDATE_APPLY)(req, res, next);
+
+    if (deniedStatus) {
+      expect(res.status).toHaveBeenCalledWith(deniedStatus);
+      expect(next).not.toHaveBeenCalled();
+    } else {
+      expect(res.status).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.authorization).toMatchObject({ permission: 'candidate:apply', roleCode: 'CANDIDATE' });
+    }
   });
 
   test('operational recruiter permissions require a currently active and approved company', () => {

@@ -31,13 +31,13 @@ export const PERMISSIONS = Object.freeze({
 });
 
 // Tat ca tai khoan da dang nhap deu duoc quan ly ho so cua chinh minh. ADMIN la
-// super-admin nen nhan moi quyen da duoc khai bao; cac vai tro con lai van bi
+// super-admin nhan quyen quan tri, tru ung tuyen bang tai khoan ung vien; cac vai tro con lai van bi
 // gioi han theo nghiep vu va trang thai cong ty.
 const COMMON_PERMISSIONS = [PERMISSIONS.MANAGE_PROFILE, PERMISSIONS.SUPPORT_USE];
 
 const permissionSet = (permissions) => new Set([...COMMON_PERMISSIONS, ...permissions]);
 
-const ADMIN_PERMISSIONS = new Set(Object.values(PERMISSIONS));
+const ADMIN_PERMISSIONS = new Set(Object.values(PERMISSIONS).filter(permission => permission !== PERMISSIONS.APPLY_TO_JOB));
 
 const COMPANY_PERMISSIONS = permissionSet([
     PERMISSIONS.ACCESS_ADMIN_AREA,

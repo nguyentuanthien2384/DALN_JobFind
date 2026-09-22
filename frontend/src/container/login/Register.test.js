@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { createNewUser, handleLoginService } from '../../service/userService';
 import { getAccessTokenSync, getProviders, getSocialSignup, completeSocialSignup, startSocialLogin } from '../../auth/authClient';
 import Register from './Register';
+import { readApplicationIntent, rememberApplicationIntent } from '../../auth/applicationIntent';
 
 jest.mock('../../service/userService', () => ({
     createNewUser: jest.fn(),
@@ -40,6 +41,7 @@ describe('Register', () => {
     afterEach(async () => { await act(async () => {}); });
     beforeEach(() => {
         localStorage.clear();
+        sessionStorage.clear();
         jest.resetAllMocks();
         getProviders.mockResolvedValue({ google: false, github: false, auth0: false });
         window.history.replaceState({}, '', '/register');
@@ -282,5 +284,71 @@ describe('Register', () => {
         expect(screen.queryByRole('form')).toBeNull();
         expect(createNewUser).not.toHaveBeenCalled();
         expect(screen.getByRole('link', { name: 'Bắt đầu đăng ký mới' })).toHaveAttribute('href', '/register');
+    });
+});
+
+describe('Registration while preparing an application', () => {
+    const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
+    beforeEach(() => {
+        localStorage.clear(); sessionStorage.clear(); jest.resetAllMocks();
+        getProviders.mockResolvedValue({ google: false, github: false, auth0: false });
+        Object.defineProperty(window, 'location', {
+            configurable: true,
+            value: { origin: 'http://localhost', search: '', href: '/register' },
+        });
+        rememberApplicationIntent({ jobId: 7, jobTitle: 'Kỹ sư phần mềm' });
+        localStorage.setItem('lastUrl', '/account/security');
+    });
+    afterEach(async () => {
+        await act(async () => {});
+        Object.defineProperty(window, 'location', originalLocation);
+        sessionStorage.clear();
+    });
+
+    it.each(['CANDIDATE', 'EMPLOYER'])('returns a newly registered %s to the intended job', async roleCode => {
+        createNewUser.mockResolvedValueOnce({ errCode: 0 });
+        handleLoginService.mockResolvedValueOnce({ errCode: 0, token: 'new-application-token', user: { id: 42, roleCode } });
+        render(<Register />);
+        await act(async () => {});
+        expect(screen.getByRole('status')).toHaveTextContent('Tạo tài khoản ứng viên để tiếp tục ứng tuyển Kỹ sư phần mềm');
+        expect(screen.getByRole('radio', { name: /Ứng viên/ })).toBeChecked();
+        completeForm({ role: roleCode }); submit();
+        await waitFor(() => expect(window.location.href).toBe('/detail-job/7'));
+        expect(readApplicationIntent()).toMatchObject({ jobId: '7' });
+        expect(localStorage.getItem('lastUrl')).toBeNull();
+    });
+
+    it('returns completed social registration to the intended job', async () => {
+        window.location.search = '?sso=complete';
+        getSocialSignup.mockResolvedValueOnce({ errCode: 0, profile: { provider: 'github', email: 'lan@gmail.com', firstName: 'Nguyen', lastName: 'Lan' } });
+        completeSocialSignup.mockResolvedValueOnce({ errCode: 0, token: 'new-social-application-token', user: { id: 42, roleCode: 'CANDIDATE' } });
+        render(<Register />);
+        await screen.findByLabelText('Email', { exact: true });
+        nextStep(); fillAccount(); submit();
+        await waitFor(() => expect(window.location.href).toBe('/detail-job/7'));
+        expect(readApplicationIntent()).toMatchObject({ jobId: '7' });
+        expect(createNewUser).not.toHaveBeenCalled();
+    });
+
+    it('retains the application when automatic login needs to be retried from the login page', async () => {
+        createNewUser.mockResolvedValueOnce({ errCode: 0 });
+        handleLoginService.mockRejectedValueOnce(new Error('offline'));
+        render(<Register />);
+        await act(async () => {});
+        completeForm(); submit();
+        expect(await screen.findByRole('link', { name: /Đến trang đăng nhập/ })).toHaveAttribute('href', '/login');
+        expect(readApplicationIntent()).toMatchObject({ jobId: '7' });
+    });
+
+    it('clears application context when returning to the public job instead of registering', async () => {
+        render(<Register />);
+        await act(async () => {});
+        const link = screen.getByRole('link', { name: 'Quay lại xem công việc' });
+        expect(link).toHaveAttribute('href', '/detail-job/7');
+        link.addEventListener('click', event => event.preventDefault());
+        fireEvent.click(link);
+        expect(readApplicationIntent()).toBeNull();
+        expect(localStorage.getItem('lastUrl')).toBeNull();
+        expect(screen.queryByText('Kỹ sư phần mềm')).not.toBeInTheDocument();
     });
 });

@@ -117,11 +117,17 @@ describe('cvService', () => {
     expect(mockDb.Cv.create).not.toHaveBeenCalled();
   });
 
-  test('current actor role and post visibility are checked inside the transaction', async () => {
+  test.each(['ADMIN', 'COMPANY', 'EMPLOYER'])('submission rechecks the current %s role before writing a CV or event', async roleCode => {
     mockDb.Post.findOne.mockResolvedValue({id:2,userId:7,detailPostId:1,statusCode:'PS1',timeEnd:String(Date.now()+60000)});
-    mockDb.Account.findAll.mockResolvedValueOnce([{id:1,userId:1,roleCode:'COMPANY',statusCode:'S1'},{id:7,userId:7,statusCode:'S1'}]);
+    mockDb.Account.findAll.mockResolvedValueOnce([{id:1,userId:1,roleCode,statusCode:'S1'},{id:7,userId:7,statusCode:'S1'}]);
     const payload={userId:1,postId:2,file:'pdf',description:'Hi'};
     expect((await service.handleCreateCv(payload)).httpStatus).toBe(403);
+    expect(mockDb.Cv.create).not.toHaveBeenCalled();
+    expect(mockDb.sequelize.query.mock.calls.some(([sql]) => sql.startsWith('INSERT INTO outbox_events'))).toBe(false);
+  });
+
+  test('submission checks current post visibility inside the transaction', async () => {
+    const payload={userId:1,postId:2,file:'pdf',description:'Hi'};
     mockDb.Post.findOne.mockResolvedValueOnce({id:2,userId:7}).mockResolvedValueOnce({id:2,userId:7,statusCode:'PS4'});
     expect((await service.handleCreateCv(payload)).httpStatus).toBe(404);expect(mockDb.Cv.create).not.toHaveBeenCalled();
   });

@@ -83,6 +83,7 @@
 .jd-progress progress::-moz-progress-bar { background: #2355d5; }
 .jd-page .jd-progress p { font-size: .75rem; line-height: 1.6; color: #727782; margin-top: 9px; }
 .jd-contact-card { display: grid; gap: 12px; text-align: center; }
+.jd-page .jd-application-notice { margin: -12px 0 28px; padding: 14px 18px; border: 1px solid #dce5f7; border-radius: 9px; background: #f4f7ff; color: #405375; font-size: .875rem; line-height: 1.65; overflow-wrap: anywhere; }
 .jd-page .jd-contact-card > p { color: #5a5f6a; font-size: .9375rem; line-height: 1.5; }
 .jd-page .jd-muted { font-size: 1rem; color: #686e79; }
 .jd-related { margin-top: 44px; }

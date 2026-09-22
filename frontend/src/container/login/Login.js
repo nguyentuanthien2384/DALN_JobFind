@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { handleLoginService } from '../../service/userService';
 import { safeReturnPath } from '../../auth/sessionExpiry';
+import { clearApplicationIntent, getApplicationReturnPath, readApplicationIntent } from '../../auth/applicationIntent';
 import { establishSession, refreshSession, startSocialLogin } from '../../auth/authClient';
 import SocialButtons from '../../auth/SocialButtons';
 import './Login.css';
@@ -32,6 +33,7 @@ const ssoMessages = {
 export default function Login() {
     const location = useLocation();
     const guardedReturnPath = safeReturnPath(location.state?.from, window.location.origin);
+    const [applicationIntent, setApplicationIntent] = useState(readApplicationIntent);
     const [values, setValues] = useState({ identifier: '', password: '' });
     const [showPassword, setShowPassword] = useState(false), [capsLock, setCapsLock] = useState(false);
     const [fieldErrors, setFieldErrors] = useState({}), [error, setError] = useState('');
@@ -50,7 +52,7 @@ export default function Login() {
             establishSession(result);
             const returnPath = safeReturnPath(localStorage.getItem('lastUrl'), window.location.origin);
             localStorage.removeItem('lastUrl');
-            window.location.replace(returnPath || (['ADMIN', 'COMPANY', 'EMPLOYER'].includes(result.user.roleCode) ? '/admin/' : '/'));
+            window.location.replace(getApplicationReturnPath(result.user) || returnPath || (['ADMIN', 'COMPANY', 'EMPLOYER'].includes(result.user.roleCode) ? '/admin/' : '/'));
         }).catch(() => {
             if (active) { setError('Không thể hoàn tất đăng nhập liên kết. Vui lòng đăng nhập lại.'); setCompletingSso(false); }
         });
@@ -77,7 +79,7 @@ export default function Login() {
                 establishSession(result);
                 const lastUrl = guardedReturnPath || safeReturnPath(localStorage.getItem('lastUrl'), window.location.origin);
                 localStorage.removeItem('lastUrl');
-                window.location.href = ['ADMIN', 'EMPLOYER', 'COMPANY'].includes(result.user.roleCode) ? '/admin/' : lastUrl || '/';
+                window.location.href = getApplicationReturnPath(result.user) || (['ADMIN', 'EMPLOYER', 'COMPANY'].includes(result.user.roleCode) ? '/admin/' : lastUrl || '/');
             } else {
                 const message = result?.errMessage || 'Đăng nhập thất bại. Vui lòng thử lại.';
                 setError(message); toast.error(message);
@@ -95,11 +97,20 @@ export default function Login() {
             startSocialLogin(provider, { rememberMe });
         } catch { setSocialStarting(''); setError('Chưa mở được đăng nhập liên kết. Vui lòng thử lại.'); }
     };
+    const cancelApplication = () => {
+        clearApplicationIntent();
+        localStorage.removeItem('lastUrl');
+        setApplicationIntent(null);
+    };
 
     return <main className="jf-login">
         <div className="jf-login__shell">
             <section className="jf-login__form-panel" aria-labelledby="login-title">
                 <div className="jf-login__heading"><span className="jf-login__eyebrow">CHÀO MỪNG BẠN TRỞ LẠI</span><h1 id="login-title">Đăng nhập</h1><p>Tiếp tục hành trình của bạn cùng JobFind.</p></div>
+                {applicationIntent && <div className="jf-login__notice" role="status">
+                    <p>Đăng nhập bằng tài khoản ứng viên để tiếp tục ứng tuyển <strong>{applicationIntent.jobTitle || 'công việc này'}</strong>.</p>
+                    <Link to={'/detail-job/' + applicationIntent.jobId} onClick={cancelApplication}>Quay lại xem công việc</Link>
+                </div>}
                 {sessionMessages[params.get('reason')] && <p className="jf-login__notice" role="status">{sessionMessages[params.get('reason')]}</p>}
                 {ssoMessages[sso] && <p className={'jf-login__notice' + (sso !== 'cancelled' ? ' jf-login__notice--error' : '')} role={sso === 'cancelled' ? 'status' : 'alert'}>{ssoMessages[sso]}</p>}
                 {completingSso && <p className="jf-login__notice" role="status">Đang hoàn tất đăng nhập liên kết...</p>}

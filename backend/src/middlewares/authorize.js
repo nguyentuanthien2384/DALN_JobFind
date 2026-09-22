@@ -128,9 +128,9 @@ const isPermissionGranted = (req, permission) => {
     if (!rule || !req.user) return false;
 
     const roleCode = getRoleCode(req);
-    // ADMIN is the platform super-admin. Keep unknown permissions fail-closed,
-    // but do not apply tenant membership constraints to a known permission.
-    if (roleCode === ROLES.ADMIN) return true;
+    // Admins retain platform access, but an application must belong to an
+    // actual candidate account, matching the transaction-level role check.
+    if (roleCode === ROLES.ADMIN && permission !== PERMISSIONS.CANDIDATE_APPLY) return true;
     if (!rule.roles.includes(roleCode)) return false;
     if (rule.requiresNoCompany && hasCompany(req)) return false;
     if (rule.requiresCompanyForRoles?.includes(roleCode) && !hasCompany(req)) return false;

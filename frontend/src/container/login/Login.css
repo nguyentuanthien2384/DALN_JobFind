@@ -49,6 +49,8 @@
 .jf-login__safety { display: none; }
 .jf-login__safety svg { flex: none; color: #959cae; }
 .jf-login__notice { color: #46627b; background: #edf4fa; border: 1px solid #dbe8f3; border-radius: 10px; padding: 12px 14px; margin: 0 0 18px; font-size: 12px; line-height: 1.7; }
+.jf-login__notice p { color: inherit; font: inherit; margin: 0 0 8px; overflow-wrap: anywhere; }
+.jf-login__notice a { color: #244a82; font-weight: 600; text-decoration: underline; }
 .jf-login__notice--error { color: #a4424e; background: #fff4f4; border-color: #f1d9dc; }
 .jf-login__spinner { width: 16px; height: 16px; border: 2px solid #ffffff55; border-top-color: #fff; border-radius: 50%; animation: jf-login-spin .8s linear infinite; }
 @keyframes jf-login-spin { to { transform: rotate(360deg); } }

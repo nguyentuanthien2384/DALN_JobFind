@@ -9,6 +9,7 @@ import {
 } from "../../service/userService";
 import JobDetail from "./JobDetail";
 import { clearJobDetailResourceCache } from "./jobDetailResource";
+import { readApplicationIntent, rememberApplicationIntent } from '../../auth/applicationIntent';
 
 const mockNavigate = jest.fn();
 let mockPostId = "42";
@@ -82,6 +83,7 @@ const related = {
 describe("JobDetail", () => {
     beforeEach(() => {
         localStorage.clear();
+        sessionStorage.clear();
         jest.clearAllMocks();
         clearJobDetailResourceCache();
         mockPostId = "42";
@@ -142,6 +144,7 @@ describe("JobDetail", () => {
     });
 
     it("refreshes totals only after a successful application from the second CTA", async () => {
+        localStorage.setItem('token_user', 'candidate-token');
         localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'CANDIDATE' }));
         getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...post, applicationCount: 4 } })
             .mockResolvedValueOnce({ errCode: 0, data: { ...post, applicationCount: 5 } });
@@ -298,6 +301,7 @@ describe("JobDetail", () => {
     });
 
     it("opens and closes the application modal for a signed-in user", async () => {
+        localStorage.setItem('token_user', 'candidate-token');
         localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "CANDIDATE" }));
         render(<JobDetail />);
         fireEvent.click((await screen.findAllByRole("button", { name: "Nộp CV ngay" }))[0]);
@@ -321,13 +325,65 @@ describe("JobDetail", () => {
         clearJobDetailResourceCache();
         render(<JobDetail />);
         fireEvent.click((await screen.findAllByRole("button", { name: "Nộp CV ngay" }))[0]);
-        expect(toast.error).toHaveBeenCalledWith(
-            "Xin hãy đăng nhập để có thể thực hiện nộp CV"
-        );
+        expect(toast.error).not.toHaveBeenCalled();
         act(() => jest.advanceTimersByTime(1000));
         expect(mockNavigate).toHaveBeenCalledWith("/login");
-        expect(localStorage.getItem("lastUrl")).toBe(window.location.href);
+        expect(localStorage.getItem("lastUrl")).toBe('/detail-job/42');
+        expect(readApplicationIntent()).toMatchObject({ jobId: '42', jobTitle: post.postDetailData.name });
         jest.useRealTimers();
+    });
+
+    it('resumes the selected application once after login, including StrictMode', async () => {
+        rememberApplicationIntent({ jobId: 42, jobTitle: post.postDetailData.name });
+        localStorage.setItem('token_user', 'candidate-token');
+        localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'CANDIDATE' }));
+        const view = render(<React.StrictMode><JobDetail /></React.StrictMode>);
+        expect(await screen.findByRole('dialog', { name: 'Nộp CV' })).toHaveTextContent('post:42');
+        expect(readApplicationIntent()).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Đóng' }));
+        view.rerender(<React.StrictMode><JobDetail /></React.StrictMode>);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        view.unmount();
+        await act(async () => { render(<JobDetail />); });
+        await screen.findByRole('heading', { name: post.postDetailData.name });
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('waits for authentication and the correct job before resuming', async () => {
+        rememberApplicationIntent({ jobId: 99, jobTitle: 'Công việc khác' });
+        const view = render(<JobDetail />);
+        await screen.findByRole('heading', { name: post.postDetailData.name });
+        expect(mockNavigate).not.toHaveBeenCalled();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        localStorage.setItem('token_user', 'candidate-token');
+        localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'CANDIDATE' }));
+        await act(async () => { view.rerender(<JobDetail />); });
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(readApplicationIntent()?.jobId).toBe('99');
+    });
+
+    it('rechecks the application deadline after authentication', async () => {
+        rememberApplicationIntent({ jobId: 42, jobTitle: post.postDetailData.name });
+        localStorage.setItem('token_user', 'candidate-token');
+        localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'CANDIDATE' }));
+        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...post, timeEnd: Date.now() - 1 } });
+        render(<JobDetail />);
+        await screen.findByRole('heading', { name: post.postDetailData.name });
+        expect(screen.getByRole('status')).toHaveTextContent('Tin tuyển dụng đã hết hạn hoặc ngừng nhận hồ sơ.');
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(readApplicationIntent()).toBeNull();
+    });
+
+    it.each(['EMPLOYER', 'COMPANY', 'ADMIN'])('explains candidate-only applications after signing in as %s', async roleCode => {
+        rememberApplicationIntent({ jobId: 42, jobTitle: post.postDetailData.name });
+        localStorage.setItem('token_user', 'other-token');
+        localStorage.setItem('userData', JSON.stringify({ id: 8, roleCode }));
+        render(<JobDetail />);
+        await screen.findByRole('heading', { name: post.postDetailData.name });
+        expect(screen.getByRole('status')).toHaveTextContent('Ứng tuyển dành cho tài khoản ứng viên.');
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Nộp CV ngay' })).not.toBeInTheDocument();
+        expect(readApplicationIntent()).toBeNull();
     });
 
     it("handles anonymous and candidate chat actions", async () => {

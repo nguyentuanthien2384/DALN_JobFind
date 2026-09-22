@@ -6,6 +6,7 @@ import { toggleFavoritePostService } from '../../service/userService';
 import { candidateAiEnabled } from '../../service/candidateWorkspace';
 import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
 import SessionContext from '../../auth/SessionContext';
+import { clearApplicationIntent, readApplicationIntent, rememberApplicationIntent } from '../../auth/applicationIntent';
 import { readJsonStorage } from '../../util/storage';
 import { getCachedJobDetail, invalidateJobDetail, loadFavoriteState, loadJobDetail, loadRelatedJobs, prefetchJobDetail } from './jobDetailResource';
 import { getJobSections, jobTimestamp } from './jobDescription';
@@ -64,10 +65,11 @@ export default function JobDetail() {
     const [favoriteLoading, setFavoriteLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [applicationNotice, setApplicationNotice] = useState('');
     const [retry, setRetry] = useState(0);
     const [now, setNow] = useState(Date.now);
     const savingRef = useRef(false);
-    const currentRoute = useRef(`${id}:${token}`);
+    const currentRoute = useRef(`${id}:${userId}:${token}`);
     const scrolled = useRef(null);
     const activeIdentity = useRef({ id, userId, token });
     const mounted = useRef(false);
@@ -77,13 +79,14 @@ export default function JobDetail() {
     const sections = useMemo(() => getJobSections(detail), [detail]);
 
     useLayoutEffect(() => {
-        if (currentRoute.current !== `${id}:${token}`) {
-            currentRoute.current = `${id}:${token}`;
+        if (currentRoute.current !== `${id}:${userId}:${token}`) {
+            currentRoute.current = `${id}:${userId}:${token}`;
             setDetailState({ data: getCachedJobDetail(id), error: false });
             setRelated([]); setIsOpen(false); setSubmitted(false);
+            setApplicationNotice('');
         }
         if (scrolled.current !== id) { window.scrollTo(0, 0); scrolled.current = id; }
-    }, [id, token]);
+    }, [id, userId, token]);
 
     useEffect(() => {
         let active = true;
@@ -100,7 +103,7 @@ export default function JobDetail() {
 
     useEffect(() => {
         let active = true;
-        setFavorite(false); setSaving(false); setSubmitted(false); setIsOpen(false); savingRef.current = false;
+        setFavorite(false); setSaving(false); setSubmitted(false); savingRef.current = false;
         setFavoriteLoading(checkFavorite);
         if (checkFavorite) loadFavoriteState(id, userId).then(response => {
             if (active && response?.errCode === 0) setFavorite(Boolean(response.isFavorite));
@@ -119,14 +122,32 @@ export default function JobDetail() {
     const closed = !end || end <= now || Boolean(data?.statusCode && data.statusCode !== 'PS1');
     const elapsed = start && end && end > start ? Math.max(0, Math.min(100, Math.round((now - start) / (end - start) * 100))) : null;
     const deadline = end ? new Intl.DateTimeFormat('vi-VN').format(end) : 'Chưa cập nhật';
+    useEffect(() => {
+        if (!userId || !token || String(data?.id) !== String(id) || !data?.companyData || !data?.postDetailData) return;
+        const intent = readApplicationIntent();
+        if (intent?.jobId !== String(id)) return;
+        clearApplicationIntent();
+        if (!canApply) return; // The role notice below explains how to apply.
+        if (closed || !end || end <= Date.now()) {
+            setApplicationNotice('Tin tuyển dụng đã hết hạn hoặc ngừng nhận hồ sơ. Bạn có thể tìm công việc tương tự bên dưới.');
+            return;
+        }
+        setIsOpen(true);
+    }, [id, userId, token, data, canApply, closed, end]);
     const login = message => {
+        clearApplicationIntent();
         toast.error(message);
         localStorage.setItem('lastUrl', window.location.href);
         navigate('/login');
     };
     const openApplication = () => {
         if (!end || end <= Date.now() || closed) { toast.error('Hạn ứng tuyển đã hết'); return; }
-        if (!user) { login('Xin hãy đăng nhập để có thể thực hiện nộp CV'); return; }
+        if (!user || !token) {
+            rememberApplicationIntent({ jobId: id, jobTitle: detail.name });
+            localStorage.setItem('lastUrl', `/detail-job/${id}`);
+            navigate('/login');
+            return;
+        }
         if (canApply) setIsOpen(true);
     };
     const toggleFavorite = async () => {
@@ -173,6 +194,9 @@ export default function JobDetail() {
                 </div>
                 <div className="jd-hero-actions">{applyButton()}{canSave && <button type="button" className={`jd-button jd-button--save${favorite ? ' is-active' : ''}`} aria-pressed={favorite} disabled={saving || favoriteLoading} onClick={toggleFavorite}><Icon name="bookmark" />{saving ? 'Đang lưu…' : favorite ? 'Đã lưu việc làm' : 'Lưu việc làm'}</button>}</div>
             </header>
+            {applicationNotice && <p className="jd-application-notice" role="status">{applicationNotice}</p>}
+            {!user && <p className="jd-application-notice">Bạn có thể xem đầy đủ thông tin công việc. Khi nộp CV, bạn cần đăng nhập hoặc tạo tài khoản ứng viên.</p>}
+            {user && !canApply && <p className="jd-application-notice" role="status">Ứng tuyển dành cho tài khoản ứng viên. Để nộp CV, hãy đăng xuất tài khoản hiện tại và đăng nhập bằng tài khoản ứng viên.</p>}
             <div className="jd-layout">
                 <article className="jd-content">
                     <section className="jd-section"><h2>Mô tả công việc</h2>{sections.description.trim() ? <div className="jd-richtext" dangerouslySetInnerHTML={{ __html: sections.description }} /> : <p className="jd-muted">Nhà tuyển dụng chưa cập nhật mô tả công việc.</p>}</section>

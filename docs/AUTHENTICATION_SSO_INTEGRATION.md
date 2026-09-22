@@ -79,7 +79,7 @@ Tham chiếu: [Google OpenID Connect](https://developers.google.com/identity/ope
 
 ## Bật GitHub và Auth0 khi có cấu hình
 
-Mẫu đầy đủ nằm trong `backend/.env.example`; các nhà cung cấp mặc định tắt. Không sửa `.env` bằng khóa lấy từ ZIP. GitHub/Auth0 chỉ hiện nút khi backend xác nhận đã cấu hình; Google vẫn có thông báo trạng thái trên trang đăng nhập.
+Mẫu đầy đủ nằm trong `backend/.env.example`; các nhà cung cấp mặc định tắt. Không sửa `.env` bằng khóa lấy từ ZIP. Trang đăng nhập luôn hiển thị Google, GitHub và Auth0; nút chỉ bấm được khi backend xác nhận đã cấu hình, kèm thông báo các phương thức chưa bật. Trang đăng ký chỉ hiện các nhà cung cấp đã bật.
 
 GitHub: tạo OAuth App, đặt callback `http://localhost:4000/api/auth/sso/github/callback`, điền `OAUTH_GITHUB_ENABLED=true`, `OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET`, `OAUTH_GITHUB_REDIRECT_URI` trong backend/.env. Luồng yêu cầu `read:user user:email`, dùng state một lần, cookie ràng buộc trình duyệt và PKCE S256; xác định người dùng bằng numeric ID, lấy email đã verified từ `/user/emails` kể cả khi ẩn email công khai. Token GitHub chỉ dùng tại backend khi callback, không gửi vào frontend hoặc lưu làm phiên JobFind. [Tài liệu OAuth GitHub](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps), [API email GitHub](https://docs.github.com/en/rest/users/emails).
 
@@ -96,7 +96,7 @@ npm run test:auth:browser
 npm run build --prefix frontend
 ```
 
-`test:auth:integration` tạo database MySQL riêng mang tên `jobfind_auth_test_<random>`, chạy migration và luồng HTTP thật rồi dọn database thử đó; cần quyền tạo/xóa database thử. Không sửa dữ liệu của `jobfindtest`.
+`test:auth:integration` tạo database MySQL riêng mang tên `jobfind_auth_test_<random>`, chạy migration và luồng HTTP thật rồi dọn database thử đó; cần quyền tạo/xóa database thử. Không sửa dữ liệu của `jobfindtest`. Bao gồm đăng ký trùng email đồng thời, rollback khi tạo tài khoản lỗi, đăng nhập email/số điện thoại, cookie ghi nhớ/không ghi nhớ, đổi mật khẩu đồng thời và onboarding Google/GitHub qua máy chủ HTTP giả lập. Không gửi email hoặc gọi nhà cung cấp thật.
 
 `test:auth:browser` cần ứng dụng local đang chạy (`npm start`), tạo một tài khoản QA tạm với mật khẩu ngẫu nhiên, thử đăng nhập/tải lại/đa tab/đăng xuất/đổi mật khẩu qua trình duyệt rồi dọn tài khoản đó. Ảnh desktop/mobile lưu trong `.local/auth-browser/`.
 
@@ -118,7 +118,7 @@ npm run test:auth:integration
 Remove-Item Env:AUTH_TEST_FRONTEND_BUILD
 ```
 
-Ảnh ở `.local/auth-oidc-browser/`. Kiểm thử trình duyệt gồm đăng nhập Google giả lập, cookie HttpOnly, không lưu JWT trong storage, reload, lịch sử, hai tab/logout-all, hủy consent, sai chữ ký và trang forbidden. Workflow `.github/workflows/authentication.yml` tự chuẩn bị MySQL/Chromium và chạy các bước này trong CI; không cần Google Client Secret. Workflow cần chạy trên GitHub để xác nhận môi trường CI thực tế.
+Ảnh ở `.local/auth-oidc-browser/`. Kiểm thử trình duyệt gồm đăng ký Google giả lập với email xác minh không sửa được, nhập mật khẩu Unicode và cấp phiên, đăng nhập Google, cookie HttpOnly, không lưu JWT trong storage, reload, lịch sử, hai tab/logout-all, hủy consent, sai chữ ký và trang forbidden. Workflow `.github/workflows/authentication.yml` tự chuẩn bị MySQL/Chromium và chạy các bước này trong CI; không cần Google Client Secret. Workflow cần chạy trên GitHub để xác nhận môi trường CI thực tế.
 
 **Chưa kiểm thử Google/GitHub/Auth0 thật** vì chưa có Client ID/Secret do người dùng cung cấp. Kiểm thử dùng nhà cung cấp cục bộ/mocks; sau khi cấu hình vẫn cần thử consent/token exchange thật và HTTPS của nơi triển khai.
 

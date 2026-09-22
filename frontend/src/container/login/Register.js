@@ -6,6 +6,7 @@ import { establishSession, getSocialSignup, completeSocialSignup, startSocialLog
 import SocialButtons, { providerLabels } from '../../auth/SocialButtons';
 import { validatePassword, PASSWORD_HINT } from '../../auth/passwordPolicy';
 import { safeReturnPath } from '../../auth/sessionExpiry';
+import { clearApplicationIntent, getApplicationReturnPath, readApplicationIntent } from '../../auth/applicationIntent';
 import './Login.css';
 import './Register.css';
 
@@ -29,6 +30,7 @@ const validate = (name, values) => {
 const Eye = ({ visible }) => <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>{visible && <path d="m3 3 18 18"/>}</svg>;
 
 export default function Register() {
+    const [applicationIntent, setApplicationIntent] = useState(readApplicationIntent);
     const [values, setValues] = useState({ firstName: '', lastName: '', email: '', phonenumber: '', password: '', againPass: '', roleCode: 'CANDIDATE' });
     const [step, setStep] = useState(1), [errors, setErrors] = useState({});
     const [visible, setVisible] = useState({ password: false, againPass: false });
@@ -62,7 +64,12 @@ export default function Register() {
         establishSession(result);
         const returnPath = safeReturnPath(localStorage.getItem('lastUrl'), window.location.origin);
         localStorage.removeItem('lastUrl');
-        window.location.href = ['ADMIN', 'EMPLOYER', 'COMPANY'].includes(result.user.roleCode) ? '/admin/' : returnPath || '/';
+        window.location.href = getApplicationReturnPath(result.user) || (['ADMIN', 'EMPLOYER', 'COMPANY'].includes(result.user.roleCode) ? '/admin/' : returnPath || '/');
+    };
+    const cancelApplication = () => {
+        clearApplicationIntent();
+        localStorage.removeItem('lastUrl');
+        setApplicationIntent(null);
     };
     const showFieldErrors = result => {
         if (result?.fieldErrors && typeof result.fieldErrors === 'object') {
@@ -163,6 +170,10 @@ export default function Register() {
         <div className="jf-login__shell">
             <section className="jf-login__form-panel" aria-labelledby="register-title">
                 <div className="jf-login__heading"><h1 id="register-title" ref={headingRef} tabIndex={-1}>{created ? 'Tài khoản đã sẵn sàng' : 'Tạo tài khoản'}</h1><p>{created ? 'Chào mừng bạn đến với JobFind.' : socialProfile ? `Hoàn tất tài khoản qua ${providerLabels[socialProfile.provider]}.` : 'Bắt đầu chỉ với hai bước đơn giản.'}</p></div>
+                {applicationIntent && <div className="jf-login__notice" role="status">
+                    <p>Tạo tài khoản ứng viên để tiếp tục ứng tuyển <strong>{applicationIntent.jobTitle || 'công việc này'}</strong>. Sau khi đăng ký, bạn sẽ quay lại công việc để chọn CV và xác nhận ứng tuyển.</p>
+                    <Link to={'/detail-job/' + applicationIntent.jobId} onClick={cancelApplication}>Quay lại xem công việc</Link>
+                </div>}
                 {!created && !socialMode && step === 1 && <SocialButtons registration busy={busy} starting={socialStarting} onStart={socialLogin}/>}
                 {socialLoading && <p role="status" className="jf-login__provider-note">Đang tải thông tin đăng ký...</p>}
                 {socialMode && !socialProfile && !socialLoading && <div className="jf-register__recover"><button type="button" className="jf-register__back" onClick={() => setSocialRetry(value => value + 1)}>Thử lại</button><Link to="/register" reloadDocument>Bắt đầu đăng ký mới</Link></div>}

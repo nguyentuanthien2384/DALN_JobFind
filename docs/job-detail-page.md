@@ -13,6 +13,16 @@ Không thêm bảng, migration, dependency hay biến môi trường. Frontend t
 
 ## Quy tắc hiển thị
 
+### Xem công khai và tiếp tục ứng tuyển sau đăng nhập
+
+Khách chưa đăng nhập được mở danh sách và chi tiết tin đã duyệt. Khi bấm “Nộp CV ngay”, trang đăng nhập hiển thị tên công việc và yêu cầu tài khoản ứng viên. Sau đăng nhập bằng mật khẩu, tài khoản liên kết hoặc hoàn tất đăng ký, người dùng quay lại đúng tin và mở form chọn CV. Hồ sơ chỉ được gửi khi người dùng bấm “Gửi hồ sơ” trong form.
+
+Ngữ cảnh ứng tuyển được lưu riêng trong tab bằng `sessionStorage`, chỉ gồm mã tin, tiêu đề và thời điểm bắt đầu; hết hiệu lực sau 30 phút và được dùng một lần. Liên kết “Quay lại xem công việc” hủy ngữ cảnh này. Luồng lưu việc làm/nhắn tin không tự mở form CV. Không lưu mật khẩu hay nội dung CV trong ngữ cảnh chuyển trang.
+
+Trang kiểm tra lại quyền và hạn nộp khi quay về. Tài khoản nhà tuyển dụng, công ty hoặc quản trị viên xem được tin nhưng không nộp CV; thông báo hướng dẫn dùng tài khoản ứng viên. Backend cũng kiểm tra quyền `candidate:apply` ngay tại middleware và kiểm tra lại vai trò trong transaction. Tin hết hạn hiển thị thông báo và không mở form.
+
+Tham khảo: [TopCV – bước đăng nhập và ứng tuyển](https://www.topcv.vn/dieu-kien-giao-dich-chung), đối chiếu ngày 22/09/2026. Đây là lựa chọn luồng của JobFind; cách yêu cầu tài khoản có thể khác giữa các website tuyển dụng.
+
 Nội dung HTML/Markdown hiện có được tách theo các tiêu đề mô tả, yêu cầu và quyền lợi. Nội dung chưa chia mục vẫn hiển thị nguyên phần mô tả; không tự thêm quyền lợi hoặc số liệu mẫu. HTML được giới hạn về định dạng và liên kết an toàn trước khi hiển thị.
 
 “Lĩnh vực công việc” lấy từ danh mục công việc vì hồ sơ công ty chưa có trường ngành nghề riêng. Số lượng tuyển lấy từ `amount`, không dùng làm tổng số hồ sơ tối đa. Thanh tiến độ thể hiện thời gian nhận hồ sơ đã qua, chỉ xuất hiện khi có ngày bắt đầu và kết thúc hợp lệ.
@@ -22,6 +32,10 @@ Nộp CV bị vô hiệu khi tin hết hạn hoặc không ở trạng thái đ�
 Cache chi tiết được xóa khi token đăng nhập thay đổi để không dùng lại dữ liệu dành cho phiên có quyền cao hơn sau đăng xuất.
 
 ## Kiểm tra
+
+`node backend/scripts/test-application-entry-browser.cjs` kiểm tra giao diện desktop/mobile, đăng nhập rồi tiếp tục ứng tuyển, quay lại từ đăng ký, hủy để tiếp tục xem, sai vai trò và tin hết hạn trong lúc đăng nhập. Script chạy các trang thật trên `JOB_TEST_WEB_URL` (mặc định `http://localhost:3001`), dùng API giả lập, không tạo tài khoản hay gửi CV thật. Ảnh kiểm tra lưu tại `.local/application-entry/`.
+
+Kiểm tra ngày 22/09/2026: các suite liên quan đạt 183 test frontend, 201 test backend và 88 test microservices; 4 kịch bản trình duyệt đạt. Đã xác nhận khách mở tin “Tuyển dụng nhân sự 2” và đi đến đăng nhập bằng dữ liệu backend thật. Luồng đăng nhập/đăng ký tiếp tục ứng tuyển được kiểm tra bằng fixture; không gửi hồ sơ thật và không thực hiện xác thực tại nhà cung cấp SSO trong kiểm thử này.
 
 Chạy các test trang chi tiết, bộ tách nội dung, cache, hộp thoại CV và service/controller tin tuyển dụng. Kiểm tra production build bằng script `build` sẵn có của frontend. Kiểm tra với cơ sở dữ liệu thật cần backend legacy và Gateway đang hoạt động; các unit test dùng API/model giả lập không thay thế bước đó.
 

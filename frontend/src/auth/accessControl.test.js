@@ -40,13 +40,15 @@ describe("frontend access-control policy", () => {
         expect(hasCompanyMembership(user)).toBe(expected);
     });
 
-    it("gives ADMIN every declared permission as a super-admin", () => {
+    it("gives ADMIN platform permissions while reserving applications for candidates", () => {
         const user = { id: 1, roleCode: ROLES.ADMIN };
 
-        expectExactPermissions(user, Object.values(PERMISSIONS));
-        Object.values(PERMISSIONS).forEach((permission) => {
+        const platformPermissions = Object.values(PERMISSIONS).filter(permission => permission !== PERMISSIONS.APPLY_TO_JOB);
+        expectExactPermissions(user, platformPermissions);
+        platformPermissions.forEach((permission) => {
             expect(hasPermission(user, permission)).toBe(true);
         });
+        expect(hasPermission(user, PERMISSIONS.APPLY_TO_JOB)).toBe(false);
     });
 
     it("gives a COMPANY with companyId its tenant, dashboard and chat permissions", () => {
