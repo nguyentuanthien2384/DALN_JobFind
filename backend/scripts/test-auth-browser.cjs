@@ -13,8 +13,9 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
   const phone = '09' + String(Date.now()).slice(-8);
   const password = randomBytes(18).toString('base64url');
   const output = path.join(__dirname, '../../.local/auth-browser');
+  const email = 'auth-' + randomBytes(6).toString('hex') + '@gmail.com';
   try {
-    const [user] = await connection.query('INSERT INTO users (firstName,lastName,email) VALUES (?,?,?)', ['Auth', 'QA', `auth-${randomBytes(6).toString('hex')}@example.invalid`]);
+    const [user] = await connection.query('INSERT INTO users (firstName,lastName,email) VALUES (?,?,?)', ['Auth', 'QA', email]);
     userId = user.insertId;
     await connection.query('INSERT INTO accounts (userId,phonenumber,password,roleCode,statusCode,createdAt,updatedAt) VALUES (?,?,?,?,?,NOW(),NOW())', [userId, phone, await bcrypt.hash(password, 10), 'CANDIDATE', 'S1']);
     browser = await chromium.launch({ headless: true });
@@ -31,13 +32,13 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     await page.goto(base + '/login');
     const login = page.locator('.jf-login');
     await login.waitFor({ state: 'visible' });
-    await page.getByText('Đăng nhập Google chưa được bật. Bạn vẫn có thể dùng số điện thoại và mật khẩu.', { exact: true }).waitFor();
+    await page.getByText('Đăng nhập Google chưa được bật. Bạn vẫn có thể dùng email hoặc số điện thoại và mật khẩu.', { exact: true }).waitFor();
     const googleLogin = page.getByRole('button', { name: 'Đăng nhập bằng Google', exact: true });
     assert.equal(await googleLogin.isVisible(), true);
     assert.equal(await googleLogin.isDisabled(), true);
-    const phoneInput = page.getByPlaceholder('Số điện thoại');
+    const phoneInput = page.getByPlaceholder('Email hoặc số điện thoại');
     const passwordInput = page.getByPlaceholder('Mật khẩu', { exact: true });
-    assert.equal(await phoneInput.getAttribute('type'), 'tel');
+    assert.equal(await phoneInput.getAttribute('type'), 'text');
     assert.equal(await phoneInput.getAttribute('autocomplete'), 'username');
     assert.equal(await passwordInput.getAttribute('autocomplete'), 'current-password');
     assert.equal(await passwordInput.getAttribute('type'), 'password');
@@ -56,7 +57,8 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     await page.screenshot({ path: path.join(output, 'login-mobile.png'), fullPage: true });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.unroute(providersRoute, disabledGoogle);
-    await page.getByPlaceholder('Số điện thoại').fill(phone);
+    await page.getByPlaceholder('Email hoặc số điện thoại').fill(email);
+    await page.getByRole('checkbox', { name: /Ghi nhớ/ }).check();
     await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(password);
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.waitForURL(base + '/', { timeout: 30000 });
@@ -65,8 +67,8 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     await page.getByRole('heading', { name: 'Các phiên đăng nhập' }).waitFor();
     assert.match(await page.evaluate(() => localStorage.getItem('token_user')), /^jf-session:/);
     const cookies = await context.cookies('http://localhost:4000');
-    assert.ok(cookies.some(cookie => cookie.name === 'jobfind_rt' && cookie.httpOnly && cookie.sameSite === 'Lax'));
-    await page.getByText('Đăng nhập Google chưa được quản trị viên cấu hình.').waitFor();
+    assert.ok(cookies.some(cookie => cookie.name === 'jobfind_rt' && cookie.httpOnly && cookie.sameSite === 'Lax' && cookie.expires > Date.now() / 1000));
+    await page.getByText('Đăng nhập liên kết chưa được quản trị viên cấu hình.').waitFor();
     await page.getByRole('heading', { name: 'Lịch sử bảo mật' }).waitFor();
     await page.getByText('Đăng nhập thành công', { exact: true }).first().waitFor();
     await page.getByText(/Chrome · (Windows|Linux|macOS)/).first().waitFor();
@@ -89,7 +91,8 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     assert.equal(await page.evaluate(() => localStorage.getItem('token_user')), null);
     assert.equal((await context.cookies('http://localhost:4000')).some(cookie => cookie.name === 'jobfind_rt'), false);
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.getByPlaceholder('Số điện thoại').fill(phone);
+    await page.getByPlaceholder('Email hoặc số điện thoại').fill(email);
+    await page.getByRole('checkbox', { name: /Ghi nhớ/ }).check();
     await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(password);
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.waitForURL(base + '/', { timeout: 30000 });
@@ -110,7 +113,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     assert.equal((await context.cookies('http://localhost:4000')).some(cookie => cookie.name === 'jobfind_rt'), false);
     const revoked = await context.request.get('http://localhost:4000/api/my-applications', { headers: { Authorization: 'Bearer ' + proof } });
     assert.equal(revoked.status(), 401);
-    await page.getByPlaceholder('Số điện thoại').fill(phone);
+    await page.getByPlaceholder('Email hoặc số điện thoại').fill(email);
     await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(nextPassword);
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.waitForURL(base + '/', { timeout: 30000 });

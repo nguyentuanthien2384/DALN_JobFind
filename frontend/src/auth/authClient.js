@@ -77,12 +77,21 @@ export const logoutServer = async () => {
   }
   finally { loggingOut = false; forgetAccess(); }
 };
-export const startGoogleLink = async (password) => {
+const assertProvider = provider => {
+  if (!['google', 'github', 'auth0'].includes(provider)) throw new Error('Unsupported provider');
+  return provider;
+};
+export const startSocialLink = async (provider, password) => {
+  assertProvider(provider);
   const bearer = await getAccessToken();
   if (!bearer) throw new Error('Login required');
-  const res = await api.post('/api/auth/sso/google/link/start', { password }, { headers: { Authorization: `Bearer ${bearer}` } });
+  const res = await api.post(`/api/auth/sso/${provider}/link/start`, { password }, { headers: { Authorization: `Bearer ${bearer}` } });
   if (res.data?.errCode !== 0 || !res.data.redirect) throw new Error('SSO unavailable');
   window.location.assign(res.data.redirect);
 };
-export const startGoogleLogin = () => window.location.assign(`${baseURL.replace(/\/$/, '')}/api/auth/sso/google/start`);
+export const startSocialLogin = (provider, { rememberMe = false } = {}) => window.location.assign(`${baseURL.replace(/\/$/, '')}/api/auth/sso/${assertProvider(provider)}/start?rememberMe=${rememberMe === true}`);
+export const startGoogleLink = password => startSocialLink('google', password);
+export const startGoogleLogin = options => startSocialLogin('google', options);
 export const getProviders = async () => (await api.get('/api/auth/providers')).data;
+export const getSocialSignup = async () => (await api.get('/api/auth/sso/signup')).data;
+export const completeSocialSignup = async values => (await api.post('/api/auth/sso/signup', values)).data;

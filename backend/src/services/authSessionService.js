@@ -6,6 +6,7 @@ import { Op } from 'sequelize';
 import bcrypt from 'bcryptjs';
 import { recordSecurityEvent } from './authAuditService';
 const REFRESH_TTL = 14 * 24 * 60 * 60;
+const BROWSER_SESSION_TTL = 8 * 60 * 60;
 const uuid = () => crypto.randomUUID();
 const secret = () => crypto.randomBytes(48).toString('base64url');
 const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
@@ -13,9 +14,12 @@ export const refreshCookieName = () => process.env.NODE_ENV === 'production' ? '
 export const cookieSettings = () => ({
   httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/',
 });
-export const setRefreshCookie = (res, token, expiresAt) => res.cookie(refreshCookieName(), token, {
-  ...cookieSettings(), maxAge: expiresAt ? Math.max(0, new Date(expiresAt).getTime() - Date.now()) : REFRESH_TTL * 1000,
-});
+export const setRefreshCookie = (res, token, expiresAt, rememberMe = true) => {
+  const options = cookieSettings();
+  if (rememberMe !== false) options.maxAge = Math.min(REFRESH_TTL * 1000,
+    expiresAt ? Math.max(0, new Date(expiresAt).getTime() - Date.now()) : REFRESH_TTL * 1000);
+  return res.cookie(refreshCookieName(), token, options);
+};
 export const clearRefreshCookie = (res) => res.clearCookie(refreshCookieName(), cookieSettings());
 export const readRefreshCookie = (req) => {
   const raw = req.headers.cookie || '';
@@ -55,13 +59,14 @@ export const createSession = async (userId, method = 'password', proof = {}) => 
   const familyId = uuid();
   const refreshToken = secret();
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + REFRESH_TTL * 1000);
+  const rememberMe = proof.rememberMe !== false;
+  const expiresAt = new Date(now.getTime() + (rememberMe ? REFRESH_TTL : BROWSER_SESSION_TTL) * 1000);
   await db.AuthSession.create({
     id: uuid(), familyId, userId: user.id, tokenHash: digest(refreshToken), method,
-    expiresAt, startedAt: now, lastUsedAt: now, deviceLabel: proof.deviceLabel || null,
+    expiresAt, rememberMe, startedAt: now, lastUsedAt: now, deviceLabel: proof.deviceLabel || null,
   }, { transaction });
   await recordSecurityEvent({ event: 'login_succeeded', userId: user.id, device: proof.deviceLabel }, transaction);
-  return { refreshToken, expiresAt, token: signAccess(user, familyId), user: publicUser(user) };
+  return { refreshToken, expiresAt, rememberMe, token: signAccess(user, familyId), user: publicUser(user) };
   });
 };
 export const activeFamily = async (familyId, userId, transaction) => {
@@ -123,13 +128,14 @@ export const rotateSession = async (raw) => {
     }
     const nextToken = secret();
     const now = new Date();
+    const rememberMe = old.rememberMe !== false;
     await old.update({ rotatedAt: now }, { transaction });
     await db.AuthSession.create({
       id: uuid(), familyId: old.familyId, userId: old.userId, tokenHash: digest(nextToken),
-      method: old.method, expiresAt: old.expiresAt,
+      method: old.method, expiresAt: old.expiresAt, rememberMe,
       deviceLabel: old.deviceLabel, startedAt: old.startedAt || old.createdAt, lastUsedAt: now,
     }, { transaction });
-    return { refreshToken: nextToken, expiresAt: old.expiresAt, token: signAccess(user, old.familyId), user: publicUser(user) };
+    return { refreshToken: nextToken, expiresAt: old.expiresAt, rememberMe, token: signAccess(user, old.familyId), user: publicUser(user) };
   });
 };
 export const hashOpaque = digest;

@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const { chromium } = require('@playwright/test');
 
-module.exports = async ({ app, base, providerBase, setMode }) => {
+module.exports = async ({ app, base, providerBase, setMode, setSubject }) => {
   const build = path.resolve(process.env.AUTH_TEST_FRONTEND_BUILD);
   await fs.access(path.join(build, 'index.html'));
   app.use(express.static(build, { dotfiles: 'allow' }));
@@ -16,7 +16,7 @@ module.exports = async ({ app, base, providerBase, setMode }) => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     // The browser visits a fixture authorization server over real HTTP. All
     // cryptographic/token validation remains in the real backend OIDC client.
-    await context.route(base + '/api/auth/sso/google/start', async route => {
+    await context.route(base + '/api/auth/sso/google/start**', async route => {
       const response = await route.fetch({ maxRedirects: 0 });
       const address = new URL(response.headers().location);
       assert.equal(address.origin, 'https://accounts.google.com');
@@ -24,6 +24,32 @@ module.exports = async ({ app, base, providerBase, setMode }) => {
     });
     await context.route('https://accounts.google.com/**', route => route.abort());
     page = await context.newPage();
+    setMode('browser-signup'); setSubject('browser-signup-subject');
+    await page.goto(base + '/register');
+    await page.evaluate(() => localStorage.setItem('lastUrl', '/account/security'));
+    await page.getByRole('button', { name: 'Đăng ký bằng Google' }).click();
+    await page.waitForURL(/\/register\?sso=complete/);
+    const verifiedEmail = page.getByPlaceholder('Email', { exact: true });
+    await verifiedEmail.waitFor();
+    assert.equal(await verifiedEmail.inputValue(), 'jobfind.social.browser.fixture@gmail.com');
+    assert.equal(await verifiedEmail.getAttribute('readonly'), '');
+    await page.getByPlaceholder('Họ', { exact: true }).fill('Browser');
+    await page.getByPlaceholder('Tên', { exact: true }).fill('Social');
+    await page.getByRole('button', { name: 'Tiếp tục', exact: true }).click();
+    await page.getByPlaceholder('Số điện thoại', { exact: true }).fill('0980000003');
+    const signupPassword = 'Mật khẩu trình duyệt!7';
+    await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(signupPassword);
+    await page.getByPlaceholder('Nhập lại mật khẩu', { exact: true }).fill(signupPassword);
+    await page.getByRole('button', { name: 'Tạo tài khoản', exact: true }).click();
+    await page.waitForURL(base + '/account/security');
+    await page.getByText('Google · jobfind.social.browser.fixture@gmail.com', { exact: true }).waitFor();
+    const signupCookies = await context.cookies(base);
+    assert.equal(signupCookies.some(cookie => cookie.name === 'jobfind_signup'), false);
+    assert.ok(signupCookies.some(cookie => cookie.name === 'jobfind_rt' && cookie.httpOnly && cookie.expires === -1));
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Đăng xuất tất cả thiết bị' }).click();
+    await page.waitForURL(/\/login/);
+    setMode('valid'); setSubject('http-oidc-subject');
     await page.goto(base + '/login');
     await page.evaluate(() => localStorage.setItem('lastUrl', '/account/security'));
     await page.getByRole('button', { name: 'Đăng nhập bằng Google' }).click();
@@ -52,7 +78,7 @@ module.exports = async ({ app, base, providerBase, setMode }) => {
     assert.equal((await context.cookies(base)).some(c => c.name === 'jobfind_rt'), false);
     setMode('cancelled');
     await page.getByRole('button', { name: 'Đăng nhập bằng Google' }).click();
-    await page.getByText('Bạn đã hủy đăng nhập Google. Có thể thử lại hoặc đăng nhập bằng mật khẩu.').waitFor();
+    await page.getByText('Bạn đã hủy đăng nhập bằng tài khoản liên kết. Có thể thử lại hoặc đăng nhập bằng mật khẩu.').waitFor();
     setMode('signature');
     await page.getByRole('button', { name: 'Đăng nhập bằng Google' }).click();
     await page.waitForURL(/\/login\/?\?sso=failed/);
@@ -62,7 +88,7 @@ module.exports = async ({ app, base, providerBase, setMode }) => {
     await page.evaluate(() => localStorage.setItem('lastUrl', '/admin/'));
     await page.getByRole('button', { name: 'Đăng nhập bằng Google' }).click();
     await page.waitForURL(/\/forbidden/, { timeout: 30000 });
-    console.log('PASS: real React browser SSO, HttpOnly/memory-only credentials, reload, security history, two-tab logout, IdP cancel/signature error, forbidden route.');
+    console.log('PASS: real React social registration with immutable verified email and Unicode password, SSO login, HttpOnly/memory-only credentials, reload, security history, two-tab logout, IdP cancel/signature error, forbidden route.');
   } catch (error) {
     await fs.mkdir(output, { recursive: true });
     if (page) {

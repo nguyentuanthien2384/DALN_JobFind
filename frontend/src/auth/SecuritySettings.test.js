@@ -2,9 +2,9 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SecuritySettings from './SecuritySettings';
 import api from '../axios';
-import { startGoogleLink } from './authClient';
+import { startSocialLink } from './authClient';
 jest.mock('../axios', () => ({ get: jest.fn(), post: jest.fn(), delete: jest.fn() }));
-jest.mock('./authClient', () => ({ startGoogleLink: jest.fn(), forgetAccess: jest.fn() }));
+jest.mock('./authClient', () => ({ startSocialLink: jest.fn(), forgetAccess: jest.fn() }));
 jest.mock('../socket', () => ({ disconnectSocket: jest.fn() }));
 jest.mock('../push/webPush', () => ({ clearPushOnLogout: jest.fn() }));
 const data = { errCode: 0, google: false, identities: [], sessions: [{ familyId: 'current', current: true, method: 'password', expiresAt: '2026-10-01' }] };
@@ -12,20 +12,32 @@ beforeEach(() => { api.get.mockResolvedValue(data); window.history.replaceState(
 test('shows sessions and an honest disabled-provider state', async () => {
   render(<SecuritySettings />);
   expect(await screen.findByText(/Phiên hiện tại/)).toBeInTheDocument();
-  expect(screen.getByText('Đăng nhập Google chưa được quản trị viên cấu hình.')).toBeInTheDocument();
+  expect(screen.getByText('Đăng nhập liên kết chưa được quản trị viên cấu hình.')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Liên kết tài khoản Google' })).toBeNull();
 });
 test('linking requires the current password and reports provider errors', async () => {
   api.get.mockResolvedValue({ ...data, google: true });
-  startGoogleLink.mockRejectedValue({ response: { data: { errMessage: 'Mật khẩu hiện tại không chính xác' } } });
+  startSocialLink.mockRejectedValue({ response: { data: { errMessage: 'Mật khẩu hiện tại không chính xác' } } });
   render(<SecuritySettings />);
   const button = await screen.findByRole('button', { name: 'Liên kết tài khoản Google' });
   expect(button).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Mật khẩu JobFind hiện tại'), { target: { value: 'current-password' } });
   fireEvent.click(button);
   expect(await screen.findByRole('alert')).toHaveTextContent('Mật khẩu hiện tại không chính xác');
-  expect(startGoogleLink).toHaveBeenCalledWith('current-password');
+  expect(startSocialLink).toHaveBeenCalledWith('google', 'current-password');
   await waitFor(() => expect(screen.getByLabelText('Mật khẩu JobFind hiện tại')).toHaveValue(''));
+});
+
+test('shows provider identities and links GitHub with the same password confirmation', async () => {
+  api.get.mockResolvedValueOnce({ ...data, github: true, identities: [{ id: 15, provider: 'auth0', emailAtLink: 'lan@gmail.com' }] });
+  startSocialLink.mockRejectedValueOnce(new Error('Thử lại'));
+  render(<SecuritySettings />);
+  expect(await screen.findByText('Auth0 · lan@gmail.com')).toBeInTheDocument();
+  const github = screen.getByRole('button', { name: 'Liên kết tài khoản GitHub' });
+  expect(github).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Mật khẩu JobFind hiện tại'), { target: { value: 'current-password' } });
+  fireEvent.click(github);
+  await waitFor(() => expect(startSocialLink).toHaveBeenCalledWith('github', 'current-password'));
 });
 test('cancelling revocation never submits it', async () => {
   jest.spyOn(window, 'confirm').mockReturnValue(false);

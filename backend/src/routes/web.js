@@ -80,6 +80,8 @@ let initWebRoutes = (app) => {
     router.post('/api/login', loginLimiter, authController.login)
     router.post('/api/auth/login', loginLimiter, authController.login)
     router.get('/api/auth/providers', authController.providers)
+    router.get('/api/auth/sso/signup', authController.signupProfile)
+    router.post('/api/auth/sso/signup', registerLimiter, authController.cookieOrigin, authController.completeSocialSignup)
     router.get('/api/auth/security', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.securityOverview)
     router.get('/api/auth/security/events', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.securityEvents)
     router.delete('/api/auth/sessions/:familyId', authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.revokeSession)

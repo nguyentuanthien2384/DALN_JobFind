@@ -31,7 +31,11 @@ const user = {
   userAccountData: { statusCode: 'S1', roleCode: 'CANDIDATE' },
   toJSON() { return { id: 7, companyId: null, firstName: 'A', userAccountData: this.userAccountData }; },
 };
-beforeEach(() => { mockRows.clear(); jest.clearAllMocks(); mockFindUser.mockResolvedValue(user); });
+beforeEach(() => {
+  jest.useFakeTimers().setSystemTime(new Date('2026-09-22T08:00:00Z'));
+  mockRows.clear(); jest.clearAllMocks(); mockFindUser.mockResolvedValue(user);
+});
+afterEach(() => { jest.useRealTimers(); });
 test('login issues opaque refresh credential and stores only its hash', async () => {
   const issued = await sessions.createSession(7);
   expect(issued.token).toMatch(/^access:/);
@@ -69,4 +73,61 @@ test('rotation preserves device and original login time without extending absolu
   const res = { cookie: jest.fn() };
   sessions.setRefreshCookie(res, next.refreshToken, new Date(Date.now() + 60000));
   expect(res.cookie.mock.calls[0][2].maxAge).toBeLessThanOrEqual(60000);
+});
+
+test.each([
+  [undefined, true, 14 * 24],
+  [true, true, 14 * 24],
+  [false, false, 8],
+])('rememberMe %s issues the expected absolute lifetime', async (preference, expected, hours) => {
+  const issued = await sessions.createSession(7, 'password', { rememberMe: preference });
+  expect(issued.rememberMe).toBe(expected);
+  expect(issued.expiresAt.getTime() - Date.now()).toBe(hours * 60 * 60 * 1000);
+  expect(mockRows.get(sessions.hashOpaque(issued.refreshToken)).rememberMe).toBe(expected);
+});
+
+test.each([false, true])('rotation preserves rememberMe=%s and does not extend its deadline', async rememberMe => {
+  const first = await sessions.createSession(7, 'password', { rememberMe });
+  jest.advanceTimersByTime(2 * 60 * 60 * 1000);
+  const next = await sessions.rotateSession(first.refreshToken);
+  expect(next.rememberMe).toBe(rememberMe);
+  expect(next.expiresAt).toEqual(first.expiresAt);
+  expect(mockRows.get(sessions.hashOpaque(next.refreshToken)).rememberMe).toBe(rememberMe);
+  const res = { cookie: jest.fn() };
+  sessions.setRefreshCookie(res, next.refreshToken, next.expiresAt, next.rememberMe);
+  const options = res.cookie.mock.calls[0][2];
+  if (rememberMe) expect(options.maxAge).toBe(first.expiresAt.getTime() - Date.now());
+  else {
+    expect(options).not.toHaveProperty('maxAge');
+    expect(options).not.toHaveProperty('expires');
+  }
+});
+
+test('unremembered sessions cannot refresh after the eight-hour deadline', async () => {
+  const first = await sessions.createSession(7, 'password', { rememberMe: false });
+  jest.advanceTimersByTime(8 * 60 * 60 * 1000);
+  expect(await sessions.rotateSession(first.refreshToken)).toBeNull();
+  expect(await sessions.activeFamily([...mockRows.values()][0].familyId, 7)).toBe(false);
+});
+
+test('existing rows without an explicit preference keep their persistent session on rotation', async () => {
+  const first = await sessions.createSession(7);
+  delete mockRows.get(sessions.hashOpaque(first.refreshToken)).rememberMe;
+  const next = await sessions.rotateSession(first.refreshToken);
+  expect(next.rememberMe).toBe(true);
+  expect(mockRows.get(sessions.hashOpaque(next.refreshToken)).rememberMe).toBe(true);
+});
+
+test('refresh cookies retain security flags and persistence is capped at fourteen days', () => {
+  const res = { cookie: jest.fn() };
+  sessions.setRefreshCookie(res, 'opaque', new Date(Date.now() + 30 * 86400000));
+  expect(res.cookie).toHaveBeenLastCalledWith(sessions.refreshCookieName(), 'opaque', {
+    ...sessions.cookieSettings(), maxAge: 14 * 86400000,
+  });
+  sessions.setRefreshCookie(res, 'opaque', new Date(Date.now() - 1000));
+  expect(res.cookie.mock.calls[1][2].maxAge).toBe(0);
+  sessions.setRefreshCookie(res, 'opaque', undefined, false);
+  expect(res.cookie).toHaveBeenLastCalledWith(sessions.refreshCookieName(), 'opaque', {
+    httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/',
+  });
 });

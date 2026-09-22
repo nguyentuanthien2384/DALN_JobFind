@@ -9,14 +9,14 @@ describe("handleValidate", () => {
         expect(handleValidate("text", "isEmpty")).toBe(true);
     });
 
-    it.each(["abc123", "A1b2C3", "a".repeat(20)])("accepts valid password %s", (value) => {
+    it.each(["abc12345", "A1b2C3d4", "a".repeat(72), "mật Khẩu!", "😀".repeat(18)])("accepts a valid Unicode password %s", value => {
         expect(handleValidate(value, "password")).toBe(true);
     });
-
-    it.each(["short", "a".repeat(21), "abc123!", "mậtKhẩu1"])('rejects invalid password "%s"', (value) => {
-        expect(handleValidate(value, "password")).toBe(
-            "Mật khẩu không có ký tự đặt biệt và 6 ký tự trở lên và tối đa 20 ký tự"
-        );
+    it.each(["short", "😀".repeat(7)])("requires at least eight codepoints", value => {
+        expect(handleValidate(value, "password")).toBe("Mật khẩu cần ít nhất 8 ký tự.");
+    });
+    it.each(["a".repeat(73), "😀".repeat(19)])("rejects passwords beyond bcrypt's UTF-8 limit", value => {
+        expect(handleValidate(value, "password")).toBe("Mật khẩu vượt quá 72 byte. Vui lòng rút ngắn mật khẩu.");
     });
 
     it.each(["user@example.com", "first.last@sub.co"])("accepts valid email %s", (value) => {

@@ -1,8 +1,9 @@
-import { establishSession, forgetAccess, getAccessTokenSync, refreshSession, logoutServer } from './authClient';
+import { establishSession, forgetAccess, getAccessTokenSync, refreshSession, logoutServer, startSocialLink, getSocialSignup, completeSocialSignup, startSocialLogin } from './authClient';
 import axios from 'axios';
-jest.mock('axios', () => ({ create: jest.fn(() => ({ post: jest.fn() })) }));
+jest.mock('axios', () => ({ create: jest.fn(() => ({ post: jest.fn(), get: jest.fn() })) }));
 const instance = axios.create.mock.results[0].value;
-beforeEach(() => { localStorage.clear(); forgetAccess(); instance.post.mockReset(); });
+const clientConfig = axios.create.mock.calls[0][0];
+beforeEach(() => { localStorage.clear(); forgetAccess(); instance.post.mockReset(); instance.get.mockReset(); });
 test('new login stores a public marker, not JWT or refresh credentials', () => {
   establishSession({ token: 'access-jwt-test', user: { id: 7, roleCode: 'CANDIDATE' } });
   expect(localStorage.getItem('token_user')).toMatch(/^jf-session:/);
@@ -65,4 +66,21 @@ test('an account marker change immediately hides the previous memory token', () 
   establishSession({ token: 'old', user: { id: 7 } });
   localStorage.setItem('token_user', 'jf-session:another-account');
   expect(getAccessTokenSync()).toBeNull();
+});
+
+test('pending signup and completion use credentialed APIs without a token in the URL', async () => {
+  instance.get.mockResolvedValue({ data: { errCode: 0, profile: { provider: 'google', email: 'person@gmail.com' } } });
+  await getSocialSignup();
+  expect(instance.get).toHaveBeenCalledWith('/api/auth/sso/signup');
+  const payload = { firstName: 'Lan', lastName: 'Nguyen', phonenumber: '0912345678', password: 'a password!', roleCode: 'CANDIDATE' };
+  instance.post.mockResolvedValue({ data: { errCode: 0, token: 'access', user: { id: 3 } } });
+  expect((await completeSocialSignup(payload)).token).toBe('access');
+  expect(instance.post).toHaveBeenCalledWith('/api/auth/sso/signup', payload);
+  expect(clientConfig).toMatchObject({ withCredentials: true });
+});
+
+test('rejects an unsupported identity provider before calling any endpoint', async () => {
+  await expect(startSocialLink('../admin', 'password')).rejects.toThrow('Unsupported provider');
+  expect(() => startSocialLogin('https://untrusted.example')).toThrow('Unsupported provider');
+  expect(instance.post).not.toHaveBeenCalled();
 });

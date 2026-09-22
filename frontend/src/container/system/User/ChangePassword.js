@@ -2,6 +2,7 @@ import React from 'react'
 import { useEffect, useState } from 'react';
 import { handleChangePassword } from '../../../service/userService';
 import { toast } from 'react-toastify';
+import { validatePassword } from '../../../auth/passwordPolicy';
 import { endLocalSession } from '../../../auth/authClient';
 const ChangePassword = (props) => {
     const [inputValues, setInputValues] = useState({
@@ -18,6 +19,8 @@ const ChangePassword = (props) => {
 
     };
     let handleSave = async () => {
+        const passwordError = validatePassword(inputValues.password);
+        if (passwordError) { toast.error(passwordError); return; }
         if (inputValues.password !== inputValues.confirmPassword) {
             toast.error("Mật khẩu nhập lại không đúng")
             return

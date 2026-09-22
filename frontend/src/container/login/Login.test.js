@@ -1,10 +1,10 @@
-jest.mock('../../auth/authClient', () => ({ ...jest.requireActual('../../auth/authClient'), getProviders: jest.fn(), startGoogleLogin: jest.fn(), refreshSession: jest.fn() }));
+jest.mock('../../auth/authClient', () => ({ ...jest.requireActual('../../auth/authClient'), getProviders: jest.fn(), startSocialLogin: jest.fn(), refreshSession: jest.fn() }));
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-toastify";
 import { handleLoginService } from "../../service/userService";
 import Login from "./Login";
-import { getProviders, startGoogleLogin, refreshSession } from '../../auth/authClient';
+import { getProviders, startSocialLogin, refreshSession } from '../../auth/authClient';
 import { useLocation } from 'react-router-dom';
 
 jest.mock("../../service/userService", () => ({
@@ -24,7 +24,7 @@ jest.mock("react-router-dom", () => {
 const renderLogin = () => render(<Login />);
 
 const fillAndSubmit = (phone = "0912345678", password = "secret1") => {
-    fireEvent.change(screen.getByPlaceholderText("Số điện thoại"), { target: { value: phone } });
+    fireEvent.change(screen.getByPlaceholderText("Email hoặc số điện thoại"), { target: { value: phone } });
     fireEvent.change(screen.getByPlaceholderText("Mật khẩu"), { target: { value: password } });
     fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
 };
@@ -57,7 +57,8 @@ describe("Login", () => {
         fillAndSubmit();
 
         await waitFor(() => expect(handleLoginService).toHaveBeenCalledWith({
-            phonenumber: "0912345678",
+            identifier: "0912345678",
+            rememberMe: false,
             password: "secret1",
         }));
         expect(toast.error).toHaveBeenCalledWith("Sai mật khẩu");
@@ -120,20 +121,37 @@ describe('Login methods and form feedback', () => {
         getProviders.mockResolvedValue({ google: false });
         window.history.replaceState({}, '', '/login');
     });
+    it('submits an email with an explicit persistent-session choice', async () => {
+        handleLoginService.mockResolvedValueOnce({ errCode: 1, errMessage: 'Thử lại' });
+        renderLogin();
+        expect(screen.getByRole('checkbox', { name: /Ghi nhớ/ })).not.toBeChecked();
+        fireEvent.click(screen.getByRole('checkbox', { name: /Ghi nhớ/ }));
+        fillAndSubmit('  person@gmail.com  ', 'legacy1');
+        await waitFor(() => expect(handleLoginService).toHaveBeenCalledWith({ identifier: 'person@gmail.com', password: 'legacy1', rememberMe: true }));
+    });
+    it('only offers configured extra providers and carries remember-me into SSO', async () => {
+        getProviders.mockResolvedValueOnce({ google: false, github: true, auth0: false });
+        renderLogin();
+        const github = await screen.findByRole('button', { name: 'Đăng nhập bằng GitHub' });
+        expect(screen.queryByRole('button', { name: 'Đăng nhập bằng Auth0' })).toBeNull();
+        fireEvent.click(screen.getByRole('checkbox', { name: /Ghi nhớ/ }));
+        fireEvent.click(github);
+        expect(startSocialLogin).toHaveBeenCalledWith('github', { rememberMe: true });
+    });
     it('keeps Google visible and explains why it cannot be used before configuration', async () => {
         renderLogin();
         await screen.findByText(/Đăng nhập Google chưa được bật/);
         const google = screen.getByRole('button', { name: 'Đăng nhập bằng Google' });
         expect(google).toBeDisabled(); fireEvent.click(google);
-        expect(startGoogleLogin).not.toHaveBeenCalled();
+        expect(startSocialLogin).not.toHaveBeenCalled();
         expect(screen.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled();
     });
     it('checks empty fields without sending credentials and focuses the missing input', async () => {
         renderLogin();
         fireEvent.submit(screen.getByRole('form', { name: 'Đăng nhập JobFind' }));
-        expect(screen.getByText('Vui lòng nhập số điện thoại.')).toBeInTheDocument();
-        expect(screen.getByLabelText('Số điện thoại')).toHaveFocus();
-        fireEvent.change(screen.getByLabelText('Số điện thoại'), { target: { value: '0912345678' } });
+        expect(screen.getByText('Vui lòng nhập email hoặc số điện thoại.')).toBeInTheDocument();
+        expect(screen.getByLabelText('Email hoặc số điện thoại')).toHaveFocus();
+        fireEvent.change(screen.getByLabelText('Email hoặc số điện thoại'), { target: { value: '0912345678' } });
         fireEvent.submit(screen.getByRole('form'));
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveFocus();
         expect(handleLoginService).not.toHaveBeenCalled();
@@ -141,8 +159,8 @@ describe('Login methods and form feedback', () => {
     });
     it('supports phone/password autofill and toggles password visibility without submitting', async () => {
         renderLogin();
-        expect(screen.getByLabelText('Số điện thoại')).toHaveAttribute('type', 'tel');
-        expect(screen.getByLabelText('Số điện thoại')).toHaveAttribute('autocomplete', 'username');
+        expect(screen.getByLabelText('Email hoặc số điện thoại')).toHaveAttribute('type', 'text');
+        expect(screen.getByLabelText('Email hoặc số điện thoại')).toHaveAttribute('autocomplete', 'username');
         const password = screen.getByLabelText('Mật khẩu', { exact: true });
         expect(password).toHaveAttribute('autocomplete', 'current-password');
         fireEvent.change(password, { target: { value: 'not-a-real-password' } });
@@ -157,18 +175,18 @@ describe('Login methods and form feedback', () => {
     it('recovers provider lookup after failure while keeping local login available', async () => {
         getProviders.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ google: true });
         renderLogin();
-        await screen.findByText(/Chưa kiểm tra được đăng nhập Google/);
+        await screen.findByText(/Chưa kiểm tra được phương thức đăng nhập/);
         expect(screen.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled();
         fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
         await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeEnabled());
         fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập bằng Google' }));
-        expect(startGoogleLogin).toHaveBeenCalledTimes(1);
+        expect(startSocialLogin).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('button', { name: /Đang chuyển đến Google/ })).toBeDisabled();
     });
     it('treats a malformed provider response as a load error', async () => {
         getProviders.mockResolvedValueOnce({ google: 'true' });
         renderLogin();
-        await screen.findByText(/Chưa kiểm tra được đăng nhập Google/);
+        await screen.findByText(/Chưa kiểm tra được phương thức đăng nhập/);
         expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeDisabled();
     });
     it.each([
@@ -188,9 +206,9 @@ describe('Login methods and form feedback', () => {
         window.history.replaceState({}, '', '/login?sso=success');
         renderLogin();
         expect(screen.getByRole('button', { name: 'Đang xác thực...' })).toBeDisabled();
-        expect(screen.getByRole('status')).toHaveTextContent('Đang hoàn tất đăng nhập Google');
+        expect(screen.getByRole('status')).toHaveTextContent('Đang hoàn tất đăng nhập liên kết');
         rejectSso(new Error('invalid callback'));
-        await screen.findByText('Không thể hoàn tất đăng nhập Google. Vui lòng đăng nhập lại.');
+        await screen.findByText('Không thể hoàn tất đăng nhập liên kết. Vui lòng đăng nhập lại.');
         expect(screen.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled();
     });
     it('establishes the returned SSO session and consumes the remembered route', async () => {
@@ -210,9 +228,9 @@ describe('Login methods and form feedback', () => {
         } finally { consoleError.mockRestore(); }
     });
     it.each([
-        ['cancelled', /Bạn đã hủy đăng nhập Google/],
+        ['cancelled', /Bạn đã hủy đăng nhập bằng tài khoản liên kết/],
         ['not-linked', /Tài khoản Google này chưa liên kết/],
-        ['failed', /Không thể xác thực Google/]
+        ['failed', /Không thể xác thực tài khoản liên kết/]
     ])('explains SSO result %s without starting a new session', async (status, message) => {
         window.history.replaceState({}, '', '/login?sso=' + status);
         renderLogin(); expect(screen.getByText(message)).toBeInTheDocument();

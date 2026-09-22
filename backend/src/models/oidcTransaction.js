@@ -2,6 +2,7 @@
 module.exports = (sequelize, DataTypes) => sequelize.define('OidcTransaction', {
   stateHash: { type: DataTypes.STRING(64), primaryKey: true },
   provider: { type: DataTypes.STRING(40), allowNull: false },
+  rememberMe: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   verifier: { type: DataTypes.STRING(128), allowNull: false },
   nonce: { type: DataTypes.STRING(128), allowNull: false },
   expiresAt: { type: DataTypes.DATE, allowNull: false },

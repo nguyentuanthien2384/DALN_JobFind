@@ -106,6 +106,7 @@ const aiLimiter = createRateLimiter({ name: 'ai', windowSeconds: 3600, max: 30, 
 // Dat rieng tai day de moi IP co toi da 10 lan dang nhap that bai / 15 phut.
 mountLoginRateLimit(app, loginLimiter, createRateLimiter({ name: 'auth-refresh', windowSeconds: 60, max: 120, failClosed: true }));
 app.post('/api/auth/identities/:identityId/unlink', ssoLimiter);
+app.post('/api/auth/sso/signup', createRateLimiter({ name: 'social-signup', windowSeconds: 3600, max: 10, failClosed: true }));
 app.get('/api/auth/sso/:provider/start', ssoLimiter);
 app.post('/api/auth/sso/:provider/link/start', ssoLimiter);
 app.get('/api/auth/sso/:provider/callback', ssoLimiter);

@@ -38,10 +38,10 @@ const enterValidReset = () => {
         target: { name: "otp", value: "123456" },
     });
     fireEvent.change(screen.getByPlaceholderText("Mật khẩu mới"), {
-        target: { name: "newPassword", value: "secret1" },
+        target: { name: "newPassword", value: "secret12" },
     });
     fireEvent.change(screen.getByPlaceholderText("Xác nhận mật khẩu"), {
-        target: { name: "confirmPassword", value: "secret1" },
+        target: { name: "confirmPassword", value: "secret12" },
     });
 };
 
@@ -158,14 +158,14 @@ describe("ForgetPassword", () => {
         });
         fireEvent.click(screen.getByText("Xác nhận"));
         expect(
-            screen.getByText(/Mật khẩu không có ký tự đặt biệt/)
+            screen.getByText(/Mật khẩu cần ít nhất 8 ký tự/)
         ).toBeInTheDocument();
 
         fireEvent.change(screen.getByPlaceholderText("Mật khẩu mới"), {
-            target: { name: "newPassword", value: "secret1" },
+            target: { name: "newPassword", value: "secret12" },
         });
         fireEvent.change(screen.getByPlaceholderText("Xác nhận mật khẩu"), {
-            target: { name: "confirmPassword", value: "secret2" },
+            target: { name: "confirmPassword", value: "secret23" },
         });
         fireEvent.click(screen.getByText("Xác nhận"));
         expect(screen.getByText("Mật khẩu nhập lại không trùng")).toBeInTheDocument();
@@ -186,7 +186,7 @@ describe("ForgetPassword", () => {
         await waitFor(() =>
             expect(changePasswordByphone).toHaveBeenCalledWith({
                 phonenumber: phone,
-                password: "secret1",
+                password: "secret12",
                 otp: "123456",
             })
         );
@@ -207,7 +207,7 @@ describe("ForgetPassword", () => {
         await waitFor(() =>
             expect(handleLoginService).toHaveBeenCalledWith({
                 phonenumber: phone,
-                password: "secret1",
+                password: "secret12",
             })
         );
         expect(toast.success).toHaveBeenCalledWith("Đổi mật khẩu thành công");

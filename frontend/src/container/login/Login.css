@@ -56,3 +56,20 @@
 @media (max-width: 760px) { .jf-login { padding: 12px 16px; } .jf-login__shell { max-width: 440px; grid-template-columns: 1fr; border-radius: 16px; } .jf-login__form-panel { padding: 24px; } .jf-login__input input { font-size: 16px; } }
 @media (max-height: 740px) { .jf-login { padding-top: 10px; padding-bottom: 8px; } .jf-login__form-panel { padding-top: 18px; padding-bottom: 18px; } .jf-login__heading { margin-bottom: 12px; } .jf-login__divider { margin: 10px 0; } .jf-login__register { margin-top: 12px; } .jf-login-page__footer { padding-top: 4px; padding-bottom: 8px; } }
 @media (prefers-reduced-motion: reduce) { .jf-login *, .jf-login *::before, .jf-login *::after { transition: none !important; animation: none !important; } }
+
+.jf-login__social-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.jf-login__social-buttons > .jf-login__google { flex: 1 1 0; min-width: 0; padding: 8px; gap: 7px; }
+.jf-login__provider-icon { font: 750 15px/1 system-ui; }
+.jf-login__provider-icon--google { color: #4285f4; }
+.jf-login__provider-icon--github { color: #24292f; font-size: 12px; }
+.jf-login__provider-icon--auth0 { color: #eb5424; }
+.jf-login__remember { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; color: #66728a; font-size: 11px; cursor: pointer; }
+.jf-login__remember input { width: 15px; height: 15px; margin: 0; accent-color: #5549ac; }
+.jf-register__recover { display: flex; align-items: center; gap: 12px; font-size: 12px; margin: 12px 0; }
+.jf-login__input input[readonly] { color: #75809a; }
+@media (max-width: 760px) and (max-height: 740px) {
+    .jf-login__form-panel { padding-top: 14px; padding-bottom: 14px; }
+    .jf-login__heading { margin-bottom: 10px; }
+    .jf-login__field { margin-bottom: 10px; }
+    .jf-login__register { margin-top: 10px; }
+}

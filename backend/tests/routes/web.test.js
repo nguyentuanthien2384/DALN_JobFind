@@ -115,6 +115,7 @@ describe('web routes', () => {
     const exceptions = new Set([
       'post:/api/auth/login', 'post:/api/auth/refresh', 'post:/api/auth/logout',
       'get:/api/auth/providers', 'get:/api/auth/sso/:provider/start', 'get:/api/auth/sso/:provider/callback',
+      'get:/api/auth/sso/signup', 'post:/api/auth/sso/signup',
       'post:/api/create-new-user', 'post:/api/login',
       'get:/api/check-phonenumber-user', 'post:/api/request-reset-password-otp',
       'post:/api/changepasswordbyPhone', 'get:/api/get-all-code',
@@ -134,6 +135,15 @@ describe('web routes', () => {
       expect(authIndex).toBeGreaterThanOrEqual(0);
       expect(route.handlers[authIndex + 1]?.permission).toEqual(expect.any(String));
     }
+  });
+
+  test('social onboarding uses its cookie-bound controllers and requires an allowed origin before account creation', () => {
+    const authController = require('../../src/controllers/authController');
+    const signupRoutes = [...mockRoutes].reverse().filter(route => route.path === '/api/auth/sso/signup');
+    expect(signupRoutes.find(route => route.method === 'get').handlers).toEqual([authController.signupProfile]);
+    expect(signupRoutes.find(route => route.method === 'post').handlers).toEqual([
+      mockRegisterLimiter, authController.cookieOrigin, authController.completeSocialSignup
+    ]);
   });
 
   test('internal notification endpoint fails closed when secret is missing/wrong', () => {

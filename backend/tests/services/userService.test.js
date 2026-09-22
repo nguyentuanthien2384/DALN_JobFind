@@ -5,8 +5,11 @@ const model = () => ({
 });
 const mockDb = {
   User: model(), Account: model(), UserSetting: model(), UserSkill: model(),
-  Allcode: {}, Skill: {}
+  Allcode: {}, Skill: {}, sequelize: { transaction: jest.fn(), query: jest.fn() }
 };
+const mockTransaction = { LOCK: { UPDATE: 'UPDATE' } };
+const mockRollback = jest.fn();
+const mockCommit = jest.fn();
 const mockBcrypt = {
   genSaltSync: jest.fn(() => 'salt'), hashSync: jest.fn(), compareSync: jest.fn()
 };
@@ -33,6 +36,13 @@ const reset = () => {
     for (const fn of Object.values(item)) if (jest.isMockFunction(fn)) fn.mockReset();
   }
   for (const fn of [mockBcrypt.hashSync, mockBcrypt.compareSync, mockEncodeToken, mockUpload, mockIssueOtp, mockVerifyOtp, mockClearOtp, mockSendMail]) fn.mockReset();
+  mockRollback.mockReset();
+  mockCommit.mockReset();
+  mockDb.sequelize.transaction.mockImplementation(async (_options, work) => {
+    try { const result = await work(mockTransaction); mockCommit(); return result; }
+    catch (error) { mockRollback(); throw error; }
+  });
+  mockDb.User.findAll.mockResolvedValue([]);
   mockBcrypt.hashSync.mockReturnValue('hashed');
   mockEncodeToken.mockReturnValue('token');
   process.env.EMAIL_APP = 'fixture@example.invalid';
@@ -41,8 +51,8 @@ const reset = () => {
 };
 
 const validUser = (extra = {}) => ({
-  phonenumber: '0901', firstName: 'An', lastName: 'Nguyen', roleCode: 'CANDIDATE',
-  password: 'secret1', email: 'an@candidate.vn', ...extra
+  phonenumber: '0901234567', firstName: 'An', lastName: 'Nguyen', roleCode: 'CANDIDATE',
+  password: 'secret12', email: 'an@candidate.vn', ...extra
 });
 
 describe('userService', () => {
@@ -74,10 +84,10 @@ describe('userService', () => {
     mockDb.User.create.mockResolvedValue({ id: 7 });
     const result = await service.handleCreateNewUser(validUser({ image: 'data', email: '  An@Candidate.VN  ' }));
     expect(result.errCode).toBe(0);
-    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ image: 'avatar', email: 'an@candidate.vn' }));
+    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ image: 'avatar', email: 'an@candidate.vn' }), { transaction: mockTransaction });
     expect(mockDb.Account.create).toHaveBeenCalledWith(expect.objectContaining({
-      phonenumber: '0901', password: 'hashed', roleCode: 'CANDIDATE', userId: 7
-    }));
+      phonenumber: '0901234567', password: 'hashed', roleCode: 'CANDIDATE', userId: 7
+    }), { transaction: mockTransaction });
   });
 
   test('public registration cannot inject a company tenant id', async () => {
@@ -87,7 +97,7 @@ describe('userService', () => {
       roleCode: 'EMPLOYER', companyId: 999
     }));
     expect(result.errCode).toBe(0);
-    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ companyId: null }));
+    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ companyId: null }), { transaction: mockTransaction });
   });
 
   test('company creator forces its own company id and emails generated passwords to a normalized address', async () => {
@@ -100,7 +110,7 @@ describe('userService', () => {
     expect((await service.handleCreateNewUser(payload)).errCode).toBe(0);
     expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({
       companyId: 12, email: 'new.hire@candidate.vn'
-    }));
+    }), { transaction: mockTransaction });
     expect(mockSendMail).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'new.hire@candidate.vn' }), expect.any(Function)
     );
@@ -141,14 +151,14 @@ describe('userService', () => {
     await service.handleCreateNewUser(validUser({
       creatorRoleCode: 'ADMIN', roleCode: 'EMPLOYER', companyId: 12
     }));
-    expect(mockDb.User.create).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: 12 }));
+    expect(mockDb.User.create).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: 12 }), { transaction: mockTransaction });
 
     mockDb.Account.findOne.mockResolvedValue(null);
     mockDb.User.create.mockResolvedValue({ id: 11 });
     await service.handleCreateNewUser(validUser({
       creatorRoleCode: 'ADMIN', roleCode: 'CANDIDATE', companyId: 12
     }));
-    expect(mockDb.User.create).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: null }));
+    expect(mockDb.User.create).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: null }), { transaction: mockTransaction });
   });
 
   test.each([
@@ -257,14 +267,14 @@ describe('userService', () => {
   test('password reset validates strength/account/OTP then saves a hash', async () => {
     expect((await service.changePaswordByPhone({ phonenumber: '0901', password: '123', otp: '1' })).errCode).toBe(5);
     mockDb.Account.findOne.mockResolvedValueOnce(null);
-    expect((await service.changePaswordByPhone({ phonenumber: '0901', password: '123456', otp: '1' })).errCode).toBe(1);
+    expect((await service.changePaswordByPhone({ phonenumber: '0901', password: '12345678', otp: '1' })).errCode).toBe(1);
     const account = { password: 'old', save: jest.fn() };
     mockDb.Account.findOne.mockResolvedValueOnce(account);
     mockVerifyOtp.mockReturnValueOnce({ valid: false, errMessage: 'bad otp' });
-    expect((await service.changePaswordByPhone({ phonenumber: '0901', password: '123456', otp: '1' })).errCode).toBe(2);
+    expect((await service.changePaswordByPhone({ phonenumber: '0901', password: '12345678', otp: '1' })).errCode).toBe(2);
     mockDb.Account.findOne.mockResolvedValueOnce(account);
     mockVerifyOtp.mockReturnValueOnce({ valid: true });
-    expect((await service.changePaswordByPhone({ phonenumber: '0901', password: '123456', otp: '1' })).errCode).toBe(0);
+    expect((await service.changePaswordByPhone({ phonenumber: '0901', password: '12345678', otp: '1' })).errCode).toBe(0);
     expect(account.password).toBe('hashed');
     expect(account.save).toHaveBeenCalled();
   });
@@ -287,15 +297,15 @@ describe('userService', () => {
     mockDb.Account.findOne.mockResolvedValueOnce(null); // check phone
     expect((await service.handleLogin({ phonenumber: '0901', password: 'x' })).errCode).toBe(2);
 
-    mockDb.Account.findOne.mockResolvedValueOnce({ id: 1 }).mockResolvedValueOnce({ password: 'hash', statusCode: 'S1' });
+    mockDb.Account.findOne.mockResolvedValueOnce({ password: 'hash', statusCode: 'S1' });
     mockBcrypt.compareSync.mockReturnValueOnce(false);
     expect((await service.handleLogin({ phonenumber: '0901', password: 'x' })).errCode).toBe(2);
 
-    mockDb.Account.findOne.mockResolvedValueOnce({ id: 1 }).mockResolvedValueOnce({ password: 'hash', statusCode: 'S2' });
+    mockDb.Account.findOne.mockResolvedValueOnce({ password: 'hash', statusCode: 'S2' });
     mockBcrypt.compareSync.mockReturnValueOnce(true);
     expect((await service.handleLogin({ phonenumber: '0901', password: 'x' })).errCode).toBe(1);
 
-    mockDb.Account.findOne.mockResolvedValueOnce({ id: 1 }).mockResolvedValueOnce({
+    mockDb.Account.findOne.mockResolvedValueOnce({
       password: 'hash', statusCode: 'S1', userId: 7, roleCode: 'EMPLOYER'
     });
     mockBcrypt.compareSync.mockReturnValueOnce(true);
@@ -307,14 +317,14 @@ describe('userService', () => {
 
   test('authenticated password change handles missing account, wrong password and success', async () => {
     mockDb.Account.findOne.mockResolvedValueOnce(null);
-    expect((await service.handleChangePassword({ id: 7, password: 'newpass', oldpassword: 'old' })).errCode).toBe(3);
+    expect((await service.handleChangePassword({ id: 7, password: 'newpass1', oldpassword: 'old' })).errCode).toBe(3);
     const account = { password: 'hash', save: jest.fn() };
     mockDb.Account.findOne.mockResolvedValueOnce(account);
     mockBcrypt.compareSync.mockReturnValueOnce(false);
-    expect((await service.handleChangePassword({ id: 7, password: 'newpass', oldpassword: 'bad' })).errCode).toBe(2);
+    expect((await service.handleChangePassword({ id: 7, password: 'newpass1', oldpassword: 'bad' })).errCode).toBe(2);
     mockDb.Account.findOne.mockResolvedValueOnce(account);
     mockBcrypt.compareSync.mockReturnValueOnce(true);
-    expect((await service.handleChangePassword({ id: 7, password: 'newpass', oldpassword: 'old' })).errCode).toBe(0);
+    expect((await service.handleChangePassword({ id: 7, password: 'newpass1', oldpassword: 'old' })).errCode).toBe(0);
     expect(account.password).toBe('hashed');
   });
 
@@ -358,9 +368,9 @@ describe('userService', () => {
       ['banUser', 7, mockDb.User, 'findOne'], ['unbanUser', 7, mockDb.User, 'findOne'],
       ['updateUserData', { id: 7, email: 'user@candidate.vn' }, mockDb.User, 'findOne'],
       ['requestResetPasswordOtp', { phonenumber: 'x' }, mockDb.Account, 'findOne'],
-      ['changePaswordByPhone', { phonenumber: 'x', password: '123456', otp: '1' }, mockDb.Account, 'findOne'],
+      ['changePaswordByPhone', { phonenumber: 'x', password: '12345678', otp: '1' }, mockDb.Account, 'findOne'],
       ['handleLogin', { phonenumber: 'x', password: 'x' }, mockDb.Account, 'findOne'],
-      ['handleChangePassword', { id: 7, password: 'x', oldpassword: 'y' }, mockDb.Account, 'findOne'],
+      ['handleChangePassword', { id: 7, password: 'newpass1', oldpassword: 'y' }, mockDb.Account, 'findOne'],
       ['getAllUser', { limit: 1, offset: 0 }, mockDb.Account, 'findAndCountAll'],
       ['getDetailUserById', 7, mockDb.Account, 'findOne'],
       ['setDataUserSetting', { id: 7, data: {} }, mockDb.User, 'findOne']
@@ -369,5 +379,135 @@ describe('userService', () => {
       target[dbMethod].mockRejectedValueOnce(new Error('db'));
       await expect(service[method](arg)).rejects.toBeTruthy();
     }
+  });
+
+  test('email login normalizes case and preserves short legacy passwords', async () => {
+    mockDb.User.findAll.mockResolvedValue([{ id: 7 }]);
+    mockDb.Account.findOne.mockResolvedValue({ userId: 7, password: 'hash', statusCode: 'S1', roleCode: 'CANDIDATE' });
+    mockDb.User.findOne.mockResolvedValue({ id: 7, email: 'an@candidate.vn' });
+    mockBcrypt.compareSync.mockReturnValue(true);
+    expect((await service.handleLogin({ identifier: '  AN@CANDIDATE.VN  ', password: 'old' })).errCode).toBe(0);
+    expect(mockDb.User.findAll.mock.calls[0][0].where.logic).toBe('an@candidate.vn');
+    expect(mockDb.Account.findOne).toHaveBeenCalledWith({ where: { userId: 7 }, raw: true });
+    expect(mockBcrypt.compareSync).toHaveBeenCalledWith('old', 'hash');
+  });
+
+  test.each(['identifier', 'email'])('accepts an email through %s while legacy phone payload still works', async field => {
+    mockDb.User.findAll.mockResolvedValue([{ id: 7 }]);
+    mockDb.Account.findOne.mockResolvedValue({ userId: 7, password: 'hash', statusCode: 'S1', roleCode: 'EMPLOYER' });
+    mockDb.User.findOne.mockResolvedValue({ id: 7, companyId: 4 });
+    mockBcrypt.compareSync.mockReturnValue(true);
+    expect((await service.handleLogin({ [field]: 'an@candidate.vn', password: 'old' })).errCode).toBe(0);
+    expect((await service.handleLogin({ phonenumber: '0901', password: 'old' })).errCode).toBe(0);
+  });
+
+  test.each([{ matches: [] }, { matches: [{ id: 7 }, { id: 8 }] }])('denies missing and ambiguous legacy email with the same generic response', async ({ matches }) => {
+    mockDb.User.findAll.mockResolvedValue(matches);
+    const result = await service.handleLogin({ identifier: 'same@candidate.vn', password: 'correct' });
+    expect(result).toEqual({ errCode: 2, errMessage: 'Email, số điện thoại hoặc mật khẩu không chính xác' });
+    expect(mockDb.Account.findOne).not.toHaveBeenCalled();
+    expect(mockBcrypt.compareSync).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { identifier: {} }, { identifier: ['0901'] }, { identifier: 901 }, { identifier: ' ' },
+    { identifier: 'a'.repeat(255) }, { identifier: '0901', password: {} },
+    { identifier: '0901', password: 'á'.repeat(513) }
+  ])('rejects malformed login before querying the database: %p', payload => {
+    return service.handleLogin({ password: 'old', ...payload }).then(result => {
+      expect(result.errCode).toBe(2);
+      expect(mockDb.User.findAll).not.toHaveBeenCalled();
+      expect(mockDb.Account.findOne).not.toHaveBeenCalled();
+    });
+  });
+
+  test.each([undefined, '', '1234567', 'á'.repeat(37)])('public registration requires a valid password: %p', password => {
+    return service.handleCreateNewUser(validUser({ password })).then(result => {
+      expect(result.fieldErrors.password).toBeTruthy();
+      expect(mockDb.sequelize.transaction).not.toHaveBeenCalled();
+      expect(mockSendMail).not.toHaveBeenCalled();
+    });
+  });
+
+  test('rejects an existing normalized email inside the credential transaction', async () => {
+    mockDb.User.findAll.mockResolvedValue([{ id: 8 }]);
+    const result = await service.handleCreateNewUser(validUser({ email: ' SAME@CANDIDATE.VN ' }));
+    expect(result.errCode).toBe(4);
+    expect(result.fieldErrors.email).toBeTruthy();
+    expect(mockDb.User.create).not.toHaveBeenCalled();
+    expect(mockDb.Account.create).not.toHaveBeenCalled();
+    expect(mockRollback).toHaveBeenCalledTimes(1);
+  });
+
+  test('locks hashed credentials in a stable order and inserts both rows in the supplied transaction', async () => {
+    const outerTransaction = { LOCK: { UPDATE: 'UPDATE' }, marker: 'outer' };
+    mockDb.User.create.mockResolvedValue({ id: 91 });
+    const user = await service.createRegisteredAccount(validUser({ firstName: ' An ', lastName: ' Nguyễn ' }), { transaction: outerTransaction });
+    expect(user.id).toBe(91);
+    expect(mockDb.sequelize.transaction).not.toHaveBeenCalled();
+    const keys = mockDb.sequelize.query.mock.calls.map(call => call[1].replacements.key);
+    expect(keys).toHaveLength(2);
+    expect(keys).toEqual([...keys].sort());
+    for (const key of keys) expect(key).toMatch(/^[0-9a-f]{64}$/);
+    for (const call of mockDb.sequelize.query.mock.calls) expect(call[1].transaction).toBe(outerTransaction);
+    expect(mockDb.User.create).toHaveBeenCalledWith(expect.objectContaining({ firstName: 'An', lastName: 'Nguyễn', companyId: null }), { transaction: outerTransaction });
+    expect(mockDb.Account.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 91 }), { transaction: outerTransaction });
+  });
+
+  test('rolls back User insertion when Account creation fails', async () => {
+    mockDb.User.create.mockResolvedValue({ id: 92 });
+    mockDb.Account.create.mockRejectedValue(new Error('account write failed'));
+    await expect(service.createRegisteredAccount(validUser())).rejects.toThrow('account write failed');
+    expect(mockRollback).toHaveBeenCalledTimes(1);
+    expect(mockCommit).not.toHaveBeenCalled();
+    expect(mockDb.User.create.mock.calls[0][1]).toEqual({ transaction: mockTransaction });
+    expect(mockDb.Account.create.mock.calls[0][1]).toEqual({ transaction: mockTransaction });
+  });
+
+  test('retries owned transactions on deadlock and does not retry a supplied transaction', async () => {
+    const deadlock = Object.assign(new Error('deadlock'), { original: { errno: 1213 } });
+    mockDb.sequelize.query.mockRejectedValueOnce(deadlock).mockResolvedValue(undefined);
+    mockDb.User.create.mockResolvedValue({ id: 93 });
+    expect((await service.createRegisteredAccount(validUser())).id).toBe(93);
+    expect(mockDb.sequelize.transaction).toHaveBeenCalledTimes(2);
+    expect(mockRollback).toHaveBeenCalledTimes(1);
+    mockDb.sequelize.query.mockRejectedValueOnce(deadlock);
+    await expect(service.createRegisteredAccount(validUser(), { transaction: mockTransaction })).rejects.toThrow('deadlock');
+    expect(mockDb.sequelize.transaction).toHaveBeenCalledTimes(2);
+  });
+
+  test('blocks assigning a duplicate email during a profile update', async () => {
+    const user = { id: 7, email: 'old@candidate.vn', save: jest.fn() };
+    const account = { roleCode: 'CANDIDATE', save: jest.fn() };
+    mockDb.User.findOne.mockResolvedValue(user);
+    mockDb.Account.findOne.mockResolvedValue(account);
+    mockDb.User.findAll.mockResolvedValue([{ id: 8 }]);
+    const result = await service.updateUserData({ id: 7, email: ' TAKEN@CANDIDATE.VN ' });
+    expect(result.errCode).toBe(4);
+    expect(result.fieldErrors.email).toBeTruthy();
+    expect(user.email).toBe('old@candidate.vn');
+    expect(user.save).not.toHaveBeenCalled();
+    expect(account.save).not.toHaveBeenCalled();
+    expect(mockRollback).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps an existing legacy email when editing unrelated profile fields', async () => {
+    const user = { id: 7, email: 'DUPLICATE@candidate.vn', save: jest.fn() };
+    mockDb.User.findOne.mockResolvedValue(user);
+    mockDb.Account.findOne.mockResolvedValue({ roleCode: 'CANDIDATE', save: jest.fn() });
+    expect((await service.updateUserData({ id: 7, firstName: 'Changed', email: ' duplicate@candidate.vn ' })).errCode).toBe(0);
+    expect(mockDb.User.findAll).not.toHaveBeenCalled();
+    expect(user.email).toBe('duplicate@candidate.vn');
+  });
+
+  test.each(['1234567', 'á'.repeat(37), {}])('password change and reset enforce the same policy before database access: %p', password => {
+    return Promise.all([
+      service.handleChangePassword({ id: 7, oldpassword: 'legacy', password }),
+      service.changePaswordByPhone({ phonenumber: '0901', otp: '123456', password })
+    ]).then(results => {
+      for (const result of results) expect(result.fieldErrors.password).toBeTruthy();
+      expect(mockDb.Account.findOne).not.toHaveBeenCalled();
+      expect(mockVerifyOtp).not.toHaveBeenCalled();
+    });
   });
 });

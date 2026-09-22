@@ -1,8 +1,9 @@
+jest.mock('../../auth/authClient', () => ({ ...jest.requireActual('../../auth/authClient'), getProviders: jest.fn(), getSocialSignup: jest.fn(), completeSocialSignup: jest.fn(), startSocialLogin: jest.fn() }));
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { toast } from 'react-toastify';
 import { createNewUser, handleLoginService } from '../../service/userService';
-import { getAccessTokenSync } from '../../auth/authClient';
+import { getAccessTokenSync, getProviders, getSocialSignup, completeSocialSignup, startSocialLogin } from '../../auth/authClient';
 import Register from './Register';
 
 jest.mock('../../service/userService', () => ({
@@ -12,7 +13,7 @@ jest.mock('../../service/userService', () => ({
 jest.mock('react-toastify', () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
 jest.mock('react-router-dom', () => {
     const React = require('react');
-    return { Link: ({ to, children, ...props }) => React.createElement('a', { href: to, ...props }, children) };
+    return { Link: ({ to, children, reloadDocument, ...props }) => React.createElement('a', { href: to, ...props }, children) };
 });
 
 const change = (label, value) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
@@ -23,7 +24,7 @@ const fillProfile = ({ role = 'CANDIDATE', email = '  Lan@Gmail.com  ' } = {}) =
     change('Email', email);
 };
 const nextStep = () => fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/ }));
-const fillAccount = ({ phone = '0912345678', password = 'secret1', confirmation = password } = {}) => {
+const fillAccount = ({ phone = '0912345678', password = 'secret12', confirmation = password } = {}) => {
     change('Số điện thoại', phone);
     change('Mật khẩu', password);
     change('Nhập lại mật khẩu', confirmation);
@@ -36,14 +37,17 @@ const completeForm = (options = {}) => {
 };
 
 describe('Register', () => {
+    afterEach(async () => { await act(async () => {}); });
     beforeEach(() => {
         localStorage.clear();
         jest.resetAllMocks();
+        getProviders.mockResolvedValue({ google: false, github: false, auth0: false });
         window.history.replaceState({}, '', '/register');
     });
 
-    it('offers only the two public roles and shows profile fields before credentials', () => {
+    it('offers only the two public roles and shows profile fields before credentials', async () => {
         render(<Register />);
+        await act(async () => {});
         expect(screen.getAllByRole('radio')).toHaveLength(2);
         expect(screen.getByRole('radio', { name: /Ứng viên/ })).toBeChecked();
         expect(screen.getByRole('radio', { name: /Nhà tuyển dụng/ })).not.toBeChecked();
@@ -54,8 +58,9 @@ describe('Register', () => {
         expect(screen.queryByRole('button', { name: /Google/ })).not.toBeInTheDocument();
     });
 
-    it('validates only the current step and focuses the first invalid field', () => {
+    it('validates only the current step and focuses the first invalid field', async () => {
         render(<Register />);
+        await act(async () => {});
         nextStep();
         expect(screen.getAllByText('Không được để trống.')).toHaveLength(3);
         expect(screen.getByLabelText('Họ', { exact: true })).toHaveFocus();
@@ -72,8 +77,9 @@ describe('Register', () => {
         expect(createNewUser).not.toHaveBeenCalled();
     });
 
-    it('preserves profile and credential values when returning and hides revealed passwords', () => {
+    it('preserves profile and credential values when returning and hides revealed passwords', async () => {
         render(<Register />);
+        await act(async () => {});
         completeForm({ role: 'EMPLOYER' });
         expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveAttribute('type', 'tel');
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveAttribute('autocomplete', 'new-password');
@@ -81,25 +87,27 @@ describe('Register', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Hiện mật khẩu nhập lại', exact: true }));
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveAttribute('type', 'text');
         fireEvent.click(screen.getByRole('button', { name: /Quay lại/ }));
+        await act(async () => {});
         expect(screen.getByRole('radio', { name: /Nhà tuyển dụng/ })).toBeChecked();
         expect(screen.getByLabelText('Họ', { exact: true })).toHaveValue('  Nguyen  ');
         nextStep();
         expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveValue('0912345678');
-        expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveValue('secret1');
+        expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveValue('secret12');
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveAttribute('type', 'password');
         expect(screen.getByLabelText('Nhập lại mật khẩu', { exact: true })).toHaveAttribute('type', 'password');
         expect(createNewUser).not.toHaveBeenCalled();
     });
 
-    it('rejects an invalid phone, the existing password policy, and confirmation mismatch', () => {
+    it('rejects an invalid phone, the existing password policy, and confirmation mismatch', async () => {
         render(<Register />);
+        await act(async () => {});
         completeForm({ phone: '123', password: 'bad!', confirmation: 'other' });
         submit();
         expect(screen.getByText('Số điện thoại cần đủ 10 chữ số.')).toBeInTheDocument();
-        expect(screen.getByText('Dùng 6–20 ký tự, chỉ gồm chữ không dấu hoặc số.')).toBeInTheDocument();
+        expect(screen.getByText('Mật khẩu cần ít nhất 8 ký tự.')).toBeInTheDocument();
         expect(screen.getByText('Mật khẩu nhập lại chưa trùng khớp.')).toBeInTheDocument();
-        change('Mật khẩu', 'other12');
-        change('Nhập lại mật khẩu', 'other12');
+        change('Mật khẩu', 'other123');
+        change('Nhập lại mật khẩu', 'other123');
         expect(screen.queryByText('Mật khẩu nhập lại chưa trùng khớp.')).not.toBeInTheDocument();
         expect(createNewUser).not.toHaveBeenCalled();
     });
@@ -109,6 +117,7 @@ describe('Register', () => {
         createNewUser.mockImplementationOnce(() => new Promise((resolve, reject) => { rejectRequest = reject; }));
         createNewUser.mockResolvedValueOnce({ errCode: 2, errMessage: 'Chưa thể tạo tài khoản lúc này.' });
         render(<Register />);
+        await act(async () => {});
         completeForm();
         submit();
         submit();
@@ -119,7 +128,7 @@ describe('Register', () => {
         await act(async () => { rejectRequest(new Error('network unavailable')); });
         expect(screen.getByRole('alert')).toHaveTextContent('Chưa xác nhận được kết quả tạo tài khoản');
         expect(screen.getByRole('button', { name: /Tạo tài khoản/ })).toBeEnabled();
-        expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveValue('secret1');
+        expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveValue('secret12');
         submit();
         await screen.findByText('Chưa thể tạo tài khoản lúc này.');
         expect(createNewUser).toHaveBeenCalledTimes(2);
@@ -129,6 +138,7 @@ describe('Register', () => {
     it('places a duplicate-phone error on its field without losing the entered profile', async () => {
         createNewUser.mockResolvedValue({ errCode: 1, errMessage: 'Số điện thoại đã tồn tại !' });
         render(<Register />);
+        await act(async () => {});
         completeForm();
         submit();
         await waitFor(() => expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveAttribute('aria-invalid', 'true'));
@@ -138,12 +148,14 @@ describe('Register', () => {
         expect(screen.queryByText('Số điện thoại đã tồn tại !')).not.toBeInTheDocument();
         expect(handleLoginService).not.toHaveBeenCalled();
         fireEvent.click(screen.getByRole('button', { name: /Quay lại/ }));
+        await act(async () => {});
         expect(screen.getByLabelText('Tên', { exact: true })).toHaveValue('  Lan  ');
     });
 
     it('returns to the profile step when the backend rejects an email', async () => {
         createNewUser.mockResolvedValue({ errCode: 4, errMessage: 'Email không hợp lệ hoặc không thể nhận thư' });
         render(<Register />);
+        await act(async () => {});
         completeForm();
         submit();
         const email = await screen.findByLabelText('Email', { exact: true });
@@ -164,15 +176,16 @@ describe('Register', () => {
         const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
         try {
             render(<Register />);
+        await act(async () => {});
             completeForm({ role: roleCode });
             submit();
             await waitFor(() => expect(localStorage.getItem('token_user')).toMatch(/^jf-session:/));
             expect(createNewUser).toHaveBeenCalledTimes(1);
             expect(createNewUser).toHaveBeenCalledWith({
                 firstName: 'Nguyen', lastName: 'Lan', email: 'lan@gmail.com',
-                phonenumber: '0912345678', roleCode, password: 'secret1',
+                phonenumber: '0912345678', roleCode, password: 'secret12',
             });
-            expect(handleLoginService).toHaveBeenCalledWith({ phonenumber: '0912345678', password: 'secret1' });
+            expect(handleLoginService).toHaveBeenCalledWith({ identifier: '0912345678', password: 'secret12', rememberMe: false });
             expect(toast.success).toHaveBeenCalledWith('Tạo tài khoản thành công');
             expect(JSON.parse(localStorage.getItem('userData'))).toEqual(user);
             expect(getAccessTokenSync()).toBe('new-token');
@@ -185,6 +198,7 @@ describe('Register', () => {
         if (failure === 'rejected') handleLoginService.mockResolvedValue({ errCode: 1, errMessage: 'Login failed' });
         else handleLoginService.mockRejectedValue(new Error('network unavailable'));
         render(<Register />);
+        await act(async () => {});
         completeForm();
         const form = screen.getByRole('form', { name: 'Đăng ký JobFind' });
         submit();
@@ -203,6 +217,7 @@ describe('Register', () => {
         let finish;
         createNewUser.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
         const { unmount } = render(<Register />);
+        await act(async () => {});
         completeForm();
         submit();
         unmount();
@@ -210,5 +225,62 @@ describe('Register', () => {
         expect(handleLoginService).not.toHaveBeenCalled();
         expect(toast.success).not.toHaveBeenCalled();
         expect(localStorage.getItem('token_user')).toBeNull();
+    });
+
+    it('starts registration only with a configured social provider', async () => {
+        getProviders.mockResolvedValueOnce({ google: false, github: true, auth0: false });
+        render(<Register />);
+        await act(async () => {});
+        fireEvent.click(await screen.findByRole('button', { name: 'Đăng ký bằng GitHub' }));
+        expect(startSocialLogin).toHaveBeenCalledWith('github', { rememberMe: false });
+        expect(screen.queryByRole('button', { name: 'Đăng ký bằng Auth0' })).toBeNull();
+    });
+
+    it('completes pending social signup with locked email, a public role and one server session', async () => {
+        window.history.replaceState({}, '', '/register?sso=complete');
+        getSocialSignup.mockResolvedValue({ errCode: 0, profile: { provider: 'github', email: 'lan@gmail.com', firstName: 'Nguyen', lastName: 'Lan' } });
+        completeSocialSignup.mockResolvedValue({ errCode: 0, token: 'social-token', user: { id: 30, roleCode: 'CANDIDATE' } });
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            render(<Register />);
+        await act(async () => {});
+            const email = await screen.findByLabelText('Email', { exact: true });
+            expect(email).toHaveAttribute('readonly');
+            fireEvent.change(email, { target: { value: 'attacker@gmail.com' } });
+            expect(email).toHaveValue('lan@gmail.com');
+            nextStep(); fillAccount({ password: 'Mật khẩu 😀!' }); submit();
+            await waitFor(() => expect(getAccessTokenSync()).toBe('social-token'));
+            expect(completeSocialSignup).toHaveBeenCalledWith({ firstName: 'Nguyen', lastName: 'Lan', phonenumber: '0912345678', password: 'Mật khẩu 😀!', roleCode: 'CANDIDATE' });
+            expect(createNewUser).not.toHaveBeenCalled();
+            expect(handleLoginService).not.toHaveBeenCalled();
+        } finally { consoleError.mockRestore(); }
+    });
+
+    it('keeps social validation errors editable and does not retry an account already created', async () => {
+        window.history.replaceState({}, '', '/register?sso=complete');
+        getSocialSignup.mockResolvedValue({ errCode: 0, profile: { provider: 'google', email: 'lan@gmail.com', firstName: 'Nguyen', lastName: 'Lan' } });
+        completeSocialSignup.mockRejectedValueOnce({ response: { data: { errCode: 409, fieldErrors: { phonenumber: 'Số điện thoại đã tồn tại.' }, errMessage: 'Kiểm tra số điện thoại.' } } });
+        completeSocialSignup.mockRejectedValueOnce({ response: { data: { errCode: 503, accountCreated: true } } });
+        render(<Register />);
+        await act(async () => {});
+        await screen.findByLabelText('Email', { exact: true });
+        nextStep(); fillAccount(); submit();
+        await waitFor(() => expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveAttribute('aria-invalid', 'true'));
+        change('Số điện thoại', '0987654321'); submit();
+        await screen.findByRole('link', { name: /Đến trang đăng nhập/ });
+        expect(screen.queryByRole('form')).toBeNull();
+        expect(completeSocialSignup).toHaveBeenCalledTimes(2);
+        expect(screen.queryByLabelText('Mật khẩu', { exact: true })).toBeNull();
+    });
+
+    it('does not turn an expired social signup into an ordinary account creation', async () => {
+        window.history.replaceState({}, '', '/register?sso=complete');
+        getSocialSignup.mockRejectedValue(new Error('expired'));
+        render(<Register />);
+        await act(async () => {});
+        expect(await screen.findByRole('alert')).toHaveTextContent('Phiên có thể đã hết hạn');
+        expect(screen.queryByRole('form')).toBeNull();
+        expect(createNewUser).not.toHaveBeenCalled();
+        expect(screen.getByRole('link', { name: 'Bắt đầu đăng ký mới' })).toHaveAttribute('href', '/register');
     });
 });

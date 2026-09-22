@@ -25,7 +25,9 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     await require('../src/migrations/migrationzzzzzzz-auth-sessions-sso').up(sequelize.getQueryInterface(), DataTypes);
     await require('../src/migrations/migrationzzzzzzzz-auth-link-binding').up(sequelize.getQueryInterface(), DataTypes);
     await require('../src/migrations/migrationzzzzzzzzz-auth-audit-device').up(sequelize.getQueryInterface(), DataTypes);
-    for (const [name, file] of [['AuthSession', 'authSession'], ['AuthIdentity', 'authIdentity'], ['OidcTransaction', 'oidcTransaction'], ['AuthSecurityEvent', 'authSecurityEvent']]) db[name] = require('../src/models/' + file)(sequelize, DataTypes);
+    await require('../src/migrations/migrationzzzzzzzzzz-auth-registration-options').up(sequelize.getQueryInterface(), DataTypes);
+    await require('../src/migrations/migrationzzzzzzzzzz-auth-registration-options').up(sequelize.getQueryInterface(), DataTypes);
+    for (const [name, file] of [['AuthSession', 'authSession'], ['AuthIdentity', 'authIdentity'], ['OidcTransaction', 'oidcTransaction'], ['AuthSecurityEvent', 'authSecurityEvent'], ['AuthSignupRequest', 'authSignupRequest'], ['AuthRegistrationLock', 'authRegistrationLock']]) db[name] = require('../src/models/' + file)(sequelize, DataTypes);
     const modelsPath = require.resolve('../src/models/index');
     require.cache[modelsPath] = { id: modelsPath, filename: modelsPath, loaded: true, exports: db };
     process.env.AUTH_ALLOW_LEGACY_TOKENS = 'false';
@@ -33,7 +35,7 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     const sessions = require('../src/services/authSessionService');
     const controller = require('../src/controllers/authController');
     const middleware = require('../src/middlewares/jwtVerify');
-    const user = await db.User.create({ firstName: 'Auth', lastName: 'Test', email: 'auth@example.invalid' });
+    const user = await db.User.create({ firstName: 'Auth', lastName: 'Test', email: 'jobfind.auth.fixture@gmail.com' });
     const password = 'Auth-integration-123!';
     await db.Account.create({ userId: user.id, phonenumber: '0900000001', password: await require('bcryptjs').hash(password, 10), statusCode: 'S1', roleCode: 'CANDIDATE' });
     const first = await sessions.createSession(user.id);
@@ -79,6 +81,9 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     const app = express(); app.use(express.json());
     app.use(['/api/auth', '/api/login'], require('../src/middlewares/authResponseHeaders').authResponseHeaders);
     app.post('/api/login', controller.login);
+    app.post('/api/create-new-user', require('../src/controllers/userController').handleCreateNewUser);
+    app.get('/api/auth/sso/signup', controller.signupProfile);
+    app.post('/api/auth/sso/signup', controller.cookieOrigin, controller.completeSocialSignup);
     app.post('/api/auth/refresh', controller.cookieOrigin, controller.refresh);
     app.post('/api/auth/logout', controller.cookieOrigin, middleware.verifyTokenOptional, controller.logout);
     app.get('/api/auth/me', middleware.verifyTokenUser, require('../src/controllers/userController').getCurrentAuthorization);
@@ -86,6 +91,7 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
     const base = 'http://127.0.0.1:' + server.address().port;
     const headers = { 'Content-Type': 'application/json', Origin: process.env.URL_REACT };
+    await require('./auth/registration-acceptance.cjs')({ db, base, headers, password, user });
     const denied = await fetch(base + '/api/login', { method: 'POST', headers: { ...headers, Origin: 'https://evil.invalid' }, body: JSON.stringify({ phonenumber: '0900000001', password }) });
     assert.equal(denied.status, 403);
     const login = await fetch(base + '/api/login', { method: 'POST', headers, body: JSON.stringify({ phonenumber: '0900000001', password }) });
@@ -116,6 +122,7 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     const recoveredBody = await recovered.json();
     assert.equal((await fetch(base + '/api/auth/me', { headers: { Authorization: 'Bearer ' + recoveredBody.token } })).status, 200);
     await require('./auth/oidc-acceptance.cjs')({ db, app, base, user, headers, password });
+    await require('./auth/github-acceptance.cjs')({ db, app, base, user, headers, password });
     console.log('PASS: real MySQL migrations, login/cookies/CSRF, refresh rotation/replay, concurrent refresh/logout/logout-all, password revocation and protected HTTP endpoints.');
   } finally {
     if (server) await new Promise(resolve => server.close(resolve));

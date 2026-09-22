@@ -252,15 +252,15 @@ describe("AddUser and ChangePassword", () => {
         const password = container.querySelector('input[name="password"]');
         const confirmation = container.querySelector('input[name="confirmPassword"]');
         fireEvent.change(oldPassword, { target: { name: "oldPassword", value: "old" } });
-        fireEvent.change(password, { target: { name: "password", value: "new-one" } });
+        fireEvent.change(password, { target: { name: "password", value: "new-one8" } });
         fireEvent.change(confirmation, { target: { name: "confirmPassword", value: "different" } });
         fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
         expect(handleChangePassword).not.toHaveBeenCalled();
         expect(toast.error).toHaveBeenCalledWith("Mật khẩu nhập lại không đúng");
 
-        fireEvent.change(confirmation, { target: { name: "confirmPassword", value: "new-one" } });
+        fireEvent.change(confirmation, { target: { name: "confirmPassword", value: "new-one8" } });
         fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
-        await waitFor(() => expect(handleChangePassword).toHaveBeenCalledWith({ id: 9, oldpassword: "old", password: "new-one" }));
+        await waitFor(() => expect(handleChangePassword).toHaveBeenCalledWith({ id: 9, oldpassword: "old", password: "new-one8" }));
         await waitFor(() => expect(oldPassword).toHaveValue(""));
         expect(password).toHaveValue("");
         expect(confirmation).toHaveValue("");

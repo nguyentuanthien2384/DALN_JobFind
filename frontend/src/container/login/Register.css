@@ -26,3 +26,12 @@
 .jf-register .jf-login__notice { margin-bottom: 12px; padding: 10px 12px; }
 @media (max-width: 760px) { .jf-register__steps { gap: 12px; margin-bottom: 16px; } .jf-register__roles label { gap: 6px; padding: 8px; } .jf-register__roles small { display: none; } }
 @media (max-height: 740px) { .jf-register__steps { margin-bottom: 12px; } .jf-register__roles { margin-bottom: 12px; } }
+@media (max-width: 760px) and (max-height: 740px) {
+    .jf-register .jf-login__form-panel { padding-top: 10px; padding-bottom: 10px; }
+    .jf-register .jf-login__heading { margin-bottom: 10px; }
+    .jf-register .jf-login__heading p { display: none; }
+    .jf-register .jf-login__field { margin-bottom: 8px; }
+    .jf-register .jf-login__register { margin-top: 10px; }
+    .jf-register__steps { margin-bottom: 10px; }
+    .jf-register__actions { margin-top: 8px; }
+}

@@ -6,6 +6,7 @@ module.exports = (sequelize, DataTypes) => {
     userId: { type: DataTypes.INTEGER, allowNull: false },
     tokenHash: { type: DataTypes.STRING(64), allowNull: false, unique: true },
     method: { type: DataTypes.STRING(64), allowNull: false },
+    rememberMe: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
     deviceLabel: DataTypes.STRING(120),
     startedAt: DataTypes.DATE,
     lastUsedAt: DataTypes.DATE,

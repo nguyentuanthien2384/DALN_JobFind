@@ -56,7 +56,8 @@ module.exports = async ({ db, app, base, user, headers, password }) => {
     }
     const now = Math.floor(Date.now() / 1000);
     const claims = { iss: issuer, aud: clientId, sub: record.subject, iat: now, exp: now + 300, nonce: record.nonce,
-      email: user.email, email_verified: true, name: 'OIDC Test', role: 'ADMIN', groups: ['ADMIN'] };
+      email: record.mode === 'signup' ? 'jobfind.social.fixture@gmail.com' : record.mode === 'browser-signup' ? 'jobfind.social.browser.fixture@gmail.com' : user.email,
+      email_verified: true, name: 'OIDC Test', role: 'ADMIN', groups: ['ADMIN'] };
     if (record.mode === 'nonce') claims.nonce = 'wrong-nonce';
     if (record.mode === 'issuer') claims.iss = 'https://evil.invalid';
     if (record.mode === 'audience') claims.aud = 'another-client';
@@ -110,10 +111,38 @@ module.exports = async ({ db, app, base, user, headers, password }) => {
     for (const variant of ['valid', 'unverified']) {
       mode = variant;
       const rejected = await complete(await begin());
-      assert.equal(rejected.headers.get('location'), base + '/login?sso=not-linked');
+      assert.equal(rejected.headers.get('location'), base + '/login?sso=' + (variant === 'valid' ? 'account-exists' : 'email-unverified'));
       assert.equal(cookie(rejected), undefined);
       assert.equal(await db.AuthIdentity.count({ where: { issuer, subject } }), 0);
     }
+    // A new verified identity must finish onboarding in the SAME browser. Claims
+    // and posted role/tenant/email cannot create an elevated or different account.
+    mode = 'signup'; subject = 'new-signup-subject';
+    const pendingResponse = await complete(await begin());
+    assert.equal(pendingResponse.headers.get('location'), base + '/register?sso=complete');
+    assert.equal(cookie(pendingResponse), undefined);
+    const signupCookie = pendingResponse.headers.getSetCookie().find(c => c.startsWith('jobfind_signup='))?.split(';')[0];
+    assert.ok(signupCookie);
+    assert.equal((await fetch(base + '/api/auth/sso/signup')).status, 410);
+    const signupProfile = await (await fetch(base + '/api/auth/sso/signup', { headers: { Cookie: signupCookie } })).json();
+    assert.equal(signupProfile.profile.email, 'jobfind.social.fixture@gmail.com');
+    assert.equal(signupProfile.rememberMe, false);
+    const signupData = { firstName: 'Social', lastName: 'Fixture', phonenumber: '0980000001', password, roleCode: 'ADMIN', companyId: 1, email: user.email };
+    const signup = body => fetch(base + '/api/auth/sso/signup', { method: 'POST', headers: { ...localHeaders, Cookie: signupCookie }, body: JSON.stringify(body) });
+    assert.equal((await signup(signupData)).status, 400);
+    assert.equal(await db.Account.count({ where: { phonenumber: signupData.phonenumber } }), 0);
+    const created = await signup({ ...signupData, roleCode: 'CANDIDATE' });
+    assert.equal(created.status, 200);
+    assert.doesNotMatch(created.headers.get('set-cookie').split('jobfind_rt=')[1], /Max-Age=/);
+    const createdBody = await created.json();
+    assert.equal(createdBody.user.email, 'jobfind.social.fixture@gmail.com');
+    assert.equal(createdBody.user.roleCode, 'CANDIDATE');
+    assert.equal(createdBody.user.companyId, null);
+    assert.equal((await signup({ ...signupData, roleCode: 'CANDIDATE' })).status, 410);
+    assert.equal(await db.AuthIdentity.count({ where: { issuer, subject } }), 1);
+    const secondSocialLogin = await complete(await begin());
+    assert.equal(secondSocialLogin.headers.get('location'), base + '/login?sso=success');
+    subject = 'http-oidc-subject';
     mode = 'valid';
     const localSession = await sessions.createSession(user.id);
     const linked = await complete(await begin(localSession));
@@ -183,7 +212,8 @@ module.exports = async ({ db, app, base, user, headers, password }) => {
     assert.ok(history.events.every(e => e.deviceLabel !== 'PRIVATE OTHER USER'));
     assert.equal((await fetch(base + '/api/auth/security/events?before=invalid', { headers: access(payload.token) })).status, 400);
     if (process.env.AUTH_TEST_FRONTEND_BUILD) {
-      await require('./oidc-browser.cjs')({ app, base, providerBase, setMode: value => { mode = value; } });
+      await require('./oidc-browser.cjs')({ app, base, providerBase, setMode: value => { mode = value; },
+        setSubject: value => { subject = value; } });
       // Browser logout-all also revokes the HTTP fixture session; create fresh
       // proof before checking unlink below.
       const fresh = await sessions.createSession(user.id);
