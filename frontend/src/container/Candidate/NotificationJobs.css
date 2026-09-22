@@ -1,0 +1,46 @@
+.notification-jobs { max-width: 1100px; margin: 0 auto; padding: 16px 12px 40px; color: #172c4a; }
+.notification-jobs__header { padding: 28px 30px 0; border: 1px solid #e4e8f0; border-radius: 16px; background: #fff; }
+.notification-jobs__eyebrow { color: #b92055; font-size: 11px; letter-spacing: 1.7px; font-weight: 700; }
+.notification-jobs h1 { margin: 12px 0; color: #172c4a; font-size: clamp(24px, 3vw, 32px); line-height: 1.3; }
+.notification-jobs__header > p { max-width: 790px; color: #5d6980; font-size: 15px; line-height: 1.7; margin-bottom: 20px; }
+.notification-jobs__tabs { display: flex; gap: 26px; }
+.notification-jobs__tabs a { display: block; padding: 12px 0 15px; border-bottom: 3px solid transparent; color: #5d6980; font-size: 14px; font-weight: 600; }
+.notification-jobs__tabs a[aria-current="page"] { color: #b92055; border-bottom-color: #fb246a; }
+.notification-jobs__toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 25px 0 14px; }
+.notification-jobs__toolbar p { margin: 0; color: #475770; font-size: 14px; }
+.notification-jobs__toolbar a { color: #b92055; font-size: 14px; font-weight: 600; }
+.notification-jobs__list { min-height: 270px; }
+.notification-jobs__card { display: flex; align-items: center; gap: 22px; margin-bottom: 14px; padding: 24px; color: #172c4a; background: #fff; border: 1px solid #e1e6ee; border-radius: 12px; transition: border-color .15s, box-shadow .15s; }
+.notification-jobs__card:hover { color: #172c4a; border-color: #f5a9c3; box-shadow: 0 4px 18px #172c4a0a; }
+.notification-jobs__logo { display: grid; place-items: center; width: 76px; height: 76px; flex-shrink: 0; border: 1px solid #edf0f5; border-radius: 10px; background: #fff; overflow: hidden; }
+.notification-jobs__logo img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+.notification-jobs__logo > span { color: #596a88; font-size: 30px; font-weight: 700; }
+.notification-jobs__details { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.notification-jobs__card h2 { color: #172c4a; margin: 0 0 6px; font-size: 18px; line-height: 1.45; }
+.notification-jobs__company { margin: 0 0 10px; color: #5d6980; font-size: 14px; line-height: 1.5; }
+.notification-jobs__meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; line-height: 1.5; }
+.notification-jobs__meta > span { padding: 4px 9px; background: #f4f6f9; border-radius: 5px; }
+.notification-jobs__meta .notification-jobs__salary { color: #a62451; background: #fff0f5; font-weight: 600; }
+.notification-jobs__deadline { margin: 10px 0 0; color: #6c7789; font-size: 12px; line-height: 1.5; }
+.notification-jobs__detail-link { flex-shrink: 0; color: #b92055; font-size: 13px; font-weight: 600; }
+.notification-jobs__empty { padding: 40px 24px; text-align: center; background: #fff; border: 1px solid #e4e8f0; border-radius: 12px; }
+.notification-jobs__empty-icon { display: inline-grid; place-items: center; width: 50px; height: 50px; margin-bottom: 14px; border-radius: 50%; color: #b92055; background: #fff0f5; font-size: 20px; }
+.notification-jobs__empty h2 { color: #172c4a; font-size: 20px; line-height: 1.5; margin: 0 0 10px; }
+.notification-jobs__empty p { max-width: 580px; margin: 0 auto 20px; color: #5d6980; font-size: 14px; line-height: 1.8; }
+.notification-jobs__action { display: inline-block; padding: 12px 18px; border: 1px solid #c4174d; border-radius: 7px; background: #c4174d; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.notification-jobs__action:hover { background: #a4113e; color: #fff; }
+.notification-jobs a:focus-visible, .notification-jobs button:focus-visible { outline: 3px solid #4b49ac; outline-offset: 4px; }
+.notification-jobs__pagination { margin-top: 25px; }
+.notification-jobs__pagination .pagination { flex-wrap: wrap; gap: 5px; }
+@media (max-width: 650px) {
+    .notification-jobs { padding: 8px 0 28px; }
+    .notification-jobs__header { padding: 22px 18px 0; }
+    .notification-jobs__tabs { gap: 18px; }
+    .notification-jobs__tabs a { font-size: 13px; }
+    .notification-jobs__toolbar { flex-wrap: wrap; gap: 8px; }
+    .notification-jobs__card { gap: 14px; padding: 18px; flex-wrap: wrap; align-items: flex-start; }
+    .notification-jobs__logo { width: 55px; height: 55px; }
+    .notification-jobs__card h2 { font-size: 16px; }
+    .notification-jobs__detail-link { width: 100%; text-align: right; }
+}
+@media (prefers-reduced-motion: reduce) { .notification-jobs__card { transition: none; } }

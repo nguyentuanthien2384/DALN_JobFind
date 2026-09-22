@@ -1,4 +1,5 @@
 import db from "../models/index";
+import { normalizeNotificationDestination } from '../utils/notificationDestination';
 const { Op } = require("sequelize");
 require('dotenv').config();
 
@@ -30,7 +31,7 @@ let getNotificationByUser = (data) => {
                 })
                 resolve({
                     errCode: 0,
-                    data: res.rows,
+                    data: res.rows.map(normalizeNotificationDestination),
                     count: res.count,
                     unreadCount: unreadCount
                 })

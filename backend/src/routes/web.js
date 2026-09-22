@@ -200,6 +200,7 @@ let initWebRoutes = (app) => {
 
     //==================API NOTIFICATION (THONG BAO)=========================//
     router.get('/api/get-notification-by-user', ...protectedBy(PERMISSIONS.NOTIFICATION_READ), notificationController.getNotificationByUser)
+    router.get('/api/get-notification-jobs', ...protectedBy(PERMISSIONS.RECOMMENDATION_READ), notificationController.getNotificationJobs)
     router.post('/api/mark-read-notification', ...protectedBy(PERMISSIONS.NOTIFICATION_READ), notificationController.handleMarkReadNotification)
 
     //==================API CHAT (NHAN TIN)==================================//

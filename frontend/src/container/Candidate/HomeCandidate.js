@@ -7,12 +7,15 @@ import ManageCvCandidate from "./ManageCvCandidate";
 import SettingUser from "./SettingUser";
 import SavedJobs from "./SavedJobs";
 import CandidateAi from './CandidateAi';
+import NotificationJobs from './NotificationJobs';
 
 const HomeCandidate = () => {
     const isAiWorkspace = Boolean(useMatch('/candidate/ai-cv'));
     const isApplicationHistory = Boolean(useMatch('/candidate/cv-post'));
     const isSubmittedCv = Boolean(useMatch('/candidate/cv-detail/:id'));
-    const fullWidth = isAiWorkspace || isApplicationHistory || isSubmittedCv;
+    const isFollowedJobs = Boolean(useMatch('/candidate/followed-jobs'));
+    const isRecommendedJobs = Boolean(useMatch('/candidate/recommended-jobs'));
+    const fullWidth = isAiWorkspace || isApplicationHistory || isSubmittedCv || isFollowedJobs || isRecommendedJobs;
     return (
         <div className={`container-scroller${fullWidth ? ' candidate-ai-shell' : ''}`}>
             {/* partial:partials/_navbar.html */}
@@ -32,6 +35,8 @@ const HomeCandidate = () => {
                     >
                         <Routes>
                             <Route path="/ai-cv" element={<CandidateAi />} />
+                            <Route path="/followed-jobs" element={<NotificationJobs source="followed" />} />
+                            <Route path="/recommended-jobs" element={<NotificationJobs source="recommended" />} />
                             <Route path="/info" element={<CandidateInfo />} />
                             <Route
                                 path="/usersetting"

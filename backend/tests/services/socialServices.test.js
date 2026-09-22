@@ -238,6 +238,21 @@ describe('companyReviewService', () => {
 });
 
 describe('notificationService', () => {
+  test('repairs only the legacy demo destinations when reading notifications', async () => {
+    const oldRows = [
+      { id: 1, userId: 5, typeCode: 'NEW_POST', isChecked: 0, content: 'Công ty bạn theo dõi vừa đăng tin tuyển dụng mới', link: '/job' },
+      { id: 2, userId: 5, typeCode: 'NEW_POST', isChecked: 1, content: 'Có 2 việc làm mới phù hợp với kỹ năng của bạn', link: '/job' },
+      { id: 3, userId: 5, typeCode: 'NEW_POST', isChecked: 0, content: 'Tin mới', link: '/detail-job/42' },
+    ];
+    mockDb.Notification.findAndCountAll.mockResolvedValue({ rows: oldRows, count: 3 });
+    mockDb.Notification.count.mockResolvedValue(2);
+    const result = await notification.getNotificationByUser({ userId: 5, limit: 10, offset: 0 });
+    expect(result.data.map(item => item.link)).toEqual(['/candidate/followed-jobs', '/candidate/recommended-jobs', '/detail-job/42']);
+    expect(result.data.map(item => item.isChecked)).toEqual([0, 1, 0]);
+    expect(result).toMatchObject({ count: 3, unreadCount: 2 });
+    expect(oldRows[0].link).toBe('/job');
+    expect(mockDb.Notification.update).not.toHaveBeenCalled();
+  });
   beforeEach(resetDb);
 
   test('requires the authenticated user id', async () => {

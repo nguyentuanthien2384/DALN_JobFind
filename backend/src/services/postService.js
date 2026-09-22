@@ -7,7 +7,7 @@ import { enqueueLegacyJobCreated } from '../utils/legacyOutbox';
 import { repostLegacyPost } from '../utils/jobRepost';
 import { LegacyJobRequestError, runLegacyCreateRequest } from '../utils/legacyJobRequest';
 import { APPROVED_COMPANY_WHERE } from '../utils/publicResources';
-const { Op } = require("sequelize");
+const { Op, where, cast, col } = require("sequelize");
 require('dotenv').config();
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
 const PUBLIC_COMPANY_ATTRIBUTES = [
@@ -676,7 +676,9 @@ let getRelatedPost = (data) => {
 }
 
 // Gợi ý việc làm theo kỹ năng và cài đặt tìm việc của ứng viên
-let getRecommendedPost = (data) => {
+// The home page intentionally falls back to recent jobs. Notification collections
+// require actual matches and open jobs, so callers opt in through trusted options.
+let getRecommendedPost = (data, { notificationCollection = false } = {}) => {
     return new Promise(async (resolve, reject) => {
         try {
             if (!data.userId) {
@@ -710,11 +712,17 @@ let getRecommendedPost = (data) => {
 
                 // 3. Tin đang hoạt động
                 let listPost = await db.Post.findAll({
-                    where: { statusCode: 'PS1' },
-                    order: [['timePost', 'DESC']],
+                    where: {
+                        statusCode: 'PS1',
+                        ...(notificationCollection && {
+                            [Op.and]: [where(cast(col('Post.timeEnd'), 'SIGNED'), { [Op.gt]: Date.now() })]
+                        })
+                    },
+                    order: notificationCollection ? [['timePost', 'DESC'], ['id', 'DESC']] : [['timePost', 'DESC']],
                     include: [
                         {
                             model: db.DetailPost, as: 'postDetailData',
+                            ...(notificationCollection && { required: true }),
                             attributes: ['id', 'name', 'amount', 'categoryJobCode', 'addressCode', 'salaryJobCode', 'experienceJobCode'],
                             include: [
                                 { model: db.Allcode, as: 'jobTypePostData', attributes: ['value', 'code'] },
@@ -753,14 +761,17 @@ let getRecommendedPost = (data) => {
                 // 5. Lọc và sắp xếp
                 let result = scoredPost
                     .filter(post => post.matchScore > 0)
-                    .sort((a, b) => b.matchScore - a.matchScore || (+b.timePost) - (+a.timePost))
-                if (result.length === 0) {
+                    .sort((a, b) => b.matchScore - a.matchScore || (+b.timePost) - (+a.timePost)
+                        || (notificationCollection ? (+b.id) - (+a.id) : 0))
+                if (result.length === 0 && !notificationCollection) {
                     result = scoredPost
                 }
                 let limit = data.limit ? +data.limit : 6
+                const offset = notificationCollection ? Number(data.offset || 0) : 0
                 resolve({
                     errCode: 0,
-                    data: result.slice(0, limit)
+                    data: result.slice(offset, offset + limit),
+                    ...(notificationCollection && { count: result.length })
                 })
             }
         } catch (error) {
@@ -770,6 +781,7 @@ let getRecommendedPost = (data) => {
 }
 
 module.exports = {
+    publicPostOwnerInclude,
     handleCreateNewPost: handleCreateNewPost,
     handleUpdatePost: handleUpdatePost,
     handleBanPost: handleBanPost,
