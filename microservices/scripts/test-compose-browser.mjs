@@ -70,7 +70,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
             // rotated Set-Cookie and leave the next page holding a spent token.
             assert.equal((await refreshResponse).status(), 200);
             assert.equal((await identityResponse).status(), 200);
-            await page.goto(origin + destination);
+            if (destination) await page.goto(origin + destination);
             return page;
         };
         const candidate = await session(18, '/candidate/ai-cv');
@@ -183,8 +183,14 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         await recruiter.locator('.kb-filter').selectOption(String(jobId));
         const card = recruiter.getByRole('button', { name: 'Hồ sơ Browser Candidate', exact: true });
         await expect(card).toBeVisible();
+        const movedResponse = recruiter.waitForResponse(response =>
+            /\/api\/applications\/\d+\/stage$/.test(new URL(response.url()).pathname) && response.request().method() === 'PATCH');
         await card.dragTo(recruiter.getByRole('region', { name: 'Phỏng vấn', exact: true }));
         await expect(recruiter.getByRole('region', { name: 'Phỏng vấn', exact: true }).getByRole('button', { name: 'Hồ sơ Browser Candidate', exact: true })).toBeVisible();
+        // The card moves optimistically; reload only after the server commits it.
+        const moved = await movedResponse;
+        assert.equal(moved.status(), 200);
+        assert.equal((await moved.json()).errCode, 0);
         await recruiter.reload();
         await expect(recruiter.getByRole('region', { name: 'Phỏng vấn', exact: true }).getByRole('button', { name: 'Hồ sơ Browser Candidate', exact: true })).toBeVisible();
         await card.click();
@@ -255,11 +261,15 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         assert.equal((await (await restartPdfResponse).json()).data.file, storedPdf.file);
         pass('editing/deleting prepared source and restarting services preserves submitted PDF and candidate progress');
 
-        const outsider = await session(11, '/admin/pipeline');
-        await expect(outsider.getByRole('heading', { name: 'Quản lý hồ sơ ứng tuyển' })).toBeVisible();
-        const emptyBoardResponse = outsider.waitForResponse(response => new URL(response.url()).pathname === '/api/applications/board');
-        await outsider.reload();
+        const outsider = await session(11);
+        // Observe the first board request before entering the workspace. Reloading
+        // while its initial request is pending can match that old response and
+        // destroy its body before Chromium lets the test read it.
+        const emptyBoardResponse = outsider.waitForResponse(response =>
+            new URL(response.url()).pathname === '/api/applications/board' && response.request().method() === 'GET');
+        await outsider.goto(origin + '/admin/pipeline');
         const emptyBoard = await (await emptyBoardResponse).json();
+        await expect(outsider.getByRole('heading', { name: 'Quản lý hồ sơ ứng tuyển' })).toBeVisible();
         assert.equal(emptyBoard.errCode, 0); assert.equal(emptyBoard.data.total, 0);
         await expect(outsider.locator('.kb-empty')).not.toBeVisible();
         await expect(outsider.locator('.kb-card')).toHaveCount(0);
