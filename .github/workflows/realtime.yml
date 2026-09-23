@@ -36,7 +36,7 @@ jobs:
         working-directory: backend
       - run: npm ci --ignore-scripts
         working-directory: frontend
-      - run: npm run test:unit -- --runTestsByPath src/container/Chat/ChatPage.test.js src/container/Chat/conversationSync.test.js src/container/Chat/reliableSend.test.js src/util/useAutoRefresh.test.js src/push/webPush.test.js src/push/PushSettings.test.js src/container/header/header.test.js src/container/system/AdminNavigation.test.js src/auth/sessionExpiry.test.js
+      - run: npm run test:unit -- --runTestsByPath src/container/Chat/ChatPage.test.js src/container/Chat/conversationSync.test.js src/container/Chat/reliableSend.test.js src/util/useAutoRefresh.test.js src/push/webPush.test.js src/push/PushSettings.test.js src/container/header/Header.test.js src/container/system/AdminNavigation.test.js src/auth/sessionExpiry.test.js
         working-directory: frontend
       - run: npx playwright install --with-deps chromium firefox webkit
         working-directory: backend

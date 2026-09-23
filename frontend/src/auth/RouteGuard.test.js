@@ -6,8 +6,8 @@ import { PERMISSIONS, ROLES } from "./accessControl";
 let mockPathname = "/secure";
 
 jest.mock("react-router-dom", () => ({
-    Navigate: ({ to, state }) => (
-        <div data-testid="redirect" data-from={state?.from}>
+    Navigate: ({ to, state, replace }) => (
+        <div data-testid="redirect" data-from={state?.from} data-replace={String(replace)}>
             {to}
         </div>
     ),
@@ -35,6 +35,7 @@ describe("RouteGuard", () => {
 
         expect(screen.getByTestId("redirect")).toHaveTextContent("/login");
         expect(screen.getByTestId("redirect")).toHaveAttribute("data-from", "/secure");
+        expect(screen.getByTestId("redirect")).toHaveAttribute("data-replace", "true");
         expect(screen.queryByText("protected-content")).not.toBeInTheDocument();
     });
 
@@ -67,17 +68,87 @@ describe("RouteGuard", () => {
         expect(screen.getByText("protected-content")).toBeInTheDocument();
     });
 
-    it("allows ADMIN through candidate and chat permission constraints", () => {
+    it("allows ADMIN to view the candidate area and chat", () => {
         renderGuard({
             user: { roleCode: ROLES.ADMIN },
             anyPermissions: [PERMISSIONS.USE_CHAT],
             allPermissions: [
                 PERMISSIONS.VIEW_CANDIDATE_AREA,
-                PERMISSIONS.APPLY_TO_JOB,
                 PERMISSIONS.SOCIAL_INTERACT,
             ],
         });
         expect(screen.getByText("protected-content")).toBeInTheDocument();
+    });
+
+    it.each(["anyPermissions", "allPermissions"])
+    ("reserves application routes for candidates through %s", (constraint) => {
+        renderGuard({
+            user: { roleCode: ROLES.ADMIN },
+            [constraint]: [PERMISSIONS.APPLY_TO_JOB],
+        }, "/candidate/applications");
+
+        expect(screen.getByTestId("redirect")).toHaveTextContent("/forbidden");
+        expect(screen.getByTestId("redirect")).toHaveAttribute("data-from", "/candidate/applications");
+        expect(screen.getByTestId("redirect")).toHaveAttribute("data-replace", "true");
+        expect(screen.queryByText("protected-content")).not.toBeInTheDocument();
+    });
+
+    it("allows candidates through the complete application route constraints", () => {
+        renderGuard({
+            user: { roleCode: ROLES.CANDIDATE },
+            allowedRoles: [ROLES.CANDIDATE],
+            anyPermissions: [PERMISSIONS.USE_CHAT],
+            allPermissions: [PERMISSIONS.VIEW_CANDIDATE_AREA, PERMISSIONS.APPLY_TO_JOB],
+        });
+
+        expect(screen.getByText("protected-content")).toBeInTheDocument();
+        expect(screen.queryByTestId("redirect")).not.toBeInTheDocument();
+    });
+
+    it.each([
+        [ROLES.COMPANY, "S1", "CS2"],
+        [ROLES.COMPANY, "S2", "CS1"],
+        [ROLES.EMPLOYER, "S1", "CS2"],
+        [ROLES.EMPLOYER, "S2", "CS1"],
+    ])("blocks recruiting for %s with company status %s/%s", (roleCode, companyStatusCode, companyCensorCode) => {
+        renderGuard({
+            user: { roleCode, companyId: 8, companyStatusCode, companyCensorCode },
+            allowedRoles: [ROLES.COMPANY, ROLES.EMPLOYER],
+            allPermissions: [PERMISSIONS.MANAGE_POSTS],
+        });
+
+        expect(screen.getByTestId("redirect")).toHaveTextContent("/forbidden");
+        expect(screen.queryByText("protected-content")).not.toBeInTheDocument();
+    });
+
+    it("checks authentication before authorization for a stale privileged user", () => {
+        renderGuard({
+            user: { roleCode: ROLES.ADMIN }, hasToken: false,
+            allowedRoles: [ROLES.CANDIDATE],
+            allPermissions: [PERMISSIONS.APPLY_TO_JOB],
+        }, "/candidate/applications");
+
+        expect(screen.getByTestId("redirect")).toHaveTextContent("/login");
+        expect(screen.getByTestId("redirect")).toHaveAttribute("data-from", "/candidate/applications");
+        expect(screen.queryByText("protected-content")).not.toBeInTheDocument();
+    });
+
+    it("revokes access when an approved company becomes blocked during the session", () => {
+        const { rerender } = renderGuard({
+            user: approved(ROLES.COMPANY, 8),
+            allPermissions: [PERMISSIONS.MANAGE_POSTS],
+        });
+        expect(screen.getByText("protected-content")).toBeInTheDocument();
+
+        rerender(
+            <RouteGuard user={{ ...approved(ROLES.COMPANY, 8), companyStatusCode: "S2" }}
+                allPermissions={[PERMISSIONS.MANAGE_POSTS]}>
+                <div>protected-content</div>
+            </RouteGuard>
+        );
+
+        expect(screen.getByTestId("redirect")).toHaveTextContent("/forbidden");
+        expect(screen.queryByText("protected-content")).not.toBeInTheDocument();
     });
 
     it.each([

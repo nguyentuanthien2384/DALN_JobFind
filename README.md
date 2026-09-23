@@ -557,6 +557,18 @@ npm run build
 
 ## 🧪 Kiểm tra và kiểm thử
 
+### Trước khi push
+
+Từ thư mục gốc, chạy `npm run check`. Lệnh này dừng ngay ở bước bị lỗi và lần lượt kiểm tra lint mã giao diện, toàn bộ unit test, test công cụ vận hành, bản build, HTTP/event contracts và audit thư viện production của microservices:
+
+```powershell
+npm run check
+```
+
+Cũng có thể chạy riêng `npm run lint`, `npm test` và `npm run build` ngay tại thư mục gốc. Lint áp dụng cho mã ứng dụng trong `frontend/src`; các file `*.test.js` được kiểm tra bằng test runner. Lệnh `check` không thay thế các bài integration/browser dùng Docker trong GitHub Actions.
+
+Frontend dùng `frontend/.npmrc` để cài đúng cây thư viện đã khóa: một số thư viện giao diện cũ chưa khai báo React 18 trong peer dependencies. Dùng `npm --prefix frontend ci --ignore-scripts` để cài lại nhất quán trên máy mới và CI.
+
 ### Unit Test
 
 Từ thư mục gốc, chạy toàn bộ unit test (backend + frontend + microservices):
