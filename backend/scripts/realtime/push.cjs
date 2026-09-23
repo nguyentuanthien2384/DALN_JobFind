@@ -6,7 +6,7 @@ const { createECDH, randomBytes } = require("crypto"),
   { DataTypes } = require("sequelize");
 const push = require("web-push"),
   ece = require("http_ece");
-module.exports = async (db) => {
+module.exports = async (db, tokenFor) => {
   const migration = require("../../src/migrations/migrationzzzzzz-web-push");
   await migration.up(db.sequelize.getQueryInterface(), DataTypes);
   await migration.up(db.sequelize.getQueryInterface(), DataTypes);
@@ -58,12 +58,7 @@ module.exports = async (db) => {
     apiServer = require("http").createServer(app);
     await new Promise((r) => apiServer.listen(0, "127.0.0.1", r));
     const apiUrl = `http://127.0.0.1:${apiServer.address().port}`;
-    const policy = require("../../src/utils/securityConfig");
-    const token = require("jsonwebtoken").sign(
-      { sub: "8" },
-      policy.getJwtSecret(),
-      policy.getJwtSignOptions(),
-    );
+    const token = tokenFor(8);
     const headers = {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
@@ -75,7 +70,7 @@ module.exports = async (db) => {
           headers: { Authorization: "Bearer bad" },
         })
       ).status,
-      403,
+      401,
     );
     let response = await fetch(apiUrl + "/api/push/subscription", {
       method: "POST",

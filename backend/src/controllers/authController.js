@@ -84,7 +84,8 @@ export const ssoCallback = async (req, res) => {
     return res.redirect(303, `${frontend}/login?sso=success`);
   } catch (err) {
     console.error('SSO callback rejected');
-    await recordSecurityEvent({ event: 'sso_rejected', device: deviceLabel(req) });
+    try { await recordSecurityEvent({ event: 'sso_rejected', device: deviceLabel(req) }); }
+    catch { console.error('SSO rejection audit unavailable'); }
     const reason = err.message === 'OIDC_ACCOUNT_EXISTS' ? 'account-exists' : err.message === 'OIDC_EMAIL_UNVERIFIED' ? 'email-unverified'
       : err.message === 'OIDC_NOT_LINKED' ? 'not-linked' : err.message === 'OIDC_CANCELLED' ? 'cancelled' : 'failed';
     return res.redirect(303, `${frontend}/login?sso=${reason}`);

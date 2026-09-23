@@ -29,21 +29,25 @@ export const assertApplicationStorage = async transaction => {
 };
 
 export const submitLegacyApplication = async data => {
-    if (!id(data.userId) || !id(data.postId) || typeof data.file !== 'string' || !data.file.trim()
-        || typeof data.description !== 'string' || !data.description.trim() || Array.from(data.description).length > 255) {
+    // Keep validated request values stable while the posting and account rows are locked.
+    const { userId, postId, file, description } = data;
+    if (!id(userId) || !id(postId) || typeof file !== 'string' || !file.trim()
+        || typeof description !== 'string' || !description.trim() || Array.from(description).length > 255) {
         return failure(1, 'Cần CV và lời giới thiệu từ 1 đến 255 ký tự cho công việc hợp lệ');
     }
-    const initial = await db.Post.findOne({ where: { id: data.postId }, attributes: ['id', 'userId'], raw: true });
+    const candidateId = Number(userId);
+    const jobId = Number(postId);
+    const initial = await db.Post.findOne({ where: { id: postId }, attributes: ['id', 'userId'], raw: true });
     if (!initial) return failure(3, 'Không tìm thấy tin tuyển dụng đang công khai', 404);
     try {
         return await db.sequelize.transaction(async transaction => {
             await assertApplicationStorage(transaction);
             // Same user -> company -> post lock order as job writers. All event
             // identities/titles below come from current locked rows, never body.
-            const ids = [...new Set([Number(data.userId), Number(initial.userId)])].sort((a,b) => a-b);
+            const ids = [...new Set([candidateId, Number(initial.userId)])].sort((a,b) => a-b);
             const users = await db.User.findAll({ where: { id: ids }, attributes: ['id','companyId','firstName','lastName','email'],
                 order: [['id','ASC']], transaction, lock: transaction.LOCK.UPDATE, raw: true });
-            const candidate = users.find(user => user.id === Number(data.userId));
+            const candidate = users.find(user => user.id === candidateId);
             const owner = users.find(user => user.id === initial.userId);
             if (!candidate || !owner?.companyId) return failure(3, 'Không tìm thấy tin tuyển dụng đang công khai', 404);
             const company = await db.Company.findOne({ where: { id: owner.companyId }, attributes: ['id','statusCode','censorCode'],
@@ -52,9 +56,9 @@ export const submitLegacyApplication = async data => {
                 order: [['userId','ASC'],['id','ASC']], transaction, lock: transaction.LOCK.UPDATE, raw: true });
             const candidateAccount = accounts.find(account => account.userId === candidate.id);
             if (!candidateAccount || candidateAccount.statusCode !== 'S1' || candidateAccount.roleCode !== 'CANDIDATE') return failure(3, 'Chỉ ứng viên đang hoạt động được nộp CV', 403);
-            const existing = await db.Cv.findOne({ where: { userId: candidate.id, postId: Number(data.postId) }, attributes: ['id'], transaction, lock: transaction.LOCK.UPDATE, raw: true });
+            const existing = await db.Cv.findOne({ where: { userId: candidate.id, postId: jobId }, attributes: ['id'], transaction, lock: transaction.LOCK.UPDATE, raw: true });
             if (existing) return { ...failure(5, 'Bạn đã ứng tuyển tin này', 409), cvId: existing.id };
-            const post = await db.Post.findOne({ where: { id: data.postId }, attributes: ['id','userId','detailPostId','statusCode','timeEnd'],
+            const post = await db.Post.findOne({ where: { id: postId }, attributes: ['id','userId','detailPostId','statusCode','timeEnd'],
                 transaction, lock: transaction.LOCK.UPDATE, raw: true });
             if (!post || post.userId !== initial.userId || post.statusCode !== 'PS1' || company?.statusCode !== 'S1'
                 || company?.censorCode !== 'CS1' || !accounts.some(account => account.userId === owner.id && account.statusCode === 'S1')) {
@@ -64,14 +68,14 @@ export const submitLegacyApplication = async data => {
             if (!detail) return failure(3, 'Không tìm thấy nội dung tin tuyển dụng', 404);
             if (!isPostOpenForApplications(post)) return failure(4, 'Tin tuyển dụng đã hết hạn ứng tuyển', 409);
             const appliedAt = new Date();
-            const cv = await db.Cv.create({ userId: candidate.id, file: data.file, postId: post.id, isChecked: 0,
-                description: data.description, createdAt: appliedAt, updatedAt: appliedAt }, { transaction });
+            const cv = await db.Cv.create({ userId: candidate.id, file, postId: post.id, isChecked: 0,
+                description, createdAt: appliedAt, updatedAt: appliedAt }, { transaction });
             if (!cv?.id) throw unavailable();
             const { json, aggregateId } = serializeEventPayload('application.submitted', {
                 cvId: cv.id, jobId: post.id, jobTitle: detail.name, candidateId: candidate.id,
                 candidateName: [candidate.firstName, candidate.lastName].filter(Boolean).join(' ') || null,
                 candidateEmail: candidate.email ?? null, candidatePhone: candidateAccount.phonenumber ?? null,
-                companyId: company.id, posterId: owner.id, coverLetter: data.description, appliedAt: appliedAt.toISOString()
+                companyId: company.id, posterId: owner.id, coverLetter: description, appliedAt: appliedAt.toISOString()
             });
             await db.sequelize.query(`INSERT INTO outbox_events (id, aggregateType, aggregateId, eventType, payload, createdAt)
                 VALUES (?, ?, ?, ?, ?, ?)`, { replacements: [randomUUID(), 'legacy-application', aggregateId, 'application.submitted', json, appliedAt], transaction });

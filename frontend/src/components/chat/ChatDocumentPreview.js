@@ -24,18 +24,19 @@ const ChatDocumentPreview = ({ attachment, onClose }) => {
     useEffect(() => {
         if (!activeSession) return undefined;
         let active = true;
-        setFile(null); setError('');
+        const controller = new AbortController();
+        setFile(null); setError(''); setName(attachment.name || 'Tài liệu.pdf');
         (async () => {
             try {
-                const response = await getChatPdf(attachment.id);
+                const response = await getChatPdf(attachment.id, controller.signal);
                 if (!active) return;
                 if (response?.errCode !== 0) throw new Error(response?.errMessage || 'Không tải được tài liệu.');
                 if (response.data?.id !== attachment.id) throw new Error('Tài liệu trả về không đúng yêu cầu.');
                 setFile(chatPdfBlob(response.data)); setName(response.data.name);
             } catch (failure) { if (active) setError(failure.message || 'Không tải được tài liệu.'); }
         })();
-        return () => { active = false; };
-    }, [attachment.id, retry, activeSession]);
+        return () => { active = false; controller.abort(); };
+    }, [attachment.id, attachment.name, retry, activeSession]);
     if (!activeSession) return null;
     const loading = <Modal open title={name} footer={null} onCancel={onClose}>
         {error ? <><p role="alert">{error}</p><button className="chat-media-action" type="button" onClick={() => setRetry(value => value + 1)}>Thử tải lại PDF</button></>

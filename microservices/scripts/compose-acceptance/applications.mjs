@@ -74,7 +74,9 @@ try {
         await eventually(`${service} ready`, async () => (await fetch(`http://${service}:${port}/readyz`, { signal: AbortSignal.timeout(3000) })).ok);
     }
     for (const user of [7,8,9,10,11,12]) {
-        const login = await ok(null, '/login', 'POST', { phonenumber: String(user).padStart(4, '0'), password: process.env.FIXTURE_PASSWORD });
+        const login = await ok(null, '/login', 'POST',
+            { phonenumber: String(user).padStart(4, '0'), password: process.env.FIXTURE_PASSWORD },
+            { origin: process.env.URL_REACT });
         assert.equal(login.user.id, user); assert.ok(login.token); sessions.set(user, login);
     }
     pass('six real password logins through Gateway and legacy router; no fabricated identity headers');

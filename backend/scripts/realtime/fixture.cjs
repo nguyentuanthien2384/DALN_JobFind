@@ -20,6 +20,8 @@ module.exports = (url) => {
         db.DetailPost.belongsTo(db.Allcode, { foreignKey, targetKey: 'code', as });
     }
     db.RealtimePresence = require('../../src/models/realtimePresence')(db.sequelize, DataTypes);
+    db.AuthSession = require('../../src/models/authSession')(db.sequelize, DataTypes);
+    db.AuthSession.associate(db);
     db.WebPushSubscription = require('../../src/models/webPushSubscription')(db.sequelize,DataTypes);
     db.WebPushDelivery = require('../../src/models/webPushDelivery')(db.sequelize,DataTypes);
     db.Notification = require('../../src/models/notification')(db.sequelize,DataTypes);

@@ -23,7 +23,7 @@ const validators = Object.fromEntries(Object.entries(schemas).map(([event, prope
 const error = (code, errMessage, errCode = 1, retryable = false, extra = {}) => ({
     v: 1, ok: false, errCode, code, errMessage, retryable, ...extra,
 });
-const validate = (event, payload) => validators[event]?.(payload) === true;
+const validate = (event, payload) => Object.hasOwn(validators, event) && validators[event](payload) === true;
 const response = (result, traceId = randomUUID()) => ({
     ...result, v: 1, ok: result.errCode === 0,
     code: result.code || (result.errCode === 0 ? 'OK' : ({ 1: 'PAYLOAD_INVALID', 2: 'CHAT_NOT_ALLOWED',

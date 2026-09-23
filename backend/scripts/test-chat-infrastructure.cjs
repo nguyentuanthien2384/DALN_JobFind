@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { fork } = require('node:child_process');
 const path = require('node:path');
-const { randomBytes } = require('node:crypto');
+const { randomBytes, randomUUID } = require('node:crypto');
 const { Sequelize, DataTypes } = require('sequelize');
 const { io } = require('socket.io-client');
 const jwt = require('jsonwebtoken');
@@ -23,6 +23,22 @@ process.env.WEB_PUSH_ENABLED = 'false'; // Never inherit real device delivery se
 if (process.env.CHAT_TEST_LOAD === 'true') process.env.SOCKET_HANDSHAKE_LIMIT_PER_MINUTE='2000';
 const children = [], clients = [];
 let db, proxy, redisProxy, nginxConfig, nginx;
+const sessionFamilies = new Map();
+const seedSessions = async userIds => {
+    const rows = userIds.filter(id => !sessionFamilies.has(id)).map(userId => ({
+        id: randomUUID(), familyId: randomUUID(), userId, tokenHash: randomBytes(32).toString('hex'),
+        method: 'fixture', expiresAt: new Date(Date.now() + 3600000),
+    }));
+    if (!rows.length) return;
+    await db.AuthSession.bulkCreate(rows);
+    rows.forEach(row => sessionFamilies.set(row.userId, row.familyId));
+};
+const tokenFor = id => {
+    const sid = sessionFamilies.get(id);
+    assert.ok(sid, `No fixture auth session for user ${id}`);
+    return jwt.sign({ sub: String(id), sid }, process.env.JWT_SECRET,
+        { algorithm: 'HS256', issuer: 'jobfind-auth', audience: 'jobfind-api', expiresIn: 900 });
+};
 const waitEvent = (socket, event) => new Promise((resolve, reject) => {
     const timer = setTimeout(() => { socket.off(event, ready); reject(new Error(`Timeout ${event}`)); }, 8000);
     const ready = (value) => { clearTimeout(timer); resolve(value); }; socket.once(event, ready);
@@ -37,8 +53,7 @@ const startNode = () => new Promise((resolve, reject) => {
     child.stderr.on('data', (chunk) => process.stderr.write(chunk));
 });
 const connect = async (url, id) => {
-    const socket = io(url, { auth: { token: jwt.sign({ sub: String(id) }, process.env.JWT_SECRET,
-        { algorithm: 'HS256', issuer: 'jobfind-auth', audience: 'jobfind-api', expiresIn: 900 }) },
+    const socket = io(url, { auth: { token: tokenFor(id) },
         extraHeaders: { Origin: 'http://localhost:3000' }, autoConnect: false, reconnection: false });
     clients.push(socket); const ready = waitEvent(socket, 'connect'); socket.connect(); await ready; return socket;
 };
@@ -46,7 +61,7 @@ const connect = async (url, id) => {
     await admin.query(`CREATE DATABASE ${name} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     require('@babel/register')({ presets: [['@babel/preset-env', { targets: { node: 'current' } }]], babelrc: false, configFile: false });
     db = require('./realtime/fixture.cjs')(fixtureUrl.href);
-    for (const model of [db.Company, db.User, db.Account, db.Allcode, db.DetailPost, db.Post]) await model.sync();
+    for (const model of [db.Company, db.User, db.Account, db.AuthSession, db.Allcode, db.DetailPost, db.Post]) await model.sync();
     const q = db.sequelize.getQueryInterface();
     await require('../src/migrations/migration-create-chatmessage').up(q, DataTypes);
     await q.bulkInsert('ChatMessages', [{ senderId: 7, receiverId: 8, content: 'legacy', isRead: 0, createdAt: new Date(), updatedAt: new Date() }]);
@@ -62,6 +77,7 @@ const connect = async (url, id) => {
     console.log('PASS presence: persisted across readers, monotonic concurrent updates, unknown last-seen is null');
     await db.User.bulkCreate([{ id: 7, firstName: 'Admin' }, { id: 8, firstName: 'Candidate' }, { id: 9, firstName: 'Other' }]);
     await db.Account.bulkCreate([7, 8, 9].map((id) => ({ userId: id, roleCode: id === 7 ? 'ADMIN' : 'CANDIDATE', statusCode: 'S1' })));
+    await seedSessions([7, 8, 9]);
     const chat = require('../src/services/chatService');
     const data = { senderId: 7, receiverId: 8, content: 'concurrent', clientMessageId: 'mysql-concurrent-00001' };
     const results = await Promise.all(Array.from({ length: 8 }, () => chat.handleSendMessage(data)));
@@ -101,19 +117,19 @@ const connect = async (url, id) => {
     assert.equal((await chat.getConversation({userId:8,partnerId:9,afterId:1})).errCode,5);
     console.log('PASS MySQL pagination: 300+ messages, both directions, no gaps/duplicates, authorization, interleaved conversation IDs');
 
-    if(process.env.CHAT_TEST_PUSH === 'true')await require('./realtime/push.cjs')(db);
+    if(process.env.CHAT_TEST_PUSH === 'true')await require('./realtime/push.cjs')(db, tokenFor);
     if (process.env.CHAT_TEST_NGINX_BIN) {nginxConfig=await require('./realtime/nginx.cjs').prepare();process.env.URL_REACT+=','+nginxConfig.url;}
     if (process.env.CHAT_TEST_CHAOS === 'true') redisProxy = await require('./realtime/redis-fault-proxy.cjs')(redisUrl);
     if (process.env.CHAT_TEST_BROWSERS === 'true'||process.env.CHAT_TEST_CONVERSATION==='true') process.env.CHAT_BROWSER_ASSETS = await require('./realtime/browser.cjs').build();
     const [nodeA, nodeB] = await Promise.all([startNode(), startNode()]);
-    if(process.env.CHAT_TEST_CONVERSATION==='true')await require('./realtime/conversation.cjs')({nodes:[nodeA,nodeB],db,tokenFor:id=>jwt.sign({sub:String(id)},process.env.JWT_SECRET,{algorithm:'HS256',issuer:'jobfind-auth',audience:'jobfind-api',expiresIn:900})});
-    if (process.env.CHAT_TEST_BROWSERS === 'true') await require('./realtime/browser.cjs').run({url:nodeB,db,tokenFor:(id)=>jwt.sign({sub:String(id)},process.env.JWT_SECRET,{algorithm:'HS256',issuer:'jobfind-auth',audience:'jobfind-api',expiresIn:900})});
+    if(process.env.CHAT_TEST_CONVERSATION==='true')await require('./realtime/conversation.cjs')({nodes:[nodeA,nodeB],db,tokenFor,seedSessions});
+    if (process.env.CHAT_TEST_BROWSERS === 'true') await require('./realtime/browser.cjs').run({url:nodeB,db,tokenFor,seedSessions});
     if (nginxConfig) {
         nginx=await require('./realtime/nginx.cjs').start(nginxConfig,[nodeA,nodeB]);
-        await require('./realtime/nginx.cjs').verify({config:nginxConfig,token:jwt.sign({sub:'7'},process.env.JWT_SECRET,{algorithm:'HS256',issuer:'jobfind-auth',audience:'jobfind-api',expiresIn:900})});
+        await require('./realtime/nginx.cjs').verify({config:nginxConfig,token:tokenFor(7)});
     }
-    if (process.env.CHAT_TEST_TIMING === 'true') await require('./realtime/timing.cjs')({url:nodeB,tokenFor:(id)=>jwt.sign({sub:String(id)},process.env.JWT_SECRET,{algorithm:'HS256',issuer:'jobfind-auth',audience:'jobfind-api',expiresIn:900})});
-    if (process.env.CHAT_TEST_LOAD === 'true') await require('./realtime/load.cjs')({nodes:[nodeA,nodeB],db,tokenFor:(id)=>jwt.sign({sub:String(id)},process.env.JWT_SECRET,{algorithm:'HS256',issuer:'jobfind-auth',audience:'jobfind-api',expiresIn:900})});
+    if (process.env.CHAT_TEST_TIMING === 'true') await require('./realtime/timing.cjs')({url:nodeB,tokenFor});
+    if (process.env.CHAT_TEST_LOAD === 'true') await require('./realtime/load.cjs')({nodes:[nodeA,nodeB],db,tokenFor,seedSessions});
     const sender = await connect(nodeA, 7), receiver = await connect(nodeB, 8), otherTab = await connect(nodeB, 7);
     // A cross-node presence query is also a readiness check for adapter subscribers.
     assert.equal((await sender.timeout(6000).emitWithAck('chat:presence', { partnerId: 8 })).data.online, true);
@@ -133,6 +149,7 @@ const connect = async (url, id) => {
     await db.Company.bulkCreate([{id:11,name:'A',statusCode:'S1',censorCode:'CS1'},{id:12,name:'B',statusCode:'S1',censorCode:'CS1'}]);
     await db.User.bulkCreate([{id:20,companyId:11},{id:21,companyId:11},{id:22,companyId:12}]);
     await db.Account.bulkCreate([20,21,22].map(userId=>({userId,roleCode:'EMPLOYER',statusCode:'S1'})));
+    await seedSessions([20, 21, 22]);
     const companyA=await connect(nodeA,20),companyATab=await connect(nodeB,21),companyB=await connect(nodeB,22);
     const hints=[]; companyB.on('dashboard:changed',()=>hints.push('other-company'));receiver.on('dashboard:changed',()=>hints.push('candidate'));
     const deliveries=[waitEvent(sender,'dashboard:changed'),waitEvent(companyA,'dashboard:changed'),waitEvent(companyATab,'dashboard:changed')];

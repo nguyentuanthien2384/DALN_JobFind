@@ -10,6 +10,6 @@ const respond = handler => async (req, res) => {
         return res.status(503).json({ errCode: -1, errMessage: 'Chưa xử lý được tài liệu hoặc tin tuyển dụng. Vui lòng thử lại.' });
     }
 };
-export const upload = respond(req => uploadChatAttachment(req.user.id, req.body));
-export const read = respond(req => readChatAttachment(req.user.id, req.params.id));
-export const jobs = respond(req => listChatJobs(req.user.id, req.query));
+export const upload = respond(req => uploadChatAttachment(req.user.id, req.body ?? {}));
+export const read = respond(req => readChatAttachment(req.user.id, req.params?.id));
+export const jobs = respond(req => listChatJobs(req.user.id, req.query ?? {}));

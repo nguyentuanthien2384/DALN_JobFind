@@ -9,17 +9,24 @@ import { chromium, expect } from 'playwright/test';
 
 // Invoked only by the owning Compose runner. All /api requests are proxied to
 // its actual loopback Gateway. No route.fulfill, seeded JWT or browser storage.
-export async function runComposeBrowser({ gateway, password, build, compose }) {
+export async function runComposeBrowser({ gateway, password, build, compose, authOrigin }) {
     assert.match(gateway, /^http:\/\/127\.0\.0\.1:\d+$/);
+    assert.equal(authOrigin, 'http://fixture.invalid');
     const artifacts = await mkdtemp(path.join(tmpdir(), 'jobfind-compose-ui-'));
     const app = express();
+    let origin;
     app.use('/api', createProxyMiddleware({ target: gateway, changeOrigin: true,
-        pathRewrite: value => '/api' + value }));
+        pathRewrite: value => '/api' + value,
+        on: { proxyReq: (out, req) => {
+            // The browser uses a disposable loopback port; the isolated legacy
+            // fixture is configured with the equivalent deployment origin.
+            if (req.headers.origin === origin) out.setHeader('origin', authOrigin);
+        } } }));
     app.use('/socket.io', createProxyMiddleware({ target: gateway, changeOrigin: true,
         pathRewrite: value => '/socket.io' + value }));
     app.use(express.static(build)); app.get('*', (_req, res) => res.sendFile(path.join(build, 'index.html')));
     const server = await new Promise(resolve => { const value = app.listen(0, '127.0.0.1', () => resolve(value)); });
-    const origin = `http://127.0.0.1:${server.address().port}`;
+    origin = `http://127.0.0.1:${server.address().port}`;
     let browser; const errors = [], calls = [], failures = [], checkpoints = []; let current;
     const screenshot = (page, name) => page.screenshot({ path: path.join(artifacts, name + '.png'), fullPage: true });
     const pass = message => { checkpoints.push(message); console.log('PASS browser: ' + message); };
@@ -38,13 +45,18 @@ export async function runComposeBrowser({ gateway, password, build, compose }) {
                 if (response.status() >= 500) failures.push(`${response.status()} ${url.pathname}`);
             });
             await page.goto(origin + '/login');
-            await page.getByPlaceholder('Số điện thoại', { exact: true }).fill(String(user).padStart(4, '0'));
+            await page.getByPlaceholder('Email hoặc số điện thoại', { exact: true }).fill(String(user).padStart(4, '0'));
             await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(password);
             const loginResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/login' && response.request().method() === 'POST');
             const navigation = page.waitForNavigation({ waitUntil: 'load' });
             await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-            assert.equal((await loginResponse).status(), 200);
+            const login = await loginResponse;
+            assert.equal(login.status(), 200);
+            assert.ok((await login.allHeaders())['set-cookie'], 'password login must return a refresh cookie');
             await navigation;
+            const cookieNames = (await context.cookies(origin)).map(cookie => cookie.name);
+            assert.ok(cookieNames.some(name => name.endsWith('jobfind_rt')),
+                `browser must retain the refresh cookie: ${cookieNames.join(', ')}`);
             // Login deliberately performs a full navigation; Chromium may release
             // the response body. Check the session the real login UI persisted.
             await expect.poll(async () => {

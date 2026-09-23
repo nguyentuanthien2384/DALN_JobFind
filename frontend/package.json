@@ -44,10 +44,10 @@
         "prebuild": "node scripts/copy-pdf-assets.cjs",
         "start": "react-scripts start",
         "build": "react-scripts build",
-        "lint": "eslint src --ext .js --ignore-pattern \"**/*.test.js\" --max-warnings=0",
+        "lint": "eslint src --ext .js,.jsx --ignore-pattern \"**/*.test.js\" --max-warnings=0",
         "test": "react-scripts test",
         "test:unit": "react-scripts test --watchAll=false --runInBand",
-        "test:coverage": "react-scripts test --watchAll=false --runInBand --coverage --collectCoverageFrom=\"src/**/*.js\"",
+        "test:coverage": "react-scripts test --watchAll=false --runInBand --coverage --collectCoverageFrom=\"src/**/*.{js,jsx}\"",
         "eject": "react-scripts eject"
     },
     "eslintConfig": {

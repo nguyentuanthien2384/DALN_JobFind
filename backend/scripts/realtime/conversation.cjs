@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const { chromium, firefox, webkit, expect } = require("@playwright/test");
-module.exports = async ({ nodes, db, tokenFor }) => {
+module.exports = async ({ nodes, db, tokenFor, seedSessions }) => {
   const output = path.resolve(
     __dirname,
     "../../../.local/websocket-checks/conversation-2026-09-19",
@@ -41,6 +41,7 @@ module.exports = async ({ nodes, db, tokenFor }) => {
       { userId: recruiter, roleCode: "EMPLOYER", statusCode: "S1" },
       { userId: outsider, roleCode: "CANDIDATE", statusCode: "S1" },
     ]);
+    await seedSessions([candidate, recruiter, outsider]);
     const browser = await launcher.launch({ headless: true });
     const errors = [];
     const transcript = [];

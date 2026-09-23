@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import mysql from 'mysql2/promise';
 import { MongoClient } from 'mongodb';
 import amqp from 'amqplib';
-import jwt from 'jsonwebtoken';
 import { publishOutboxEvent, closeOutboxPublisher } from '/app/shared/outboxPublisher.js';
 
 assert.equal(process.env.MYSQL_HOST, 'mysql');
@@ -34,7 +33,18 @@ const http = async (url, options = {}) => {
 };
 const control = body => http('http://mock:4010/control', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 const state = () => http('http://mock:4010/state');
-const token = jwt.sign({}, process.env.JWT_SECRET, { subject: '7', algorithm: 'HS256', issuer: 'jobfind-auth', audience: 'jobfind-api', expiresIn: 900 });
+let token;
+const login = async userId => {
+    const result = await http('http://api-gateway:4000/api/login', {
+        method: 'POST',
+        headers: { origin: process.env.URL_REACT, 'content-type': 'application/json' },
+        body: JSON.stringify({ phonenumber: String(userId).padStart(4, '0'), password: process.env.FIXTURE_PASSWORD })
+    });
+    assert.equal(result.errCode, 0);
+    assert.equal(result.user.id, userId);
+    assert.ok(result.token);
+    return result.token;
+};
 const api = (route, method = 'GET', body, key) => http(`http://api-gateway:4000/api${route}`, {
     method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(key && { 'idempotency-key': key }) },
     ...(body && { body: JSON.stringify(body) })
@@ -102,6 +112,9 @@ try {
             channel = await broker.createConfirmChannel();
         }
         if (!['offline','broker-offline'].includes(phase)) await ready();
+        await eventually('legacy authentication ready', async () =>
+            (await fetch('http://legacy:4011/readyz', { signal: AbortSignal.timeout(3000) })).ok);
+        token = await login(7);
         if (phase === 'main') {
             pass('eight actual service entrypoints ready');
             await control({ mode: 'hold' });
@@ -191,7 +204,7 @@ try {
             await pool.query('INSERT INTO acceptance_state VALUES (?,?)', ['main', JSON.stringify({ calls: await countCalls() })]);
         } else if (phase === 'candidate') {
             // Actual Gateway auth, Core tasks, SDK JSON/SSE, Mongo CV writes and Search.
-            const candidateToken = jwt.sign({}, process.env.JWT_SECRET, {subject:'8',algorithm:'HS256',issuer:'jobfind-auth',audience:'jobfind-api',expiresIn:900});
+            const candidateToken = await login(8);
             const candidate = (route, method='GET', body, key) => http(`http://api-gateway:4000/api${route}`, {
                 method,headers:{authorization:`Bearer ${candidateToken}`,'content-type':'application/json',...(key && {'idempotency-key':key})},
                 ...(body && {body:JSON.stringify(body)})

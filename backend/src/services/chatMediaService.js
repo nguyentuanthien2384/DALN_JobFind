@@ -70,6 +70,7 @@ export const readChatAttachment = async (userId, id) => {
         if (!sent) return error('Không tìm thấy tài liệu.', 404);
     }
     const file = await db.ChatAttachment.unscoped().findOne({ where: { id }, attributes: ['bytes'], raw: true });
+    if (!Buffer.isBuffer(file?.bytes)) return error('Không tìm thấy tài liệu.', 404);
     return { errCode: 0, data: { ...attachmentMetadata(row), fileBase64: file.bytes.toString('base64') } };
 };
 

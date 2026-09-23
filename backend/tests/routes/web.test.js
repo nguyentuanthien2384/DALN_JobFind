@@ -49,6 +49,7 @@ jest.mock('../../src/middlewares/supportChatAccess', () => ({ supportChatAccess:
 jest.mock('../../src/config/socket', () => ({ emitNotification: mockEmitNotification }));
 
 const initWebRoutes = require('../../src/routes/web');
+const { authResponseHeaders } = require('../../src/middlewares/authResponseHeaders');
 const { createResponse } = require('../helpers/http');
 
 describe('web routes', () => {
@@ -138,6 +139,24 @@ describe('web routes', () => {
       const authIndex = route.handlers.indexOf(mockVerifyUser);
       expect(authIndex).toBeGreaterThanOrEqual(0);
       expect(route.handlers[authIndex + 1]?.permission).toEqual(expect.any(String));
+    }
+  });
+
+  test('modern and legacy account routes receive response protection before their handlers', () => {
+    initWebRoutes({ use: jest.fn() });
+    const protectedPaths = [
+      '/api/auth', '/api/login', '/api/create-new-user', '/api/changepassword',
+      '/api/check-phonenumber-user', '/api/request-reset-password-otp',
+      '/api/changepasswordbyPhone'
+    ];
+    expect(mockRouter.use).toHaveBeenCalledWith(protectedPaths, authResponseHeaders);
+    const firstMount = mockRouter.use.mock.calls.findIndex((args) => args[1] === authResponseHeaders);
+    const mountOrder = mockRouter.use.mock.invocationCallOrder[firstMount];
+    for (const path of protectedPaths.filter((item) => item !== '/api/auth')) {
+      const route = [...mockRoutes].reverse().find((item) => item.path === path);
+      expect(route).toBeDefined();
+      const registration = mockRouter[route.method].mock.calls.findIndex((args) => args[0] === path);
+      expect(mountOrder).toBeLessThan(mockRouter[route.method].mock.invocationCallOrder[registration]);
     }
   });
 

@@ -39,12 +39,14 @@ const slot = async (userId, lease, renew = false) => {
     }
     // Bound memory even when a peer disconnects before namespace acceptance.
     for (const [key, value] of connections) if (value.until <= now) connections.delete(key);
-    if (renew && !connections.has(lease)) return false;
-    if (!renew && (connections.size >= 10000 || [...connections.values()].filter((value) => value.userId === userId).length >= 10)) return false;
+    const existing = connections.get(lease);
+    if (existing && existing.userId !== userId) return false;
+    if (renew && !existing) return false;
+    if (!renew && !existing && (connections.size >= 10000 || [...connections.values()].filter((value) => value.userId === userId).length >= 10)) return false;
     connections.set(lease, { userId, until }); return true;
 };
 const release = async (userId, lease) => {
     if (redis) { if (redis.isReady) await redis.zRem(connectionKey(userId), lease); }
-    else connections.delete(lease);
+    else if (connections.get(lease)?.userId === userId) connections.delete(lease);
 };
 module.exports = { prefix, consume, slot, release, setRedis: (client) => { redis = client; }, reset: () => { buckets.clear(); connections.clear(); redis = null; } };

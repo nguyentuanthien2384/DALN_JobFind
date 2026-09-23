@@ -104,6 +104,7 @@ const SupportChat = () => {
                 return { ...previous, threads: threads.length ? threads : previous.threads };
             });
             setReady(true);
+            setError('');
         }).catch(cause => { if (current && cause.name !== 'AbortError') { setError(cause.message); setReady(false); } })
             .finally(() => { if (current) setHistoryLoading(false); });
         return () => { current = false; controller.abort(); };

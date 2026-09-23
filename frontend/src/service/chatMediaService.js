@@ -18,7 +18,8 @@ export const readChatPdf = file => new Promise((resolve, reject) => {
 });
 
 export const uploadChatPdf = data => axios.post('/api/chat-attachments', data, { timeout: 30000 });
-export const getChatPdf = id => axios.get(`/api/chat-attachments/${encodeURIComponent(id)}`, { timeout: 30000 });
+export const getChatPdf = (id, signal) => axios.get(`/api/chat-attachments/${encodeURIComponent(id)}`,
+    { timeout: 30000, ...(signal ? { signal } : {}) });
 export const getChatJobs = ({ partnerId, search = '', limit = 10, offset = 0 }) =>
     axios.get(`/api/chat-jobs?${new URLSearchParams({ partnerId, search, limit, offset })}`, { timeout: 10000 });
 
@@ -26,15 +27,21 @@ export const chatPdfBlob = data => {
     if (data?.mimeType !== 'application/pdf' || typeof data.fileBase64 !== 'string' || data.fileBase64.length > Math.ceil(MAX_CHAT_PDF_SIZE / 3) * 4) {
         throw new Error('Tài liệu trả về không hợp lệ.');
     }
-    const binary = atob(data.fileBase64);
+    let binary;
+    try { binary = atob(data.fileBase64); }
+    catch { throw new Error('Tài liệu trả về không hợp lệ.'); }
     if (!binary.startsWith('%PDF-') || binary.length !== Number(data.size) || binary.length > MAX_CHAT_PDF_SIZE) {
         throw new Error('Tài liệu trả về không đầy đủ hoặc sai định dạng.');
     }
     return new Blob([Uint8Array.from(binary, value => value.charCodeAt(0))], { type: 'application/pdf' });
 };
 
-export const formatChatFileSize = size => Number(size) >= 1024 * 1024
-    ? `${(Number(size) / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(Number(size || 0) / 1024))} KB`;
+export const formatChatFileSize = size => {
+    const bytes = Number(size);
+    if (!Number.isFinite(bytes) || bytes <= 0) return '1 KB';
+    return bytes >= 1024 * 1024
+        ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+};
 
 export const chatMessageSummary = message => message?.content || (message?.attachment
     ? `📄 ${message.attachment.name}` : message?.jobSnapshot ? `💼 ${message.jobSnapshot.name}` : 'Tin nhắn');

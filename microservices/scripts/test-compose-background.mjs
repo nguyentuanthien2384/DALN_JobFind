@@ -16,6 +16,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const fixture = fileURLToPath(new URL('./compose-acceptance/', import.meta.url));
 const project = `jobfind-accept-${randomUUID().slice(0, 8)}`;
 const secret = randomUUID() + randomUUID();
+const frontendOrigin = 'http://fixture.invalid';
 const image = `${project}:test`;
 const legacyImage = `${project}:legacy-test`;
 const execute = promisify(execFile);
@@ -38,7 +39,8 @@ const common = {
     IDENTITY_URL: 'http://identity-service:4001', APPLICATION_URL: 'http://application-service:4004',
     POSTGRES_URL: `postgres://acceptance:${secret}@postgres:5432/application_db`,
     ELASTICSEARCH_URL: 'http://elasticsearch:9200', RECONCILE_MINUTES: '60', LOG_LEVEL: 'warn',
-    EMAIL_APP: '', EMAIL_APP_PASSWORD: '', FRONTEND_URL: 'http://fixture.invalid', FIXTURE_PASSWORD: secret
+    EMAIL_APP: '', EMAIL_APP_PASSWORD: '', FRONTEND_URL: frontendOrigin,
+    URL_REACT: frontendOrigin, FIXTURE_PASSWORD: secret
 };
 const app = (name, port, extra = {}) => ({ image, pull_policy: 'never', working_dir: `/app/${name}`,
     command: ['node', 'src/app.js'], environment: { ...common, PORT: String(port), ...extra },
@@ -98,6 +100,7 @@ try {
     started = true;
     await compose('up', '-d', '--pull', 'never', 'mysql', 'mongo', 'postgres', 'redis', 'rabbitmq', 'elasticsearch', 'mock');
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'seed'));
+    console.log(await compose('run', '--rm', '--no-deps', 'legacy', 'node', '/acceptance/browser-seed.cjs'));
     const services = ['job-core-service','search-service','notification-service','admin-service','identity-service','application-service','api-gateway','ai-worker'];
     await compose('up', '-d', '--pull', 'never', 'legacy', ...services);
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/checks.mjs', 'main'));
@@ -106,14 +109,13 @@ try {
     await compose('restart', 'application-service', 'identity-service', 'legacy');
     console.log(await compose('run', '--rm', '--no-deps', 'runner', 'node', '/app/acceptance/applications.mjs', 'restart'));
     if (browserMode) {
-        console.log(await compose('run', '--rm', '--no-deps', 'legacy', 'node', '/acceptance/browser-seed.cjs'));
         await compose('up', '-d', '--pull', 'never', 'browser-edge');
         const gateway = JSON.parse(await docker('inspect', await compose('ps', '-q', 'browser-edge')))[0];
         const binding = gateway.NetworkSettings.Ports['4012/tcp'][0];
         assert.equal(binding.HostIp, '127.0.0.1');
         const { runComposeBrowser } = await import('./test-compose-browser.mjs');
         await runComposeBrowser({ gateway: `http://127.0.0.1:${binding.HostPort}`, password: secret,
-            build: path.join(directory, 'frontend'), directory, compose });
+            build: path.join(directory, 'frontend'), directory, compose, authOrigin: frontendOrigin });
     }
     // Stop consumers, commit through HTTP and prove durable backlog before restart.
     await compose('stop', 'ai-worker', 'search-service', 'notification-service');

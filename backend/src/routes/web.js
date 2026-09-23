@@ -35,7 +35,11 @@ const protectedBy = (permission) => [
 ];
 
 let initWebRoutes = (app) => {
-    router.use(['/api/auth', '/api/login'], authResponseHeaders);
+    router.use([
+        '/api/auth', '/api/login', '/api/create-new-user', '/api/changepassword',
+        '/api/check-phonenumber-user', '/api/request-reset-password-otp',
+        '/api/changepasswordbyPhone'
+    ], authResponseHeaders);
     router.post('/internal/support/public-tool', trustedSupport, publicTool);
     router.post('/internal/support/handoff', trustedSupport, deliverHandoff);
     router.post('/api/support-chat', supportChatLimiter, handleSupportChat);

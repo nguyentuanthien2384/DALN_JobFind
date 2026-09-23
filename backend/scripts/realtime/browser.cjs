@@ -21,12 +21,13 @@ exports.build = async () => {
     await fs.writeFile(path.join(assets,'index.html'),`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/app.css"><style>body{margin:0;font-family:Arial,sans-serif}*{box-sizing:border-box}button{cursor:pointer;padding:8px}input{padding:10px;min-width:0;flex:1}a{text-decoration:none}</style><div id="root"></div><script src="/app.js"></script></html>`);
     return assets;
 };
-exports.run = async ({url,db,tokenFor}) => {
+exports.run = async ({url,db,tokenFor,seedSessions}) => {
     let id=100;
     for (const [engine, launcher] of Object.entries({chromium,firefox,webkit})) {
         const adminId=id++,candidateId=id++;
         await db.User.bulkCreate([{id:adminId,firstName:'Support'}, {id:candidateId,firstName:'Candidate'}]);
         await db.Account.bulkCreate([{userId:adminId,roleCode:'ADMIN',statusCode:'S1'},{userId:candidateId,roleCode:'CANDIDATE',statusCode:'S1'}]);
+        await seedSessions([adminId, candidateId]);
         await db.ChatMessage.bulkCreate(Array.from({length:240},(_,i)=>({senderId:adminId,receiverId:candidateId,content:`${engine} history ${i}`,isRead:0})));
         const browser=await launcher.launch({headless:true});
         const errors=[];
