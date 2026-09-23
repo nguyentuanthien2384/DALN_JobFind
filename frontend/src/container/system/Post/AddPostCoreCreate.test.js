@@ -28,9 +28,11 @@ const keyName = 'jobfind:core-create:v1:8:9';
 const serverReceipt = body => ({ errCode: 0, data: { ...body, amount: Number(body.amount), timeEnd: String(body.timeEnd),
     id: 101, userId: 8, companyId: 9, statusCode: 'PS3' } });
 let originalMode;
+let consoleError;
 beforeEach(() => {
     originalMode = process.env.REACT_APP_JOB_CREATE_MODE; process.env.REACT_APP_JOB_CREATE_MODE = 'core';
     jest.restoreAllMocks(); jest.clearAllMocks(); mockParams = {};
+    consoleError = jest.spyOn(console, 'error');
     localStorage.clear(); sessionStorage.clear(); localStorage.setItem('userData', JSON.stringify(user));
     Object.defineProperty(window, 'crypto', { configurable: true, value: require('crypto').webcrypto });
     getDetailCompanyByUserId.mockReset().mockResolvedValue({ errCode: 0, data: { allowPost: 3, allowHotPost: 1 } });
@@ -44,6 +46,11 @@ beforeEach(() => {
 afterEach(() => {
     if (originalMode === undefined) delete process.env.REACT_APP_JOB_CREATE_MODE;
     else process.env.REACT_APP_JOB_CREATE_MODE = originalMode;
+    try {
+        expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+        consoleError.mockRestore();
+    }
 });
 const creator = async () => {
     const view = render(<AddPost />); await screen.findByText('3 bài bình thường');
@@ -57,9 +64,13 @@ const creator = async () => {
 const save = () => fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
 const retry = async () => {
     const button = await screen.findByRole('button', { name: 'Đối chiếu / gửi lại cùng mã' });
-    await waitFor(() => expect(button).toBeEnabled()); fireEvent.click(button);
+    await waitFor(() => expect(button).toBeEnabled());
+    await act(async () => fireEvent.click(button));
 };
 test('new Core create uses the existing validated form adapter, persists before HTTP and confirms without auto-navigation', async () => {
+    getDetailCompanyByUserId
+        .mockResolvedValueOnce({ errCode: 0, data: { allowPost: 3, allowHotPost: 1 } })
+        .mockResolvedValueOnce({ errCode: 0, data: { allowPost: 3, allowHotPost: 0 } });
     const view = await creator(); fireEvent.click(view.container.querySelector('input[type="checkbox"]'));
     axios.post.mockImplementation(async (path, body, options) => {
         expect(JSON.parse(sessionStorage.getItem(keyName))).toMatchObject({ writer: 'core', status: 'pending',
@@ -77,7 +88,8 @@ test('new Core create uses the existing validated form adapter, persists before 
     expect(screen.getByText(/không phải trạng thái duyệt hiện tại/)).toBeInTheDocument();
     expect(screen.getByText(/chờ duyệt thủ công/)).toBeInTheDocument();
     expect(createPostService).not.toHaveBeenCalled(); expect(mockNavigate).not.toHaveBeenCalled();
-    await waitFor(() => expect(getDetailCompanyByUserId).toHaveBeenCalledTimes(2));
+    await screen.findByText('0 bài nổi bật');
+    expect(getDetailCompanyByUserId).toHaveBeenCalledTimes(2);
     expect(getDetailCompanyByUserId).toHaveBeenLastCalledWith(8, 9);
     fireEvent.click(screen.getByRole('button', { name: 'Xem tin đã tạo' })); expect(mockNavigate).toHaveBeenCalledWith('/admin/edit-post/101/');
 });

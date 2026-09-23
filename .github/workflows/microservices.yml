@@ -53,7 +53,7 @@ jobs:
             frontend/package-lock.json
       - run: npm ci --ignore-scripts
         working-directory: microservices
-      - run: npm test
+      - run: npm run test:coverage
         working-directory: microservices
       - run: npm run contracts:check
         working-directory: microservices
@@ -61,7 +61,7 @@ jobs:
         working-directory: microservices
       - run: npm ci --ignore-scripts
         working-directory: backend
-      - run: npm test
+      - run: npm run test:coverage
         working-directory: backend
       - name: Verify job writes and private management reads on disposable MySQL
         working-directory: microservices
@@ -77,7 +77,7 @@ jobs:
         working-directory: frontend
       - run: npm run lint
         working-directory: frontend
-      - run: npm run test:unit
+      - run: npm run test:coverage
         working-directory: frontend
       - run: npm run test:runtime
       - run: npm run build

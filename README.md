@@ -583,15 +583,24 @@ Chạy kèm báo cáo coverage:
 npm run test:coverage
 ```
 
+`npm test` chạy test, còn `npm run test:coverage` vừa chạy test vừa kiểm tra ngưỡng bao phủ trong cấu hình Jest/Vitest. Job `verify` của GitHub Actions chạy coverage cho cả ba phần. Báo cáo HTML nằm trong thư mục `coverage` của từng phần; tỷ lệ chỉ áp dụng cho các file được cấu hình thu thập, không có nghĩa mọi hành vi thực tế đã được kiểm chứng.
+
 Chạy riêng từng phần:
 
-| Lệnh | Phạm vi |
-| --- | --- |
-| `npm run test:backend` | Backend Jest (90% coverage threshold) |
-| `npm run test:frontend` | Frontend React Testing Library (85% threshold) |
-| `npm run test:microservices` | Microservices Vitest (68 test files) |
+- `npm run test:backend`: test backend bằng Jest.
+- `npm run test:frontend`: test giao diện bằng React Testing Library/Jest.
+- `npm run test:microservices`: test microservices bằng Vitest.
 
 > ✅ Các unit test **mock toàn bộ** dịch vụ ngoài (DB, RabbitMQ, Redis, ES, SMTP, AI) — không cần khởi động Docker/XAMPP.
+
+### Đọc kết quả trong terminal
+
+- `npm test` chạy backend, frontend rồi microservices. Cần xem cả ba phần tổng kết `Test Suites` / `Test Files` và `Tests`; dòng tổng kết cuối chỉ thuộc microservices.
+- Lệnh thành công khi kết thúc với mã thoát `0`. Trong PowerShell, xem `$LASTEXITCODE` ngay sau mỗi lệnh; `npm run check` tự dừng khi một bước thất bại.
+- Các bài kiểm tra tình huống mất kết nối, lỗi DB hoặc gửi email thất bại có thể chủ động in `stderr`, `level: error` hoặc `warn`. Đối chiếu tên bài test và tổng kết; màu đỏ của dòng log chưa đủ để kết luận test thất bại.
+- `FAIL`, `failed`, lỗi assertion, lỗi coverage threshold hoặc mã thoát khác `0` cần được xử lý. Cảnh báo React `not wrapped in act(...)` cũng cần sửa bước chờ của test; không tắt console để che cảnh báo.
+- Cảnh báo `DeprecationWarning` như `util._extend` từ thư viện proxy hoặc `fs.F_OK` trong công cụ build cần được theo dõi khi nâng cấp thư viện. Chúng không đồng nghĩa test/build thất bại. CI dùng Node.js 22; dùng cùng dòng Node khi đối chiếu kết quả máy cá nhân với CI.
+- `Compiled successfully` xác nhận tạo được bản build. Để xác nhận luồng hoạt động qua DB, hàng đợi và trình duyệt thật, chạy các bài integration/browser tương ứng bên dưới.
 
 ### Smoke Test & Build
 
