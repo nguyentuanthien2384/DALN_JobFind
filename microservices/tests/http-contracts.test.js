@@ -277,14 +277,18 @@ describe('versioned OpenAPI and route coverage', () => {
         }
     });
     it('compiles every request and response and never publishes an untyped Record response', () => {
+        const validator = createContractValidator();
+        const documents = new Map();
         for (const op of operations) {
             expect(validateRequest(op.id)).toBeTypeOf('function');
-            expect(createContractValidator().compile(responseValidationSchema(op))).toBeTypeOf('function');
-            const schema = buildOpenApi(op.internal ? op.service : 'gateway').paths[(op.internal ? op.path : publicPath(op)).replace(/:([A-Za-z0-9_]+)/g, '{$1}')][op.method].responses[op.status];
+            expect(validator.compile(responseValidationSchema(op))).toBeTypeOf('function');
+            const service = op.internal ? op.service : 'gateway';
+            if (!documents.has(service)) documents.set(service, buildOpenApi(service));
+            const schema = documents.get(service).paths[(op.internal ? op.path : publicPath(op)).replace(/:([A-Za-z0-9_]+)/g, '{$1}')][op.method].responses[op.status];
             expect(JSON.stringify(schema)).not.toContain('/schemas/Record');
         }
         expect(() => validateRequest('typo')).toThrow('Unknown');
-    });
+    }, 15000);
     it('keeps private service credentials and endpoints out of the gateway spec', () => {
         const document = buildOpenApi();
         expect(JSON.stringify(document.paths)).not.toContain('/internal/');

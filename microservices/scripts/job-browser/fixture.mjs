@@ -9,6 +9,7 @@ import { once } from 'node:events';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import { randomUUID } from 'node:crypto';
 
 const front = createRequire(new URL('../../../frontend/package.json', import.meta.url));
 const listen = app => new Promise(resolve => { const server = app.listen(0, '127.0.0.1', () => resolve(server)); });
@@ -59,6 +60,20 @@ export async function startBrowserFixture({ pool, legacy, legacyController, lega
         Object.assign(process.env, { JWT_SECRET: token + token, JWT_ISSUER: 'jobfind-auth', JWT_AUDIENCE: 'jobfind-api', JWT_ACCESS_TTL_SECONDS: '900' });
         await pool.query(`CREATE TABLE accounts (id INT AUTO_INCREMENT PRIMARY KEY, userId INT, roleCode VARCHAR(20), statusCode VARCHAR(10)) ENGINE=InnoDB`);
         await pool.query("INSERT INTO accounts(userId,roleCode,statusCode) VALUES (7,'COMPANY','S1'),(8,'EMPLOYER','S1'),(88,'ADMIN','S1'),(99,'COMPANY','S1'),(26,'CANDIDATE','S1')");
+        // Gateway validates the session family on every access token. Seed only
+        // the disposable users used by this browser fixture.
+        await pool.query(`CREATE TABLE AuthSessions (id CHAR(36) PRIMARY KEY, familyId CHAR(36) NOT NULL,
+            userId INT NOT NULL, tokenHash CHAR(64) NOT NULL, method VARCHAR(64) NOT NULL,
+            expiresAt DATETIME NOT NULL, rotatedAt DATETIME NULL, revokedAt DATETIME NULL,
+            createdAt DATETIME NOT NULL, updatedAt DATETIME NOT NULL) ENGINE=InnoDB`);
+        const sessionFamilies = new Map();
+        for (const id of [7, 8, 88, 99, 26]) {
+            const familyId = randomUUID();
+            sessionFamilies.set(id, familyId);
+            await pool.query(`INSERT INTO AuthSessions (id,familyId,userId,tokenHash,method,expiresAt,createdAt,updatedAt)
+                VALUES (?,?,?,?,?,DATE_ADD(NOW(),INTERVAL 1 DAY),NOW(),NOW())`,
+                [randomUUID(), familyId, id, randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', ''), 'browser-fixture']);
+        }
         await pool.query('UPDATE companies SET allowPost=50, allowHotPost=50 WHERE id IN (3,4)');
         // Fill ONLY missing fixture columns required by actual legacy read ORM.
         for (const [table, model] of [['users', legacyDb.User], ['companies', legacyDb.Company]]) {
@@ -154,7 +169,7 @@ export async function startBrowserFixture({ pool, legacy, legacyController, lega
             res.send(`<!doctype html><html lang="vi"><meta charset="utf-8"><title>JobFind isolated browser test</title><div id="root"></div><script src="/assets/${mode}.js"></script></html>`);
         });
         const uiServer = await listen(ui); servers.push(uiServer);
-        const issue = (id, expired = false) => jwt.sign({ sub: String(id), ...(expired && { iat: Math.floor(Date.now()/1000)-1200 }) }, token + token,
+        const issue = (id, expired = false) => jwt.sign({ sub: String(id), sid: sessionFamilies.get(id), ...(expired && { iat: Math.floor(Date.now()/1000)-1200 }) }, token + token,
             { algorithm:'HS256', issuer:'jobfind-auth', audience:'jobfind-api', expiresIn:900 });
         return { uiUrl: address(uiServer), gatewayUrl, issue, stop };
     } catch (error) { await stop(); throw error; }

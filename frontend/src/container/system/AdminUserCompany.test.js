@@ -246,24 +246,33 @@ describe("AddUser and ChangePassword", () => {
     });
 
     it("rejects mismatched passwords, then submits and clears a valid change", async () => {
-        localStorage.setItem("userData", JSON.stringify({ id: 9 }));
-        const { container } = render(<ChangePassword />);
-        const oldPassword = container.querySelector('input[name="oldPassword"]');
-        const password = container.querySelector('input[name="password"]');
-        const confirmation = container.querySelector('input[name="confirmPassword"]');
-        fireEvent.change(oldPassword, { target: { name: "oldPassword", value: "old" } });
-        fireEvent.change(password, { target: { name: "password", value: "new-one8" } });
-        fireEvent.change(confirmation, { target: { name: "confirmPassword", value: "different" } });
-        fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
-        expect(handleChangePassword).not.toHaveBeenCalled();
-        expect(toast.error).toHaveBeenCalledWith("Mật khẩu nhập lại không đúng");
+        const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
+        const assign = jest.fn();
+        Object.defineProperty(window, 'location', { configurable: true, value: { assign } });
+        try {
+            localStorage.setItem("userData", JSON.stringify({ id: 9 }));
+            const { container } = render(<ChangePassword />);
+            const oldPassword = container.querySelector('input[name="oldPassword"]');
+            const password = container.querySelector('input[name="password"]');
+            const confirmation = container.querySelector('input[name="confirmPassword"]');
+            fireEvent.change(oldPassword, { target: { name: "oldPassword", value: "old" } });
+            fireEvent.change(password, { target: { name: "password", value: "new-one8" } });
+            fireEvent.change(confirmation, { target: { name: "confirmPassword", value: "different" } });
+            fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+            expect(handleChangePassword).not.toHaveBeenCalled();
+            expect(toast.error).toHaveBeenCalledWith("Mật khẩu nhập lại không đúng");
 
-        fireEvent.change(confirmation, { target: { name: "confirmPassword", value: "new-one8" } });
-        fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
-        await waitFor(() => expect(handleChangePassword).toHaveBeenCalledWith({ id: 9, oldpassword: "old", password: "new-one8" }));
-        await waitFor(() => expect(oldPassword).toHaveValue(""));
-        expect(password).toHaveValue("");
-        expect(confirmation).toHaveValue("");
+            fireEvent.change(confirmation, { target: { name: "confirmPassword", value: "new-one8" } });
+            fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+            await waitFor(() => expect(handleChangePassword).toHaveBeenCalledWith({ id: 9, oldpassword: "old", password: "new-one8" }));
+            await waitFor(() => expect(oldPassword).toHaveValue(""));
+            expect(password).toHaveValue("");
+            expect(confirmation).toHaveValue("");
+            expect(assign).toHaveBeenCalledWith('/login?reason=password-changed');
+            expect(localStorage.getItem('userData')).toBeNull();
+        } finally {
+            Object.defineProperty(window, 'location', originalLocation);
+        }
     });
 });
 

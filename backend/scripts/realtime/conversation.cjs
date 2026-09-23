@@ -75,7 +75,7 @@ module.exports = async ({ nodes, db, tokenFor, seedSessions }) => {
         b.page.getByText("Đang trực tuyến", { exact: true }),
       ).toBeVisible({ timeout: 45000 });
       const contentNodes = (page) =>
-        page.locator('[role="log"] .chat-bubble > div:first-child');
+        page.locator('[role="log"] .chat-bubble .chat-message-text');
       const waiting = (page) =>
         page.getByRole("status", { name: "Đang chờ nhà tuyển dụng trả lời" });
       await expect(waiting(a.page)).toHaveCount(0);

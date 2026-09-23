@@ -48,6 +48,8 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
             await page.getByPlaceholder('Email hoặc số điện thoại', { exact: true }).fill(String(user).padStart(4, '0'));
             await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(password);
             const loginResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/login' && response.request().method() === 'POST');
+            const refreshResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/refresh' && response.request().method() === 'POST');
+            const identityResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/me' && response.request().method() === 'GET');
             const navigation = page.waitForNavigation({ waitUntil: 'load' });
             await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
             const login = await loginResponse;
@@ -63,6 +65,11 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
                 try { return await page.evaluate(() => JSON.parse(localStorage.getItem('userData'))?.id); }
                 catch { return null; }
             }, { timeout: 10000 }).toBe(user);
+            // The full-page login redirect starts a cookie rotation and a fresh
+            // identity check. Navigating again before they finish can discard the
+            // rotated Set-Cookie and leave the next page holding a spent token.
+            assert.equal((await refreshResponse).status(), 200);
+            assert.equal((await identityResponse).status(), 200);
             await page.goto(origin + destination);
             return page;
         };
@@ -125,22 +132,27 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         await screenshot(candidate, '08-ai-letter');
         pass('AI task resumes without resubmission; saved CV matching and editable cover letter use actual worker results');
         await candidate.getByRole('link', { name: `Trở lại công việc #${jobId} để ứng tuyển`, exact: true }).click();
-        await candidate.getByRole('button', { name: /Ứng tuyển ngay/ }).first().click();
+        await candidate.getByRole('button', { name: 'Nộp CV ngay' }).first().click();
         const modal = candidate.getByRole('dialog'); await expect(modal).toBeVisible();
         await modal.getByLabel('CV đã chuẩn bị', { exact: true }).check();
         await modal.getByLabel('CV đã lưu', { exact: true }).selectOption(cv._id);
         await modal.getByLabel('Lời giới thiệu', { exact: true }).fill('Tôi muốn ứng tuyển bằng bản CV đã xem.');
         await expect(modal.getByRole('button', { name: 'Gửi hồ sơ', exact: true })).toBeDisabled();
         await modal.getByRole('button', { name: 'Tạo bản PDF để xem lại' }).click();
-        const pdfLink = modal.getByRole('link', { name: 'Mở bản PDF sẽ gửi' });
-        await expect(pdfLink).toBeVisible({ timeout: 20000 });
-        const pdfBytes = Buffer.from(await candidate.evaluate(async url => Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())), await pdfLink.getAttribute('href')));
+        const pdfPreview = modal.getByRole('button', { name: 'Xem bản PDF sẽ gửi' });
+        await expect(pdfPreview).toBeVisible({ timeout: 20000 });
+        await pdfPreview.click();
+        const pdfDownload = candidate.getByRole('link', { name: 'Tải PDF' });
+        await expect(pdfDownload).toBeVisible({ timeout: 20000 });
+        const pdfBytes = Buffer.from(await candidate.evaluate(async url => Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())), await pdfDownload.getAttribute('href')));
         assert.equal(pdfBytes.subarray(0, 5).toString(), '%PDF-');
         await writeFile(path.join(artifacts, 'reviewed-cv.pdf'), pdfBytes);
+        await candidate.locator('.chat-pdf-modal .ant-modal-close').click();
+        await expect(pdfDownload).toHaveCount(0);
         await screenshot(candidate, '02-review-desktop');
         await candidate.setViewportSize({ width: 390, height: 844 });
         assert.ok(await modal.evaluate(element => element.scrollWidth <= element.clientWidth + 1));
-        await pdfLink.scrollIntoViewIfNeeded();
+        await pdfPreview.scrollIntoViewIfNeeded();
         await expect(modal.getByRole('button', { name: 'Gửi hồ sơ', exact: true })).toBeInViewport({ ratio: 1 });
         await screenshot(candidate, '03-review-mobile');
         assert.equal(calls.filter(row => row.path === '/api/create-new-cv').length, 0);
@@ -199,23 +211,24 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         const ownPdfResponse = candidate.waitForResponse(response => new URL(response.url()).pathname === '/api/get-detail-cv-by-id');
         await historyRow.getByRole('link', { name: 'Xem CV đã nộp' }).click();
         assert.equal((await (await ownPdfResponse).json()).data.file, storedPdf.file);
-        await expect(candidate.getByRole('link', { name: 'Mở PDF đã nộp' })).toBeVisible();
-        await expect(candidate.locator('.submitted-cv-frame')).not.toBeVisible();
+        const submittedPreview = candidate.getByRole('button', { name: 'Xem CV đã nộp' });
+        await expect(submittedPreview).toBeVisible();
+        await expect(candidate.locator('iframe')).toHaveCount(0);
         assert.ok(await candidate.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+        await submittedPreview.click();
+        const submittedDownload = candidate.getByRole('link', { name: 'Tải PDF' });
+        await expect(submittedDownload).toBeVisible();
         const downloadResponse = candidate.waitForEvent('download');
-        await candidate.getByRole('link', { name: 'Tải CV đã nộp' }).click();
+        await submittedDownload.click();
         const download = await downloadResponse;
         const downloaded = path.join(artifacts, 'downloaded-cv.pdf'); await download.saveAs(downloaded);
         assert.deepEqual(await readFile(downloaded), pdfBytes);
         await screenshot(candidate, '07-submitted-pdf');
-        const opened = candidate.waitForEvent('popup');
-        const expectedPdfUrl = await candidate.getByRole('link', { name: 'Mở PDF đã nộp' }).getAttribute('href');
-        await candidate.getByRole('link', { name: 'Mở PDF đã nộp' }).click();
-        const pdfTab = await opened;
-        await expect.poll(() => pdfTab.url()).toBe(expectedPdfUrl);
-        await pdfTab.close();
+        await expect(candidate.getByRole('button', { name: 'Phóng to PDF' })).toBeVisible();
+        await candidate.locator('.chat-pdf-modal .ant-modal-close').click();
+        await expect(submittedDownload).toHaveCount(0);
         await candidate.setViewportSize({ width: 1365, height: 1000 });
-        await expect(candidate.locator('.submitted-cv-frame')).toBeVisible();
+        await expect(submittedPreview).toBeVisible();
         await screenshot(candidate, '09-submitted-pdf-desktop');
         await candidate.setViewportSize({ width: 390, height: 844 });
         pass('candidate sees interview/read status and submitted PDF through actual API without recruiter notes');
@@ -255,7 +268,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         assert.equal((await deniedPdf).status(), 403);
         await expect(outsider.getByRole('alert').first()).toContainText('quyền');
         await expect(outsider.locator('iframe')).toHaveCount(0);
-        await expect(outsider.getByRole('link', { name: 'Mở PDF đã nộp' })).toHaveCount(0);
+        await expect(outsider.getByRole('button', { name: 'Xem CV đã nộp' })).toHaveCount(0);
         current = recruiter;
         await recruiter.goto(origin + '/admin/user-cv/9105');
         await expect(recruiter.getByText('Thông tin ứng viên không còn khả dụng')).toBeVisible();

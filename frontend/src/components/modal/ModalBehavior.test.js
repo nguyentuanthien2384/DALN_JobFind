@@ -237,7 +237,7 @@ describe("SendCvModal", () => {
         expect(await screen.findByRole("button", { name: /xem lại CV/i })).toBeEnabled();
         expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: samplePdf, fileName: 'cv.pdf' }), expect.anything());
 
-        fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" }));
+        await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" })); });
         await waitFor(() => expect(createNewCv).toHaveBeenCalledWith({
             userId: 8,
             file: samplePdf,
@@ -265,7 +265,7 @@ describe("SendCvModal", () => {
         fireEvent.change(screen.getByLabelText('Lời giới thiệu'), { target: { value: 'Tôi muốn ứng tuyển' } });
         expect(screen.getByRole("button", { name: /xem lại CV/i })).toBeEnabled();
         expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: samplePdf, fileName: 'CV-online.pdf' }), expect.anything());
-        fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" }));
+        await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" })); });
         await waitFor(() => expect(createNewCv).toHaveBeenCalledWith(expect.objectContaining({
             userId: 8,
             postId: 23,
@@ -307,7 +307,7 @@ describe("SendCvModal", () => {
         render(<SendCvModal isOpen postId={24} onHide={onHide} />);
         await act(async () => { await Promise.resolve(); });
         await fillApplication();
-        fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" }));
+        await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" })); });
         await waitFor(() => expect(createNewCv).toHaveBeenCalled());
         act(() => jest.advanceTimersByTime(1000));
         expect(toast.error).toHaveBeenCalledWith("Gửi thất bại");

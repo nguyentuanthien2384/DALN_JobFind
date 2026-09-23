@@ -117,22 +117,28 @@ try {
     await modal.getByLabel('Lời giới thiệu',{exact:true}).fill('Tôi muốn ứng tuyển vị trí kỹ sư phần mềm.');
     await expect(modal.getByRole('button',{name:'Gửi hồ sơ',exact:true})).toBeDisabled();
     await modal.getByRole('button',{name:'Tạo bản PDF để xem lại'}).click();
-    const pdfLink=modal.getByRole('link',{name:'Mở bản PDF sẽ gửi'}); await expect(pdfLink).toBeVisible({timeout:15000}).catch(async failure=>{
+    const pdfPreview=modal.getByRole('button',{name:'Xem bản PDF sẽ gửi'}); await expect(pdfPreview).toBeVisible({timeout:15000}).catch(async failure=>{
         console.log('PDF preview errors: '+JSON.stringify(errors));console.log('Modal text: '+await page.locator('.send-cv-modal').allTextContents());
         await page.screenshot({path:path.join(directory,'prepared-application-failure.png'),fullPage:true});
         console.log('Failed preview screenshot: '+directory);throw failure;
     });
+    await pdfPreview.click();
+    const pdfModal=page.locator('.chat-pdf-modal');
+    const pdfLink=pdfModal.getByRole('link',{name:'Tải PDF'}); await expect(pdfLink).toBeVisible();
+    await expect(pdfModal.getByRole('button',{name:'Phóng to PDF'})).toBeVisible();
     const pdfUrl=await pdfLink.getAttribute('href');
     const pdfBytes=Buffer.from(await page.evaluate(async url=>Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())),pdfUrl));
     assert.ok(pdfBytes.subarray(0,5).toString()==='%PDF-');assert.ok(pdfBytes.length<=2*1024*1024);
     await writeFile(path.join(directory,'prepared-application.pdf'),pdfBytes);
-    await pdfLink.scrollIntoViewIfNeeded();
+    await page.locator('.chat-pdf-modal .ant-modal-close').click();
+    await expect(pdfModal).not.toBeVisible();
+    await pdfPreview.scrollIntoViewIfNeeded();
     await expect(modal.getByRole('button',{name:'Gửi hồ sơ',exact:true})).toBeInViewport({ratio:1});
     await expect(modal.getByRole('button',{name:'Hủy',exact:true})).toBeInViewport({ratio:1});
     await page.screenshot({path:path.join(directory,'prepared-application-desktop.png')});
     await page.setViewportSize({width:390,height:844});
     assert.ok(await modal.evaluate(element=>element.scrollWidth<=element.clientWidth+1),'application modal mobile must not overflow');
-    await pdfLink.scrollIntoViewIfNeeded();
+    await pdfPreview.scrollIntoViewIfNeeded();
     await expect(modal.getByRole('button',{name:'Gửi hồ sơ',exact:true})).toBeInViewport({ratio:1});
     await expect(modal.getByRole('button',{name:'Hủy',exact:true})).toBeInViewport({ratio:1});
     await page.screenshot({path:path.join(directory,'prepared-application-mobile.png')});
