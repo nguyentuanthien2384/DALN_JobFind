@@ -5,10 +5,21 @@ const logger = createLogger("ai-worker");
 
 const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5";
 
-// SDK tu doc ANTHROPIC_API_KEY tu bien moi truong.
 // A timeout/connection error does not prove the paid request was not processed.
 // Task redelivery is guarded by the durable ledger; disable hidden SDK retries too.
-export const client = new Anthropic({ maxRetries: 0 });
+export const createClaudeClient = (env = process.env) => {
+  const apiKey = env.ANTHROPIC_API_KEY?.trim();
+  const baseURL = env.ANTHROPIC_BASE_URL?.trim();
+  return new Anthropic({
+    maxRetries: 0,
+    ...(baseURL && { baseURL }),
+    // Keep x-api-key authentication even if the host has an unrelated
+    // ANTHROPIC_AUTH_TOKEN in its environment.
+    ...(apiKey && { apiKey, authToken: null }),
+  });
+};
+
+export const client = createClaudeClient();
 
 export const isConfigured = () => Boolean(process.env.ANTHROPIC_API_KEY?.trim());
 

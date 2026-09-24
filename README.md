@@ -45,7 +45,7 @@ JobFind là nền tảng tuyển dụng toàn diện, kết hợp trải nghiệ
 | --- | --- |
 | 🔍 **Tìm kiếm Elasticsearch** | Tìm kiếm full-text, bộ lọc đa chiều (ngành, lương, địa điểm, hình thức) |
 | 📋 **Kanban Pipeline** | Bảng kéo thả 6 trạng thái quản lý hồ sơ ứng viên |
-| 🤖 **Chatbot AI đa nhà cung cấp** | OpenAI / Gemini / Ollama, tra cứu cá nhân, chuyển nhân viên hỗ trợ |
+| 🤖 **Chatbot AI đa nhà cung cấp** | Claude / OpenAI / Gemini / Ollama, tra cứu cá nhân, chuyển nhân viên hỗ trợ |
 | 🔔 **Realtime & Web Push** | Socket.IO + Web Push Notifications cho thông báo tức thì |
 | 📄 **Prepared CV PDF** | Xuất CV chuẩn bị từ hệ thống với pdf-lib, fontkit |
 | ✉️ **Email thư mời nhận việc** | Template card hiện đại, CSS inline tương thích Gmail/Outlook/mobile |
@@ -227,7 +227,7 @@ Chi tiết: [Thư mời nhận việc](docs/recruitment-offer-email.md)
 | **Backend Legacy** | Node.js 22, Express 5, Sequelize, MySQL, Socket.IO, JWT, Nodemailer, bcryptjs, web-push, Cloudinary, PayPal SDK, openid-client, Redis Streams Adapter, AJV |
 | **Microservices** | Node.js 22, Express, Docker Compose, RabbitMQ 4, Redis 7, Vitest |
 | **Databases** | MySQL 8 (XAMPP), PostgreSQL 16, MongoDB 7, Elasticsearch 8.15 |
-| **AI & ML** | Anthropic Claude (AI Worker), OpenAI GPT-4.1 / Gemini 2.5 / Ollama (Support Chat) |
+| **AI & ML** | Anthropic Claude (AI Worker and Support Chat), OpenAI GPT-4.1 / Gemini 2.5 / Ollama (Support Chat) |
 | **DevOps** | Docker Compose, GitHub Actions CI, Nginx (production), Prometheus alerts |
 | **Tích hợp** | Gmail App Password, Cloudinary, PayPal Sandbox, Google OIDC SSO |
 | **Testing** | Jest 30, Vitest 4, React Testing Library, Playwright (browser tests) |
@@ -477,9 +477,12 @@ EMAIL_APP_PASSWORD=gmail-app-password-16-characters
 EMAIL_DEMO_RECIPIENT=your-address@gmail.com
 
 # Tùy chọn: AI features
+ANTHROPIC_BASE_URL=https://1gw.gwai.cloud
 ANTHROPIC_API_KEY=
+CLAUDE_MODEL=claude-opus-5
 
-# Tùy chọn: Support Chat AI providers
+# Tùy chọn: Support Chat AI providers. ANTHROPIC_API_KEY ở trên cũng bật Claude cho chatbot.
+SUPPORT_CLAUDE_MODEL=claude-haiku-4-5
 OPENAI_API_KEY=
 GEMINI_API_KEY=
 ```

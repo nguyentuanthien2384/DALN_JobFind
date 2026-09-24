@@ -5,5 +5,5 @@
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": { "start": "node src/app.js", "migrate": "node src/migrate.js", "index-kb": "node src/indexKnowledge.js" },
-  "dependencies": { "ai": "7.0.107", "@ai-sdk/openai": "4.0.71", "@ai-sdk/google": "4.0.76", "zod": "^4.0.0", "express": "^4.21.2", "mysql2": "^3.14.0", "dotenv": "^16.5.0" }
+  "dependencies": { "ai": "7.0.107", "@ai-sdk/anthropic": "4.0.62", "@ai-sdk/openai": "4.0.71", "@ai-sdk/google": "4.0.76", "zod": "^4.0.0", "express": "^4.21.2", "mysql2": "^3.14.0", "dotenv": "^16.5.0" }
 }

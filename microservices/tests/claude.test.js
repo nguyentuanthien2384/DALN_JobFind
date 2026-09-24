@@ -37,6 +37,19 @@ describe('Claude adapter', () => {
         expect(api.isConfigured()).toBe(false);
     });
 
+    it('passes a gateway root and x-api-key credentials to the Anthropic SDK', () => {
+        const gateway = api.createClaudeClient({
+            ANTHROPIC_BASE_URL: 'https://1gw.gwai.cloud',
+            ANTHROPIC_API_KEY: 'gateway-test-key'
+        });
+        expect(gateway.options).toEqual({
+            maxRetries: 0,
+            baseURL: 'https://1gw.gwai.cloud',
+            apiKey: 'gateway-test-key',
+            authToken: null
+        });
+    });
+
     it('requests schema-constrained JSON and extracts only text blocks', async () => {
         sdk.create.mockResolvedValue({
             stop_reason: 'end_turn',

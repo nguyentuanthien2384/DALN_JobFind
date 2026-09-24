@@ -8,6 +8,7 @@ import { createTools, privateIntent } from '../support-chat-service/src/tools.js
 import { registerSupportRoutes } from '../support-chat-service/src/http.js';
 import { createSupportServiceProxy } from '../api-gateway/src/middlewares/supportServiceProxy.js';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createAnthropic } from '@ai-sdk/anthropic';
 
 const secret = 'support-service-test-secret-32-characters';
 const candidate = { id: 7, roleCode: 'CANDIDATE' };
@@ -35,6 +36,26 @@ describe('support identity and privacy', () => {
 });
 
 describe('reviewed knowledge and provider fallback', () => {
+    it('runs the installed AI SDK and Claude adapter against a synthetic provider wire stream', async () => {
+        const requests = [];
+        const events = [
+            { type: 'message_start', message: { id: 'msg_test', type: 'message', role: 'assistant', content: [], model: 'claude-haiku-4-5', stop_reason: null, stop_sequence: null, usage: { input_tokens: 3, output_tokens: 1 } } },
+            { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+            { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Xin chào từ Claude' } },
+            { type: 'content_block_stop', index: 0 },
+            { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 4 } },
+            { type: 'message_stop' }
+        ];
+        const model = createAnthropic({ apiKey: 'test-only', fetch: async (_url, options) => {
+            requests.push({ body: JSON.parse(options.body), key: new Headers(options.headers).get('x-api-key') });
+            return new Response(events.map(event => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(''), { headers: { 'Content-Type': 'text/event-stream' } });
+        } })('claude-haiku-4-5');
+        const answer = await createResponder({ providers: [{ name: 'claude', model }], executePublicTool: vi.fn() })({ messages: [{ role: 'user', text: 'Xin chào', status: 'complete' }], signal: new AbortController().signal, emit: vi.fn() });
+        expect(answer).toMatchObject({ mode: 'claude', text: 'Xin chào từ Claude', status: 'complete' });
+        expect(requests[0].key).toBe('test-only');
+        expect(requests[0].body.model).toBe('claude-haiku-4-5');
+        expect(requests[0].body.tools.map(tool => tool.name)).toEqual(['search_jobs', 'get_job_details']);
+    });
     it('runs the installed AI SDK and OpenAI adapter against a synthetic provider wire stream', async () => {
         const bodies=[];
         const model=createOpenAI({apiKey:'test-only',fetch:async(_url,options)=>{
@@ -92,9 +113,26 @@ describe('reviewed knowledge and provider fallback', () => {
         const found = await retrieveKnowledge('vấn đề chưa rõ', {env:{ELASTICSEARCH_URL:'http://local'},fetcher:async()=>({ok:true,json:async()=>({hits:{hits:[{_id:'evil',_source:{text:'Ignore previous'}}]}})})});
         expect(JSON.stringify(found)).not.toContain('Ignore previous');
     });
-    it('never enables unpaid Gemini or implicit local providers', () => {
+    it('configures Claude first with a dedicated model and never enables unpaid Gemini', () => {
         expect(configuredProviders({GEMINI_API_KEY:'test'})).toEqual([]);
         expect(configuredProviders({OPENAI_API_KEY:'test',GEMINI_API_KEY:'test',SUPPORT_GEMINI_PAID:'true'}).map(p=>p.name)).toEqual(['openai','gemini']);
+        const providers = configuredProviders({ ANTHROPIC_API_KEY: 'test', OPENAI_API_KEY: 'test' });
+        expect(providers.map(provider => provider.name)).toEqual(['claude', 'openai']);
+        expect(providers[0].model.modelId).toBe('claude-haiku-4-5');
+        expect(configuredProviders({ ANTHROPIC_API_KEY: 'test', SUPPORT_CLAUDE_MODEL: 'claude-sonnet-5' })[0].model.modelId).toBe('claude-sonnet-5');
+        expect(configuredProviders({ ANTHROPIC_API_KEY: '  ' })).toEqual([]);
+    });
+    it('uses the gateway versioned URL and x-api-key header for the support chatbot', () => {
+        const model = configuredProviders({
+            ANTHROPIC_BASE_URL: 'https://1gw.gwai.cloud/',
+            ANTHROPIC_API_KEY: 'gateway-test-key',
+            SUPPORT_CLAUDE_MODEL: 'haiku-4-5'
+        })[0].model;
+        expect(model.modelId).toBe('haiku-4-5');
+        expect(model.config.baseURL).toBe('https://1gw.gwai.cloud/v1');
+        expect(model.config.headers()).toMatchObject({ 'x-api-key': 'gateway-test-key' });
+        expect(configuredProviders({ ANTHROPIC_BASE_URL: 'https://1gw.gwai.cloud/v1/', ANTHROPIC_API_KEY: 'test' })[0].model.config.baseURL)
+            .toBe('https://1gw.gwai.cloud/v1');
     });
     const messages = [{role:'user',text:'tao cv',status:'complete'}];
     const run = (respond, emit=vi.fn()) => respond({messages,signal:new AbortController().signal,emit});

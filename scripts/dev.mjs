@@ -22,7 +22,10 @@ const require = createRequire(path.join(root, 'backend/package.json'));
 const dotenv = require('dotenv');
 const action = process.argv[2] || 'start';
 const infrastructure = ['mongo', 'postgres', 'redis', 'rabbitmq', 'elasticsearch'];
-const applications = ['identity-service', 'application-service', 'notification-service', 'admin-service', 'job-core-service', 'search-service', 'support-chat-service', 'api-gateway'];
+const baseApplications = ['identity-service', 'application-service', 'notification-service', 'admin-service', 'job-core-service', 'search-service', 'support-chat-service', 'api-gateway'];
+const applicationPorts = { 'identity-service': 4001, 'application-service': 4004, 'notification-service': 4005,
+    'admin-service': 4006, 'job-core-service': 4002, 'search-service': 4003, 'support-chat-service': 4008,
+    'api-gateway': 4000, 'ai-worker': 4007 };
 const composeBase = ['compose', '-p', project, '-f', 'docker-compose.yml'];
 const composeApps = [...composeBase, '-f', 'compose.local.yml', '-f', 'compose.runtime.yml'];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -65,6 +68,7 @@ async function serve() {
     let stopping = false;
     let failure;
     let appsStarted = false;
+    let applications = baseApplications;
     const controller = new AbortController();
     lifecycleSignal = controller.signal;
     let monitor;
@@ -104,6 +108,7 @@ async function serve() {
         await writeState(state);
         const backend = dotenv.parse(await fs.readFile(path.join(root, 'backend/.env')));
         const micro = dotenv.parse(await fs.readFile(path.join(root, 'microservices/.env')));
+        if (micro.ANTHROPIC_API_KEY?.trim()) applications = [...baseApplications, 'ai-worker'];
         if (!backend.JWT_SECRET || backend.JWT_SECRET !== micro.JWT_SECRET || backend.JWT_SECRET.length < 32) throw new Error('JWT_SECRET cần ít nhất 32 ký tự và phải khớp ở hai file .env.');
         if (!backend.INTERNAL_SECRET || backend.INTERNAL_SECRET !== micro.INTERNAL_SECRET) throw new Error('INTERNAL_SECRET chưa khớp ở hai file .env.');
         const webPort = Number(process.env.JOBFIND_WEB_PORT || 3001), backendPort = Number(process.env.JOBFIND_BACKEND_PORT || backend.PORT || 5000);
@@ -146,7 +151,7 @@ async function serve() {
         await longCommand([...composeApps, 'up', '-d', '--no-deps', ...applications], env);
         await waitFor(async () => {
             const id = await containerId('api-gateway');
-            const result = await command(['exec', id, 'node', '-e', `Promise.all(${JSON.stringify(applications.map((name, index) => `http://${name}:${({ 'identity-service':4001,'application-service':4004,'notification-service':4005,'admin-service':4006,'job-core-service':4002,'search-service':4003,'api-gateway':4000,'support-chat-service':4008 })[name]}/readyz`))}.map(async url=>{const r=await fetch(url,{signal:AbortSignal.timeout(4000)});await r.body?.cancel();if(!r.ok)throw Error(url)})).then(()=>console.log('ready')).catch(()=>process.exit(1))`]);
+            const result = await command(['exec', id, 'node', '-e', `Promise.all(${JSON.stringify(applications.map(name => `http://${name}:${applicationPorts[name]}/readyz`))}.map(async url=>{const r=await fetch(url,{signal:AbortSignal.timeout(4000)});await r.body?.cancel();if(!r.ok)throw Error(url)})).then(()=>console.log('ready')).catch(()=>process.exit(1))`]);
             return result === 'ready';
         }, 'Các dịch vụ API', 180000);
         await update('Khởi động giao diện tuyển dụng');

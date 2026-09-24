@@ -20,6 +20,9 @@ services:
       IDENTITY_URL: http://identity-service:4001
       APPLICATION_URL: http://application-service:4004
       ELASTICSEARCH_URL: http://elasticsearch:9200
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SUPPORT_CLAUDE_MODEL: ${SUPPORT_CLAUDE_MODEL:-claude-haiku-4-5}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       SUPPORT_OPENAI_MODEL: ${SUPPORT_OPENAI_MODEL:-gpt-4.1-mini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -198,6 +201,7 @@ services:
     command: npm start
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5}
       AI_CONCURRENCY: ${AI_CONCURRENCY:-2}

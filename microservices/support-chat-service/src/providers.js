@@ -1,12 +1,22 @@
 import { streamText, tool, isStepCount } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { knowledgeAnswer, retrieveKnowledge } from './knowledge.js';
 import { redact } from './policy.js';
 
 export function configuredProviders(env = process.env) {
     const providers = [];
+    const apiKey = env.ANTHROPIC_API_KEY?.trim();
+    if (apiKey) {
+        const baseURL = env.ANTHROPIC_BASE_URL?.trim()?.replace(/\/+$/, '');
+        // The Anthropic SDK takes a host root and appends /v1/messages; the AI
+        // SDK appends only /messages, so it needs the versioned URL prefix.
+        const versionedURL = baseURL && `${baseURL.replace(/\/v1$/, '')}/v1`;
+        const options = { ...(versionedURL && { baseURL: versionedURL }), apiKey };
+        providers.push({ name: 'claude', model: createAnthropic(options)(env.SUPPORT_CLAUDE_MODEL || 'claude-haiku-4-5') });
+    }
     if (env.OPENAI_API_KEY) providers.push({ name: 'openai', model: createOpenAI({ apiKey: env.OPENAI_API_KEY }).chat(env.SUPPORT_OPENAI_MODEL || 'gpt-4.1-mini') });
     // Paid-data policy is an explicit deployment setting, never inferred from a key.
     if (env.GEMINI_API_KEY && env.SUPPORT_GEMINI_PAID === 'true') providers.push({ name: 'gemini', model: createGoogleGenerativeAI({ apiKey: env.GEMINI_API_KEY })(env.GEMINI_MODEL || 'gemini-2.5-flash') });
