@@ -15,8 +15,9 @@ vi.mock('../shared/logger.js', () => ({ createLogger: () => mocks.logger }));
 import { parseResume, matchCv, coverLetter } from '../job-core-service/src/controllers/aiController.js';
 import { enqueueAiTask, MAX_AI_REQUEST_BYTES } from '../job-core-service/src/libs/aiTaskRequest.js';
 
+const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF').toString('base64');
 const cases = [
-    ['parse_resume', parseResume, { fileBase64: 'private-base64', fileName: 'cv.pdf' }],
+    ['parse_resume', parseResume, { fileBase64: PDF, fileName: 'cv.pdf' }],
     ['match_cv', matchCv, { resumeText: 'private-resume', jobId: 1 }],
     ['cover_letter', coverLetter, { resumeText: 'private-resume', jobId: '1', language: 'vi' }]
 ];
@@ -60,7 +61,7 @@ describe('candidate AI request durability', () => {
             await committed;
         });
         const res = makeRes();
-        const pending = parseResume(request({ fileBase64: 'PDF' }), res);
+        const pending = parseResume(request({ fileBase64: PDF }), res);
         await waiting;
         expect(res.json).not.toHaveBeenCalled();
         releaseCommit();
@@ -105,7 +106,7 @@ describe('candidate AI request durability', () => {
 
     it('preserves complete Unicode metadata instead of cutting JSON at 60000 characters', async () => {
         const fileName = 'ắ'.repeat(65000) + '.pdf';
-        await parseResume(request({ fileBase64: 'PDF', fileName }), makeRes());
+        await parseResume(request({ fileBase64: PDF, fileName }), makeRes());
         expect(JSON.parse(mocks.conn.query.mock.calls[0][1][4])).toEqual({ fileName });
         expect(JSON.parse(mocks.conn.query.mock.calls[1][1][4]).fileName).toBe(fileName);
     });
@@ -113,8 +114,8 @@ describe('candidate AI request durability', () => {
     it('assigns independent IDs to independent HTTP submissions, including identical inputs', async () => {
         const first = makeRes();
         const second = makeRes();
-        await parseResume(request({ fileBase64: 'PDF' }), first);
-        await parseResume(request({ fileBase64: 'PDF' }), second);
+        await parseResume(request({ fileBase64: PDF }), first);
+        await parseResume(request({ fileBase64: PDF }), second);
         expect(first.body.taskId).not.toBe(second.body.taskId);
     });
 });
@@ -123,13 +124,16 @@ describe('bounded AI input before durable enqueue', () => {
     it.each([
         [parseResume, { fileBase64: {} }],
         [parseResume, { fileBase64: '  ' }],
-        [parseResume, { fileBase64: 'PDF', fileName: [] }],
+        [parseResume, { fileBase64: PDF, fileName: [] }],
+        [parseResume, { fileBase64: Buffer.from('not a PDF').toString('base64') }],
+        [parseResume, { fileBase64: 'JVBERi0xLjQ===' }],
         [matchCv, { resumeText: ['CV'], jobId: 1 }],
         [matchCv, { resumeText: 'CV', jobId: true }],
         [matchCv, { resumeText: 'CV', jobId: [] }],
         [matchCv, { resumeText: 'CV', jobId: '1 OR 1=1' }],
         [matchCv, { resumeText: 'CV', jobId: Number.MAX_SAFE_INTEGER + 1 }],
         [coverLetter, { resumeText: 'CV', jobId: 1, language: {} }],
+        [coverLetter, { resumeText: 'CV', jobId: 1, language: 'fr' }],
         [coverLetter, { resumeText: '\n', jobId: 1 }]
     ])('rejects invalid field types without database work', async (handler, body) => {
         const res = makeRes();

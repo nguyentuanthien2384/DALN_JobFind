@@ -9,8 +9,10 @@ import { ensureAiRequestTable } from '../job-core-service/src/libs/aiTaskRequest
 
 let keys;
 let tasks;
+const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF').toString('base64');
+const OTHER_PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<</Type /Page>>\nendobj\n%%EOF').toString('base64');
 const cases = [
-    ['parse', parseResume, { fileBase64: 'private-pdf', fileName: 'cv.pdf' }],
+    ['parse', parseResume, { fileBase64: PDF, fileName: 'cv.pdf' }],
     ['match', matchCv, { resumeText: 'private-cv', jobId: 7 }],
     ['cover', coverLetter, { resumeText: 'private-cv', jobId: 7, language: 'en' }]
 ];
@@ -61,7 +63,7 @@ describe('AI HTTP idempotency', () => {
 
     it.each(cases)('%s rejects a different body for the same key without exposing the previous task', async (_name, handler, body) => {
         await send(handler, body);
-        const altered = body.fileBase64 ? { ...body, fileBase64: 'different' } : { ...body, resumeText: 'different' };
+        const altered = body.fileBase64 ? { ...body, fileBase64: OTHER_PDF } : { ...body, resumeText: 'different' };
         const conflict = await send(handler, altered);
         expect(conflict.statusCode).toBe(409);
         expect(conflict.body).not.toHaveProperty('taskId');
@@ -69,7 +71,7 @@ describe('AI HTTP idempotency', () => {
     });
 
     it('scopes keys by the authenticated user and compares keys case-sensitively', async () => {
-        const body = { fileBase64: 'PDF' };
+        const body = { fileBase64: PDF };
         const first = await send(parseResume, body, 'Key', '9');
         const anotherUser = await send(parseResume, body, 'Key', '10');
         const differentCase = await send(parseResume, body, 'key', '9');
@@ -93,37 +95,37 @@ describe('AI HTTP idempotency', () => {
     });
 
     it.each(['pending', 'done', 'failed'])('reuses an existing %s task without resetting it', async (status) => {
-        const first = await send(parseResume, { fileBase64: 'PDF' });
+        const first = await send(parseResume, { fileBase64: PDF });
         tasks.get(first.body.taskId).status = status;
-        const replay = await send(parseResume, { fileBase64: 'PDF' });
+        const replay = await send(parseResume, { fileBase64: PDF });
         expect(replay.body.taskId).toBe(first.body.taskId);
         expect(tasks.get(first.body.taskId).status).toBe(status);
         expect(mocks.enqueue).toHaveBeenCalledOnce();
     });
 
     it.each(['missing', 'wrong-user', 'wrong-type'])('fails closed for a %s mapped task', async (condition) => {
-        const first = await send(parseResume, { fileBase64: 'PDF' });
+        const first = await send(parseResume, { fileBase64: PDF });
         const task = tasks.get(first.body.taskId);
         if (condition === 'missing') tasks.delete(task.id);
         if (condition === 'wrong-user') task.userId = 10;
         if (condition === 'wrong-type') task.type = 'match_cv';
-        const replay = await send(parseResume, { fileBase64: 'PDF' });
+        const replay = await send(parseResume, { fileBase64: PDF });
         expect(replay.statusCode).toBe(409);
         expect(replay.body).not.toHaveProperty('taskId');
         expect(mocks.enqueue).toHaveBeenCalledOnce();
     });
 
     it.each(['', ' leading', 'trailing ', 'a,b', 'ắ', 'x'.repeat(129), ['one', 'two'], null])('rejects invalid keys before database work', async (key) => {
-        expect((await send(parseResume, { fileBase64: 'PDF' }, key)).statusCode).toBe(400);
+        expect((await send(parseResume, { fileBase64: PDF }, key)).statusCode).toBe(400);
         expect(mocks.transaction).not.toHaveBeenCalled();
     });
     it.each(['', '0', '-1', 'bad'])('requires a valid user for a keyed request', async (user) => {
-        expect((await send(parseResume, { fileBase64: 'PDF' }, 'key', user)).statusCode).toBe(401);
+        expect((await send(parseResume, { fileBase64: PDF }, 'key', user)).statusCode).toBe(401);
         expect(mocks.transaction).not.toHaveBeenCalled();
     });
 
     it('accepts a 128-character key and keeps the key separate from the worker payload', async () => {
-        expect((await send(parseResume, { fileBase64: 'PDF' }, 'x'.repeat(128))).statusCode).toBe(202);
+        expect((await send(parseResume, { fileBase64: PDF }, 'x'.repeat(128))).statusCode).toBe(202);
         expect(mocks.enqueue.mock.calls[0][1].payload).not.toHaveProperty('idempotencyKey');
     });
 });

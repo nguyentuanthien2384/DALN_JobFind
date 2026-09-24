@@ -4,11 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import dotenv from 'dotenv';
 const root=fileURLToPath(new URL('../../',import.meta.url));
-dotenv.config({path:path.join(root,'microservices/.env')});
+const providerEnv=dotenv.parse(await fs.readFile(path.join(root,'microservices/.env')));
 const report={at:new Date().toISOString(),realProvider:true,requiresHumanReview:true,cases:[]};
 const directory=path.join(root,'.local');await fs.mkdir(directory,{recursive:true});
 const write=()=>fs.writeFile(path.join(directory,'support-service-evaluation.json'),JSON.stringify(report,null,2));
-if(!process.env.OPENAI_API_KEY && !(process.env.GEMINI_API_KEY && process.env.SUPPORT_GEMINI_PAID==='true') && !process.env.SUPPORT_OLLAMA_URL){
+if(!providerEnv.ANTHROPIC_API_KEY && !providerEnv.OPENAI_API_KEY && !(providerEnv.GEMINI_API_KEY && providerEnv.SUPPORT_GEMINI_PAID==='true') && !providerEnv.SUPPORT_OLLAMA_URL){
     report.status='blocked_missing_provider';report.realProvider=false;await write();console.log('BLOCKED: chưa cấu hình nhà cung cấp AI thật trong microservices/.env. Không tính hướng dẫn dự phòng là kiểm thử AI đạt.');process.exitCode=2;
 }else{
     const origin=(process.env.SUPPORT_EVAL_GATEWAY || 'http://localhost:4000').replace(/\/$/,'');let guest;
@@ -23,7 +23,7 @@ if(!process.env.OPENAI_API_KEY && !(process.env.GEMINI_API_KEY && process.env.SU
             const state=await read.json();const answer=state.data?.messages?.at(-1);
             item={...item,httpStatus:response.status,durationMs:Date.now()-started,completed:/event: done/.test(body),answer:answer?.text,mode:answer?.mode,sources:answer?.sources,cards:answer?.cards,needsReview:true};
             item.transportPass=response.ok&&item.completed&&!!answer?.text;
-            item.usedRealModel=['openai','gemini','ollama'].includes(item.mode);
+            item.usedRealModel=['claude','openai','gemini','ollama'].includes(item.mode);
             item.expectedLocalRead=name==='private';
         }catch{item.error='request_failed';}
         finally{if(guest)await fetch(origin+'/api/support/conversations/'+id,{method:'DELETE',headers:{'X-Support-Guest':guest},signal:AbortSignal.timeout(10000)}).catch(()=>{});}

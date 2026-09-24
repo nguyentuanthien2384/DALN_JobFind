@@ -794,12 +794,13 @@ event ID mang hai nội dung khác nhau. Đây không phải khóa ngăn tin/cô
 ### Giới hạn đầu vào và lỗi
 
 - Payload gửi worker tối đa **8 MiB JSON UTF-8**, tính cả base64, Unicode, ký tự
-  escape và metadata. File PDF gốc phải nhỏ hơn khoảng 6 MiB để còn chỗ cho tên
+  escape và metadata. File PDF gốc tối đa 5 MiB để còn chỗ cho tên
   file/metadata. Dữ liệu gốc quá lớn trả 413 trước khi mở giao dịch. Nếu snapshot
   tin làm payload vượt giới hạn, rollback giao dịch và trả 413, không cắt nội dung.
-- `fileBase64`/`resumeText` phải là chuỗi không rỗng; `fileName`/`language` nếu có
-  phải là chuỗi hoặc null; `jobId` là số nguyên dương an toàn hoặc chuỗi số tương
-  ứng. Chưa thêm bước xác thực nội dung PDF/base64 hay đổi giới hạn/prompt của model.
+- `fileBase64` phải là base64 chuẩn của PDF hợp lệ, tối đa 5 MiB; `resumeText`
+  phải là chuỗi không rỗng. `fileName` nếu có phải là chuỗi hoặc null;
+  `language` của thư ứng tuyển nếu chỉ định chỉ nhận `vi` hoặc `en`;
+  `jobId` là số nguyên dương an toàn hoặc chuỗi số tương ứng.
 - `ai_tasks.input` chỉ giữ metadata (`fileName` hoặc `jobId`/`language`), lưu JSON
   nguyên vẹn thay vì cắt ở 60.000 ký tự. Không tự sửa JSON cũ đã hỏng.
 - Lỗi ghi task/outbox làm rollback cả giao dịch. Handler trả 500, không trả 202
@@ -957,13 +958,18 @@ Một đợt CV ồ ạt chỉ làm hàng đợi dài ra, không làm sập API.
 
 | Tính năng | Sự kiện | Mô tả |
 |---|---|---|
-| Resume Parser | `ai.parse_resume` | Đọc thẳng file PDF → JSON có cấu trúc |
+| Resume Parser | `ai.parse_resume` | Bóc tách PDF → JSON có cấu trúc |
 | Smart Matching | `ai.match_cv` | Chấm điểm % độ khớp CV ↔ mô tả công việc |
 | Content Moderation | `ai.moderate_job` | Quét tin tuyển dụng tìm dấu hiệu lừa đảo, đa cấp, thu phí ứng viên |
 | Cover Letter | `ai.cover_letter` | Sinh thư ứng tuyển |
 
 Ba tính năng đầu dùng **structured outputs** (`output_config.format`) nên kết quả
 luôn đúng schema, không phải tự parse JSON lẫn trong văn xuôi.
+
+Với gateway tương thích Anthropic cấu hình qua `ANTHROPIC_BASE_URL`, worker trích
+lớp chữ từ PDF ở máy chủ rồi dùng `claude-sonnet-5` để bóc tách. PDF chỉ có ảnh quét
+cần OCR trước; nếu không đọc được chữ, tác vụ trả lỗi rõ ràng. Nếu dùng API
+Anthropic trực tiếp (không đặt `ANTHROPIC_BASE_URL`), worker gửi PDF như tài liệu.
 
 ## Chạy hệ thống
 

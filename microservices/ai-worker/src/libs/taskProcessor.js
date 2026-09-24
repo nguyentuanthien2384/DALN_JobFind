@@ -11,6 +11,8 @@ const publicAiError = (error) => {
     if (error?.code === 'EVENT_PAYLOAD_INVALID' || error?.code === 'EVENT_PAYLOAD_TOO_LARGE') {
         return error.code;
     }
+    if (error?.code === 'AI_INVALID_PDF') return 'Tệp CV không phải PDF hợp lệ tối đa 5 MiB';
+    if (error?.code === 'AI_PDF_TEXT_UNAVAILABLE') return 'Chưa đọc được chữ trong CV PDF; hãy dùng tệp có văn bản thay vì ảnh quét';
     const status = error?.status;
     if (Number.isInteger(status) && status >= 400 && status <= 599) {
         return `Nhà cung cấp AI trả lỗi HTTP ${status}`;

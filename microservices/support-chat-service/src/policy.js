@@ -30,3 +30,25 @@ export function validateTurn(body) {
     if (body.conversationId && (!Number.isSafeInteger(body.version) || body.version < 0)) throw failure(400, 'Thiếu phiên bản hội thoại.');
     return { ...body, text: redact(body.text.trim()) };
 }
+
+// Compatibility for callers of the earlier stateless /api/support-chat API.
+// History is supplied by the client, so keep it bounded and strip sensitive
+// credentials before any text reaches a provider.
+export function validateLegacyMessages(input) {
+    if (!Array.isArray(input) || input.length < 1 || input.length > 12)
+        throw failure(400, 'Cuộc trò chuyện phải có từ 1 đến 12 tin nhắn.');
+    let total = 0;
+    const messages = input.map(message => {
+        if (!message || !['user', 'assistant'].includes(message.role) || typeof message.text !== 'string')
+            throw failure(400, 'Định dạng tin nhắn không hợp lệ.');
+        const text = message.text.trim();
+        if (!text || text.length > (message.role === 'user' ? 1400 : 12000))
+            throw failure(400, 'Tin nhắn vượt quá giới hạn độ dài.');
+        total += text.length;
+        return { role: message.role, text: redact(text), status: 'complete' };
+    });
+    if (total > 8500 || messages[0].role !== 'user' || messages.at(-1).role !== 'user'
+        || messages.some((message, index) => index > 0 && message.role === messages[index - 1].role))
+        throw failure(400, 'Thứ tự hoặc độ dài cuộc trò chuyện không hợp lệ.');
+    return messages;
+}

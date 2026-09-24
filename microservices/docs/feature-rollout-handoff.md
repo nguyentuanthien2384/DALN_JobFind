@@ -2,6 +2,8 @@
 
 Ứng dụng local: **http://localhost:3001**. Bốn cờ đã được bật lần lượt, theo thứ tự tìm kiếm → tiến trình ứng tuyển → danh sách tin của công ty → chọn CV đã chuẩn bị. Bản sửa đường đăng nhập được giữ ở mọi bước. Đây là trạng thái kế tiếp của [nghiệm thu khi cờ tắt](flags-off-acceptance.md).
 
+> Đây là biên bản tại ngày 12-09-2026. Các dòng bên dưới về việc thiếu API key và cờ AI tắt mô tả thời điểm nghiệm thu đó. Cấu hình gateway và các cờ AI hiện dùng được ghi trong [README chính](../../README.md) và file `.env` local được Git bỏ qua.
+
 ## Các cờ đang dùng
 
 - `REACT_APP_JOB_SEARCH_MODE=core`: trang tìm việc dùng API tìm kiếm mới; kiểm tra bằng trình duyệt và dữ liệu thật.

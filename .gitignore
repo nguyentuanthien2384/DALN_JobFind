@@ -29,6 +29,7 @@ coverage/
 **/ .env
 **/.env.*
 !**/.env.example
+!frontend/.env.test
 **/.secrets/
 
 # Logs và file debug

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import express from 'express';
-import { guestIdentity, redact, validateTurn } from '../support-chat-service/src/policy.js';
+import { guestIdentity, redact, validateLegacyMessages, validateTurn } from '../support-chat-service/src/policy.js';
 import { configuredProviders, createResponder } from '../support-chat-service/src/providers.js';
 import { articles, localKnowledge, retrieveKnowledge } from '../support-chat-service/src/knowledge.js';
 import { createTools, privateIntent } from '../support-chat-service/src/tools.js';
@@ -33,6 +33,14 @@ describe('support identity and privacy', () => {
     });
     it.each([{}, {requestId:'bad',text:'test'}, {requestId:randomUUID(),text:' '}, {requestId:randomUUID(),text:'a'.repeat(1401)}, {requestId:randomUUID(),text:'x',conversationId:randomUUID()}])('rejects invalid turn %j', value => expect(() => validateTurn(value)).toThrow());
     it('accepts bounded valid input and sanitizes it', () => expect(validateTurn({requestId:randomUUID(),text:'a@example.com'}).text).toBe('[email đã ẩn]'));
+    it('validates legacy chat history and redacts it before Claude context', () => {
+        const history = validateLegacyMessages([{ role: 'user', text: 'a@example.com' },
+            { role: 'assistant', text: 'Bạn có thể thử lại.' }, { role: 'user', text: 'Xin chào' }]);
+        expect(history.map(message => message.status)).toEqual(['complete', 'complete', 'complete']);
+        expect(history[0].text).toBe('[email đã ẩn]');
+        expect(() => validateLegacyMessages([{ role: 'user', text: 'Chào' }, { role: 'user', text: 'Tiếp' }])).toThrow();
+        expect(() => validateLegacyMessages([{ role: 'user', text: 'x'.repeat(1401) }])).toThrow();
+    });
 });
 
 describe('reviewed knowledge and provider fallback', () => {

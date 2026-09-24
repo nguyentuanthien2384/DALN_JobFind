@@ -12,6 +12,7 @@ import amqplib from 'amqplib';
 const execute = promisify(execFile);
 const docker = async (...args) => (await execute('docker', args, { timeout: 45000, maxBuffer: 1024 * 1024 })).stdout.trim();
 const token = randomUUID();
+const pdf = text => Buffer.from(`%PDF-1.4\n${text}\n%%EOF`).toString('base64');
 const database = 'jobfind_ai_request_test';
 const label = 'jobfind.ai-requests-test';
 const containers = [];
@@ -87,7 +88,7 @@ try {
         return res.body;
     };
     const cases = [
-        { type: 'parse_resume', handler: parseResume, body: { fileBase64: Buffer.from('synthetic test CV').toString('base64'), fileName: 'ắ'.repeat(65000) + '.pdf' } },
+        { type: 'parse_resume', handler: parseResume, body: { fileBase64: pdf('synthetic test CV'), fileName: 'ắ'.repeat(65000) + '.pdf' } },
         { type: 'match_cv', handler: matchCv, body: { resumeText: 'Synthetic CV', jobId: 1 } },
         { type: 'cover_letter', handler: coverLetter, body: { resumeText: 'Synthetic CV', jobId: '1', language: 'vi' } }
     ];
@@ -142,7 +143,7 @@ try {
     await check('a task insert failure leaves no outgoing event', async () => {
         const before = [await count('ai_tasks'), await count('outbox_events')];
         await pool.query("CREATE TRIGGER fail_ai_task BEFORE INSERT ON ai_tasks FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'test task insert failure'");
-        try { await submit(parseResume, { fileBase64: 'test' }, 500); }
+        try { await submit(parseResume, { fileBase64: pdf('test') }, 500); }
         finally { await pool.query('DROP TRIGGER fail_ai_task'); }
         assert.deepEqual([await count('ai_tasks'), await count('outbox_events')], before);
     });
@@ -228,7 +229,7 @@ try {
     });
 
     await check('a failed DB marker after broker confirm causes an identical replay, not a new task', async () => {
-        const { taskId } = await submit(parseResume, { fileBase64: 'synthetic-replay' });
+        const { taskId } = await submit(parseResume, { fileBase64: pdf('synthetic-replay') });
         await pool.query(`CREATE TRIGGER fail_publish_marker BEFORE UPDATE ON outbox_events FOR EACH ROW
             BEGIN IF NEW.publishedAt IS NOT NULL THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'test marker failure'; END IF; END`);
         try { assert.equal(await runOutboxOnce(), 0); }
@@ -297,7 +298,7 @@ try {
     };
     const totals = async () => [await count('ai_request_keys'), await count('ai_tasks'), await count('outbox_events')];
     const keyedCases = [
-        ['/ai/parse-resume', { fileBase64: 'synthetic-http-cv', fileName: 'test.pdf' }],
+        ['/ai/parse-resume', { fileBase64: pdf('synthetic-http-cv'), fileName: 'test.pdf' }],
         ['/ai/match-cv', { resumeText: 'Synthetic CV', jobId: 1 }],
         ['/ai/cover-letter', { resumeText: 'Synthetic CV', jobId: 1, language: 'en' }]
     ];
@@ -307,7 +308,7 @@ try {
         const before = await totals();
         for (const [path, body] of [
             ['/ai/parse-resume', { fileBase64: { $ne: null } }],
-            ['/ai/parse-resume', { fileBase64: 'test', fileName: 'x'.repeat(256) }],
+            ['/ai/parse-resume', { fileBase64: pdf('test'), fileName: 'x'.repeat(256) }],
             ['/ai/match-cv', { resumeText: 'CV', jobId: [1] }],
             ['/ai/match-cv', { resumeText: 'CV', jobId: 1, userId: 10 }],
             ['/ai/cover-letter', { resumeText: 'CV', jobId: 1, language: { nested: 'invalid' } }]
@@ -346,7 +347,7 @@ try {
     await check('changed inputs and endpoint changes conflict without revealing or overwriting the original task', async () => {
         const before = await totals();
         for (const item of keyed) {
-            const body = item.body.fileBase64 ? { ...item.body, fileBase64: 'changed' } : { ...item.body, resumeText: 'changed' };
+            const body = item.body.fileBase64 ? { ...item.body, fileBase64: pdf('changed') } : { ...item.body, resumeText: 'changed' };
             const res = await http(item.path, body, item.key);
             assert.equal(res.status, 409);
             assert.equal(res.body.taskId, undefined);
@@ -357,7 +358,7 @@ try {
 
     await check('a lost real HTTP response after commit is recovered with the same task ID', async () => {
         const key = randomUUID();
-        const body = { fileBase64: 'synthetic-lost-response' };
+        const body = { fileBase64: pdf('synthetic-lost-response') };
         const before = await totals();
         dropAcceptedResponse = true;
         await assert.rejects(http('/ai/parse-resume', body, key), /fetch failed/);
@@ -373,7 +374,7 @@ try {
 
     await check('SQL rollback releases the key together with task/outbox, so a later retry may succeed', async () => {
         const key = randomUUID();
-        const body = { fileBase64: 'synthetic-rollback' };
+        const body = { fileBase64: pdf('synthetic-rollback') };
         const before = await totals();
         await pool.query("CREATE TRIGGER fail_keyed_outbox AFTER INSERT ON outbox_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'keyed rollback test'");
         try {
@@ -394,7 +395,7 @@ try {
 
     await check('user scoping and case-sensitive keys are enforced by real MySQL', async () => {
         const key = `Scoped-${randomUUID()}`;
-        const body = { fileBase64: 'synthetic-scope' };
+        const body = { fileBase64: pdf('synthetic-scope') };
         const first = await http('/ai/parse-resume', body, key);
         const otherUser = await http('/ai/parse-resume', body, key, '10');
         const otherCase = await http('/ai/parse-resume', body, key.toLowerCase());

@@ -1,4 +1,5 @@
 import { validateMessages, streamGemini } from '../services/supportChatService';
+import { streamSupportGateway } from '../services/supportGatewayService';
 
 let activeRequests = 0;
 const MAX_CONCURRENT_REQUESTS = 8;
@@ -26,32 +27,27 @@ export const handleSupportChat = async (req, res) => {
     res.on('close', abortOnDisconnect);
     activeRequests++;
     try {
-        await streamGemini({
-            messages,
-            signal: controller.signal,
-            onTool: async (result) => {
-                if (controller.signal.aborted || res.destroyed) return;
-                if (!started) {
-                    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-                    res.setHeader('Cache-Control', 'no-cache, no-transform');
-                    res.setHeader('X-Accel-Buffering', 'no');
-                    res.flushHeaders();
-                    started = true;
-                }
-                sendFrame(res, 'tool', result);
-            },
-            onText: async (text) => {
-                if (controller.signal.aborted || res.destroyed) return;
-                if (!started) {
-                    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-                    res.setHeader('Cache-Control', 'no-cache, no-transform');
-                    res.setHeader('X-Accel-Buffering', 'no');
-                    res.flushHeaders();
-                    started = true;
-                }
-                sendFrame(res, 'token', { text });
+        const emit = (event, payload) => {
+            if (controller.signal.aborted || res.destroyed) return;
+            if (!started) {
+                res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+                res.setHeader('Cache-Control', 'no-cache, no-transform');
+                res.setHeader('X-Accel-Buffering', 'no');
+                res.flushHeaders();
+                started = true;
             }
-        });
+            sendFrame(res, event, payload);
+        };
+        if (process.env.SUPPORT_CHAT_GATEWAY_URL?.trim()) {
+            await streamSupportGateway({ messages, signal: controller.signal, onEvent: emit });
+        } else {
+            await streamGemini({
+                messages,
+                signal: controller.signal,
+                onTool: (result) => emit('tool', result),
+                onText: (text) => emit('token', { text })
+            });
+        }
         if (controller.signal.aborted || res.destroyed) return;
         if (!started) {
             res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');

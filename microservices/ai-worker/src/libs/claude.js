@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import Ajv from "ajv";
 import { createLogger } from "../../../shared/logger.js";
 
 const logger = createLogger("ai-worker");
@@ -32,6 +33,28 @@ const extractText = (message) =>
     .join("")
     .trim();
 
+// A third-party gateway may accept output_config yet return parseable JSON that
+// does not satisfy the requested schema. Do not publish that as a successful
+// candidate result. Keep validator diagnostics (which can contain input data)
+// out of both events and logs.
+const ajv = new Ajv({ strict: true, coerceTypes: false, useDefaults: false, removeAdditional: false });
+const validators = new WeakMap();
+const parseStructured = (text, schema) => {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("Không đọc được JSON từ kết quả của Claude");
+  }
+  let validate = validators.get(schema);
+  if (!validate) {
+    validate = ajv.compile(schema);
+    validators.set(schema, validate);
+  }
+  if (!validate(parsed)) throw new Error("Claude trả về JSON không đúng cấu trúc");
+  return parsed;
+};
+
 // Goi Claude va bat buoc cau tra loi dung dung mot lọc JSON schema.
 //
 // Dung structured outputs thay vi dan "hay tra ve JSON" vao prompt roi tu parse:
@@ -42,11 +65,12 @@ export const askForJson = async ({
   system,
   prompt,
   schema,
+  model = MODEL,
   effort = "medium",
   maxTokens = 8000,
 }) => {
   const response = await client.beta.messages.create({
-    model: MODEL,
+    model,
     max_tokens: maxTokens,
     // Fallback phia may chu: bo phan loai an toan cua Opus 5 co the tu choi
     // mot yeu cau lanh tinh (vi du CV nganh an ninh mang). Khai bao san thi
@@ -75,11 +99,7 @@ export const askForJson = async ({
   const text = extractText(response);
   if (!text) throw new Error("Claude trả về nội dung rỗng");
 
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error("Không đọc được JSON từ kết quả của Claude");
-  }
+  return parseStructured(text, schema);
 };
 
 // Goi Claude tra ve van ban thuong (thu ung tuyen). Dung streaming vi ket qua
@@ -161,11 +181,7 @@ export const askAboutPdf = async ({
   const text = extractText(response);
   if (!text) throw new Error("Claude trả về nội dung rỗng");
 
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error("Không đọc được JSON từ kết quả của Claude");
-  }
+  return parseStructured(text, schema);
 };
 
 export const logModel = () =>

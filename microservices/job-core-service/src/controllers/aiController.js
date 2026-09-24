@@ -31,6 +31,15 @@ const nonEmptyString = (value) => typeof value === 'string' && value.trim().leng
 const optionalString = (value) => value == null || typeof value === 'string';
 const validJobId = (value) => (typeof value === 'number' || typeof value === 'string')
     && /^[1-9][0-9]*$/.test(String(value)) && Number.isSafeInteger(Number(value));
+const validPdf = (encoded) => {
+    if (!nonEmptyString(encoded) || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) return false;
+    const bytes = Buffer.from(encoded, 'base64');
+    return bytes.length >= 8 && bytes.length <= 5 * 1024 * 1024
+        && bytes.subarray(0, 5).toString('ascii') === '%PDF-'
+        && bytes.toString('base64') === encoded;
+};
+const MAX_PDF_BASE64_LENGTH = 4 * Math.ceil((5 * 1024 * 1024) / 3);
+const validLanguage = (value) => value == null || value === '' || value === 'vi' || value === 'en';
 
 const requestFailed = (res, type, error) => {
     if (error.code === 'AI_REQUEST_TOO_LARGE') {
@@ -55,8 +64,11 @@ const requestFailed = (res, type, error) => {
 // Boc tach CV: nhan file PDF dang base64, tra ve JSON co cau truc.
 export const parseResume = async (req, res) => {
     const { fileBase64, fileName } = req.body || {};
-    if (!nonEmptyString(fileBase64) || !optionalString(fileName)) {
-        return res.status(400).json({ errCode: 1, errMessage: 'Thiếu file CV hoặc tên file không hợp lệ' });
+    if (typeof fileBase64 === 'string' && fileBase64.length > MAX_PDF_BASE64_LENGTH) {
+        return res.status(413).json({ errCode: 1, errMessage: 'Tệp CV vượt giới hạn 5 MiB' });
+    }
+    if (!validPdf(fileBase64) || !optionalString(fileName)) {
+        return res.status(400).json({ errCode: 1, errMessage: 'Tệp CV phải là PDF hợp lệ, tối đa 5 MiB' });
     }
     try {
         const taskId = await enqueueAiTask({
@@ -102,7 +114,7 @@ export const matchCv = async (req, res) => {
 // Sinh thu ung tuyen bang tieng Anh.
 export const coverLetter = async (req, res) => {
     const { resumeText, jobId, language } = req.body || {};
-    if (!nonEmptyString(resumeText) || !validJobId(jobId) || !optionalString(language)) {
+    if (!nonEmptyString(resumeText) || !validJobId(jobId) || !validLanguage(language)) {
         return res.status(400).json({ errCode: 1, errMessage: 'Nội dung CV, mã tin hoặc ngôn ngữ không hợp lệ' });
     }
 

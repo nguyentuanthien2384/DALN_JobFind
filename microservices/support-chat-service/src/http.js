@@ -1,11 +1,12 @@
 import express from 'express';
 import { requireTrustedGateway, requireServicePermission, PERMISSIONS } from '../../shared/accessControl.js';
-import { failure, guestIdentity, validateTurn } from './policy.js';
+import { failure, guestIdentity, validateLegacyMessages, validateTurn } from './policy.js';
 import { articles } from './knowledge.js';
 import { privateIntent } from './tools.js';
 import { contractRoute } from '../../shared/requestContract.js';
 
 export function registerSupportRoutes(app, { store, respond, tools, env = process.env }) {
+    app.use('/support/legacy-turn', express.json({ limit: '48kb' }));
     app.use(express.json({ limit: '16kb' }));
     app.use(requireTrustedGateway);
     app.use((_req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); });
@@ -43,6 +44,33 @@ export function registerSupportRoutes(app, { store, respond, tools, env = proces
     });
     contractRoute(app, 'supportResolve', manage, async (req, res) => data(res, await store.claim(req.params.id, req.user.id, true)));
     let active = 0;
+    // Compatibility for older stateless callers of /api/support-chat.
+    // It uses the same configured Claude responder as saved conversations.
+    app.post('/support/legacy-turn', async (req, res, next) => {
+        let messages;
+        try { messages = validateLegacyMessages(req.body?.messages); }
+        catch (error) { return next(error); }
+        if (active >= 8) return next(failure(429, 'Chatbot đang bận. Vui lòng thử lại sau.'));
+        active += 1;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 60000);
+        const close = () => { if (!res.writableEnded) controller.abort(); };
+        res.once('close', close);
+        const emit = (event, payload) => { if (!res.destroyed) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`); };
+        try {
+            res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+            res.setHeader('X-Accel-Buffering', 'no'); res.flushHeaders();
+            const answer = await respond({ messages, signal: controller.signal, emit });
+            if (answer.status === 'complete') emit('done', {});
+            else emit('error', { message: 'Câu trả lời bị gián đoạn. Vui lòng thử lại.' });
+        } catch (error) {
+            if (!res.headersSent) return next(error);
+            emit('error', { message: 'Chưa hoàn tất câu trả lời. Vui lòng thử lại.' });
+        } finally {
+            clearTimeout(timer); res.off('close', close); active -= 1;
+            if (res.headersSent) res.end();
+        }
+    });
     contractRoute(app, 'supportTurn', owner, async (req, res) => {
         const input = validateTurn(req.body);
         if (active >= 8) throw failure(429, 'Chatbot đang bận. Vui lòng thử lại sau.');

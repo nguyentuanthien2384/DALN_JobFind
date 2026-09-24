@@ -1,10 +1,19 @@
 import { EventEmitter } from 'events';
 import { handleSupportChat } from '../../src/controllers/supportChatController';
 import { streamGemini } from '../../src/services/supportChatService';
+import { streamSupportGateway } from '../../src/services/supportGatewayService';
 
 jest.mock('../../src/services/supportChatService', () => ({
     ...jest.requireActual('../../src/services/supportChatService'), streamGemini: jest.fn()
 }));
+jest.mock('../../src/services/supportGatewayService', () => ({ streamSupportGateway: jest.fn() }));
+
+const originalGatewayUrl = process.env.SUPPORT_CHAT_GATEWAY_URL;
+beforeEach(() => { delete process.env.SUPPORT_CHAT_GATEWAY_URL; });
+afterAll(() => {
+    if (originalGatewayUrl === undefined) delete process.env.SUPPORT_CHAT_GATEWAY_URL;
+    else process.env.SUPPORT_CHAT_GATEWAY_URL = originalGatewayUrl;
+});
 
 const response = () => {
     const res = new EventEmitter();
@@ -26,6 +35,18 @@ test('streams cards and text followed by exactly one completion', async () => {
     const res = response(); await handleSupportChat(req, res);
     expect(res.write.mock.calls.map(([frame]) => frame.match(/^event: (\w+)/)[1])).toEqual(['tool', 'token', 'done']);
     expect(res.end).toHaveBeenCalledTimes(1); expect(res.listenerCount('close')).toBe(0);
+});
+
+test('direct backend uses the Claude Gateway bridge when configured', async () => {
+    process.env.SUPPORT_CHAT_GATEWAY_URL = 'http://localhost:4000/api/support-chat';
+    streamSupportGateway.mockImplementation(async ({ onEvent }) => {
+        await onEvent('mode', { mode: 'grounded' });
+        await onEvent('token', { text: 'Xin chào' });
+    });
+    const res = response(); await handleSupportChat(req, res);
+    expect(streamSupportGateway).toHaveBeenCalledWith(expect.objectContaining({ messages: req.body.messages }));
+    expect(streamGemini).not.toHaveBeenCalled();
+    expect(res.write.mock.calls.map(([frame]) => frame.match(/^event: (\w+)/)[1])).toEqual(['mode', 'token', 'done']);
 });
 test('returns safe JSON before streaming and an error frame after streaming', async () => {
     streamGemini.mockRejectedValue(new Error('secret-provider-body'));

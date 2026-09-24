@@ -477,6 +477,7 @@ EMAIL_APP_PASSWORD=gmail-app-password-16-characters
 EMAIL_DEMO_RECIPIENT=your-address@gmail.com
 
 # Tùy chọn: AI features
+# Dùng URL gốc của nhà cung cấp tương thích Anthropic, không thêm /v1/messages.
 ANTHROPIC_BASE_URL=https://1gw.gwai.cloud
 ANTHROPIC_API_KEY=
 CLAUDE_MODEL=claude-opus-5
@@ -487,6 +488,10 @@ SUPPORT_CLAUDE_MODEL=claude-sonnet-5
 OPENAI_API_KEY=
 GEMINI_API_KEY=
 ```
+
+Điền khóa của nhà cung cấp vào **`microservices/.env` trên máy chạy dịch vụ**; file này được Git bỏ qua. AI Worker dùng khóa cho kiểm duyệt tin, bóc tách CV, đối chiếu CV và viết thư ứng tuyển; Support Chat dùng cùng khóa cho chatbot qua Gateway. Không đặt khóa trong `frontend/.env` hoặc mã giao diện. Với gateway trên, CV PDF được đọc lớp chữ tại máy chủ rồi gửi nội dung cho `claude-sonnet-5`; PDF chỉ có ảnh quét cần OCR trước khi bóc tách. Kết quả AI cần được người dùng xem lại trước khi sử dụng.
+
+Nếu còn gọi đường chat trực tiếp trên backend cũ (cổng 5000), đặt `SUPPORT_CHAT_GATEWAY_URL=http://localhost:4000/api/support-chat` trong `backend/.env` để chuyển câu trả lời qua chatbot Claude ở Gateway. Không cần sao chép API key sang backend.
 
 > 📧 **Email demo**: Ở development, Notification Service chuyển địa chỉ mẫu tới `EMAIL_DEMO_RECIPIENT`; trống thì dùng `EMAIL_APP`. Production chặn địa chỉ mẫu để tránh gửi nhầm.
 
@@ -515,7 +520,14 @@ Invoke-RestMethod http://localhost:4000/status
 
 ```env
 REACT_APP_BACKEND_URL=http://localhost:4000
+# Bật giao diện AI ứng viên và các luồng đăng tin dùng Job Core/AI Worker.
+REACT_APP_CANDIDATE_AI_ENABLED=true
+REACT_APP_JOB_CREATE_MODE=core
+REACT_APP_JOB_EDIT_MODE=core
+REACT_APP_JOB_REPOST_MODE=core
 ```
+
+Sau khi cập nhật `.env`, khởi động lại ứng dụng để giao diện và các dịch vụ nhận cấu hình mới. Khi dùng Unified Launcher, kiểm tra trạng thái bằng `npm run dev:status` và các API đang chạy bằng `npm run dev:check` từ thư mục gốc.
 
 Khởi chạy:
 

@@ -271,16 +271,17 @@ describe('AI task controller', () => {
 
     it('validates resume parsing and queues a bounded task', async () => {
         const { parseResume } = await import('../job-core-service/src/controllers/aiController.js');
+        const pdf = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF').toString('base64');
         const invalid = makeRes();
         await parseResume(makeReq(), invalid);
         expect(invalid.statusCode).toBe(400);
         mocks.pool.query.mockResolvedValue(undefined);
         const ok = makeRes();
-        await parseResume(makeReq({ headers: { 'x-user-id': '5' }, body: { fileBase64: 'PDF', fileName: 'cv.pdf' } }), ok);
+        await parseResume(makeReq({ headers: { 'x-user-id': '5' }, body: { fileBase64: pdf, fileName: 'cv.pdf' } }), ok);
         expect(mocks.conn.query.mock.calls[0][1]).toEqual(expect.arrayContaining(['parse_resume', 'pending', 5]));
         expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(mocks.conn, expect.objectContaining({
             eventId: ok.body.taskId, aggregateType: 'ai_task', aggregateId: ok.body.taskId,
-            eventType: 'ai.parse_resume', payload: { taskId: ok.body.taskId, fileBase64: 'PDF', fileName: 'cv.pdf' }
+            eventType: 'ai.parse_resume', payload: { taskId: ok.body.taskId, fileBase64: pdf, fileName: 'cv.pdf' }
         }));
         expect(mocks.pool.query).not.toHaveBeenCalled();
         expect(mocks.publish).not.toHaveBeenCalled();

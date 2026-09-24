@@ -64,6 +64,12 @@ describe('Claude adapter', () => {
         }));
     });
 
+    it('allows a specific model for gateway text extraction', async () => {
+        sdk.create.mockResolvedValue({ stop_reason: 'end_turn', content: [{ type: 'text', text: '{"ok":true}' }] });
+        await api.askForJson({ system: 'sys', prompt: 'p', schema: { type: 'object' }, model: 'claude-sonnet-5' });
+        expect(sdk.create).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude-sonnet-5' }));
+    });
+
     it.each([
         [{ stop_reason: 'refusal', stop_details: { category: 'safety' }, content: [] }, /từ chối.*safety/],
         [{ stop_reason: 'max_tokens', content: [] }, /cắt giữa chừng/],
@@ -72,6 +78,17 @@ describe('Claude adapter', () => {
     ])('rejects malformed JSON responses: %#', async (response, message) => {
         sdk.create.mockResolvedValue(response);
         await expect(api.askForJson({ system: '', prompt: '', schema: {} })).rejects.toThrow(message);
+    });
+
+    it('rejects parseable JSON that omits or mistypes required fields', async () => {
+        const schema = {
+            type: 'object', properties: { approved: { type: 'boolean' } },
+            required: ['approved'], additionalProperties: false
+        };
+        sdk.create.mockResolvedValueOnce({ stop_reason: 'end_turn', content: [{ type: 'text', text: '{}' }] });
+        await expect(api.askForJson({ system: '', prompt: '', schema })).rejects.toThrow(/không đúng cấu trúc/);
+        sdk.create.mockResolvedValueOnce({ stop_reason: 'end_turn', content: [{ type: 'text', text: '{"approved":"yes"}' }] });
+        await expect(api.askForJson({ system: '', prompt: '', schema })).rejects.toThrow(/không đúng cấu trúc/);
     });
 
     it('streams normal text with caller token/effort options', async () => {
@@ -107,5 +124,32 @@ describe('Claude adapter', () => {
         await expect(api.askAboutPdf({ system: '', prompt: '', base64Pdf: '', schema: {} })).rejects.toThrow(/Không đọc được JSON/);
         sdk.create.mockResolvedValueOnce({ stop_reason: 'max_tokens', content: [{ type: 'text', text: '{"name":"A"}' }] });
         await expect(api.askAboutPdf({ system: '', prompt: '', base64Pdf: '', schema: {} })).rejects.toThrow(/cắt giữa chừng/);
+    });
+
+    it('rejects incomplete but parseable PDF extraction output', async () => {
+        sdk.create.mockResolvedValue({ stop_reason: 'end_turn', content: [{ type: 'text', text: '{"fullName":"Lan"}' }] });
+        const schema = {
+            type: 'object', properties: { fullName: { type: 'string' }, skills: { type: 'array', items: { type: 'string' } } },
+            required: ['fullName', 'skills'], additionalProperties: false
+        };
+        await expect(api.askAboutPdf({ system: '', prompt: '', base64Pdf: 'PDF', schema })).rejects.toThrow(/không đúng cấu trúc/);
+    });
+
+    it('compiles and checks every real structured job schema', async () => {
+        const response = (value) => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(value) }] });
+        const { moderateJob } = await import('../ai-worker/src/jobs/moderation.js');
+        const { matchCv } = await import('../ai-worker/src/jobs/smartMatching.js');
+        const { parseResume } = await import('../ai-worker/src/jobs/resumeParser.js');
+        sdk.create.mockResolvedValueOnce(response({ approved: true }));
+        await expect(moderateJob({ name: 'Dev', descriptionHTML: 'Build' })).rejects.toThrow(/không đúng cấu trúc/);
+        sdk.create.mockResolvedValueOnce(response({ approved: true, riskLevel: 'an_toan', violations: [], reason: 'OK' }));
+        await expect(moderateJob({ name: 'Dev', descriptionHTML: 'Build' })).resolves.toHaveProperty('approved', true);
+        sdk.create.mockResolvedValueOnce(response({ score: 80, verdict: 'phu_hop', matchedSkills: [], missingSkills: [], strengths: [], concerns: [], summary: 'OK' }));
+        await expect(matchCv({ resumeText: 'CV', jobTitle: 'Dev', jobDescription: 'Build' })).resolves.toHaveProperty('score', 80);
+        sdk.create.mockResolvedValueOnce(response({
+            fullName: null, email: null, phone: null, address: null, title: null, summary: null,
+            yearsOfExperience: null, skills: [], experiences: [], educations: [], languages: []
+        }));
+        await expect(parseResume({ fileBase64: Buffer.from('%PDF-1.4\n').toString('base64') })).resolves.toHaveProperty('skills');
     });
 });

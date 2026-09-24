@@ -1,19 +1,23 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ai = vi.hoisted(() => ({
     askForJson: vi.fn(),
     askForText: vi.fn(),
     askAboutPdf: vi.fn()
 }));
+const pdfText = vi.hoisted(() => ({ extractPdfText: vi.fn() }));
 
 vi.mock('../ai-worker/src/libs/claude.js', () => ai);
+vi.mock('../ai-worker/src/libs/pdfText.js', () => pdfText);
 
 describe('AI worker jobs', () => {
     beforeEach(() => {
         ai.askForJson.mockReset();
         ai.askForText.mockReset();
         ai.askAboutPdf.mockReset();
+        pdfText.extractPdfText.mockReset();
     });
+    afterEach(() => vi.unstubAllEnvs());
 
     it('builds a safe, bounded moderation prompt', async () => {
         ai.askForJson.mockResolvedValue({ approved: true });
@@ -44,12 +48,53 @@ describe('AI worker jobs', () => {
     it('passes PDF bytes, filename and extraction schema to Claude', async () => {
         ai.askAboutPdf.mockResolvedValue({ fullName: 'Lan' });
         const { parseResume } = await import('../ai-worker/src/jobs/resumeParser.js');
-        await expect(parseResume({ fileBase64: 'PDF', fileName: 'cv.pdf' })).resolves.toEqual({ fullName: 'Lan' });
+        const fileBase64 = Buffer.from('%PDF-1.4\n').toString('base64');
+        await expect(parseResume({ fileBase64, fileName: 'cv.pdf' })).resolves.toEqual({ fullName: 'Lan' });
         expect(ai.askAboutPdf).toHaveBeenCalledWith(expect.objectContaining({
-            base64Pdf: 'PDF', effort: 'low', maxTokens: 8000,
+            base64Pdf: fileBase64, effort: 'low', maxTokens: 8000,
             prompt: expect.stringContaining('cv.pdf'),
             schema: expect.objectContaining({ additionalProperties: false })
         }));
+    });
+
+    it('extracts PDF text locally for a custom gateway and uses its tested text model', async () => {
+        vi.stubEnv('ANTHROPIC_BASE_URL', 'https://gateway.example.test');
+        pdfText.extractPdfText.mockResolvedValue('TRAN MINH AN\nEmail: minhan@example.test\nSkills: React');
+        ai.askForJson.mockResolvedValue({ fullName: 'TRAN MINH AN' });
+        const { parseResume } = await import('../ai-worker/src/jobs/resumeParser.js');
+        const fileBase64 = Buffer.from('%PDF-1.4\n').toString('base64');
+        await expect(parseResume({ fileBase64, fileName: 'cv.pdf' })).resolves.toEqual({ fullName: 'TRAN MINH AN' });
+        expect(pdfText.extractPdfText).toHaveBeenCalledWith(fileBase64);
+        expect(ai.askForJson).toHaveBeenCalledWith(expect.objectContaining({
+            model: 'claude-sonnet-5',
+            prompt: expect.stringContaining('minhan@example.test'),
+            schema: expect.objectContaining({ additionalProperties: false })
+        }));
+        expect(ai.askAboutPdf).not.toHaveBeenCalled();
+    });
+
+    it.each([null, '', 'PDF', Buffer.from('not a PDF').toString('base64'), 'JVBERi0xLjQ==='])
+    ('rejects an invalid PDF before contacting Claude (%s)', async (fileBase64) => {
+        const { parseResume } = await import('../ai-worker/src/jobs/resumeParser.js');
+        await expect(parseResume({ fileBase64 })).rejects.toHaveProperty('code', 'AI_INVALID_PDF');
+        expect(ai.askAboutPdf).not.toHaveBeenCalled();
+    });
+
+    it('accepts a PDF header after a BOM and leading whitespace', async () => {
+        ai.askAboutPdf.mockResolvedValue({ fullName: null });
+        const { parseResume } = await import('../ai-worker/src/jobs/resumeParser.js');
+        const fileBase64 = Buffer.from('\ufeff \n%PDF-1.4\n').toString('base64');
+        await expect(parseResume({ fileBase64 })).resolves.toEqual({ fullName: null });
+        expect(ai.askAboutPdf).toHaveBeenCalledOnce();
+    });
+
+    it('bounds untrusted filenames in the PDF prompt', async () => {
+        ai.askAboutPdf.mockResolvedValue({ fullName: null });
+        const { parseResume } = await import('../ai-worker/src/jobs/resumeParser.js');
+        await parseResume({ fileBase64: Buffer.from('%PDF-1.4\n').toString('base64'), fileName: `cv.pdf\n${'x'.repeat(1000)}` });
+        const prompt = ai.askAboutPdf.mock.calls[0][0].prompt;
+        expect(prompt).not.toContain('\n');
+        expect(prompt.length).toBeLessThan(310);
     });
 
     it('generates Vietnamese/English letters, strips HTML and counts words', async () => {
