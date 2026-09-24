@@ -85,6 +85,8 @@ describe('Claude adapter', () => {
         await expect(api.askForText({ system: '', prompt: '' })).rejects.toThrow(/từ chối/);
         sdk.finalMessage.mockResolvedValueOnce({ stop_reason: 'end_turn', content: [] });
         await expect(api.askForText({ system: '', prompt: '' })).rejects.toThrow(/rỗng/);
+        sdk.finalMessage.mockResolvedValueOnce({ stop_reason: 'max_tokens', content: [{ type: 'text', text: 'partial letter' }] });
+        await expect(api.askForText({ system: '', prompt: '' })).rejects.toThrow(/cắt giữa chừng/);
     });
 
     it('sends PDF data as a document and parses JSON', async () => {
@@ -103,5 +105,7 @@ describe('Claude adapter', () => {
         await expect(api.askAboutPdf({ system: '', prompt: '', base64Pdf: '', schema: {} })).rejects.toThrow(/rỗng/);
         sdk.create.mockResolvedValueOnce({ stop_reason: 'end_turn', content: [{ type: 'text', text: '{' }] });
         await expect(api.askAboutPdf({ system: '', prompt: '', base64Pdf: '', schema: {} })).rejects.toThrow(/Không đọc được JSON/);
+        sdk.create.mockResolvedValueOnce({ stop_reason: 'max_tokens', content: [{ type: 'text', text: '{"name":"A"}' }] });
+        await expect(api.askAboutPdf({ system: '', prompt: '', base64Pdf: '', schema: {} })).rejects.toThrow(/cắt giữa chừng/);
     });
 });

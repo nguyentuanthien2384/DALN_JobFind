@@ -482,7 +482,8 @@ ANTHROPIC_API_KEY=
 CLAUDE_MODEL=claude-opus-5
 
 # Tùy chọn: Support Chat AI providers. ANTHROPIC_API_KEY ở trên cũng bật Claude cho chatbot.
-SUPPORT_CLAUDE_MODEL=claude-haiku-4-5
+# Gateway 1gw.gwai.cloud đã được thử thành công với Sonnet 5.
+SUPPORT_CLAUDE_MODEL=claude-sonnet-5
 OPENAI_API_KEY=
 GEMINI_API_KEY=
 ```

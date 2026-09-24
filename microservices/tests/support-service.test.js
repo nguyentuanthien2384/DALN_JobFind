@@ -16,7 +16,7 @@ const company = { id: 9, roleCode: 'COMPANY', companyId: 4, companyStatusCode: '
 const headers = { 'x-internal-secret': secret, 'Content-Type': 'application/json' };
 const servers = [];
 async function listen(app) { const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve)); servers.push(server); return `http://127.0.0.1:${server.address().port}`; }
-afterEach(async () => { vi.unstubAllEnvs(); await Promise.all(servers.splice(0).map(server => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }))); });
+afterEach(async () => { vi.unstubAllEnvs(); vi.restoreAllMocks(); await Promise.all(servers.splice(0).map(server => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }))); });
 
 describe('support identity and privacy', () => {
     it('issues stable signed guest identity and rejects tampered, expired and future capabilities', () => {
@@ -55,6 +55,53 @@ describe('reviewed knowledge and provider fallback', () => {
         expect(requests[0].key).toBe('test-only');
         expect(requests[0].body.model).toBe('claude-haiku-4-5');
         expect(requests[0].body.tools.map(tool => tool.name)).toEqual(['search_jobs', 'get_job_details']);
+    });
+    it('continues a Claude tool call with the verified result and returns the second-step text', async () => {
+        const requests = [];
+        const wire = events => new Response(events.map(event => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(''),
+            { headers: { 'Content-Type': 'text/event-stream' } });
+        const start = { type: 'message_start', message: { id: 'msg_test', type: 'message', role: 'assistant', content: [], model: 'claude-haiku-4-5', stop_reason: null, stop_sequence: null, usage: { input_tokens: 3, output_tokens: 1 } } };
+        const fetcher = vi.fn(async (_url, options) => {
+            requests.push(JSON.parse(options.body));
+            if (requests.length === 1) return wire([
+                start,
+                { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_test', name: 'search_jobs', input: {} } },
+                { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"query":"React","location":"Hà Nội"}' } },
+                { type: 'content_block_stop', index: 0 },
+                { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 10 } },
+                { type: 'message_stop' }
+            ]);
+            return wire([
+                start,
+                { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+                { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Tìm thấy tin tuyển dụng.' } },
+                { type: 'content_block_stop', index: 0 },
+                { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } },
+                { type: 'message_stop' }
+            ]);
+        });
+        const model = createAnthropic({ apiKey: 'test-only', fetch: fetcher })('claude-haiku-4-5');
+        const jobs = [{ id: 42, name: 'React', url: '/detail-job/42' }];
+        const executePublicTool = vi.fn(async () => ({ jobs, count: 1 }));
+        const answer = await run(createResponder({ providers: [{ name: 'claude', model }], executePublicTool, retrieve: async () => [] }));
+        expect(answer).toMatchObject({ mode: 'claude', status: 'complete', text: 'Tìm thấy tin tuyển dụng.', cards: jobs });
+        expect(executePublicTool).toHaveBeenCalledWith('search_jobs', { query: 'React', location: 'Hà Nội' }, expect.any(AbortSignal));
+        expect(requests).toHaveLength(2);
+        expect(JSON.stringify(requests[1].messages)).toContain('tool_result');
+        expect(JSON.stringify(requests[1].messages)).toContain('React');
+    });
+    it('reports the installed Claude adapter gateway HTTP failure without exposing the response body', async () => {
+        const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const fetcher = vi.fn(async () => new Response('<html><body>secret-provider-message private-ip</body></html>',
+            { status: 502, headers: { 'Content-Type': 'text/html' } }));
+        const model = createAnthropic({ apiKey: 'test-only', fetch: fetcher })('claude-haiku-4-5');
+        const audit = vi.fn();
+        const answer = await run(createResponder({ providers: [{ name: 'claude', model }], executePublicTool: vi.fn(), retrieve: async () => [], audit }));
+        expect(answer.mode).toBe('knowledge');
+        expect(fetcher).toHaveBeenCalledTimes(1);
+        expect(audit).toHaveBeenCalledWith(expect.objectContaining({ event: 'support.provider_failed', reason: 'http_error', statusCode: 502 }));
+        expect(JSON.stringify(audit.mock.calls)).not.toContain('secret-provider-message');
+        expect(errorLog).not.toHaveBeenCalled();
     });
     it('runs the installed AI SDK and OpenAI adapter against a synthetic provider wire stream', async () => {
         const bodies=[];
@@ -141,6 +188,49 @@ describe('reviewed knowledge and provider fallback', () => {
         const answer = await run(createResponder({providers:[],executePublicTool:vi.fn()}));
         expect(answer.mode).toBe('knowledge'); expect(answer.sources.length).toBeGreaterThan(0); expect(answer.text).toContain('AI hiện chưa sẵn sàng');
     });
+    it('uses completed public search results and preserves cards when the provider fails before text', async () => {
+        const jobs = [{ id: 42, name: 'React', company: 'A', location: 'Hà Nội', url: '/detail-job/42' },
+            { id: 43, name: 'Frontend', company: 'B', location: 'Hà Nội', url: '/detail-job/43' }];
+        const executePublicTool = vi.fn(async () => ({ jobs, count: jobs.length }));
+        const emit = vi.fn();
+        const generate = vi.fn(({ tools }) => ({ fullStream: (async function* () {
+            await tools.search_jobs.execute({ query: 'React', location: 'Hà Nội' });
+            yield { type: 'error', error: new Error('provider unavailable') };
+        })() }));
+        const answer = await run(createResponder({ providers: [{ name: 'claude' }], executePublicTool, generate }), emit);
+        expect(executePublicTool).toHaveBeenCalledWith('search_jobs', { query: 'React', location: 'Hà Nội' }, expect.any(AbortSignal));
+        expect(answer).toMatchObject({ mode: 'public_tool', status: 'complete', cards: jobs });
+        expect(answer.text).toContain('2 tin tuyển dụng công khai');
+        expect(answer.text).not.toContain('lương');
+        expect(emit).toHaveBeenCalledWith('tool', { name: 'search_jobs', jobs, count: 2 });
+        expect(emit).toHaveBeenCalledWith('token', { text: answer.text });
+    });
+    it.each([
+        ['search_jobs', { jobs: [], count: 0 }, /Chưa tìm thấy tin tuyển dụng/],
+        ['search_jobs', { error: 'untrusted provider text' }, /Chưa đọc được kết quả tìm việc/],
+        ['get_job_details', { error: 'Không tìm thấy tin tuyển dụng công khai đang mở.' }, /Không tìm thấy tin tuyển dụng công khai đang mở với mã này/],
+        ['get_job_details', { job: { id: 42, name: 'React', url: '/detail-job/42' } }, /Đã tìm thấy tin tuyển dụng công khai/],
+    ])('uses verified %s tool output for a provider-free reply: %#', async (name, result, expected) => {
+        const generate = ({ tools }) => ({ fullStream: (async function* () {
+            await tools[name].execute(name === 'search_jobs' ? { query: '', location: '' } : { job_id: 42 });
+            yield { type: 'error', error: new Error('provider unavailable') };
+        })() });
+        const answer = await run(createResponder({ providers: [{ name: 'claude' }], executePublicTool: async () => result, generate }));
+        expect(answer.mode).toBe('public_tool');
+        expect(answer.status).toBe('complete');
+        expect(answer.text).toMatch(expected);
+        expect(answer.text).not.toContain('untrusted provider text');
+        expect(answer.cards).toEqual(result.jobs || (result.job ? [result.job] : []));
+    });
+    it('does not claim a verified job result for malformed tool data', async () => {
+        const generate = ({ tools }) => ({ fullStream: (async function* () {
+            await tools.search_jobs.execute({ query: 'React', location: '' });
+            yield { type: 'error', error: new Error('provider unavailable') };
+        })() });
+        const answer = await run(createResponder({ providers: [{ name: 'claude' }], executePublicTool: async () => ({ jobs: [{ name: 'No ID' }] }), generate }));
+        expect(answer.mode).toBe('knowledge');
+        expect(answer.cards).toEqual([]);
+    });
     it('does not invent live results or call tools when serving reviewed guidance without a provider', async () => {
         const executePublicTool=vi.fn();
         const answer=await createResponder({providers:[],executePublicTool})({messages:[{role:'user',text:'Lương React Hà Nội là bao nhiêu?',status:'complete'}],signal:new AbortController().signal,emit:vi.fn()});
@@ -154,6 +244,31 @@ describe('reviewed knowledge and provider fallback', () => {
         const generate=vi.fn().mockImplementationOnce(()=>{throw Error('secret-provider-key');}).mockImplementation(()=>success('Xin chào')), audit=vi.fn();
         const answer=await run(createResponder({providers:[{name:'first'},{name:'second'}],executePublicTool:vi.fn(),generate,audit}));
         expect(answer.text).toBe('Xin chào'); expect(answer.mode).toBe('second'); expect(JSON.stringify(audit.mock.calls)).not.toContain('secret-provider-key');
+    });
+    it('records a safe HTTP status when a provider stream fails without retrying the paid call', async () => {
+        const providerError = Object.assign(new Error('secret-provider-key'), { statusCode: 502 });
+        const generate = vi.fn(() => ({ fullStream: (async function* () { yield { type: 'error', error: providerError }; })() }));
+        const audit = vi.fn();
+        const answer = await run(createResponder({ providers: [{ name: 'claude' }], executePublicTool: vi.fn(), generate, audit }));
+        expect(answer.mode).toBe('knowledge');
+        expect(generate).toHaveBeenCalledTimes(1);
+        expect(audit).toHaveBeenCalledWith(expect.objectContaining({ event: 'support.provider_failed', provider: 'claude', reason: 'http_error', statusCode: 502, durationMs: expect.any(Number) }));
+        expect(JSON.stringify(audit.mock.calls)).not.toContain('secret-provider-key');
+    });
+    it('allows multi-step tool answers up to 45 seconds and records a safe timeout reason', async () => {
+        const timeout = new AbortController();
+        const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal);
+        const generate = vi.fn(({ abortSignal }) => ({ fullStream: (async function* () {
+            await new Promise((_, reject) => abortSignal.addEventListener('abort', () => reject(abortSignal.reason), { once: true }));
+        })() }));
+        const audit = vi.fn();
+        const pending = run(createResponder({ providers: [{ name: 'claude' }], executePublicTool: vi.fn(), generate, retrieve: async () => [], audit }));
+        await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(1));
+        expect(timeoutSpy).toHaveBeenCalledWith(45000);
+        timeout.abort(new DOMException('provider deadline', 'TimeoutError'));
+        const answer = await pending;
+        expect(answer.mode).toBe('knowledge');
+        expect(audit).toHaveBeenCalledWith(expect.objectContaining({ event: 'support.provider_failed', reason: 'timeout' }));
     });
     it('does not blend providers after partial output and marks it incomplete', async () => {
         const generate=vi.fn(()=>({fullStream:(async function*(){yield{type:'text-delta',text:'partial'};yield{type:'error',error:'secret'};})()}));

@@ -106,6 +106,9 @@ export const askForText = async ({
     const category = response.stop_details?.category || "không rõ";
     throw new Error(`Claude từ chối xử lý yêu cầu này (nhóm: ${category})`);
   }
+  if (response.stop_reason === "max_tokens") {
+    throw new Error("Kết quả bị cắt giữa chừng, cần tăng max_tokens");
+  }
 
   const text = extractText(response);
   if (!text) throw new Error("Claude trả về nội dung rỗng");
@@ -150,6 +153,9 @@ export const askAboutPdf = async ({
   if (response.stop_reason === "refusal") {
     const category = response.stop_details?.category || "không rõ";
     throw new Error(`Claude từ chối xử lý CV này (nhóm: ${category})`);
+  }
+  if (response.stop_reason === "max_tokens") {
+    throw new Error("Kết quả bị cắt giữa chừng, cần tăng max_tokens");
   }
 
   const text = extractText(response);

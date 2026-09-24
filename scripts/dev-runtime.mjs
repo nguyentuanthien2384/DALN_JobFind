@@ -41,6 +41,11 @@ export const alive = pid => {
 export const stopChild = child => {
     if (child.pid && child.exitCode === null && child.signalCode === null && !child.killed) child.kill('SIGTERM');
 };
+export async function reconcileAiWorker(apiKey, findContainer, stopContainer) {
+    if (apiKey?.trim()) return true;
+    if (await findContainer('ai-worker')) await stopContainer('ai-worker');
+    return false;
+}
 export function matchesSupervisor(command, script) {
     const escaped = script.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(`(?:^|\\s)"?${escaped}"?\\s+serve(?:\\s|$)`, 'i').test(command || '');

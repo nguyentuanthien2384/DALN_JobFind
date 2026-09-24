@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock } from './dev-runtime.mjs';
+import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker } from './dev-runtime.mjs';
 
 test('concurrent starters cannot reclaim or replace each others runtime lock', async () => {
     const workspace = path.join(os.tmpdir(), `jobfind-starter-${process.pid}-${Date.now()}`);
@@ -58,6 +58,19 @@ test('cleanup does not signal an exited or already killed process', () => {
     assert.equal(calls, 0);
     child.killed = false; stopChild(child);
     assert.equal(calls, 1);
+});
+
+test('AI worker is stopped when its key is removed from a previous run', async () => {
+    const calls = [];
+    const findContainer = async service => { calls.push(['find', service]); return 'existing-container'; };
+    const stopContainer = async service => { calls.push(['stop', service]); };
+    assert.equal(await reconcileAiWorker('  ', findContainer, stopContainer), false);
+    assert.deepEqual(calls, [['find', 'ai-worker'], ['stop', 'ai-worker']]);
+    calls.length = 0;
+    assert.equal(await reconcileAiWorker('configured-key', findContainer, stopContainer), true);
+    assert.deepEqual(calls, []);
+    assert.equal(await reconcileAiWorker('', async () => '', stopContainer), false);
+    assert.deepEqual(calls, []);
 });
 
 test('stop cancels readiness polling immediately and never accepts readiness after abort', async () => {
