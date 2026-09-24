@@ -771,6 +771,7 @@ Chi tiết: [Bộ triển khai và quay lui](microservices/docs/release-preparat
 - [Chạy với dữ liệu thật](docs/run-with-real-data.md)
 - [Bộ triển khai và quay lui](microservices/docs/release-preparation.md)
 - [Kiểm thử kết quả tuyển dụng thật](docs/recruitment-offer-live-test.md)
+- [Kiểm thử API key thật và chuẩn bị demo](docs/api-key-demo-validation.md)
 
 ### Source code tham khảo
 

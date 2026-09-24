@@ -1,5 +1,7 @@
 # Đối chiếu báo cáo Authentication, Authorization và SSO
 
+> Kiểm chứng lại 24/09/2026: unit, MySQL/OIDC/GitHub local và browser qua Gateway đều đạt. OAuth credentials thật vẫn chưa có; xem [biên bản API key/demo](api-key-demo-validation.md).
+
 Ngày kiểm chứng tại workspace: 20/09/2026. Nguồn yêu cầu tham chiếu: “Báo cáo kiểm tra Authentication, Authorization và phương án tích hợp SSO cho dự án DALN JobFind.pdf”, 28 trang, đặc biệt trang 12–15 và 24–27. Tài liệu PDF đánh giá bộ mã cũ; trạng thái dưới đây dựa trên mã và kiểm thử hiện tại. Các tên file/schema mẫu và lịch triển khai trong PDF là đề xuất, không phải yêu cầu phải sao chép nguyên văn.
 
 ## Kết luận phạm vi

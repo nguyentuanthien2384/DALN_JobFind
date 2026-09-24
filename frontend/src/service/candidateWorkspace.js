@@ -1,5 +1,6 @@
 /* global globalThis */
 import { createAiRequestOptions } from './aiSearchService';
+import { hasPdfSignature } from '../util/pdfSignature';
 
 export const candidateAiEnabled = () => process.env.REACT_APP_CANDIDATE_AI_ENABLED === 'true';
 export const preparedCvEnabled = () => process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED === 'true';
@@ -66,7 +67,8 @@ export const readPdf = file => new Promise((resolve, reject) => {
     reader.onerror = () => reject(new Error('Không đọc được tệp PDF.'));
     reader.onload = () => {
         const base64 = String(reader.result).split(',')[1];
-        if (!base64 || !atob(base64.slice(0, 12)).startsWith('%PDF-')) { reject(new Error('Tệp không có định dạng PDF hợp lệ.')); return; }
+        // Read only the bounded prefix; preserve the original bytes sent to AI.
+        if (!base64 || !hasPdfSignature(atob(base64.slice(0, 1372)))) { reject(new Error('Tệp không có định dạng PDF hợp lệ.')); return; }
         resolve({ fileBase64: base64, fileName: file.name });
     };
     reader.readAsDataURL(file);

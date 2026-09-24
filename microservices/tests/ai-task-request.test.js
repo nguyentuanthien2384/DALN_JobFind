@@ -35,6 +35,15 @@ beforeEach(() => {
 });
 
 describe('candidate AI request durability', () => {
+    it('accepts the same BOM/whitespace PDF header as the browser and worker', async () => {
+        const fileBase64 = Buffer.concat([Buffer.from('\ufeff \r\n'), Buffer.from(PDF, 'base64')]).toString('base64');
+        const res = makeRes();
+        await parseResume(request({ fileBase64, fileName: 'exported-cv.pdf' }), res);
+        expect(res.statusCode).toBe(202);
+        const event = mocks.conn.query.mock.calls.find(([sql]) => sql.includes('INSERT INTO outbox_events'));
+        expect(JSON.parse(event[1][4]).fileBase64).toBe(fileBase64);
+    });
+
     it.each(cases)('%s saves task and full event on one connection without publishing from HTTP', async (type, handler, body) => {
         const res = makeRes();
         await handler(request(body), res);

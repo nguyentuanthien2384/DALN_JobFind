@@ -1,5 +1,7 @@
 # Kiểm thử chatbot JobFind — 19/09/2026
 
+> Cập nhật 24/09/2026: đã kiểm thử Claude thật qua Gateway, công cụ tổng hợp và browser; xem [kiểm thử API key và demo](api-key-demo-validation.md). Các ghi nhận thiếu key bên dưới là lịch sử ngày 19/09.
+
 > Báo cáo dưới đây là kết quả ngày 19/09. Các cập nhật về lưu lịch sử trên máy chủ, phiên khách và hỏi thử trên ứng dụng ngày 21/09 nằm trong [chatbot-widget-history.md](chatbot-widget-history.md).
 
 ## Kết luận

@@ -13,6 +13,21 @@ test('accepts exact PDF bytes from a data URL or selected local file without any
     expect(fetch).not.toHaveBeenCalled();
 });
 
+test.each(['\xef\xbb\xbf \r\n', ' \t\n'])('previews a supported PDF prefix without changing the file %#', async prefix => {
+    const binary = prefix + '%PDF-1.7\nfixture';
+    const file = new File([Uint8Array.from(binary, char => char.charCodeAt(0))], 'exported-cv.pdf', { type: 'application/pdf' });
+    expect(await resolvePdfSource(file)).toBe(file);
+    const encoded = 'data:application/pdf;base64,' + btoa(binary);
+    expect(isPdfSource(encoded)).toBe(true);
+    expect((await resolvePdfSource(encoded)).size).toBe(binary.length);
+});
+
+test.each(['unexpected', ' '.repeat(1024)])('preview rejects a disguised or overlong PDF header %#', async prefix => {
+    const encoded = 'data:application/pdf;base64,' + btoa(prefix + '%PDF-1.7\nfixture');
+    expect(isPdfSource(encoded)).toBe(false);
+    await expect(resolvePdfSource(encoded)).rejects.toThrow(/PDF/);
+});
+
 test.each(['javascript:alert(1)', 'data:text/html;base64,PGgxPk5vPC9oMT4=', '//evil.example/a.pdf', '/\\evil.example/a.pdf', 'https://user:secret@example.com/a.pdf'])('rejects executable, ambiguous or credential-bearing source %s', async value => {
     expect(isPdfSource(value)).toBe(false);
     await expect(resolvePdfSource(value)).rejects.toThrow(/PDF/);

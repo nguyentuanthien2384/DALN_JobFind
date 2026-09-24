@@ -55,3 +55,13 @@ test('PDF reader rejects wrong extension, oversized data and disguised text', as
     await expect(readPdf(new File(['text'],'cv.pdf'))).rejects.toThrow('định dạng');
     await expect(readPdf(new File(['%PDF-1.4\nsynthetic'],'cv.pdf'))).resolves.toMatchObject({fileName:'cv.pdf'});
 });
+
+test.each(['\ufeff \r\n', ' \t\n'])('AI upload preserves PDF bytes with an accepted header prefix %#', async prefix => {
+    const bytes = new TextEncoder().encode(prefix + '%PDF-1.4\nsynthetic');
+    const data = await readPdf(new File([bytes], 'exported-cv.pdf'));
+    expect(data.fileBase64).toBe(Buffer.from(bytes).toString('base64'));
+});
+
+test.each(['unexpected', ' '.repeat(1024)])('AI upload refuses disguised or overlong PDF headers %#', async prefix => {
+    await expect(readPdf(new File([prefix + '%PDF-1.4\n'], 'invalid.pdf'))).rejects.toThrow('định dạng');
+});

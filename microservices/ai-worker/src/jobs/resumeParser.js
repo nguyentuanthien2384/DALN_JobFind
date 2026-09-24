@@ -1,5 +1,6 @@
 import { askAboutPdf, askForJson } from '../libs/claude.js';
 import { extractPdfText } from '../libs/pdfText.js';
+import { isValidAiPdf } from '../../../shared/aiPdf.js';
 
 // AI Resume Parser: doc file PDF -> boc tach thanh cau truc JSON.
 
@@ -66,15 +67,7 @@ const invalidPdf = () => Object.assign(new Error('Tệp CV không phải PDF h�
 // The browser validates the same signature, but queue messages can also come
 // from other clients or old outbox rows.
 const validatePdf = (encoded) => {
-    if (typeof encoded !== 'string' || encoded.length === 0 || encoded.length % 4 !== 0 ||
-        !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw invalidPdf();
-    const bytes = Buffer.from(encoded, 'base64');
-    let headerAt = bytes.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])) ? 3 : 0;
-    while (headerAt < Math.min(bytes.length, 1024) && [9, 10, 12, 13, 32].includes(bytes[headerAt])) headerAt++;
-    if (bytes.length < 8 || bytes.length > 5 * 1024 * 1024 ||
-        bytes.subarray(headerAt, headerAt + 5).toString('ascii') !== '%PDF-' || bytes.toString('base64') !== encoded) {
-        throw invalidPdf();
-    }
+    if (!isValidAiPdf(encoded)) throw invalidPdf();
 };
 
 export const parseResume = async ({ fileBase64, fileName }) => {

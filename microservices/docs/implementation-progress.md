@@ -1,5 +1,7 @@
 # Tiến độ bổ sung theo báo cáo PDF
 
+> Ngày 24/09/2026 đã bổ sung kiểm thử API key thật cho bốn loại tác vụ AI, chatbot và browser ứng viên; sửa chênh lệch kiểm tra header PDF giữa HTTP/Worker. Xem [biên bản API key/demo](../../docs/api-key-demo-validation.md) để phân biệt provider thật, dữ liệu fixture và những phần chưa nghiệm thu.
+
 Nguồn đối chiếu: “Báo cáo đánh giá chuyên sâu kiến trúc Microservices của dự án JobFind”, đặc biệt roadmap trang 33–35 và checklist trang 50–53. Đây là nhật ký phạm vi triển khai để tiếp tục công việc, không phải chứng nhận đạt production. Môi trường người dùng chọn: máy hiện tại với Docker Compose.
 
 ## Các phần đã triển khai và có kiểm thử

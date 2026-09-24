@@ -1,6 +1,7 @@
 import { pool } from '../libs/db.js';
 import { enqueueAiTask } from '../libs/aiTaskRequest.js';
 import { createLogger } from '../../../shared/logger.js';
+import { isValidAiPdf, MAX_AI_PDF_BASE64_LENGTH } from '../../../shared/aiPdf.js';
 
 const logger = createLogger('job-core-service');
 
@@ -31,14 +32,6 @@ const nonEmptyString = (value) => typeof value === 'string' && value.trim().leng
 const optionalString = (value) => value == null || typeof value === 'string';
 const validJobId = (value) => (typeof value === 'number' || typeof value === 'string')
     && /^[1-9][0-9]*$/.test(String(value)) && Number.isSafeInteger(Number(value));
-const validPdf = (encoded) => {
-    if (!nonEmptyString(encoded) || encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) return false;
-    const bytes = Buffer.from(encoded, 'base64');
-    return bytes.length >= 8 && bytes.length <= 5 * 1024 * 1024
-        && bytes.subarray(0, 5).toString('ascii') === '%PDF-'
-        && bytes.toString('base64') === encoded;
-};
-const MAX_PDF_BASE64_LENGTH = 4 * Math.ceil((5 * 1024 * 1024) / 3);
 const validLanguage = (value) => value == null || value === '' || value === 'vi' || value === 'en';
 
 const requestFailed = (res, type, error) => {
@@ -64,10 +57,10 @@ const requestFailed = (res, type, error) => {
 // Boc tach CV: nhan file PDF dang base64, tra ve JSON co cau truc.
 export const parseResume = async (req, res) => {
     const { fileBase64, fileName } = req.body || {};
-    if (typeof fileBase64 === 'string' && fileBase64.length > MAX_PDF_BASE64_LENGTH) {
+    if (typeof fileBase64 === 'string' && fileBase64.length > MAX_AI_PDF_BASE64_LENGTH) {
         return res.status(413).json({ errCode: 1, errMessage: 'Tệp CV vượt giới hạn 5 MiB' });
     }
-    if (!validPdf(fileBase64) || !optionalString(fileName)) {
+    if (!isValidAiPdf(fileBase64) || !optionalString(fileName)) {
         return res.status(400).json({ errCode: 1, errMessage: 'Tệp CV phải là PDF hợp lệ, tối đa 5 MiB' });
     }
     try {

@@ -1,3 +1,5 @@
+import { hasPdfSignature } from '../../util/pdfSignature';
+
 export const MAX_PREVIEW_BYTES = 20 * 1024 * 1024;
 const DATA_PREFIX = 'data:application/pdf;base64,';
 const INVALID = 'Tệp không phải PDF hợp lệ. Vui lòng chọn hoặc tải lại tài liệu.';
@@ -19,7 +21,8 @@ export const isPdfSource = source => {
     if (typeof source !== 'string') return false;
     if (source.startsWith(DATA_PREFIX)) {
         const value = source.slice(DATA_PREFIX.length);
-        return value.length <= Math.ceil(MAX_PREVIEW_BYTES / 3) * 4 && /^JVBERi0[A-Za-z0-9+/]*={0,2}$/.test(value);
+        if (value.length > Math.ceil(MAX_PREVIEW_BYTES / 3) * 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return false;
+        try { return hasPdfSignature(atob(value.slice(0, 1372))); } catch { return false; }
     }
     return Boolean(pdfSourceUrl(source));
 };
@@ -38,12 +41,12 @@ const readHeader = (blob, signal) => new Promise((resolve, reject) => {
     reader.onerror = () => reject(new Error('Không đọc được tài liệu. Vui lòng chọn lại.'));
     reader.onabort = () => reject(abortError());
     reader.onloadend = () => signal?.removeEventListener('abort', abort);
-    reader.readAsArrayBuffer(blob.slice(0, 5));
+    reader.readAsArrayBuffer(blob.slice(0, 1029));
 });
 const checkedBlob = async (blob, signal) => {
     if (!blob.size || blob.size > MAX_PREVIEW_BYTES) throw new Error(blob.size ? TOO_LARGE : INVALID);
     const header = await readHeader(blob, signal);
-    if (String.fromCharCode(...header) !== '%PDF-') throw new Error(INVALID);
+    if (!hasPdfSignature(header)) throw new Error(INVALID);
     return blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' });
 };
 
@@ -57,7 +60,7 @@ export const resolvePdfSource = async (source, { signal } = {}) => {
         if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error(INVALID);
         let binary;
         try { binary = atob(encoded); } catch { throw new Error(INVALID); }
-        if (btoa(binary) !== encoded || !binary.startsWith('%PDF-')) throw new Error(INVALID);
+        if (btoa(binary) !== encoded || !hasPdfSignature(binary)) throw new Error(INVALID);
         return checkedBlob(new Blob([Uint8Array.from(binary, c => c.charCodeAt(0))], { type: 'application/pdf' }), signal);
     }
     const url = pdfSourceUrl(source);
