@@ -14,6 +14,7 @@ const requireFrontend = createRequire(path.join(root, 'frontend/package.json'));
 const { io } = requireFrontend('socket.io-client');
 const kit = path.resolve(process.argv[2] || path.join(root, '.local/releases', (await readFile(path.join(root, '.local/releases/LATEST'), 'utf8')).trim()));
 const manifest = await verify(kit);
+const includesClaudeChat = manifest.recipeVersion >= 2;
 const id = 'jobfind-release-test-' + randomBytes(4).toString('hex');
 const run = (command, args, options = {}) => execFileSync(command, args, { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 60000, maxBuffer: 4 * 1024 * 1024, ...options }).trim();
 const docker = (...args) => run('docker', args);
@@ -71,14 +72,14 @@ async function switchWeb(variant) {
 try {
     pass('complete kit checksum verification');
     // Pure parse with synthetic credentials; never load the real environment or print interpolated config.
-    const dummy = { MYSQL_HOST: 'mysql', MYSQL_PORT: '3306', MYSQL_DATABASE: 'fixture', MYSQL_USER: 'fixture', MYSQL_PASSWORD: 'fixture-password', POSTGRES_USER: 'fixture', POSTGRES_PASSWORD: 'fixture-password', RABBITMQ_USER: 'fixture', RABBITMQ_PASSWORD: 'fixture-password', JWT_SECRET: jwt, INTERNAL_SECRET: 'release-internal-only-0123456789', METRICS_TOKEN_FILE: path.join(kit, 'README.md'), ANTHROPIC_API_KEY: 'synthetic-not-a-provider-key', CLAUDE_MODEL: 'synthetic-model' };
+    const dummy = { MYSQL_HOST: 'mysql', MYSQL_PORT: '3306', MYSQL_DATABASE: 'fixture', MYSQL_USER: 'fixture', MYSQL_PASSWORD: 'fixture-password', POSTGRES_USER: 'fixture', POSTGRES_PASSWORD: 'fixture-password', RABBITMQ_USER: 'fixture', RABBITMQ_PASSWORD: 'fixture-password', JWT_SECRET: jwt, INTERNAL_SECRET: 'release-internal-only-0123456789', METRICS_TOKEN_FILE: path.join(kit, 'README.md'), ANTHROPIC_BASE_URL: 'https://synthetic.example', ANTHROPIC_API_KEY: 'synthetic-not-a-provider-key', CLAUDE_MODEL: 'synthetic-model', SUPPORT_CLAUDE_MODEL: 'synthetic-chat-model' };
     Object.assign(dummy, { CLOUD_NAME: 'fixture', API_KEY: 'fixture', API_SECRET: 'fixture', PAYPAL_CLIENT_ID: 'fixture', PAYPAL_CLIENT_SECRET: 'fixture' });
     const work = path.join(root, '.local/release-work', manifest.releaseId); await mkdir(work, { recursive: true });
     const empty = path.join(work, 'test-empty.env'); await writeFile(empty, '');
     for (const variant of ['rollback', 'deployment']) {
         const args = ['compose', '--env-file', empty, '-f', path.join(kit, 'compose.json'), '-f', path.join(kit, `compose.${variant}.json`), 'config', '--format', 'json'];
         const parsed = JSON.parse(run('docker', args, { env: { ...process.env, ...dummy } }));
-        assert.equal(Object.keys(parsed.services).length, 10);
+        assert.equal(Object.keys(parsed.services).length, includesClaudeChat ? 11 : 10);
         assert.equal(parsed.services.web.image, manifest.variants[variant].image);
         assert.equal(parsed.services.backend.image, image('backend'));
         assert.equal(parsed.services.backend.environment.INTERNAL_SECRET, dummy.INTERNAL_SECRET);
@@ -89,6 +90,13 @@ try {
         assert.equal(parsed.services['notification-service'].environment.LEGACY_URL, 'http://backend:5000');
         assert.equal(parsed.services['ai-worker'].environment.ANTHROPIC_API_KEY, dummy.ANTHROPIC_API_KEY);
         assert.equal(parsed.services['ai-worker'].environment.CLAUDE_MODEL, dummy.CLAUDE_MODEL);
+        if (includesClaudeChat) {
+            assert.equal(parsed.services['ai-worker'].environment.ANTHROPIC_BASE_URL, dummy.ANTHROPIC_BASE_URL);
+            assert.equal(parsed.services['support-chat-service'].environment.ANTHROPIC_API_KEY, dummy.ANTHROPIC_API_KEY);
+            assert.equal(parsed.services['support-chat-service'].environment.ANTHROPIC_BASE_URL, dummy.ANTHROPIC_BASE_URL);
+            assert.equal(parsed.services['support-chat-service'].environment.SUPPORT_CLAUDE_MODEL, dummy.SUPPORT_CLAUDE_MODEL);
+            assert.equal(parsed.services['support-chat-service'].environment.SUPPORT_AUTO_MIGRATE, 'false');
+        }
         assert.match(parsed.services.backend.environment.RABBITMQ_URL, /@rabbitmq:5672$/);
         assert.equal(parsed.networks.default.external, true);
         for (const [name, service] of Object.entries(parsed.services)) {

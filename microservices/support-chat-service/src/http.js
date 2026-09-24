@@ -72,6 +72,10 @@ export function registerSupportRoutes(app, { store, respond, tools, env = proces
             }
             const intent = privateIntent(input.text);
             if (intent) {
+                // Keep the private lookup request out of later AI context too.
+                // Its answer is already marked private below.
+                const privateQuestion = state.messages.find(message => message.id === input.requestId);
+                if (privateQuestion) privateQuestion.private = true;
                 let text;
                 try {
                     const result = await tools.privateTool(intent, req.user);

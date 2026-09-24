@@ -10,6 +10,9 @@ import { redact } from './policy.js';
 // and another provider round trip. Leave time for the 60-second turn deadline
 // to save a reviewed fallback if the provider does not finish.
 const PROVIDER_TIMEOUT_MS = 45000;
+// The HTTP turn is limited to 60 seconds. Keep room to persist and stream a
+// reviewed fallback if an earlier provider consumes most of that deadline.
+const PROVIDERS_TOTAL_BUDGET_MS = 50000;
 
 function failureDetails(error, timeoutSignal) {
     if (timeoutSignal.aborted) return { reason: 'timeout' };
@@ -60,7 +63,7 @@ export function configuredProviders(env = process.env) {
         // SDK appends only /messages, so it needs the versioned URL prefix.
         const versionedURL = baseURL && `${baseURL.replace(/\/v1$/, '')}/v1`;
         const options = { ...(versionedURL && { baseURL: versionedURL }), apiKey };
-        providers.push({ name: 'claude', model: createAnthropic(options)(env.SUPPORT_CLAUDE_MODEL || 'claude-haiku-4-5') });
+        providers.push({ name: 'claude', model: createAnthropic(options)(env.SUPPORT_CLAUDE_MODEL || 'claude-sonnet-5') });
     }
     if (env.OPENAI_API_KEY) providers.push({ name: 'openai', model: createOpenAI({ apiKey: env.OPENAI_API_KEY }).chat(env.SUPPORT_OPENAI_MODEL || 'gpt-4.1-mini') });
     // Paid-data policy is an explicit deployment setting, never inferred from a key.
@@ -82,11 +85,19 @@ export function createResponder({ providers = configuredProviders(), executePubl
         while (history[0]?.role === 'assistant') history.shift();
         let toolCalls = 0;
         let toolFallbackText = null, toolFallbackCards = [];
+        const providerDeadline = Date.now() + PROVIDERS_TOTAL_BUDGET_MS;
+        const publicFallback = () => {
+            emit('mode', { mode: 'public_tool' }); emit('token', { text: toolFallbackText });
+            audit({ event: 'support.fallback', mode: 'public_tool' });
+            return { text: toolFallbackText, sources: citations, cards: toolFallbackCards, mode: 'public_tool', status: 'complete' };
+        };
         for (const provider of providers) {
             if ((circuits.get(provider.name)?.until || 0) > Date.now()) continue;
+            const remainingMs = providerDeadline - Date.now();
+            if (remainingMs <= 0) break;
             let text = '', cards = [];
             const startedAt = Date.now();
-            const providerTimeout = AbortSignal.timeout(PROVIDER_TIMEOUT_MS);
+            const providerTimeout = AbortSignal.timeout(Math.min(PROVIDER_TIMEOUT_MS, remainingMs));
             try {
                 signal.throwIfAborted();
                 const call = async (name, args) => {
@@ -135,14 +146,13 @@ export function createResponder({ providers = configuredProviders(), executePubl
                     ...failureDetails(error, providerTimeout), durationMs: Date.now() - startedAt });
                 // Once text was visible, never splice a second provider's answer into it.
                 if (text) return { text, cards, sources: citations, mode: provider.name, status: 'failed' };
+                // Tool cards may already be visible. A fresh provider has not
+                // seen the verified result and could contradict those cards.
+                if (toolFallbackText) return publicFallback();
             }
         }
         signal.throwIfAborted();
-        if (toolFallbackText) {
-            emit('mode', { mode: 'public_tool' }); emit('token', { text: toolFallbackText });
-            audit({ event: 'support.fallback', mode: 'public_tool' });
-            return { text: toolFallbackText, sources: citations, cards: toolFallbackCards, mode: 'public_tool', status: 'complete' };
-        }
+        if (toolFallbackText) return publicFallback();
         const text = knowledgeAnswer(sources);
         emit('mode', { mode: 'knowledge' }); emit('token', { text });
         audit({ event: 'support.fallback', mode: 'knowledge' });

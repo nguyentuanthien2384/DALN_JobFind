@@ -22,7 +22,7 @@ services:
       ELASTICSEARCH_URL: http://elasticsearch:9200
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      SUPPORT_CLAUDE_MODEL: ${SUPPORT_CLAUDE_MODEL:-claude-haiku-4-5}
+      SUPPORT_CLAUDE_MODEL: ${SUPPORT_CLAUDE_MODEL:-claude-sonnet-5}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       SUPPORT_OPENAI_MODEL: ${SUPPORT_OPENAI_MODEL:-gpt-4.1-mini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -32,6 +32,8 @@ services:
       SUPPORT_OLLAMA_MODEL: ${SUPPORT_OLLAMA_MODEL:-}
       SUPPORT_RETENTION_DAYS: ${SUPPORT_RETENTION_DAYS:-30}
       SUPPORT_AUTO_MIGRATE: ${SUPPORT_AUTO_MIGRATE:-true}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       deps-installer: { condition: service_completed_successfully }
   # ============ HA TANG ============

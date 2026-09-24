@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import net from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { backupMysql, backupContainer, writeBackupManifest } from './backup-local.mjs';
-import { alive, stopChild, ownedSupervisor, effectiveState, waitFor as waitUntil, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker } from './dev-runtime.mjs';
+import { alive, stopChild, ownedSupervisor, effectiveState, waitFor as waitUntil, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches } from './dev-runtime.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const script = fileURLToPath(import.meta.url);
@@ -29,6 +29,7 @@ const applicationPorts = { 'identity-service': 4001, 'application-service': 4004
 const composeBase = ['compose', '-p', project, '-f', 'docker-compose.yml'];
 const composeApps = [...composeBase, '-f', 'compose.local.yml', '-f', 'compose.runtime.yml'];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+let dockerEnvironment = process.env;
 const readState = async () => { try { return JSON.parse(await fs.readFile(stateFile, 'utf8')); } catch { return null; } };
 let lifecycleSignal;
 let stateWrites = Promise.resolve();
@@ -40,7 +41,7 @@ const writeState = state => {
     return stateWrites;
 };
 const command = async (args, options = {}) => {
-    try { return (await exec('docker', args, { cwd: path.join(root, 'microservices'), windowsHide: true, timeout: 30000, maxBuffer: 1024 * 1024, signal: lifecycleSignal, ...options })).stdout.trim(); }
+    try { return (await exec('docker', args, { cwd: path.join(root, 'microservices'), windowsHide: true, timeout: 30000, maxBuffer: 1024 * 1024, signal: lifecycleSignal, env: dockerEnvironment, ...options })).stdout.trim(); }
     catch { throw new Error(`Docker không hoàn thành thao tác ${args.slice(0, 2).join(' ')}. Xem .local/docker.log.`); }
 };
 const longCommand = (args, env) => runLoggedCommand('docker', args, { cwd: path.join(root, 'microservices'), env,
@@ -49,6 +50,21 @@ const containerId = async service => {
     const rows = (await command(['ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`, '--filter', `label=com.docker.compose.service=${service}`])).split(/\s+/).filter(Boolean);
     if (rows.length > 1) throw new Error(`Có nhiều container ${service}; cần kiểm tra trước khi chạy.`);
     return rows[0];
+};
+const runningContainerEnvironment = async service => {
+    const id = await containerId(service);
+    if (!id) return null;
+    const [container] = JSON.parse(await command(['inspect', id]));
+    if (!container?.State?.Running) return null;
+    return Object.fromEntries(container.Config.Env.map(entry => {
+        const at = entry.indexOf('=');
+        return [entry.slice(0, at), entry.slice(at + 1)];
+    }));
+};
+const currentClaudeConfiguration = async () => {
+    const micro = dotenv.parse(await fs.readFile(path.join(root, 'microservices/.env')));
+    const [worker, chat] = await Promise.all(['ai-worker', 'support-chat-service'].map(runningContainerEnvironment));
+    return claudeRuntimeMatches(micro, worker, chat);
 };
 const waitFor = (check, label, timeout = 180000) => waitUntil(check, label, { timeout, signal: lifecycleSignal });
 const httpOk = async url => { const res = await fetch(url, { signal: AbortSignal.timeout(5000) }); await res.body?.cancel(); return res.ok; };
@@ -114,7 +130,7 @@ async function serve() {
         if (![webPort, backendPort].every(port => Number.isInteger(port) && port >= 1024 && port <= 65535)) throw new Error('Cổng ứng dụng phải từ 1024 đến 65535.');
         await freePort(webPort); await freePort(backendPort);
         state.webUrl = `http://localhost:${webPort}`; state.apiUrl = 'http://localhost:4000';
-        const env = { ...process.env, JOBFIND_WEB_PORT: String(webPort), JOBFIND_BACKEND_PORT: String(backendPort) };
+        dockerEnvironment = localComposeEnvironment(process.env, micro, { JOBFIND_WEB_PORT: String(webPort), JOBFIND_BACKEND_PORT: String(backendPort) });
         await command(['info', '--format', '{{.ServerVersion}}']);
         // A worker from a previous keyed run must not keep consuming with stale credentials.
         if (await reconcileAiWorker(micro.ANTHROPIC_API_KEY, containerId,
@@ -128,7 +144,7 @@ async function serve() {
         for (const service of infrastructure) {
             const id = await containerId(service);
             if (id) await command(['start', id]);
-            else await longCommand([...composeBase, 'up', '-d', '--no-deps', service], env);
+            else await longCommand([...composeBase, 'up', '-d', '--no-deps', service], dockerEnvironment);
         }
         await waitFor(async () => {
             const ids = await Promise.all(infrastructure.map(containerId));
@@ -141,7 +157,7 @@ async function serve() {
         await writeBackupManifest(directory, { mysql: mysqlBackup });
         await update('Chuẩn bị các dịch vụ từ mã nguồn hiện tại');
         await exec(process.execPath, ['scripts/prepare-local.mjs'], { cwd: path.join(root, 'microservices'), windowsHide: true, timeout: 60000, signal: lifecycleSignal });
-        await longCommand([...composeApps, 'build', 'api-gateway'], env);
+        await longCommand([...composeApps, 'build', 'api-gateway'], dockerEnvironment);
         await update('Khởi động backend với MySQL');
         await launchNode('backend', path.join(root, 'scripts/run-backend.cjs'), [], path.join(root, 'backend'), {
             ...process.env, ...backend, PORT: String(backendPort), URL_REACT: `${state.webUrl},http://127.0.0.1:${webPort}`,
@@ -150,7 +166,7 @@ async function serve() {
         await waitFor(() => httpOk(`http://localhost:${backendPort}/health`), 'Backend MySQL', 60000);
         await update('Khởi động API, đồng bộ hồ sơ và tìm kiếm');
         appsStarted = true;
-        await longCommand([...composeApps, 'up', '-d', '--no-deps', ...applications], env);
+        await longCommand([...composeApps, 'up', '-d', '--no-deps', ...applications], dockerEnvironment);
         await waitFor(async () => {
             const id = await containerId('api-gateway');
             const result = await command(['exec', id, 'node', '-e', `Promise.all(${JSON.stringify(applications.map(name => `http://${name}:${applicationPorts[name]}/readyz`))}.map(async url=>{const r=await fetch(url,{signal:AbortSignal.timeout(4000)});await r.body?.cancel();if(!r.ok)throw Error(url)})).then(()=>console.log('ready')).catch(()=>process.exit(1))`]);
@@ -176,6 +192,11 @@ else if (action === 'start') {
     const existing = await readState();
     if (existing?.workspace === root && await ownedSupervisor(existing.pid, script)) {
         console.log(`${existing.phase}\n${existing.webUrl || ''}`);
+        try {
+            if (existing.status === 'running' && !(await currentClaudeConfiguration())) {
+                console.log('Cấu hình Claude trong container đã khác microservices/.env; dùng npm run dev:stop rồi npm start để áp dụng.');
+            }
+        } catch { console.log('Chưa đối chiếu được cấu hình Claude trong container; xem npm run dev:status.'); }
     } else {
         try { const pid = Number(await fs.readFile(lockFile, 'utf8')); if (pid && await ownedSupervisor(pid, script)) throw new Error('Đang có tiến trình khởi chạy.'); await fs.rm(lockFile); } catch (error) { if (error.code !== 'ENOENT') throw error; }
         // Detect missing local setup in the foreground rather than reporting a detached success.
@@ -211,7 +232,15 @@ else if (action === 'start') {
 } else if (action === 'status') {
     const state = await readState();
     if (!state) console.log('Chưa khởi chạy. Dùng npm start.');
-    else { const result = effectiveState(state, await ownedSupervisor(state.pid, script)); console.log(JSON.stringify(result, null, 2)); if (result.status === 'failed') process.exitCode = 1; }
+    else {
+        const result = effectiveState(state, await ownedSupervisor(state.pid, script));
+        if (result.status === 'running') {
+            try { result.claudeConfigurationCurrent = await currentClaudeConfiguration(); }
+            catch { result.claudeConfigurationCurrent = null; }
+            if (result.claudeConfigurationCurrent === false) result.claudeConfigurationNotice = 'Cấu hình Claude đã khác microservices/.env; dùng npm run dev:stop rồi npm start để áp dụng.';
+        }
+        console.log(JSON.stringify(result, null, 2)); if (result.status === 'failed') process.exitCode = 1;
+    }
 } else if (action === 'stop') {
     const state = await readState();
     if (state?.workspace === root && await ownedSupervisor(state.pid, script)) {

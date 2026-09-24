@@ -59,6 +59,8 @@ describe('AI worker jobs', () => {
         expect(en).toEqual({ letter: 'one two three', language: 'en', wordCount: 3 });
         expect(ai.askForText.mock.calls[0][0].prompt).toContain('Write the letter in English.');
         expect(ai.askForText.mock.calls[0][0].prompt).toContain('Build apps');
+        expect(ai.askForText.mock.calls[0][0].system).toContain('Use only the candidate resume facts.');
+        expect(ai.askForText.mock.calls[0][0].maxTokens).toBe(4096);
         const viResult = await generateCoverLetter({ resumeText: 'CV', jobTitle: 'Dev', jobDescription: '', companyName: '', language: 'vi' });
         expect(viResult.language).toBe('vi');
         expect(ai.askForText.mock.calls[1][0].prompt).toContain('Vietnamese');

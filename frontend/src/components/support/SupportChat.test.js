@@ -152,6 +152,21 @@ test('streams a single turn, shows only validated job cards and help links, then
     expect(screen.queryByRole('button', { name: 'Dừng trả lời' })).not.toBeInTheDocument();
 });
 
+test('labels verified job results when Claude is interrupted after a tool call', async () => {
+    let options;
+    streamSupportReply.mockImplementation(async (_history, opts) => {
+        options = opts;
+        opts.onTool({ name: 'search_jobs', jobs: [{ id: 9, name: 'React Engineer', company: 'Acme' }] });
+        opts.onMode('public_tool');
+        opts.onText('Tìm thấy 1 tin tuyển dụng công khai đang mở.');
+        return 'Tìm thấy 1 tin tuyển dụng công khai đang mở.';
+    });
+    show(); await open(); askQuickQuestion();
+    expect(await screen.findByText('Kết quả tra cứu trực tiếp · Claude tạm gián đoạn')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /React Engineer/ })).toHaveAttribute('href', '/detail-job/9');
+    expect(options.turn.text).toBe('Tìm việc React đang tuyển tại Hà Nội');
+});
+
 test('stop aborts the request, labels partial text and ignores late stream frames', async () => {
     const pending = deferred();
     let options;

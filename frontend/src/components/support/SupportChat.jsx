@@ -397,6 +397,7 @@ const SupportChat = () => {
                                             {item.status === 'cancelled'  && <small className="jf-support__interrupted">Đã dừng · câu trả lời chưa hoàn chỉnh</small>}
                                             {item.sources?.length > 0 && <div className="jf-support__sources" aria-label="Nguồn hướng dẫn">{item.sources.filter(source => /^\/support\/help#[a-z-]+$/.test(source.href || '')).map(source => <Link key={source.id} to={source.href}>{source.title} ↗</Link>)}</div>}
                                             {item.mode === 'knowledge' && <small>Chế độ hướng dẫn dự phòng</small>}
+                                            {item.mode === 'public_tool' && <small>Kết quả tra cứu trực tiếp · Claude tạm gián đoạn</small>}
                                             {item.status === 'failed' && <small className="jf-support__interrupted">Phản hồi bị gián đoạn · cần thử lại</small>}
                                             {item.role === 'user' && !busy && <button className="jf-support__copy" type="button" onClick={() => setEditing({ id: item.id, serverId: item.serverId, text: item.text })}>Sửa câu hỏi</button>}
                                             {item.role === 'assistant' && !busy && <ActionBarPrimitive.Reload className="jf-support__copy">Tạo lại</ActionBarPrimitive.Reload>}

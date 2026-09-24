@@ -165,7 +165,7 @@ describe('reviewed knowledge and provider fallback', () => {
         expect(configuredProviders({OPENAI_API_KEY:'test',GEMINI_API_KEY:'test',SUPPORT_GEMINI_PAID:'true'}).map(p=>p.name)).toEqual(['openai','gemini']);
         const providers = configuredProviders({ ANTHROPIC_API_KEY: 'test', OPENAI_API_KEY: 'test' });
         expect(providers.map(provider => provider.name)).toEqual(['claude', 'openai']);
-        expect(providers[0].model.modelId).toBe('claude-haiku-4-5');
+        expect(providers[0].model.modelId).toBe('claude-sonnet-5');
         expect(configuredProviders({ ANTHROPIC_API_KEY: 'test', SUPPORT_CLAUDE_MODEL: 'claude-sonnet-5' })[0].model.modelId).toBe('claude-sonnet-5');
         expect(configuredProviders({ ANTHROPIC_API_KEY: '  ' })).toEqual([]);
     });
@@ -204,6 +204,18 @@ describe('reviewed knowledge and provider fallback', () => {
         expect(answer.text).not.toContain('lương');
         expect(emit).toHaveBeenCalledWith('tool', { name: 'search_jobs', jobs, count: 2 });
         expect(emit).toHaveBeenCalledWith('token', { text: answer.text });
+    });
+    it('does not ask a second provider to answer without a verified tool result already shown to the user', async () => {
+        const jobs = [{ id: 42, name: 'React', url: '/detail-job/42' }];
+        const executePublicTool = vi.fn(async () => ({ jobs, count: 1 }));
+        const generate = vi.fn(({ tools }) => ({ fullStream: (async function* () {
+            await tools.search_jobs.execute({ query: 'React', location: '' });
+            yield { type: 'error', error: Object.assign(new Error('gateway unavailable'), { statusCode: 502 }) };
+        })() }));
+        const answer = await run(createResponder({ providers: [{ name: 'claude' }, { name: 'openai' }], executePublicTool, generate }));
+        expect(answer).toMatchObject({ mode: 'public_tool', status: 'complete', cards: jobs });
+        expect(answer.text).toContain('1 tin tuyển dụng công khai');
+        expect(generate).toHaveBeenCalledTimes(1);
     });
     it.each([
         ['search_jobs', { jobs: [], count: 0 }, /Chưa tìm thấy tin tuyển dụng/],
@@ -270,6 +282,18 @@ describe('reviewed knowledge and provider fallback', () => {
         expect(answer.mode).toBe('knowledge');
         expect(audit).toHaveBeenCalledWith(expect.objectContaining({ event: 'support.provider_failed', reason: 'timeout' }));
     });
+    it('bounds a second provider by the remaining turn budget so a fallback can be saved', async () => {
+        let now = 1000;
+        vi.spyOn(Date, 'now').mockImplementation(() => now);
+        const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => new AbortController().signal);
+        const generate = vi.fn(() => {
+            if (generate.mock.calls.length === 1) now += 45000;
+            return { fullStream: (async function* () { yield { type: 'error', error: new Error('offline') }; })() };
+        });
+        const answer = await run(createResponder({ providers: [{ name: 'claude' }, { name: 'openai' }], generate, retrieve: async () => [] }));
+        expect(answer.mode).toBe('knowledge');
+        expect(timeoutSpy.mock.calls.map(([ms]) => ms)).toEqual([45000, 5000]);
+    });
     it('does not blend providers after partial output and marks it incomplete', async () => {
         const generate=vi.fn(()=>({fullStream:(async function*(){yield{type:'text-delta',text:'partial'};yield{type:'error',error:'secret'};})()}));
         expect((await run(createResponder({providers:[{name:'first'},{name:'second'}],generate}))).status).toBe('failed');
@@ -282,8 +306,9 @@ describe('reviewed knowledge and provider fallback', () => {
     });
     it('removes failed replies from model context and exposes only read-only public tools', async () => {
         const generate=vi.fn(()=>success('Được'));
-        await createResponder({providers:[{name:'test'}],generate})({messages:[...messages,{role:'assistant',text:'bad partial',status:'failed'},{role:'assistant',text:'private account result',status:'complete',private:true},...messages],signal:new AbortController().signal,emit:vi.fn()});
+        await createResponder({providers:[{name:'test'}],generate})({messages:[...messages,{role:'assistant',text:'bad partial',status:'failed'},{role:'user',text:'private account question',status:'complete',private:true},{role:'assistant',text:'private account result',status:'complete',private:true},...messages],signal:new AbortController().signal,emit:vi.fn()});
         expect(JSON.stringify(generate.mock.calls[0][0].messages)).not.toContain('bad partial');
+        expect(JSON.stringify(generate.mock.calls[0][0].messages)).not.toContain('private account question');
         expect(JSON.stringify(generate.mock.calls[0][0].messages)).not.toContain('private account result');
         expect(Object.keys(generate.mock.calls[0][0].tools)).toEqual(['search_jobs','get_job_details']);
     });
@@ -304,6 +329,25 @@ describe('private tools never take user selectors', () => {
     });
     it.each(['Tôi đã nộp đơn ứng tuyển thì xem ở đâu?', 'Hướng dẫn tôi xem việc đã lưu', 'Làm sao tôi mua gói đăng tin?', 'Cách xem thông tin tài khoản của tôi'])('keeps public how-to guidance out of private lookups: %s', query => {
         expect(privateIntent(query)).toBeNull();
+    });
+    it('stores both sides of a private account lookup as private for future AI turns', async () => {
+        vi.stubEnv('INTERNAL_SECRET', secret);
+        const requestId = randomUUID(), answerId = randomUUID();
+        const state = { id: requestId, version: 1, answerId, messages: [
+            { id: requestId, role: 'user', text: 'Trạng thái đơn ứng tuyển của tôi', status: 'complete' },
+            { id: answerId, role: 'assistant', text: '', status: 'pending' }
+        ] };
+        const store = { begin: vi.fn(async () => state), finish: vi.fn(async () => {}) };
+        const respond = vi.fn();
+        const tools = { privateTool: vi.fn(async () => ({ title: 'Đơn của tôi', lines: ['Đang chờ'] })) };
+        const app = express(); registerSupportRoutes(app, { store, tools, respond, env: { INTERNAL_SECRET: secret } });
+        const response = await fetch(`${await listen(app)}/support/turn`, { method: 'POST', headers: { ...headers, 'x-user-id': '7', 'x-user-role': 'CANDIDATE' },
+            body: JSON.stringify({ requestId, text: 'Trạng thái đơn ứng tuyển của tôi' }) });
+        expect(response.status).toBe(200);
+        expect(await response.text()).toContain('event: done');
+        expect(state.messages[0].private).toBe(true);
+        expect(store.finish.mock.calls[0][2]).toMatchObject({ private: true, mode: 'account', status: 'complete' });
+        expect(respond).not.toHaveBeenCalled();
     });
     it('requires login and enforces candidate/company roles', async () => {
         const tools=createTools({pool:{query:vi.fn()}});

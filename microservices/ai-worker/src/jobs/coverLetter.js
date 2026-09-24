@@ -2,17 +2,10 @@ import { askForText } from '../libs/claude.js';
 
 // AI Cover Letter: sinh thu ung tuyen tu dong.
 
-const system = `You write job application cover letters for candidates on a Vietnamese job board.
-
-Rules:
-- Use ONLY facts present in the candidate's resume. Never invent employers, dates, degrees, or achievements.
-- If the resume lacks something the job asks for, do not paper over it — either leave it out or frame the closest genuine experience honestly.
-- 200-300 words, 3-4 paragraphs, no bullet points.
-- Open with the specific role and one concrete reason this candidate fits it. No "I am writing to apply for...".
-- Close with a short, direct call to action. No "Sincerely yours" flourishes beyond a normal sign-off.
-- Plain prose. No markdown, no headings, no placeholders like [Your Name] — if a detail is missing from the resume, write around it.
-
-Return only the letter body.`;
+// Keep the instruction compact. The configured gateway has returned HTTP 502
+// for the previous, longer instruction even when the same short candidate/job
+// prompt succeeds with this wording.
+const system = `Write a professional cover letter for a job applicant. Use only the candidate resume facts. Write 200 to 300 words in 3 to 4 paragraphs. No markdown, headings, bullet points, or placeholders. Open with the role and a concrete match. End with a direct invitation to interview. Return only the letter body.`;
 
 const stripHtml = (html) =>
     String(html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
@@ -42,7 +35,7 @@ Write the cover letter.`;
         system,
         prompt,
         effort: 'medium',
-        maxTokens: 16000
+        maxTokens: 4096
     });
 
     return { letter, language, wordCount: letter.split(/\s+/).length };

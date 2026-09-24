@@ -41,6 +41,26 @@ export const alive = pid => {
 export const stopChild = child => {
     if (child.pid && child.exitCode === null && child.signalCode === null && !child.killed) child.kill('SIGTERM');
 };
+// Compose prefers the parent process environment over its .env file. Keep the
+// provider settings in this project's .env authoritative even when a developer
+// has configured a different Claude account in their shell or editor.
+export function localComposeEnvironment(hostEnv, microEnv, runtimeEnv = {}) {
+    const env = { ...hostEnv, ...runtimeEnv };
+    for (const name of ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_MODEL', 'SUPPORT_CLAUDE_MODEL']) {
+        if (Object.hasOwn(microEnv, name)) env[name] = microEnv[name];
+        else delete env[name];
+    }
+    return env;
+}
+export function claudeRuntimeMatches(microEnv, workerEnv, chatEnv) {
+    const key = microEnv.ANTHROPIC_API_KEY || '';
+    if (key.trim() !== '' && !workerEnv) return false;
+    if (key.trim() === '' && workerEnv) return false;
+    const shared = { ANTHROPIC_API_KEY: key, ANTHROPIC_BASE_URL: microEnv.ANTHROPIC_BASE_URL || '' };
+    const matches = (actual, expected) => actual && Object.entries(expected).every(([name, value]) => actual[name] === value);
+    return Boolean(matches(chatEnv, { ...shared, SUPPORT_CLAUDE_MODEL: microEnv.SUPPORT_CLAUDE_MODEL || 'claude-sonnet-5' })
+        && (!workerEnv || matches(workerEnv, { ...shared, CLAUDE_MODEL: microEnv.CLAUDE_MODEL || 'claude-opus-5' })));
+}
 export async function reconcileAiWorker(apiKey, findContainer, stopContainer) {
     if (apiKey?.trim()) return true;
     if (await findContainer('ai-worker')) await stopContainer('ai-worker');

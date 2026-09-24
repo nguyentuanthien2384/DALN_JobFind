@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker } from './dev-runtime.mjs';
+import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches } from './dev-runtime.mjs';
 
 test('concurrent starters cannot reclaim or replace each others runtime lock', async () => {
     const workspace = path.join(os.tmpdir(), `jobfind-starter-${process.pid}-${Date.now()}`);
@@ -71,6 +71,36 @@ test('AI worker is stopped when its key is removed from a previous run', async (
     assert.deepEqual(calls, []);
     assert.equal(await reconcileAiWorker('', async () => '', stopContainer), false);
     assert.deepEqual(calls, []);
+});
+
+test('local Compose uses Claude settings from project env, not stale host settings', () => {
+    const host = { ANTHROPIC_API_KEY: 'other-account', ANTHROPIC_BASE_URL: 'https://other.example',
+        CLAUDE_MODEL: 'other-worker', SUPPORT_CLAUDE_MODEL: 'other-chat', PATH: 'unchanged' };
+    const project = { ANTHROPIC_API_KEY: 'project-key', ANTHROPIC_BASE_URL: 'https://gateway.example',
+        CLAUDE_MODEL: 'claude-opus-5', SUPPORT_CLAUDE_MODEL: 'claude-sonnet-5' };
+    const env = localComposeEnvironment(host, project, { JOBFIND_WEB_PORT: '3001' });
+    for (const name of Object.keys(project)) assert.equal(env[name], project[name]);
+    assert.equal(env.PATH, 'unchanged');
+    assert.equal(env.JOBFIND_WEB_PORT, '3001');
+    const withoutKey = localComposeEnvironment(host, { ANTHROPIC_API_KEY: '' });
+    assert.equal(withoutKey.ANTHROPIC_API_KEY, '');
+    for (const name of ['ANTHROPIC_BASE_URL', 'CLAUDE_MODEL', 'SUPPORT_CLAUDE_MODEL']) {
+        assert.equal(Object.hasOwn(withoutKey, name), false);
+    }
+});
+
+test('Claude runtime comparison detects stale provider settings without storing secrets', () => {
+    const config = { ANTHROPIC_API_KEY: 'configured-key', ANTHROPIC_BASE_URL: 'https://gateway.example',
+        CLAUDE_MODEL: 'claude-opus-5', SUPPORT_CLAUDE_MODEL: 'claude-sonnet-5' };
+    const shared = { ANTHROPIC_API_KEY: 'configured-key', ANTHROPIC_BASE_URL: 'https://gateway.example' };
+    const worker = { ...shared, CLAUDE_MODEL: 'claude-opus-5' };
+    const chat = { ...shared, SUPPORT_CLAUDE_MODEL: 'claude-sonnet-5' };
+    assert.equal(claudeRuntimeMatches(config, worker, chat), true);
+    assert.equal(claudeRuntimeMatches(config, { ...worker, ANTHROPIC_API_KEY: 'old-key' }, chat), false);
+    assert.equal(claudeRuntimeMatches(config, worker, { ...chat, SUPPORT_CLAUDE_MODEL: 'old-model' }), false);
+    assert.equal(claudeRuntimeMatches(config, null, chat), false);
+    assert.equal(claudeRuntimeMatches({ ...config, ANTHROPIC_API_KEY: '' }, null, { ...chat, ANTHROPIC_API_KEY: '' }), true);
+    assert.equal(claudeRuntimeMatches({ ...config, ANTHROPIC_API_KEY: '' }, worker, chat), false);
 });
 
 test('stop cancels readiness polling immediately and never accepts readiness after abort', async () => {

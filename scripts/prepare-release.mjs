@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inventory, sha256 } from './release/verify.mjs';
 import { scanPrivateBindings } from './release/scan-private-bindings.mjs';
-import { composeEnvironment } from './release/compose-environment.mjs';
+import { releaseMicroservices, composeEnvironment, bindClaudeWorkerEnvironment, bindClaudeChatEnvironment } from './release/compose-environment.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const run = (command, args, options = {}) => {
@@ -83,7 +83,7 @@ for (const service of ['mongo', 'postgres', 'rabbitmq', 'redis', 'elasticsearch'
 const config = json('docker', ['compose', '--env-file', path.join(work, 'empty.env'), '-f', path.join(snapshot, 'microservices/docker-compose.yml'), '-f', path.join(snapshot, 'microservices/compose.local.yml'), 'config', '--no-interpolate', '--no-env-resolution', '--format', 'json']);
 const services = {};
 const required = name => '${' + name + ':?Provide ' + name + ' outside the release kit}';
-for (const name of ['api-gateway', 'identity-service', 'job-core-service', 'search-service', 'application-service', 'notification-service', 'admin-service', 'ai-worker']) {
+for (const name of releaseMicroservices) {
     const service = config.services[name];
     // Compose --no-interpolate may serialize environment as KEY=value entries.
     // Normalize before overriding keys; named properties on arrays disappear in JSON.
@@ -97,7 +97,8 @@ for (const name of ['api-gateway', 'identity-service', 'job-core-service', 'sear
     }
     if (name === 'api-gateway') Object.assign(service.environment, { LEGACY_URL: 'http://backend:5000', CORS_ORIGIN: 'http://localhost:3001,http://127.0.0.1:3001', TRUST_PROXY: '' });
     if (name === 'notification-service') Object.assign(service.environment, { FRONTEND_URL: 'http://localhost:3001', LEGACY_URL: 'http://backend:5000', EMAIL_APP: '', EMAIL_APP_PASSWORD: '', EMAIL_DEMO_RECIPIENT: '' });
-    if (name === 'ai-worker') Object.assign(service.environment, { ANTHROPIC_API_KEY: required('ANTHROPIC_API_KEY'), CLAUDE_MODEL: required('CLAUDE_MODEL'), AI_CONCURRENCY: '2' });
+    if (name === 'ai-worker') service.environment = bindClaudeWorkerEnvironment(service.environment, required);
+    if (name === 'support-chat-service') service.environment = bindClaudeChatEnvironment(service.environment, required);
     services[name] = service;
 }
 const protection = { init: true, read_only: true, tmpfs: ['/tmp:size=64m,mode=1777'], cap_drop: ['ALL'], security_opt: ['no-new-privileges:true'], pids_limit: 128, mem_limit: '768m', restart: 'unless-stopped', stop_grace_period: '40s', logging: { driver: 'json-file', options: { 'max-size': '10m', 'max-file': '3' } } };
@@ -116,7 +117,7 @@ await writeJson(path.join(kit, 'compose.json'), compose);
 await writeJson(path.join(kit, 'compose.deployment.json'), { services: { web: { image: variants.deployment.image } } });
 await writeJson(path.join(kit, 'compose.rollback.json'), { services: { web: { image: variants.rollback.image } } });
 await writeJson(path.join(kit, 'compose.web.rollback.json'), { name: 'ai-job-portal', services: { web: services.web }, networks: compose.networks });
-const env = ['MYSQL_HOST=host.docker.internal', 'MYSQL_PORT=3333', 'MYSQL_DATABASE=jobfindtest', 'MYSQL_USER=', 'MYSQL_PASSWORD=', 'POSTGRES_USER=', 'POSTGRES_PASSWORD=', 'RABBITMQ_USER=', 'RABBITMQ_PASSWORD=', 'JWT_SECRET=', 'INTERNAL_SECRET=', 'METRICS_TOKEN_FILE=', 'ANTHROPIC_API_KEY=', 'CLAUDE_MODEL=', 'CLOUD_NAME=', 'API_KEY=', 'API_SECRET=', 'PAYPAL_CLIENT_ID=', 'PAYPAL_CLIENT_SECRET='];
+const env = ['MYSQL_HOST=host.docker.internal', 'MYSQL_PORT=3333', 'MYSQL_DATABASE=jobfindtest', 'MYSQL_USER=', 'MYSQL_PASSWORD=', 'POSTGRES_USER=', 'POSTGRES_PASSWORD=', 'RABBITMQ_USER=', 'RABBITMQ_PASSWORD=', 'JWT_SECRET=', 'INTERNAL_SECRET=', 'METRICS_TOKEN_FILE=', 'ANTHROPIC_BASE_URL=', 'ANTHROPIC_API_KEY=', 'CLAUDE_MODEL=', 'SUPPORT_CLAUDE_MODEL=', 'CLOUD_NAME=', 'API_KEY=', 'API_SECRET=', 'PAYPAL_CLIENT_ID=', 'PAYPAL_CLIENT_SECRET='];
 await writeFile(path.join(kit, 'runtime.env.example'), env.join('\n') + '\n');
 await copyFile(path.join(root, 'microservices/docs/backup-restore-rehearsal.json'), path.join(kit, 'backup-reference.json'));
 await copyFile(path.join(root, 'scripts/release/README.md'), path.join(kit, 'README.md'));
@@ -126,7 +127,7 @@ if (JSON.stringify(sourceState()) !== JSON.stringify(sourceBefore)) throw new Er
 const privateBindingsScan = await scanPrivateBindings(root, kit);
 const files = [];
 for (const name of await inventory(kit)) files.push({ path: name, bytes: (await stat(path.join(kit, name))).size, sha256: await sha256(path.join(kit, name)) });
-const manifest = { schemaVersion: 1, releaseId, createdAt: new Date().toISOString(), applicationCommit: commit, applicationInputsClean: true, recipeProvenance: 'Recipes are separately checksummed inputs; applicationCommit identifies source.tar only.', defaultVariant: 'rollback', activationStatus: 'HOLD', gatewayUrl: '/', target: 'existing local Windows/Docker Desktop stack only', toolchain: { hostNode: process.version, buildNode: run('docker', ['run', '--rm', '--network', 'none', 'node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32', 'node', '-p', 'process.version']), docker: run('docker', ['version', '--format', '{{.Client.Version}}']), compose: run('docker', ['compose', 'version', '--short']), nodeBase: 'node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32', nginxBase: 'nginx@sha256:5a88c9c45479443d7be2eadc894b4ed0a9801bae03d97a5760ae13b5c2005942' }, variants, images, sourceUnchanged: true, privateBindingsScan, files };
+const manifest = { schemaVersion: 1, recipeVersion: 2, releaseId, createdAt: new Date().toISOString(), applicationCommit: commit, applicationInputsClean: true, recipeProvenance: 'Recipes are separately checksummed inputs; applicationCommit identifies source.tar only.', defaultVariant: 'rollback', activationStatus: 'HOLD', gatewayUrl: '/', target: 'existing local Windows/Docker Desktop stack only', toolchain: { hostNode: process.version, buildNode: run('docker', ['run', '--rm', '--network', 'none', 'node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32', 'node', '-p', 'process.version']), docker: run('docker', ['version', '--format', '{{.Client.Version}}']), compose: run('docker', ['compose', 'version', '--short']), nodeBase: 'node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32', nginxBase: 'nginx@sha256:5a88c9c45479443d7be2eadc894b4ed0a9801bae03d97a5760ae13b5c2005942' }, variants, images, sourceUnchanged: true, privateBindingsScan, files };
 await writeJson(path.join(kit, 'manifest.json'), manifest);
 await writeFile(path.join(kit, 'manifest.sha256'), await sha256(path.join(kit, 'manifest.json')) + '\n');
 console.log('Release kit prepared: ' + kit);

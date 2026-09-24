@@ -91,8 +91,16 @@ describe('AI RabbitMQ task consumer', () => {
         const { handleTask } = await import('../ai-worker/src/consumers/taskConsumer.js');
         await expect(handleTask({ taskId: 't', jobId: 1 }, 'ai.match_cv')).resolves.toBeUndefined();
         expect(mocks.publish).toHaveBeenCalledWith('ai.result', {
-            taskId: 't', jobId: 1, type: 'match_cv', ok: false, error: 'quota exceeded'
+            taskId: 't', jobId: 1, type: 'match_cv', ok: false, error: 'Dịch vụ AI chưa thể xử lý yêu cầu'
         }, expect.objectContaining({ producer: 'ai-worker', aggregateId: 't' }));
+    });
+
+    it('does not publish untrusted gateway error text or secrets to task results', async () => {
+        mocks.matchCv.mockRejectedValue(Object.assign(new Error('<html>private sk-ant-test-secret</html>'), { status: 502 }));
+        const { handleTask } = await import('../ai-worker/src/consumers/taskConsumer.js');
+        await handleTask({ taskId: 'safe-error' }, 'ai.match_cv');
+        expect(mocks.publish.mock.calls[0][1].error).toBe('Nhà cung cấp AI trả lỗi HTTP 502');
+        expect(JSON.stringify(mocks.publish.mock.calls)).not.toContain('sk-ant-test-secret');
     });
 
     it('ignores an unknown routing key', async () => {
