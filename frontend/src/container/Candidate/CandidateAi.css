@@ -1,6 +1,4 @@
-.candidate-ai-shell .main-panel { width: 100%; }
-.candidate-ai-shell .content-wrapper { padding: 24px 16px; }
-.candidate-ai { max-width: 1050px; margin: 24px auto; padding: 16px; color: #25324b; }
+.candidate-shell .candidate-ai { max-width: 1050px; margin: 0 auto; padding: 0; color: #25324b; }
 .candidate-ai h1 { font-size: 30px; }.candidate-ai h2 { font-size: 23px; }.candidate-ai h3 { font-size: 19px; }
 .candidate-ai-panel { padding: 24px; margin: 24px 0; background: white; border: 1px solid #dbe3ed; border-radius: 12px; }
 .candidate-ai label { display: block; font-weight: 600; margin: 14px 0; }
@@ -12,4 +10,5 @@
 .candidate-ai-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 20px; }
 .candidate-ai-error { color: #9b2424; background: #fff2f2; padding: 14px; }.candidate-ai-result, .candidate-ai-task { background: #f5f8fb; border-radius: 8px; padding: 18px; margin-top: 20px; overflow-wrap: anywhere; }
 .candidate-ai-score { font-size: 30px; font-weight: 700; }.candidate-ai ul { padding-left: 22px; }.candidate-ai li { list-style: disc; }
-@media(max-width:600px) { .candidate-ai-fields { grid-template-columns: 1fr; }.candidate-ai-panel { padding: 16px; }.candidate-ai { padding: 8px; } }
+.candidate-ai-panel:last-child { margin-bottom: 0; }
+@media(max-width:600px) { .candidate-ai-fields { grid-template-columns: 1fr; }.candidate-ai-panel { padding: 16px; } }

@@ -182,14 +182,13 @@ const SettingUser = () => {
                 <div className="card">
                     <div className="card-body">
                         <h4 className="card-title">Cài đặt thông tin nâng cao</h4>
-                        <br></br>
                         <form className="form-sample">
 
                             <div className="row">
                                 <div className="col-md-6">
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">Lĩnh vực</label>
-                                        <div className="col-sm-9 mt-3">
+                                        <div className="col-sm-9">
                                         <Select
                                 
                                                 style={{
@@ -211,7 +210,7 @@ const SettingUser = () => {
                                 <div className="col-md-6">
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">Mức lương</label>
-                                        <div className="col-sm-9 mt-3">
+                                        <div className="col-sm-9">
                                         <Select
                                 
                                                 style={{
@@ -235,13 +234,13 @@ const SettingUser = () => {
                                 <div className='col-md-12'>
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">Kĩ năng</label>
-                                        <div className="col-sm-9 mt-3" style={{ marginLeft: '-115px' }}>
+                                        <div className="col-sm-9">
                                             <Select
                                                 disabled={!inputValues.jobType}
                                                 mode="multiple"
                                 
                                                 style={{
-                                                    width: 'calc(100% + 115px)',
+                                                    width: '100%',
                                                 }}
                                                 placeholder="Chọn kĩ năng của bạn"
                                                 onChange={handleChange}
@@ -261,7 +260,7 @@ const SettingUser = () => {
                                 <div className="col-md-6">
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">Khu vực làm việc</label>
-                                        <div className="col-sm-9 mt-3">
+                                        <div className="col-sm-9">
                                             <Select
                                 
                                                 style={{
@@ -283,7 +282,7 @@ const SettingUser = () => {
                                 <div className="col-md-6">
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">Kinh nghiệm làm việc</label>
-                                        <div className="col-sm-9 mt-3">
+                                        <div className="col-sm-9">
                                         <Select
                                 
                                                 style={{
@@ -307,7 +306,7 @@ const SettingUser = () => {
                                 <div className="col-md-6">
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">Bật tìm việc</label>
-                                        <div className="col-sm-9 mt-3">
+                                        <div className="col-sm-9">
                                             <input aria-label="Bật tìm việc" name="isFindJob" onChange={handleOnChangeCheckBox} checked={inputValues.isFindJob} type="checkbox"></input>
                                         </div>
                                     </div>
@@ -317,7 +316,7 @@ const SettingUser = () => {
                                 <div className="col-md-6">
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">Nhận mail công việc</label>
-                                        <div className="col-sm-9 mt-3">
+                                        <div className="col-sm-9">
                                             <input aria-label="Nhận mail công việc" name="isTakeMail" onChange={handleOnChangeCheckBox} checked={inputValues.isTakeMail} type="checkbox"></input>
                                         </div>
                                     </div>

@@ -156,7 +156,7 @@ it.each(configs)('%s keeps its table and pager stable while the next page loads'
         const view = show(Component, '/catalog');
         await screen.findAllByText('Catalog item');
         const tableArea = view.container.querySelector('.stable-list');
-        expect(tableArea).toHaveStyle({ minHeight: '450px' });
+        expect(tableArea.style.minHeight).toBe('');
         const pager = view.container.querySelector('.pagination');
         let finish;
         fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
@@ -170,7 +170,7 @@ it.each(configs)('%s keeps its table and pager stable while the next page loads'
         expect(screen.getByRole('table')).toHaveTextContent('Short last page');
         expect(screen.queryByText('Catalog item')).not.toBeInTheDocument();
         expect(tableArea).toHaveAttribute('aria-busy', 'false');
-        expect(tableArea).toHaveStyle({ minHeight: '450px' });
+        expect(tableArea.style.minHeight).toBe('');
     } finally { measure.mockRestore(); }
 });
 

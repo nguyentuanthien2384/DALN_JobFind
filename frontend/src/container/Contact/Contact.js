@@ -87,7 +87,7 @@ const Contact = () => {
     ) : null;
 
   return (
-    <main>
+    <main className="jf-public-page jf-contact-page">
       <div className="slider-area">
         <div
           className="single-slider section-overly slider-height2 d-flex align-items-center"

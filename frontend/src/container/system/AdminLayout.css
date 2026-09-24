@@ -1,12 +1,60 @@
 /* Keep the header, sidebar and flexible content on the same grid. */
-.jf-admin { --admin-sidebar-width: 281px; }
-.jf-admin .sidebar { flex-shrink: 0; }
+.jf-admin { --admin-sidebar-width: 281px; --admin-content-space: 24px; }
+.jf-admin .page-body-wrapper { min-height: 100dvh; }
+.jf-admin .sidebar { flex-shrink: 0; min-height: 0; }
+.jf-admin .sidebar > .nav { margin-top: 16px; margin-bottom: 16px; }
 .jf-admin .main-panel { flex: 1; min-width: 0; }
-.jf-admin .content-wrapper { min-width: 0; }
+.jf-admin .content-wrapper { min-width: 0; padding: var(--admin-content-space); }
+/* The public footer styles otherwise add a second 98px block inside the
+   admin theme's 60px padding, even on an empty management page. */
+.jf-admin .main-panel > .footer { padding: 12px var(--admin-content-space); }
+.jf-admin .footer .footer-border { border: 0; padding: 0; }
+.jf-admin .footer .footer-copy-right p { margin: 0; font-size: 13px; }
+.jf-admin .footer .container { max-width: none; }
+/* These workspaces already sit inside the shared content padding. */
+.jf-admin .jf-support-inbox,
+.jf-admin .report-dashboard,
+.jf-admin .kanban-board { padding: 0; }
 .jf-admin .navbar .navbar-brand-wrapper { width: var(--admin-sidebar-width); flex-shrink: 0; }
 .jf-admin .navbar .navbar-menu-wrapper { flex: 1; min-width: 0; }
 @media (min-width: 992px) {
+    /* A long navigation menu must not stretch every short page. Keep its
+       own scroll area; content pages still grow and scroll normally. */
+    .jf-admin .sidebar {
+        position: fixed;
+        top: 60px;
+        bottom: 0;
+        height: calc(100dvh - 60px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+    .jf-admin .main-panel { margin-left: var(--admin-sidebar-width); }
     .sidebar-icon-only .jf-admin { --admin-sidebar-width: 70px; }
+    /* Fixed flyouts escape the menu's scrollport. Their viewport anchor is
+       refreshed on hover, keyboard focus and menu scrolling. */
+    .sidebar-icon-only .jf-admin .sidebar > .nav > .nav-item:is(:hover, :focus-within) > .nav-link .menu-title {
+        display: flex;
+        align-items: center;
+        position: fixed;
+        top: var(--admin-flyout-top, 60px);
+        bottom: auto;
+        left: 70px;
+        width: 190px;
+        height: var(--admin-flyout-header-height, 44px);
+        padding: 8px 16px;
+        color: #fff;
+        z-index: 1000;
+    }
+    .sidebar-icon-only .jf-admin .sidebar > .nav > .nav-item:is(:hover, :focus-within) > .jf-submenu {
+        display: block;
+        position: fixed;
+        top: calc(var(--admin-flyout-top, 60px) + var(--admin-flyout-header-height, 44px));
+        left: 70px;
+        width: 190px;
+        max-height: calc(100dvh - 76px - var(--admin-flyout-header-height, 44px));
+        overflow-y: auto;
+        z-index: 1000;
+    }
 }
 @media (max-width: 991px) {
     .jf-admin { --admin-sidebar-width: 55px; }
@@ -21,6 +69,9 @@
         width: min(330px, calc(100vw - 24px));
         max-height: calc(100dvh - 84px);
     }
+}
+@media (max-width: 767px) {
+    .jf-admin { --admin-content-space: 16px; }
 }
 .jf-admin__notifications {
     position: absolute;

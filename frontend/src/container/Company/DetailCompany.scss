@@ -19,6 +19,8 @@
             align-items: center;
             background: #fff;
             display: flex;
+            flex-wrap: wrap;
+            gap: 16px 0;
             padding-left: 24px;
             padding-right: 24px;
             position: relative;
@@ -27,6 +29,7 @@
                 height: 110px;
                 margin-right: 24px;
                 width: 140px;
+                flex-shrink: 0;
                 .company-image-logo {
                     align-items: center;
                     background: #fff;
@@ -51,8 +54,12 @@
                 
             }
             .company-info {
+                flex: 1 1 240px;
+                min-width: 0;
                 padding-top: 5px;
                 word-break: break-word;
+
+                > .d-flex { flex-wrap: wrap; }
 
                 .company-detail-name {
                     color: #333;
@@ -79,6 +86,10 @@
             }
             .box-follow {
                 margin-left: auto;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 12px 0;
                 .btn.btn-follow {
                     background: #00b14f;
                     border-radius: 3px;
@@ -156,16 +167,21 @@
                     display: flex;
                     flex-direction: column;
                     margin-left: 12px;
-                    width: 100%;
+                    flex: 1;
+                    min-width: 0;
 
                     .content {
                         display: flex;
                         width: 100%;
                         justify-content: space-between;
+                        flex-wrap: wrap;
+                        gap: 8px;
                     }
                   
                     .ml-auto {
-                        margin-left: 10px !important;
+                        margin-left: 0 !important;
+                        min-width: 0;
+                        overflow-wrap: anywhere;
                         .title-job {
                             line-height: 1;
                             margin-bottom: 0;
@@ -202,9 +218,9 @@
                         }
                     }
                     .mr-auto {
-                        margin-left: 20px;
+                        margin-left: 0;
                         margin-right: 0 !important;
-                        min-width: 180px;
+                        min-width: 0;
                         text-align: right;
 
                         .deadline {
@@ -240,6 +256,7 @@
                     margin-bottom: 16px;
 
                     .url-copy {
+                        min-width: 0;
                         background: #fafafa;
                         border-color: transparent;
                         border-radius: 5px;
@@ -249,10 +266,11 @@
                         padding: 0 8px;
                         text-overflow: ellipsis!important;
                         white-space: nowrap!important;
-                        width: 86%;
+                        flex: 1;
                     }
                     .btn-copy {
-                        width: 11%;
+                        flex: 0 0 40px;
+                        margin-left: 8px;
 
                         .btn-copy-url {
                             background: #f2fbf6;
@@ -274,6 +292,31 @@
                         margin-right: 16px;
                     }
                 }
+            }
+        }
+    }
+}
+
+@media (max-width: 767px) {
+    .container-detail-company {
+        .company-cover {
+            .cover-wrapper { height: 150px; }
+            .company-detail-overview {
+                padding: 0 16px 16px;
+                align-items: flex-start;
+                #company-logo { width: 90px; height: 60px; margin-right: 16px; }
+                #company-logo .company-image-logo { width: 90px; height: 90px; top: -30px; }
+                .company-info { flex-basis: 100%; }
+                .company-detail-name { font-size: 22px; }
+                .box-follow { width: 100%; margin-left: 0; padding: 0; }
+            }
+        }
+        .detail {
+            .box-white { padding: 18px 16px; }
+            .job-listing .job-item {
+                padding: 12px;
+                .avatar { width: 48px; height: 48px; flex-shrink: 0; }
+                .body .mr-auto { text-align: left !important; }
             }
         }
     }

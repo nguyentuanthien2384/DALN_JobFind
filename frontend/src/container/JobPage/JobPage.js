@@ -101,7 +101,7 @@ const JobSearchPage = ({ historyKey }) => {
     return (
         <>
 
-            <main>
+            <main className="jf-public-page jf-job-search-page">
 
                 {/* <!-- Hero Area Start--> */}
                 <div className="slider-area ">

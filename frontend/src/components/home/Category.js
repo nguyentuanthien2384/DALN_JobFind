@@ -9,7 +9,7 @@ const Category = (props) => {
 
     return (
         <>
-            <div className="col-xl-3 col-lg-3 col-md-4 col-sm-6">
+            <div className="col-xl-3 col-lg-3 col-md-4 col-6">
                         <div className="single-services text-center mb-30">
                             <div className="services-ion">
                                 <img

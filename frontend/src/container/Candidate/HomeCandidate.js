@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route, Navigate, useMatch } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import UserCv from "../system/Cv/UserCv";
 import ChangePassword from "../system/User/ChangePassword";
 import CandidateInfo from "./CandidateInfo";
@@ -8,16 +8,11 @@ import SettingUser from "./SettingUser";
 import SavedJobs from "./SavedJobs";
 import CandidateAi from './CandidateAi';
 import NotificationJobs from './NotificationJobs';
+import './CandidateLayout.css';
 
 const HomeCandidate = () => {
-    const isAiWorkspace = Boolean(useMatch('/candidate/ai-cv'));
-    const isApplicationHistory = Boolean(useMatch('/candidate/cv-post'));
-    const isSubmittedCv = Boolean(useMatch('/candidate/cv-detail/:id'));
-    const isFollowedJobs = Boolean(useMatch('/candidate/followed-jobs'));
-    const isRecommendedJobs = Boolean(useMatch('/candidate/recommended-jobs'));
-    const fullWidth = isAiWorkspace || isApplicationHistory || isSubmittedCv || isFollowedJobs || isRecommendedJobs;
     return (
-        <div className={`container-scroller${fullWidth ? ' candidate-ai-shell' : ''}`}>
+        <div className="container-scroller candidate-shell">
             {/* partial:partials/_navbar.html */}
 
             {/* partial */}
@@ -29,10 +24,7 @@ const HomeCandidate = () => {
 
                 {/* partial */}
                 <div className="main-panel">
-                    <div
-                        className="content-wrapper"
-                        style={{ marginLeft: fullWidth ? 0 : "9%" }}
-                    >
+                    <div className="content-wrapper">
                         <Routes>
                             <Route path="/ai-cv" element={<CandidateAi />} />
                             <Route path="/followed-jobs" element={<NotificationJobs source="followed" />} />

@@ -18,6 +18,7 @@ import ChatDocumentPreview from '../../components/chat/ChatDocumentPreview';
 import { chatMessageSummary } from '../../service/chatMediaService';
 import WaitingReply from "./WaitingReply";
 import { mergeMessages, synchronizeConversation } from './conversationSync';
+import './ChatPage.css';
 
 const ChatPage = () => {
     const navigate = useNavigate();
@@ -48,7 +49,7 @@ const ChatPage = () => {
     const sendLockRef = useRef(false);
     const fetchSequenceRef = useRef(0);
     const listSequenceRef = useRef(0);
-    const messagesEndRef = useRef(null);
+    const pageRef = useRef(null);
     const typingTimerRef = useRef(null);
     const typingEmitTimerRef = useRef(null);
     const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
@@ -57,10 +58,50 @@ const ChatPage = () => {
         : location.pathname.startsWith("/support/chat") ? "/support/chat" : "/chat";
 
     const scrollToBottom = useCallback(() => {
-        if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        const list = messageListRef.current;
+        if (list) {
+            // Scroll only the message history. scrollIntoView also scrolls the
+            // page and can move the title/composer away when messages arrive.
+            if (typeof list.scrollTo === 'function') list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+            else list.scrollTop = list.scrollHeight;
         }
     }, []);
+
+    useEffect(() => {
+        const element = pageRef.current;
+        if (!element) return undefined;
+        const admin = element.closest('.jf-admin');
+        const footer = admin?.querySelector('.main-panel > footer');
+        const wrapper = admin?.querySelector('.content-wrapper');
+        const header = document.querySelector(admin ? '.jf-admin .navbar' : 'header');
+        let frame;
+        const resize = () => {
+            const top = element.getBoundingClientRect().top + window.scrollY;
+            const bottom = admin ? (footer?.getBoundingClientRect().height || 0)
+                + (parseFloat(window.getComputedStyle(wrapper || element).paddingBottom) || 0) : 24;
+            const viewport = window.visualViewport?.height || window.innerHeight;
+            const height = `${Math.max(360, viewport - top - bottom)}px`;
+            if (element.style.getPropertyValue('--chat-page-height') !== height) {
+                element.style.setProperty('--chat-page-height', height);
+            }
+        };
+        // Defer writes out of ResizeObserver delivery: changing the content
+        // height synchronously there can trigger a browser observer-loop error.
+        const scheduleResize = () => {
+            window.cancelAnimationFrame(frame);
+            frame = window.requestAnimationFrame(resize);
+        };
+        resize();
+        const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleResize) : null;
+        [header, footer, wrapper].filter(Boolean).forEach(node => observer?.observe(node));
+        window.addEventListener('resize', scheduleResize);
+        window.visualViewport?.addEventListener('resize', scheduleResize);
+        return () => {
+            observer?.disconnect(); window.cancelAnimationFrame(frame);
+            window.removeEventListener('resize', scheduleResize);
+            window.visualViewport?.removeEventListener('resize', scheduleResize);
+        };
+    }, [chatBasePath, userData]);
 
     const fetchListConversation = useCallback(async () => {
         const sequence = ++listSequenceRef.current;
@@ -326,9 +367,9 @@ const ChatPage = () => {
     if (!userData) return <></>;
 
     return (
-        <main>
+        <main className={`jf-chat-page${partnerId ? ' jf-chat-page--conversation' : ''}`}>
             {preview && <ChatDocumentPreview key={`${partnerId}:${preview.id}`} attachment={preview} onClose={() => setPreview(null)} />}
-            <div className="container chat-page-container">
+            <div ref={pageRef} className="container chat-page-container">
                 <h4 style={{ marginBottom: "20px" }}>
                     <i
                         className="far fa-comments"
@@ -553,7 +594,6 @@ const ChatPage = () => {
                                         messages={messages} userId={userData.id} partnerId={partnerId}
                                         name={getPartnerName(partnerData)} avatar={getPartnerAvatar(partnerData)}
                                     />
-                                    <div ref={messagesEndRef} />
                                 </div>
                                 <div className="chat-composer">
                                     {conversationMeta?.richContent && <ChatShareTools key={partnerId} partnerId={partnerId}

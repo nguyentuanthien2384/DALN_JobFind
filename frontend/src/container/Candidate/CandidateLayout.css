@@ -1,0 +1,57 @@
+/* Candidate pages share the public header; they have no fixed admin navbar or sidebar. */
+.candidate-shell .page-body-wrapper {
+    min-height: 0;
+    padding-top: 0;
+}
+.candidate-shell .main-panel {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    margin-left: 0;
+}
+.candidate-shell .content-wrapper {
+    width: 100%;
+    min-width: 0;
+    padding: 24px;
+}
+.candidate-shell .content-wrapper > * {
+    width: 100%;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.candidate-shell .grid-margin {
+    margin-bottom: 0;
+    padding-left: 0;
+    padding-right: 0;
+}
+.candidate-shell .card-body {
+    padding: 24px;
+    min-width: 0;
+}
+.candidate-shell .react-datepicker-wrapper {
+    display: block;
+    width: 100%;
+}
+.candidate-shell .form-group { margin-bottom: 18px; align-items: center; }
+.candidate-shell .form-group label.col-form-label {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 0;
+}
+.candidate-shell .saved-job {
+    flex-wrap: wrap;
+}
+.candidate-shell .saved-job__details {
+    flex: 1 1 180px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+    .candidate-shell .content-wrapper { padding: 16px; }
+    .candidate-shell .card-body { padding: 20px 16px; }
+    .candidate-shell .form-group { margin-bottom: 16px; }
+}
+@media (max-width: 575px) {
+    .candidate-shell .form-group label.col-form-label { padding-top: 0; padding-bottom: 6px; }
+}

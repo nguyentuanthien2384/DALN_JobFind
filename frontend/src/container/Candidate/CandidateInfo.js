@@ -143,7 +143,6 @@ const CandidateInfo = () => {
                 <div className="card">
                     <div className="card-body">
                         <h4 className="card-title">Thông tin cá nhân</h4>
-                        <br></br>
                         <form className="form-sample">
                             <div className="row">
                                 <div className="col-md-6">

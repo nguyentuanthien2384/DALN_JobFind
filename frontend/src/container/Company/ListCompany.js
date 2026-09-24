@@ -42,7 +42,7 @@ const ListCompany = () => {
             <div className='list-company'>
 
             <span>{busy ? 'Đang tìm công ty…' : error ? 'Chưa tải được danh sách công ty' : `${countData} công ty được tìm thấy`}</span>
-                                    <Input.Search key={search} defaultValue={search} onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên công ty" allowClear enterButton="Tìm kiếm">
+                                    <Input.Search key={search} defaultValue={search} onSearch={handleSearch} className='company-search' placeholder="Nhập tên công ty" allowClear enterButton="Tìm kiếm">
                                     
                                     </Input.Search>
             </div>

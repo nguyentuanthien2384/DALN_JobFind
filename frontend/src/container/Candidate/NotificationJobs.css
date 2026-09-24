@@ -1,4 +1,4 @@
-.notification-jobs { max-width: 1100px; margin: 0 auto; padding: 16px 12px 40px; color: #172c4a; }
+.candidate-shell .notification-jobs { max-width: 1100px; margin: 0 auto; padding: 0; color: #172c4a; }
 .notification-jobs__header { padding: 28px 30px 0; border: 1px solid #e4e8f0; border-radius: 16px; background: #fff; }
 .notification-jobs__eyebrow { color: #b92055; font-size: 11px; letter-spacing: 1.7px; font-weight: 700; }
 .notification-jobs h1 { margin: 12px 0; color: #172c4a; font-size: clamp(24px, 3vw, 32px); line-height: 1.3; }
@@ -9,7 +9,6 @@
 .notification-jobs__toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 25px 0 14px; }
 .notification-jobs__toolbar p { margin: 0; color: #475770; font-size: 14px; }
 .notification-jobs__toolbar a { color: #b92055; font-size: 14px; font-weight: 600; }
-.notification-jobs__list { min-height: 270px; }
 .notification-jobs__card { display: flex; align-items: center; gap: 22px; margin-bottom: 14px; padding: 24px; color: #172c4a; background: #fff; border: 1px solid #e1e6ee; border-radius: 12px; transition: border-color .15s, box-shadow .15s; }
 .notification-jobs__card:hover { color: #172c4a; border-color: #f5a9c3; box-shadow: 0 4px 18px #172c4a0a; }
 .notification-jobs__logo { display: grid; place-items: center; width: 76px; height: 76px; flex-shrink: 0; border: 1px solid #edf0f5; border-radius: 10px; background: #fff; overflow: hidden; }
@@ -33,7 +32,6 @@
 .notification-jobs__pagination { margin-top: 25px; }
 .notification-jobs__pagination .pagination { flex-wrap: wrap; gap: 5px; }
 @media (max-width: 650px) {
-    .notification-jobs { padding: 8px 0 28px; }
     .notification-jobs__header { padding: 22px 18px 0; }
     .notification-jobs__tabs { gap: 18px; }
     .notification-jobs__tabs a { font-size: 13px; }

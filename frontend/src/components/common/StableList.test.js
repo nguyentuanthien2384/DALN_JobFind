@@ -2,21 +2,27 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import StableList from './StableList';
 
-test('holds the measured space during loading and a shorter last page, then resets for a new filter', () => {
+test('holds the previous space only during loading and releases it for shorter settled results', () => {
     let height = 600;
     const measure = jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ width: 800, height }));
     try {
         const view = render(<StableList resetKey="React"><p>Page 1</p></StableList>);
         const root = view.container.firstChild;
-        expect(root).toHaveStyle({ minHeight: '600px' });
+        expect(root.style.minHeight).toBe('');
         height = 10;
         view.rerender(<StableList busy resetKey="React"><p>Pending</p></StableList>);
         expect(root).toHaveStyle({ minHeight: '600px' });
         height = 200;
         view.rerender(<StableList resetKey="React"><p>Last page</p></StableList>);
-        expect(root).toHaveStyle({ minHeight: '600px' });
-        view.rerender(<StableList resetKey="Vue"><p>New filter</p></StableList>);
+        expect(root.style.minHeight).toBe('');
+        height = 10;
+        view.rerender(<StableList busy resetKey="Vue"><p>Pending new filter</p></StableList>);
         expect(root).toHaveStyle({ minHeight: '200px' });
+        height = 0;
+        view.rerender(<StableList resetKey="Vue"><p>New filter</p></StableList>);
+        expect(root.style.minHeight).toBe('');
+        view.rerender(<StableList busy resetKey="Vue"><p>Pending empty list</p></StableList>);
+        expect(root.style.minHeight).toBe('');
     } finally { measure.mockRestore(); }
 });
 

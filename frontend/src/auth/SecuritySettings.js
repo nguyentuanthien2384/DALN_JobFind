@@ -4,6 +4,7 @@ import { forgetAccess, startSocialLink } from './authClient';
 import { providerLabels } from './SocialButtons';
 import { disconnectSocket } from '../socket';
 import { clearPushOnLogout } from '../push/webPush';
+import './SecuritySettings.css';
 
 const eventLabels = {
   login_succeeded: 'Đăng nhập thành công', login_failed: 'Đăng nhập không thành công',
@@ -53,14 +54,14 @@ export default function SecuritySettings() {
     } catch { setError('Không tải được lịch sử bảo mật. Vui lòng thử lại.'); }
     finally { setBusy(false); }
   };
-  return <main className="container py-5" style={{ maxWidth: 900 }}>
+  return <main className="container security-settings">
     <h1>Bảo mật và đăng nhập</h1>
     <p>Quản lý tài khoản liên kết và các phiên đang đăng nhập vào JobFind.</p>
     {new URLSearchParams(window.location.search).get('sso') === 'linked' && <p role="status" className="alert alert-success">Đã liên kết tài khoản ngoài thành công.</p>}
     {error && <div role="alert" className="alert alert-danger">{error} <button className="btn btn-link" disabled={busy} onClick={() => perform(load)}>Thử lại</button></div>}
     {!data && !error && <p role="status">Đang tải...</p>}
     {data && <>
-      <section className="card p-4 mb-4" aria-labelledby="google-title">
+      <section className="card mb-4" aria-labelledby="google-title">
         <h2 id="google-title">Tài khoản liên kết</h2>
         <p>Đăng nhập liên kết giữ nguyên vai trò và quyền của tài khoản JobFind hiện tại.</p>
         {data.identities.length === 0 && <p>Chưa có tài khoản nào được liên kết.</p>}
@@ -81,7 +82,7 @@ export default function SecuritySettings() {
         {!Object.keys(providerLabels).some(provider => data[provider]) && <p role="status">Đăng nhập liên kết chưa được quản trị viên cấu hình.</p>}
 
       </section>
-      <section className="card p-4" aria-labelledby="sessions-title">
+      <section className="card" aria-labelledby="sessions-title">
         <h2 id="sessions-title">Các phiên đăng nhập</h2>
         <p>Mỗi lần đăng nhập tạo một phiên. Thu hồi phiên sẽ chặn truy cập từ phiên đó.</p>
         <ul className="list-unstyled">
@@ -100,7 +101,7 @@ export default function SecuritySettings() {
           if (window.confirm('Đăng xuất tất cả thiết bị, bao gồm phiên hiện tại?')) perform(() => api.post('/api/auth/logout-all', {}), true);
         }}>Đăng xuất tất cả thiết bị</button>
       </section>
-      <section className="card p-4 mt-4" aria-labelledby="history-title">
+      <section className="card mt-4" aria-labelledby="history-title">
         <h2 id="history-title">Lịch sử bảo mật</h2>
         <p>Thông tin trình duyệt và thiết bị chỉ mang tính tham khảo. Nếu thấy phiên lạ, hãy đăng xuất tất cả thiết bị và đổi mật khẩu.</p>
         {!(data.events || []).length && <p>Chưa có hoạt động bảo mật được ghi nhận.</p>}

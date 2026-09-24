@@ -21,6 +21,167 @@
     position: relative;
 }
 
+/* Public pages use an in-flow sticky header. The original marketing template
+   leaves 120–200px around content and a 450px title-only banner. Keep a real
+   image hero on the homepage, with compact page titles and content spacing. */
+.jf-public-page {
+    --jf-section-space: clamp(28px, 4vw, 56px);
+}
+
+.jf-public-page .slider-height2 {
+    min-height: 180px;
+    padding: 28px 0;
+}
+
+.jf-public-page .hero-cap h2 {
+    margin: 0;
+    font-size: clamp(28px, 3vw, 40px);
+}
+
+.jf-home-page .slider-height {
+    min-height: clamp(300px, 36vw, 480px);
+    padding: 40px 0;
+}
+
+.jf-home-page .hero__caption h1 {
+    margin: 0;
+    font-size: clamp(32px, 4.5vw, 64px);
+}
+
+.jf-public-page :is(.section-pad-t30, .feature-padding, .section-padding2, .apply-process-area, .online-cv) {
+    padding-top: var(--jf-section-space);
+    padding-bottom: var(--jf-section-space);
+}
+
+.jf-public-page .section-tittle h2 {
+    margin-bottom: 28px;
+}
+
+.jf-public-page .section-tittle span {
+    margin-bottom: 14px;
+}
+
+.jf-public-page .online-cv .cv-caption .pera2 {
+    margin-bottom: 28px;
+}
+
+.jf-public-page .support-company-area .right-caption .support-caption p {
+    margin-bottom: 24px;
+}
+
+.jf-public-page :is(.contact-section, .job-listing-area) {
+    padding-top: 32px;
+    padding-bottom: 40px;
+}
+
+.jf-job-search-page .small-section-tittle2.mb-45 {
+    margin-bottom: 20px;
+}
+
+.jf-job-search-page .job-category-listing {
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.jf-job-search-page .job-category-listing .select-Categories {
+    padding-bottom: 24px;
+}
+
+.jf-job-search-page .job-category-listing .select-Categories.pt-80 {
+    padding-top: 24px;
+}
+
+.jf-job-search-page .job-category-listing > .single-listing:last-child > .single-listing:last-child .select-Categories {
+    padding-bottom: 0;
+}
+
+.jf-not-found-page {
+    padding-top: clamp(32px, 7vh, 64px);
+    padding-bottom: 32px;
+    text-align: center;
+}
+
+@media (max-width: 767.98px) {
+    .jf-public-page .slider-height2 {
+        min-height: 128px;
+        padding: 24px 0;
+    }
+
+    .jf-public-page :is(.contact-section, .job-listing-area) {
+        padding-top: 24px;
+        padding-bottom: 28px;
+    }
+
+    /* Avoid four large, stacked template blocks for a single small job card. */
+    .jf-public-page .single-job-items {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .jf-public-page .single-job-items .job-items {
+        display: grid;
+        grid-template-columns: 56px minmax(0, 1fr);
+        gap: 12px;
+        width: 100%;
+    }
+
+    .jf-public-page .single-job-items .company-img img {
+        width: 56px !important;
+        height: 56px !important;
+        object-fit: contain;
+        margin-right: 0;
+        float: none;
+    }
+
+    .jf-public-page .single-job-items .job-tittle {
+        min-width: 0;
+        padding-top: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .jf-public-page .single-job-items .job-tittle a h4 {
+        font-size: 18px;
+    }
+
+    .jf-public-page .single-job-items .job-tittle ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 10px;
+        margin-bottom: 0;
+    }
+
+    .jf-public-page .single-job-items .job-tittle ul li {
+        margin: 0;
+    }
+
+    .jf-public-page .single-job-items .items-link {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 12px;
+        width: 100%;
+        padding-top: 12px;
+        text-align: left;
+    }
+
+    .jf-public-page .single-job-items .items-link a {
+        padding: 4px 12px;
+        margin-bottom: 0;
+    }
+
+    .jf-home-page .our-services .single-services {
+        padding: 20px 8px;
+        margin-bottom: 16px;
+    }
+
+    .jf-home-page .our-services .services-ion img {
+        width: 72px !important;
+        height: 72px !important;
+        object-fit: contain;
+        margin-bottom: 12px;
+    }
+}
+
 .hover-pointer:hover {
     cursor: pointer;
 }

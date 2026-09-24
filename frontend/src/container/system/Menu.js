@@ -6,6 +6,18 @@ import { getSocket } from '../../socket';
 import { hasCompanyMembership, hasPermission, PERMISSIONS } from '../../auth/accessControl';
 import { readJsonStorage } from '../../util/storage';
 
+// Keep compact-menu flyouts inside the viewport while the navigation itself
+// scrolls. Fixed positioning also lets them extend beyond the 70px scrollport.
+const positionCollapsedFlyout = (item) => {
+    if (!item || !document.body.classList.contains('sidebar-icon-only') || window.innerWidth < 992) return;
+    const bounds = item.getBoundingClientRect();
+    const submenuHeight = item.querySelector('.jf-submenu')?.scrollHeight || 0;
+    const top = Math.max(60, Math.min(bounds.top, window.innerHeight - bounds.height - submenuHeight - 8));
+    item.style.setProperty('--admin-flyout-top', `${top}px`);
+    item.style.setProperty('--admin-flyout-header-height', `${bounds.height}px`);
+};
+const anchorFlyout = (event) => positionCollapsedFlyout(event.currentTarget);
+
 /**
  * Menu khu quan tri.
  *
@@ -243,10 +255,14 @@ const Menu = ({ user: suppliedUser }) => {
     const toggleNhom = (key) => setOpenKey(prev => (prev === key ? null : key))
 
     return (
-        <nav className="sidebar sidebar-offcanvas" id="sidebar">
+        <nav className="sidebar sidebar-offcanvas" id="sidebar" onScroll={(event) => {
+            const navigation = event.currentTarget;
+            positionCollapsedFlyout(navigation.querySelector(':scope > .nav > .nav-item:hover'));
+            positionCollapsedFlyout(navigation.querySelector(':scope > .nav > .nav-item:focus-within'));
+        }}>
             <ul className="nav">
                 {canViewDashboard && (
-                    <li className={'nav-item relative' + (dangOTrangChu ? ' active' : '')}>
+                    <li className={'nav-item relative' + (dangOTrangChu ? ' active' : '')} onMouseEnter={anchorFlyout} onFocus={anchorFlyout}>
                         <Link className="nav-link" to="/admin/" onClick={() => setOpenKey(null)}>
                             <i className="icon-grid menu-icon" />
                             <span className="menu-title">Trang chủ</span>
@@ -255,7 +271,7 @@ const Menu = ({ user: suppliedUser }) => {
                 )}
 
                 {canUseChat && (
-                    <li className={'nav-item relative' + (location.pathname.startsWith('/admin/chat') ? ' active' : '')}>
+                    <li className={'nav-item relative' + (location.pathname.startsWith('/admin/chat') ? ' active' : '')} onMouseEnter={anchorFlyout} onFocus={anchorFlyout}>
                         <Link className="nav-link" to="/admin/chat" onClick={() => setOpenKey(null)}>
                             <i className="icon-paper menu-icon" />
                             <span className="menu-title">Tin nhắn</span>
@@ -276,6 +292,8 @@ const Menu = ({ user: suppliedUser }) => {
                         <li
                             key={group.key}
                             className={'nav-item relative' + (dangXemTrongNhom ? ' active' : '')}
+                            onMouseEnter={anchorFlyout}
+                            onFocus={anchorFlyout}
                         >
                             <a
                                 className="nav-link"

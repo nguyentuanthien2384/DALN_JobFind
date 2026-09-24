@@ -58,7 +58,7 @@ const Home = () => {
     </div> */}
             {/* <!-- Preloader Start --> */}
 
-            <main>
+            <main className="jf-public-page jf-home-page">
                 {/* <!-- slider Area Start--> */}
                 <div className="slider-area ">
                     {/* <!-- Mobile Menu --> */}

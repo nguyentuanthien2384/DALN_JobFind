@@ -78,6 +78,7 @@ const SavedJobs = () => {
                             return (
                                 <div
                                     key={index}
+                                    className="saved-job"
                                     style={{
                                         display: "flex",
                                         alignItems: "center",
@@ -101,7 +102,7 @@ const SavedJobs = () => {
                                             borderRadius: "6px",
                                         }}
                                     />
-                                    <div style={{ flex: 1 }}>
+                                    <div className="saved-job__details">
                                         <Link to={`/detail-job/${post.id}`}>
                                             <h5 style={{ marginBottom: "4px" }}>
                                                 {post.postDetailData.name}

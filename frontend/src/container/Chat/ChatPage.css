@@ -1,0 +1,33 @@
+/* The public header occupies normal flow; the admin shell already offsets its
+   fixed navbar. Neither context needs the old 100/140px header spacer. */
+.jf-chat-page .chat-page-container {
+    padding-top: 20px;
+    padding-bottom: 0;
+    height: var(--chat-page-height, calc(100dvh - 120px));
+    min-height: 360px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.jf-admin .jf-chat-page .chat-page-container { max-width: none; padding: 0; }
+.jf-chat-page .chat-page-container > h4 { flex-shrink: 0; margin-bottom: 14px !important; }
+.jf-chat-page .chat-page-container > section { flex-shrink: 0; }
+.jf-chat-page .chat-wrapper { flex: 1; height: auto; min-height: 160px; min-width: 0; }
+.jf-chat-page .chat-sidebar, .jf-chat-page .chat-main { min-height: 0; }
+.jf-chat-page .chat-main > [role="log"] { min-height: 0; overscroll-behavior-y: contain; }
+.jf-chat-page .chat-main > div:first-child,
+.jf-chat-page .chat-composer { flex-shrink: 0; }
+.jf-chat-page .chat-composer-row > button,
+.jf-chat-page section[aria-label="Thông báo khi rời trang"] button {
+    padding: 12px 18px;
+    line-height: 1.3;
+    min-height: 42px;
+}
+@media (max-width: 767.98px) {
+    .jf-chat-page .chat-page-container { padding-top: 12px; }
+    .jf-chat-page:not(.jf-chat-page--conversation) .chat-main { display: none; }
+    .jf-chat-page .chat-sidebar { min-width: 0; }
+    .jf-chat-page .chat-composer { padding: 8px; }
+    .jf-chat-page .chat-composer-row { gap: 8px; }
+    .jf-chat-page section[aria-label="Thông báo khi rời trang"] { padding: 10px !important; margin-bottom: 10px !important; }
+}

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 const About = () => {
   return (
-    <main>
+    <main className="jf-public-page jf-about-page">
       <div className="slider-area">
         <div
           className="single-slider section-overly slider-height2 d-flex align-items-center"
