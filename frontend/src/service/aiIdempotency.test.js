@@ -1,5 +1,5 @@
 import axios from "../axios";
-import { createAiRequestOptions, parseResumeAi, matchCvAi, coverLetterAi } from "./aiSearchService";
+import { createAiRequestOptions, parseResumeAi, generateCvAi, matchCvAi, matchCvPdfAi, coverLetterAi } from "./aiSearchService";
 
 jest.mock("../axios", () => ({ __esModule: true, default: { post: jest.fn() } }));
 beforeAll(() => { Object.defineProperty(globalThis, "crypto", { value: require("crypto").webcrypto, configurable: true }); });
@@ -7,7 +7,10 @@ beforeEach(() => { axios.post.mockReset().mockResolvedValue({ errCode: 0, taskId
 
 test.each([
     [parseResumeAi, ["PDF", "cv.pdf"], "/api/ai/parse-resume", { fileBase64: "PDF", fileName: "cv.pdf" }],
+    [generateCvAi, ["Verified facts", undefined, "vi"], "/api/ai/generate-cv", { sourceText: "Verified facts", language: "vi" }],
+    [generateCvAi, ["Verified facts", 7, "en"], "/api/ai/generate-cv", { sourceText: "Verified facts", jobId: 7, language: "en" }],
     [matchCvAi, ["CV", 7], "/api/ai/match-cv", { resumeText: "CV", jobId: 7 }],
+    [matchCvPdfAi, ["PDF", 7], "/api/ai/match-cv", { fileBase64: "PDF", jobId: 7 }],
     [coverLetterAi, ["CV", 7, "vi"], "/api/ai/cover-letter", { resumeText: "CV", jobId: 7, language: "vi" }]
 ])("reuses one explicit action key for overlapping calls and later retries", async (handler, args, path, body) => {
     const options = createAiRequestOptions();

@@ -121,8 +121,9 @@ const FilterCv = () => {
         setSelectedJob(job);
         setQuery({ ...emptyFilters(), ...job.criteria, page: 0, listSkills: job.criteria.listSkills.map(skill => Number(skill.id)) });
     };
-    const openCandidate = id => {
-        const open = () => navigate(`/admin/candiate/${id}/`);
+    const openCandidate = (id, analyze = false) => {
+        const query = selectedJob ? `?jobId=${encodeURIComponent(selectedJob.id)}` : '';
+        const open = () => navigate(`/admin/candiate/${id}/${query}${analyze ? '#ai-review' : ''}`);
         if (user.roleCode === 'ADMIN') { open(); return; }
         Modal.confirm({ title: 'Xem CV và thông tin liên hệ', icon: <ExclamationCircleOutlined />,
             content: 'Công ty sẽ dùng 1 lượt xem nếu chưa mở quyền với ứng viên này. Xem lại hồ sơ đã mở không trừ thêm lượt.',
@@ -191,7 +192,7 @@ const FilterCv = () => {
                     <div><label htmlFor="cv-sort">Sắp xếp</label><Select id="cv-sort" aria-label="Sắp xếp"
                         value={filters.sort} onChange={value => change('sort', value)} options={[
                             { value: 'match', label: 'Phù hợp nhất' }, { value: 'name', label: 'Tên A–Z' }]} /></div></div>
-                <p className="cv-search-method">Điểm = số tiêu chí khớp / số tiêu chí đã chọn. Mỗi kỹ năng tính một lần, dựa trên hồ sơ khai báo; chưa phân tích nội dung tệp PDF. Điểm hỗ trợ sàng lọc, không tự quyết định tuyển dụng.</p>
+                <p className="cv-search-method">Điểm = số tiêu chí khớp / số tiêu chí đã chọn. Mỗi kỹ năng tính một lần, dựa trên hồ sơ khai báo. Mở hồ sơ để dùng AI phân tích nội dung PDF theo tin tuyển dụng. Điểm hỗ trợ sàng lọc, không tự quyết định tuyển dụng.</p>
                 <StableList busy={busy} resetKey={filterKey} label="Đang đối chiếu hồ sơ với bộ lọc…">
                 {!busy && error && <div className="cv-search-state" role="alert"><h3>Chưa tải được kết quả</h3><p>{error}</p>
                     <button type="button" className="cv-search-primary" onClick={() => setRetry(value => value + 1)}>Thử lại</button></div>}
@@ -218,7 +219,8 @@ const FilterCv = () => {
                             {!!candidate.missingSkills?.length && <p><strong>Chưa thấy khai báo:</strong> {candidate.missingSkills.join(', ')}</p>}
                         </details>}
                         <footer><span>Thông tin liên hệ hiển thị sau khi mở hồ sơ</span>
-                            <button type="button" className="cv-search-primary" onClick={() => openCandidate(candidate.userId)}>Xem chi tiết ứng viên</button></footer>
+                            <div className="cv-search-candidate-actions"><button type="button" className="cv-search-primary" onClick={() => openCandidate(candidate.userId)}>Xem chi tiết ứng viên</button>
+                                {user.companyId && <button type="button" className="cv-search-ai-button" onClick={() => openCandidate(candidate.userId, true)}>Phân tích CV bằng AI</button>}</div></footer>
                     </article>;
                 })}
                 </StableList>

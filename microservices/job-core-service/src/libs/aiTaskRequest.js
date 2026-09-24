@@ -7,6 +7,7 @@ import { EVENTS } from '../../../shared/events.js';
 export const MAX_AI_REQUEST_BYTES = 8 * 1024 * 1024;
 const eventTypes = Object.freeze({
     parse_resume: EVENTS.AI_PARSE_RESUME,
+    generate_cv: EVENTS.AI_GENERATE_CV,
     match_cv: EVENTS.AI_MATCH_CV,
     cover_letter: EVENTS.AI_COVER_LETTER
 });

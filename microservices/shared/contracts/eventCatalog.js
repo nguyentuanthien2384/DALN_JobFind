@@ -34,6 +34,7 @@ const cvResult = object({ fullName: optionalText, email: optionalText, phone: op
 }, ['fullName', 'skills']);
 const resultSchemas = {
     parse_resume: cvResult,
+    generate_cv: cvResult,
     match_cv: object({ score: integer(0, 100), verdict: { enum: ['rat_phu_hop', 'phu_hop', 'can_can_nhac', 'chua_phu_hop'] },
         matchedSkills: list(string()), missingSkills: list(string()), strengths: list(string()), concerns: list(string()), summary: string() }, ['score']),
     cover_letter: object({ letter: string(), language: string(32), wordCount: integer() }, ['letter']),
@@ -74,9 +75,12 @@ export const eventCatalog = {
     }, 'jobId', ['job-core-service'], ['search-service.indexer', 'notification-service.events']),
     'ai.moderate_job': metadata(object({ jobId: id, taskId: { type: 'null' }, name: string(), descriptionHTML: string(), moderationRequestId: requestId, notificationPolicy }, ['jobId', 'name', 'descriptionHTML', 'moderationRequestId']), 'jobId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
     'ai.parse_resume': metadata(object({ taskId, jobId: nullable(id), fileBase64: { ...string(8 * 1024 * 1024), minLength: 1, pattern: '\\S' }, fileName: nullable(string()) }, ['taskId', 'fileBase64']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
-    'ai.match_cv': metadata(object({ taskId, jobId: nullable(id), resumeText: string(), jobTitle: string(), jobDescription: string() }, ['taskId', 'resumeText', 'jobTitle', 'jobDescription']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
+    'ai.generate_cv': metadata(object({ taskId, jobId: nullable(id), sourceText: { ...string(20000), minLength: 1, pattern: '\\S' }, language: { enum: ['vi', 'en'] }, jobTitle: string(255), jobDescription: string(200000) }, ['taskId', 'sourceText', 'language']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 1024 * 1024),
+    'ai.match_cv': metadata({ ...object({ taskId, jobId: nullable(id), resumeText: { ...string(10000), minLength: 1, pattern: '\\S' }, fileBase64: { ...string(8 * 1024 * 1024), minLength: 1, pattern: '\\S' }, fileName: nullable(string(255)), jobTitle: string(), jobDescription: string() }, ['taskId', 'jobTitle', 'jobDescription']),
+        oneOf: [{ required: ['resumeText'], properties: { resumeText: {}, fileBase64: false, fileName: false } }, { required: ['fileBase64'], properties: { fileBase64: {}, resumeText: false } }]
+    }, 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
     'ai.cover_letter': metadata(object({ taskId, jobId: nullable(id), resumeText: string(), jobTitle: string(), jobDescription: string(), companyName: optionalText, language: string(32) }, ['taskId', 'resumeText', 'jobTitle', 'jobDescription']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
-    'ai.result': metadata(aiResult, { moderate_job: 'jobId', parse_resume: 'taskId', match_cv: 'taskId', cover_letter: 'taskId' }, ['ai-worker'], ['job-core-service.ai-results'], 1024 * 1024),
+    'ai.result': metadata(aiResult, { moderate_job: 'jobId', parse_resume: 'taskId', generate_cv: 'taskId', match_cv: 'taskId', cover_letter: 'taskId' }, ['ai-worker'], ['job-core-service.ai-results'], 1024 * 1024),
     'application.stage_changed': metadata(object(application, ['applicationId', 'candidateId', 'jobId', 'fromStage', 'toStage']), 'applicationId', ['application-service'], ['notification-service.events']),
     'application.decision_email_requested': metadata({ ...object({ ...application, decision: { enum: ['accepted', 'rejected'] }, message: optionalText, offer: { ...offerSchema, additionalProperties: true } }, ['applicationId', 'candidateId', 'jobId', 'decision', 'toStage']),
         allOf: [{ if: { properties: { decision: { const: 'accepted' } }, required: ['decision'] }, then: { properties: { toStage: { enum: ['de_nghi', 'nhan_viec'] } } }, else: { properties: { toStage: { const: 'tu_choi' } } } }]
@@ -97,6 +101,7 @@ export const eventExamples = {
     'notification.job_approved_requested': { decisionId: moderationRequestId, jobId: 7, recipientId: 9, jobTitle: 'Developer', companyName: 'Example' },
     'ai.moderate_job': { jobId: 7, name: 'Developer', descriptionHTML: '<p>Build services</p>', moderationRequestId },
     'ai.parse_resume': { taskId: 'task-1', fileBase64: 'c3ludGhldGlj', fileName: 'example.pdf' },
+    'ai.generate_cv': { taskId: 'task-1', sourceText: 'Lan, kỹ sư phần mềm, kỹ năng Node.js và React.', language: 'vi' },
     'ai.match_cv': { taskId: 'task-1', resumeText: 'Synthetic CV', jobTitle: 'Developer', jobDescription: 'Build services' },
     'ai.cover_letter': { taskId: 'task-1', resumeText: 'Synthetic CV', jobTitle: 'Developer', jobDescription: 'Build services', companyName: 'Example', language: 'en' },
     'ai.result': { taskId: 'task-1', type: 'match_cv', ok: true, result: { score: 80, matchedSkills: ['Node'] } },

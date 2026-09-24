@@ -51,6 +51,8 @@
 .cv-search-candidate footer > span { font-size: 11px; color: #738195; }
 .cv-search-primary { border: 1px solid #167557; background: #167557; color: white; padding: 9px 16px; font-size: 13px; border-radius: 7px; cursor: pointer; flex-shrink: 0; }
 .cv-search-primary:hover { background: #10583f; color: white; }
+.cv-search-candidate-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.cv-search-ai-button { border: 1px solid #b6d8c9; color: #13795c; background: #f1f9f5; padding: 9px 14px; border-radius: 7px; cursor: pointer; font-size: 13px; }
 .cv-search button:focus-visible, .cv-search input:focus-visible, .cv-search summary:focus-visible { outline: 3px solid #79bfa5; outline-offset: 3px; }
 .cv-search-state { min-height: 220px; padding: 38px 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: #fff; border: 1px dashed #cbdad3; border-radius: 14px; color: #65768a; gap: 12px; }
 .cv-search-state h3, .cv-search-state p { margin: 0; }

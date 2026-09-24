@@ -1,7 +1,7 @@
 import { webcrypto } from 'crypto';
 import { TextEncoder } from 'util';
 import { prepareIntent, saveIntent, readIntent, clearIntent, intentStorageKey, validateTaskResponse, acceptTask,
-    validateAiResult, cvPayload, validateCvList, emptyCv, cvText, readPdf } from './candidateWorkspace';
+    validateAiResult, cvPayload, validateCvList, emptyCv, cvText, hasCvContent, readPdf } from './candidateWorkspace';
 
 beforeAll(() => { Object.defineProperty(window, 'crypto', { configurable:true, value:webcrypto }); global.TextEncoder = TextEncoder; });
 beforeEach(() => { sessionStorage.clear(); });
@@ -45,6 +45,21 @@ test('CV roundtrip strips DB/internal fields and includes experience/education i
 test.each([null,{score:101},{score:'80'},{score:80,matchedSkills:[{}]}])('invalid AI data cannot render as successful: %j', result => {
     expect(() => validateAiResult('match_cv',result)).toThrow();
 });
+test('matching permits detailed evidence while bounding narrative, skills and item counts', () => {
+    const result = { score: 80, summary: 'Nhận xét', matchedSkills: ['React'], missingSkills: [],
+        strengths: ['S'.repeat(2000)], concerns: ['C'.repeat(2000)] };
+    expect(validateAiResult('match_cv', result)).toEqual(result);
+    for (const field of ['strengths', 'concerns']) {
+        expect(() => validateAiResult('match_cv', { ...result, [field]: ['x'.repeat(2001)] })).toThrow();
+    }
+    for (const field of ['matchedSkills', 'missingSkills']) {
+        expect(() => validateAiResult('match_cv', { ...result, [field]: ['x'.repeat(255)] })).not.toThrow();
+        expect(() => validateAiResult('match_cv', { ...result, [field]: ['x'.repeat(256)] })).toThrow();
+    }
+    for (const field of ['matchedSkills', 'missingSkills', 'strengths', 'concerns']) {
+        expect(() => validateAiResult('match_cv', { ...result, [field]: Array(101).fill('x') })).toThrow();
+    }
+});
 test('parsed CV is editable with all nested data and nullable fields', () => {
     const result = validateAiResult('parse_resume',{fullName:'Lan',phone:null,experiences:[{company:'X',duration:'2020–2024'}],educations:[{school:'Y'}]});
     expect(result.phone).toBe(''); expect(result.experiences[0].from).toBe('2020–2024'); expect(result.educations[0].school).toBe('Y');
@@ -54,6 +69,28 @@ test('PDF reader rejects wrong extension, oversized data and disguised text', as
     await expect(readPdf({name:'cv.pdf',size:6*1024*1024})).rejects.toThrow('PDF');
     await expect(readPdf(new File(['text'],'cv.pdf'))).rejects.toThrow('định dạng');
     await expect(readPdf(new File(['%PDF-1.4\nsynthetic'],'cv.pdf'))).resolves.toMatchObject({fileName:'cv.pdf'});
+});
+test('generated CV uses the existing editable schema and rejects malformed model fields', () => {
+    const cv = validateAiResult('generate_cv', { fullName: 'Lan', skills: ['React'], experiences: [{ company: 'X', duration: '2023–2025' }] });
+    expect(cv).toMatchObject({ title: 'CV của Lan', fullName: 'Lan', skills: ['React'], experiences: [{ company: 'X', from: '2023–2025', to: '' }] });
+    expect(() => validateAiResult('generate_cv', { skills: [{}] })).toThrow();
+    expect(() => validateAiResult('generate_cv', { experiences: 'invalid' })).toThrow();
+});
+test('generation intent recovers without storing facts and checks optional job and language on retry', async () => {
+    const facts = { sourceText: 'Private verified project history', language: 'vi' };
+    const intent = await prepareIntent(7, 'generate_cv', facts); saveIntent(7, intent);
+    expect(readIntent(7).type).toBe('generate_cv');
+    expect(sessionStorage.getItem(intentStorageKey(7))).not.toContain('Private');
+    expect((await prepareIntent(7, 'generate_cv', facts)).key).toBe(intent.key);
+    await expect(prepareIntent(7, 'generate_cv', { ...facts, jobId: 7 })).rejects.toThrow('đúng');
+    await expect(prepareIntent(7, 'generate_cv', { ...facts, language: 'en' })).rejects.toThrow('đúng');
+});
+test('protects untitled CV drafts that contain contact details or nested entries', () => {
+    expect(hasCvContent(emptyCv())).toBe(false);
+    expect(hasCvContent({ ...emptyCv(), phone: '0901234567' })).toBe(true);
+    expect(hasCvContent({ ...emptyCv(), skills: ['React'] })).toBe(true);
+    expect(hasCvContent({ ...emptyCv(), experiences: [{ company: 'Example' }] })).toBe(true);
+    expect(hasCvContent({ ...emptyCv(), fullName: '   ', skills: [''] })).toBe(false);
 });
 
 test.each(['\ufeff \r\n', ' \t\n'])('AI upload preserves PDF bytes with an accepted header prefix %#', async prefix => {

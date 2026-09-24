@@ -6,6 +6,7 @@ import { isConfigured } from '../libs/claude.js';
 import { taskStore } from '../libs/taskStore.js';
 import { createTaskProcessor } from '../libs/taskProcessor.js';
 import { parseResume } from '../jobs/resumeParser.js';
+import { generateCv } from '../jobs/cvGenerator.js';
 import { matchCv } from '../jobs/smartMatching.js';
 import { moderateJob } from '../jobs/moderation.js';
 import { generateCoverLetter } from '../jobs/coverLetter.js';
@@ -15,6 +16,7 @@ const logger = createLogger('ai-worker');
 export const handlers = {
     [EVENTS.AI_MODERATE_JOB]: { type: 'moderate_job', run: (payload) => moderateJob(payload) },
     [EVENTS.AI_PARSE_RESUME]: { type: 'parse_resume', run: (payload) => parseResume(payload) },
+    [EVENTS.AI_GENERATE_CV]: { type: 'generate_cv', run: (payload) => generateCv(payload) },
     [EVENTS.AI_MATCH_CV]: { type: 'match_cv', run: (payload) => matchCv(payload) },
     [EVENTS.AI_COVER_LETTER]: { type: 'cover_letter', run: (payload) => generateCoverLetter(payload) }
 };

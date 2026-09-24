@@ -1,4 +1,4 @@
-// Explicit opt-in: one real paid parse-resume request using a synthetic PDF.
+// Explicit opt-in: one real paid request using synthetic candidate facts or PDF.
 // Run against the already-running local stack; never sends email or creates jobs.
 const path = require('node:path');
 const fs = require('node:fs/promises');
@@ -12,12 +12,15 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
 
 const root = path.resolve(__dirname, '../..');
 const prefixedPdf = process.env.AI_DEMO_PDF_PREFIX === 'true';
-const output = path.join(root, prefixedPdf ? '.local/ai-demo-browser-prefixed' : '.local/ai-demo-browser');
+const generate = process.env.AI_DEMO_MODE === 'generate';
+const taskType = generate ? 'generate_cv' : 'parse_resume';
+const endpoint = generate ? '/api/ai/generate-cv' : '/api/ai/parse-resume';
+const output = path.join(root, generate ? '.local/ai-generate-browser' : prefixedPdf ? '.local/ai-demo-browser-prefixed' : '.local/ai-demo-browser');
 const web = process.env.AI_DEMO_WEB_URL || 'http://localhost:3001';
 const api = process.env.AI_DEMO_API_URL || 'http://localhost:4000';
 const mongoUrl = process.env.AI_DEMO_MONGO_URL || 'mongodb://127.0.0.1:27019';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
-const report = { startedAt: new Date().toISOString(), status: 'running', syntheticDataOnly: true, prefixedPdf, checks: [] };
+const report = { startedAt: new Date().toISOString(), status: 'running', syntheticDataOnly: true, taskType, prefixedPdf, checks: [] };
 const pass = name => { report.checks.push(name); console.log('PASS: ' + name); };
 
 async function main() {
@@ -69,6 +72,11 @@ async function main() {
     await page.getByRole('heading', { name: 'CV và trợ lý AI', exact: true }).waitFor();
     const send = page.getByRole('button', { name: 'Gửi yêu cầu AI', exact: true });
     await expect(send).toBeEnabled();
+    if (generate) {
+      await page.locator('select').filter({ has: page.locator('option[value="generate_cv"]') }).selectOption('generate_cv');
+      await page.getByLabel('Thông tin của bạn', { exact: true }).fill('TRAN MINH AN, Frontend Developer. Email minhan@example.test. Three years building React and TypeScript web applications at Synthetic Demo Studio from 2023 to 2026. Skills: React, TypeScript, HTML, CSS, Git, Jest and React Testing Library. Built accessible forms and responsive interfaces. Studied Computer Science at Synthetic University from 2019 to 2023. English B2. Write the CV in Vietnamese using only these facts.');
+      pass('Candidate selects CV generation and enters synthetic facts through the real UI');
+    } else {
     await page.getByLabel('Tệp CV PDF (tối đa 5 MiB)').setInputFiles(prefixedPdf ? {
       name: 'synthetic-cv-bom.pdf', mimeType: 'application/pdf', buffer: Buffer.concat([Buffer.from('\ufeff \r\n'), pdf]),
     } : fixture);
@@ -76,8 +84,9 @@ async function main() {
     await expect(page.locator('.chat-pdf-modal canvas')).toBeVisible({ timeout: 30000 });
     await page.locator('.chat-pdf-modal .ant-modal-close').click();
     pass('Candidate login and synthetic PDF preview through the real UI');
+    }
 
-    const accepted = page.waitForResponse(response => new URL(response.url()).pathname === '/api/ai/parse-resume'
+    const accepted = page.waitForResponse(response => new URL(response.url()).pathname === endpoint
       && response.request().method() === 'POST');
     await send.click();
     const response = await accepted;
@@ -89,7 +98,7 @@ async function main() {
     report.parseElapsedMs = Date.now() - started;
     const [[task]] = await connection.query('SELECT id,type,status,userId FROM ai_tasks WHERE id = ? AND userId = ?', [taskId, userId]);
     assert.equal(task?.status, 'done');
-    assert.equal(task.type, 'parse_resume');
+    assert.equal(task.type, taskType);
     const [[outbox]] = await connection.query('SELECT publishedAt FROM outbox_events WHERE id = ? AND aggregateType = ? AND aggregateId = ?', [taskId, 'ai_task', taskId]);
     assert.ok(outbox?.publishedAt, 'Core must publish the durable request');
     const [[inbox]] = await connection.query('SELECT outcome FROM ai_result_inbox WHERE aggregateId = ?', [taskId]);
@@ -105,13 +114,14 @@ async function main() {
     const originalIntent = await page.evaluate(key => sessionStorage.getItem(key), intentKey);
     assert.equal(JSON.parse(originalIntent).taskId, taskId);
     assert.equal(originalIntent.includes('fileBase64'), false);
+    assert.equal(originalIntent.includes('sourceText'), false);
     await page.screenshot({ path: path.join(output, 'ai-result-desktop.png'), fullPage: true });
-    pass('One live parse-resume: UI, Gateway, MySQL outbox, queue worker ledger, result inbox and rendered result');
+    pass(`One live ${taskType}: UI, Gateway, MySQL outbox, queue worker ledger, result inbox and rendered result`);
 
     await page.reload();
     await page.getByRole('button', { name: 'Xem / tiếp tục chờ kết quả', exact: true }).click();
     await page.getByRole('heading', { name: 'Kết quả', exact: true }).waitFor();
-    assert.deepEqual(aiPosts, ['/api/ai/parse-resume'], 'Reload/result recovery must not submit another paid request');
+    assert.deepEqual(aiPosts, [endpoint], 'Reload/result recovery must not submit another paid request');
     assert.equal(await page.evaluate(key => sessionStorage.getItem(key), intentKey), originalIntent);
     const [[count]] = await connection.query('SELECT COUNT(*) AS total FROM ai_tasks WHERE userId = ?', [userId]);
     assert.equal(count.total, 1);
@@ -123,7 +133,7 @@ async function main() {
     await page.getByText('Bạn chưa có CV trong danh sách này.', { exact: true }).waitFor();
     const title = 'Synthetic AI Demo CV';
     await page.getByLabel('Tên CV', { exact: true }).fill(title);
-    await page.getByLabel('Giới thiệu', { exact: true }).fill('Synthetic QA candidate. Edited and approved in the browser before saving.');
+    await page.locator('textarea[maxlength="20000"]').fill('Synthetic QA candidate. Edited and approved in the browser before saving.');
     await page.getByRole('button', { name: 'Lưu CV', exact: true }).click();
     await page.getByText('Đã lưu CV.', { exact: true }).waitFor();
     await page.getByRole('button', { name: title, exact: true }).waitFor();
@@ -161,7 +171,7 @@ async function main() {
     await page.getByRole('button', { name: 'Xóa CV', exact: true }).click();
     await page.getByText('Đã xóa CV.', { exact: true }).waitFor();
     assert.equal((await profiles.findOne({ legacyUserId: userId })).cvs.length, 0);
-    assert.deepEqual(aiPosts, ['/api/ai/parse-resume']);
+    assert.deepEqual(aiPosts, [endpoint]);
     assert.deepEqual(faults, []);
     pass('Mobile layout fits and CV deletion removes only the synthetic CV');
     report.status = 'passed';

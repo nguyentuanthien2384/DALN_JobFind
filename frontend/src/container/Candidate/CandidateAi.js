@@ -2,17 +2,18 @@ import React, { useContext, useEffect, useRef, useState } from 'react';
 import SessionContext from '../../auth/SessionContext';
 import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
 import { readJsonStorage } from '../../util/storage';
-import { parseResumeAi, matchCvAi, coverLetterAi, getAiTask, listMyCvs, createMyCv, updateMyCv, deleteMyCv } from '../../service/aiSearchService';
+import { parseResumeAi, generateCvAi, matchCvAi, coverLetterAi, getAiTask, listMyCvs, createMyCv, updateMyCv, deleteMyCv } from '../../service/aiSearchService';
 import { pollAiTask } from '../../service/aiTaskPolling';
+import { loadSearchPage, searchMode } from '../../service/searchWorkspace';
 import PdfPreviewButton from '../../components/documents/PdfPreviewButton';
 import DocumentPreviewModal from '../../components/documents/DocumentPreviewModal';
 import { candidateAiEnabled, preparedCvEnabled, readIntent, saveIntent, clearIntent, prepareIntent, acceptTask, validateTaskResponse,
-    readPdf, emptyCv, cvPayload, validateCvList, validateAiResult, cvText, mutationStorageKey } from '../../service/candidateWorkspace';
+    readPdf, emptyCv, hasCvContent, cvPayload, validateCvList, validateAiResult, cvText, mutationStorageKey } from '../../service/candidateWorkspace';
 import './CandidateAi.css';
 
 const labels = { title:'Tên CV', fullName:'Họ và tên', email:'Email', phone:'Điện thoại', address:'Địa chỉ', summary:'Giới thiệu',
     company:'Công ty', position:'Vị trí', from:'Từ', to:'Đến', description:'Mô tả', school:'Trường', major:'Chuyên ngành', degree:'Bằng cấp', year:'Năm' };
-const modes = { parse_resume:'Đọc CV từ PDF', match_cv:'Đánh giá độ phù hợp', cover_letter:'Soạn thư ứng tuyển' };
+const modes = { generate_cv:'Tạo CV bằng AI', parse_resume:'Đọc CV từ PDF', match_cv:'Đánh giá độ phù hợp', cover_letter:'Soạn thư ứng tuyển' };
 const message = error => error?.message || 'Không thực hiện được thao tác. Vui lòng thử lại.';
 
 function Workspace({ userId, token }) {
@@ -24,7 +25,12 @@ function Workspace({ userId, token }) {
     const [mode, setMode] = useState('parse_resume');
     const [file, setFile] = useState(null);
     const [resumeText, setResumeText] = useState('');
+    const [sourceText, setSourceText] = useState('');
     const [jobId, setJobId] = useState(() => new URLSearchParams(window.location.search).get('jobId') || '');
+    const [jobSearch, setJobSearch] = useState('');
+    const [jobOptions, setJobOptions] = useState(null);
+    const [jobLoading, setJobLoading] = useState(false);
+    const [jobError, setJobError] = useState('');
     const [language, setLanguage] = useState('vi');
     const [result, setResult] = useState(null);
     const [terminal, setTerminal] = useState(false);
@@ -41,7 +47,7 @@ function Workspace({ userId, token }) {
     const [draftPdf, setDraftPdf] = useState(null);
     const [pdfBusy, setPdfBusy] = useState(false);
     const pdfVersion = useRef(0), pdfGenerating = useRef(false);
-    const mounted = useRef(false), sending = useRef(false), cvSending = useRef(false), poll = useRef(null), listVersion = useRef(0);
+    const mounted = useRef(false), sending = useRef(false), cvSending = useRef(false), poll = useRef(null), listVersion = useRef(0), jobVersion = useRef(0);
     const current = () => mounted.current && localStorage.getItem('token_user') === token;
     const mutationKey = mutationStorageKey(userId);
     useEffect(() => {
@@ -53,6 +59,21 @@ function Workspace({ userId, token }) {
         } catch (failure) { setStorageError(true); setError(message(failure)); }
         return () => { mounted.current = false; pdfVersion.current += 1; poll.current?.abort(); };
     }, [userId]);
+
+    const findTargetJobs = async (page = 0) => {
+        if (!current() || busy || waiting) return;
+        const version = ++jobVersion.current;
+        setJobLoading(true); setJobError(''); setJobOptions(null);
+        try {
+            const data = await loadSearchPage({ search: jobSearch.trim(), limit: 8, offset: page * 8, sortName: '',
+                categoryJobCode: '', addressCode: '', salaryJobCode: '', categoryJoblevelCode: '', categoryWorktypeCode: '', experienceJobCode: '' }, searchMode(), {});
+            if (data.data.some(job => !Number.isSafeInteger(job.id) || job.id <= 0 || typeof job.postDetailData?.name !== 'string')) {
+                throw new Error('Danh sách công việc không hợp lệ.');
+            }
+            if (current() && version === jobVersion.current) setJobOptions({ ...data, page });
+        } catch (failure) { if (current() && version === jobVersion.current) setJobError(message(failure)); }
+        finally { if (current() && version === jobVersion.current) setJobLoading(false); }
+    };
 
     const loadCvs = async () => {
         const version = ++listVersion.current; setCvLoading(true); setCvLoaded(false); setError('');
@@ -90,6 +111,12 @@ function Workspace({ userId, token }) {
         try {
             let payload;
             if (mode === 'parse_resume') payload = await readPdf(file);
+            else if (mode === 'generate_cv') {
+                if (!sourceText.trim() || sourceText.length > 20000) throw new Error('Nhập thông tin của bạn, tối đa 20.000 ký tự.');
+                if (jobId && (!/^[1-9][0-9]*$/.test(jobId) || !Number.isSafeInteger(Number(jobId)))) throw new Error('Mã công việc không hợp lệ.');
+                if (!['vi', 'en'].includes(language)) throw new Error('Chọn ngôn ngữ CV hợp lệ.');
+                payload = { sourceText, ...(jobId && { jobId: Number(jobId) }), language };
+            }
             else {
                 if (!resumeText.trim() || resumeText.length > 10000) throw new Error('Nhập nội dung CV, tối đa 10.000 ký tự.');
                 if (!/^[1-9][0-9]*$/.test(jobId) || !Number.isSafeInteger(Number(jobId))) throw new Error('Mã công việc không hợp lệ.');
@@ -100,6 +127,7 @@ function Workspace({ userId, token }) {
             saveIntent(userId, saved); setIntent(saved);
             const options = { idempotencyKey: saved.key };
             const response = mode === 'parse_resume' ? await parseResumeAi(payload.fileBase64, payload.fileName, options)
+                : mode === 'generate_cv' ? await generateCvAi(payload.sourceText, payload.jobId, payload.language, options)
                 : mode === 'match_cv' ? await matchCvAi(payload.resumeText, payload.jobId, options)
                     : await coverLetterAi(payload.resumeText, payload.jobId, payload.language, options);
             if (!current()) return;
@@ -126,7 +154,7 @@ function Workspace({ userId, token }) {
     };
     const changeDraft = (field, value) => replaceDraft(old => ({ ...old, [field]: value }));
     const previewDraft = async () => {
-        if (!current() || !enabled || !preparedCvEnabled() || pdfGenerating.current || cvBusy || uncertain || storageError) return;
+        if (!current() || !enabled || pdfGenerating.current || cvBusy || uncertain || storageError) return;
         const version = ++pdfVersion.current;
         pdfGenerating.current = true; setPdfBusy(true); setError(''); setDraftPdf(null);
         try {
@@ -184,7 +212,7 @@ function Workspace({ userId, token }) {
 
     return <main className="candidate-ai">
         <h1>CV và trợ lý AI</h1>
-        <p>Chuẩn bị hồ sơ, xem mức độ phù hợp và soạn thư cho công việc bạn chọn. Bạn kiểm tra và quyết định nội dung sử dụng.</p>
+        <p>Tạo CV bằng AI từ thông tin của bạn, xem mức độ phù hợp và soạn thư cho công việc bạn chọn. Bạn kiểm tra và quyết định nội dung sử dụng.</p>
         {!enabled && <p role="status">Tính năng mới chưa mở. Bạn vẫn có thể xem kết quả hoặc đối chiếu yêu cầu đã gửi trước đây.</p>}
         {error && <p role="alert" className="candidate-ai-error">{error}</p>}
         {storageError && <p role="alert">Bộ nhớ tác vụ không khả dụng. Giữ mã tác vụ đang hiển thị; chức năng tạo mới đang khóa.</p>}
@@ -199,12 +227,44 @@ function Workspace({ userId, token }) {
                     <label>Tệp CV PDF (tối đa 5 MiB)<input type="file" accept="application/pdf,.pdf" onChange={event => setFile(event.target.files?.[0] || null)} /></label>
                     {file && <PdfPreviewButton source={file} fileName={file.name} label="Xem trước PDF đã chọn" />}
                 </>
+                    : mode === 'generate_cv' ? <>
+                        <p className="candidate-ai-guidance">Cung cấp thông tin thật về học vấn, kỹ năng, kinh nghiệm, dự án và mục tiêu nghề nghiệp. AI sẽ sắp xếp và diễn đạt thành bản nháp CV để bạn kiểm tra.</p>
+                        <label>Thông tin của bạn<textarea rows="10" maxLength={20000} value={sourceText}
+                            placeholder={'Họ và tên, thông tin liên hệ:\nVị trí mong muốn:\nKinh nghiệm / dự án và kết quả thực tế:\nHọc vấn, kỹ năng, ngôn ngữ:'}
+                            onChange={event => setSourceText(event.target.value)} /></label>
+                        <p className="candidate-ai-hint">{sourceText.length.toLocaleString('vi-VN')} / 20.000 ký tự. Không cần có CV sẵn. AI được yêu cầu chỉ sử dụng dữ kiện bạn cung cấp.</p>
+                        <details className="candidate-ai-target">
+                            <summary>Công việc mục tiêu (không bắt buộc){jobId ? ` — #${jobId}` : ''}</summary>
+                            <p>Chọn một tin để AI nhấn mạnh kinh nghiệm phù hợp. Bỏ trống để tạo CV chung.</p>
+                            <label>Tìm công việc mục tiêu<input type="search" maxLength={120} value={jobSearch} onChange={event => {
+                                jobVersion.current += 1; setJobSearch(event.target.value); setJobOptions(null); setJobLoading(false); setJobError('');
+                            }} /></label>
+                            <button type="button" disabled={jobLoading} onClick={() => findTargetJobs()}>{jobLoading ? 'Đang tìm công việc…' : 'Tìm công việc'}</button>
+                            {jobError && <p role="alert">{jobError}</p>}
+                            {jobOptions && <>
+                                {!jobOptions.data.length && <p>Chưa tìm thấy công việc phù hợp. Thử từ khóa khác hoặc tạo CV chung.</p>}
+                                <ul className="candidate-ai-jobs">{jobOptions.data.map(job => <li key={job.id}>
+                                    <button type="button" onClick={() => setJobId(String(job.id))} aria-pressed={jobId === String(job.id)}>
+                                        {job.postDetailData.name}{job.userPostData?.userCompanyData?.name ? ` — ${job.userPostData.userCompanyData.name}` : ''} (#{job.id})
+                                    </button>
+                                </li>)}</ul>
+                                {jobOptions.count > 8 && <div>
+                                    <button type="button" disabled={jobOptions.page === 0} onClick={() => findTargetJobs(jobOptions.page - 1)}>Công việc trang trước</button>
+                                    <span>Trang {jobOptions.page + 1} / {Math.ceil(jobOptions.count / 8)}</span>
+                                    <button type="button" disabled={(jobOptions.page + 1) * 8 >= jobOptions.count} onClick={() => findTargetJobs(jobOptions.page + 1)}>Công việc trang sau</button>
+                                </div>}
+                            </>}
+                            <label>Mã công việc mục tiêu (không bắt buộc)<input inputMode="numeric" value={jobId} onChange={event => setJobId(event.target.value)} /></label>
+                            {jobId && <button type="button" onClick={() => setJobId('')}>Bỏ công việc mục tiêu</button>}
+                        </details>
+                        <label>Ngôn ngữ CV<select value={language} onChange={event => setLanguage(event.target.value)}><option value="vi">Tiếng Việt</option><option value="en">Tiếng Anh</option></select></label>
+                    </>
                     : <>
                         <label>Nội dung CV<textarea rows="8" maxLength={10000} value={resumeText} onChange={event => setResumeText(event.target.value)} /></label>
                         <label>Mã công việc<input inputMode="numeric" value={jobId} onChange={event => setJobId(event.target.value)} /></label>
                         {mode === 'cover_letter' && <label>Ngôn ngữ<select value={language} onChange={event => setLanguage(event.target.value)}><option value="vi">Tiếng Việt</option><option value="en">Tiếng Anh</option></select></label>}
                     </>}
-                <p>Tệp hoặc nội dung CV sẽ được gửi tới dịch vụ AI khi bạn bấm gửi. Nội dung không được lưu trong bộ nhớ trình duyệt.</p>
+                <p>Tệp hoặc thông tin bạn nhập sẽ được gửi tới dịch vụ AI khi bạn bấm gửi. Nội dung không được lưu trong bộ nhớ trình duyệt.</p>
                 <button type="button" onClick={submit}>{intent?.rejected ? 'Gửi lại cùng mã' : intent ? 'Đối chiếu yêu cầu đã gửi' : 'Gửi yêu cầu AI'}</button>
             </fieldset>}
             {intent && <div className="candidate-ai-task">
@@ -217,10 +277,11 @@ function Workspace({ userId, token }) {
             </div>}
             {result && <div className="candidate-ai-result">
                 <h3>Kết quả</h3>
-                {mode === 'parse_resume' ? <>
+                {['parse_resume', 'generate_cv'].includes(mode) ? <>
                     <p>{result.fullName || 'Chưa xác định họ tên'} — {result.title}</p><p>{result.summary}</p>
                     <p>Kỹ năng: {result.skills.join(', ') || 'Chưa xác định'}</p>
-                    <button type="button" disabled={!enabled || cvBusy || uncertain} onClick={() => { if (draft.title && !window.confirm('Thay bản nháp CV đang mở bằng kết quả AI?')) return; replaceDraft(result); setCvId(null); setNotice('Đã điền vào bản nháp bên dưới. Kiểm tra toàn bộ thông tin rồi bấm Lưu CV.'); }}>Xem và chỉnh sửa toàn bộ CV</button>
+                    {mode === 'generate_cv' && <p>Đây là bản nháp do AI tạo. Kiểm tra họ tên, ngày tháng, kinh nghiệm và kỹ năng; sửa hoặc xóa mọi chi tiết chưa đúng trước khi lưu hay xuất PDF.</p>}
+                    <button type="button" disabled={!enabled || cvBusy || uncertain || storageError} onClick={() => { if (hasCvContent(draft) && !window.confirm('Thay bản nháp CV đang mở bằng kết quả AI?')) return; replaceDraft(result); setCvId(null); setNotice('Đã điền vào bản nháp bên dưới. Kiểm tra toàn bộ thông tin rồi bấm Lưu CV.'); }}>Xem và chỉnh sửa toàn bộ CV</button>
                 </> : mode === 'cover_letter' ? <label>Thư ứng tuyển (có thể chỉnh sửa)<textarea rows="12" value={result.letter} onChange={event => setResult({ letter:event.target.value })} /></label>
                     : <><p className="candidate-ai-score">{result.score}/100</p><p>{result.summary}</p>
                         {[['matchedSkills','Kỹ năng phù hợp'],['missingSkills','Kỹ năng chưa thể hiện'],['strengths','Điểm mạnh'],['concerns','Điểm cần xem lại']].map(([field,title]) => <div key={field}><h4>{title}</h4><ul>{result[field].map((item,i) => <li key={i}>{item}</li>)}</ul></div>)}
@@ -229,7 +290,7 @@ function Workspace({ userId, token }) {
         </section>
         <section className="candidate-ai-panel" aria-labelledby="cv-title">
             <h2 id="cv-title">CV của tôi</h2>
-            <p>{preparedCvEnabled() ? 'Lưu CV sau khi kiểm tra nội dung. Khi ứng tuyển, chọn CV đã chuẩn bị, tạo và xem lại bản PDF rồi bấm Gửi hồ sơ.' : 'CV tại đây dùng cho trợ lý AI.'} Hồ sơ đã nộp và tệp đính kèm được quản lý ở mục Công việc đã nộp.</p>
+            <p>Lưu CV sau khi kiểm tra nội dung hoặc xem trước và tải bản PDF. {preparedCvEnabled() && 'Khi ứng tuyển, chọn CV đã chuẩn bị, tạo và xem lại bản PDF rồi bấm Gửi hồ sơ. '}Hồ sơ đã nộp và tệp đính kèm được quản lý ở mục Công việc đã nộp.</p>
             {preparedCvEnabled() && /^[1-9][0-9]*$/.test(jobId) && Number.isSafeInteger(Number(jobId)) && <p>
                 <a href={`/detail-job/${jobId}/`}>Trở lại công việc #{jobId} để ứng tuyển</a>. Chỉ CV đã lưu mới xuất hiện trong danh sách chọn; bản nháp chưa lưu không được chuyển theo.
             </p>}
@@ -237,10 +298,10 @@ function Workspace({ userId, token }) {
             {cvLoaded && cvs.length === 0 && <p>Bạn chưa có CV trong danh sách này.</p>}
             {uncertain && <div role="alert"><p>Có thay đổi CV chưa xác nhận. Tải danh sách và kiểm tra nội dung trước khi tiếp tục. Việc tải lại không chứng minh lần lưu trước đã thành công.</p>
                 <button type="button" disabled={!reconciled || cvBusy || cvLoading} onClick={acknowledge}>Đã đối chiếu danh sách CV</button></div>}
-            <ul>{cvs.map(cv => <li key={cv._id}><button type="button" disabled={cvBusy} onClick={() => { if (draft.title && !window.confirm('Bỏ bản nháp đang mở để xem CV này?')) return; setCvId(cv._id); replaceDraft(cvPayload(cv)); }}>{cv.title || 'CV chưa đặt tên'}</button>
+            <ul>{cvs.map(cv => <li key={cv._id}><button type="button" disabled={cvBusy} onClick={() => { if (hasCvContent(draft) && !window.confirm('Bỏ bản nháp đang mở để xem CV này?')) return; setCvId(cv._id); replaceDraft(cvPayload(cv)); }}>{cv.title || 'CV chưa đặt tên'}</button>
                 <button type="button" disabled={!enabled || busy || waiting || Boolean(intent)} onClick={() => { const text = cvText(cv); if (text.length > 10000) { setError('CV dài hơn 10.000 ký tự. Rút gọn nội dung trước khi gửi AI.'); } setResumeText(text); setMode('match_cv'); }}>Dùng để đánh giá</button></li>)}</ul>
             <fieldset disabled={!enabled || cvBusy || uncertain || storageError}>
-                <button type="button" onClick={() => { if (draft.title && !window.confirm('Bỏ bản nháp đang mở để tạo CV mới?')) return; setCvId(null); replaceDraft(emptyCv()); }}>Soạn CV mới</button>
+                <button type="button" onClick={() => { if (hasCvContent(draft) && !window.confirm('Bỏ bản nháp đang mở để tạo CV mới?')) return; setCvId(null); replaceDraft(emptyCv()); }}>Soạn CV mới</button>
                 <h3>{cvId ? 'Chỉnh sửa CV' : 'Bản nháp CV mới'}</h3>
                 <div className="candidate-ai-fields">{['title','fullName','email','phone','address'].map(field => <label key={field}>{labels[field]}<input value={draft[field]} maxLength={field === 'address' ? 1000 : field === 'email' ? 320 : field === 'phone' ? 100 : 255} onChange={event => changeDraft(field,event.target.value)} /></label>)}</div>
                 <label>Giới thiệu<textarea rows="4" maxLength={20000} value={draft.summary} onChange={event => changeDraft('summary',event.target.value)} /></label>
@@ -249,10 +310,8 @@ function Workspace({ userId, token }) {
                 {repeatFields('experiences',['company','position','from','to','description'],'Kinh nghiệm')}
                 {repeatFields('educations',['school','major','degree','year'],'Học vấn')}
                 <p>Bản nháp chưa lưu sẽ mất khi rời hoặc tải lại trang. Tải danh sách trước khi lưu CV.</p>
-                {preparedCvEnabled() && <>
-                    <button type="button" disabled={pdfBusy} onClick={previewDraft}>{pdfBusy ? 'Đang tạo bản PDF…' : 'Xem trước / tải PDF bản nháp'}</button>
-                    <p>Bản PDF dùng nội dung đang chỉnh sửa, chưa lưu thay đổi vào hồ sơ. Bạn có thể tải PDF trong cửa sổ xem trước.</p>
-                </>}
+                <button type="button" disabled={pdfBusy} onClick={previewDraft}>{pdfBusy ? 'Đang tạo bản PDF…' : 'Xem trước / tải PDF bản nháp'}</button>
+                <p>Bản PDF dùng nội dung đang chỉnh sửa, chưa lưu thay đổi vào hồ sơ. Bạn có thể tải PDF trong cửa sổ xem trước.</p>
                 <button type="button" disabled={!cvLoaded} onClick={() => mutateCv('save')}>Lưu CV</button>
                 {cvId && <button type="button" disabled={!cvLoaded} onClick={() => mutateCv('delete')}>Xóa CV</button>}
             </fieldset>

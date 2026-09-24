@@ -23,6 +23,7 @@ export const EVENTS = {
     // Yeu cau gui cho AI Worker.
     AI_MODERATE_JOB: 'ai.moderate_job',
     AI_PARSE_RESUME: 'ai.parse_resume',
+    AI_GENERATE_CV: 'ai.generate_cv',
     AI_MATCH_CV: 'ai.match_cv',
     AI_COVER_LETTER: 'ai.cover_letter',
 

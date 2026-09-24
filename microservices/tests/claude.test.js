@@ -70,6 +70,62 @@ describe('Claude adapter', () => {
         expect(sdk.create).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude-sonnet-5' }));
     });
 
+    it('describes provider-unsupported bounds but enforces the original schema locally without retry', async () => {
+        const schema = { type: 'object', additionalProperties: false, required: ['score', 'items'], properties: {
+            score: { type: 'number', minimum: 0, maximum: 100 },
+            items: { type: 'array', maxItems: 2, items: { type: 'string', maxLength: 5 } }
+        } };
+        const respond = value => sdk.create.mockResolvedValueOnce({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(value) }] });
+        respond({ score: 80, items: ['short'] });
+        await expect(api.askForJson({ system: '', prompt: '', schema })).resolves.toEqual({ score: 80, items: ['short'] });
+        const sent = sdk.create.mock.calls[0][0].output_config.format.schema;
+        expect(sent.properties.score).not.toHaveProperty('minimum');
+        expect(sent.properties.score.description).toContain('maximum: 100');
+        expect(sent.properties.items).not.toHaveProperty('maxItems');
+        expect(sent.properties.items.items).not.toHaveProperty('maxLength');
+        expect(sent.properties.items.items.description).toContain('maxLength: 5');
+        expect(schema.properties.items.items.maxLength).toBe(5);
+        for (const invalid of [{ score: 101, items: [] }, { score: 80, items: ['toolong'] }, { score: 80, items: ['a', 'b', 'c'] }]) {
+            sdk.create.mockClear();
+            respond(invalid);
+            await expect(api.askForJson({ system: '', prompt: '', schema })).rejects.toThrow(/không đúng cấu trúc/);
+            expect(sdk.create).toHaveBeenCalledOnce();
+        }
+    });
+
+    it('rejects oversized CV fields before exposing a generated draft, with PDF and text using the same bounds', async () => {
+        const { resumeSchema } = await import('../ai-worker/src/jobs/resumeParser.js');
+        const valid = { fullName: null, email: null, phone: null, address: null, title: null, summary: null,
+            yearsOfExperience: null, skills: [], languages: [], experiences: [], educations: [] };
+        const invalid = [
+            { fullName: 'x'.repeat(256) }, { title: 'x'.repeat(256) }, { email: 'x'.repeat(321) },
+            { phone: 'x'.repeat(101) }, { address: 'x'.repeat(1001) }, { summary: 'x'.repeat(20001) },
+            { yearsOfExperience: -1 }, { skills: ['x'.repeat(256)] }, { languages: Array(101).fill('Vietnamese') },
+            { experiences: [{ company: null, position: null, duration: 'x'.repeat(101), description: null }] },
+            { educations: [{ school: null, major: null, degree: null, year: 'x'.repeat(101) }] }
+        ];
+        for (const patch of invalid) {
+            sdk.create.mockResolvedValueOnce({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ ...valid, ...patch }) }] });
+            await expect(api.askForJson({ system: '', prompt: '', schema: resumeSchema })).rejects.toThrow(/không đúng cấu trúc/);
+        }
+        sdk.create.mockResolvedValueOnce({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ ...valid, phone: 'x'.repeat(101) }) }] });
+        await expect(api.askAboutPdf({ system: '', prompt: '', base64Pdf: 'PDF', schema: resumeSchema })).rejects.toThrow(/không đúng cấu trúc/);
+        expect(sdk.create.mock.lastCall[0].output_config.format.schema.properties.phone).not.toHaveProperty('maxLength');
+    });
+
+    it('accepts detailed matching explanations but rejects unrenderable lists and long skill names', async () => {
+        const { matchCv } = await import('../ai-worker/src/jobs/smartMatching.js');
+        const value = { score: 80, verdict: 'phu_hop', matchedSkills: ['React'], missingSkills: [],
+            strengths: ['x'.repeat(2000)], concerns: [], summary: 'Synthetic summary' };
+        const input = { resumeText: 'CV', jobTitle: 'Developer', jobDescription: 'React' };
+        sdk.create.mockResolvedValueOnce({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(value) }] });
+        await expect(matchCv(input)).resolves.toHaveProperty('strengths', value.strengths);
+        for (const patch of [{ strengths: ['x'.repeat(2001)] }, { matchedSkills: ['x'.repeat(256)] }, { concerns: Array(101).fill('Concern') }]) {
+            sdk.create.mockResolvedValueOnce({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ ...value, ...patch }) }] });
+            await expect(matchCv(input)).rejects.toThrow(/không đúng cấu trúc/);
+        }
+    });
+
     it.each([
         [{ stop_reason: 'refusal', stop_details: { category: 'safety' }, content: [] }, /từ chối.*safety/],
         [{ stop_reason: 'max_tokens', content: [] }, /cắt giữa chừng/],

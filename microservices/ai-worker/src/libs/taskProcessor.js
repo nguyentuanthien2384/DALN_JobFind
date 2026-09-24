@@ -13,6 +13,8 @@ const publicAiError = (error) => {
     }
     if (error?.code === 'AI_INVALID_PDF') return 'Tệp CV không phải PDF hợp lệ tối đa 5 MiB';
     if (error?.code === 'AI_PDF_TEXT_UNAVAILABLE') return 'Chưa đọc được chữ trong CV PDF; hãy dùng tệp có văn bản thay vì ảnh quét';
+    if (error?.code === 'AI_INVALID_RESUME_TEXT') return 'Nội dung CV phải có văn bản, tối đa 10.000 ký tự';
+    if (error?.code === 'AI_INVALID_CV_SOURCE') return 'Nhập thông tin CV tối đa 20.000 ký tự và chọn tiếng Việt hoặc tiếng Anh';
     const status = error?.status;
     if (Number.isInteger(status) && status >= 400 && status <= 599) {
         return `Nhà cung cấp AI trả lỗi HTTP ${status}`;

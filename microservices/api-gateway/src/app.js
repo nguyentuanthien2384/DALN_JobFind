@@ -14,6 +14,7 @@ import { createProxy, getBreakerStats } from './middlewares/proxy.js';
 import { createAuthProxy, authProxyPathGuard } from './middlewares/authProxy.js';
 import { optionalAuth, requireAuth, requireRole, requirePermission } from './middlewares/auth.js';
 import { PERMISSIONS } from '../../shared/accessControl.js';
+import { operations, publicPath } from '../../shared/contracts/operations.js';
 import { assertSecureJwtSecret, getJwtPolicy } from '../../shared/securityConfig.js';
 import { createRateLimiter, checkRedis, closeRedis } from './middlewares/rateLimit.js';
 import { auditMiddleware } from './middlewares/audit.js';
@@ -216,8 +217,11 @@ app.use('/api/support', (req, res, next) => req.headers.authorization ? requireA
     (req, res, next) => req.method === 'POST' && req.path === '/turn' ? aiLimiter(req, res, next) : publicLimiter(req, res, next), createSupportServiceProxy());
 
 // --- Cac tinh nang AI ---
-app.use('/api/ai', requirePermission(PERMISSIONS.AI_CANDIDATE_USE), aiLimiter,
-    createProxy('jobs', sub('/ai')));
+for (const operation of operations.filter((item) => item.path.startsWith('/ai/'))) {
+    app[operation.method](publicPath(operation), requirePermission(operation.permission),
+        (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); },
+        aiLimiter, createProxy('jobs', (req) => req.path.replace(/^\/api/i, '')));
+}
 
 // --- Monolith cu: moi thu chua tach ra van chay binh thuong qua Gateway ---
 // Nho nhanh nay, frontend chi can tro vao Gateway mot lan duy nhat; viec tach

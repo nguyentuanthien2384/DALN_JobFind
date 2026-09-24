@@ -25,7 +25,7 @@ vi.mock('../job-core-service/src/controllers/jobController.js', () => ({
     createJob: vi.fn(), repostJob: vi.fn(), updateJob: vi.fn(), deleteJob: vi.fn(), getJob: vi.fn(), listJobsForReindex: vi.fn(), getJobForIndex: mocks.getJobForIndex
 }));
 vi.mock('../job-core-service/src/controllers/aiController.js', () => ({
-    ensureAiTaskTable: vi.fn(), parseResume: vi.fn(), matchCv: vi.fn(), coverLetter: vi.fn(), getTask: vi.fn(), handleAiResult: mocks.handleAiResult
+    ensureAiTaskTable: vi.fn(), parseResume: vi.fn(), generateCv: vi.fn(), matchCv: vi.fn(), coverLetter: vi.fn(), getTask: vi.fn(), handleAiResult: mocks.handleAiResult
 }));
 vi.mock('../shared/rabbitmq.js', () => ({ consume: mocks.consume }));
 

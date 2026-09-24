@@ -68,9 +68,16 @@ const postAi = async (path, body, options = createAiRequestOptions()) => {
 const parseResumeAi = (fileBase64, fileName, options) =>
     postAi(`/api/ai/parse-resume`, { fileBase64, fileName }, options);
 
+// Tao ban nhap CV tu thong tin that ung vien cung cap; cong viec muc tieu la tuy chon.
+const generateCvAi = (sourceText, jobId, language = "vi", options) =>
+    postAi(`/api/ai/generate-cv`, { sourceText, ...(jobId !== undefined && jobId !== null && { jobId }), language }, options);
+
 // Cham diem do khop giua CV va mot tin tuyen dung.
 const matchCvAi = (resumeText, jobId, options) =>
     postAi(`/api/ai/match-cv`, { resumeText, jobId }, options);
+
+const matchCvPdfAi = (fileBase64, jobId, options) =>
+    postAi(`/api/ai/match-cv`, { fileBase64, jobId }, options);
 
 // Sinh thu ung tuyen.
 const coverLetterAi = (resumeText, jobId, language = "en", options) =>
@@ -101,7 +108,7 @@ const getSystemStatus = () => axios.get(`/status`);
 
 export {
     searchJobs, suggestJobs, getSearchFacets, getRelatedJobs,
-    createAiRequestOptions, parseResumeAi, matchCvAi, coverLetterAi, getAiTask, waitForAiTask,
+    createAiRequestOptions, parseResumeAi, generateCvAi, matchCvAi, matchCvPdfAi, coverLetterAi, getAiTask, waitForAiTask,
     getMyProfile, updateMyProfile,
     listMyCvs, createMyCv, updateMyCv, deleteMyCv, importParsedCv,
     getSystemStatus

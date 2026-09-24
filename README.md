@@ -48,6 +48,7 @@ JobFind là nền tảng tuyển dụng toàn diện, kết hợp trải nghiệ
 | 🤖 **Chatbot AI đa nhà cung cấp** | Claude / OpenAI / Gemini / Ollama, tra cứu cá nhân, chuyển nhân viên hỗ trợ |
 | 🔔 **Realtime & Web Push** | Socket.IO + Web Push Notifications cho thông báo tức thì |
 | 📄 **Prepared CV PDF** | Xuất CV chuẩn bị từ hệ thống với pdf-lib, fontkit |
+| ✨ **AI cho CV** | Tạo bản nháp CV từ thông tin ứng viên; đối chiếu PDF với tin tuyển dụng, giải thích điểm phù hợp. [Hướng dẫn](docs/ai-cv.md) |
 | ✉️ **Email thư mời nhận việc** | Template card hiện đại, CSS inline tương thích Gmail/Outlook/mobile |
 | 🔐 **HttpOnly Session & Google SSO** | Cookie bảo mật, tự gia hạn, OIDC Google, quản lý phiên |
 | 📊 **Dashboard & Báo cáo** | Chart.js/Recharts, phễu tuyển dụng, chuỗi thời gian, audit log |

@@ -1618,14 +1618,59 @@
         ],
         "additionalProperties": false
       },
+      "GenerateCv": {
+        "type": "object",
+        "properties": {
+          "sourceText": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "jobId": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "vi",
+              "en"
+            ]
+          }
+        },
+        "required": [
+          "sourceText",
+          "language"
+        ],
+        "additionalProperties": false
+      },
       "MatchCv": {
         "type": "object",
         "properties": {
           "resumeText": {
             "type": "string",
-            "maxLength": 500000,
+            "maxLength": 10000,
             "minLength": 1,
             "pattern": "\\S"
+          },
+          "fileBase64": {
+            "type": "string",
+            "maxLength": 8388608,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "fileName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "jobId": {
             "anyOf": [
@@ -1643,10 +1688,30 @@
           }
         },
         "required": [
-          "resumeText",
           "jobId"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "resumeText"
+            ],
+            "properties": {
+              "resumeText": {},
+              "fileBase64": false,
+              "fileName": false
+            }
+          },
+          {
+            "required": [
+              "fileBase64"
+            ],
+            "properties": {
+              "fileBase64": {},
+              "resumeText": false
+            }
+          }
+        ]
       },
       "CoverLetter": {
         "type": "object",
@@ -3652,6 +3717,7 @@
             "type": "string",
             "enum": [
               "parse_resume",
+              "generate_cv",
               "match_cv",
               "cover_letter"
             ]

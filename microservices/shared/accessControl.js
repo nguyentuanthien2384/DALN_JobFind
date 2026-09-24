@@ -20,6 +20,7 @@ export const PERMISSIONS = Object.freeze({
     APPLICATION_MANAGE: 'application:manage',
     TALENT_POOL_MANAGE: 'talent-pool:manage',
     AI_CANDIDATE_USE: 'ai:candidate:use',
+    AI_RECRUITER_USE: 'ai:recruiter:use',
     ADMIN_READ: 'admin:read',
     ADMIN_WRITE: 'admin:write'
 });
@@ -31,6 +32,7 @@ const matrix = {
         PERMISSIONS.PROFILE_SELF,
         PERMISSIONS.JOB_MANAGE,
         PERMISSIONS.APPLICATION_MANAGE,
+        PERMISSIONS.AI_RECRUITER_USE,
         PERMISSIONS.TALENT_POOL_MANAGE
     ],
     [ROLES.EMPLOYER]: [
@@ -38,6 +40,7 @@ const matrix = {
         PERMISSIONS.PROFILE_SELF,
         PERMISSIONS.JOB_MANAGE,
         PERMISSIONS.APPLICATION_MANAGE,
+        PERMISSIONS.AI_RECRUITER_USE,
         PERMISSIONS.TALENT_POOL_MANAGE
     ],
     [ROLES.CANDIDATE]: [
@@ -58,7 +61,8 @@ export const ROLE_PERMISSIONS = Object.freeze(
 export const isKnownRole = (roleCode) => Object.hasOwn(ROLE_PERMISSIONS, roleCode);
 
 export const hasPermission = (identity, permission) => Boolean(
-    identity && ROLE_PERMISSIONS[identity.roleCode]?.includes(permission)
+    identity && (Array.isArray(permission) ? permission : [permission])
+        .some((item) => ROLE_PERMISSIONS[identity.roleCode]?.includes(item))
 );
 
 const positiveInteger = (value) => {

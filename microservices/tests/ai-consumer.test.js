@@ -5,7 +5,7 @@ import { assertEventPayload } from '../shared/eventContract.js';
 const mocks = vi.hoisted(() => ({
     consume: vi.fn(), publish: vi.fn(), isConfigured: vi.fn(),
     claim: vi.fn(), complete: vi.fn(), markPublished: vi.fn(),
-    parseResume: vi.fn(), matchCv: vi.fn(), moderateJob: vi.fn(), generateCoverLetter: vi.fn()
+    parseResume: vi.fn(), generateCv: vi.fn(), matchCv: vi.fn(), moderateJob: vi.fn(), generateCoverLetter: vi.fn()
 }));
 
 vi.mock('../shared/rabbitmq.js', () => ({ consume: mocks.consume }));
@@ -13,6 +13,7 @@ vi.mock('../shared/outboxPublisher.js', () => ({ publishOutboxEvent: mocks.publi
 vi.mock('../ai-worker/src/libs/taskStore.js', () => ({ taskStore: { claim: mocks.claim, complete: mocks.complete, markPublished: mocks.markPublished } }));
 vi.mock('../ai-worker/src/libs/claude.js', () => ({ isConfigured: mocks.isConfigured }));
 vi.mock('../ai-worker/src/jobs/resumeParser.js', () => ({ parseResume: mocks.parseResume }));
+vi.mock('../ai-worker/src/jobs/cvGenerator.js', () => ({ generateCv: mocks.generateCv }));
 vi.mock('../ai-worker/src/jobs/smartMatching.js', () => ({ matchCv: mocks.matchCv }));
 vi.mock('../ai-worker/src/jobs/moderation.js', () => ({ moderateJob: mocks.moderateJob }));
 vi.mock('../ai-worker/src/jobs/coverLetter.js', () => ({ generateCoverLetter: mocks.generateCoverLetter }));
@@ -31,6 +32,7 @@ describe('AI RabbitMQ task consumer', () => {
     it.each([
         ['ai.moderate_job', 'moderateJob', { approved: true }],
         ['ai.parse_resume', 'parseResume', { fullName: null, skills: [] }],
+        ['ai.generate_cv', 'generateCv', { fullName: 'Lan', skills: ['Node.js'] }],
         ['ai.match_cv', 'matchCv', { score: 80 }],
         ['ai.cover_letter', 'generateCoverLetter', { letter: 'Synthetic letter' }]
     ])('accepts the published %s input and returns a typed result through the actual consumer', async (key, method, result) => {
@@ -62,6 +64,7 @@ describe('AI RabbitMQ task consumer', () => {
     it.each([
         ['ai.moderate_job', 'moderate_job', 'moderateJob'],
         ['ai.parse_resume', 'parse_resume', 'parseResume'],
+        ['ai.generate_cv', 'generate_cv', 'generateCv'],
         ['ai.match_cv', 'match_cv', 'matchCv'],
         ['ai.cover_letter', 'cover_letter', 'generateCoverLetter']
     ])('executes %s and publishes a successful result', async (routingKey, type, fnName) => {

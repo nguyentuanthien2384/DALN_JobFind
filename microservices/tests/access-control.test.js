@@ -15,6 +15,12 @@ describe('centralized RBAC matrix', () => {
         expect(hasPermission({ roleCode: 'CANDIDATE' }, PERMISSIONS.CV_SELF_MANAGE)).toBe(true);
         expect(hasPermission({ roleCode: 'CANDIDATE' }, PERMISSIONS.JOB_MANAGE)).toBe(false);
         expect(hasPermission({ roleCode: 'UNKNOWN' }, PERMISSIONS.PROFILE_SELF)).toBe(false);
+        for (const roleCode of ['COMPANY', 'EMPLOYER']) {
+            expect(hasPermission({ roleCode }, PERMISSIONS.AI_RECRUITER_USE)).toBe(true);
+            expect(hasPermission({ roleCode }, PERMISSIONS.AI_CANDIDATE_USE)).toBe(false);
+            expect(hasPermission({ roleCode }, [PERMISSIONS.AI_RECRUITER_USE, PERMISSIONS.AI_CANDIDATE_USE])).toBe(true);
+        }
+        expect(hasPermission({ roleCode: 'CANDIDATE' }, PERMISSIONS.AI_RECRUITER_USE)).toBe(false);
     });
 
     it('fails closed without a service secret and rejects spoofed identity headers', async () => {

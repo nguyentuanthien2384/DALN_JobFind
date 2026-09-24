@@ -11,4 +11,10 @@
 .candidate-ai-error { color: #9b2424; background: #fff2f2; padding: 14px; }.candidate-ai-result, .candidate-ai-task { background: #f5f8fb; border-radius: 8px; padding: 18px; margin-top: 20px; overflow-wrap: anywhere; }
 .candidate-ai-score { font-size: 30px; font-weight: 700; }.candidate-ai ul { padding-left: 22px; }.candidate-ai li { list-style: disc; }
 .candidate-ai-panel:last-child { margin-bottom: 0; }
+.candidate-ai-guidance { background: #edf7f2; border-left: 4px solid #246b53; padding: 14px 16px; border-radius: 4px; }
+.candidate-ai-hint { color: #52647b; font-size: 14px; }
+.candidate-ai-target { border: 1px solid #dbe3ed; border-radius: 8px; padding: 14px; margin: 16px 0; }
+.candidate-ai-target summary { cursor: pointer; font-weight: 600; }
+.candidate-ai-jobs button { text-align: left; width: 100%; }
+.candidate-ai-jobs button[aria-pressed="true"] { color: #fff; background: #246b53; }
 @media(max-width:600px) { .candidate-ai-fields { grid-template-columns: 1fr; }.candidate-ai-panel { padding: 16px; } }

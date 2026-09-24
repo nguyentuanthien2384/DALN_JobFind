@@ -117,13 +117,14 @@ describe('HTTP body boundaries', () => {
     it('uses a small default budget and a separate resume upload budget', async () => {
         const { get } = await start({}, (app) => {
             app.use(requestBodies(express));
-            app.post(['/api/login', '/api/ai/parse-resume'], (req, res) => res.json({ ok: true }));
+            app.post(['/api/login', '/api/ai/parse-resume', '/api/ai/match-cv'], (req, res) => res.json({ ok: true }));
             app.use(safeHttpError);
         });
         const body = JSON.stringify({ text: 'a'.repeat(1024 * 1024 + 1) });
         const headers = { 'content-type': 'application/json' };
         expect((await get('/api/login', { method: 'POST', headers, body })).status).toBe(413);
         expect((await get('/api/ai/parse-resume', { method: 'POST', headers, body })).status).toBe(200);
+        expect((await get('/api/ai/match-cv', { method: 'POST', headers, body })).status).toBe(200);
         const invalid = await get('/api/login', { method: 'POST', headers, body: '{secret' });
         expect(invalid.status).toBe(400);
         expect(await invalid.text()).not.toContain('secret');

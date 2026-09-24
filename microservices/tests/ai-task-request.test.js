@@ -12,22 +12,23 @@ vi.mock('../job-core-service/src/libs/db.js', () => ({ pool: mocks.pool, withTra
 vi.mock('../shared/outboxPublisher.js', () => ({ publishOutboxEvent: mocks.publish }));
 vi.mock('../shared/logger.js', () => ({ createLogger: () => mocks.logger }));
 
-import { parseResume, matchCv, coverLetter } from '../job-core-service/src/controllers/aiController.js';
+import { parseResume, generateCv, matchCv, coverLetter } from '../job-core-service/src/controllers/aiController.js';
 import { enqueueAiTask, MAX_AI_REQUEST_BYTES } from '../job-core-service/src/libs/aiTaskRequest.js';
 
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF').toString('base64');
 const cases = [
     ['parse_resume', parseResume, { fileBase64: PDF, fileName: 'cv.pdf' }],
+    ['generate_cv', generateCv, { sourceText: 'private-candidate-facts', language: 'vi', jobId: 1 }],
     ['match_cv', matchCv, { resumeText: 'private-resume', jobId: 1 }],
     ['cover_letter', coverLetter, { resumeText: 'private-resume', jobId: '1', language: 'vi' }]
 ];
 const request = (body) => makeReq({ body, headers: { 'x-user-id': '9' } });
 const queryResult = (sql) => sql.includes('SELECT d.name')
-    ? [[{ name: 'Dev', descriptionHTML: '<p>Build</p>', companyName: 'Company' }]]
+    ? [[{ name: 'Dev', descriptionHTML: '<p>Build</p>', companyName: 'Company', companyId: 3 }]]
     : [{ affectedRows: 1 }];
 
 beforeEach(() => {
-    mocks.pool.query.mockReset().mockResolvedValue([[{ name: 'Dev', descriptionHTML: '<p>Build</p>', companyName: 'Company' }]]);
+    mocks.pool.query.mockReset().mockResolvedValue([[{ name: 'Dev', descriptionHTML: '<p>Build</p>', companyName: 'Company', companyId: 3 }]]);
     mocks.conn.query.mockReset().mockImplementation(async (sql) => queryResult(sql));
     mocks.withTransaction.mockReset().mockImplementation((work) => work(mocks.conn));
     mocks.publish.mockReset();
@@ -54,7 +55,7 @@ describe('candidate AI request durability', () => {
         expect(task[1][4]).not.toContain('private-');
         expect(event[0]).toContain('INSERT INTO outbox_events');
         expect(event[1].slice(0, 4)).toEqual([res.body.taskId, 'ai_task', res.body.taskId, `ai.${type}`]);
-        expect(JSON.parse(event[1][4])).toMatchObject({ taskId: res.body.taskId, ...(type === 'parse_resume' ? { fileBase64: body.fileBase64 } : { resumeText: body.resumeText }) });
+        expect(JSON.parse(event[1][4])).toMatchObject({ taskId: res.body.taskId, ...(type === 'parse_resume' ? { fileBase64: body.fileBase64 } : type === 'generate_cv' ? { sourceText: body.sourceText } : { resumeText: body.resumeText }) });
         expect(mocks.withTransaction).toHaveBeenCalledOnce();
         expect(mocks.publish).not.toHaveBeenCalled();
     });
@@ -76,6 +77,66 @@ describe('candidate AI request durability', () => {
         releaseCommit();
         await pending;
         expect(res.statusCode).toBe(202);
+    });
+
+    it('generates a CV without requiring a job and stores only non-sensitive task metadata', async () => {
+        const res = makeRes();
+        await generateCv(request({ sourceText: 'private-notes', language: 'en' }), res);
+        expect(res.statusCode).toBe(202);
+        expect(mocks.conn.query).toHaveBeenCalledTimes(2);
+        expect(JSON.parse(mocks.conn.query.mock.calls[0][1][4])).toEqual({ language: 'en' });
+        expect(JSON.parse(mocks.conn.query.mock.calls[1][1][4])).toMatchObject({ sourceText: 'private-notes', language: 'en' });
+    });
+
+    it('rejects missing/unpublished target jobs for CV generation without writing a task', async () => {
+        mocks.conn.query.mockResolvedValue([[]]);
+        const res = makeRes();
+        await generateCv(request({ sourceText: 'candidate', language: 'vi', jobId: 99 }), res);
+        expect(res.statusCode).toBe(404);
+        expect(mocks.conn.query).toHaveBeenCalledOnce();
+        expect(mocks.conn.query.mock.calls[0][0]).toContain("p.statusCode = 'PS1'");
+        expect(mocks.conn.query.mock.calls[0][0]).toContain("c.censorCode = 'CS1'");
+    });
+
+    it('sends PDF matching input atomically and scopes a recruiter job to current company membership', async () => {
+        const res = makeRes();
+        const req = request({ fileBase64: PDF, fileName: 'cv.pdf', jobId: 7 });
+        req.headers['x-user-role'] = 'EMPLOYER';
+        await matchCv(req, res);
+        expect(res.statusCode).toBe(202);
+        const lookup = mocks.conn.query.mock.calls[0];
+        expect(lookup[0]).toContain('viewer.companyId = c.id');
+        expect(lookup[0]).toContain("c.statusCode = 'S1'");
+        expect(lookup[1]).toEqual([9, 7, 3]);
+        expect(mocks.pool.query.mock.calls[0][1]).toEqual([9, 7]);
+        expect(lookup[0]).toContain("viewerAccount.roleCode IN ('COMPANY', 'EMPLOYER')");
+        expect(JSON.parse(mocks.conn.query.mock.calls[1][1][4])).toEqual({ jobId: 7, companyId: 3 });
+        const data = JSON.parse(mocks.conn.query.mock.calls[2][1][4]);
+        expect(data).toMatchObject({ fileBase64: PDF, fileName: 'cv.pdf', jobTitle: 'Dev' });
+        expect(data).not.toHaveProperty('resumeText');
+    });
+
+    it('does not enqueue a recruiter match for an absent or out-of-company job', async () => {
+        mocks.pool.query.mockResolvedValue([[]]);
+        const req = request({ fileBase64: PDF, jobId: 7 });
+        req.headers['x-user-role'] = 'COMPANY';
+        const res = makeRes();
+        await matchCv(req, res);
+        expect(res.statusCode).toBe(404);
+        expect(mocks.pool.query).toHaveBeenCalledOnce();
+        expect(mocks.conn.query).not.toHaveBeenCalled();
+        expect(mocks.withTransaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a membership change between preflight and transactional job snapshot', async () => {
+        mocks.conn.query.mockResolvedValue([[]]);
+        const req = request({ fileBase64: PDF, jobId: 7 });
+        req.headers['x-user-role'] = 'COMPANY';
+        const res = makeRes();
+        await matchCv(req, res);
+        expect(res.statusCode).toBe(404);
+        expect(mocks.conn.query).toHaveBeenCalledOnce();
+        expect(mocks.conn.query.mock.calls[0][1]).toEqual([9, 7, 3]);
     });
 
     it.each(cases)('%s handles an outbox insert failure without leaking private SQL or reporting 202', async (_type, handler, body) => {
@@ -141,6 +202,16 @@ describe('bounded AI input before durable enqueue', () => {
         [matchCv, { resumeText: 'CV', jobId: [] }],
         [matchCv, { resumeText: 'CV', jobId: '1 OR 1=1' }],
         [matchCv, { resumeText: 'CV', jobId: Number.MAX_SAFE_INTEGER + 1 }],
+        [matchCv, { resumeText: 'CV', fileBase64: PDF, jobId: 1 }],
+        [matchCv, { resumeText: 'CV', fileName: 'cv.pdf', jobId: 1 }],
+        [matchCv, { resumeText: 'x'.repeat(10001), jobId: 1 }],
+        [matchCv, { fileBase64: 'bad', jobId: 1 }],
+        [matchCv, { fileBase64: PDF, fileName: {}, jobId: 1 }],
+        [generateCv, { sourceText: ' ', language: 'vi' }],
+        [generateCv, { sourceText: 'x'.repeat(20001), language: 'vi' }],
+        [generateCv, { sourceText: 'CV', language: 'fr' }],
+        [generateCv, { sourceText: 'CV', language: 'vi', jobId: null }],
+        [generateCv, { sourceText: 'CV', language: 'vi', jobId: '1' }],
         [coverLetter, { resumeText: 'CV', jobId: 1, language: {} }],
         [coverLetter, { resumeText: 'CV', jobId: 1, language: 'fr' }],
         [coverLetter, { resumeText: '\n', jobId: 1 }]
@@ -166,7 +237,7 @@ describe('bounded AI input before durable enqueue', () => {
 
     it.each([
         [parseResume, { fileBase64: 'x'.repeat(MAX_AI_REQUEST_BYTES) }],
-        [matchCv, { resumeText: 'ắ'.repeat(Math.ceil(MAX_AI_REQUEST_BYTES / 3)), jobId: 1 }],
+        [matchCv, { fileBase64: 'x'.repeat(MAX_AI_REQUEST_BYTES), jobId: 1 }],
         [coverLetter, { resumeText: '\u0000'.repeat(Math.ceil(MAX_AI_REQUEST_BYTES / 6)), jobId: 1 }]
     ])('returns 413 for oversized serialized payloads, counting Unicode and JSON escaping', async (handler, body) => {
         const res = makeRes();

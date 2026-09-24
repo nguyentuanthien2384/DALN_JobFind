@@ -60,7 +60,9 @@ export const schemas = {
         timeEnd: { anyOf: [integer(1, 8640000000000000), { type: 'string', pattern: '^[1-9][0-9]{0,15}$', format: 'jobfind-id' }] }
     }), minProperties: 1 },
     ParseResume: object({ fileBase64: nonblank(8 * 1024 * 1024), fileName: optionalText(255) }, ['fileBase64']),
-    MatchCv: object({ resumeText: nonblank(500000), jobId: id }, ['resumeText', 'jobId']),
+    GenerateCv: object({ sourceText: nonblank(20000), jobId: integer(1), language: { type: 'string', enum: ['vi', 'en'] } }, ['sourceText', 'language']),
+    MatchCv: { ...object({ resumeText: nonblank(10000), fileBase64: nonblank(8 * 1024 * 1024), fileName: optionalText(255), jobId: id }, ['jobId']),
+        oneOf: [{ required: ['resumeText'], properties: { resumeText: {}, fileBase64: false, fileName: false } }, { required: ['fileBase64'], properties: { fileBase64: {}, resumeText: false } }] },
     CoverLetter: object({ resumeText: nonblank(500000), jobId: id, language: optionalText(32) }, ['resumeText', 'jobId']),
     ProfileUpdate: { ...object({ headline: optionalText(255), about: optionalText(20000), skills: listOfText,
         email: optionalText(320), firstName: optionalText(255), lastName: optionalText(255), phonenumber: optionalText(100),
@@ -94,7 +96,7 @@ export const schemas = {
     Error: object({ errCode: { type: 'integer' }, errMessage: text(1000), requestId: requestKey, conflict: { type: 'boolean' } }, ['errCode'], true),
     Ack: object({ errCode: { const: 0 }, errMessage: text(1000) }, ['errCode'], true),
     AcceptedTask: object({ errCode: { const: 0 }, taskId, errMessage: text(1000) }, ['errCode', 'taskId']),
-    Task: object({ id: taskId, type: { type: 'string', enum: ['parse_resume', 'match_cv', 'cover_letter'] },
+    Task: object({ id: taskId, type: { type: 'string', enum: ['parse_resume', 'generate_cv', 'match_cv', 'cover_letter'] },
         status: { type: 'string', enum: ['pending', 'done', 'failed'] }, result: {}, error: optionalText(20000), createdAt: date, updatedAt: date
     }, ['id', 'type', 'status', 'result', 'error', 'createdAt', 'updatedAt']),
     Job: object({ id, name: text(255), descriptionHTML: text(200000), statusCode: { type: 'string', enum: ['PS1', 'PS2', 'PS3', 'PS4'] },

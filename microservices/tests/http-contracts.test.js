@@ -27,6 +27,7 @@ const bodyExamples = {
     JobCreate: { name: 'Lập trình viên', descriptionHTML: '<p>Phát triển ứng dụng</p>', categoryJobCode: 'IT', amount: '2' },
     JobUpdate: { name: 'Developer', amount: '2', genderPostCode: 'G1', timeEnd: '1700000000000' },
     ParseResume: { fileBase64: 'c3ludGhldGljIENW', fileName: 'cv.pdf' },
+    GenerateCv: { sourceText: 'Kỹ sư phần mềm có kinh nghiệm React', language: 'vi' },
     MatchCv: { resumeText: 'Kỹ sư phần mềm', jobId: '1' },
     CoverLetter: { resumeText: 'Kỹ sư phần mềm', jobId: 1, language: 'vi' },
     ProfileUpdate: { headline: 'Engineer', skills: ['JS'], jobPreference: { isFindJob: true, addressCode: 'HN' } },
@@ -86,6 +87,15 @@ afterAll(async () => {
 });
 
 describe('real HTTP request contracts', () => {
+    it.each(['COMPANY', 'EMPLOYER'])('allows %s matching/polling but rejects candidate-only AI operations', async (role) => {
+        const headers = { 'x-user-role': role };
+        expect((await send('aiMatchCv', { headers, body: { fileBase64: 'c3ludGhldGlj', jobId: 1 } })).status).toBe(202);
+        expect((await send('aiTaskGet', { headers })).status).toBe(200);
+        for (const id of ['aiGenerateCv', 'aiParseResume', 'aiCoverLetter']) {
+            expect((await send(id, { headers, body: bodyExamples[operationById[id].body] })).status).toBe(403);
+            expect(hits[id]).not.toHaveBeenCalled();
+        }
+    });
     it('preserves multi-value search filters serialized by the real frontend helper', async () => {
         await aiClient.searchJobs({ salaryJobCode:['S1','S2'], experienceJobCode:['E1','E2'], q:'Node & React' });
         const url = frontendHttp.get.mock.lastCall[0];
@@ -112,7 +122,10 @@ describe('real HTTP request contracts', () => {
         ['cvUpdate', aiClient.updateMyCv, [cvId, bodyExamples.CvUpdate]],
         ['cvImport', aiClient.importParsedCv, [bodyExamples.CvImport.parsed, 'cv.pdf']],
         ['aiParseResume', aiClient.parseResumeAi, ['c3ludGhldGlj', 'cv.pdf']],
+        ['aiGenerateCv', aiClient.generateCvAi, ['Kỹ sư React', undefined, 'vi']],
+        ['aiGenerateCv', aiClient.generateCvAi, ['Kỹ sư React', 7, 'en']],
         ['aiMatchCv', aiClient.matchCvAi, ['Kỹ sư', 7]],
+        ['aiMatchCv', aiClient.matchCvPdfAi, ['c3ludGhldGlj', 7]],
         ['aiCoverLetter', aiClient.coverLetterAi, ['Kỹ sư', 7, 'vi']],
         ['applicationList', applicationClient.getApplications, [{ jobId: 7, stage: 'phong_van', minRating: 3, limit: 20, offset: 0 }]],
         ['applicationMove', applicationClient.moveApplicationStage, [7, 'phong_van', 'Hẹn phỏng vấn']],
@@ -187,6 +200,12 @@ describe('real HTTP request contracts', () => {
         ['cvImport', { body: { parsed: ['not-an-object'] } }],
         ['aiMatchCv', { body: { resumeText: ' ', jobId: 1 } }],
         ['aiMatchCv', { body: { resumeText: 'CV', jobId: true } }],
+        ['aiMatchCv', { body: { resumeText: 'CV', fileBase64: 'c3ludGhldGlj', jobId: 1 } }],
+        ['aiMatchCv', { body: { resumeText: 'CV', fileName: 'cv.pdf', jobId: 1 } }],
+        ['aiMatchCv', { body: { resumeText: 'x'.repeat(10001), jobId: 1 } }],
+        ['aiGenerateCv', { body: { sourceText: 'CV', language: 'fr' } }],
+        ['aiGenerateCv', { body: { sourceText: 'CV', language: 'vi', jobId: null } }],
+        ['aiGenerateCv', { body: { sourceText: ' ', language: 'vi' } }],
         ['aiParseResume', { body: bodyExamples.ParseResume, headers: { 'idempotency-key': 'has spaces' } }],
         ['applicationMove', { body: { stage: 'interview' } }],
         ['applicationRating', { body: { rating: 3.5 } }], ['applicationNote', { body: { body: 'x'.repeat(5001) } }],

@@ -4293,6 +4293,198 @@
         }
       }
     },
+    "/api/ai/generate-cv": {
+      "post": {
+        "operationId": "aiGenerateCv",
+        "tags": [
+          "jobs"
+        ],
+        "summary": "POST /ai/generate-cv",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission ai:candidate:use; resource ownership checks still apply. Candidate notes up to 20000 characters; language vi or en. Optional jobId must refer to a published job from an approved company. Result is an editable structured CV draft using only supplied candidate facts.",
+        "x-jobfind-permission": "ai:candidate:use",
+        "x-jobfind-internal": false,
+        "x-jobfind-company-required": false,
+        "x-jobfind-reject-unknown-query": true,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+            },
+            "description": "Optional. Same user + key + canonical input returns the original accepted result; changed input or operation returns 409. Reuse for retries; a new key requests new work."
+          },
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Invalid/missing values are replaced by the gateway. Not an authentication token."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateCv"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Durably accepted; poll aiTaskGet. Does not mean the AI job has completed.",
+            "headers": {
+              "X-Correlation-ID": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedTask"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Request rejected or dependency unavailable. errCode is application-specific; inspect HTTP status first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ai/match-cv": {
       "post": {
         "operationId": "aiMatchCv",
@@ -4300,8 +4492,11 @@
           "jobs"
         ],
         "summary": "POST /ai/match-cv",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission ai:candidate:use; resource ownership checks still apply.",
-        "x-jobfind-permission": "ai:candidate:use",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires any permission ai:candidate:use,ai:recruiter:use; resource ownership checks still apply. Exactly one of resumeText (up to 10000 characters) or fileBase64 (PDF up to 5 MiB). Recruiters may match only jobs belonging to their current active, approved company. Candidates may match only published jobs from approved companies. AI provides advisory evidence; it does not change application decisions.",
+        "x-jobfind-permission": [
+          "ai:candidate:use",
+          "ai:recruiter:use"
+        ],
         "x-jobfind-internal": false,
         "x-jobfind-company-required": false,
         "x-jobfind-reject-unknown-query": true,
@@ -4684,8 +4879,11 @@
           "jobs"
         ],
         "summary": "GET /ai/tasks/:taskId",
-        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires permission ai:candidate:use; resource ownership checks still apply.",
-        "x-jobfind-permission": "ai:candidate:use",
+        "description": "Modern microservice endpoint; legacy fallback routes are outside this contract. Requires any permission ai:candidate:use,ai:recruiter:use; resource ownership checks still apply.",
+        "x-jobfind-permission": [
+          "ai:candidate:use",
+          "ai:recruiter:use"
+        ],
         "x-jobfind-internal": false,
         "x-jobfind-company-required": false,
         "x-jobfind-reject-unknown-query": true,
@@ -12844,14 +13042,59 @@
         ],
         "additionalProperties": false
       },
+      "GenerateCv": {
+        "type": "object",
+        "properties": {
+          "sourceText": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "jobId": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "vi",
+              "en"
+            ]
+          }
+        },
+        "required": [
+          "sourceText",
+          "language"
+        ],
+        "additionalProperties": false
+      },
       "MatchCv": {
         "type": "object",
         "properties": {
           "resumeText": {
             "type": "string",
-            "maxLength": 500000,
+            "maxLength": 10000,
             "minLength": 1,
             "pattern": "\\S"
+          },
+          "fileBase64": {
+            "type": "string",
+            "maxLength": 8388608,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "fileName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "jobId": {
             "anyOf": [
@@ -12869,10 +13112,30 @@
           }
         },
         "required": [
-          "resumeText",
           "jobId"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "resumeText"
+            ],
+            "properties": {
+              "resumeText": {},
+              "fileBase64": false,
+              "fileName": false
+            }
+          },
+          {
+            "required": [
+              "fileBase64"
+            ],
+            "properties": {
+              "fileBase64": {},
+              "resumeText": false
+            }
+          }
+        ]
       },
       "CoverLetter": {
         "type": "object",
@@ -14878,6 +15141,7 @@
             "type": "string",
             "enum": [
               "parse_resume",
+              "generate_cv",
               "match_cv",
               "cover_letter"
             ]

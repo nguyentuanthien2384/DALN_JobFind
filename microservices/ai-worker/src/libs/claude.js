@@ -39,6 +39,33 @@ const extractText = (message) =>
 // out of both events and logs.
 const ajv = new Ajv({ strict: true, coerceTypes: false, useDefaults: false, removeAdditional: false });
 const validators = new WeakMap();
+// Anthropic accepts only a subset of JSON Schema constraints. Describe bounds
+// to the model while keeping the complete original schema for local validation.
+// https://platform.claude.com/docs/en/build-with-claude/structured-outputs#json-schema-limitations
+const providerSchemas = new WeakMap();
+const providerSchema = (schema) => {
+  if (!schema || typeof schema !== 'object') return schema;
+  if (providerSchemas.has(schema)) return providerSchemas.get(schema);
+  const output = { ...schema };
+  for (const key of ['properties', '$defs', 'definitions']) {
+    if (schema[key]) output[key] = Object.fromEntries(Object.entries(schema[key]).map(([name, child]) => [name, providerSchema(child)]));
+  }
+  for (const key of ['anyOf', 'allOf', 'oneOf', 'prefixItems']) {
+    if (Array.isArray(schema[key])) output[key] = schema[key].map(providerSchema);
+  }
+  if (schema.items) output.items = Array.isArray(schema.items) ? schema.items.map(providerSchema) : providerSchema(schema.items);
+  const notes = [];
+  for (const key of ['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minLength', 'maxLength', 'maxItems', 'uniqueItems']) {
+    if (Object.hasOwn(schema, key)) {
+      notes.push(`${key}: ${schema[key]}`);
+      delete output[key];
+    }
+  }
+  if (schema.minItems > 1) { notes.push(`minItems: ${schema.minItems}`); delete output.minItems; }
+  if (notes.length) output.description = [schema.description, `Output constraints: ${notes.join('; ')}.`].filter(Boolean).join(' ');
+  providerSchemas.set(schema, output);
+  return output;
+};
 const parseStructured = (text, schema) => {
   let parsed;
   try {
@@ -80,7 +107,7 @@ export const askForJson = async ({
     fallbacks: "default",
     output_config: {
       effort,
-      format: { type: "json_schema", schema },
+      format: { type: "json_schema", schema: providerSchema(schema) },
     },
     system,
     messages: [{ role: "user", content: prompt }],
@@ -150,7 +177,7 @@ export const askAboutPdf = async ({
     max_tokens: maxTokens,
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
-    output_config: { effort, format: { type: "json_schema", schema } },
+    output_config: { effort, format: { type: "json_schema", schema: providerSchema(schema) } },
     system,
     messages: [
       {

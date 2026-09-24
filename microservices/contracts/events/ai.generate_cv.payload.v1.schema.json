@@ -28,72 +28,39 @@
         }
       ]
     },
-    "resumeText": {
+    "sourceText": {
       "type": "string",
-      "maxLength": 10000,
+      "maxLength": 20000,
       "minLength": 1,
       "pattern": "\\S"
     },
-    "fileBase64": {
-      "type": "string",
-      "maxLength": 8388608,
-      "minLength": 1,
-      "pattern": "\\S"
-    },
-    "fileName": {
-      "anyOf": [
-        {
-          "type": "string",
-          "maxLength": 255
-        },
-        {
-          "type": "null"
-        }
+    "language": {
+      "enum": [
+        "vi",
+        "en"
       ]
     },
     "jobTitle": {
       "type": "string",
-      "maxLength": 1000000
+      "maxLength": 255
     },
     "jobDescription": {
       "type": "string",
-      "maxLength": 1000000
+      "maxLength": 200000
     }
   },
   "required": [
     "taskId",
-    "jobTitle",
-    "jobDescription"
+    "sourceText",
+    "language"
   ],
   "additionalProperties": true,
-  "oneOf": [
-    {
-      "required": [
-        "resumeText"
-      ],
-      "properties": {
-        "resumeText": {},
-        "fileBase64": false,
-        "fileName": false
-      }
-    },
-    {
-      "required": [
-        "fileBase64"
-      ],
-      "properties": {
-        "fileBase64": {},
-        "resumeText": false
-      }
-    }
-  ],
-  "title": "ai.match_cv payload v1",
+  "title": "ai.generate_cv payload v1",
   "examples": [
     {
       "taskId": "task-1",
-      "resumeText": "Synthetic CV",
-      "jobTitle": "Developer",
-      "jobDescription": "Build services"
+      "sourceText": "Lan, kỹ sư phần mềm, kỹ năng Node.js và React.",
+      "language": "vi"
     }
   ]
 }

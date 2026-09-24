@@ -4,7 +4,7 @@ import { hasPdfSignature } from '../util/pdfSignature';
 
 export const candidateAiEnabled = () => process.env.REACT_APP_CANDIDATE_AI_ENABLED === 'true';
 export const preparedCvEnabled = () => process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED === 'true';
-const TYPES = ['parse_resume', 'match_cv', 'cover_letter'];
+const TYPES = ['parse_resume', 'generate_cv', 'match_cv', 'cover_letter'];
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$/;
 const MONGO_ID = /^[a-f0-9]{24}$/i;
 export const intentStorageKey = userId => `jobfind.ai.intent.v1.${userId}`;
@@ -75,11 +75,14 @@ export const readPdf = file => new Promise((resolve, reject) => {
 });
 
 const string = (value, max) => value == null ? '' : typeof value === 'string' && value.length <= max ? value : fail('Dữ liệu CV/AI không hợp lệ.');
-const strings = (values, max = 100) => {
+const strings = (values, max = 100, itemMax = 255) => {
     if (!Array.isArray(values) || values.length > max) fail('Danh sách CV/AI không hợp lệ.');
-    return values.map(value => string(value, 255));
+    return values.map(value => string(value, itemMax));
 };
 export const emptyCv = () => ({ title: '', fullName: '', email: '', phone: '', address: '', summary: '', skills: [], languages: [], experiences: [], educations: [] });
+export const hasCvContent = cv => Object.values(cv).some(value => Array.isArray(value)
+    ? value.some(row => typeof row === 'string' ? row.trim() : Object.values(row).some(item => item.trim()))
+    : typeof value === 'string' && value.trim());
 export const cvPayload = cv => {
     if (!cv || typeof cv !== 'object' || Array.isArray(cv)) fail('Dữ liệu CV không hợp lệ.');
     const value = {};
@@ -107,14 +110,15 @@ export const parsedToCv = result => cvPayload({ ...result, title: result.title |
     experiences: (result.experiences || []).map(row => ({ ...row, from: string(row.duration, 255).slice(0,100), to: '' })) });
 export const validateAiResult = (type, result) => {
     if (!result || typeof result !== 'object' || Array.isArray(result)) fail('Kết quả AI không hợp lệ.');
-    if (type === 'parse_resume') return parsedToCv(result);
+    if (type === 'parse_resume' || type === 'generate_cv') return parsedToCv(result);
     if (type === 'cover_letter') {
         if (typeof result.letter !== 'string' || !result.letter.trim() || result.letter.length > 100000) fail('Thư ứng tuyển không hợp lệ.');
         return { letter: result.letter };
     }
     if (!Number.isInteger(result.score) || result.score < 0 || result.score > 100) fail('Điểm phù hợp không hợp lệ.');
     return { score: result.score, summary: string(result.summary, 20000),
-        ...Object.fromEntries(['matchedSkills','missingSkills','strengths','concerns'].map(field => [field, strings(result[field])])) };
+        ...Object.fromEntries(['matchedSkills','missingSkills','strengths','concerns'].map(field => [field,
+            strings(result[field], 100, ['strengths','concerns'].includes(field) ? 2000 : 255)])) };
 };
 export const cvText = cv => {
     const value = cvPayload(cv);

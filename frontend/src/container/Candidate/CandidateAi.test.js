@@ -10,12 +10,14 @@ import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
 import { renderPreparedCv } from '../../service/preparedCvPdf';
 import PdfPreviewButton from '../../components/documents/PdfPreviewButton';
 import DocumentPreviewModal from '../../components/documents/DocumentPreviewModal';
+import { loadSearchPage } from '../../service/searchWorkspace';
+jest.mock('../../service/searchWorkspace', () => ({ loadSearchPage: jest.fn(), searchMode: () => 'legacy' }));
 jest.mock('../../service/preparedCvPdf', () => ({ renderPreparedCv: jest.fn() }));
 jest.mock('../../components/documents/PdfPreviewButton', () => jest.fn(({ label }) => <button type="button">{label}</button>));
 jest.mock('../../components/documents/DocumentPreviewModal', () => jest.fn(({ fileName, onClose }) => <div role="dialog" aria-label={fileName}><button type="button" onClick={onClose}>Đóng xem trước</button></div>));
 jest.mock('../../service/aiSearchService',()=>({
     createAiRequestOptions:()=>({idempotencyKey:'a'.repeat(32)}),
-    parseResumeAi:jest.fn(),matchCvAi:jest.fn(),coverLetterAi:jest.fn(),getAiTask:jest.fn(),
+    parseResumeAi:jest.fn(),generateCvAi:jest.fn(),matchCvAi:jest.fn(),coverLetterAi:jest.fn(),getAiTask:jest.fn(),
     listMyCvs:jest.fn(),createMyCv:jest.fn(),updateMyCv:jest.fn(),deleteMyCv:jest.fn()
 }));
 const user = {id:7,roleCode:'CANDIDATE'};
@@ -26,6 +28,8 @@ beforeEach(()=>{
     jest.clearAllMocks();sessionStorage.clear();localStorage.clear();process.env.REACT_APP_CANDIDATE_AI_ENABLED='true';
     localStorage.setItem('token_user','session-7');localStorage.setItem('userData',JSON.stringify(user));
     api.matchCvAi.mockResolvedValue({errCode:0,taskId:'task-1'});api.getAiTask.mockResolvedValue(completed);
+    api.generateCvAi.mockResolvedValue({errCode:0,taskId:'task-1'});
+    loadSearchPage.mockResolvedValue({ count: 1, data: [{ id: 7, postDetailData: { name: 'Frontend Developer' }, userPostData: { userCompanyData: { name: 'Example' } } }] });
     api.listMyCvs.mockResolvedValue({errCode:0,data:[]});window.confirm=jest.fn(()=>true);
     process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'true';
     renderPreparedCv.mockResolvedValue({ blob: new Blob(['%PDF-1.7'], { type: 'application/pdf' }), pages: 1 });
@@ -174,13 +178,126 @@ test('PDF generation errors keep the draft available for correction and retry', 
     expect(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' })).toBeEnabled();
 });
 
-test('prepared PDF preview follows feature flags and unresolved CV mutation rules', () => {
+test('draft PDF export works without prepared-application integration and remains blocked by unresolved CV writes', async () => {
     process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'false';
     const view = render(<CandidateAi />);
-    expect(screen.queryByRole('button', { name: 'Xem trước / tải PDF bản nháp' })).not.toBeInTheDocument();
-    view.unmount(); process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'true';
+    fireEvent.click(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' }));
+    expect(await screen.findByRole('dialog', { name: 'CV.pdf' })).toBeInTheDocument();
+    expect(renderPreparedCv).toHaveBeenCalledTimes(1);
+    view.unmount(); renderPreparedCv.mockClear();
     sessionStorage.setItem(mutationStorageKey(7), JSON.stringify({ action: 'save', cvId: null }));
     render(<CandidateAi />);
     expect(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' })).toBeDisabled();
     expect(renderPreparedCv).not.toHaveBeenCalled();
+});
+
+const generatedResult = { title: 'CV Frontend', fullName: 'Ứng Viên Mẫu', email: 'candidate@example.test',
+    summary: 'Kinh nghiệm React từ dự án đã cung cấp', skills: ['React'], languages: ['Tiếng Việt'],
+    experiences: [{ company: 'Dự án cá nhân', position: 'Frontend', duration: '2024', description: 'Xây dựng ứng dụng React' }],
+    educations: [{ school: 'Trường Mẫu', major: 'CNTT', degree: 'Cử nhân', year: '2024' }] };
+const completeGeneration = () => api.getAiTask.mockResolvedValue({ errCode: 0,
+    data: { id: 'task-1', type: 'generate_cv', status: 'done', result: generatedResult } });
+const fillGeneration = () => {
+    fireEvent.change(screen.getByLabelText('Chức năng'), { target: { value: 'generate_cv' } });
+    fireEvent.change(screen.getByLabelText('Thông tin của bạn'), { target: { value: 'Thông tin thật: dự án React năm 2024, tốt nghiệp CNTT.' } });
+};
+
+test('AI generation without a target job becomes an editable draft and uses reviewed values for PDF and save', async () => {
+    completeGeneration();
+    api.createMyCv.mockImplementation(async payload => ({ errCode: 0, data: { ...payload, _id: '507f1f77bcf86cd799439011' } }));
+    render(<CandidateAi />); fillGeneration();
+    fireEvent.click(screen.getByText('Gửi yêu cầu AI')); fireEvent.click(screen.getByText('Gửi yêu cầu AI'));
+    await screen.findByText('Đây là bản nháp do AI tạo.', { exact: false });
+    expect(api.generateCvAi).toHaveBeenCalledTimes(1);
+    expect(api.generateCvAi).toHaveBeenCalledWith('Thông tin thật: dự án React năm 2024, tốt nghiệp CNTT.', undefined, 'vi', { idempotencyKey: 'a'.repeat(32) });
+    expect(screen.getByLabelText('Tên CV')).toHaveValue('');
+    expect(api.createMyCv).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(intentStorageKey(7))).not.toContain('Thông tin thật');
+    fireEvent.click(screen.getByText('Xem và chỉnh sửa toàn bộ CV'));
+    expect(screen.getByLabelText('Họ và tên')).toHaveValue('Ứng Viên Mẫu');
+    expect(screen.getByLabelText('Công ty 1')).toHaveValue('Dự án cá nhân');
+    expect(screen.getByLabelText('Từ 1')).toHaveValue('2024');
+    fireEvent.change(screen.getByLabelText('Giới thiệu'), { target: { value: 'Nội dung đã kiểm tra' } });
+    fireEvent.click(screen.getByText('Xem trước / tải PDF bản nháp'));
+    await screen.findByRole('dialog', { name: 'CV Frontend.pdf' });
+    expect(renderPreparedCv).toHaveBeenCalledWith(expect.objectContaining({ summary: 'Nội dung đã kiểm tra' }));
+    fireEvent.click(screen.getByText('Đóng xem trước'));
+    fireEvent.click(screen.getByText('Tải danh sách CV'));
+    await screen.findByText(/Bạn chưa có CV/);
+    fireEvent.click(screen.getByText('Lưu CV'));
+    await waitFor(() => expect(api.createMyCv).toHaveBeenCalledWith(expect.objectContaining({ summary: 'Nội dung đã kiểm tra', fullName: 'Ứng Viên Mẫu' })));
+    await waitFor(() => expect(screen.getByText('Xóa CV')).toBeEnabled());
+});
+
+test('generated CV cannot replace an untitled draft without confirmation', async () => {
+    completeGeneration(); render(<CandidateAi />);
+    fireEvent.change(screen.getByLabelText('Họ và tên'), { target: { value: 'Bản nháp chưa đặt tên' } });
+    fillGeneration(); fireEvent.click(screen.getByText('Gửi yêu cầu AI'));
+    await screen.findByText('Xem và chỉnh sửa toàn bộ CV');
+    window.confirm.mockReturnValue(false);
+    fireEvent.click(screen.getByText('Xem và chỉnh sửa toàn bộ CV'));
+    expect(window.confirm).toHaveBeenCalledWith('Thay bản nháp CV đang mở bằng kết quả AI?');
+    expect(screen.getByLabelText('Họ và tên')).toHaveValue('Bản nháp chưa đặt tên');
+    expect(screen.getByLabelText('Tên CV')).toHaveValue('');
+});
+
+test('generation validates facts and sends the selected public target job and CV language', async () => {
+    completeGeneration(); render(<CandidateAi />);
+    fireEvent.change(screen.getByLabelText('Chức năng'), { target: { value: 'generate_cv' } });
+    fireEvent.click(screen.getByText('Gửi yêu cầu AI'));
+    await screen.findByText('Nhập thông tin của bạn, tối đa 20.000 ký tự.');
+    expect(api.generateCvAi).not.toHaveBeenCalled(); expect(sessionStorage.length).toBe(0);
+    fillGeneration();
+    fireEvent.click(screen.getByText('Công việc mục tiêu (không bắt buộc)'));
+    fireEvent.change(screen.getByLabelText('Tìm công việc mục tiêu'), { target: { value: 'Frontend' } });
+    fireEvent.click(screen.getByText('Tìm công việc'));
+    fireEvent.click(await screen.findByText('Frontend Developer — Example (#7)'));
+    expect(loadSearchPage).toHaveBeenCalledWith(expect.objectContaining({ search: 'Frontend', limit: 8, offset: 0 }), 'legacy', {});
+    expect(screen.getByLabelText('Mã công việc mục tiêu (không bắt buộc)')).toHaveValue('7');
+    fireEvent.change(screen.getByLabelText('Ngôn ngữ CV'), { target: { value: 'en' } });
+    fireEvent.click(screen.getByText('Gửi yêu cầu AI'));
+    await screen.findByText('Xem và chỉnh sửa toàn bộ CV');
+    expect(api.generateCvAi).toHaveBeenCalledWith(expect.any(String), 7, 'en', { idempotencyKey: 'a'.repeat(32) });
+});
+
+test('an uncertain generation submission recovers after refresh with identical facts, language and request key', async () => {
+    completeGeneration(); api.generateCvAi.mockResolvedValueOnce({ errCode: -1, httpStatus: 503 });
+    const view = render(<CandidateAi />); fillGeneration();
+    fireEvent.change(screen.getByLabelText('Ngôn ngữ CV'), { target: { value: 'en' } });
+    fireEvent.click(screen.getByText('Gửi yêu cầu AI'));
+    await screen.findByText('Đối chiếu yêu cầu đã gửi');
+    const original = api.generateCvAi.mock.calls[0];
+    view.unmount(); render(<CandidateAi />);
+    expect(screen.getByLabelText('Chức năng')).toHaveValue('generate_cv');
+    expect(screen.getByLabelText('Thông tin của bạn')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('Thông tin của bạn'), { target: { value: original[0] } });
+    fireEvent.click(screen.getByText('Đối chiếu yêu cầu đã gửi'));
+    await screen.findByText(/Hãy chọn lại đúng/); expect(api.generateCvAi).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText('Ngôn ngữ CV'), { target: { value: 'en' } });
+    fireEvent.click(screen.getByText('Đối chiếu yêu cầu đã gửi'));
+    await screen.findByText('Xem và chỉnh sửa toàn bộ CV');
+    expect(api.generateCvAi.mock.calls[1]).toEqual(original);
+});
+
+test('accepted generation resumes after refresh under rollback without issuing another generation or changing drafts', async () => {
+    completeGeneration(); process.env.REACT_APP_CANDIDATE_AI_ENABLED = 'false';
+    sessionStorage.setItem(intentStorageKey(7), JSON.stringify({ ...savedIntent, type: 'generate_cv' }));
+    render(<CandidateAi />);
+    expect(api.getAiTask).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Xem / tiếp tục chờ kết quả'));
+    expect(await screen.findByText('Xem và chỉnh sửa toàn bộ CV')).toBeDisabled();
+    expect(api.generateCvAi).not.toHaveBeenCalled(); expect(api.createMyCv).not.toHaveBeenCalled();
+    expect(screen.queryByText('Tác vụ mới')).not.toBeInTheDocument();
+});
+
+test('target job lookup ignores results for a superseded search', async () => {
+    let resolve;
+    loadSearchPage.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    render(<CandidateAi />); fillGeneration();
+    fireEvent.click(screen.getByText('Công việc mục tiêu (không bắt buộc)'));
+    fireEvent.click(screen.getByText('Tìm công việc'));
+    fireEvent.change(screen.getByLabelText('Tìm công việc mục tiêu'), { target: { value: 'New search' } });
+    await act(async () => resolve({ count: 1, data: [{ id: 7, postDetailData: { name: 'Old job' } }] }));
+    expect(screen.queryByText('Old job (#7)')).not.toBeInTheDocument();
+    expect(screen.getByText('Tìm công việc')).toBeEnabled();
 });

@@ -7,27 +7,29 @@ import { isValidAiPdf } from '../../../shared/aiPdf.js';
 const schema = {
     type: 'object',
     properties: {
-        fullName: { type: ['string', 'null'], description: 'Họ tên đầy đủ của ứng viên' },
-        email: { type: ['string', 'null'] },
-        phone: { type: ['string', 'null'] },
-        address: { type: ['string', 'null'] },
-        title: { type: ['string', 'null'], description: 'Vị trí ứng tuyển hoặc chức danh hiện tại' },
-        summary: { type: ['string', 'null'], description: 'Tóm tắt ngắn về ứng viên, tối đa 3 câu' },
-        yearsOfExperience: { type: ['number', 'null'] },
+        fullName: { type: ['string', 'null'], maxLength: 255, description: 'Họ tên đầy đủ của ứng viên' },
+        email: { type: ['string', 'null'], maxLength: 320 },
+        phone: { type: ['string', 'null'], maxLength: 100 },
+        address: { type: ['string', 'null'], maxLength: 1000 },
+        title: { type: ['string', 'null'], maxLength: 255, description: 'Vị trí ứng tuyển hoặc chức danh hiện tại' },
+        summary: { type: ['string', 'null'], maxLength: 20000, description: 'Tóm tắt ngắn về ứng viên, tối đa 3 câu' },
+        yearsOfExperience: { type: ['number', 'null'], minimum: 0, maximum: 100 },
         skills: {
             type: 'array',
-            items: { type: 'string' },
+            maxItems: 100,
+            items: { type: 'string', maxLength: 255 },
             description: 'Danh sách kỹ năng, mỗi kỹ năng một mục ngắn gọn'
         },
         experiences: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 properties: {
-                    company: { type: ['string', 'null'] },
-                    position: { type: ['string', 'null'] },
-                    duration: { type: ['string', 'null'] },
-                    description: { type: ['string', 'null'] }
+                    company: { type: ['string', 'null'], maxLength: 255 },
+                    position: { type: ['string', 'null'], maxLength: 255 },
+                    duration: { type: ['string', 'null'], maxLength: 100 },
+                    description: { type: ['string', 'null'], maxLength: 10000 }
                 },
                 required: ['company', 'position', 'duration', 'description'],
                 additionalProperties: false
@@ -35,19 +37,20 @@ const schema = {
         },
         educations: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 properties: {
-                    school: { type: ['string', 'null'] },
-                    major: { type: ['string', 'null'] },
-                    degree: { type: ['string', 'null'] },
-                    year: { type: ['string', 'null'] }
+                    school: { type: ['string', 'null'], maxLength: 255 },
+                    major: { type: ['string', 'null'], maxLength: 255 },
+                    degree: { type: ['string', 'null'], maxLength: 255 },
+                    year: { type: ['string', 'null'], maxLength: 100 }
                 },
                 required: ['school', 'major', 'degree', 'year'],
                 additionalProperties: false
             }
         },
-        languages: { type: 'array', items: { type: 'string' } }
+        languages: { type: 'array', maxItems: 100, items: { type: 'string', maxLength: 255 } }
     },
     required: [
         'fullName', 'email', 'phone', 'address', 'title', 'summary',
@@ -55,6 +58,8 @@ const schema = {
     ],
     additionalProperties: false
 };
+
+export { schema as resumeSchema };
 
 const system = `Bạn là công cụ bóc tách CV cho một sàn tuyển dụng Việt Nam.
 Chỉ trích xuất thông tin thực sự có trong tài liệu. Không suy đoán, không bịa thêm.

@@ -1,5 +1,7 @@
 # Tìm ứng viên và lọc CV
 
+Phân tích AI đọc trực tiếp PDF đã được mở quyền xem tại trang chi tiết ứng viên. Chọn tin công ty và bấm **Phân tích CV bằng AI** để mở hồ sơ, sau đó gửi yêu cầu trong mục **Đối chiếu nội dung CV** để nhận điểm kèm bằng chứng. Xem [hướng dẫn AI cho CV](ai-cv.md).
+
 Trong khu nhà tuyển dụng, mở **Quản lý ứng viên → Tìm kiếm ứng viên** (`/admin/list-candiate/`). Áp dụng cho chủ công ty và nhân viên tuyển dụng thuộc công ty đã được duyệt; quản trị viên vẫn có quyền tra cứu.
 
 ## Cách sử dụng

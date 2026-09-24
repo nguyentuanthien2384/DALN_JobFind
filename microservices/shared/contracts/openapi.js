@@ -1,6 +1,6 @@
 import { operations, publicPath } from './operations.js';
 import { responseDefinitions, successSchema } from './responses.js';
-import { ROLE_PERMISSIONS } from '../accessControl.js';
+import { ROLE_PERMISSIONS, hasPermission } from '../accessControl.js';
 
 export const contractVersion = '1.0.0';
 export const serviceNames = ['jobs', 'identity', 'search', 'applications', 'admin', 'support'];
@@ -25,7 +25,7 @@ export const buildOpenApi = (service = 'gateway') => {
         if (!publicApi && op.permission) {
             parameters.push(
                 { name: 'x-user-id', in: 'header', required: true, schema: { type: 'string', pattern: '^[1-9][0-9]*$' }, description: 'Authenticated identity forwarded by the trusted gateway only.' },
-                { name: 'x-user-role', in: 'header', required: true, schema: { type: 'string', enum: Object.keys(ROLE_PERMISSIONS).filter((role) => ROLE_PERMISSIONS[role].includes(op.permission)) } }
+                { name: 'x-user-role', in: 'header', required: true, schema: { type: 'string', enum: Object.keys(ROLE_PERMISSIONS).filter((roleCode) => hasPermission({ roleCode }, op.permission)) } }
             );
             if (op.companyRequired) parameters.push(...[
                 ['x-company-id', { type: 'string', pattern: '^[1-9][0-9]*$' }],
@@ -41,7 +41,9 @@ export const buildOpenApi = (service = 'gateway') => {
             summary: `${op.method.toUpperCase()} ${op.path}`,
             description: [
                 op.internal ? 'Service-to-service only. Never exposed through the public gateway.' : 'Modern microservice endpoint; legacy fallback routes are outside this contract.',
-                op.permission ? `Requires permission ${op.permission}; resource ownership checks still apply.` : 'No end-user login required.',
+                op.permission ? `Requires ${Array.isArray(op.permission) ? 'any permission' : 'permission'} ${op.permission}; resource ownership checks still apply.` : 'No end-user login required.',
+                op.id === 'aiMatchCv' ? 'Exactly one of resumeText (up to 10000 characters) or fileBase64 (PDF up to 5 MiB). Recruiters may match only jobs belonging to their current active, approved company. Candidates may match only published jobs from approved companies. AI provides advisory evidence; it does not change application decisions.' : '',
+                op.id === 'aiGenerateCv' ? 'Candidate notes up to 20000 characters; language vi or en. Optional jobId must refer to a published job from an approved company. Result is an editable structured CV draft using only supplied candidate facts.' : '',
                 op.companyRequired ? 'Non-admin callers must belong to an active, approved company.' : '',
                 ['jobCreate', 'jobRepost'].includes(op.id) ? 'Paid posting requires a current active, approved company even for ADMIN. With an Idempotency-Key, quota, new post, events and original response are committed atomically. Replay returns the initial 201 snapshot, not current moderation state, and rechecks current company membership/approval without spending quota. Keys must not be deleted while retries are possible. A new deadline must be in the future; omitted create deadline defaults to 30 days on the first accepted attempt.' : '',
                 op.id === 'jobRepost' ? 'Only expired, non-removed source posts in the caller company may be reposted. Copies the current detail into a new PS3 post, retaining the source featured flag and charging the matching quota. Original post is unchanged; new post requires moderation. Replays do not reread mutable source content.' : '',

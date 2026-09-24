@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-const taskTypes = new Set(['parse_resume', 'match_cv', 'cover_letter']);
+const taskTypes = new Set(['parse_resume', 'generate_cv', 'match_cv', 'cover_letter']);
 export const aiResultError = (code, message) => Object.assign(new Error(message), { code });
 const identifier = (value, name, max = 128) => {
     if (typeof value !== 'string' || value.length > max || !/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(value)) {

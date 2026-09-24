@@ -2,7 +2,7 @@ import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
 import FilterCv from './FilterCv';
-import { getFilterCv } from '../../../service/cvService';
+import { getFilterCv, getCandidateSearchJobs } from '../../../service/cvService';
 
 jest.mock('react-router-dom', () => {
     global.TextEncoder = require('util').TextEncoder;
@@ -89,4 +89,16 @@ test('pending pages keep candidate cards stable but block stale actions, then cl
     expect(screen.queryByText('Ứng Viên')).not.toBeInTheDocument();
     expect(new URLSearchParams(window.location.search).get('page')).toBe('3');
     first.unmount();
+});
+
+test('AI entry carries the selected company job into the authorized candidate detail page', async () => {
+    localStorage.setItem('userData', JSON.stringify({ id: 1, roleCode: 'ADMIN', companyId: 8 }));
+    getCandidateSearchJobs.mockResolvedValue({ errCode: 0, count: 1, data: [{ id: 14, name: 'React Engineer', criteria: { listSkills: [] } }] });
+    mount(); await ready();
+    await screen.findByRole('option', { name: '#14 · React Engineer' });
+    fireEvent.change(screen.getByLabelText('Chọn tin tuyển dụng'), { target: { value: '14' } }); await ready();
+    fireEvent.click(screen.getByRole('button', { name: 'Phân tích CV bằng AI' }));
+    expect(window.location.pathname).toBe('/admin/candiate/7/');
+    expect(new URLSearchParams(window.location.search).get('jobId')).toBe('14');
+    expect(window.location.hash).toBe('#ai-review');
 });

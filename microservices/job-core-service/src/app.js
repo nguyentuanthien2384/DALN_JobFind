@@ -22,7 +22,7 @@ import {
     createJob, repostJob, updateJob, deleteJob, getJob, listJobsForReindex, getJobForIndex
 } from './controllers/jobController.js';
 import {
-    ensureAiTaskTable, parseResume, matchCv, coverLetter, getTask, handleAiResult
+    ensureAiTaskTable, parseResume, generateCv, matchCv, coverLetter, getTask, handleAiResult
 } from './controllers/aiController.js';
 
 const logger = createLogger('job-core-service');
@@ -64,10 +64,12 @@ contractRoute(app, 'jobManageGet', canManageJobs, getManagedJob);
 
 // --- Cac tinh nang AI ---
 const canUseCandidateAi = requireServicePermission(PERMISSIONS.AI_CANDIDATE_USE);
+const canUseMatchingAi = requireServicePermission([PERMISSIONS.AI_CANDIDATE_USE, PERMISSIONS.AI_RECRUITER_USE]);
 contractRoute(app, 'aiParseResume', canUseCandidateAi, parseResume);
-contractRoute(app, 'aiMatchCv', canUseCandidateAi, matchCv);
+contractRoute(app, 'aiGenerateCv', canUseCandidateAi, generateCv);
+contractRoute(app, 'aiMatchCv', canUseMatchingAi, matchCv);
 contractRoute(app, 'aiCoverLetter', canUseCandidateAi, coverLetter);
-contractRoute(app, 'aiTaskGet', canUseCandidateAi, getTask);
+contractRoute(app, 'aiTaskGet', canUseMatchingAi, getTask);
 
 // --- Noi bo: Search Service goi de dung lai index tu dau ---
 contractRoute(app, 'jobIndexList', listJobsForReindex);

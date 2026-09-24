@@ -1,0 +1,24 @@
+.recruiter-ai { margin: 28px 0; padding: 24px; border: 1px solid #d7e7df; border-radius: 14px; background: #f7fbf9; color: #203d34; scroll-margin-top: 24px; }
+.recruiter-ai-heading { display: flex; align-items: flex-start; gap: 12px; }
+.recruiter-ai-badge { flex-shrink: 0; display: grid; place-items: center; width: 40px; height: 40px; background: #187859; color: white; border-radius: 10px; font-weight: 700; }
+.recruiter-ai h2 { margin: 0 0 6px; font-size: 20px; }
+.recruiter-ai h3 { margin: 0 0 9px; font-size: 15px; }
+.recruiter-ai p, .recruiter-ai li { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.recruiter-ai-context { color: #526b60; }
+.recruiter-ai > label { display: block; font-size: 14px; font-weight: 600; margin: 20px 0 8px; }
+.recruiter-ai > .ant-select { width: 100%; max-width: 650px; }
+.recruiter-ai-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.recruiter-ai button { border: 1px solid #cadcd3; color: #175e47; background: white; border-radius: 7px; padding: 9px 14px; cursor: pointer; }
+.recruiter-ai button.recruiter-ai-primary { background: #187859; border-color: #187859; color: white; }
+.recruiter-ai button:disabled { opacity: .55; cursor: not-allowed; }
+.recruiter-ai button:focus-visible { outline: 3px solid #8ac7ad; outline-offset: 3px; }
+.recruiter-ai-error { color: #b23b37; }
+.recruiter-ai > small { display: block; overflow-wrap: anywhere; color: #526b60; }
+.recruiter-ai-result { margin-top: 22px; padding-top: 22px; border-top: 1px solid #d7e7df; }
+.recruiter-ai-summary { display: flex; align-items: flex-start; gap: 20px; }
+.recruiter-ai-summary > strong { flex-shrink: 0; font-size: 32px; color: #187859; }
+.recruiter-ai-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.recruiter-ai-grid > div { background: white; border: 1px solid #e1ece6; padding: 18px; border-radius: 10px; }
+.recruiter-ai-grid ul { padding-left: 20px; margin: 0; }
+.recruiter-ai-grid p { margin-bottom: 0; }
+@media (max-width: 700px) { .recruiter-ai { padding: 18px; } .recruiter-ai-grid { grid-template-columns: 1fr; } .recruiter-ai-summary { flex-direction: column; gap: 8px; } }

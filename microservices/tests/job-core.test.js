@@ -348,6 +348,21 @@ describe('AI task controller', () => {
         expect(ok.body.data.result).toEqual({ score: 90 });
     });
 
+    it.each([
+        ['CANDIDATE', null, 'parse_resume', 403],
+        ['CANDIDATE', 7, 'generate_cv', 200],
+        ['EMPLOYER', 7, 'match_cv', 403],
+        ['COMPANY', 8, 'match_cv', 403],
+        ['EMPLOYER', 7, 'generate_cv', 403]
+    ])('checks task ownership/type for %s with owner %s and task %s', async (role, owner, type, status) => {
+        const { getTask } = await import('../job-core-service/src/controllers/aiController.js');
+        mocks.pool.query.mockResolvedValueOnce([[{ id: 't', userId: owner, type, status: 'pending', result: null }]]);
+        const res = makeRes();
+        await getTask(makeReq({ headers: { 'x-user-id': '7', 'x-user-role': role }, params: { taskId: 't' } }), res);
+        expect(res.statusCode).toBe(status);
+        if (status === 403) expect(res.body).not.toHaveProperty('data');
+    });
+
     it('persists the first generic AI success/failure within a transaction', async () => {
         const { handleAiResult } = await import('../job-core-service/src/controllers/aiController.js');
         const conn = { query: vi.fn().mockResolvedValueOnce([[{ id: 't', type: 'parse_resume', status: 'pending' }]]).mockResolvedValue([{}]) };

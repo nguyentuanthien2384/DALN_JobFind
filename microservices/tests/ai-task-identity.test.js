@@ -11,7 +11,7 @@ describe('AI execution identity', () => {
         expect(changed.key).toBe(first.key);
         expect(changed.fingerprint).not.toBe(first.fingerprint);
     });
-    it.each(['ai.parse_resume', 'ai.match_cv', 'ai.cover_letter'])('can identify legacy %s by its stable taskId', (routingKey) => {
+    it.each(['ai.parse_resume', 'ai.generate_cv', 'ai.match_cv', 'ai.cover_letter'])('can identify legacy %s by its stable taskId', (routingKey) => {
         const value = taskIdentity({ taskId: 'task-1', fileBase64: 'private' }, routingKey);
         expect(value.key).toBe(`task:${routingKey}:task-1`);
         expect(value.aggregateId).toBe('task-1');

@@ -35,8 +35,8 @@ describe('transactional AI results', () => {
         const outgoing = f.enqueue.mock.calls[0][1];
         expect(() => assertEventPayload(outgoing.eventType, outgoing.payload, { aggregateId: outgoing.aggregateId })).not.toThrow();
     });
-    it.each(['parse_resume', 'match_cv', 'cover_letter'])('accepts a typed %s success/failure into its task inbox', async (type) => {
-        const results = { parse_resume: { fullName: null, skills: [] }, match_cv: { score: 80 }, cover_letter: { letter: 'Synthetic letter' } };
+    it.each(['parse_resume', 'generate_cv', 'match_cv', 'cover_letter'])('accepts a typed %s success/failure into its task inbox', async (type) => {
+        const results = { parse_resume: { fullName: null, skills: [] }, generate_cv: { fullName: 'Lan', skills: [] }, match_cv: { score: 80 }, cover_letter: { letter: 'Synthetic letter' } };
         for (const ok of [true, false]) {
             const f = makeFixture({ task: { id: 'task-1', type, status: 'pending' } });
             const data = { taskId: 'task-1', type, ok, ...(ok ? { result: results[type] } : { error: 'EVENT_PAYLOAD_INVALID' }) };

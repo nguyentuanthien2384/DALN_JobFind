@@ -33,6 +33,28 @@ const optionalString = (value) => value == null || typeof value === 'string';
 const validJobId = (value) => (typeof value === 'number' || typeof value === 'string')
     && /^[1-9][0-9]*$/.test(String(value)) && Number.isSafeInteger(Number(value));
 const validLanguage = (value) => value == null || value === '' || value === 'vi' || value === 'en';
+const recruiterRole = (role) => ['COMPANY', 'EMPLOYER'].includes(role);
+
+// Replays must recheck tenant access even though the immutable job snapshot is
+// reused. Read membership from the database, never from client-supplied metadata.
+const recruiterJob = async (db, userId, jobId, companyId) => {
+    const [rows] = await db.query(
+        `SELECT d.name, d.descriptionHTML, c.id AS companyId FROM posts p
+         JOIN detailposts d ON d.id = p.detailPostId
+         JOIN users u ON u.id = p.userId
+         JOIN companies c ON c.id = u.companyId
+         JOIN users viewer ON viewer.id = ? AND viewer.companyId = c.id
+         JOIN accounts viewerAccount ON viewerAccount.userId = viewer.id
+         WHERE p.id = ? AND c.statusCode = 'S1' AND c.censorCode = 'CS1'
+           AND viewerAccount.statusCode = 'S1' AND viewerAccount.roleCode IN ('COMPANY', 'EMPLOYER')
+           ${companyId === undefined ? '' : 'AND c.id = ?'}`,
+        companyId === undefined ? [userId, jobId] : [userId, jobId, companyId]
+    );
+    if (!rows.length || !Number.isSafeInteger(Number(rows[0].companyId)) || Number(rows[0].companyId) <= 0) {
+        throw Object.assign(new Error('Job not found'), { code: 'AI_REQUEST_JOB_NOT_FOUND' });
+    }
+    return { ...rows[0], companyId: Number(rows[0].companyId) };
+};
 
 const requestFailed = (res, type, error) => {
     if (error.code === 'AI_REQUEST_TOO_LARGE') {
@@ -74,19 +96,63 @@ export const parseResume = async (req, res) => {
     } catch (error) { return requestFailed(res, 'parse_resume', error); }
 };
 
-// Cham diem do khop giua CV va mo ta cong viec.
-export const matchCv = async (req, res) => {
-    const { resumeText, jobId } = req.body || {};
-    if (!nonEmptyString(resumeText) || !validJobId(jobId)) {
-        return res.status(400).json({ errCode: 1, errMessage: 'Nội dung CV hoặc mã tin tuyển dụng không hợp lệ' });
+// Build an editable CV from the candidate's own notes, with optional job context.
+export const generateCv = async (req, res) => {
+    const { sourceText, jobId, language } = req.body || {};
+    if (!nonEmptyString(sourceText) || sourceText.length > 20000
+        || (jobId !== undefined && (!Number.isSafeInteger(jobId) || jobId <= 0))
+        || !['vi', 'en'].includes(language)) {
+        return res.status(400).json({ errCode: 1, errMessage: 'Nhập thông tin CV tối đa 20.000 ký tự, mã tin và ngôn ngữ hợp lệ' });
     }
-
     try {
         const taskId = await enqueueAiTask({
-            type: 'match_cv', userId: userIdOf(req), input: { jobId },
-            requestData: { resumeText, jobId: Number(jobId) },
+            type: 'generate_cv', userId: userIdOf(req), input: { jobId, language },
+            requestData: { sourceText, jobId: jobId ?? null, language },
             idempotencyKey: req.headers['idempotency-key'],
             payload: async (conn) => {
+                if (jobId === undefined) return { sourceText, language };
+                const [rows] = await conn.query(
+                    `SELECT d.name, d.descriptionHTML FROM posts p
+                     JOIN detailposts d ON d.id = p.detailPostId
+                     JOIN users u ON u.id = p.userId
+                     JOIN companies c ON c.id = u.companyId
+                     WHERE p.id = ? AND p.statusCode = 'PS1'
+                       AND c.statusCode = 'S1' AND c.censorCode = 'CS1'`, [jobId]
+                );
+                if (!rows.length) throw Object.assign(new Error('Job not found'), { code: 'AI_REQUEST_JOB_NOT_FOUND' });
+                return { sourceText, language, jobId, jobTitle: rows[0].name, jobDescription: rows[0].descriptionHTML };
+            }
+        });
+        return res.status(202).json({ errCode: 0, taskId, errMessage: 'Đang tạo bản nháp CV' });
+    } catch (error) { return requestFailed(res, 'generate_cv', error); }
+};
+
+// Cham diem do khop giua CV va mo ta cong viec.
+export const matchCv = async (req, res) => {
+    const { resumeText, fileBase64, fileName, jobId } = req.body || {};
+    const fromPdf = fileBase64 !== undefined;
+    if (typeof fileBase64 === 'string' && fileBase64.length > MAX_AI_PDF_BASE64_LENGTH) {
+        return res.status(413).json({ errCode: 1, errMessage: 'Tệp CV vượt giới hạn 5 MiB' });
+    }
+    if (!validJobId(jobId) || (fromPdf
+        ? resumeText !== undefined || !isValidAiPdf(fileBase64) || !optionalString(fileName) || (fileName?.length || 0) > 255
+        : !nonEmptyString(resumeText) || resumeText.length > 10000 || fileName !== undefined)) {
+        return res.status(400).json({ errCode: 1, errMessage: 'Nội dung CV hoặc mã tin tuyển dụng không hợp lệ' });
+    }
+    const resume = fromPdf ? { fileBase64, fileName: fileName ?? null } : { resumeText };
+    const recruiter = recruiterRole(req.user?.roleCode || req.headers['x-user-role']);
+
+    try {
+        const companyId = recruiter ? (await recruiterJob(pool, userIdOf(req), jobId)).companyId : undefined;
+        const taskId = await enqueueAiTask({
+            type: 'match_cv', userId: userIdOf(req), input: { jobId, ...(recruiter && { companyId }) },
+            requestData: { ...resume, jobId: Number(jobId), ...(recruiter && { companyId }) },
+            idempotencyKey: req.headers['idempotency-key'],
+            payload: async (conn) => {
+                if (recruiter) {
+                    const job = await recruiterJob(conn, userIdOf(req), jobId, companyId);
+                    return { ...resume, jobTitle: job.name, jobDescription: job.descriptionHTML };
+                }
                 const [rows] = await conn.query(
                     `SELECT d.name, d.descriptionHTML FROM posts p
                      JOIN detailposts d ON d.id = p.detailPostId
@@ -97,7 +163,7 @@ export const matchCv = async (req, res) => {
                     [jobId]
                 );
                 if (!rows.length) throw Object.assign(new Error('Job not found'), { code: 'AI_REQUEST_JOB_NOT_FOUND' });
-                return { resumeText, jobTitle: rows[0].name, jobDescription: rows[0].descriptionHTML };
+                return { ...resume, jobTitle: rows[0].name, jobDescription: rows[0].descriptionHTML };
             }
         });
         return res.status(202).json({ errCode: 0, taskId, errMessage: 'Đang chấm độ khớp' });
@@ -141,7 +207,7 @@ export const coverLetter = async (req, res) => {
 // Client hoi ket qua bang taskId nhan duoc luc gui yeu cau.
 export const getTask = async (req, res) => {
     const userId = userIdOf(req);
-    const role = req.headers['x-user-role'];
+    const role = req.user?.roleCode || req.headers['x-user-role'];
     const [rows] = await pool.query('SELECT * FROM ai_tasks WHERE id = ?', [req.params.taskId]);
     if (!rows.length) {
         return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy yêu cầu' });
@@ -149,8 +215,31 @@ export const getTask = async (req, res) => {
 
     const task = rows[0];
     // Ket qua AI co the chua noi dung CV cua nguoi dung, khong de nguoi khac xem.
-    if (role !== 'ADMIN' && task.userId !== null && task.userId !== userId) {
+    if (role !== 'ADMIN' && (task.userId === null || task.userId !== userId
+        || (recruiterRole(role) && task.type !== 'match_cv'))) {
         return res.status(403).json({ errCode: 3, errMessage: 'Bạn không có quyền xem kết quả này' });
+    }
+
+    if (role !== 'ADMIN') {
+        let input;
+        try { input = typeof task.input === 'string' ? JSON.parse(task.input) : task.input; }
+        catch { return res.status(403).json({ errCode: 3, errMessage: 'Bạn không có quyền xem kết quả này' }); }
+        // A recruiter result remains owned by its original company even if the
+        // actor moves companies, loses approval or becomes a candidate later.
+        if (recruiterRole(role) || input?.companyId !== undefined) {
+            if (!recruiterRole(role) || !Number.isSafeInteger(input?.companyId) || input.companyId <= 0) {
+                return res.status(403).json({ errCode: 3, errMessage: 'Bạn không có quyền xem kết quả này' });
+            }
+            const [membership] = await pool.query(
+                `SELECT c.id AS companyId FROM users viewer
+                 JOIN accounts viewerAccount ON viewerAccount.userId = viewer.id
+                 JOIN companies c ON c.id = viewer.companyId
+                 WHERE viewer.id = ? AND c.id = ? AND c.statusCode = 'S1' AND c.censorCode = 'CS1'
+                   AND viewerAccount.statusCode = 'S1' AND viewerAccount.roleCode IN ('COMPANY', 'EMPLOYER')`,
+                [userId, input.companyId]
+            );
+            if (!membership.length) return res.status(403).json({ errCode: 3, errMessage: 'Bạn không có quyền xem kết quả này' });
+        }
     }
 
     return res.json({

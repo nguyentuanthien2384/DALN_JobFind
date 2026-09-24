@@ -17,6 +17,7 @@ import { Select } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 import PdfPreviewButton from "../../../components/documents/PdfPreviewButton";
 import { SESSION_ENDED_EVENT } from "../../../auth/sessionExpiry";
+import RecruiterAiReview from './RecruiterAiReview';
 
 const DetailFilterUser = () => {
     const [listSkills, setListSkills] = useState([]);
@@ -206,6 +207,9 @@ const DetailFilterUser = () => {
                                 </div>
                             </div>
                         )}
+
+                        <RecruiterAiReview key={JSON.stringify([scope, inputValues.file])} source={inputValues.file}
+                            candidateId={id} token={token} sessionUser={sessionUser} />
 
                         {/* ---- Lịch sử ứng tuyển ---- */}
                         <div className="ho-so-muc">
