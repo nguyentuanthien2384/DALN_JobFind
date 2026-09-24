@@ -408,7 +408,20 @@ const SupportChat = () => {
                             </ThreadPrimitive.Viewport>
                             <ThreadPrimitive.ScrollToBottom className="jf-support__scroll" aria-label="Đến tin nhắn mới nhất">↓ Tin mới nhất</ThreadPrimitive.ScrollToBottom>
                             </div>
-                            {privateResult && <div className="jf-support__private-result" role="status"><strong>{privateResult.title}</strong><button type="button" onClick={() => setPrivateResult(null)} aria-label="Đóng kết quả tra cứu">×</button><ul>{privateResult.lines?.length ? privateResult.lines.map((line, index) => <li key={index}>{line}</li>) : <li>Chưa có dữ liệu.</li>}</ul><small>Tra cứu trực tiếp, không gửi cho AI.</small>{/^\/(candidate|admin)\/[a-z-]+$/.test(privateResult.href || '') && <Link to={privateResult.href}>Mở trang quản lý ↗</Link>}</div>}
+                            {privateResult && <div className="jf-support__private-result" role="status">
+                                <div className="jf-support__private-result-header">
+                                    <strong>{privateResult.title}</strong>
+                                    <button type="button" className="jf-support__private-close" aria-label="Đóng kết quả tra cứu" title="Đóng kết quả tra cứu"
+                                        onClick={() => { setPrivateResult(null); inputRef.current?.focus({ preventScroll: true }); }}>
+                                        <Icon name="close" size={20}/>
+                                    </button>
+                                </div>
+                                <div className="jf-support__private-result-body">
+                                    <ul>{privateResult.lines?.length ? privateResult.lines.map((line, index) => <li key={index}>{line}</li>) : <li>Chưa có dữ liệu.</li>}</ul>
+                                    <small>Tra cứu trực tiếp, không gửi cho AI.</small>
+                                    {/^\/(candidate|admin)\/[a-z-]+$/.test(privateResult.href || '') && <Link to={privateResult.href} onClick={() => setPrivateResult(null)}>Mở trang quản lý ↗</Link>}
+                                </div>
+                            </div>}
                             {thread.handoff && <div className="jf-support__login">{thread.handoff.status === 'resolved' ? 'Yêu cầu đã được xử lý.' : thread.handoff.agentId ? 'Nhân viên đã tiếp nhận. ' : 'Đã lưu yêu cầu. Đang chờ nhân viên tiếp nhận.'}{thread.handoff.agentId && <Link to={`/support/chat/${thread.handoff.agentId}`}>Mở tin nhắn</Link>}<button type="button" onClick={() => openThread(thread)}>Cập nhật</button></div>}
                             {error && <div className="jf-support__error" role="alert">{error}<button type="button" onClick={ready ? retryLast : () => setHistoryRefresh(value => value + 1)} disabled={busy}><Icon name="retry" size={15}/>{ready ? 'Thử lại' : 'Kết nối lại'}</button>{!ready && !user?.id && <button type="button" onClick={() => { supportApi.resetGuest(); setHistoryRefresh(value => value + 1); }}>Bắt đầu phiên khách mới</button>}</div>}
                             <div className="jf-support__compose-area">

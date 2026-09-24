@@ -77,10 +77,28 @@ const ChatPage = () => {
         let frame;
         const resize = () => {
             const top = element.getBoundingClientRect().top + window.scrollY;
-            const bottom = admin ? (footer?.getBoundingClientRect().height || 0)
+            const shellBottom = admin ? (footer?.getBoundingClientRect().height || 0)
                 + (parseFloat(window.getComputedStyle(wrapper || element).paddingBottom) || 0) : 24;
+            const launcher = document.querySelector('.jf-support__launcher');
+            // The support widget loads lazily after this page. Reserve its
+            // normal footprint even before its launcher has mounted.
+            const supportBottom = launcher ? window.innerHeight - launcher.getBoundingClientRect().top + 12 : 90;
+            const bottom = Math.max(shellBottom, supportBottom);
             const viewport = window.visualViewport?.height || window.innerHeight;
-            const height = `${Math.max(360, viewport - top - bottom)}px`;
+            const outerHeight = node => {
+                if (!node) return 0;
+                const style = window.getComputedStyle(node);
+                return node.getBoundingClientRect().height + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+            };
+            const style = window.getComputedStyle(element);
+            const hasConversation = Boolean(element.querySelector('[role="log"]'));
+            // On short screens or with an attachment preview, allow real page
+            // scrolling instead of squeezing the history/composer to zero.
+            const minimum = (parseFloat(style.paddingTop) || 0) + outerHeight(element.querySelector('h4'))
+                + outerHeight(element.querySelector(':scope > section')) + 2
+                + (hasConversation ? outerHeight(element.querySelector('.chat-main > div:first-child'))
+                    + outerHeight(element.querySelector('.chat-composer')) + 120 : 160);
+            const height = `${Math.max(360, minimum, viewport - top - bottom)}px`;
             if (element.style.getPropertyValue('--chat-page-height') !== height) {
                 element.style.setProperty('--chat-page-height', height);
             }
@@ -93,7 +111,8 @@ const ChatPage = () => {
         };
         resize();
         const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleResize) : null;
-        [header, footer, wrapper].filter(Boolean).forEach(node => observer?.observe(node));
+        [header, footer, wrapper, ...element.querySelectorAll(':scope > section, .chat-composer, .chat-main > div:first-child')]
+            .filter(Boolean).forEach(node => observer?.observe(node));
         window.addEventListener('resize', scheduleResize);
         window.visualViewport?.addEventListener('resize', scheduleResize);
         return () => {
@@ -101,7 +120,7 @@ const ChatPage = () => {
             window.removeEventListener('resize', scheduleResize);
             window.visualViewport?.removeEventListener('resize', scheduleResize);
         };
-    }, [chatBasePath, userData]);
+    }, [chatBasePath, partnerId, userData]);
 
     const fetchListConversation = useCallback(async () => {
         const sequence = ++listSequenceRef.current;

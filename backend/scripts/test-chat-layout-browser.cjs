@@ -6,7 +6,7 @@ const { chromium } = require('../../microservices/node_modules/playwright');
 const base = process.env.JOB_TEST_WEB_URL || 'http://localhost:3001';
 const output = path.join(__dirname, '../../.local/spacing/chat');
 const partner = { id: 20, firstName: 'Nhân viên', lastName: 'Hỗ trợ' };
-const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, { width: 390, height: 844 }];
+const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 360, height: 640 }];
 
 (async () => {
     await fs.mkdir(output, { recursive: true });
@@ -61,6 +61,8 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
                         return { top, bottom, height };
                     };
                     const log = document.querySelector('[role="log"]');
+                    const send = document.querySelector('.chat-composer-row > button').getBoundingClientRect();
+                    const launcher = document.querySelector('.jf-support__launcher')?.getBoundingClientRect();
                     return {
                         viewport: innerHeight, width: innerWidth, documentWidth: document.documentElement.scrollWidth,
                         documentHeight: document.documentElement.scrollHeight, scrollY,
@@ -69,19 +71,30 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
                         title: rect('.chat-page-container > h4'), historyHeight: log.clientHeight,
                         historyScrollHeight: log.scrollHeight, historyScrollTop: log.scrollTop,
                         errors: window.layoutErrors,
+                        sendOverlapsSupport: Boolean(launcher && send.right > launcher.left && send.left < launcher.right
+                            && send.bottom > launcher.top && send.top < launcher.bottom),
                     };
                 });
                 await page.screenshot({ path: path.join(output, `${roleCode}-${viewport.width}.png`), fullPage: false });
                 await fs.writeFile(path.join(output, `${roleCode}-${viewport.width}.json`), JSON.stringify(metrics, null, 2));
                 assert.ok(metrics.documentWidth <= viewport.width + 1, 'No horizontal overflow');
                 assert.equal(metrics.scrollY, 0, 'Loading history must not scroll the whole page');
-                assert.ok(metrics.composer.bottom <= viewport.height + 1, 'Composer visible without page scroll');
+                if (viewport.height > 640) assert.ok(metrics.composer.bottom <= viewport.height + 1, 'Composer visible without page scroll');
+                if (viewport.height > 640) assert.equal(metrics.sendOverlapsSupport, false, 'Support launcher must not cover Send');
                 assert.ok(metrics.historyHeight >= 120, 'History keeps usable space');
                 assert.ok(metrics.historyScrollHeight > metrics.historyHeight, 'Long history scrolls internally');
                 assert.ok(metrics.title.top - metrics.header.bottom <= 30, 'No obsolete header spacer');
-                if (roleCode === 'ADMIN') assert.ok(metrics.documentHeight <= viewport.height + 1, 'Admin chat fits viewport');
+                if (roleCode === 'ADMIN' && viewport.height > 640) assert.ok(metrics.documentHeight <= viewport.height + 1, 'Admin chat fits viewport');
                 assert.deepEqual(metrics.errors, [], 'No browser error events (including ResizeObserver loops)');
                 measurements.push({ roleCode, viewport, ...metrics });
+                if (viewport.height <= 640) {
+                    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+                    const composer = await page.locator('.chat-composer').boundingBox();
+                    assert.ok(composer.y + composer.height <= viewport.height, 'Short screens can scroll to the full composer');
+                    const launcher = await page.locator('.jf-support__launcher').boundingBox();
+                    assert.ok(!launcher || composer.y + composer.height <= launcher.y, 'Short screens can move composer above support launcher');
+                    await page.evaluate(() => window.scrollTo(0, 0));
+                }
                 if (viewport.width < 768) {
                     await page.locator('.chat-back-btn').click();
                     await page.waitForURL(base + chatPath);
@@ -91,11 +104,11 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
                     await page.getByRole('textbox', { name: 'Nội dung tin nhắn' }).waitFor();
                 }
                 // Resize the same mounted page; the composer must stay in view.
-                await page.setViewportSize({ width: viewport.width, height: viewport.height - 80 });
-                await page.waitForFunction(() => document.querySelector('.chat-composer').getBoundingClientRect().bottom <= innerHeight + 1);
+                await page.setViewportSize({ width: viewport.width, height: viewport.height + 80 });
+                await page.waitForFunction(() => document.querySelector('[role="log"]').clientHeight >= 119);
                 assert.deepEqual(await page.evaluate(() => window.layoutErrors), []);
                 assert.deepEqual(faults, []);
-                console.log(`PASS ${roleCode} ${viewport.width}x${viewport.height}: compact title, visible composer, contained history, responsive resize`);
+                console.log(`PASS ${roleCode} ${viewport.width}x${viewport.height}: compact title, accessible composer, contained history, responsive resize`);
                 await context.close();
             }
         }

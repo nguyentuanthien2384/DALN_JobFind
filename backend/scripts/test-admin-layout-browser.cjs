@@ -74,9 +74,10 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
         await lastGroup.hover();
         const flyout = lastGroup.locator(':scope > .jf-submenu');
         await flyout.waitFor({ state: 'visible' });
+        assert.equal(await lastGroup.locator('.menu-title').evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)', 'Collapsed title retains readable contrast on hover');
         const assertFlyoutVisible = async () => {
             const box = await flyout.boundingBox();
-            assert.ok(box && box.x >= 69 && box.y >= 60 && box.y + box.height <= 720, 'Compact flyout must fit outside the sidebar scrollport');
+            assert.ok(box && box.x >= 69 && box.y >= 60 && box.y + box.height <= page.viewportSize().height, 'Compact flyout must fit outside the sidebar scrollport');
             assert.ok(await flyout.locator('a').first().isVisible(), 'Submenu links must not be clipped');
             assert.ok(await flyout.locator('a').first().evaluate(element => {
                 const bounds = element.getBoundingClientRect();
@@ -89,6 +90,13 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
         await assertFlyoutVisible();
         await page.keyboard.press('Tab');
         assert.ok(await flyout.evaluate(element => element.contains(document.activeElement)), 'Keyboard must reach submenu links');
+        await page.setViewportSize({ width: 1280, height: 500 });
+        await page.waitForFunction(() => {
+            const menu = document.querySelector('.jf-submenu:focus-within');
+            return menu && menu.getBoundingClientRect().bottom <= innerHeight;
+        });
+        await assertFlyoutVisible();
+        await page.setViewportSize({ width: 1280, height: 720 });
         await sidebar.evaluate(element => { element.scrollTop = 0; });
         await assertFlyoutVisible();
 

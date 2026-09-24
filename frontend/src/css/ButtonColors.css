@@ -1,0 +1,59 @@
+/* The public template sets every button's text to white, including native
+   buttons with a pale gray background. Give unthemed controls a readable
+   default. Low specificity lets each component keep its own semantic colors. */
+:root {
+    --jf-button-soft-bg: #e8f0ff;
+    --jf-button-soft-text: #173b75;
+    --jf-button-soft-border: #91aed1;
+    --jf-button-soft-hover-bg: #d3e2fa;
+    --jf-button-soft-hover-text: #102f62;
+    --jf-button-disabled-bg: #e7edf5;
+    --jf-button-disabled-text: #53647a;
+}
+
+button,
+input:where([type="button"], [type="submit"], [type="reset"]) {
+    color: var(--jf-button-soft-text);
+    background-color: var(--jf-button-soft-bg);
+    border-color: var(--jf-button-soft-border);
+}
+
+button:where(:hover, :active):where(:not(:disabled)),
+input:where([type="button"], [type="submit"], [type="reset"]):where(:hover, :active):where(:not(:disabled)) {
+    color: var(--jf-button-soft-hover-text);
+    background-color: var(--jf-button-soft-hover-bg);
+}
+
+button:where(:disabled),
+input:where([type="button"], [type="submit"], [type="reset"]):where(:disabled) {
+    color: var(--jf-button-disabled-text);
+    background-color: var(--jf-button-disabled-bg);
+    cursor: not-allowed;
+}
+
+button:focus-visible,
+input:where([type="button"], [type="submit"], [type="reset"]):focus-visible {
+    outline: 2px solid #245caa;
+    outline-offset: 2px;
+}
+
+/* Light/secondary Bootstrap controls also appear as links and in modals. */
+.btn:is(.btn-light, .btn-secondary, .btn-outline-secondary, .btn-outline-light) {
+    color: var(--jf-button-soft-text);
+    background: var(--jf-button-soft-bg);
+    border-color: var(--jf-button-soft-border);
+}
+.btn:is(.btn-light, .btn-secondary, .btn-outline-secondary, .btn-outline-light):is(:hover, :focus-visible, :active):not(:disabled):not(.disabled) {
+    color: var(--jf-button-soft-hover-text);
+    background: var(--jf-button-soft-hover-bg);
+    border-color: #3f6caa;
+}
+.btn:is(.btn-light, .btn-secondary, .btn-outline-secondary, .btn-outline-light):is(:disabled, .disabled) {
+    color: var(--jf-button-disabled-text);
+    background: var(--jf-button-disabled-bg);
+    opacity: 1;
+}
+/* The marketing theme's animated dark overlay belongs to primary buttons. */
+.btn:is(.btn-light, .btn-secondary, .btn-outline-secondary, .btn-outline-light)::before {
+    display: none;
+}

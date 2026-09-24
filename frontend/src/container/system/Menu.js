@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getListChatConversationService } from '../../service/userService';
 import { getSocket } from '../../socket';
 import { hasCompanyMembership, hasPermission, PERMISSIONS } from '../../auth/accessControl';
@@ -17,6 +17,11 @@ const positionCollapsedFlyout = (item) => {
     item.style.setProperty('--admin-flyout-header-height', `${bounds.height}px`);
 };
 const anchorFlyout = (event) => positionCollapsedFlyout(event.currentTarget);
+const refreshCollapsedFlyouts = (navigation) => {
+    if (!navigation) return;
+    positionCollapsedFlyout(navigation.querySelector(':scope > .nav > .nav-item:hover'));
+    positionCollapsedFlyout(navigation.querySelector(':scope > .nav > .nav-item:focus-within'));
+};
 
 /**
  * Menu khu quan tri.
@@ -175,6 +180,7 @@ const MENU_EMPLOYER = [
 
 const Menu = ({ user: suppliedUser }) => {
     const location = useLocation()
+    const navigationRef = useRef(null)
     const user = useMemo(
         () => suppliedUser || readJsonStorage('userData'),
         [suppliedUser]
@@ -183,6 +189,12 @@ const Menu = ({ user: suppliedUser }) => {
     const [openKey, setOpenKey] = useState(null)
     const canUseChat = hasPermission(user, PERMISSIONS.USE_CHAT)
     const canViewDashboard = hasPermission(user, PERMISSIONS.VIEW_ADMIN_HOME)
+
+    useEffect(() => {
+        const reposition = () => refreshCollapsedFlyouts(navigationRef.current);
+        window.addEventListener('resize', reposition);
+        return () => window.removeEventListener('resize', reposition);
+    }, []);
 
     // Dem tin nhan chua doc cho muc "Tin nhan".
     useEffect(() => {
@@ -255,11 +267,8 @@ const Menu = ({ user: suppliedUser }) => {
     const toggleNhom = (key) => setOpenKey(prev => (prev === key ? null : key))
 
     return (
-        <nav className="sidebar sidebar-offcanvas" id="sidebar" onScroll={(event) => {
-            const navigation = event.currentTarget;
-            positionCollapsedFlyout(navigation.querySelector(':scope > .nav > .nav-item:hover'));
-            positionCollapsedFlyout(navigation.querySelector(':scope > .nav > .nav-item:focus-within'));
-        }}>
+        <nav className="sidebar sidebar-offcanvas" id="sidebar" ref={navigationRef}
+            onScroll={(event) => refreshCollapsedFlyouts(event.currentTarget)}>
             <ul className="nav">
                 {canViewDashboard && (
                     <li className={'nav-item relative' + (dangOTrangChu ? ' active' : '')} onMouseEnter={anchorFlyout} onFocus={anchorFlyout}>

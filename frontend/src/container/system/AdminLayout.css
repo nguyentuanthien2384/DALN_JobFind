@@ -32,7 +32,7 @@
     .sidebar-icon-only .jf-admin { --admin-sidebar-width: 70px; }
     /* Fixed flyouts escape the menu's scrollport. Their viewport anchor is
        refreshed on hover, keyboard focus and menu scrolling. */
-    .sidebar-icon-only .jf-admin .sidebar > .nav > .nav-item:is(:hover, :focus-within) > .nav-link .menu-title {
+    .sidebar-icon-only .jf-admin nav.sidebar > ul.nav:not(.sub-menu) > .nav-item:is(:hover, :focus-within) > .nav-link .menu-title {
         display: flex;
         align-items: center;
         position: fixed;
@@ -42,7 +42,8 @@
         width: 190px;
         height: var(--admin-flyout-header-height, 44px);
         padding: 8px 16px;
-        color: #fff;
+        /* Expanded-menu hover colors use !important in the shared theme. */
+        color: #fff !important;
         z-index: 1000;
     }
     .sidebar-icon-only .jf-admin .sidebar > .nav > .nav-item:is(:hover, :focus-within) > .jf-submenu {
