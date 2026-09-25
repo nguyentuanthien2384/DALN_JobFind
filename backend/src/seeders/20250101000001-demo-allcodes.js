@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Seeder dữ liệu mẫu cho bảng `allcodes`, với cấp bậc tuyển dụng IT.
+ * Seeder dữ liệu mẫu cho bảng `allcodes` (53 bản ghi).
  * Được sinh tự động từ jobfindtest.sql.
  */
 module.exports = {
@@ -194,9 +194,9 @@ module.exports = {
     "image": ""
   },
   {
-    "code": "manager",
+    "code": "giam-doc",
     "type": "JOBLEVEL",
-    "value": "Manager",
+    "value": "Giám đốc",
     "image": ""
   },
   {
@@ -230,9 +230,9 @@ module.exports = {
     "image": null
   },
   {
-    "code": "junior",
+    "code": "nhan-vien",
     "type": "JOBLEVEL",
-    "value": "Junior",
+    "value": "Nhân viên",
     "image": ""
   },
   {
@@ -308,9 +308,9 @@ module.exports = {
     "image": ""
   },
   {
-    "code": "lead",
+    "code": "truong-phong",
     "type": "JOBLEVEL",
-    "value": "Lead",
+    "value": "Trưởng phòng",
     "image": ""
   },
   {
@@ -326,15 +326,7 @@ module.exports = {
     "image": null
   }
 ];
-    rows.push(...[
-      ['intern', 'Intern'], ['fresher', 'Fresher'], ['middle', 'Middle'], ['senior', 'Senior'],
-    ].map(([code, value]) => ({ code, type: 'JOBLEVEL', value, image: '' })));
-    // Migrations run before seeders on a fresh install and may have inserted these levels.
-    const existingLevels = await queryInterface.sequelize.query(
-      "SELECT code FROM Allcodes WHERE type = 'JOBLEVEL'", { type: Sequelize.QueryTypes.SELECT },
-    );
-    const existingCodes = new Set(existingLevels.map(row => row.code));
-    await queryInterface.bulkInsert('Allcodes', rows.filter(row => !existingCodes.has(row.code)), {});
+    await queryInterface.bulkInsert('Allcodes', rows, {});
   },
 
   async down(queryInterface, Sequelize) {

@@ -1,6 +1,6 @@
 import React from "react";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
-import { act, fireEvent, render as renderView, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render as renderView, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-toastify";
 import CommonUtils from "../../util/CommonUtils";
 import { getHistoryTradeCv, getHistoryTradePost, getSumByYearCv, getSumByYearPost } from "../../service/userService";
@@ -10,7 +10,6 @@ import ChartCv from "./Chart/ChartCv";
 import HistoryTradePost from "./HistoryTrade/HistoryTradePost";
 import HistoryTradeCv from "./HistoryTrade/HistoryTradeCv";
 import ReportDashboard from "./Report/ReportDashboard";
-import { invalidateReferenceData } from "../../service/referenceDataEvents";
 
 // CRA's Jest resolver predates React Router's /dom package export.
 jest.mock('react-router-dom', () => {
@@ -83,7 +82,7 @@ jest.mock("recharts", () => {
         LineChart: ({ data, children }) => <div data-testid="line-chart" data-series={JSON.stringify(data)}>{children}</div>,
         BarChart: ({ data, children }) => <div data-testid="bar-chart" data-series={JSON.stringify(data)}>{children}</div>,
         PieChart: passthrough,
-        Pie: ({ children, data }) => <div data-testid="pie-data" data-series={JSON.stringify(data)}>{children}</div>,
+        Pie: ({ children }) => <div>{children}</div>,
         Cell: () => <span />,
         Line: () => <span />,
         Bar: () => <span />,
@@ -277,9 +276,6 @@ const reportResponses = () => ({
         },
     },
     distribution: { errCode: 0, data: {
-        theoCapBac: ['Intern', 'Fresher', 'Junior', 'Middle', 'Senior', 'Lead', 'Manager'].map((ten, i) => ({
-            code: ten.toLowerCase(), ten, soLuong: [0, 0, 13, 0, 0, 4, 8][i],
-        })),
         theoNganhNghe: [{ ten: "IT", soLuong: 10 }],
         theoTinhThanh: [{ ten: "Hà Nội", soLuong: 8 }],
         theoVaiTro: [{ ten: "Ứng viên", soLuong: 50 }],
@@ -294,7 +290,6 @@ const reportResponses = () => ({
 describe("admin report dashboard", () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        getDistribution.mockReset();
         const response = reportResponses();
         getOverview.mockResolvedValue(response.overview);
         getTimeseries.mockResolvedValue(response.timeseries);
@@ -334,90 +329,5 @@ describe("admin report dashboard", () => {
         expect(toast.error).toHaveBeenCalledWith("Không tải được số liệu tổng quan");
         expect(screen.getByText("Chưa có dữ liệu trong khoảng thời gian này")).toBeInTheDocument();
         expect(screen.getByText("Chưa có hoạt động nào được ghi")).toBeInTheDocument();
-    });
-
-    it('charts levels instead of industries and includes levels with no published jobs', async () => {
-        render(<ReportDashboard />);
-        const panel = await screen.findByRole('region', { name: 'Tin theo cấp bậc' });
-        const levels = reportResponses().distribution.data.theoCapBac;
-        expect(screen.queryByText('Tin theo ngành nghề')).not.toBeInTheDocument();
-        expect(within(panel).queryByText('IT')).not.toBeInTheDocument();
-        expect(JSON.parse(within(panel).getByTestId('pie-data').getAttribute('data-series'))).toEqual(levels);
-        expect(within(panel).getAllByRole('listitem').map(item => item.textContent)).toEqual(
-            levels.map(level => `${level.ten}${level.soLuong}`)
-        );
-    });
-
-    it('refreshes a renamed level on catalog changes without resetting the report range', async () => {
-        render(<ReportDashboard />);
-        await screen.findByRole('region', { name: 'Tin theo cấp bậc' });
-        fireEvent.change(screen.getByRole('combobox'), { target: { value: '90' } });
-        await screen.findByRole('region', { name: 'Tin theo cấp bậc' });
-        const updated = reportResponses().distribution;
-        updated.data.theoCapBac[2].ten = 'Junior Developer';
-        getDistribution.mockResolvedValue(updated);
-        act(() => invalidateReferenceData());
-        expect(await screen.findByText('Junior Developer')).toBeInTheDocument();
-        expect(screen.queryByText('Junior')).not.toBeInTheDocument();
-        expect(screen.getByRole('combobox')).toHaveValue('90');
-        expect(getOverview).toHaveBeenCalledTimes(2);
-    });
-
-    it('ignores a distribution requested before a catalog update', async () => {
-        let resolveOld;
-        getDistribution.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
-        render(<ReportDashboard />);
-        await screen.findByRole('region', { name: 'Tin theo cấp bậc' });
-        const updated = reportResponses().distribution;
-        updated.data.theoCapBac[2].ten = 'Junior Developer';
-        getDistribution.mockResolvedValue(updated);
-        act(() => invalidateReferenceData());
-        await screen.findByText('Junior Developer');
-        await act(async () => { resolveOld(reportResponses().distribution); });
-        expect(screen.getByText('Junior Developer')).toBeInTheDocument();
-        expect(screen.queryByText('Junior')).not.toBeInTheDocument();
-    });
-
-    it('retains counts while offline, retries on reconnect, and polls without duplicate pending requests', async () => {
-        jest.useFakeTimers();
-        let view;
-        try {
-            view = render(<ReportDashboard />);
-            await act(async () => {});
-            getDistribution.mockRejectedValueOnce(new Error('offline'));
-            await act(async () => { window.dispatchEvent(new Event('focus')); });
-            expect(screen.getByRole('status')).toHaveTextContent('Hệ thống sẽ tự thử lại');
-            expect(screen.getByText('Junior')).toBeInTheDocument();
-            const updated = reportResponses().distribution;
-            updated.data.theoCapBac[2].soLuong = 14;
-            getDistribution.mockResolvedValue(updated);
-            await act(async () => { window.dispatchEvent(new Event('online')); });
-            expect(screen.queryByRole('status')).not.toBeInTheDocument();
-            expect(screen.getByRole('list', { name: 'Số tin theo cấp bậc' })).toHaveTextContent('Junior14');
-            let finish;
-            getDistribution.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
-            await act(async () => { jest.advanceTimersByTime(30000); });
-            const count = getDistribution.mock.calls.length;
-            await act(async () => { window.dispatchEvent(new Event('focus')); jest.advanceTimersByTime(30000); });
-            expect(getDistribution).toHaveBeenCalledTimes(count);
-            await act(async () => { finish(updated); });
-            view.unmount();
-            await act(async () => { jest.advanceTimersByTime(30000); window.dispatchEvent(new Event('online')); });
-            expect(getDistribution).toHaveBeenCalledTimes(count);
-        } finally {
-            view?.unmount();
-            jest.useRealTimers();
-        }
-    });
-
-    it('keeps zero-count levels in the legend when there are no published jobs', async () => {
-        const empty = reportResponses().distribution;
-        empty.data.theoCapBac.forEach(level => { level.soLuong = 0; });
-        getDistribution.mockResolvedValue(empty);
-        render(<ReportDashboard />);
-        const panel = await screen.findByRole('region', { name: 'Tin theo cấp bậc' });
-        expect(within(panel).getByText('Chưa có tin đang hiển thị')).toBeInTheDocument();
-        expect(within(panel).getAllByRole('listitem')).toHaveLength(7);
-        expect(within(panel).queryByTestId('pie-data')).not.toBeInTheDocument();
     });
 });

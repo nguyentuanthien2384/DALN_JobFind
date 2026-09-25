@@ -4,16 +4,13 @@ import Categories from '../../components/home/Categories'
 import FeatureJobs from '../../components/home/FeaturesJobs'
 import RecommendedJobs from '../../components/home/RecommendedJobs'
 import { getListPostService } from '../../service/userService'
-import useReferenceDataRevision from '../../util/useReferenceDataRevision'
 const Home = () => {
     const [dataFeature, setDataFeature] = useState([])
     const [dataHot,setDateHot] = useState([])
-    const referenceRevision = useReferenceDataRevision()
-    useEffect(() => {
-        let active = true
-        const filters = {
-            limit: 5,
-            offset: 0,
+    let loadPost = async (limit, offset) => {
+        let arrData = await getListPostService({
+            limit: limit,
+            offset: offset,
             categoryJobCode: '',
             addressCode: '',
             salaryJobCode: '',
@@ -21,19 +18,32 @@ const Home = () => {
             categoryWorktypeCode: '',
             experienceJobCode: '',
             sortName: false
+        })
+        let arrData2 = await getListPostService({
+            limit: limit,
+            offset: offset,
+            categoryJobCode: '',
+            addressCode: '',
+            salaryJobCode: '',
+            categoryJoblevelCode: '',
+            categoryWorktypeCode: '',
+            experienceJobCode: '',
+            sortName: false,
+            isHot: 1
+        })
+        if (arrData && arrData.errCode === 0) {
+            setDataFeature(arrData.data)
         }
-        const loadPosts = async (params, setPosts) => {
-            try {
-                const response = await getListPostService(params)
-                if (active) setPosts(response?.errCode === 0 ? response.data : [])
-            } catch {
-                if (active) setPosts([])
-            }
+        if (arrData2 && arrData2.errCode === 0) {
+            setDateHot(arrData2.data)
         }
-        loadPosts(filters, setDataFeature)
-        loadPosts({ ...filters, isHot: 1 }, setDateHot)
-        return () => { active = false }
-    }, [referenceRevision])
+    }
+    useEffect(() => {
+        let fetchPost = async () => {
+            await loadPost(5, 0)
+        }
+        fetchPost()
+    }, [])
     return (
         <>
             {/* <div id="preloader-active">

@@ -12,7 +12,6 @@ import moment from 'moment';
 import './ApplicationHistory.css';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
 import StableList from '../../components/common/StableList';
-import useReferenceDataRevision from '../../util/useReferenceDataRevision';
 
 function History({ user, token }) {
     const [rows,setRows] = useState([]), [count,setCount] = useState(0);
@@ -20,8 +19,7 @@ function History({ user, token }) {
     const [loading,setLoading] = useState(true), [error,setError] = useState(''), [refresh,setRefresh] = useState(0);
     const [progress,setProgress] = useState(new Map()), [progressError,setProgressError] = useState(''), [progressLoading,setProgressLoading] = useState(false);
     const [settledRequest,setSettledRequest] = useState(''), [rowsPage,setRowsPage] = useState(page);
-    const referenceRevision = useReferenceDataRevision();
-    const requestKey = JSON.stringify([user.id, token, page, refresh, referenceRevision]);
+    const requestKey = JSON.stringify([user.id, token, page, refresh]);
     const busy = loading || settledRequest !== requestKey;
     const enabled = applicationProgressEnabled() && user.roleCode === 'CANDIDATE';
     useEffect(() => {

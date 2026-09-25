@@ -1,6 +1,5 @@
 import moment from 'moment';
 import 'moment/locale/vi';
-import { canonicalJobLevel } from './jobLevels';
 
 // Specify the locale on each instance: other screens may change Moment's default.
 export const formatJobTime = value => {
@@ -20,7 +19,7 @@ const labels = {
     parttime: 'Bán thời gian',
     'part time': 'Bán thời gian',
     internship: 'Thực tập',
-    intern: 'Intern',
+    intern: 'Thực tập sinh',
     hybrid: 'Kết hợp tại văn phòng và từ xa',
     onsite: 'Làm việc tại văn phòng',
     'on-site': 'Làm việc tại văn phòng',
@@ -29,28 +28,15 @@ const labels = {
     negotiable: 'Thỏa thuận',
     'thoả thuận': 'Thỏa thuận',
     competitive: 'Cạnh tranh',
-    fresher: 'Fresher',
-    junior: 'Junior',
-    middle: 'Middle',
-    senior: 'Senior',
-    lead: 'Lead',
-    manager: 'Manager',
+    fresher: 'Mới tốt nghiệp',
+    junior: 'Nhân viên sơ cấp',
+    senior: 'Nhân viên cao cấp',
+    manager: 'Quản lý',
     director: 'Giám đốc',
     'team leader': 'Trưởng nhóm',
     staff: 'Nhân viên',
     employee: 'Nhân viên',
     'no experience': 'Không yêu cầu kinh nghiệm',
-};
-
-// Keep the IT career ladder in progression order in filters and posting forms.
-const jobLevelOrder = ['Intern', 'Fresher', 'Junior', 'Middle', 'Senior', 'Lead', 'Manager'];
-export const sortJobLevels = rows => {
-    const rank = row => {
-        const codeIndex = jobLevelOrder.findIndex(level => level.toLowerCase() === canonicalJobLevel(row.code));
-        const index = codeIndex < 0 ? jobLevelOrder.indexOf(jobLabel(row)) : codeIndex;
-        return index < 0 ? jobLevelOrder.length : index;
-    };
-    return [...rows].sort((a, b) => rank(a) - rank(b));
 };
 
 export const jobLabel = input => {

@@ -3,22 +3,18 @@ import {
     getDetailPostByIdService,
     getRelatedPostService,
 } from "../../service/userService";
-import { getReferenceDataRevision } from '../../service/referenceDataEvents';
 
 const DETAIL_CACHE_TTL = 60 * 1000;
 const detailCache = new Map();
 const pendingRequests = new Map();
 const detailVersions = new Map();
 let sessionToken;
-let referenceRevision;
 let cacheGeneration = 0;
 
 const currentGeneration = () => {
     const token = localStorage.getItem('token_user');
-    const revision = getReferenceDataRevision();
-    if (token !== sessionToken || revision !== referenceRevision) {
+    if (token !== sessionToken) {
         sessionToken = token;
-        referenceRevision = revision;
         cacheGeneration += 1;
         detailCache.clear();
         detailVersions.clear();
@@ -81,13 +77,10 @@ export const prefetchJobDetail = (id) => {
     return loadJobDetail(id).catch(() => null);
 };
 
-export const loadRelatedJobs = (id) => {
-    const generation = currentGeneration();
-    return requestOnce(
-        `related:${generation}:${String(id)}`,
-        () => getRelatedPostService({ postId: id, limit: 5 })
-    ).then(response => generation === currentGeneration() ? response : { stale: true });
-};
+export const loadRelatedJobs = (id) => requestOnce(
+    `related:${currentGeneration()}:${String(id)}`,
+    () => getRelatedPostService({ postId: id, limit: 5 })
+);
 
 export const loadFavoriteState = (postId, userId) => requestOnce(
     `favorite:${currentGeneration()}:${String(postId)}:${String(userId)}`,

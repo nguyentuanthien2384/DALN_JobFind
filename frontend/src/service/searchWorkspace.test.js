@@ -20,23 +20,6 @@ test.each([{}, {errCode:0,data:[],count:-1}, {errCode:0,data:[{...job,statusCode
     searchJobs.mockResolvedValue(response);await expect(loadSearchPage({},'core',{})).rejects.toThrow();expect(getListPostService).not.toHaveBeenCalled();
 });
 test('missing/failed reference labels display original code',async()=>{
-    getAllCodeService.mockRejectedValue(new Error('offline')); const { labels, failedTypes }=await loadSearchLabels();
+    getAllCodeService.mockRejectedValue(new Error('offline')); const labels=await loadSearchLabels();
     expect(searchCard(job,labels).postDetailData.salaryTypePostData.value).toBe('S1');
-    expect(failedTypes).toEqual(['JOBLEVEL', 'PROVINCE', 'SALARYTYPE', 'WORKTYPE']);
-});
-test('distinguishes a successful empty catalog from failed and obsolete reads', async () => {
-    getAllCodeService.mockImplementation(type => Promise.resolve(type === 'JOBLEVEL'
-        ? { errCode: 0, stale: true, data: [{ code: 'junior', value: 'Old label' }] }
-        : type === 'PROVINCE' ? { errCode: 503 }
-        : type === 'SALARYTYPE' ? { errCode: 0, data: [] }
-        : { errCode: 0, data: [{ code: 'REMOTE', value: 'Remote' }] }));
-    expect(await loadSearchLabels()).toEqual({
-        labels: { SALARYTYPE: {}, WORKTYPE: { REMOTE: 'Remote' } },
-        failedTypes: ['JOBLEVEL', 'PROVINCE'],
-    });
-});
-test('core cards preserve reference codes so renamed labels can be resolved after a catalog change', () => {
-    const card = searchCard({ ...job, categoryJoblevelCode: 'JUNIOR' }, { JOBLEVEL: { JUNIOR: 'Junior' } });
-    expect(card.postDetailData.jobLevelPostData).toEqual({ code: 'JUNIOR', value: 'Junior' });
-    expect(card.postDetailData.salaryTypePostData).toEqual({ code: 'S1', value: 'S1' });
 });

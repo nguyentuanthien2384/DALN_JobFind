@@ -17897,46 +17897,6 @@
               ],
               "additionalProperties": true
             }
-          },
-          "theoCapBac": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string",
-                  "maxLength": 64
-                },
-                "ten": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "maxLength": 255
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "soLuong": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "string",
-                      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
-                    }
-                  ]
-                }
-              },
-              "required": [
-                "code",
-                "ten",
-                "soLuong"
-              ],
-              "additionalProperties": true
-            }
           }
         },
         "required": [

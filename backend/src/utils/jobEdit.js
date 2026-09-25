@@ -3,7 +3,6 @@ import { assertTransactionalPostingTables, PostingQuotaError } from './postingQu
 import { isJobRevision, jobRevision } from './jobRevision';
 import { cancelLegacyModeration } from './moderationFence';
 import { enqueueLegacyJobUpdated } from './legacyOutbox';
-import { canonicalJobLevel } from './jobLevels';
 
 const fields = [
     'name', 'descriptionHTML', 'descriptionMarkdown', 'categoryJobCode', 'addressCode',
@@ -51,7 +50,6 @@ export const updateLegacyPost = async (data, identity = {}) => {
                 throw new PostingQuotaError('Không thể đổi ngày hết hạn khi sửa tin; vui lòng dùng chức năng Đăng lại');
             }
             const next = Object.fromEntries(fields.map(field => [field, field === 'amount' ? Number(data[field]) : data[field]]));
-            next.categoryJoblevelCode = canonicalJobLevel(next.categoryJoblevelCode);
             if (fields.every(field => next[field] === current[field])) {
                 return { errCode: 0, errMessage: 'Nội dung tin không thay đổi', changed: false, editRevision: jobRevision(post, current) };
             }

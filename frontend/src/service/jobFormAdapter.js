@@ -1,4 +1,3 @@
-import { canonicalJobLevel } from '../util/jobLevels';
 // One explicit mapping for flat Job Core data and nested legacy Sequelize data.
 // Raw codes take precedence, including null: a missing Allcode join must not
 // silently replace a stored code with the first option in a dropdown.
@@ -38,7 +37,7 @@ export const jobToForm = job => {
         ...Object.fromEntries(strings.map(field => [field, typeof detail[field] === 'string' ? detail[field] : ''])),
         ...Object.fromEntries(JOB_CLASSIFICATIONS.map(([form, raw, relation]) => {
             const value = own(detail, raw) ? detail[raw] : detail[relation]?.code;
-            return [form, typeof value === 'string' ? (raw === 'categoryJoblevelCode' ? canonicalJobLevel(value) : value) : ''];
+            return [form, typeof value === 'string' ? value : ''];
         })),
         amount: detail.amount == null ? '' : String(detail.amount),
         timeEnd: job.timeEnd ?? '', id: job.id, isHot: hotFlag(job.isHot),
@@ -61,8 +60,7 @@ export const jobStatusLabel = code => own(statusLabels, code) ? statusLabels[cod
 
 const formDetail = form => ({
     ...Object.fromEntries(strings.map(field => [field, form[field] ?? ''])),
-    ...Object.fromEntries(JOB_CLASSIFICATIONS.map(([field, raw]) => [raw, form[field] === '' || form[field] == null ? null
-        : raw === 'categoryJoblevelCode' ? canonicalJobLevel(form[field]) : form[field]])),
+    ...Object.fromEntries(JOB_CLASSIFICATIONS.map(([field, raw]) => [raw, form[field] === '' || form[field] == null ? null : form[field]])),
     amount: form.amount
 });
 

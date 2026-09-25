@@ -11,7 +11,6 @@ import MarkdownIt from "markdown-it";
 import MdEditor from "react-markdown-editor-lite";
 import "react-markdown-editor-lite/lib/index.css";
 import { useFetchAllcode } from "../../../util/fetch";
-import { canonicalJobLevel } from '../../../util/jobLevels';
 import { useNavigate, useParams } from "react-router-dom";
 import { Spinner, Modal } from "reactstrap";
 import { jobToForm, jobDeadlineDate, jobClassificationOptions, jobStatusLabel, isJobRevision, buildJobCreate, buildJobUpdate } from "../../../service/jobFormAdapter";
@@ -813,7 +812,7 @@ const AddPost = () => {
                                     <div className="col-md-6">
                                         <div className="form-group row">
                                             <label className="col-sm-3 col-form-label">
-                                                Cấp bậc
+                                                Chức vụ
                                             </label>
                                             <div className="col-sm-9">
                                                 <select
@@ -826,14 +825,14 @@ const AddPost = () => {
                                                     style={{ color: "black" }}
                                                     className="form-control"
                                                     value={
-                                                        canonicalJobLevel(inputValues.categoryJoblevelCode)
+                                                        inputValues.categoryJoblevelCode
                                                     }
                                                     name="categoryJoblevelCode"
                                                     onChange={(event) =>
                                                         handleOnChange(event)
                                                     }
                                                 >
-                                                    {jobClassificationOptions(dataJobLevel, canonicalJobLevel(inputValues.categoryJoblevelCode)).map(
+                                                    {jobClassificationOptions(dataJobLevel, inputValues.categoryJoblevelCode).map(
                                                             (item, index) => {
                                                                 return (
                                                                     <option

@@ -17,7 +17,7 @@ const qs = (params = {}) => {
 const getOverview = (params) => axios.get(`/api/admin/reports/overview${qs(params)}`);
 // Chuoi thoi gian de ve bieu do duong.
 const getTimeseries = (params) => axios.get(`/api/admin/reports/timeseries${qs(params)}`);
-// Phan bo theo cap bac / nganh nghe / tinh thanh / muc luong / vai tro.
+// Phan bo theo nganh nghe / tinh thanh / muc luong / vai tro.
 const getDistribution = () => axios.get(`/api/admin/reports/distribution`);
 // Pheu tuyen dung toan he thong.
 const getSystemFunnel = () => axios.get(`/api/admin/reports/funnel`);

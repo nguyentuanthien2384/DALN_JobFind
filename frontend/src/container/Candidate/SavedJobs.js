@@ -11,7 +11,6 @@ import {
 import CommonUtils from "../../util/CommonUtils";
 import useListQuery, { clampListPage } from '../../util/useListQuery';
 import StableList from '../../components/common/StableList';
-import useReferenceDataRevision from '../../util/useReferenceDataRevision';
 
 const SavedJobs = () => {
     const [dataFavorite, setDataFavorite] = useState([]);
@@ -21,8 +20,7 @@ const SavedJobs = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [settledRequest, setSettledRequest] = useState('');
-    const referenceRevision = useReferenceDataRevision();
-    const requestKey = JSON.stringify([numberPage, refresh, referenceRevision]);
+    const requestKey = JSON.stringify([numberPage, refresh]);
     const busy = loading || settledRequest !== requestKey;
     const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
 

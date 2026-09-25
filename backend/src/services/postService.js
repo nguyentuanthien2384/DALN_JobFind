@@ -7,7 +7,6 @@ import { enqueueLegacyJobCreated } from '../utils/legacyOutbox';
 import { repostLegacyPost } from '../utils/jobRepost';
 import { LegacyJobRequestError, runLegacyCreateRequest } from '../utils/legacyJobRequest';
 import { APPROVED_COMPANY_WHERE } from '../utils/publicResources';
-import { canonicalJobLevel } from '../utils/jobLevels';
 const { Op, where, cast, col } = require("sequelize");
 require('dotenv').config();
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
@@ -77,7 +76,7 @@ let handleCreateNewPost = async (data, identity = {}) => {
                 addressCode: data.addressCode,
                 salaryJobCode: data.salaryJobCode,
                 amount: data.amount,
-                categoryJoblevelCode: canonicalJobLevel(data.categoryJoblevelCode),
+                categoryJoblevelCode: data.categoryJoblevelCode,
                 categoryWorktypeCode: data.categoryWorktypeCode,
                 experienceJobCode: data.experienceJobCode,
                 genderPostCode: data.genderPostCode
@@ -424,8 +423,8 @@ let getFilterPost = (data) => {
                     })
                 let queryJobLevel = ''
                 if (data.categoryJoblevelCode !== '')
-                    queryJobLevel = [...new Set(data.categoryJoblevelCode.split(',').map(canonicalJobLevel))].map(code => {
-                        return { categoryJoblevelCode: code }
+                    queryJobLevel = data.categoryJoblevelCode.split(',').map((data, index) => {
+                        return { categoryJoblevelCode: data }
                     })
                 objectFilter = {
                     where: {

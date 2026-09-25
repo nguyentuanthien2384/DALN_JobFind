@@ -1,7 +1,6 @@
 import React from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { getListPostService } from "../../service/userService";
-import { invalidateReferenceData } from '../../service/referenceDataEvents';
 import Home from "./home";
 
 jest.mock("../../service/userService", () => ({
@@ -64,11 +63,9 @@ describe("public Home page", () => {
             ...baseQuery,
             isHot: 1,
         });
-        await waitFor(() => {
-            const sections = screen.getAllByTestId("feature-jobs");
-            expect(sections[0]).toHaveTextContent("Hot job");
-            expect(sections[1]).toHaveTextContent("Newest job");
-        });
+        const sections = screen.getAllByTestId("feature-jobs");
+        expect(sections[0]).toHaveTextContent("Hot job");
+        expect(sections[1]).toHaveTextContent("Newest job");
     });
 
     it("keeps each job section empty when its corresponding request fails", async () => {
@@ -82,20 +79,5 @@ describe("public Home page", () => {
         screen.getAllByTestId("feature-jobs").forEach((section) => {
             expect(section).toBeEmptyDOMElement();
         });
-    });
-
-    it('reloads both sections after a catalog change and ignores older pending responses', async () => {
-        const pending = [];
-        getListPostService.mockImplementationOnce(() => new Promise(resolve => pending.push(resolve)))
-            .mockImplementationOnce(() => new Promise(resolve => pending.push(resolve)))
-            .mockResolvedValueOnce({ errCode: 0, data: [{ name: 'Latest Middle job' }] })
-            .mockResolvedValueOnce({ errCode: 0, data: [{ name: 'Featured Senior job' }] });
-        render(<Home />);
-        act(() => invalidateReferenceData());
-        await screen.findByText('Latest Middle job');
-        expect(screen.getByText('Featured Senior job')).toBeInTheDocument();
-        await act(async () => pending.forEach(resolve => resolve({ errCode: 0, data: [{ name: 'Old level job' }] })));
-        expect(screen.queryByText('Old level job')).not.toBeInTheDocument();
-        expect(getListPostService).toHaveBeenCalledTimes(4);
     });
 });

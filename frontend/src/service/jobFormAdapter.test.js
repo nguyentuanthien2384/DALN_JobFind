@@ -6,13 +6,6 @@ const flat = () => ({ id: 12, name: 'Developer', descriptionHTML: '<p>Work</p>',
     categoryJoblevelCode: null, categoryWorktypeCode: null, experienceJobCode: null,
     timeEnd: '1700000000000', statusCode: 'PS3', isHot: 1, editRevision: 'jv1-' + 'a'.repeat(64) });
 const future = () => new Date(Date.now() + 86400000);
-
-test.each([['nhan-vien', 'junior'], ['truong-phong', 'lead'], ['giam-doc', 'manager']])(
-    'migrates saved level %s in form data and unsent create drafts', (oldCode, currentCode) => {
-        expect(jobToForm({ ...flat(), categoryJoblevelCode: oldCode }).categoryJoblevelCode).toBe(currentCode);
-        expect(buildJobCreate({ ...jobToForm(flat()), categoryJoblevelCode: oldCode }, future()).categoryJoblevelCode).toBe(currentCode);
-    },
-);
 test('maps flat and nested legacy records to exactly the same form without mutating either', () => {
     const job = flat(), nested = { id: job.id, timeEnd: job.timeEnd, isHot: job.isHot, statusCode: job.statusCode, editRevision: job.editRevision,
         postDetailData: { name: job.name, descriptionHTML: job.descriptionHTML, descriptionMarkdown: job.descriptionMarkdown, amount: job.amount,

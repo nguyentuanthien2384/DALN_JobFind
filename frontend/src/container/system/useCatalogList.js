@@ -3,11 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
 import { PAGINATION } from '../../util/constant';
 import CommonUtils from '../../util/CommonUtils';
-import useReferenceDataRevision from '../../util/useReferenceDataRevision';
 
 // Catalogs and package lists share the same URL-backed paging behavior.
 export default function useCatalogList(fetchList, { type, withCategory = false } = {}) {
-    const referenceRevision = useReferenceDataRevision();
     const [query, setQuery] = useListQuery({
         page: 0,
         search: '',
@@ -54,7 +52,7 @@ export default function useCatalogList(fetchList, { type, withCategory = false }
         };
         load();
         return () => { active = false; };
-    }, [fetchList, type, withCategory, categoryJobCode, page, search, revision, referenceRevision, setQuery, setLoading]);
+    }, [fetchList, type, withCategory, categoryJobCode, page, search, revision, setQuery, setLoading]);
 
     const refresh = useCallback(() => setRevision(value => value + 1), []);
     const handleChangePage = ({ selected }) => setQuery({ page: selected });

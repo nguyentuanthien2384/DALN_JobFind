@@ -45,14 +45,6 @@ beforeEach(() => {
 });
 
 describe('published search consumer contracts', () => {
-    it.each([
-        ['nhan-vien', { term: { categoryJoblevelCode: 'junior' } }],
-        [['truong-phong', 'lead', 'giam-doc', 'intern'], { terms: { categoryJoblevelCode: ['lead', 'manager', 'intern'] } }],
-    ])('keeps old bookmarked job level filter %j compatible with canonical index codes', async (categoryJoblevelCode, expected) => {
-        const { searchJobs } = await import('../search-service/src/controllers/searchController.js');
-        await searchJobs(makeReq({ query: { categoryJoblevelCode } }), makeRes());
-        expect(mocks.es.search.mock.lastCall[0].query.bool.filter).toContainEqual(expected);
-    });
     it('combines OR within multi-value filters and AND across filters, requests an exact count', async () => {
         const { searchJobs } = await import('../search-service/src/controllers/searchController.js');
         const res = makeRes();

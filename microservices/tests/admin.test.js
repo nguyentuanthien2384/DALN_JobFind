@@ -269,26 +269,13 @@ describe('admin reporting controller', () => {
         expect(failed.statusCode).toBe(500);
     });
 
-    it('adds job levels without changing existing distribution datasets and handles failures', async () => {
-        const datasets = [
-            [{ ten: 'IT', soLuong: 4 }], [{ ten: 'HN', soLuong: 4 }],
-            [{ ten: 'High', soLuong: 4 }], [{ ten: 'Admin', soLuong: 1 }],
-            [{ code: 'intern', ten: 'Intern', soLuong: 0 }, { code: 'junior', ten: 'Junior Developer', soLuong: 4 }]
-        ];
+    it('returns four distribution datasets and handles failures', async () => {
+        const datasets = [[{ ten: 'IT' }], [{ ten: 'HN' }], [{ ten: 'High' }], [{ ten: 'Admin' }]];
         datasets.forEach((x) => mocks.mysqlPool.query.mockResolvedValueOnce([x]));
         const { distribution } = await import('../admin-service/src/controllers/reportController.js');
         const res = makeRes();
         await distribution(makeReq(), res);
-        expect(res.body.data).toEqual({ theoNganhNghe: datasets[0], theoTinhThanh: datasets[1], theoMucLuong: datasets[2], theoVaiTro: datasets[3], theoCapBac: datasets[4] });
-        expectResponseContract('reportDistribution', res);
-        const levelsSql = mocks.mysqlPool.query.mock.calls[4][0].replace(/\s+/g, ' ');
-        expect(levelsSql).toContain('c.value AS ten, COUNT(p.id) AS soLuong');
-        expect(levelsSql).toContain('FROM allcodes c LEFT JOIN detailposts d ON d.categoryJoblevelCode = c.code');
-        expect(levelsSql).toContain("LEFT JOIN posts p ON p.detailPostId = d.id AND p.statusCode = 'PS1' WHERE c.type = 'JOBLEVEL'");
-        expect(levelsSql).toContain("WHEN 'intern' THEN 0 WHEN 'fresher' THEN 1 WHEN 'junior' THEN 2 WHEN 'middle' THEN 3 WHEN 'senior' THEN 4 WHEN 'lead' THEN 5 WHEN 'manager' THEN 6 ELSE 7 END");
-        // Older report responses remain valid during a rolling deployment.
-        delete res.body.data.theoCapBac;
-        expectResponseContract('reportDistribution', res);
+        expect(res.body.data).toEqual({ theoNganhNghe: datasets[0], theoTinhThanh: datasets[1], theoMucLuong: datasets[2], theoVaiTro: datasets[3] });
         mocks.mysqlPool.query.mockRejectedValue(new Error('db'));
         const failed = makeRes();
         await distribution(makeReq(), failed);

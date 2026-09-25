@@ -10,7 +10,6 @@ import {
 import JobDetail from "./JobDetail";
 import { clearJobDetailResourceCache } from "./jobDetailResource";
 import { readApplicationIntent, rememberApplicationIntent } from '../../auth/applicationIntent';
-import { invalidateReferenceData } from '../../service/referenceDataEvents';
 
 const mockNavigate = jest.fn();
 let mockPostId = "42";
@@ -142,29 +141,6 @@ describe("JobDetail", () => {
         expect(screen.getByRole('heading', { name: 'Yêu cầu ứng viên' })).toBeInTheDocument();
         expect(screen.getByText('Làm việc Hybrid')).toBeInTheDocument();
         expect(screen.getByRole('progressbar')).toHaveAccessibleName('Thời gian tuyển dụng đã qua');
-    });
-
-    it('refreshes a renamed level and related jobs without resetting scroll on the open detail page', async () => {
-        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: {
-            ...post, postDetailData: { ...post.postDetailData, jobLevelPostData: { code: 'LEVEL', value: 'Junior' } }
-        } });
-        getRelatedPostService.mockResolvedValueOnce({ errCode: 0, data: [related] });
-        render(<JobDetail />);
-        await screen.findByText('Junior');
-        window.scrollTo.mockClear();
-        getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: {
-            ...post, postDetailData: { ...post.postDetailData, jobLevelPostData: { code: 'LEVEL', value: 'Middle' } }
-        } });
-        getRelatedPostService.mockResolvedValueOnce({ errCode: 0, data: [{
-            ...related, postDetailData: { ...related.postDetailData, salaryTypePostData: { value: '35 triệu' } }
-        }] });
-        act(() => invalidateReferenceData());
-        await screen.findByText('Middle');
-        expect(screen.queryByText('Junior')).not.toBeInTheDocument();
-        expect(screen.getByText('Đà Nẵng · 35 triệu')).toBeInTheDocument();
-        expect(getDetailPostByIdService).toHaveBeenCalledTimes(2);
-        expect(getRelatedPostService).toHaveBeenCalledTimes(2);
-        expect(window.scrollTo).not.toHaveBeenCalled();
     });
 
     it("refreshes totals only after a successful application from the second CTA", async () => {

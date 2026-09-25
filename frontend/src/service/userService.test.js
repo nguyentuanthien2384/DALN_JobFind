@@ -1,7 +1,5 @@
 import axios from "../axios";
 import * as service from "./userService";
-import { getReferenceDataRevision, invalidateReferenceData, subscribeReferenceDataChanges,
-    REFERENCE_DATA_STORAGE_KEY } from './referenceDataEvents';
 
 jest.mock("../axios", () => ({
     __esModule: true,
@@ -14,47 +12,6 @@ jest.mock("../axios", () => ({
 }));
 
 describe("userService", () => {
-    test('only successful catalog writes invalidate consumers and other tabs', async () => {
-        const listener = jest.fn();
-        const unsubscribe = subscribeReferenceDataChanges(listener);
-        try {
-            axios.put.mockResolvedValueOnce({ errCode: 2 });
-            await service.UpdateAllcodeService({ code: 'junior', value: 'Junior Developer' });
-            expect(listener).not.toHaveBeenCalled();
-            await service.UpdateAllcodeService({ code: 'junior', value: 'Junior Developer' });
-            expect(listener).toHaveBeenCalledTimes(1);
-            expect(localStorage.getItem(REFERENCE_DATA_STORAGE_KEY)).toBeTruthy();
-            await service.createAllCodeService({ code: 'principal', value: 'Principal', type: 'JOBLEVEL' });
-            await service.DeleteAllcodeService('principal');
-            expect(listener).toHaveBeenCalledTimes(3);
-        } finally { unsubscribe(); }
-    });
-
-    test('detects changed catalog data while ignoring reordering and stale responses', async () => {
-        invalidateReferenceData();
-        const rows = [{ code: 'junior', value: 'Junior' }, { code: 'senior', value: 'Senior' }];
-        const start = getReferenceDataRevision();
-        axios.get.mockResolvedValueOnce({ errCode: 0, data: rows })
-            .mockResolvedValueOnce({ errCode: 0, data: [...rows].reverse() })
-            .mockResolvedValueOnce({ errCode: 0, data: [{ ...rows[0], value: 'Junior Developer' }, rows[1]] });
-        await service.getAllCodeService('JOBLEVEL');
-        await service.getAllCodeService('JOBLEVEL');
-        expect(getReferenceDataRevision()).toBe(start);
-        await service.getAllCodeService('JOBLEVEL');
-        expect(getReferenceDataRevision()).toBe(start + 1);
-        let finish;
-        axios.get.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
-        const pending = service.getAllCodeService('JOBLEVEL');
-        invalidateReferenceData();
-        finish({ errCode: 0, data: rows });
-        expect(await pending).toMatchObject({ stale: true });
-    });
-
-    test('receives catalog invalidation from another tab', () => {
-        const revision = getReferenceDataRevision();
-        window.dispatchEvent(new StorageEvent('storage', { key: REFERENCE_DATA_STORAGE_KEY, newValue: 'changed' }));
-        expect(getReferenceDataRevision()).toBe(revision + 1);
-    });
     test('repost forwards the stable key with bounded transport and never retries a lost response', async () => {
         const signal = new AbortController().signal, payload = { postId: 55, timeEnd: 1924992000000 };
         axios.post.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });

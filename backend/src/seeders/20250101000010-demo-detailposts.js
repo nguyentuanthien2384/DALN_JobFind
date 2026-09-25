@@ -17,7 +17,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "ca-hai"
@@ -31,7 +31,7 @@ module.exports = {
     "addressCode": "Cao Bằng",
     "salaryJobCode": "3-5tr",
     "amount": 4,
-    "categoryJoblevelCode": "junior",
+    "categoryJoblevelCode": "nhan-vien",
     "categoryWorktypeCode": "part-time",
     "experienceJobCode": "3nam",
     "genderPostCode": "nam-post"
@@ -45,7 +45,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 5,
-    "categoryJoblevelCode": "lead",
+    "categoryJoblevelCode": "truong-phong",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "nu-post"
@@ -59,7 +59,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "ca-hai"
@@ -73,7 +73,7 @@ module.exports = {
     "addressCode": "Cao Bằng",
     "salaryJobCode": "3-5tr",
     "amount": 4,
-    "categoryJoblevelCode": "junior",
+    "categoryJoblevelCode": "nhan-vien",
     "categoryWorktypeCode": "part-time",
     "experienceJobCode": "3nam",
     "genderPostCode": "nam-post"
@@ -87,7 +87,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 5,
-    "categoryJoblevelCode": "lead",
+    "categoryJoblevelCode": "truong-phong",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "nu-post"
@@ -101,7 +101,7 @@ module.exports = {
     "addressCode": "An Giang",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "1-nam",
     "genderPostCode": "ca-hai"
@@ -115,7 +115,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "ca-hai"
@@ -129,7 +129,7 @@ module.exports = {
     "addressCode": "Cao Bằng",
     "salaryJobCode": "3-5tr",
     "amount": 4,
-    "categoryJoblevelCode": "junior",
+    "categoryJoblevelCode": "nhan-vien",
     "categoryWorktypeCode": "part-time",
     "experienceJobCode": "3nam",
     "genderPostCode": "nam-post"
@@ -143,7 +143,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 5,
-    "categoryJoblevelCode": "lead",
+    "categoryJoblevelCode": "truong-phong",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "nu-post"
@@ -157,7 +157,7 @@ module.exports = {
     "addressCode": "An Giang",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "1-nam",
     "genderPostCode": "ca-hai"
@@ -171,7 +171,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "ca-hai"
@@ -185,7 +185,7 @@ module.exports = {
     "addressCode": "Cao Bằng",
     "salaryJobCode": "3-5tr",
     "amount": 4,
-    "categoryJoblevelCode": "junior",
+    "categoryJoblevelCode": "nhan-vien",
     "categoryWorktypeCode": "part-time",
     "experienceJobCode": "3nam",
     "genderPostCode": "nam-post"
@@ -199,7 +199,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 5,
-    "categoryJoblevelCode": "lead",
+    "categoryJoblevelCode": "truong-phong",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "nu-post"
@@ -213,7 +213,7 @@ module.exports = {
     "addressCode": "An Giang",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "1-nam",
     "genderPostCode": "ca-hai"
@@ -227,7 +227,7 @@ module.exports = {
     "addressCode": "An Giang",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "1-nam",
     "genderPostCode": "ca-hai"
@@ -241,7 +241,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "ca-hai"
@@ -255,7 +255,7 @@ module.exports = {
     "addressCode": "Cao Bằng",
     "salaryJobCode": "3-5tr",
     "amount": 4,
-    "categoryJoblevelCode": "junior",
+    "categoryJoblevelCode": "nhan-vien",
     "categoryWorktypeCode": "part-time",
     "experienceJobCode": "3nam",
     "genderPostCode": "nam-post"
@@ -269,7 +269,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 5,
-    "categoryJoblevelCode": "lead",
+    "categoryJoblevelCode": "truong-phong",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "nu-post"
@@ -283,7 +283,7 @@ module.exports = {
     "addressCode": "An Giang",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "1-nam",
     "genderPostCode": "ca-hai"
@@ -297,7 +297,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "ca-hai"
@@ -311,7 +311,7 @@ module.exports = {
     "addressCode": "Cao Bằng",
     "salaryJobCode": "3-5tr",
     "amount": 4,
-    "categoryJoblevelCode": "junior",
+    "categoryJoblevelCode": "nhan-vien",
     "categoryWorktypeCode": "part-time",
     "experienceJobCode": "3nam",
     "genderPostCode": "nam-post"
@@ -325,7 +325,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 5,
-    "categoryJoblevelCode": "lead",
+    "categoryJoblevelCode": "truong-phong",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "nu-post"
@@ -339,7 +339,7 @@ module.exports = {
     "addressCode": "An Giang",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "1-nam",
     "genderPostCode": "ca-hai"
@@ -353,7 +353,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "ca-hai"
@@ -367,7 +367,7 @@ module.exports = {
     "addressCode": "Cao Bằng",
     "salaryJobCode": "3-5tr",
     "amount": 4,
-    "categoryJoblevelCode": "junior",
+    "categoryJoblevelCode": "nhan-vien",
     "categoryWorktypeCode": "part-time",
     "experienceJobCode": "3nam",
     "genderPostCode": "nam-post"
@@ -381,7 +381,7 @@ module.exports = {
     "addressCode": "Bến Tre",
     "salaryJobCode": "thoa-thuan",
     "amount": 5,
-    "categoryJoblevelCode": "lead",
+    "categoryJoblevelCode": "truong-phong",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "3nam",
     "genderPostCode": "nu-post"
@@ -395,7 +395,7 @@ module.exports = {
     "addressCode": "An Giang",
     "salaryJobCode": "thoa-thuan",
     "amount": 3,
-    "categoryJoblevelCode": "manager",
+    "categoryJoblevelCode": "giam-doc",
     "categoryWorktypeCode": "fulltime",
     "experienceJobCode": "1-nam",
     "genderPostCode": "ca-hai"

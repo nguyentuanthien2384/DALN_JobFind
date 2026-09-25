@@ -1,5 +1,4 @@
 import axios from "../axios";
-import { getReferenceDataRevision, invalidateReferenceData, observeReferenceData } from './referenceDataEvents';
 
 
 //==================USER==========================//
@@ -64,12 +63,9 @@ const UpdateUserSettingService = (data) => {
 }
 
 //===============ALL CODE========================//
-const getAllCodeService = async (type) => {
-    const revision = getReferenceDataRevision();
-    const response = await axios.get(`/api/get-all-code?type=${type}`);
-    if (response?.errCode === 0 && Array.isArray(response.data)
-        && !observeReferenceData(type, response.data, revision)) return { ...response, stale: true };
-    return response;
+const getAllCodeService = (type) => {
+    return axios.get(`/api/get-all-code?type=${type}`)
+
 }
 const getListAllCodeService = (data) => {
     return axios.get(`/api/get-list-allcode?type=${data.type}&limit=${data.limit}&offset=${data.offset}&search=${data.search}`)
@@ -81,13 +77,9 @@ const getListJobTypeAndCountPost = (data) => {
 
 }
 
-const publishCatalogChange = async request => {
-    const response = await request;
-    if (response?.errCode === 0 && !(response.httpStatus >= 400)) invalidateReferenceData();
-    return response;
-};
 const createAllCodeService = (data) => {
-    return publishCatalogChange(axios.post(`/api/create-new-all-code`, data));
+    return axios.post(`/api/create-new-all-code`, data)
+
 }
 
 const getDetailAllcodeByCode = (code) => {
@@ -95,14 +87,15 @@ const getDetailAllcodeByCode = (code) => {
 
 }
 const UpdateAllcodeService = (data) => {
-    return publishCatalogChange(axios.put(`/api/update-all-code`, data));
+    return axios.put(`/api/update-all-code`, data)
+
 }
 const DeleteAllcodeService = (allcodeId) => {
-    return publishCatalogChange(axios.delete(`/api/delete-all-code`, {
+    return axios.delete(`/api/delete-all-code`, {
         data: {
             code: allcodeId
         }
-    }));
+    })
 }
 
 const getListSkill = (data) => {

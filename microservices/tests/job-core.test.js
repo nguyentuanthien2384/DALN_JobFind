@@ -80,12 +80,11 @@ describe('job write controller', () => {
         const res = makeRes();
         await createJob(makeReq({
             headers: { 'x-user-id': '7', 'x-company-id': '3' },
-            body: { name: 'Node Dev', descriptionHTML: '<p>Build</p>', categoryJobCode: 'IT', categoryJoblevelCode: 'nhan-vien', amount: 0, isHot: true }
+            body: { name: 'Node Dev', descriptionHTML: '<p>Build</p>', categoryJobCode: 'IT', amount: 0, isHot: true }
         }), res);
         expect(conn.query).toHaveBeenCalledTimes(8);
         expect(conn.query.mock.calls[3][0]).toContain('allowHotPost = allowHotPost - 1');
         expect(conn.query.mock.calls[4][1][6]).toBe(1);
-        expect(conn.query.mock.calls[4][1][7]).toBe('junior');
         expect(conn.query.mock.calls[5][1][0]).toBe('PS3');
         expect(conn.query.mock.calls[6][0]).toContain('LOCK IN SHARE MODE');
         expect(mocks.enqueueOutboxEvent).toHaveBeenNthCalledWith(1, conn, expect.objectContaining({

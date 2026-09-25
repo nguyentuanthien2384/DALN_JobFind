@@ -12,7 +12,6 @@ import { getCachedJobDetail, invalidateJobDetail, loadFavoriteState, loadJobDeta
 import { getJobSections, jobTimestamp } from './jobDescription';
 import './JobDetail.css';
 import { jobLabel } from '../../util/jobLocale';
-import useReferenceDataRevision from '../../util/useReferenceDataRevision';
 
 const paths = {
     pin: 'M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
@@ -49,7 +48,6 @@ const label = jobLabel;
 const EMPTY_DETAIL = {};
 
 export default function JobDetail() {
-    const referenceRevision = useReferenceDataRevision();
     const { id } = useParams();
     const navigate = useNavigate();
     const session = useContext(SessionContext);
@@ -101,7 +99,7 @@ export default function JobDetail() {
             if (active && response?.errCode === 0) setRelated(response.data || []);
         }).catch(() => { if (active) setRelated([]); });
         return () => { active = false; };
-    }, [id, retry, token, referenceRevision]);
+    }, [id, retry, token]);
 
     useEffect(() => {
         let active = true;

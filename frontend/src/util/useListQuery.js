@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { canonicalJobLevelFilter } from './jobLevels';
 
 // Combine updates from independent lists in the same browser event/React commit.
 const pendingSearches = new WeakMap();
@@ -25,10 +24,8 @@ function readValue(raw, fallback, key) {
 
 export function readListQuery(search, defaults, prefix = '') {
     const params = new URLSearchParams(search);
-    return Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => {
-        const value = readValue(params.get(`${prefix}${key}`), fallback, key);
-        return [key, key === 'categoryJoblevelCode' ? canonicalJobLevelFilter(value) : value];
-    }));
+    return Object.fromEntries(Object.entries(defaults).map(([key, fallback]) =>
+        [key, readValue(params.get(`${prefix}${key}`), fallback, key)]));
 }
 
 export function clampListPage(page, total, pageSize) {

@@ -2,32 +2,26 @@ import React from "react";
 import { useEffect, useState } from "react";
 import FeatureJobs from "./FeaturesJobs";
 import { getRecommendedPostService } from "../../service/userService";
-import useReferenceDataRevision from '../../util/useReferenceDataRevision';
 
 const RecommendedJobs = () => {
     const [dataRecommend, setDataRecommend] = useState([]);
     const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
-    const referenceRevision = useReferenceDataRevision();
 
     useEffect(() => {
-        let active = true;
         const fetchRecommend = async () => {
-            try {
-                const res = await getRecommendedPostService({
-                    userId: userData.id,
-                    limit: 5,
-                });
-                if (active) setDataRecommend(res?.errCode === 0 ? res.data : []);
-            } catch {
-                if (active) setDataRecommend([]);
+            const res = await getRecommendedPostService({
+                userId: userData.id,
+                limit: 5,
+            });
+            if (res && res.errCode === 0) {
+                setDataRecommend(res.data);
             }
         };
 
         if (userData && userData.roleCode === "CANDIDATE") {
             fetchRecommend();
         }
-        return () => { active = false; };
-    }, [userData, referenceRevision]);
+    }, [userData]);
 
     if (!userData || userData.roleCode !== "CANDIDATE") return <></>;
     if (!dataRecommend || dataRecommend.length === 0) return <></>;

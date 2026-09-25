@@ -1,6 +1,5 @@
 import { es, INDEX, publicSearchDocument } from '../libs/elastic.js';
 import { createLogger } from '../../../shared/logger.js';
-import { canonicalJobLevel } from '../../../shared/jobLevels.js';
 
 const logger = createLogger('search-service');
 
@@ -36,8 +35,7 @@ export const searchJobs = async (req, res) => {
     addTerm('categoryJobCode', categoryJobCode);
     addTerm('addressCode', addressCode);
     addTerm('salaryJobCode', salaryJobCode);
-    addTerm('categoryJoblevelCode', Array.isArray(categoryJoblevelCode)
-        ? categoryJoblevelCode.map(canonicalJobLevel) : canonicalJobLevel(categoryJoblevelCode));
+    addTerm('categoryJoblevelCode', categoryJoblevelCode);
     addTerm('categoryWorktypeCode', categoryWorktypeCode);
     addTerm('experienceJobCode', experienceJobCode);
     if (isHot === '1' || isHot === 'true') filter.push({ term: { isHot: true } });

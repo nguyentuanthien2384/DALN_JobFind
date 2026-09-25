@@ -4,7 +4,6 @@ import ManageCvCandidate from './ManageCvCandidate';
 import { getAllListCvByUserIdService } from '../../service/cvService';
 import { getMyApplications } from '../../service/applicationService';
 import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
-import { invalidateReferenceData } from '../../service/referenceDataEvents';
 // Editor/session tests use a lightweight router; PublicPagination tests exercise real URLs.
 jest.mock("../../util/useListQuery", () => {
     const React = require("react");
@@ -65,23 +64,4 @@ test('legacy failure or wrong owner is not shown as an empty successful list',as
     getAllListCvByUserIdService.mockResolvedValue({...response,data:[{...cv,userId:8}]});render(<ManageCvCandidate/>);
     await waitFor(()=>expect(screen.getByRole('alert')).toHaveTextContent('Không tải được danh sách'));
     expect(screen.queryByText('React job')).not.toBeInTheDocument();expect(screen.queryByText('Chưa có hồ sơ trên trang này.')).not.toBeInTheDocument();
-});
-
-test('updates historical job levels on the selected page without resetting recruitment progress', async () => {
-    const withLevel = value => ({ ...response, count: 6, data: [{ ...cv,
-        postCvData: { ...cv.postCvData, postDetailData: { ...cv.postCvData.postDetailData, jobLevelPostData: { value } } },
-    }] });
-    getAllListCvByUserIdService.mockResolvedValue(withLevel('Senior'));
-    render(<ManageCvCandidate />);
-    await screen.findByText('Senior');
-    fireEvent.click(screen.getByText('Trang tiếp'));
-    await waitFor(() => expect(getAllListCvByUserIdService).toHaveBeenLastCalledWith({ userId: 7, limit: 5, offset: 5 }));
-    await screen.findByText('Senior');
-    getAllListCvByUserIdService.mockResolvedValueOnce(withLevel('Middle'));
-    act(() => invalidateReferenceData());
-    await screen.findByText('Middle');
-    expect(screen.queryByText('Senior')).not.toBeInTheDocument();
-    expect(getAllListCvByUserIdService).toHaveBeenLastCalledWith({ userId: 7, limit: 5, offset: 5 });
-    expect(getMyApplications).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('Phỏng vấn')).toBeInTheDocument();
 });
