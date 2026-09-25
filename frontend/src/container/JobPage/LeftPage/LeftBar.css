@@ -1,0 +1,94 @@
+.job-filter-panel {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 32px;
+    min-width: 0;
+}
+
+.job-filter-panel .job-filter-section {
+    min-width: 0;
+    padding: 18px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.job-filter-panel .job-filter-section:first-child {
+    border-color: #d5d3ef;
+    background: #fafaff;
+}
+
+.job-filter-panel h3 {
+    margin: 0 0 16px;
+    color: #4944a7;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.5;
+}
+
+.job-filter-panel .job-filter-field + .job-filter-field,
+.job-filter-panel .job-filter-options + .job-filter-options {
+    margin-top: 20px;
+}
+
+.job-filter-panel .job-filter-field > label,
+.job-filter-panel .job-filter-options > legend {
+    display: block;
+    float: none;
+    width: auto;
+    margin: 0 0 8px;
+    padding: 0;
+    color: #172b4d;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.job-filter-panel select {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    color: #172b4d;
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.job-filter-panel .job-filter-options {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.job-filter-panel .job-filter-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin: 0;
+    padding: 6px 0;
+    color: #506172;
+    font-size: 14px;
+    line-height: 1.5;
+    cursor: pointer;
+}
+
+.job-filter-panel .job-filter-option input {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0;
+    accent-color: #5046b5;
+    cursor: pointer;
+}
+
+.job-filter-panel select:focus-visible,
+.job-filter-panel input:focus-visible {
+    outline: 2px solid #5046b5;
+    outline-offset: 2px;
+}
