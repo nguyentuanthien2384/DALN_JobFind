@@ -7,11 +7,18 @@ export const loadSearchLabels = async () => {
     const entries = await Promise.all(labelTypes.map(async type => {
         try {
             const response = await getAllCodeService(type);
-            return [type, response?.errCode === 0 && !response.stale && Array.isArray(response.data)
-                ? Object.fromEntries(response.data.filter(row => typeof row.code === 'string' && typeof row.value === 'string').map(row => [row.code, row.value])) : {}];
-        } catch { return [type, {}]; }
+            if (response?.errCode !== 0 || response.stale || response.httpStatus >= 400 || !Array.isArray(response.data)) return [type, null];
+            return [type, Object.fromEntries(response.data
+                .filter(row => typeof row.code === 'string' && typeof row.value === 'string')
+                .map(row => [row.code, row.value]).sort(([left], [right]) => left.localeCompare(right)))];
+        } catch { return [type, null]; }
     }));
-    return Object.fromEntries(entries);
+    // Omit failed types so consumers can retain their last successful labels;
+    // a successful empty catalog must still replace its previous values.
+    return {
+        labels: Object.fromEntries(entries.filter(([, values]) => values !== null)),
+        failedTypes: entries.filter(([, values]) => values === null).map(([type]) => type),
+    };
 };
 export const searchCard = (job, labels = {}) => {
     if (!job || !Number.isSafeInteger(job.id) || job.id <= 0 || typeof job.name !== 'string' || job.statusCode !== 'PS1') {

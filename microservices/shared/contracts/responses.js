@@ -59,7 +59,10 @@ export const responseDefinitions = {
         tinTuyenDung: record({ dangHienThi: numeric, choDuyet: numeric }), hoSoUngTuyen: record({ tong: numeric, daTuyen: numeric }),
         doanhThu: record({ goiTin: number, goiXemCv: number, tong: number }) }),
     ReportTimeseries: record({ tinTuyenDung: list(datedCount), nguoiDungMoi: list(datedCount), doanhThu: list(record({ ngay: date, tien: number })), hoSoUngTuyen: list(datedCount) }),
-    ReportDistribution: record(Object.fromEntries(['theoNganhNghe', 'theoTinhThanh', 'theoMucLuong', 'theoVaiTro'].map((key) => [key, list(namedCount)]))),
+    ReportDistribution: record({
+        ...Object.fromEntries(['theoNganhNghe', 'theoTinhThanh', 'theoMucLuong', 'theoVaiTro'].map((key) => [key, list(namedCount)])),
+        theoCapBac: list(record({ code: text(64), ...namedCount.properties }))
+    }, ['theoNganhNghe', 'theoTinhThanh', 'theoMucLuong', 'theoVaiTro']),
     ReportFunnel: record({ pheu: list(record({ stage, ten: text(), soLuong: integer() })), tong: integer(), tyLeTuyen: number,
         topCongTy: list(record({ congTyId: nullable(id), soHoSo: integer(), daTuyen: integer() })) }),
     ReportActivity: record({ theoLoai: list(namedCount), theoService: list(namedCount), theoNgay: list(datedCount) }),

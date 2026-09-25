@@ -70,9 +70,7 @@ const ListCompany = () => {
                                         <h3>
                                             <Link to={`/detail-company/${item.id}`} className="company-name" >{item.name}</Link>
                                         </h3>
-                                        <div className="company-description">
-                                            <p dangerouslySetInnerHTML={{ __html: item.descriptionHTML }}></p>
-                                        </div>
+                                        <div className="company-description" dangerouslySetInnerHTML={{ __html: item.descriptionHTML }} />
                                     </div>
                                 </div>
                             </div>

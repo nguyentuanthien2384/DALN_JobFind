@@ -131,6 +131,77 @@ describe("JobPage", () => {
         }
     });
 
+    it.each(['online', 'focus', 'visibilitychange'])('recovers core labels on %s while retaining successful labels during an outage', async eventName => {
+        const previousMode = process.env.REACT_APP_JOB_SEARCH_MODE;
+        process.env.REACT_APP_JOB_SEARCH_MODE = 'core';
+        let levelName = 'Junior';
+        let unavailable = false;
+        getAllCodeService.mockImplementation(type => Promise.resolve(type === 'JOBLEVEL' && unavailable
+            ? { errCode: 503 } : { errCode: 0, data: type === 'JOBLEVEL' ? [{ code: 'LEVEL', value: levelName }] : [] }));
+        searchJobs.mockResolvedValue({ errCode: 0, count: 1, data: [{ id: 1, name: 'Core Engineer', statusCode: 'PS1', categoryJoblevelCode: 'LEVEL' }] });
+        const target = eventName === 'visibilitychange' ? document : window;
+        let page;
+        try {
+            page = render(<MemoryRouter initialEntries={['/job']}><JobPage /></MemoryRouter>);
+            await screen.findByText('Junior');
+            unavailable = true;
+            act(() => invalidateReferenceData());
+            await waitFor(() => expect(searchJobs).toHaveBeenCalledTimes(2));
+            expect(screen.getByText('Junior')).toBeInTheDocument();
+            unavailable = false;
+            levelName = 'Junior Developer';
+            act(() => target.dispatchEvent(new Event(eventName)));
+            await screen.findByText('Junior Developer');
+            expect(screen.queryByText('Junior')).not.toBeInTheDocument();
+            expect(searchJobs).toHaveBeenCalledTimes(3);
+            await act(async () => target.dispatchEvent(new Event(eventName)));
+            expect(getAllCodeService).toHaveBeenCalledTimes(16);
+            expect(searchJobs).toHaveBeenCalledTimes(3);
+        } finally {
+            page?.unmount();
+            if (previousMode === undefined) delete process.env.REACT_APP_JOB_SEARCH_MODE;
+            else process.env.REACT_APP_JOB_SEARCH_MODE = previousMode;
+        }
+    });
+
+    it('retries failed core labels on the polling interval and ignores an older pending refresh', async () => {
+        const previousMode = process.env.REACT_APP_JOB_SEARCH_MODE;
+        process.env.REACT_APP_JOB_SEARCH_MODE = 'core';
+        const intervals = jest.spyOn(window, 'setInterval');
+        let levelName;
+        getAllCodeService.mockImplementation(type => Promise.resolve(type === 'JOBLEVEL' && !levelName
+            ? { errCode: 503 } : { errCode: 0, data: type === 'JOBLEVEL' ? [{ code: 'LEVEL', value: levelName }] : [] }));
+        searchJobs.mockResolvedValue({ errCode: 0, count: 1, data: [{ id: 1, name: 'Core Engineer', statusCode: 'PS1', categoryJoblevelCode: 'LEVEL' }] });
+        let page;
+        try {
+            page = render(<MemoryRouter initialEntries={['/job']}><JobPage /></MemoryRouter>);
+            await screen.findByText('LEVEL');
+            const poll = intervals.mock.calls.find(([, delay]) => delay === 30000)[0];
+            levelName = 'Junior';
+            await act(async () => poll());
+            await screen.findByText('Junior');
+            expect(searchJobs).toHaveBeenCalledTimes(2);
+            let finishOld;
+            getAllCodeService.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+            act(() => {
+                window.dispatchEvent(new Event('focus'));
+                window.dispatchEvent(new Event('online'));
+            });
+            expect(getAllCodeService).toHaveBeenCalledTimes(12);
+            levelName = 'Latest Junior';
+            act(() => invalidateReferenceData());
+            await screen.findByText('Latest Junior');
+            await act(async () => finishOld({ errCode: 0, data: [{ code: 'LEVEL', value: 'Obsolete Junior' }] }));
+            expect(screen.queryByText('Obsolete Junior')).not.toBeInTheDocument();
+            expect(searchJobs).toHaveBeenCalledTimes(3);
+        } finally {
+            page?.unmount();
+            intervals.mockRestore();
+            if (previousMode === undefined) delete process.env.REACT_APP_JOB_SEARCH_MODE;
+            else process.env.REACT_APP_JOB_SEARCH_MODE = previousMode;
+        }
+    });
+
     it('settles a new history entry with the same URL rather than staying busy indefinitely', async () => {
         const Navigation = () => { const navigate = useNavigate(); return <button onClick={() => navigate('/job')}>Same URL</button>; };
         render(<MemoryRouter initialEntries={['/job']}><Navigation /><JobPage /></MemoryRouter>);

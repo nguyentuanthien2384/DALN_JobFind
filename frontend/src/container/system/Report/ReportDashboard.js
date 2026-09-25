@@ -7,6 +7,8 @@ import {
 import {
     getOverview, getTimeseries, getDistribution, getSystemFunnel, getAuditLogs
 } from "../../../service/adminReportService";
+import useReferenceDataRevision from "../../../util/useReferenceDataRevision";
+import { getReferenceDataRevision } from "../../../service/referenceDataEvents";
 import "./ReportDashboard.scss";
 
 // Bang bao cao cua quan tri vien.
@@ -33,6 +35,48 @@ const ReportDashboard = () => {
     const [logs, setLogs] = useState([]);
     const [days, setDays] = useState(30);
     const [isLoading, setIsLoading] = useState(true);
+    const [distributionLoading, setDistributionLoading] = useState(true);
+    const [distributionError, setDistributionError] = useState(false);
+    const referenceRevision = useReferenceDataRevision();
+
+    useEffect(() => {
+        let active = true;
+        let pending = false;
+        const refresh = async () => {
+            if (pending) return;
+            pending = true;
+            try {
+                const response = await getDistribution();
+                if (!active || getReferenceDataRevision() !== referenceRevision) return;
+                if (response?.errCode !== 0 || !response.data || response.httpStatus >= 400) {
+                    setDistributionError(true);
+                    return;
+                }
+                setDist(response.data);
+                setDistributionError(false);
+            } catch {
+                if (active && getReferenceDataRevision() === referenceRevision) setDistributionError(true);
+            } finally {
+                pending = false;
+                if (active) setDistributionLoading(false);
+            }
+        };
+        const refreshVisible = () => {
+            if (document.visibilityState !== 'hidden' && navigator.onLine !== false) refresh();
+        };
+        refresh();
+        const timer = window.setInterval(refreshVisible, 30000);
+        window.addEventListener('focus', refreshVisible);
+        window.addEventListener('online', refreshVisible);
+        document.addEventListener('visibilitychange', refreshVisible);
+        return () => {
+            active = false;
+            window.clearInterval(timer);
+            window.removeEventListener('focus', refreshVisible);
+            window.removeEventListener('online', refreshVisible);
+            document.removeEventListener('visibilitychange', refreshVisible);
+        };
+    }, [referenceRevision]);
 
     useEffect(() => {
         let mounted = true;
@@ -45,8 +89,8 @@ const ReportDashboard = () => {
                 toDate: to.toISOString().slice(0, 10)
             };
 
-            const [ov, ts, ds, fn, lg] = await Promise.all([
-                getOverview(params), getTimeseries(params), getDistribution(),
+            const [ov, ts, fn, lg] = await Promise.all([
+                getOverview(params), getTimeseries(params),
                 getSystemFunnel(), getAuditLogs({ limit: 15 })
             ]);
             if (!mounted) return;
@@ -54,7 +98,6 @@ const ReportDashboard = () => {
             if (ov?.errCode === 0) setOverview(ov.data);
             else toast.error("Không tải được số liệu tổng quan");
             if (ts?.errCode === 0) setSeries(ts.data);
-            if (ds?.errCode === 0) setDist(ds.data);
             if (fn?.errCode === 0) setFunnel(fn.data);
             if (lg?.errCode === 0) setLogs(lg.data || []);
             setIsLoading(false);
@@ -80,6 +123,9 @@ const ReportDashboard = () => {
         put(series.hoSoUngTuyen, "hoSo");
         return [...byDate.values()];
     }, [series]);
+
+    const levels = (dist?.theoCapBac || []).map(level => ({ ...level, soLuong: Number(level.soLuong) || 0 }));
+    const hasLevelJobs = levels.some(level => level.soLuong > 0);
 
     if (isLoading) return <div className="report-dashboard"><div className="rp-loading">Đang tải số liệu…</div></div>;
 
@@ -139,24 +185,33 @@ const ReportDashboard = () => {
                     )}
                 </div>
 
-                {/* Phan bo theo nganh nghe */}
-                <div className="rp-panel">
-                    <h4>Tin theo ngành nghề</h4>
-                    {!dist?.theoNganhNghe?.length ? <Empty /> : (
-                        <ResponsiveContainer width="100%" height={260}>
+                {/* Phan bo theo cap bac IT, dung cung danh muc voi bo loc va bieu mau. */}
+                <section className="rp-panel" aria-labelledby="job-level-report-title">
+                    <h4 id="job-level-report-title">Tin theo cấp bậc</h4>
+                    <p className="rp-sub">Số tin đang hiển thị theo cấp bậc IT</p>
+                    {distributionError && <p role="status" className="rp-refresh-error">Chưa cập nhật được số liệu. Hệ thống sẽ tự thử lại.</p>}
+                    {distributionLoading ? <Empty text="Đang tải cấp bậc…" /> : !hasLevelJobs ? (
+                        <Empty text={distributionError ? "Không tải được số liệu cấp bậc" : "Chưa có tin đang hiển thị"} />
+                    ) : (
+                        <ResponsiveContainer width="100%" height={220}>
                             <PieChart>
-                                <Pie data={dist.theoNganhNghe} dataKey="soLuong" nameKey="ten"
-                                    cx="50%" cy="50%" outerRadius={85} label={(e) => e.soLuong}>
-                                    {dist.theoNganhNghe.map((entry, i) => (
-                                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                                <Pie data={levels} dataKey="soLuong" nameKey="ten"
+                                    cx="50%" cy="50%" outerRadius={85} label={(e) => e.soLuong > 0 ? e.soLuong : null}>
+                                    {levels.map((entry, i) => (
+                                        <Cell key={entry.code} fill={COLORS[i % COLORS.length]} />
                                     ))}
                                 </Pie>
                                 <Tooltip />
-                                <Legend wrapperStyle={{ fontSize: 11 }} />
                             </PieChart>
                         </ResponsiveContainer>
                     )}
-                </div>
+                    {levels.length > 0 && <ul className="rp-level-legend" aria-label="Số tin theo cấp bậc">
+                        {levels.map((level, index) => <li key={level.code}>
+                            <span className="rp-level-color" style={{ backgroundColor: COLORS[index % COLORS.length] }} aria-hidden="true" />
+                            <span>{level.ten}</span><strong>{level.soLuong}</strong>
+                        </li>)}
+                    </ul>}
+                </section>
 
                 {/* Phan bo theo tinh thanh */}
                 <div className="rp-panel">

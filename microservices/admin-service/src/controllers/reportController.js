@@ -157,6 +157,18 @@ export const distribution = async (req, res) => {
              FROM accounts a JOIN allcodes c ON c.code = a.roleCode AND c.type = 'ROLE'
              GROUP BY a.roleCode, c.value ORDER BY soLuong DESC`
         );
+        const [byLevel] = await mysqlPool.query(
+            `SELECT c.code AS code, c.value AS ten, COUNT(p.id) AS soLuong
+             FROM allcodes c
+             LEFT JOIN detailposts d ON d.categoryJoblevelCode = c.code
+             LEFT JOIN posts p ON p.detailPostId = d.id AND p.statusCode = 'PS1'
+             WHERE c.type = 'JOBLEVEL'
+             GROUP BY c.code, c.value
+             ORDER BY CASE c.code
+                 WHEN 'intern' THEN 0 WHEN 'fresher' THEN 1 WHEN 'junior' THEN 2
+                 WHEN 'middle' THEN 3 WHEN 'senior' THEN 4 WHEN 'lead' THEN 5
+                 WHEN 'manager' THEN 6 ELSE 7 END, c.value, c.code`
+        );
 
         return res.json({
             errCode: 0,
@@ -164,7 +176,8 @@ export const distribution = async (req, res) => {
                 theoNganhNghe: byCategory,
                 theoTinhThanh: byProvince,
                 theoMucLuong: bySalary,
-                theoVaiTro: byRole
+                theoVaiTro: byRole,
+                theoCapBac: byLevel
             }
         });
     } catch (error) {

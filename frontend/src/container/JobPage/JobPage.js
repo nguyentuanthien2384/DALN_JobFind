@@ -61,14 +61,37 @@ const JobSearchPage = ({ historyKey }) => {
     const recieveJobLevel = value => toggleFilter('categoryJoblevelCode', value);
     const recieveLocation = value => toggleFilter('addressCode', value);
     useEffect(() => {
+        if (mode !== 'core') return;
         let active = true;
-        if (mode === 'core') loadSearchLabels().then(data => {
-            if (active && getReferenceDataRevision() === referenceRevision) {
-                setLabels(previous => JSON.stringify(previous) === JSON.stringify(data) ? previous : data);
+        let pending = false;
+        const refresh = async () => {
+            if (pending) return;
+            pending = true;
+            try {
+                const { labels: data } = await loadSearchLabels();
+                if (!active || getReferenceDataRevision() !== referenceRevision) return;
+                setLabels(previous => {
+                    const next = { ...previous, ...data };
+                    return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+                });
                 setLabelsRevision(referenceRevision);
-            }
-        });
-        return () => { active = false; };
+            } finally { pending = false; }
+        };
+        const refreshVisible = () => {
+            if (document.visibilityState !== 'hidden' && navigator.onLine !== false) refresh();
+        };
+        refresh();
+        const timer = window.setInterval(refreshVisible, 30000);
+        window.addEventListener('focus', refreshVisible);
+        window.addEventListener('online', refreshVisible);
+        document.addEventListener('visibilitychange', refreshVisible);
+        return () => {
+            active = false;
+            window.clearInterval(timer);
+            window.removeEventListener('focus', refreshVisible);
+            window.removeEventListener('online', refreshVisible);
+            document.removeEventListener('visibilitychange', refreshVisible);
+        };
     }, [mode, referenceRevision, historyKey]);
     useEffect(() => {
         if (!labelsReady) return;
