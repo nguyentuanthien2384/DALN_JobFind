@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { toggleFollowCompanyService, checkFollowCompanyService } from '../../service/userService';
 import { readJsonStorage } from '../../util/storage';
 import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
+import useReferenceDataRevision from '../../util/useReferenceDataRevision';
 const DetailCompany = () => {
     const [dataCompany, setdataCompany] = useState({})
     const [isLoading, setIsLoading] = useState(true)
@@ -21,21 +22,25 @@ const DetailCompany = () => {
     const navigate = useNavigate()
     const currentUser = readJsonStorage('userData')
     const canSocialInteract = !currentUser || hasPermission(currentUser, PERMISSIONS.SOCIAL_INTERACT)
+    const referenceRevision = useReferenceDataRevision()
     useEffect(() => {
+        let active = true
         if (id) {
 
             let fetchCompany = async () => {
                 try {
                     const res = await getDetailCompanyById(id)
+                    if (!active) return
                     if (res && res.errCode === 0 && res.data) {
                         setdataCompany(res.data)
+                        setLoadError('')
                     } else {
                         setLoadError(res?.errMessage || 'Không thể tải thông tin công ty')
                     }
                 } catch (error) {
-                    setLoadError('Không thể tải thông tin công ty. Vui lòng thử lại')
+                    if (active) setLoadError('Không thể tải thông tin công ty. Vui lòng thử lại')
                 } finally {
-                    setIsLoading(false)
+                    if (active) setIsLoading(false)
                 }
             }
             fetchCompany()
@@ -43,7 +48,8 @@ const DetailCompany = () => {
             setLoadError('Đường dẫn công ty không hợp lệ')
             setIsLoading(false)
         }
-    }, [id])
+        return () => { active = false }
+    }, [id, referenceRevision])
 
     useEffect(() => {
         const userData = readJsonStorage('userData')

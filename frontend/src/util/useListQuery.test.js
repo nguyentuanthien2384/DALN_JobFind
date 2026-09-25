@@ -10,6 +10,13 @@ jest.mock('react-router-dom', () => {
 });
 
 const defaults = { page: 0, search: '', tags: [], minimum: 0, active: false };
+
+test('restores old job level bookmarks with canonical selected values and no duplicates', () => {
+    const params = new URLSearchParams({ categoryJoblevelCode: JSON.stringify(['nhan-vien', 'junior', 'truong-phong', 'giam-doc', 'senior']), page: '3' });
+    expect(readListQuery(`?${params}`, { categoryJoblevelCode: [], page: 0 })).toEqual({
+        categoryJoblevelCode: ['junior', 'lead', 'manager', 'senior'], page: 2,
+    });
+});
 let lastSetter;
 function QueryList({ prefix = '', clampTo }) {
     const [query, setQuery] = useListQuery(defaults, { prefix });

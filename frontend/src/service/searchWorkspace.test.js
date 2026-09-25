@@ -23,3 +23,8 @@ test('missing/failed reference labels display original code',async()=>{
     getAllCodeService.mockRejectedValue(new Error('offline')); const labels=await loadSearchLabels();
     expect(searchCard(job,labels).postDetailData.salaryTypePostData.value).toBe('S1');
 });
+test('core cards preserve reference codes so renamed labels can be resolved after a catalog change', () => {
+    const card = searchCard({ ...job, categoryJoblevelCode: 'JUNIOR' }, { JOBLEVEL: { JUNIOR: 'Junior' } });
+    expect(card.postDetailData.jobLevelPostData).toEqual({ code: 'JUNIOR', value: 'Junior' });
+    expect(card.postDetailData.salaryTypePostData).toEqual({ code: 'S1', value: 'S1' });
+});

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import NotificationJobs from './NotificationJobs';
 import { getNotificationJobs } from '../../service/notificationJobsService';
 import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
+import { invalidateReferenceData } from '../../service/referenceDataEvents';
 
 jest.mock('react-router-dom', () => {
     global.TextEncoder = require('util').TextEncoder;
@@ -94,4 +95,17 @@ test('does not request personal job lists for a noncandidate account', () => {
     mount();
     expect(screen.getByRole('alert')).toHaveTextContent('Đăng nhập bằng tài khoản ứng viên');
     expect(getNotificationJobs).not.toHaveBeenCalled();
+});
+
+test('refreshes catalog labels on the selected notification page', async () => {
+    window.history.replaceState({}, '', '/candidate/followed-jobs?page=2');
+    getNotificationJobs.mockResolvedValue({ errCode: 0, data: [job], count: 15 });
+    mount(); await screen.findByText('Thỏa thuận');
+    const updated = { ...job, postDetailData: { ...job.postDetailData, salaryTypePostData: { value: '25 triệu' } } };
+    getNotificationJobs.mockResolvedValueOnce({ errCode: 0, data: [updated], count: 15 });
+    act(() => invalidateReferenceData());
+    await screen.findByText('25 triệu');
+    expect(screen.queryByText('Thỏa thuận')).not.toBeInTheDocument();
+    expect(window.location.search).toBe('?page=2');
+    expect(getNotificationJobs).toHaveBeenLastCalledWith({ source: 'followed', limit: 10, offset: 10 });
 });

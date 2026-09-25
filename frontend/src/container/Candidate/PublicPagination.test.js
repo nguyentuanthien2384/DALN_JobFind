@@ -6,6 +6,7 @@ import SavedJobs from './SavedJobs';
 import ManageCvCandidate from './ManageCvCandidate';
 import { getListCompany, getFavoritePostByUserService, toggleFavoritePostService } from '../../service/userService';
 import { getAllListCvByUserIdService } from '../../service/cvService';
+import { invalidateReferenceData } from '../../service/referenceDataEvents';
 
 jest.mock('react-router-dom', () => {
     global.TextEncoder = require('util').TextEncoder;
@@ -52,6 +53,19 @@ beforeEach(() => {
     getAllListCvByUserIdService.mockResolvedValue({ errCode: 0, count: 30, data: [application] });
 });
 afterEach(() => delete process.env.REACT_APP_APPLICATION_PROGRESS_ENABLED);
+
+test('saved jobs refresh joined labels while retaining the current URL page', async () => {
+    show(SavedJobs, '/candidate/saved?page=3&source=keep');
+    await screen.findByText(/20 triệu/);
+    const updated = saved(21);
+    updated.postFavoriteData.postDetailData.salaryTypePostData.value = '25 triệu';
+    getFavoritePostByUserService.mockResolvedValueOnce({ errCode: 0, count: 30, data: [updated] });
+    act(() => invalidateReferenceData());
+    await screen.findByText(/25 triệu/);
+    expect(screen.queryByText(/20 triệu/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('url')).toHaveTextContent('/candidate/saved?page=3&source=keep');
+    expect(getFavoritePostByUserService).toHaveBeenLastCalledWith({ userId: 9, limit: 10, offset: 20 });
+});
 
 test('company page and search survive a reload, page changes and browser Back', async () => {
     const first = show(ListCompany, '/company?page=3&search=Sao+Viet&source=keep');

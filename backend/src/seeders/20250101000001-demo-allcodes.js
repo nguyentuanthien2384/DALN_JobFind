@@ -194,7 +194,7 @@ module.exports = {
     "image": ""
   },
   {
-    "code": "giam-doc",
+    "code": "manager",
     "type": "JOBLEVEL",
     "value": "Manager",
     "image": ""
@@ -230,7 +230,7 @@ module.exports = {
     "image": null
   },
   {
-    "code": "nhan-vien",
+    "code": "junior",
     "type": "JOBLEVEL",
     "value": "Junior",
     "image": ""
@@ -308,7 +308,7 @@ module.exports = {
     "image": ""
   },
   {
-    "code": "truong-phong",
+    "code": "lead",
     "type": "JOBLEVEL",
     "value": "Lead",
     "image": ""

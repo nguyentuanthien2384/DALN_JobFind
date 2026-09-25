@@ -1,5 +1,6 @@
 import { assertTransactionalPostingTables } from './postingQuota.js';
 import { isJobRevision, jobRevision } from '../../../shared/jobRevision.js';
+import { canonicalJobLevel } from '../../../shared/jobLevels.js';
 
 export const DETAIL_FIELDS = Object.freeze([
     'name', 'descriptionHTML', 'descriptionMarkdown', 'categoryJobCode', 'addressCode',
@@ -61,6 +62,7 @@ export const editedDetail = (current, patch) => {
             ? (field === 'amount' ? Number(patch[field]) : patch[field])
             : current[field] ?? null
     ]));
+    detail.categoryJoblevelCode = canonicalJobLevel(detail.categoryJoblevelCode);
     const changed = DETAIL_FIELDS.some(field => detail[field] !== (current[field] ?? null));
     // Every real editable-field change starts a new review generation, including
     // metadata. Never carry a previous approval or pending request across edits.

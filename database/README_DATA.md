@@ -86,17 +86,26 @@ bên Elasticsearch và PostgreSQL. Chạy xong đối chiếu lại vẫn khớp
 
 ## Cách nạp
 
-Danh mục `JOBLEVEL` dùng thứ tự Intern, Fresher, Junior, Middle, Senior, Lead,
-Manager. Ba mã cũ được giữ để tương thích tin tuyển dụng, URL bộ lọc và chỉ mục
-tìm kiếm: `nhan-vien` → Junior, `truong-phong` → Lead, `giam-doc` → Manager.
-Đây là quy đổi danh mục mẫu, không phải đánh giá lại năng lực của từng vị trí.
-Với cơ sở dữ liệu đã có, chạy migration
-`migrationzzzzzzzzzzz-it-job-levels.js` qua Sequelize; không cần nạp lại dữ liệu
-hay lập lại chỉ mục tìm kiếm. Seeder và file SQL cũng đã dùng danh mục mới.
+Danh mục `JOBLEVEL` dùng các mã `intern`, `fresher`, `junior`, `middle`, `senior`,
+`lead`, `manager`, tương ứng Intern, Fresher, Junior, Middle, Senior, Lead,
+Manager. Tin mẫu, seeder và file SQL cùng dùng các mã này. Bộ lọc vẫn đọc được
+URL cũ nhờ quy đổi `nhan-vien` → `junior`, `truong-phong` → `lead`,
+`giam-doc` → `manager` tại API và giao diện.
+
+Với CSDL đã có, chạy lệnh sau từ thư mục gốc. Script sao lưu MySQL kèm manifest
+vào `.local/backups/job-levels-*`, rồi chạy migration bổ sung
+`migrationzzzzzzzzzzzz-canonical-it-job-levels.js`. Migration giữ các ID tin,
+đổi khóa cấp bậc liên quan trong một giao dịch và xóa mã cũ sau khi kiểm tra
+tham chiếu. Khi có tin cần đổi, bảng `outbox_events` phải tồn tại và dùng InnoDB
+(Job Core tạo bảng này khi khởi động). Sự kiện `job.updated` được ghi cùng giao
+dịch để Job Core và Search đồng bộ chỉ mục khi đang chạy; không cần xóa chỉ mục.
+Chạy lại không sinh thêm sự kiện cho các tin đã đổi. Các cấp bậc riêng khác
+và các loại danh mục khác được giữ nguyên. Đây là quy đổi danh mục mẫu, không
+phải đánh giá lại năng lực của từng vị trí. Muốn phục hồi cần dùng bản sao lưu
+trước migration; không đổi ngược mã bằng `db:migrate:undo`.
 
 ```powershell
-cd backend
-npx sequelize-cli db:migrate --name migrationzzzzzzzzzzz-it-job-levels.js
+node scripts/migrate-job-levels.mjs
 ```
 
 Xem hướng dẫn chi tiết tại [`../RESTORE_SAMPLE_DATA.md`](../RESTORE_SAMPLE_DATA.md).

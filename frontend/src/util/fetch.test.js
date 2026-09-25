@@ -1,7 +1,8 @@
 import React from "react";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { getAllCodeService } from "../service/userService";
 import { clearAllCodeCache, useFetchAllcode } from "./fetch";
+import { invalidateReferenceData } from '../service/referenceDataEvents';
 
 jest.mock("../service/userService", () => ({
     getAllCodeService: jest.fn(),
@@ -36,19 +37,19 @@ describe("useFetchAllcode", () => {
 
     it('orders IT levels by progression without changing filter codes or the API response', async () => {
         const rows = [
-            { code: 'giam-doc', value: 'Manager' },
+            { code: 'manager', value: 'Manager' },
             { code: 'senior', value: 'Senior' },
             { code: 'fresher', value: 'Fresher' },
-            { code: 'truong-phong', value: 'Lead' },
+            { code: 'lead', value: 'Lead' },
             { code: 'middle', value: 'Middle' },
-            { code: 'nhan-vien', value: 'Junior' },
+            { code: 'junior', value: 'Junior' },
             { code: 'intern', value: 'Intern' },
         ];
         const original = [...rows];
         getAllCodeService.mockResolvedValue({ errCode: 0, data: rows });
         const first = renderHook(() => useFetchAllcode('JOBLEVEL', { retain: true }));
         await waitFor(() => expect(first.result.current.data.map(row => row.code)).toEqual([
-            'intern', 'fresher', 'nhan-vien', 'middle', 'senior', 'truong-phong', 'giam-doc',
+            'intern', 'fresher', 'junior', 'middle', 'senior', 'lead', 'manager',
         ]));
         expect(rows).toEqual(original);
         first.unmount();
@@ -64,13 +65,44 @@ describe("useFetchAllcode", () => {
         expect(result.current.data).toEqual([]);
     });
 
-    it("loads only once even when the component rerenders", async () => {
+    it("does not reload for an ordinary rerender but loads a changed catalog type", async () => {
         getAllCodeService.mockResolvedValue({ errCode: 0, data: [] });
         const { rerender } = renderHook(({ type }) => useFetchAllcode(type), {
             initialProps: { type: "ROLE" },
         });
         await waitFor(() => expect(getAllCodeService).toHaveBeenCalledTimes(1));
-        rerender({ type: "GENDER" });
+        rerender({ type: "ROLE" });
         expect(getAllCodeService).toHaveBeenCalledTimes(1);
+        rerender({ type: "GENDER" });
+        await waitFor(() => expect(getAllCodeService).toHaveBeenCalledTimes(2));
+        expect(getAllCodeService).toHaveBeenLastCalledWith('GENDER');
+    });
+
+    it('refreshes mounted filters and forms after a catalog edit, ignoring an older pending response', async () => {
+        let finishOld;
+        getAllCodeService.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+        const filter = renderHook(() => useFetchAllcode('JOBLEVEL', { retain: true }));
+        const updated = [{ code: 'junior', value: 'Junior Developer' }, { code: 'senior', value: 'Senior' }];
+        getAllCodeService.mockResolvedValue({ errCode: 0, data: updated });
+        act(() => invalidateReferenceData());
+        await waitFor(() => expect(filter.result.current.data).toEqual(updated));
+        await act(async () => finishOld({ errCode: 0, data: [{ code: 'nhan-vien', value: 'Nhân viên' }] }));
+        expect(filter.result.current.data).toEqual(updated);
+        const form = renderHook(() => useFetchAllcode('JOBLEVEL'));
+        await waitFor(() => expect(form.result.current.data).toEqual(filter.result.current.data));
+    });
+
+    it('refreshes on returning to a tab without clearing loaded options on a network failure', async () => {
+        const original = [{ code: 'junior', value: 'Junior' }];
+        const updated = [{ code: 'junior', value: 'Junior Developer' }];
+        getAllCodeService.mockResolvedValueOnce({ errCode: 0, data: original });
+        const { result } = renderHook(() => useFetchAllcode('JOBLEVEL', { retain: true }));
+        await waitFor(() => expect(result.current.data).toEqual(original));
+        getAllCodeService.mockResolvedValueOnce({ errCode: 0, data: updated });
+        act(() => window.dispatchEvent(new Event('focus')));
+        await waitFor(() => expect(result.current.data).toEqual(updated));
+        getAllCodeService.mockRejectedValueOnce(new Error('offline'));
+        await act(async () => window.dispatchEvent(new Event('online')));
+        expect(result.current.data).toEqual(updated);
     });
 });

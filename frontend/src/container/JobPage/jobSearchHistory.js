@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { getReferenceDataRevision } from '../../service/referenceDataEvents';
 
 // Keep a bounded snapshot per browser history entry, never across accounts.
 const entries = new Map();
@@ -36,7 +37,12 @@ export function useJobSearchHistory(key) {
         sessionToken = token;
     }
     const entry = useMemo(() => {
-        const restored = entries.get(key);
+        const snapshot = entries.get(key);
+        // Retain rows and scroll height while reloading a changed catalog, but
+        // never accept the old result/label snapshot as a fresh cache entry.
+        const restored = snapshot && snapshot.referenceRevision !== getReferenceDataRevision()
+            ? { ...snapshot, loadedQuery: null, labelsReady: false, labelsRevision: undefined }
+            : snapshot;
         return { key, token, restored, latest: restored, position: restored?.position || { x: window.scrollX, y: window.scrollY } };
     }, [key, token]);
     const mounted = useRef(false);

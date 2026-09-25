@@ -8,7 +8,10 @@ import { loadSearchPage, loadSearchLabels, searchMode } from '../../service/sear
 import CommonUtils from '../../util/CommonUtils';
 import { SEARCH_SNAPSHOT_TTL, useJobSearchHistory } from './jobSearchHistory';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
+import useReferenceDataRevision from '../../util/useReferenceDataRevision';
+import { getReferenceDataRevision } from '../../service/referenceDataEvents';
 const JobSearchPage = ({ historyKey }) => {
+    const referenceRevision = useReferenceDataRevision();
     const [restored, remember] = useJobSearchHistory(historyKey);
     const saved = restored || {};
     const loadedQuery = useRef(saved.loadedQuery);
@@ -25,7 +28,8 @@ const JobSearchPage = ({ historyKey }) => {
     const [retry, setRetry] = useState(saved.retry || 0);
     const [labels, setLabels] = useState(saved.labels || {});
     const mode = searchMode();
-    const [labelsReady, setLabelsReady] = useState(mode === 'legacy' || Boolean(saved.labelsReady));
+    const [labelsRevision, setLabelsRevision] = useState(saved.labelsRevision);
+    const labelsReady = mode === 'legacy' || labelsRevision === referenceRevision;
     const limit = PAGINATION.pagerow
 
     // Every history entry shows the keyword that produced its results.
@@ -39,11 +43,11 @@ const JobSearchPage = ({ historyKey }) => {
         if (restored) {
             loadedQuery.current = saved.loadedQuery;
             setPost(saved.post || []); setCount(saved.count || 0); setCountPage(saved.countPage || 0);
-            setLabels(saved.labels || {}); setLabelsReady(mode === 'legacy' || Boolean(saved.labelsReady));
+            setLabels(saved.labels || {}); setLabelsRevision(saved.labelsRevision);
             setLoading(!saved.loadedQuery);
         } else { loadedQuery.current = null; setLoading(true); }
     }
-    remember({ countPage, post, count, numberPage, labels, labelsReady, workType, jobType, salary, exp,
+    remember({ countPage, post, count, numberPage, labels, labelsReady, labelsRevision, referenceRevision, workType, jobType, salary, exp,
         jobLevel, jobLocation, search, searchDraft, retry, loadedQuery: loadedQuery.current });
     const handleSearch = value => setQuery({ page: 0, search: value });
     const toggleFilter = (key, value) => setQuery(current => ({ page: 0,
@@ -59,13 +63,13 @@ const JobSearchPage = ({ historyKey }) => {
     useEffect(() => {
         let active = true;
         if (mode === 'core') loadSearchLabels().then(data => {
-            if (active) {
+            if (active && getReferenceDataRevision() === referenceRevision) {
                 setLabels(previous => JSON.stringify(previous) === JSON.stringify(data) ? previous : data);
-                setLabelsReady(true);
+                setLabelsRevision(referenceRevision);
             }
         });
         return () => { active = false; };
-    }, [mode]);
+    }, [mode, referenceRevision, historyKey]);
     useEffect(() => {
         if (!labelsReady) return;
         let active = true;
@@ -73,7 +77,7 @@ const JobSearchPage = ({ historyKey }) => {
             addressCode: jobLocation, salaryJobCode: salary, categoryJoblevelCode: jobLevel,
             categoryWorktypeCode: workType, experienceJobCode: exp,
             search: CommonUtils.removeSpace(search), sortName: undefined };
-        const queryKey = JSON.stringify({ params, mode, labels, retry });
+        const queryKey = JSON.stringify({ params, mode, labels, retry, referenceRevision });
         const sameQuery = loadedQuery.current?.key === queryKey;
         if (sameQuery && loadedQuery.current.expiresAt > Date.now()) return;
         setError('');
@@ -82,7 +86,7 @@ const JobSearchPage = ({ historyKey }) => {
             setLoading(true);
         }
         loadSearchPage(params, mode, labels).then(result => {
-            if (!active) return;
+            if (!active || getReferenceDataRevision() !== referenceRevision) return;
             const available = mode === 'core' ? Math.min(result.count, 10000) : result.count;
             const validPage = clampListPage(numberPage, available, limit);
             if (validPage !== numberPage) { setQuery({ page: validPage }, { replace: true }); return; }
@@ -90,13 +94,13 @@ const JobSearchPage = ({ historyKey }) => {
             setPost(result.data); setCount(result.count);
             setCountPage(Math.ceil((mode === 'core' ? Math.min(result.count, 10000) : result.count) / limit));
         }).catch(failure => {
-            if (active) {
+            if (active && getReferenceDataRevision() === referenceRevision) {
                 setError(failure.message);
                 if (!sameQuery) { loadedQuery.current = null; setPost([]); setCount(0); setCountPage(0); }
             }
-        }).finally(() => { if (active) setLoading(false); });
+        }).finally(() => { if (active && getReferenceDataRevision() === referenceRevision) setLoading(false); });
         return () => { active = false; };
-    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels, labelsReady, setQuery, historyKey]);
+    }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels, labelsReady, setQuery, historyKey, referenceRevision]);
     const handleChangePage = (number) => { setQuery({ page: number.selected }); };
     return (
         <>

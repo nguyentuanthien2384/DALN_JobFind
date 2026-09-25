@@ -8,6 +8,7 @@ import { runJobRequest, normalizeJobCreate, futureJobDeadline, JobRequestError }
 import { DETAIL_FIELDS, JobEditError, lockJobForEdit, assertUnchangedDeadline, editedDetail, assertJobRevision } from '../libs/jobEdit.js';
 import { jobRevision } from '../../../shared/jobRevision.js';
 import { APPROVAL_NOTIFICATION_POLICY } from '../../../shared/jobNotificationPolicy.js';
+import { canonicalJobLevel } from '../../../shared/jobLevels.js';
 
 const logger = createLogger('job-core-service');
 
@@ -46,7 +47,8 @@ const loadJobForEvent = async (postId, db = pool, { current = false } = {}) => {
 const insertPendingJob = async (conn, { userId, isHot, timeEnd, detail }) => {
     const [insertedDetail] = await conn.query(
         `INSERT INTO detailposts (${DETAIL_FIELDS.join(',')}) VALUES (${DETAIL_FIELDS.map(() => '?').join(',')})`,
-        DETAIL_FIELDS.map(field => detail[field] ?? null)
+        // Normalize at the write boundary; keep saved request hashes unchanged for retries.
+        DETAIL_FIELDS.map(field => (field === 'categoryJoblevelCode' ? canonicalJobLevel(detail[field]) : detail[field]) ?? null)
     );
     const now = new Date();
     const [post] = await conn.query(

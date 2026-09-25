@@ -12,6 +12,7 @@ import {
     loadRelatedJobs,
     prefetchJobDetail,
 } from "./jobDetailResource";
+import { invalidateReferenceData } from '../../service/referenceDataEvents';
 
 jest.mock("../../service/userService", () => ({
     checkFavoritePostService: jest.fn(),
@@ -102,5 +103,29 @@ describe("job detail resource", () => {
         finishOld({ errCode: 0, data: { id: 7, applicationCount: 4 } });
         expect(await oldRequest).toEqual({ stale: true });
         expect(getCachedJobDetail(7).applicationCount).toBe(5);
+    });
+
+    it('discards prefetched labels and pending detail/related responses when a catalog changes', async () => {
+        const old = { errCode: 0, data: { id: 7, postDetailData: { jobLevelPostData: { code: 'LEVEL', value: 'Junior' } } } };
+        const updated = { errCode: 0, data: { id: 7, postDetailData: { jobLevelPostData: { code: 'LEVEL', value: 'Middle' } } } };
+        getDetailPostByIdService.mockResolvedValueOnce(old);
+        await prefetchJobDetail(7);
+        expect(getCachedJobDetail(7)).toEqual(old.data);
+        let finishDetail, finishRelated;
+        getDetailPostByIdService.mockImplementationOnce(() => new Promise(resolve => { finishDetail = resolve; }));
+        getRelatedPostService.mockImplementationOnce(() => new Promise(resolve => { finishRelated = resolve; }));
+        const pendingDetail = loadJobDetail(8);
+        const pendingRelated = loadRelatedJobs(7);
+        await Promise.resolve();
+
+        invalidateReferenceData();
+        expect(getCachedJobDetail(7)).toBeNull();
+        getDetailPostByIdService.mockResolvedValueOnce(updated);
+        expect(await loadJobDetail(7)).toEqual(updated);
+        finishDetail(old); finishRelated({ errCode: 0, data: [old.data] });
+        expect(await pendingDetail).toEqual({ stale: true });
+        expect(await pendingRelated).toEqual({ stale: true });
+        expect(getCachedJobDetail(8)).toBeNull();
+        expect(getCachedJobDetail(7)).toEqual(updated.data);
     });
 });

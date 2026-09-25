@@ -8,6 +8,7 @@ import useListQuery, { clampListPage } from '../../util/useListQuery';
 import { jobLabel } from '../../util/jobLocale';
 import StableList from '../../components/common/StableList';
 import { getNotificationJobs } from '../../service/notificationJobsService';
+import useReferenceDataRevision from '../../util/useReferenceDataRevision';
 import './NotificationJobs.css';
 
 const PAGE_SIZE = 10;
@@ -45,7 +46,8 @@ function JobsList({ source, userId, token }) {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
     const [settledRequest, setSettledRequest] = useState('');
-    const requestKey = JSON.stringify([source, userId, token, page, refresh]);
+    const referenceRevision = useReferenceDataRevision();
+    const requestKey = JSON.stringify([source, userId, token, page, refresh, referenceRevision]);
     const busy = loading || settledRequest !== requestKey;
 
     useEffect(() => {

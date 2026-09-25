@@ -28,6 +28,7 @@ import { PERMISSIONS } from "./auth/accessControl";
 import { getCurrentAuthorizationService } from "./service/userService";
 import SessionContext from "./auth/SessionContext";
 import { SESSION_ENDED_EVENT } from "./auth/sessionExpiry";
+import useReferenceDataRefresh from './util/useReferenceDataRefresh';
 const SupportChat = lazy(() => import('./components/support/SupportChat'));
 const SupportHelp = lazy(() => import('./components/support/SupportHelp'));
 
@@ -44,6 +45,7 @@ const RoutePageLoader = () => (
 );
 
 function App() {
+    useReferenceDataRefresh();
     useEffect(()=>{reconcilePushSession();},[]);
     const initialSession = useRef({
         user: readJsonStorage("userData"),

@@ -106,18 +106,19 @@ describe('postService', () => {
   });
 
   test.each([
-    [0, 'allowPost'], [1, 'allowHotPost']
-  ])('creates a pending post and consumes the matching allowance (isHot=%s)', async (isHot, allowance) => {
+    [0, 'allowPost', 'JL1', 'JL1'], [1, 'allowHotPost', 'JL1', 'JL1'],
+    [0, 'allowPost', 'nhan-vien', 'junior'],
+  ])('creates a pending post and consumes the matching allowance (isHot=%s, level=%s)', async (isHot, allowance, level, savedLevel) => {
     mockDb.User.findOne.mockResolvedValue({ companyId: 4 });
     const company = { id: 4, statusCode: 'S1', censorCode: 'CS1', allowPost: 2, allowHotPost: 2, save: jest.fn() };
     mockDb.Company.findOne.mockResolvedValue(company);
     mockDb.DetailPost.create.mockResolvedValue({ id: 20 });
     mockDb.Post.create.mockResolvedValue({ id: 30 });
-    const result = await service.handleCreateNewPost(validPost({ isHot }));
+    const result = await service.handleCreateNewPost(validPost({ isHot, categoryJoblevelCode: level }));
     expect(result).toEqual(expect.objectContaining({ errCode: 0, postId: 30 }));
     expect(company[allowance]).toBe(1);
     expect(mockDb.Post.create).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 'PS3', detailPostId: 20, isHot }), { transaction: mockTransaction });
-    expect(mockDb.DetailPost.create).toHaveBeenCalledWith(expect.any(Object), { transaction: mockTransaction });
+    expect(mockDb.DetailPost.create).toHaveBeenCalledWith(expect.objectContaining({ categoryJoblevelCode: savedLevel }), { transaction: mockTransaction });
     expect(company.save).toHaveBeenCalledWith({ transaction: mockTransaction, fields: [allowance], silent: true });
     for (const model of [mockDb.User, mockDb.Company]) {
       expect(model.findOne).toHaveBeenCalledWith(expect.objectContaining({ transaction: mockTransaction, lock: 'UPDATE' }));
@@ -433,6 +434,19 @@ describe('postService', () => {
     expect(result).toEqual({ errCode: 0, data: ['p'], count: 1 });
     expect(mockDb.Post.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 0 }));
     expectPublicOwnerScope(mockDb.Post.findAndCountAll.mock.calls[0][0]);
+  });
+
+  test.each([
+    ['nhan-vien,truong-phong,giam-doc,junior,principal'],
+    [['nhan-vien', 'truong-phong', 'giam-doc', 'junior', 'principal']],
+  ])('resolves legacy level filters to canonical codes and preserves custom levels: %j', async categoryJoblevelCode => {
+    const { Op } = require('sequelize');
+    mockDb.DetailPost.findAll.mockResolvedValue([{ id: 20 }]);
+    mockDb.Post.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });
+    expect((await service.getFilterPost({ categoryJoblevelCode, limit: 5, offset: 10 })).errCode).toBe(0);
+    const filter = mockDb.DetailPost.findAll.mock.calls[0][0].where[Op.and].filter(Boolean);
+    expect(filter).toEqual([{ [Op.or]: ['junior', 'lead', 'manager', 'principal'].map(code => ({ categoryJoblevelCode: code })) }]);
+    expect(mockDb.Post.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 5, offset: 10 }));
   });
 
   test('returns type statistics and total active post count', async () => {

@@ -14,6 +14,7 @@ import CommonUtils from "../../util/CommonUtils";
 import CompanyReview from "./CompanyReview";
 import DetailCompany from "./DetailCompany";
 import ListCompany from "./ListCompany";
+import { invalidateReferenceData } from '../../service/referenceDataEvents';
 
 const mockNavigate = jest.fn();
 let mockCompanyId = "42";
@@ -351,6 +352,21 @@ describe("DetailCompany", () => {
             expect.not.stringContaining("key=")
         );
         expect(document.body.innerHTML).not.toContain("topcv.vn");
+    });
+
+    it('refreshes joined vacancy labels without reloading follow or review state', async () => {
+        render(<DetailCompany />);
+        await screen.findByText('20 triệu');
+        const updated = { ...company, postData: company.postData.map(post => ({ ...post,
+            postDetailData: { ...post.postDetailData, salaryTypePostData: { value: '25 triệu' } },
+        })) };
+        getDetailCompanyById.mockResolvedValueOnce({ errCode: 0, data: updated });
+        act(() => invalidateReferenceData());
+        await screen.findByText('25 triệu');
+        expect(screen.queryByText('20 triệu')).not.toBeInTheDocument();
+        expect(getDetailCompanyById).toHaveBeenCalledTimes(2);
+        expect(checkFollowCompanyService).toHaveBeenCalledTimes(1);
+        expect(getReviewByCompanyService).toHaveBeenCalledTimes(1);
     });
 
     it("redirects anonymous visitors who try to follow", async () => {

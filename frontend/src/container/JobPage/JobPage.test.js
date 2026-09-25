@@ -1,6 +1,8 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { getListPostService } from "../../service/userService";
+import { getListPostService, getAllCodeService } from "../../service/userService";
+import { searchJobs } from '../../service/aiSearchService';
+import { invalidateReferenceData } from '../../service/referenceDataEvents';
 import JobPage from "./JobPage";
 import { BrowserRouter, MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { clearJobSearchHistory, SEARCH_SNAPSHOT_TTL } from "./jobSearchHistory";
@@ -13,7 +15,9 @@ jest.mock("react-router-dom", () => {
 
 jest.mock("../../service/userService", () => ({
     getListPostService: jest.fn(),
+    getAllCodeService: jest.fn(),
 }));
+jest.mock('../../service/aiSearchService', () => ({ searchJobs: jest.fn() }));
 jest.mock("../../util/CommonUtils", () => ({
     __esModule: true,
     default: { removeSpace: (value) => value.trim().replace(/\s+/g, " ") },
@@ -35,7 +39,7 @@ jest.mock("./RightPage/RightContent", () => (props) => {
         <span data-testid="job-count">{props.count}</span>
         <input aria-label="Search draft" value={props.searchDraft} onChange={event => props.onSearchDraftChange(event.target.value)} />
         <button onClick={() => props.handleSearch(props.searchDraft)}>submit-draft</button>
-        <StableList busy={props.loading} resetKey={props.resetKey}>{props.post.map((item) => <span key={item.id}>{item.name}</span>)}</StableList>
+        <StableList busy={props.loading} resetKey={props.resetKey}>{props.post.map((item) => <span key={item.id}>{item.name || item.postDetailData?.name}<span>{item.postDetailData?.jobLevelPostData?.value}</span></span>)}</StableList>
         <button onClick={() => props.handleSearch("  React   Engineer  ")}>search</button>
         <button onClick={() => props.handleSearch("")}>clear-search</button>
     </div>
@@ -62,6 +66,71 @@ const expectLatestQuery = async (expected) => {
 };
 
 describe("JobPage", () => {
+    it('refreshes changed catalog labels while preserving the active filters, page and scroll', async () => {
+        window.history.replaceState({}, '', '/job?page=3&search=React&categoryJoblevelCode=%5B%22LEVEL%22%5D');
+        getListPostService.mockResolvedValueOnce({ ...success, data: [{ id: 1, name: 'Before rename' }] });
+        render(<BrowserRouter><JobPage /></BrowserRouter>);
+        await screen.findByText('Before rename');
+        window.scrollTo.mockClear();
+        getListPostService.mockResolvedValueOnce({ ...success, data: [{ id: 1, name: 'After rename' }] });
+        act(() => invalidateReferenceData());
+        await screen.findByText('After rename');
+        await expectLatestQuery({ offset: 10, search: 'React', categoryJoblevelCode: ['LEVEL'] });
+        expect(getListPostService).toHaveBeenCalledTimes(2);
+        expect(new URLSearchParams(window.location.search).get('page')).toBe('3');
+        expect(window.scrollTo).not.toHaveBeenCalled();
+    });
+
+    it('reloads a Back snapshot after a catalog change and keeps its filters and saved scroll', async () => {
+        const Navigation = () => {
+            const navigate = useNavigate();
+            return <><button onClick={() => navigate('/detail-job/1')}>open-detail</button>
+                <button onClick={() => navigate(-1)}>browser-back</button></>;
+        };
+        render(<MemoryRouter initialEntries={['/job?page=3&categoryJoblevelCode=%5B%22LEVEL%22%5D']}><Navigation /><Routes>
+            <Route path="/job" element={<JobPage />} /><Route path="/detail-job/:id" element={<p>Detail</p>} />
+        </Routes></MemoryRouter>);
+        await screen.findByText('React Developer');
+        Object.defineProperty(window, 'scrollY', { value: 950, configurable: true });
+        fireEvent.scroll(window);
+        fireEvent.click(screen.getByText('open-detail'));
+        act(() => invalidateReferenceData());
+        getListPostService.mockResolvedValueOnce({ ...success, data: [{ id: 1, name: 'Updated Developer' }] });
+        window.scrollTo.mockClear();
+        fireEvent.click(screen.getByText('browser-back'));
+        expect(window.scrollTo).toHaveBeenCalledWith(0, 950);
+        await screen.findByText('Updated Developer');
+        await expectLatestQuery({ offset: 10, categoryJoblevelCode: ['LEVEL'] });
+        expect(getListPostService).toHaveBeenCalledTimes(2);
+        Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+    });
+
+    it('reloads core labels before searching again and does not loop after a catalog change', async () => {
+        const previousMode = process.env.REACT_APP_JOB_SEARCH_MODE;
+        process.env.REACT_APP_JOB_SEARCH_MODE = 'core';
+        let levelName = 'Junior';
+        getAllCodeService.mockImplementation(type => Promise.resolve({ errCode: 0, data: type === 'JOBLEVEL'
+            ? [{ code: 'LEVEL', value: levelName }] : [] }));
+        searchJobs.mockResolvedValue({ errCode: 0, count: 1, data: [{ id: 1, name: 'Core Engineer', statusCode: 'PS1', categoryJoblevelCode: 'LEVEL' }] });
+        try {
+            render(<MemoryRouter initialEntries={['/job?categoryJoblevelCode=%5B%22LEVEL%22%5D']}><JobPage /></MemoryRouter>);
+            await screen.findByText('Junior');
+            levelName = 'Middle';
+            window.scrollTo.mockClear();
+            act(() => invalidateReferenceData());
+            await screen.findByText('Middle');
+            expect(screen.queryByText('Junior')).not.toBeInTheDocument();
+            expect(searchJobs).toHaveBeenCalledTimes(2);
+            expect(searchJobs).toHaveBeenLastCalledWith(expect.objectContaining({ categoryJoblevelCode: ['LEVEL'], offset: 0 }));
+            expect(getAllCodeService).toHaveBeenCalledTimes(8);
+            expect(getListPostService).not.toHaveBeenCalled();
+            expect(window.scrollTo).not.toHaveBeenCalled();
+        } finally {
+            if (previousMode === undefined) delete process.env.REACT_APP_JOB_SEARCH_MODE;
+            else process.env.REACT_APP_JOB_SEARCH_MODE = previousMode;
+        }
+    });
+
     it('settles a new history entry with the same URL rather than staying busy indefinitely', async () => {
         const Navigation = () => { const navigate = useNavigate(); return <button onClick={() => navigate('/job')}>Same URL</button>; };
         render(<MemoryRouter initialEntries={['/job']}><Navigation /><JobPage /></MemoryRouter>);

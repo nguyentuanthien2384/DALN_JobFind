@@ -7,7 +7,7 @@ export const loadSearchLabels = async () => {
     const entries = await Promise.all(labelTypes.map(async type => {
         try {
             const response = await getAllCodeService(type);
-            return [type, response?.errCode === 0 && Array.isArray(response.data)
+            return [type, response?.errCode === 0 && !response.stale && Array.isArray(response.data)
                 ? Object.fromEntries(response.data.filter(row => typeof row.code === 'string' && typeof row.value === 'string').map(row => [row.code, row.value])) : {}];
         } catch { return [type, {}]; }
     }));
@@ -17,7 +17,7 @@ export const searchCard = (job, labels = {}) => {
     if (!job || !Number.isSafeInteger(job.id) || job.id <= 0 || typeof job.name !== 'string' || job.statusCode !== 'PS1') {
         throw new Error('Dữ liệu tìm kiếm không hợp lệ');
     }
-    const label = (type, code) => ({ value: labels[type]?.[code] || code || 'Chưa cập nhật' });
+    const label = (type, code) => ({ code, value: labels[type]?.[code] || code || 'Chưa cập nhật' });
     return { id: job.id, timePost: job.timePost,
         userPostData: { userCompanyData: { name: job.companyName || '', thumbnail: job.companyLogo || '' } },
         postDetailData: { name: job.name, jobLevelPostData: label('JOBLEVEL', job.categoryJoblevelCode),

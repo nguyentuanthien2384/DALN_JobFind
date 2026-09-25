@@ -1,5 +1,6 @@
 import moment from 'moment';
 import 'moment/locale/vi';
+import { canonicalJobLevel } from './jobLevels';
 
 // Specify the locale on each instance: other screens may change Moment's default.
 export const formatJobTime = value => {
@@ -45,7 +46,8 @@ const labels = {
 const jobLevelOrder = ['Intern', 'Fresher', 'Junior', 'Middle', 'Senior', 'Lead', 'Manager'];
 export const sortJobLevels = rows => {
     const rank = row => {
-        const index = jobLevelOrder.indexOf(jobLabel(row));
+        const codeIndex = jobLevelOrder.findIndex(level => level.toLowerCase() === canonicalJobLevel(row.code));
+        const index = codeIndex < 0 ? jobLevelOrder.indexOf(jobLabel(row)) : codeIndex;
         return index < 0 ? jobLevelOrder.length : index;
     };
     return [...rows].sort((a, b) => rank(a) - rank(b));

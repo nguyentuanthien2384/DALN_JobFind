@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-toastify";
 import { getListJobTypeAndCountPost, getRecommendedPostService } from "../../service/userService";
 import Category from "./Category";
@@ -8,6 +8,7 @@ import FeatureJob from "./FeatureJob";
 import FeaturesJobs from "./FeaturesJobs";
 import RecommendedJobs from "./RecommendedJobs";
 import Job from "../Job/Job";
+import { REFERENCE_DATA_STORAGE_KEY } from '../../service/referenceDataEvents';
 
 jest.mock("../../service/userService", () => ({
     getListJobTypeAndCountPost: jest.fn(),
@@ -109,5 +110,21 @@ describe("home job components", () => {
         const view = render(<RecommendedJobs />);
         await waitFor(() => expect(getRecommendedPostService).toHaveBeenCalledTimes(2));
         expect(view.container).toBeEmptyDOMElement();
+    });
+
+    it('updates recommended job levels when another tab changes the catalog', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 2, roleCode: 'CANDIDATE' }));
+        const previous = job(7, 'Matched Job');
+        const updated = { ...previous, postDetailData: { ...previous.postDetailData, jobLevelPostData: { value: 'Middle' } } };
+        getRecommendedPostService.mockResolvedValueOnce({ errCode: 0, data: [previous] })
+            .mockResolvedValueOnce({ errCode: 0, data: [updated] });
+        render(<RecommendedJobs />);
+        await screen.findByText('Senior');
+        act(() => window.dispatchEvent(new StorageEvent('storage', {
+            key: REFERENCE_DATA_STORAGE_KEY, oldValue: 'old', newValue: 'new',
+        })));
+        await screen.findByText('Middle');
+        expect(screen.queryByText('Senior')).not.toBeInTheDocument();
+        expect(getRecommendedPostService).toHaveBeenCalledTimes(2);
     });
 });

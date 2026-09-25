@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { assertUnchangedDeadline, editedDetail, DETAIL_FIELDS } from '../job-core-service/src/libs/jobEdit.js';
 
+it('accepts an old level code without reverting a migrated job or starting another review', () => {
+    const current = Object.fromEntries(DETAIL_FIELDS.map(field => [field, field === 'categoryJoblevelCode' ? 'junior' : null]));
+    expect(editedDetail(current, { categoryJoblevelCode: 'nhan-vien' })).toEqual({
+        detail: current, changed: false, needsModeration: false,
+    });
+});
+
 const detail = Object.fromEntries(DETAIL_FIELDS.map(field => [field, field === 'amount' ? 2 : field]));
 describe('job edit value semantics', () => {
     it.each(DETAIL_FIELDS)('only changes explicitly supplied %s', field => {
