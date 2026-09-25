@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { getAllCodeService } from '../service/userService';
+import { sortJobLevels } from './jobLocale';
 const allCodeCache = new Map();
 export const clearAllCodeCache = () => allCodeCache.clear();
 const useFetchAllcode = (type, { retain = false } = {}) => {
@@ -12,8 +13,9 @@ const useFetchAllcode = (type, { retain = false } = {}) => {
             try {
                 let arrData = await getAllCodeService(initialType.current)
                 if (arrData?.errCode === 0 && Array.isArray(arrData.data)) {
-                    if (retainData.current) allCodeCache.set(initialType.current, arrData.data);
-                    if (active) setdata(arrData.data);
+                    const rows = initialType.current === 'JOBLEVEL' ? sortJobLevels(arrData.data) : arrData.data;
+                    if (retainData.current) allCodeCache.set(initialType.current, rows);
+                    if (active) setdata(rows);
                 }
             } catch { /* Preserve already loaded filter options during a network failure. */ }
         };

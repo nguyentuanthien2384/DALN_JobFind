@@ -3,13 +3,35 @@ import { clearPushOnLogout } from '../../push/webPush';
 import { candidateAiEnabled } from '../../service/candidateWorkspace';
 import React from 'react'
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, matchPath, useLocation } from 'react-router-dom'
 import './header.scss';
 import { getNotificationByUserService, markReadNotificationService, getListChatConversationService } from '../../service/userService';
 import { getSocket, disconnectSocket } from '../../socket';
 import { readJsonStorage } from '../../util/storage';
 import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
 import SessionContext from '../../auth/SessionContext';
+
+const navigationItems = [
+    { to: '/', label: 'Trang chủ', paths: ['/'] },
+    { to: '/job', label: 'Việc làm', paths: ['/job', '/detail-job/:id'] },
+    { to: '/company', label: 'Công ty', paths: ['/company', '/detail-company/:id'] },
+    { to: '/about', label: 'Giới thiệu', paths: ['/about'] },
+    { to: '/contact', label: 'Liên hệ', paths: ['/contact'] },
+]
+
+const NavigationLinks = ({ onNavigate }) => {
+    const { pathname } = useLocation()
+    return navigationItems.map(({ to, label, paths }) => {
+        const isActive = paths.some(path => matchPath({ path, end: path === '/' }, pathname))
+        return (
+            <li key={to}>
+                <Link to={to} className="public-nav-link" aria-current={isActive ? 'page' : undefined} onClick={onNavigate}>
+                    {label}
+                </Link>
+            </li>
+        )
+    })
+}
 
 const Header = () => {
     const sessionUser = useContext(SessionContext)
@@ -183,13 +205,9 @@ const Header = () => {
                                     <div className="menu-wrapper">
                                         {/* <!-- Main-menu --> */}
                                         <div className="main-menu">
-                                            <nav className="d-none d-lg-block">
+                                            <nav className="d-none d-lg-block" aria-label="Điều hướng chính">
                                                 <ul id="navigation">
-                                                    <li ><NavLink to="/" onClick={() => window.scrollTo(0, 0)}>Trang chủ</NavLink></li>
-                                                    <li ><NavLink to="/job" onClick={() => window.scrollTo(0, 0)}>Việc làm </NavLink></li>
-                                                    <li ><NavLink to="/company" onClick={() => window.scrollTo(0, 0)}>Công ty </NavLink></li>
-                                                    <li ><NavLink to="/about" onClick={() => window.scrollTo(0, 0)}>Giới thiệu</NavLink></li>
-                                                    <li><NavLink to="/contact" onClick={() => window.scrollTo(0, 0)}>Liên hệ</NavLink></li>
+                                                    <NavigationLinks onNavigate={() => window.scrollTo(0, 0)} />
                                                 </ul>
                                             </nav>
                                         </div>
@@ -302,11 +320,7 @@ const Header = () => {
                                     {showMobileMenu && (
                                         <nav id="public-mobile-menu" className="public-mobile-menu-panel" aria-label="Điều hướng di động">
                                             <ul>
-                                                <li><NavLink to="/" onClick={closeHeaderMenus}>Trang chủ</NavLink></li>
-                                                <li><NavLink to="/job" onClick={closeHeaderMenus}>Việc làm</NavLink></li>
-                                                <li><NavLink to="/company" onClick={closeHeaderMenus}>Công ty</NavLink></li>
-                                                <li><NavLink to="/about" onClick={closeHeaderMenus}>Giới thiệu</NavLink></li>
-                                                <li><NavLink to="/contact" onClick={closeHeaderMenus}>Liên hệ</NavLink></li>
+                                                <NavigationLinks onNavigate={closeHeaderMenus} />
                                                 {user ? (
                                                     <>
                                                         <li className="public-mobile-menu-divider" />

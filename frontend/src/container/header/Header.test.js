@@ -1,6 +1,7 @@
 jest.mock('../../auth/authClient', () => ({ logoutServer: jest.fn().mockResolvedValue(undefined) }));
 import React from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render as renderView, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import {
     getListChatConversationService,
     getNotificationByUserService,
@@ -20,11 +21,16 @@ jest.mock("../../socket", () => ({
 }));
 jest.mock("react-toastify", () => ({ toast: { error: jest.fn() } }));
 jest.mock("react-router-dom", () => {
-    const React = require("react");
-    const Link = ({ to, children, ...props }) =>
-        React.createElement("a", { href: to, ...props }, children);
-    return { Link, NavLink: Link };
+    global.TextEncoder = require('util').TextEncoder;
+    global.TextDecoder = require('util').TextDecoder;
+    return jest.requireActual('react-router');
 });
+
+const render = (view, entry = '/') => renderView(<MemoryRouter initialEntries={[entry]}>{view}</MemoryRouter>);
+const BackButton = () => {
+    const navigate = useNavigate();
+    return <button onClick={() => navigate(-1)}>Back</button>;
+};
 
 const socketHandlers = {};
 const socket = {
@@ -85,6 +91,62 @@ describe("public Header", () => {
             "/login"
         );
         expect(getNotificationByUserService).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['/', 'Trang chủ'],
+        ['/job?page=2&jobLevel=JUNIOR', 'Việc làm'],
+        ['/job/', 'Việc làm'],
+        ['/detail-job/42', 'Việc làm'],
+        ['/company', 'Công ty'],
+        ['/detail-company/9', 'Công ty'],
+        ['/about', 'Giới thiệu'],
+        ['/contact', 'Liên hệ'],
+        ['/login', null],
+        ['/register', null],
+        ['/account/security', null],
+    ])('marks only the current public section on desktop and mobile at %s', (entry, activeLabel) => {
+        render(<Header />, entry);
+        fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+
+        ['Điều hướng chính', 'Điều hướng di động'].forEach(name => {
+            const navigation = screen.getByRole('navigation', { name });
+            const activeLinks = Array.from(navigation.querySelectorAll('.public-nav-link[aria-current="page"]'));
+            expect(activeLinks.map(link => link.textContent.trim())).toEqual(activeLabel ? [activeLabel] : []);
+        });
+        if (entry === '/login' || entry === '/register') {
+            const activeAuthLabel = entry === '/login' ? 'Đăng nhập' : 'Đăng kí';
+            const inactiveAuthLabel = entry === '/login' ? 'Đăng kí' : 'Đăng nhập';
+            screen.getAllByRole('link', { name: activeAuthLabel }).forEach(link => {
+                expect(link).toHaveAttribute('aria-current', 'page');
+            });
+            screen.getAllByRole('link', { name: inactiveAuthLabel }).forEach(link => {
+                expect(link).not.toHaveAttribute('aria-current');
+            });
+        }
+    });
+
+    it('updates the active section after navigation and Back, preserving active auth links', () => {
+        render(<><Header /><BackButton /></>);
+        const desktopNavigation = screen.getByRole('navigation', { name: 'Điều hướng chính' });
+        const jobsLink = within(desktopNavigation).getByRole('link', { name: 'Việc làm' });
+        fireEvent.click(jobsLink);
+        expect(jobsLink).toHaveAttribute('aria-current', 'page');
+        expect(within(desktopNavigation).getByRole('link', { name: 'Trang chủ' })).not.toHaveAttribute('aria-current');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+        fireEvent.click(within(screen.getByRole('navigation', { name: 'Điều hướng di động' })).getByRole('link', { name: 'Công ty' }));
+        expect(screen.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'false');
+        expect(within(desktopNavigation).getByRole('link', { name: 'Công ty' })).toHaveAttribute('aria-current', 'page');
+        fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+        expect(jobsLink).toHaveAttribute('aria-current', 'page');
+
+        fireEvent.click(screen.getByRole('link', { name: 'Đăng nhập' }));
+        expect(screen.getByRole('link', { name: 'Đăng nhập' })).toHaveAttribute('aria-current', 'page');
+        expect(jobsLink).not.toHaveAttribute('aria-current');
+        fireEvent.click(screen.getByRole('link', { name: 'Đăng kí' }));
+        expect(screen.getByRole('link', { name: 'Đăng kí' })).toHaveAttribute('aria-current', 'page');
+        expect(screen.getByRole('link', { name: 'Đăng nhập' })).not.toHaveAttribute('aria-current');
     });
 
     it("treats malformed persisted user data as an anonymous session", async () => {

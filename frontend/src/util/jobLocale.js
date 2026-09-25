@@ -19,7 +19,7 @@ const labels = {
     parttime: 'Bán thời gian',
     'part time': 'Bán thời gian',
     internship: 'Thực tập',
-    intern: 'Thực tập sinh',
+    intern: 'Intern',
     hybrid: 'Kết hợp tại văn phòng và từ xa',
     onsite: 'Làm việc tại văn phòng',
     'on-site': 'Làm việc tại văn phòng',
@@ -28,15 +28,27 @@ const labels = {
     negotiable: 'Thỏa thuận',
     'thoả thuận': 'Thỏa thuận',
     competitive: 'Cạnh tranh',
-    fresher: 'Mới tốt nghiệp',
-    junior: 'Nhân viên sơ cấp',
-    senior: 'Nhân viên cao cấp',
-    manager: 'Quản lý',
+    fresher: 'Fresher',
+    junior: 'Junior',
+    middle: 'Middle',
+    senior: 'Senior',
+    lead: 'Lead',
+    manager: 'Manager',
     director: 'Giám đốc',
     'team leader': 'Trưởng nhóm',
     staff: 'Nhân viên',
     employee: 'Nhân viên',
     'no experience': 'Không yêu cầu kinh nghiệm',
+};
+
+// Keep the IT career ladder in progression order in filters and posting forms.
+const jobLevelOrder = ['Intern', 'Fresher', 'Junior', 'Middle', 'Senior', 'Lead', 'Manager'];
+export const sortJobLevels = rows => {
+    const rank = row => {
+        const index = jobLevelOrder.indexOf(jobLabel(row));
+        return index < 0 ? jobLevelOrder.length : index;
+    };
+    return [...rows].sort((a, b) => rank(a) - rank(b));
 };
 
 export const jobLabel = input => {

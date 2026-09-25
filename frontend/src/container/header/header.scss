@@ -45,6 +45,19 @@
     gap: 8px;
 }
 
+.public-header-shell .main-menu ul li .public-nav-link {
+    &[aria-current="page"] {
+        background: #fff1f6;
+        color: #fb246a;
+        box-shadow: inset 0 -3px 0 #fb246a;
+    }
+
+    &:focus-visible {
+        outline: 2px solid #252b60;
+        outline-offset: -3px;
+    }
+}
+
 .public-header-shell .public-auth-link {
     display: inline-flex;
     align-items: center;
@@ -153,10 +166,20 @@
     }
 
     a:hover,
-    a.active,
     .public-mobile-menu-link:hover {
         background: #f7f8fc;
         color: #fb246a;
+    }
+
+    .public-nav-link[aria-current="page"] {
+        background: #fff1f6;
+        color: #fb246a;
+        box-shadow: inset 3px 0 0 #fb246a;
+    }
+
+    .public-nav-link:focus-visible {
+        outline: 2px solid #252b60;
+        outline-offset: -3px;
     }
 
     .public-mobile-menu-divider {
@@ -225,7 +248,6 @@
         cursor: pointer;
     }
 }
-
 
 
 

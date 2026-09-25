@@ -22,3 +22,10 @@ test('localizes common labels and preserves employer values it does not recogniz
     expect(jobLabel('React / .NET')).toBe('React / .NET');
     expect(jobLabel()).toBe('Chưa cập nhật');
 });
+
+test.each(['Intern', 'Fresher', 'Junior', 'Middle', 'Senior', 'Lead', 'Manager'])(
+    'preserves the IT level %s on filters, cards and details', level => {
+        expect(jobLabel({ value: level })).toBe(level);
+        expect(jobLabel(level.toLowerCase())).toBe(level);
+    },
+);

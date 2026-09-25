@@ -34,6 +34,29 @@ describe("useFetchAllcode", () => {
         expect(getAllCodeService).toHaveBeenCalledWith("ROLE");
     });
 
+    it('orders IT levels by progression without changing filter codes or the API response', async () => {
+        const rows = [
+            { code: 'giam-doc', value: 'Manager' },
+            { code: 'senior', value: 'Senior' },
+            { code: 'fresher', value: 'Fresher' },
+            { code: 'truong-phong', value: 'Lead' },
+            { code: 'middle', value: 'Middle' },
+            { code: 'nhan-vien', value: 'Junior' },
+            { code: 'intern', value: 'Intern' },
+        ];
+        const original = [...rows];
+        getAllCodeService.mockResolvedValue({ errCode: 0, data: rows });
+        const first = renderHook(() => useFetchAllcode('JOBLEVEL', { retain: true }));
+        await waitFor(() => expect(first.result.current.data.map(row => row.code)).toEqual([
+            'intern', 'fresher', 'nhan-vien', 'middle', 'senior', 'truong-phong', 'giam-doc',
+        ]));
+        expect(rows).toEqual(original);
+        first.unmount();
+        const second = renderHook(() => useFetchAllcode('JOBLEVEL', { retain: true }));
+        expect(second.result.current.data).toEqual(first.result.current.data);
+        await waitFor(() => expect(getAllCodeService).toHaveBeenCalledTimes(2));
+    });
+
     it("keeps an empty list when the API reports an error", async () => {
         getAllCodeService.mockResolvedValue({ errCode: 1, data: [{ code: "BAD" }] });
         const { result } = renderHook(() => useFetchAllcode("ROLE"));

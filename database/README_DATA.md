@@ -86,6 +86,19 @@ bên Elasticsearch và PostgreSQL. Chạy xong đối chiếu lại vẫn khớp
 
 ## Cách nạp
 
+Danh mục `JOBLEVEL` dùng thứ tự Intern, Fresher, Junior, Middle, Senior, Lead,
+Manager. Ba mã cũ được giữ để tương thích tin tuyển dụng, URL bộ lọc và chỉ mục
+tìm kiếm: `nhan-vien` → Junior, `truong-phong` → Lead, `giam-doc` → Manager.
+Đây là quy đổi danh mục mẫu, không phải đánh giá lại năng lực của từng vị trí.
+Với cơ sở dữ liệu đã có, chạy migration
+`migrationzzzzzzzzzzz-it-job-levels.js` qua Sequelize; không cần nạp lại dữ liệu
+hay lập lại chỉ mục tìm kiếm. Seeder và file SQL cũng đã dùng danh mục mới.
+
+```powershell
+cd backend
+npx sequelize-cli db:migrate --name migrationzzzzzzzzzzz-it-job-levels.js
+```
+
 Xem hướng dẫn chi tiết tại [`../RESTORE_SAMPLE_DATA.md`](../RESTORE_SAMPLE_DATA.md).
 Ngắn gọn: từ thư mục `backend/` chạy
 

@@ -1111,6 +1111,17 @@ ALTER TABLE `usersettings`
 ALTER TABLE `userskills`
   ADD CONSTRAINT `userskills_ibfk_1` FOREIGN KEY (`userId`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `userskills_ibfk_2` FOREIGN KEY (`skillId`) REFERENCES `skills` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+-- IT recruitment levels. Keep legacy keys so existing posts and saved filters remain valid.
+UPDATE allcodes SET value='Junior' WHERE code='nhan-vien' AND type='JOBLEVEL';
+UPDATE allcodes SET value='Lead' WHERE code='truong-phong' AND type='JOBLEVEL';
+UPDATE allcodes SET value='Manager' WHERE code='giam-doc' AND type='JOBLEVEL';
+INSERT INTO allcodes (code, type, value, image) VALUES
+('intern', 'JOBLEVEL', 'Intern', ''),
+('fresher', 'JOBLEVEL', 'Fresher', ''),
+('middle', 'JOBLEVEL', 'Middle', ''),
+('senior', 'JOBLEVEL', 'Senior', '')
+ON DUPLICATE KEY UPDATE value=VALUES(value);
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
