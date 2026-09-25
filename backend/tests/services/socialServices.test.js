@@ -266,7 +266,30 @@ describe('notificationService', () => {
     expect(await notification.getNotificationByUser({ userId: 1, limit: '10', offset: '0' })).toEqual({
       errCode: 0, data: ['n'], count: 4, unreadCount: 2
     });
-    expect(mockDb.Notification.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 0 }));
+    expect(mockDb.Notification.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 1 }, limit: 10, offset: 0, order: [['createdAt', 'DESC'], ['id', 'DESC']]
+    }));
+  });
+
+  test('defaults to a bounded first page and retains the account-wide unread count on later pages', async () => {
+    mockDb.Notification.findAndCountAll.mockResolvedValue({ rows: [], count: 25 });
+    mockDb.Notification.count.mockResolvedValue(12);
+    await notification.getNotificationByUser({ userId: 1 });
+    expect(mockDb.Notification.findAndCountAll).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 10, offset: 0 }));
+    const result = await notification.getNotificationByUser({ userId: 1, limit: '10', offset: '20' });
+    expect(result).toMatchObject({ count: 25, unreadCount: 12 });
+    expect(mockDb.Notification.findAndCountAll).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 10, offset: 20 }));
+    expect(mockDb.Notification.count).toHaveBeenLastCalledWith({ where: { userId: 1, isChecked: 0 } });
+  });
+
+  test.each([
+    { limit: 0 }, { limit: 51 }, { limit: 'bad' }, { limit: [10] }, { limit: null },
+    { limit: '1.5' }, { limit: '1e1' }, { offset: -1 }, { offset: '1.5' },
+    { offset: 1000001 }, { offset: {} }, { offset: '' }, { offset: true }
+  ])('rejects invalid pagination %j before querying notifications', async pagination => {
+    expect((await notification.getNotificationByUser({ userId: 1, ...pagination })).errCode).toBe(1);
+    expect(mockDb.Notification.findAndCountAll).not.toHaveBeenCalled();
+    expect(mockDb.Notification.count).not.toHaveBeenCalled();
   });
 
   test('marks one notification or all user notifications as read', async () => {

@@ -10,6 +10,7 @@ import { getSocket, disconnectSocket } from '../../socket';
 import { readJsonStorage } from '../../util/storage';
 import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
 import SessionContext from '../../auth/SessionContext';
+import { NOTIFICATIONS_UPDATED_EVENT, notifyNotificationsUpdated } from '../../util/notificationEvents';
 
 const navigationItems = [
     { to: '/', label: 'Trang chủ', paths: ['/'] },
@@ -84,6 +85,9 @@ const Header = () => {
         // het 30 giay. Van giu interval lam phuong an du phong khi socket hong.
         const socket = getSocket()
         const refresh = () => loadHeaderData()
+        const refreshFromOtherView = event => {
+            if (event.detail?.source !== 'header') refresh()
+        }
         if (socket) {
             if (canUseChat) { socket.on('chat:new-message', refresh); socket.on('chat:read', refresh) }
             socket.on('notification:new', refresh)
@@ -92,12 +96,14 @@ const Header = () => {
         }
         document.addEventListener('visibilitychange', refresh)
         window.addEventListener('online', refresh)
+        window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, refreshFromOtherView)
 
         return () => {
             active = false
             window.clearInterval(intervalId)
             document.removeEventListener('visibilitychange', refresh)
             window.removeEventListener('online', refresh)
+            window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, refreshFromOtherView)
             if (socket) {
                 if (canUseChat) { socket.off('chat:new-message', refresh); socket.off('chat:read', refresh) }
                 socket.off('notification:new', refresh)
@@ -169,6 +175,7 @@ const Header = () => {
             ++refreshVersion.current
             setListNotification(current => current.map(item => ({ ...item, isChecked: 1 })))
             setUnreadCount(0)
+            notifyNotificationsUpdated('header')
         }
     }
 
@@ -179,6 +186,7 @@ const Header = () => {
                 ++refreshVersion.current
                 setListNotification(current => current.map(item => item.id === notification.id ? { ...item, isChecked: 1 } : item))
                 setUnreadCount(current => Math.max(0, current - 1))
+                notifyNotificationsUpdated('header')
             }
         }
         setShowNotification(false)
@@ -247,6 +255,7 @@ const Header = () => {
                                                                 )) :
                                                                     <div style={{ padding: '18px', textAlign: 'center', color: '#999', fontSize: '13px' }}>Chưa có thông báo nào</div>
                                                                 }
+                                                                {isCandidate && <Link to="/candidate/notifications" onClick={closeHeaderMenus} style={{ display: 'block', padding: '12px 14px', textAlign: 'center', color: '#b92055', fontSize: '13px' }}>Xem tất cả thông báo</Link>}
                                                             </div>
                                                         }
                                                     </li>
@@ -265,6 +274,10 @@ const Header = () => {
                                                                 <i className="far fa-user text-primary" />
                                                                 Thông tin
                                                             </Link>
+                                                            {isCandidate && <Link to="/candidate/notifications" className="dropdown-item" onClick={closeHeaderMenus}>
+                                                                <i className="far fa-bell text-primary" />
+                                                                Thông báo tài khoản
+                                                            </Link>}
                                                             {isCandidate && <Link to='/candidate/usersetting' className="dropdown-item" onClick={closeHeaderMenus}>
                                                                 <i className="far fa-solid fa-bars text-primary" />
                                                                 Cài đặt nâng cao
@@ -344,10 +357,12 @@ const Header = () => {
                                                                             {item.content}
                                                                         </button>
                                                                     )) : <span>Chưa có thông báo nào</span>}
+                                                                    {isCandidate && <Link to="/candidate/notifications" onClick={closeHeaderMenus}>Xem tất cả thông báo</Link>}
                                                                 </div>
                                                             )}
                                                         </li>
                                                         <li><Link to={profilePath} onClick={closeHeaderMenus}>Thông tin tài khoản</Link></li>
+                                                        {isCandidate && <li><Link to="/candidate/notifications" onClick={closeHeaderMenus}>Thông báo tài khoản</Link></li>}
                                                         {isCandidate && <li><Link to="/candidate/usersetting" onClick={closeHeaderMenus}>Cài đặt nâng cao</Link></li>}
                                                         {isCandidate && candidateAiEnabled() && <li><Link to="/candidate/ai-cv" onClick={closeHeaderMenus}>CV và trợ lý AI</Link></li>}
                                                         {isCandidate && <li><Link to="/candidate/cv-post/" onClick={closeHeaderMenus}>Công việc đã nộp</Link></li>}

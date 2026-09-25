@@ -8,6 +8,7 @@ import SettingUser from "./SettingUser";
 import SavedJobs from "./SavedJobs";
 import CandidateAi from './CandidateAi';
 import NotificationJobs from './NotificationJobs';
+import CandidateNotifications from './CandidateNotifications';
 import './CandidateLayout.css';
 
 const HomeCandidate = () => {
@@ -26,6 +27,7 @@ const HomeCandidate = () => {
                 <div className="main-panel">
                     <div className="content-wrapper">
                         <Routes>
+                            <Route path="/notifications" element={<CandidateNotifications />} />
                             <Route path="/ai-cv" element={<CandidateAi />} />
                             <Route path="/followed-jobs" element={<NotificationJobs source="followed" />} />
                             <Route path="/recommended-jobs" element={<NotificationJobs source="recommended" />} />

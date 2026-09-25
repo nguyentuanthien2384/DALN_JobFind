@@ -99,7 +99,18 @@ export const runManualApprovalEligibilityChecks = async ({ pool, check, make, re
             for (const row of saved) { await receive(row); await receive(row); }
             assert.deepEqual(await deliveryCounts(), delivered.map((n, i) => n + (i === 2 ? 4 : 3)));
             for (const row of await noticeRows(id, 'follower')) {
-                assert.equal(JSON.parse(row.payload).note, null);
+                const payload = JSON.parse(row.payload);
+                assert.equal(payload.note, null);
+                const [notifications] = await pool.query(`SELECT n.userId, n.typeCode, n.isChecked, n.content, n.link
+                    FROM notifications n JOIN notification_inbox i ON n.id = i.notificationId
+                    WHERE i.eventId = ? AND i.recipientId = ?`, [row.id, payload.recipientId]);
+                assert.equal(notifications.length, 1, 'Repeated approval delivery must leave one notification for each follower');
+                assert.equal(notifications[0].userId, payload.recipientId);
+                assert.equal(notifications[0].typeCode, 'NEW_POST');
+                assert.equal(notifications[0].isChecked, 0);
+                assert.equal(notifications[0].link, `/detail-job/${id}`);
+                assert.ok(notifications[0].content.includes(payload.companyName));
+                assert.ok(notifications[0].content.includes(payload.jobTitle));
                 assert.deepEqual((await pool.query('SELECT channel FROM notification_deliveries WHERE eventId = ?', [row.id]))[0].map(r => r.channel), ['realtime']);
             }
             assert.equal((await manualHttp(job, 'approve')).status, 409);

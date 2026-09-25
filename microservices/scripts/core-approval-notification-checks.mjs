@@ -42,8 +42,25 @@ export const runCoreApprovalNotificationChecks = async ({ pool, check, make, rea
         await receive(author); await receive(author); await receive(created);
         assert.deepEqual(await deliveryCounts(), before.map((n, i) => n + (i === 2 ? 4 : 3)));
         for (const row of saved) {
-            const [channels] = await pool.query('SELECT channel FROM notification_deliveries WHERE eventId = ?', [row.id]);
+            const payload = JSON.parse(row.payload);
+            const [notifications] = await pool.query(`SELECT n.id, n.userId, n.typeCode, n.isChecked, n.content, n.link
+                FROM notifications n JOIN notification_inbox i ON n.id = i.notificationId
+                WHERE i.eventId = ? AND i.recipientId = ?`, [row.id, payload.recipientId]);
+            assert.equal(notifications.length, 1, 'A replayed approval must create exactly one account notification per follower');
+            const [notification] = notifications;
+            assert.equal(notification.userId, payload.recipientId);
+            assert.equal(notification.typeCode, 'NEW_POST');
+            assert.equal(notification.isChecked, 0, 'A new followed-company job must appear as unread');
+            assert.equal(notification.link, `/detail-job/${id}`);
+            assert.ok(notification.content.includes(payload.companyName));
+            assert.ok(notification.content.includes(payload.jobTitle));
+            const [channels] = await pool.query('SELECT channel, payload FROM notification_deliveries WHERE eventId = ?', [row.id]);
             assert.deepEqual(channels.map(c => c.channel), ['realtime']);
+            const realtime = JSON.parse(channels[0].payload);
+            assert.equal(realtime.userId, payload.recipientId);
+            for (const key of ['id', 'userId', 'typeCode', 'isChecked', 'content', 'link']) {
+                assert.equal(realtime.notification[key], notification[key], `The realtime ${key} must match the saved account notification`);
+            }
         }
         assert.deepEqual(await events(id), saved);
         assert.equal((await receiveAi(value)).outcome, 'stale');

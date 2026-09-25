@@ -42,7 +42,7 @@ let handleToggleFollowCompany = (data) => {
                         resolve({
                             errCode: 0,
                             isFollow: true,
-                            errMessage: 'Đã theo dõi công ty. Bạn sẽ nhận thông báo khi công ty đăng tin mới'
+                            errMessage: 'Đã theo dõi công ty. Bạn sẽ nhận thông báo khi tin tuyển dụng mới được duyệt.'
                         })
                     }
                 }

@@ -9,6 +9,7 @@ import {
 } from "../../service/userService";
 import { disconnectSocket, getSocket } from "../../socket";
 import Header from "./header";
+import { notifyNotificationsUpdated } from '../../util/notificationEvents';
 
 jest.mock("../../service/userService", () => ({
     getNotificationByUserService: jest.fn(),
@@ -304,6 +305,32 @@ describe("public Header", () => {
 
         fireEvent.keyDown(document, { key: "Escape" });
         expect(screen.queryByText("Đọc tất cả")).not.toBeInTheDocument();
+    });
+
+    it('links candidates to their notification history from the bell and account menus', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'CANDIDATE', firstName: 'An', lastName: 'N' }));
+        render(<Header />);
+        await screen.findByText('2');
+        fireEvent.click(screen.getByRole('button', { name: 'Thông báo' }));
+        expect(screen.getByRole('link', { name: 'Xem tất cả thông báo' })).toHaveAttribute('href', '/candidate/notifications');
+        fireEvent.click(screen.getByRole('button', { name: /An N/ }));
+        expect(screen.getByRole('link', { name: 'Thông báo tài khoản' })).toHaveAttribute('href', '/candidate/notifications');
+        fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+        const mobile = screen.getByRole('navigation', { name: 'Điều hướng di động' });
+        expect(within(mobile).getByRole('link', { name: 'Thông báo tài khoản' })).toHaveAttribute('href', '/candidate/notifications');
+        fireEvent.click(within(mobile).getByRole('button', { name: 'Thông báo (2)' }));
+        expect(within(mobile).getByRole('link', { name: 'Xem tất cả thông báo' })).toHaveAttribute('href', '/candidate/notifications');
+    });
+
+    it('refreshes the bell after a read on the account page without a realtime socket', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 7, roleCode: 'CANDIDATE' }));
+        getSocket.mockReturnValue(null);
+        render(<Header />);
+        await screen.findByText('2');
+        getNotificationByUserService.mockResolvedValue({ errCode: 0, unreadCount: 0, data: [] });
+        await act(async () => { notifyNotificationsUpdated('account'); });
+        expect(screen.queryByText('2')).not.toBeInTheDocument();
+        expect(getNotificationByUserService).toHaveBeenCalledTimes(2);
     });
 
     it("opens the account menu with React and closes it outside or with Escape", async () => {

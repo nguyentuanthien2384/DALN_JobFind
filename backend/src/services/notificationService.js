@@ -1,7 +1,13 @@
 import db from "../models/index";
 import { normalizeNotificationDestination } from '../utils/notificationDestination';
-const { Op } = require("sequelize");
 require('dotenv').config();
+
+const pageInteger = (value, fallback, min, max) => {
+    if (value === undefined) return fallback;
+    if (!['string', 'number'].includes(typeof value) || !/^\d+$/.test(String(value))) return null;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed >= min && parsed <= max ? parsed : null;
+};
 
 // Lấy danh sách thông báo của user (kèm số chưa đọc)
 let getNotificationByUser = (data) => {
@@ -13,14 +19,20 @@ let getNotificationByUser = (data) => {
                     errMessage: 'Missing required parameters !'
                 })
             } else {
+                const limit = pageInteger(data.limit, 10, 1, 50);
+                const offset = pageInteger(data.offset, 0, 0, 1000000);
+                if (limit === null || offset === null) {
+                    resolve({ errCode: 1, errMessage: 'Phân trang thông báo không hợp lệ.' });
+                    return;
+                }
                 let objectFilter = {
                     where: { userId: data.userId },
-                    order: [['createdAt', 'DESC']],
-                    raw: true
-                }
-                if (data.limit && data.offset !== undefined && data.offset !== null && data.offset !== '') {
-                    objectFilter.limit = +data.limit
-                    objectFilter.offset = +data.offset
+                    // A company can publish several jobs in the same instant.
+                    // The ID breaks timestamp ties so page boundaries are stable.
+                    order: [['createdAt', 'DESC'], ['id', 'DESC']],
+                    raw: true,
+                    limit,
+                    offset
                 }
                 let res = await db.Notification.findAndCountAll(objectFilter)
                 let unreadCount = await db.Notification.count({
