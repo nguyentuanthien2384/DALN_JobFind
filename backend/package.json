@@ -15,6 +15,7 @@
     "restore:sample-data": "node scripts/restore-sample-data.js",
     "seed:test-accounts": "node scripts/create-test-accounts.js",
     "seed:demo-data": "node scripts/setup-demo-data.js",
+    "seed:revenue-data": "node scripts/seed-revenue-data.cjs",
     "test:chat:infrastructure": "node scripts/test-chat-infrastructure.cjs",
     "test:chat:media": "node scripts/test-chat-media.cjs",
     "test:chat:media:browser": "node scripts/test-chat-media.cjs --browser",

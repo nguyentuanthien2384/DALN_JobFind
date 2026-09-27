@@ -44,6 +44,35 @@ Các ID trong dữ liệu mẫu mới đều tham chiếu đến bản ghi có t
 > cùng một mật khẩu `123456` vẫn cho hai chuỗi băm khác nhau giữa file và CSDL.
 > Đừng coi đó là dữ liệu lệch — hãy so bằng `bcrypt.compare`, đừng so chuỗi.
 
+## Dữ liệu mẫu cho hai biểu đồ doanh thu
+
+Giao dịch trong dump gốc chỉ có năm **2022**, nên biểu đồ chọn năm hiện tại sẽ
+không có cột doanh thu. Sau khi nạp dữ liệu và chạy các migration của backend,
+từ thư mục gốc dự án chạy:
+
+```powershell
+npm run seed:revenue-data
+```
+
+Lệnh thêm giao dịch cho cả **gói đăng bài** và **gói xem ứng viên** trong năm hiện
+tại và hai năm trước. Mỗi tháng có nhiều giao dịch với các gói, nhà tuyển dụng,
+số lượng và tổng tiền khác nhau; năm hiện tại chỉ có dữ liệu đến ngày chạy lệnh,
+không tạo doanh thu tương lai. Có thể xem trước bằng `-- --dry-run`, hoặc chọn
+một năm bằng `-- --year 2026`.
+
+Dữ liệu được ghi vào `orderpackages`, `orderpackagecvs` và `paymentintents` trong
+cơ sở dữ liệu local đang cấu hình ở `backend/.env`. Giao dịch mẫu mang
+`provider = 'DEMO'`, mã `demo-revenue-v1-...`; chạy lại sẽ bỏ qua giao dịch đã có.
+Các bản ghi mới được thêm trong một transaction. Lệnh giữ nguyên giao dịch cũ,
+giá gói, tài khoản và hạn mức đăng bài/xem CV; không gọi PayPal hay gửi thông báo.
+Đây là lịch sử giả lập phục vụ demo, **không phải doanh thu thanh toán thật**.
+Không đưa dữ liệu này vào báo cáo kinh doanh thật. Lệnh từ chối môi trường
+`production` và cơ sở dữ liệu ngoài máy local.
+
+Mở `/admin/sum-by-year-post/` hoặc `/admin/sum-by-year-cv/`, chọn năm đã tạo và
+bấm **Làm mới** để xem kết quả. Dữ liệu này được tạo bằng script riêng, không nằm
+trong `jobfindtest.sql`; sau khi phục hồi dump, chạy lại lệnh trên.
+
 ## Các bảng KHÔNG nằm trong file này
 
 Hệ thống microservices dùng thêm hai cơ sở dữ liệu riêng, **không** thuộc dump MySQL:
