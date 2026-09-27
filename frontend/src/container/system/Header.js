@@ -192,22 +192,16 @@ const Header = ({ user: suppliedUser }) => {
                             aria-label="Thông báo"
                             aria-expanded={showNotification}
                             aria-controls="system-notification-menu"
-                            style={{
-                                color: "#252b60", fontSize: "18px", cursor: "pointer",
-                                background: "none", border: 0, padding: 0, lineHeight: 1,
-                            }}
+                            className="jf-admin__notification-trigger"
                             onClick={toggleNotificationMenu}
                         >
-                            <i className="far fa-bell"></i>
+                            <i className="far fa-bell" aria-hidden="true"></i>
                             {unreadCount > 0 && (
                                 <span
-                                    style={{
-                                        position: "absolute", top: "-6px", right: "-10px",
-                                        background: "#fb246a", color: "#fff", borderRadius: "50%",
-                                        fontSize: "10px", padding: "1px 5px",
-                                    }}
+                                    className="jf-admin__notification-badge"
+                                    title={`${unreadCount} thông báo chưa đọc`}
                                 >
-                                    {unreadCount}
+                                    {unreadCount > 99 ? '99+' : unreadCount}
                                 </span>
                             )}
                         </button>

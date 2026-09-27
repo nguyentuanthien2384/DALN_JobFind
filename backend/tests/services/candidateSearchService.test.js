@@ -72,7 +72,7 @@ test.each(['any', 'all', 'rank'])('implements the %s skill mode in SQL before pa
     const conditions = options.where[Sequelize.Op.and].map(item => item.val);
     expect(options).toMatchObject({ limit: 5, offset: 10, distinct: true });
     expect(conditions.length).toBe(skillMode === 'rank' ? 1 : 2);
-    if (skillMode !== 'rank') expect(conditions[1]).toContain(skillMode === 'all' ? ') AND EXISTS' : ') OR EXISTS');
+    if (skillMode !== 'rank') expect(conditions[1]).toContain(skillMode === 'all' ? ') AND ((SELECT COUNT(*)' : ') OR ((SELECT COUNT(*)');
 });
 
 test('escapes SQL metacharacters and treats keyword wildcards as literal text', async () => {

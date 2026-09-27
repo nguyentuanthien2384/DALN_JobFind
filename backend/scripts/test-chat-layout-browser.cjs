@@ -13,9 +13,11 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
     const browser = await chromium.launch({ headless: true });
     const measurements = [];
     try {
-        for (const roleCode of ['ADMIN', 'CANDIDATE']) {
+        for (const roleCode of ['ADMIN', 'EMPLOYER', 'CANDIDATE']) {
             for (const viewport of viewports) {
-                const user = { id: 7, userId: 7, roleCode, firstName: 'Kiểm thử', lastName: 'Bố cục' };
+                const user = { id: 7, userId: 7, roleCode, firstName: 'Kiểm thử', lastName: 'Bố cục',
+                    ...(roleCode === 'EMPLOYER' ? { companyId: 1, companyStatusCode: 'S1', companyCensorCode: 'CS1' } : {}),
+                };
                 const context = await browser.newContext({ viewport });
                 await context.addInitScript(value => {
                     localStorage.setItem('userData', JSON.stringify(value));
@@ -46,7 +48,7 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
                     };
                     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) });
                 });
-                const chatPath = roleCode === 'ADMIN' ? '/admin/chat' : '/chat';
+                const chatPath = roleCode === 'CANDIDATE' ? '/chat' : '/admin/chat';
                 await page.goto(base + chatPath + '/20');
                 await page.getByRole('textbox', { name: 'Nội dung tin nhắn' }).waitFor();
                 await page.getByRole('log').getByText(messages.at(-1).content, { exact: true }).waitFor();
@@ -68,7 +70,7 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
                         documentHeight: document.documentElement.scrollHeight, scrollY,
                         container: rect('.chat-page-container'), composer: rect('.chat-composer'),
                         header: rect(document.querySelector('.jf-admin') ? '.navbar' : 'header'),
-                        title: rect('.chat-page-container > h4'), historyHeight: log.clientHeight,
+                        chat: rect('.chat-wrapper'), historyHeight: log.clientHeight,
                         historyScrollHeight: log.scrollHeight, historyScrollTop: log.scrollTop,
                         errors: window.layoutErrors,
                         sendOverlapsSupport: Boolean(launcher && send.right > launcher.left && send.left < launcher.right
@@ -83,8 +85,9 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
                 if (viewport.height > 640) assert.equal(metrics.sendOverlapsSupport, false, 'Support launcher must not cover Send');
                 assert.ok(metrics.historyHeight >= 120, 'History keeps usable space');
                 assert.ok(metrics.historyScrollHeight > metrics.historyHeight, 'Long history scrolls internally');
-                assert.ok(metrics.title.top - metrics.header.bottom <= 30, 'No obsolete header spacer');
-                if (roleCode === 'ADMIN' && viewport.height > 640) assert.ok(metrics.documentHeight <= viewport.height + 1, 'Admin chat fits viewport');
+                assert.ok(metrics.chat.top - metrics.header.bottom <= 30, 'Conversation starts directly below the header');
+                assert.equal(await page.locator('.chat-page-container > h4, .chat-page-container > section').count(), 0, 'No title or push settings above the conversation');
+                if (roleCode !== 'CANDIDATE' && viewport.height > 640) assert.ok(metrics.documentHeight <= viewport.height + 1, 'Admin chat fits viewport');
                 assert.deepEqual(metrics.errors, [], 'No browser error events (including ResizeObserver loops)');
                 measurements.push({ roleCode, viewport, ...metrics });
                 if (viewport.height <= 640) {
@@ -108,7 +111,7 @@ const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, {
                 await page.waitForFunction(() => document.querySelector('[role="log"]').clientHeight >= 119);
                 assert.deepEqual(await page.evaluate(() => window.layoutErrors), []);
                 assert.deepEqual(faults, []);
-                console.log(`PASS ${roleCode} ${viewport.width}x${viewport.height}: compact title, accessible composer, contained history, responsive resize`);
+                console.log(`PASS ${roleCode} ${viewport.width}x${viewport.height}: expanded conversation, accessible composer, contained history, responsive resize`);
                 await context.close();
             }
         }

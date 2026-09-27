@@ -10,7 +10,6 @@ import {
 } from "../../service/userService";
 import { getSocket } from "../../socket";
 import { readPending, preparePending, clearPending, sendReliably } from "./reliableSend";
-import PushSettings from "../../push/PushSettings";
 import ChatAvatar from "./ChatAvatar";
 import ChatShareTools from '../../components/chat/ChatShareTools';
 import ChatMessageContent, { ChatFileCard, ChatJobCard } from '../../components/chat/ChatMessageContent';
@@ -61,7 +60,7 @@ const ChatPage = () => {
         const list = messageListRef.current;
         if (list) {
             // Scroll only the message history. scrollIntoView also scrolls the
-            // page and can move the title/composer away when messages arrive.
+            // page and can move the conversation/composer away when messages arrive.
             if (typeof list.scrollTo === 'function') list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
             else list.scrollTop = list.scrollHeight;
         }
@@ -94,8 +93,7 @@ const ChatPage = () => {
             const hasConversation = Boolean(element.querySelector('[role="log"]'));
             // On short screens or with an attachment preview, allow real page
             // scrolling instead of squeezing the history/composer to zero.
-            const minimum = (parseFloat(style.paddingTop) || 0) + outerHeight(element.querySelector('h4'))
-                + outerHeight(element.querySelector(':scope > section')) + 2
+            const minimum = (parseFloat(style.paddingTop) || 0) + 2
                 + (hasConversation ? outerHeight(element.querySelector('.chat-main > div:first-child'))
                     + outerHeight(element.querySelector('.chat-composer')) + 120 : 160);
             const height = `${Math.max(360, minimum, viewport - top - bottom)}px`;
@@ -111,7 +109,7 @@ const ChatPage = () => {
         };
         resize();
         const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleResize) : null;
-        [header, footer, wrapper, ...element.querySelectorAll(':scope > section, .chat-composer, .chat-main > div:first-child')]
+        [header, footer, wrapper, ...element.querySelectorAll('.chat-composer, .chat-main > div:first-child')]
             .filter(Boolean).forEach(node => observer?.observe(node));
         window.addEventListener('resize', scheduleResize);
         window.visualViewport?.addEventListener('resize', scheduleResize);
@@ -386,17 +384,9 @@ const ChatPage = () => {
     if (!userData) return <></>;
 
     return (
-        <main className={`jf-chat-page${partnerId ? ' jf-chat-page--conversation' : ''}`}>
+        <main aria-label="Tin nhắn" className={`jf-chat-page${partnerId ? ' jf-chat-page--conversation' : ''}`}>
             {preview && <ChatDocumentPreview key={`${partnerId}:${preview.id}`} attachment={preview} onClose={() => setPreview(null)} />}
             <div ref={pageRef} className="container chat-page-container">
-                <h4 style={{ marginBottom: "20px" }}>
-                    <i
-                        className="far fa-comments"
-                        style={{ color: "#fb246a", marginRight: "8px" }}
-                    ></i>
-                    Tin nhắn
-                </h4>
-                <PushSettings userId={Number(userData.id)} />
                 <div className="chat-wrapper">
                     {/* Danh sách hội thoại — tren mobile se an di khi da mo mot cuoc tro chuyen */}
                     <div

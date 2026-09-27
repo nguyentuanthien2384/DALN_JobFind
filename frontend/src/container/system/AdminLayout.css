@@ -74,9 +74,52 @@
 @media (max-width: 767px) {
     .jf-admin { --admin-content-space: 16px; }
 }
+.jf-admin__notification-trigger {
+    /* The theme stretches nav items to the header height. Anchor the badge to
+       this centered button, not to that full-height item. */
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #252b60;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+.jf-admin__notification-trigger:focus-visible {
+    outline: 2px solid #5046ae;
+    outline-offset: 2px;
+}
+.jf-admin__notification-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    background: #fb246a;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+}
 .jf-admin__notifications {
     position: absolute;
-    top: 34px;
+    top: calc(100% + 8px);
     right: -10px;
     width: 330px;
     max-height: 400px;

@@ -1,5 +1,11 @@
 # Dữ liệu mẫu cho DALN JobFind
 
+## Bộ demo đầy đủ cho hệ thống đang chạy
+
+Sau khi khởi chạy bằng `npm start`, dùng `npm run seed:demo-data` tại thư mục gốc để bổ sung tin còn hạn, ứng viên có CV PDF, đủ 6 bước tuyển dụng, CV Builder, tin nhắn và các hoạt động liên quan. Lệnh đồng bộ MySQL, PostgreSQL, MongoDB và Elasticsearch; chạy lại không tạo trùng bản ghi chính và giữ các chỉnh sửa đã có. Xem [tài khoản, nội dung và hướng dẫn chi tiết](../docs/demo-data.md).
+
+Bộ bổ sung này do script tạo, không nằm trong dump SQL. Sau khi phục hồi dump, chạy lại lệnh để tạo dữ liệu demo đầy đủ.
+
 Thư mục này chứa `jobfindtest.sql` — file dump **đầy đủ dữ liệu mẫu** của dự án.
 
 ## Nguồn gốc và nội dung

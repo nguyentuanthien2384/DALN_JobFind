@@ -82,6 +82,17 @@ require('@babel/register')({ presets: ['@babel/preset-env'], ignore: [/node_modu
         assert.deepEqual(jobs.data[0].criteria.listSkills.map(skill=>skill.name),['React','Node.js','C++']);
         assert.equal((await listCandidateSearchJobs({search:'company B'},10)).count,0);
         assert.equal((await listCandidateSearchJobs({},null)).httpStatus,403);
+        // Realistic CVs can have many requested skills. These used to cause a
+        // MariaDB semijoin optimizer explosion before any rows were even read.
+        const manySkills = Array.from({length: 16}, (_, index) => `Demo skill ${index + 1}`);
+        await insert('Skill', 'id,name,categoryJobCode', manySkills.map((name, index) => [100 + index, name, 'IT']));
+        await insert('UserSkill', 'UserId,SkillId', manySkills.flatMap((_, index) => [[2,100 + index],[2,100 + index]]));
+        const started = Date.now();
+        const many = await search({ otherSkills: manySkills.join(','), skillMode: 'all', categoryJobCode:'IT', provinceCode:'HN' });
+        assert.deepEqual(ids(many), [2]);
+        assert.equal(many.data[0].matchScore, 100);
+        assert.equal(many.data[0].matchedSkills.length, 16);
+        assert.ok(Date.now() - started < 5000, 'Many-skill query must complete within gateway timeout');
         console.log('PASS: candidate eligibility/privacy, combined filters, global ranking, pagination, skill modes, thresholds, punctuation, SQL input handling and company job isolation.');
     } finally {
         if (db) await db.sequelize.close();

@@ -4,11 +4,12 @@ Phạm vi được xác nhận: website Job Finder, không có ứng dụng Andr
 
 ## Sử dụng
 
-1. Đăng nhập và mở **Tin nhắn**. Trong mục **Thông báo khi rời trang**, chọn **Bật thông báo**, rồi cho phép trong trình duyệt.
-2. Khi có tin nhắn chưa đọc, thông báo chỉ hiển thị “Bạn có tin nhắn mới. Mở Job Finder để xem.”, không chứa nội dung chat hoặc tên người gửi.
-3. Nhấn thông báo để mở đúng cuộc trò chuyện. Nếu cần đăng nhập lại, cơ chế điều hướng của ứng dụng giữ đường dẫn nội bộ.
-4. **Tắt thông báo** chỉ tắt thiết bị/trình duyệt hiện tại. Đăng xuất, hết phiên khi đang mở trang và đổi tài khoản cũng xóa chủ sở hữu lưu ở service worker và hủy đăng ký trình duyệt. Các tab dùng Web Locks để phối hợp thay đổi thiết bị; có hàng đợi trong tab khi trình duyệt thiếu API này.
-5. Nếu quyền bị chặn, mở lại quyền trong cài đặt trình duyệt. Nếu thiết bị hết hạn hoặc bị dịch vụ push thu hồi, giao diện cho phép bật lại; không báo “đã bật” chỉ dựa vào dữ liệu local cũ.
+Trang **Tin nhắn** đã bỏ tiêu đề và khung **Thông báo khi rời trang** để dành thêm diện tích cho hội thoại. Hiện không có nút bật/tắt Web Push trên giao diện. Thay đổi này không hủy đăng ký thông báo đã có trên thiết bị và không thay đổi dịch vụ gửi nền.
+
+1. Với thiết bị còn đăng ký hợp lệ, khi có tin nhắn chưa đọc, thông báo chỉ hiển thị “Bạn có tin nhắn mới. Mở Job Finder để xem.”, không chứa nội dung chat hoặc tên người gửi.
+2. Nhấn thông báo để mở đúng cuộc trò chuyện. Nếu cần đăng nhập lại, cơ chế điều hướng của ứng dụng giữ đường dẫn nội bộ.
+3. Người dùng có thể chặn thông báo trong cài đặt quyền của trình duyệt. Đăng xuất, hết phiên khi đang mở trang và đổi tài khoản vẫn xóa chủ sở hữu lưu ở service worker và hủy đăng ký trình duyệt. Các tab dùng Web Locks để phối hợp thay đổi thiết bị; có hàng đợi trong tab khi trình duyệt thiếu API này.
+4. Thiết bị mới, hết hạn hoặc bị dịch vụ push thu hồi hiện chưa có thao tác đăng ký lại trên giao diện; component `PushSettings` và API đăng ký vẫn được giữ trong mã nguồn.
 
 Website triển khai phải dùng HTTPS. `localhost` được dùng cho phát triển. Trên iPhone/iPad hỗ trợ Web Push, người dùng cần thêm web app vào Màn hình chính và bật quyền từ thao tác trực tiếp. Việc nhận khi đóng hoàn toàn trình duyệt còn phụ thuộc hệ điều hành/cấu hình chạy nền; không bảo đảm nhận tức thời hoặc khi máy tắt. [WebKit](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/), [Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API).
 

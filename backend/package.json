@@ -14,7 +14,7 @@
     "test:candidate-search:browser": "node scripts/test-candidate-search-browser.cjs",
     "restore:sample-data": "node scripts/restore-sample-data.js",
     "seed:test-accounts": "node scripts/create-test-accounts.js",
-    "seed:demo-data": "node scripts/setup-demo-data.js",
+    "seed:demo-data": "node scripts/seed-project-demo.cjs",
     "seed:revenue-data": "node scripts/seed-revenue-data.cjs",
     "test:chat:infrastructure": "node scripts/test-chat-infrastructure.cjs",
     "test:chat:media": "node scripts/test-chat-media.cjs",

@@ -60,11 +60,14 @@ export const searchCandidates = async (data, companyId = null) => {
     const requiredSkills = [...new Map([...selectedSkills.map(skill => skill.name), ...filters.otherSkills]
         .map(name => [normalizedSkill(name), name])).values()];
     const escape = value => db.sequelize.escape(value);
-    // EXISTS avoids duplicate profiles/counts when a skill is attached more than once.
-    // Only escaped values enter these expressions; identifiers come from our models.
-    const skillExists = condition => `EXISTS (SELECT 1 FROM ${table(db.UserSkill)} cs
+    // A scalar aggregate stays correlated instead of being flattened into many
+    // semijoins by MariaDB's optimizer. Seven skill EXISTS clauses combined with
+    // the profile joins can otherwise spend minutes enumerating join orders.
+    // Convert the count to a boolean so duplicate skills still count only once.
+    // Only escaped values enter these expressions; identifiers come from models.
+    const skillExists = condition => `((SELECT COUNT(*) FROM ${table(db.UserSkill)} cs
         INNER JOIN ${table(db.Skill)} sk ON sk.id = cs.SkillId
-        WHERE cs.UserId = \`UserSetting\`.userId AND ${condition})`;
+        WHERE cs.UserId = \`UserSetting\`.userId AND ${condition}) > 0)`;
     const skillMatches = requiredSkills.map(name => skillExists(`LOWER(TRIM(sk.name)) = ${escape(normalizedSkill(name))}`));
     const conditions = [literal('LENGTH(`UserSetting`.`file`) > 0')];
     const where = { isFindJob: 1, [Op.and]: conditions };
