@@ -1,11 +1,26 @@
-# Hạng mục phụ thuộc (Dependencies) - Cực kỳ nặng
+# ============================================================
+# DALN JobFind — .gitignore
+# Mục tiêu: loại trừ mọi file được sinh tự động / nặng / nhạy cảm
+# mà không ảnh hưởng đến khả năng chạy dự án khi clone về.
+# ============================================================
+
+# --------------------------------------------------
+# 1. Dependencies — thư mục nặng nhất, cài lại bằng `npm install`
+# --------------------------------------------------
 node_modules/
-.local/
 **/node_modules/
 jspm_packages/
 web_modules/
+.pnp/
+.pnp.js
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
 
-# Thư mục build / sản phẩm đầu ra (Build outputs)
+# --------------------------------------------------
+# 2. Build outputs — được tạo lại bằng `npm run build`
+# --------------------------------------------------
 dist/
 **/dist/
 build/
@@ -16,38 +31,89 @@ out/
 .nuxt/
 .cache/
 .parcel-cache/
+.turbo/
+
+# --------------------------------------------------
+# 3. Test coverage — được tạo lại bằng `npm run test:coverage`
+# --------------------------------------------------
 coverage/
 **/coverage/
+*.lcov
+.nyc_output/
 
-# File cấu hình môi trường và bảo mật (Environment & Secrets)
+# --------------------------------------------------
+# 4. Thư mục làm việc cục bộ — logs, screenshots, kết quả test
+#    Không cần thiết cho người khác clone về
+# --------------------------------------------------
+.local/
+**/.local/
+
+# --------------------------------------------------
+# 5. Environment & Secrets — chứa thông tin nhạy cảm
+#    Giữ lại .env.example và frontend/.env.test làm mẫu
+# --------------------------------------------------
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env.sample
-**/ .env
+**/.env
 **/.env.*
 !**/.env.example
 !frontend/.env.test
 **/.secrets/
 
-# Logs và file debug
+# --------------------------------------------------
+# 6. Logs — file ghi log được sinh ra khi chạy/test
+# --------------------------------------------------
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-*.log
 
-# File hệ điều hành & IDE (OS & IDE files)
+# --------------------------------------------------
+# 7. Runtime / temp files — file tạm khi chạy ứng dụng
+# --------------------------------------------------
+*.pid
+*.seed
+*.pid.lock
+*.lock
+!package-lock.json
+!**/package-lock.json
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# --------------------------------------------------
+# 8. OS-specific files
+# --------------------------------------------------
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
-ehthumbs.db
+.AppleDouble
+.LSOverride
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# --------------------------------------------------
+# 9. IDE / Editor files
+# --------------------------------------------------
 .idea/
 .vscode/
 *.sublime-project
@@ -57,11 +123,29 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+.project
+.classpath
+.settings/
 
-# Các file nén khác (tránh nén đè file zip vào zip)
+# --------------------------------------------------
+# 10. File nén — tránh đẩy các bản release/backup nặng
+# --------------------------------------------------
 *.zip
 *.tar.gz
 *.rar
 *.7z
 *.tar
 *.gz
+*.tgz
+
+# --------------------------------------------------
+# 11. Docker — file tạm của Docker (giữ docker-compose.yml)
+# --------------------------------------------------
+docker-compose.override.yml
+.docker/
+
+# --------------------------------------------------
+# 12. Uploads — file user upload khi chạy local
+# --------------------------------------------------
+uploads/
+**/uploads/
