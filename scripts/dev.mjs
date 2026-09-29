@@ -174,7 +174,7 @@ async function serve() {
         }, 'Các dịch vụ API', 180000);
         await update('Khởi động giao diện tuyển dụng');
         await exec(process.execPath, ['scripts/copy-pdf-assets.cjs'], { cwd: path.join(root, 'frontend'), windowsHide: true, timeout: 60000, signal: lifecycleSignal });
-        await launchNode('frontend', path.join(root, 'frontend/node_modules/react-scripts/scripts/start.js'), [], path.join(root, 'frontend'), {
+        await launchNode('frontend', path.join(root, 'frontend/scripts/start.cjs'), [], path.join(root, 'frontend'), {
             ...process.env, NODE_ENV: 'development', BROWSER: 'none', HOST: '0.0.0.0', PORT: String(webPort),
             REACT_APP_BACKEND_URL: state.apiUrl,
         });
@@ -200,7 +200,7 @@ else if (action === 'start') {
     } else {
         try { const pid = Number(await fs.readFile(lockFile, 'utf8')); if (pid && await ownedSupervisor(pid, script)) throw new Error('Đang có tiến trình khởi chạy.'); await fs.rm(lockFile); } catch (error) { if (error.code !== 'ENOENT') throw error; }
         // Detect missing local setup in the foreground rather than reporting a detached success.
-        for (const relative of ['backend/.env', 'microservices/.env', 'frontend/node_modules/react-scripts/scripts/start.js']) {
+        for (const relative of ['backend/.env', 'microservices/.env', 'frontend/node_modules/react-scripts/scripts/start.js', 'frontend/scripts/start.cjs']) {
             try { await fs.access(path.join(root, relative)); } catch { throw new Error(`Thiếu ${relative}; cài các gói phụ thuộc và cấu hình trước khi chạy.`); }
         }
         for (const dependency of ['mysql2/promise', '@babel/register', '@babel/preset-env']) require.resolve(dependency);

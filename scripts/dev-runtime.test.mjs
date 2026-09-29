@@ -43,6 +43,35 @@ test('Windows supervisor identity requires an exact script and serve argument', 
     assert.equal(matchesSupervisor(`node "${script}.other" serve`, script), false);
 });
 
+test('Windows ownership check recovers from one transient inspection timeout', async () => {
+    const script = 'D:\\Job Find\\scripts\\dev.mjs';
+    let attempts = 0;
+    const execute = async () => {
+        if (++attempts === 1) throw Object.assign(new Error('slow CIM'), { killed: true, signal: 'SIGTERM' });
+        return { stdout: JSON.stringify({ ExecutablePath: process.execPath, CommandLine: `node "${script}" serve` }) };
+    };
+    assert.equal(await ownedSupervisor(process.pid, script, { platform: 'win32', execute }), true);
+    assert.equal(attempts, 2);
+});
+
+test('unverifiable Windows owner is never treated as dead or safe to replace', async () => {
+    for (const [failure, expectedAttempts] of [
+        [Object.assign(new Error('CIM timed out'), { killed: true, signal: 'SIGTERM' }), 2],
+        [Object.assign(new Error('access denied'), { code: 'EACCES' }), 1]
+    ]) {
+        let attempts = 0;
+        await assert.rejects(ownedSupervisor(process.pid, 'launcher.mjs', {
+            platform: 'win32', execute: async () => { attempts++; throw failure; }
+        }), /Không xác minh được phiên khởi chạy hiện có/);
+        assert.equal(attempts, expectedAttempts);
+    }
+    for (const stdout of ['invalid process information', '{}', JSON.stringify({ ExecutablePath: null, CommandLine: null })]) {
+        await assert.rejects(ownedSupervisor(process.pid, 'launcher.mjs', {
+            platform: 'win32', execute: async () => ({ stdout })
+        }), /Không xác minh được phiên khởi chạy hiện có/);
+    }
+});
+
 test('dead launcher cannot continue to report running', () => {
     assert.equal(effectiveState({ status: 'running' }, false).status, 'stopped');
     assert.equal(effectiveState({ status: 'failed' }, false).status, 'failed');

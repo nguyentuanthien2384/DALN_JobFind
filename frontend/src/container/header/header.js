@@ -10,11 +10,12 @@ import { getSocket, disconnectSocket } from '../../socket';
 import { readJsonStorage } from '../../util/storage';
 import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
 import SessionContext from '../../auth/SessionContext';
+import ChatAvatar from '../Chat/ChatAvatar';
 import { NOTIFICATIONS_UPDATED_EVENT, notifyNotificationsUpdated } from '../../util/notificationEvents';
 
 const navigationItems = [
     { to: '/', label: 'Trang chủ', paths: ['/'] },
-    { to: '/job', label: 'Việc làm', paths: ['/job', '/detail-job/:id'] },
+    { to: '/job', label: 'Việc làm', paths: ['/job', '/detail-job/:id', '/external-job/:id'] },
     { to: '/company', label: 'Công ty', paths: ['/company', '/detail-company/:id'] },
     { to: '/about', label: 'Giới thiệu', paths: ['/about'] },
     { to: '/contact', label: 'Liên hệ', paths: ['/contact'] },
@@ -261,7 +262,7 @@ const Header = () => {
                                                     </li>
                                                     <li ref={profileRef} className="nav-item nav-profile dropdown">
                                                         <button type="button" className="nav-link dropdown-toggle box-header-profile" id="profileDropdown" aria-haspopup="menu" aria-expanded={showProfileMenu} aria-controls="public-profile-menu" onClick={toggleProfileMenu} style={{ border: 0, background: 'none', cursor: 'pointer' }}>
-                                                            <img style={{ objectFit: 'cover', width: '30px', height: '30px', borderRadius: '50%', marginLeft: '15px' }} src={user.image} alt="profile" />
+                                                            <ChatAvatar style={{ objectFit: 'cover', width: '30px', height: '30px', borderRadius: '50%' }} src={user.image} name={user.firstName} alt="" />
                                                             <span className='header-name-user'>{user.firstName + " " + user.lastName}</span>
                                                         </button>
                                                         <div

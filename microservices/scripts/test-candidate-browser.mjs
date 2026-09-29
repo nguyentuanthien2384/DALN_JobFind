@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +12,10 @@ import { chromium, expect } from 'playwright/test';
 // REACT_APP_CANDIDATE_AI_ENABLED=true, REACT_APP_APPLICATION_PROGRESS_ENABLED=true
 // and REACT_APP_PREPARED_CV_APPLICATION_ENABLED=true.
 // All API requests are fulfilled in the browser; no backend/provider is contacted.
-const build = fileURLToPath(new URL('../../frontend/build/',import.meta.url));
+const build = process.env.JOBFIND_TEST_FRONTEND_BUILD
+    ? path.resolve(process.env.JOBFIND_TEST_FRONTEND_BUILD)
+    : fileURLToPath(new URL('../../frontend/build/',import.meta.url));
+const catalog = JSON.parse(await readFile(new URL('../../frontend/src/data/verifiedJobs.json',import.meta.url), 'utf8'));
 const directory = await mkdtemp(path.join(tmpdir(),'jobfind-candidate-ui-'));
 const app=express();app.use(express.static(build));app.get('*',(_req,res)=>res.sendFile(path.join(build,'index.html')));
 const server=await new Promise(resolve=>{const value=app.listen(0,'127.0.0.1',()=>resolve(value));});
@@ -56,7 +59,12 @@ try {
                 creates++;taskType=url.pathname.endsWith('parse-resume')?'parse_resume':'cover_letter';return reply({errCode:0,taskId:'task-browser'});
             }
             if(url.pathname==='/api/get-all-code')return reply({errCode:0,data:[{code:url.searchParams.get('type')+'-1',value:'Synthetic '+url.searchParams.get('type')} ]});
-            if(url.pathname==='/api/search/jobs')return reply({errCode:0,count:1,data:[{id:7,name:'Synthetic Search Job',statusCode:'PS1',companyName:'Synthetic Company',timePost:String(Date.now()),salaryJobCode:'SALARYTYPE-1'}]});
+            if(['/api/search/jobs','/api/search/suggest'].includes(url.pathname)) {
+                const query = (url.searchParams.get('q') || '').toLowerCase();
+                const data = 'synthetic search job'.includes(query)
+                    ? [{id:7,name:'Synthetic Search Job',statusCode:'PS1',companyName:'Synthetic Company',addressCode:'Hà Nội',timePost:String(Date.now()),salaryJobCode:'SALARYTYPE-1'}] : [];
+                return reply({errCode:0,count:data.length,data});
+            }
             return reply({errCode:0,data:[],count:0});
         }
         if (url.origin===origin) return route.continue();
@@ -92,8 +100,45 @@ try {
     const letter=page.getByRole('textbox',{name:'Thư ứng tuyển (có thể chỉnh sửa)',exact:true});
     await expect(letter).toHaveValue('Synthetic application letter.');
     await letter.fill('Edited by candidate.');await expect(letter).toHaveValue('Edited by candidate.');assert.equal(creates,2);
-    await page.goto(origin+'/job');await expect(page.getByText('Synthetic Search Job',{exact:true})).toBeVisible();
+    await page.goto(origin+'/job?search=Synthetic');await expect(page.getByText('Synthetic Search Job',{exact:true})).toBeVisible();
     assert.ok(requests.some(row=>row.path==='/api/search/jobs'));assert.ok(!requests.some(row=>row.path==='/api/get-filter-post'));
+    const search = page.getByRole('combobox',{name:'Tìm kiếm việc làm',exact:true});
+    await search.fill('Synthetic');
+    const nativeSuggestion = page.getByRole('option').filter({hasText:'Synthetic Search Job'});
+    await expect(nativeSuggestion).toContainText('Synthetic Company');
+    await expect(nativeSuggestion).toContainText('Hà Nội');
+    await search.press('ArrowDown');await search.press('Enter');
+    await expect(page).toHaveURL(origin+'/detail-job/7');
+    await expect(page.getByRole('heading',{name:'Kỹ sư phần mềm',exact:true})).toBeVisible();
+
+    // Freeze the test context at the catalogue snapshot for public search, then
+    // restore it below. CI checks source expiry as the real calendar advances.
+    const publicPage = await context.newPage();
+    publicPage.on('pageerror',error=>errors.push(error.message));
+    await publicPage.clock.setFixedTime(new Date(catalog.checkedAt+'T05:00:00+07:00'));
+    const external = catalog.jobs.find(job=>job.title.includes('PL/SQL'));
+    assert.ok(external?.deadline,'Acceptance needs the sourced PL/SQL vacancy');
+    await publicPage.goto(origin+'/job?search=PL');
+    const externalCard = publicPage.getByRole('link').filter({has:publicPage.getByText(external.title,{exact:true})});
+    await expect(externalCard).toHaveAttribute('href','/external-job/'+external.id);
+    const publicSearch = publicPage.getByRole('combobox',{name:'Tìm kiếm việc làm',exact:true});
+    await publicSearch.fill('PL');
+    const externalSuggestion = publicPage.getByRole('option').filter({hasText:external.title});
+    await expect(externalSuggestion).toContainText(external.employer);
+    await expect(externalSuggestion).toContainText('Tin từ nguồn bên ngoài');
+    await externalSuggestion.click();
+    await expect(publicPage.getByRole('heading',{name:external.title,exact:true})).toBeVisible();
+    await expect(publicPage.getByRole('link',{name:/Xem tin và ứng tuyển tại nguồn/})).toHaveAttribute('href',external.sourceUrl);
+    assert.equal(await publicPage.getByRole('button',{name:/Nộp CV ngay/}).count(),0);
+    await publicPage.clock.setFixedTime(new Date(external.deadline+'T17:00:00Z'));
+    await publicPage.reload();
+    await expect(publicPage.getByRole('button',{name:'Tin đã hết hạn',exact:true})).toBeDisabled();
+    await publicPage.goto(origin+'/job?search=PL');
+    await expect(publicPage.getByText(external.title,{exact:true})).toHaveCount(0);
+    await publicPage.close();
+    // Playwright's clock is shared by pages in one browser context. Restore the
+    // native journey's clock before comparing its server-generated deadline.
+    await page.clock.setFixedTime(new Date());
     await page.goto(origin+'/candidate/cv-post');
     await expect(page.getByText('Phỏng vấn',{exact:true})).toBeVisible();
     await expect(page.getByText('Đang chờ đồng bộ',{exact:true})).toBeVisible();
@@ -158,7 +203,7 @@ try {
         });
         console.log(delivery.stdout);
     }
-    console.log('PASS: production browser AI/CV, cover letter, Core search, application stages/history, progress outage and recovery, reviewed prepared CV PDF -> exact submitted bytes, mobile layout');
+    console.log('PASS: production browser AI/CV, cover letter, Core search, native keyboard autocomplete, sourced vacancy click/source/expiry, application stages/history, progress outage and recovery, reviewed prepared CV PDF -> exact submitted bytes, mobile layout');
     if (process.env.JOBFIND_KEEP_UI_SCREENSHOT === '1') console.log('Screenshot: '+path.join(directory,'candidate-desktop.png'));
 } finally {
     await browser?.close();await new Promise(resolve=>server.close(resolve));

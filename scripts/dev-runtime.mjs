@@ -70,15 +70,30 @@ export function matchesSupervisor(command, script) {
     const escaped = script.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(`(?:^|\\s)"?${escaped}"?\\s+serve(?:\\s|$)`, 'i').test(command || '');
 }
-export async function ownedSupervisor(pid, script) {
+export async function ownedSupervisor(pid, script, { platform = process.platform, execute = exec } = {}) {
     if (!alive(pid)) return false;
-    if (process.platform === 'win32') {
-        const { stdout } = await exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-            `$p = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}'; if ($p) { $p | Select-Object ExecutablePath,CommandLine | ConvertTo-Json -Compress }`],
-        { windowsHide: true, timeout: 10000 });
-        if (!stdout.trim()) return false;
-        const info = JSON.parse(stdout);
-        return info.ExecutablePath?.toLowerCase() === process.execPath.toLowerCase() && matchesSupervisor(info.CommandLine, script);
+    if (platform === 'win32') {
+        // Starting several services can temporarily delay Windows CIM. Retry a
+        // timed-out inspection once, but never interpret an inspection failure
+        // as a dead owner: that could start or stop an unrelated process.
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const { stdout } = await execute('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+                    `$p = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}'; if ($p) { $p | Select-Object ExecutablePath,CommandLine | ConvertTo-Json -Compress }`],
+                { windowsHide: true, timeout: 10000 });
+                if (!stdout.trim()) return false;
+                const info = JSON.parse(stdout);
+                if (!info || typeof info.ExecutablePath !== 'string' || !info.ExecutablePath
+                    || typeof info.CommandLine !== 'string' || !info.CommandLine) {
+                    throw new Error('Incomplete process identity');
+                }
+                return info.ExecutablePath?.toLowerCase() === process.execPath.toLowerCase() && matchesSupervisor(info.CommandLine, script);
+            } catch (error) {
+                const timedOut = error.code === 'ETIMEDOUT' || (error.killed && error.signal === 'SIGTERM');
+                if (attempt === 0 && timedOut) continue;
+                throw new Error('Không xác minh được phiên khởi chạy hiện có. Thử lại khi máy bớt tải.');
+            }
+        }
     }
     try {
         const args = (await fs.readFile(`/proc/${pid}/cmdline`, 'utf8')).split('\0');

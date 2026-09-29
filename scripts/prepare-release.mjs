@@ -14,7 +14,7 @@ const run = (command, args, options = {}) => {
 const json = (command, args) => JSON.parse(run(command, args));
 const writeJson = (file, value) => writeFile(file, JSON.stringify(value, null, 2) + '\n');
 const commit = run('git', ['rev-parse', 'HEAD']);
-const inputs = ['backend/src', 'backend/package.json', 'backend/package-lock.json', 'backend/.babelrc', 'frontend/src', 'frontend/public', 'frontend/package.json', 'frontend/package-lock.json', 'microservices', 'scripts/run-backend.cjs'];
+const inputs = ['backend/src', 'backend/package.json', 'backend/package-lock.json', 'backend/.babelrc', 'frontend/src', 'frontend/public', 'frontend/scripts', 'frontend/package.json', 'frontend/package-lock.json', 'microservices', 'scripts/run-backend.cjs'];
 if (run('git', ['status', '--porcelain', '--', ...inputs])) throw new Error('Application inputs must match the fixed commit');
 const releaseId = `${commit.slice(0, 12)}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 const kit = path.join(root, '.local/releases', releaseId);
@@ -24,7 +24,7 @@ await writeFile(path.join(root, '.local/releases/LATEST'), releaseId);
 const snapshot = path.join(work, 'source'); await mkdir(snapshot);
 run('git', ['archive', '--format=tar', '-o', path.join(kit, 'source.tar'), commit, '--', ...inputs]);
 run('tar', ['-xf', path.join(kit, 'source.tar'), '-C', snapshot]);
-await writeFile(path.join(snapshot, '.dockerignore'), '*\n!backend\n!backend/**\n!scripts\n!scripts/run-backend.cjs\n');
+await copyFile(path.join(root, 'scripts/release/backend.Dockerfile.dockerignore'), path.join(snapshot, '.dockerignore'));
 await cp(path.join(root, 'scripts/release'), path.join(kit, 'recipes'), { recursive: true });
 await copyFile(fileURLToPath(import.meta.url), path.join(kit, 'recipes/prepare-release.mjs'));
 await copyFile(path.join(root, 'scripts/test-release.mjs'), path.join(kit, 'recipes/test-release.mjs'));

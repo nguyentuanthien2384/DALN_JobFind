@@ -90,7 +90,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         await screenshot(candidate, '01-prepared-cv');
         pass('real login -> asynchronous AI worker result -> edited CV persisted by Identity');
 
-        await candidate.goto(origin + '/job');
+        await candidate.goto(origin + '/job?search=Compose');
         await expect(candidate.getByText('Compose accepted', { exact: true }).first()).toBeVisible({ timeout: 20000 });
         const search = candidate.getByRole('combobox', { name: 'Tìm kiếm việc làm', exact: true });
         await search.fill('zzzxqnotfoundvv');
@@ -99,6 +99,9 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         assert.equal((await (await noResults).json()).count, 0);
         await expect(candidate.getByText('Không tìm thấy công việc phù hợp. Hãy thử đổi từ khóa hoặc bộ lọc.')).toBeVisible();
         await candidate.getByRole('button', { name: 'Xóa từ khóa', exact: true }).click();
+        await expect(search).toHaveValue('');
+        await search.fill('Compose');
+        await candidate.getByRole('button', { name: 'Tìm kiếm', exact: true }).click();
         await expect(candidate.getByText('Compose accepted', { exact: true }).first()).toBeVisible();
         const filtered = candidate.waitForResponse(response => new URL(response.url()).pathname === '/api/search/jobs' && new URL(response.url()).searchParams.get('categoryWorktypeCode') === 'WT1');
         await candidate.locator('label').filter({ has: candidate.locator('input[value="WT1"]') }).click();

@@ -99,6 +99,7 @@ describe("public Header", () => {
         ['/job?page=2&jobLevel=JUNIOR', 'Việc làm'],
         ['/job/', 'Việc làm'],
         ['/detail-job/42', 'Việc làm'],
+        ['/external-job/external-123', 'Việc làm'],
         ['/company', 'Công ty'],
         ['/detail-company/9', 'Công ty'],
         ['/about', 'Giới thiệu'],

@@ -4,6 +4,7 @@ COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 COPY --chown=node:node backend/src ./src
 COPY --chown=node:node backend/.babelrc ./.babelrc
+COPY --chown=node:node microservices/shared/recruitmentCatalog.cjs /app/microservices/shared/recruitmentCatalog.cjs
 COPY --chown=node:node scripts/run-backend.cjs /app/scripts/run-backend.cjs
 ENV BABEL_DISABLE_CACHE=1 PORT=5000 SCHEDULED_JOBS_ENABLED=false
 USER node

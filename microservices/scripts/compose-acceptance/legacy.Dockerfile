@@ -3,5 +3,6 @@ WORKDIR /backend
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY src ./src
+COPY --from=recruitment /recruitmentCatalog.cjs /microservices/shared/recruitmentCatalog.cjs
 USER node
 CMD ["node", "/acceptance/legacy.cjs"]

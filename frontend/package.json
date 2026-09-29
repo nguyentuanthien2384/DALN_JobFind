@@ -42,7 +42,7 @@
     "scripts": {
         "prestart": "node scripts/copy-pdf-assets.cjs",
         "prebuild": "node scripts/copy-pdf-assets.cjs",
-        "start": "react-scripts start",
+        "start": "node scripts/start.cjs",
         "build": "react-scripts build",
         "lint": "eslint src --ext .js,.jsx --ignore-pattern \"**/*.test.js\" --max-warnings=0",
         "test": "react-scripts test",
@@ -71,6 +71,7 @@
         "nanoid": "5.1.16",
         "underscore": "1.13.8",
         "svgo": {
+            ".": "2.8.4",
             "nth-check": "2.1.1"
         },
         "css-minimizer-webpack-plugin": {
@@ -78,7 +79,16 @@
         },
         "sockjs": {
             "uuid": "11.1.1"
-        }
+        },
+        "react-scripts": {
+            "@svgr/webpack": "6.5.1",
+            "resolve-url-loader": "5.0.0",
+            "webpack-dev-server": "$webpack-dev-server"
+        },
+        "rollup-plugin-terser": {
+            "serialize-javascript": "7.1.1"
+        },
+        "qs": "6.16.0"
     },
     "browserslist": {
         "production": [
@@ -96,6 +106,6 @@
         "@testing-library/dom": "^10.4.1",
         "ajv": "^8.17.1",
         "react-scripts": "5.0.1",
-        "webpack-dev-server": "5.2.1"
+        "webpack-dev-server": "5.2.6"
     }
 }

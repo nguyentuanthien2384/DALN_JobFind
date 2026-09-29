@@ -6,6 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --include=dev --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 COPY src ./src
 COPY public ./public
+COPY scripts ./scripts
 ARG REACT_APP_JOB_SEARCH_MODE
 ARG REACT_APP_JOB_WORKSPACE_MODE
 ARG REACT_APP_JOB_CREATE_MODE

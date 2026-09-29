@@ -10,6 +10,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { randomUUID } from 'node:crypto';
+import recruitmentCatalog from '../../shared/recruitmentCatalog.cjs';
 
 const front = createRequire(new URL('../../../frontend/package.json', import.meta.url));
 const listen = app => new Promise(resolve => { const server = app.listen(0, '127.0.0.1', () => resolve(server)); });
@@ -84,8 +85,11 @@ export async function startBrowserFixture({ pool, legacy, legacyController, lega
             }
         }
         await pool.query('CREATE TABLE allcodes (id INT AUTO_INCREMENT PRIMARY KEY, code VARCHAR(64), type VARCHAR(64), value VARCHAR(255), createdAt DATETIME, updatedAt DATETIME) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
-        const codes = ['GENDERPOST','JOBTYPE','JOBLEVEL','SALARYTYPE','EXPTYPE','WORKTYPE','PROVINCE'];
+        const codes = ['GENDERPOST','JOBTYPE','SALARYTYPE','EXPTYPE','WORKTYPE'];
         for (const type of codes) await pool.query('INSERT INTO allcodes(code,type,value) VALUES (?,?,?)', [type + '-1', type, type]);
+        for (const [type, rows] of [['PROVINCE',recruitmentCatalog.PROVINCES],['JOBLEVEL',recruitmentCatalog.JOB_LEVELS]]) {
+            for (const row of rows) await pool.query('INSERT INTO allcodes(code,type,value) VALUES (?,?,?)', [row.code,type,row.value]);
+        }
         for (const [code, value] of [['PS1','Đã kiểm duyệt'],['PS2','Đã bị từ chối'],['PS3','Chờ kiểm duyệt'],['PS4','Bài viết đã bị chặn']]) {
             await pool.query('INSERT INTO allcodes(code,type,value) VALUES (?,?,?)', [code, 'POSTSTATUS', value]);
         }

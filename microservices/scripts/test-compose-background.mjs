@@ -95,7 +95,8 @@ try {
         });
     }
     await docker('build', '-t', image, root);
-    await docker('build', '-t', legacyImage, '-f', path.join(fixture, 'legacy.Dockerfile'), path.resolve(root, '../backend'));
+    await docker('build', '-t', legacyImage, '--build-context', `recruitment=${path.join(root, 'shared')}`,
+        '-f', path.join(fixture, 'legacy.Dockerfile'), path.resolve(root, '../backend'));
     await compose('config', '--quiet');
     started = true;
     await compose('up', '-d', '--pull', 'never', 'mysql', 'mongo', 'postgres', 'redis', 'rabbitmq', 'elasticsearch', 'mock');

@@ -57,12 +57,16 @@ jobs:
         working-directory: microservices
       - run: npm run contracts:check
         working-directory: microservices
-      - run: npm audit --omit=dev --audit-level=high
+      - run: npm audit --audit-level=high
         working-directory: microservices
       - run: npm ci --ignore-scripts
         working-directory: backend
       - run: npm run test:coverage
         working-directory: backend
+      - run: npm audit --audit-level=high
+        working-directory: backend
+      - name: Verify standalone backend release packaging without external services
+        run: node scripts/test-backend-image.mjs
       - name: Verify job writes and private management reads on disposable MySQL
         working-directory: microservices
         run: |
@@ -76,6 +80,8 @@ jobs:
       - run: npm ci --ignore-scripts
         working-directory: frontend
       - run: npm run lint
+        working-directory: frontend
+      - run: npm audit --audit-level=high
         working-directory: frontend
       - run: npm run test:coverage
         working-directory: frontend

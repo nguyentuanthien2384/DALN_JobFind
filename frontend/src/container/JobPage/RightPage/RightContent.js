@@ -36,7 +36,8 @@ const RightContent = (props) => {
                         <StableList busy={props.loading} resetKey={props.resetKey} label="Đang tìm việc…">
                         {props.post.map((data) => {
                             if (data.listingSource === 'external') return <Link key={data.id}
-                                className="job-result-link" to={`/external-job/${encodeURIComponent(data.id)}`}>
+                                className="job-result-link" to={`/external-job/${encodeURIComponent(data.id)}`}
+                                aria-label={`${data.title} — ${data.employer}`}>
                                 <ExternalJobCard data={data} />
                             </Link>;
                             return (

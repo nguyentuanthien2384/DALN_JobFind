@@ -32,7 +32,7 @@ export async function runJobBrowserJourneys(input) {
             await page.evaluate(({ identity, token }) => { localStorage.setItem('userData',JSON.stringify(identity)); localStorage.setItem('token_user', token); }, { identity, token: issue(identity.id) });
             return page;
         };
-        const post = async id => (await pool.query(`SELECT p.*,d.name,d.amount,d.descriptionHTML FROM posts p JOIN detailposts d ON d.id=p.detailPostId WHERE p.id=?`,[id]))[0][0];
+        const post = async id => (await pool.query(`SELECT p.*,d.name,d.amount,d.descriptionHTML,d.addressCode,d.categoryJoblevelCode FROM posts p JOIN detailposts d ON d.id=p.detailPostId WHERE p.id=?`,[id]))[0][0];
         const quota = async () => (await pool.query('SELECT allowPost,allowHotPost FROM companies WHERE id=3'))[0][0];
         const tally = async () => (await pool.query('SELECT (SELECT COUNT(*) FROM posts) AS posts,(SELECT COUNT(*) FROM job_request_keys) AS requestKeys,(SELECT COUNT(*) FROM outbox_events) AS events'))[0][0];
         const state = async id => (await pool.query('SELECT * FROM job_moderation_state WHERE jobId=?',[id]))[0][0];
@@ -46,6 +46,11 @@ export async function runJobBrowserJourneys(input) {
         const createForm = async (page, name) => {
             await page.goto(`${uiUrl}/admin/add-post`);
             await expect(page.locator('select[name="categoryJobCode"]')).toHaveValue('JOBTYPE-1');
+            await expect(page.getByLabel('Tỉnh / thành phố').locator('option')).toHaveCount(34);
+            await expect(page.getByLabel('Cấp bậc / Chức vụ').locator('option')).toHaveCount(12);
+            await expect(page.getByLabel('Cấp bậc / Chức vụ')).toHaveValue('nhan-vien');
+            await page.getByLabel('Tỉnh / thành phố').selectOption('Hồ Chí Minh');
+            await page.getByLabel('Cấp bậc / Chức vụ').selectOption('truong-nhom');
             await page.locator('input[name="name"]').fill(name);
             await page.locator('input[name="amount"]').fill('2');
             await page.locator('.rc-md-editor textarea').fill('Build safe JobFind APIs');
@@ -85,6 +90,8 @@ export async function runJobBrowserJourneys(input) {
             firstReceipt = await readStorage(page,'jobfind:core-create:v1:8:3'); assert.equal(firstReceipt.status,'succeeded');
             assert.equal((await quota()).allowPost,originalQuota.allowPost-1);
             assert.equal((await post(created)).statusCode,'PS3'); request = (await state(created)).requestId;
+            assert.equal((await post(created)).addressCode,'Hồ Chí Minh');
+            assert.equal((await post(created)).categoryJoblevelCode,'truong-nhom');
             await page.getByRole('link',{name:'Danh sách kiểm thử'}).click();
             const row = page.getByRole('row').filter({hasText:'Browser JobFind lifecycle'}); await expect(row).toBeVisible();
             await expect(row).toContainText('Chờ kiểm duyệt'); await row.getByRole('link',{name:'Chú thích'}).click();
@@ -92,6 +99,8 @@ export async function runJobBrowserJourneys(input) {
             assert.deepEqual(await readStorage(page,'jobfind:core-create:v1:8:3'),firstReceipt);
             await (await gotoList(page,created)).getByRole('link',{name:'Sửa',exact:true}).click();
             await expect(page.locator('input[name="name"]')).toHaveValue('Browser JobFind lifecycle');
+            await expect(page.getByLabel('Tỉnh / thành phố')).toHaveValue('Hồ Chí Minh');
+            await expect(page.getByLabel('Cấp bậc / Chức vụ')).toHaveValue('truong-nhom');
         });
         await check('Browser: approved job metadata edit returns to pending, keeps author/deadline/quota and fences an old AI result; no-op is silent', async () => {
             await ai(created,request,true); source = await post(created);

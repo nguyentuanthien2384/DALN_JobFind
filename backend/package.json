@@ -78,7 +78,7 @@
     "keyword-extractor": "^0.0.28",
     "mysql2": "^3.14.0",
     "node-schedule": "^2.1.1",
-    "nodemailer": "^9.1.1",
+    "nodemailer": "^10.0.12",
     "openid-client": "6.8.8",
     "paypal-rest-sdk": "^1.8.1",
     "pdf-lib": "1.17.1",
