@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches } from './dev-runtime.mjs';
+import net from 'node:net';
+import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches, canConnect, awaitService, followLaunch } from './dev-runtime.mjs';
 
 test('concurrent starters cannot reclaim or replace each others runtime lock', async () => {
     const workspace = path.join(os.tmpdir(), `jobfind-starter-${process.pid}-${Date.now()}`);
@@ -147,6 +148,72 @@ test('logged commands report spawn, timeout and output file failures', async () 
         await assert.rejects(runLoggedCommand(process.execPath, ['-e', 'setInterval(()=>process.stdout.write("data"),10)'],
             { file: directory, timeout: 5000 }));
     } finally { await fs.rm(directory, { recursive: true, force: true }); }
+});
+
+test('TCP probe tells a listening service from a closed port', async () => {
+    const server = net.createServer(socket => socket.destroy());
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address();
+    try { assert.equal(await canConnect('127.0.0.1', port), true); }
+    finally { await new Promise(resolve => server.close(resolve)); }
+    assert.equal(await canConnect('127.0.0.1', port, 3000), false);
+});
+
+test('a missing prerequisite is named once and the launch continues when it starts', async () => {
+    const phases = [];
+    const onWaiting = phase => phases.push(phase);
+    assert.equal(await awaitService(async () => true, { waiting: 'không hiện', failed: 'x', timeout: 1000, onWaiting }), false);
+    let checks = 0;
+    const probe = async () => { if (++checks === 1) throw new Error('refused'); return checks >= 3; };
+    assert.equal(await awaitService(probe, { waiting: 'Đang chờ MySQL', failed: 'x', timeout: 5000, interval: 5, onWaiting }), true);
+    assert.deepEqual(phases, ['Đang chờ MySQL']);
+    await assert.rejects(awaitService(async () => false, { waiting: 'w', failed: 'Không kết nối được MySQL', timeout: 30, interval: 5 }),
+        { message: 'Không kết nối được MySQL' });
+    const controller = new AbortController();
+    const waiting = awaitService(async () => false, { waiting: 'w', failed: 'hết giờ', timeout: 10000, interval: 5, signal: controller.signal });
+    controller.abort(new Error('stop requested'));
+    await assert.rejects(waiting, /stop requested/);
+});
+
+test('npm start follows the launcher to readiness and prints each step once', async () => {
+    const pid = 4242;
+    const steps = names => names.map(phase => ({ phase, at: '2026-09-29T13:00:00.000Z' }));
+    const snapshots = [
+        null,
+        { pid: 1, status: 'failed', phases: steps(['phiên trước']) },
+        { pid, status: 'starting', phases: steps(['A']) },
+        { pid, status: 'starting', phases: steps(['A', 'B', 'C']) },
+        { pid, status: 'running', webUrl: 'http://localhost:3001', phases: steps(['A', 'B', 'C', 'D']) },
+    ];
+    const seen = [];
+    const final = await followLaunch({ pid, interval: 1, isAlive: () => true, readState: async () => snapshots.shift(),
+        onPhase: ({ phase }) => seen.push(phase) });
+    assert.equal(final.status, 'running');
+    assert.deepEqual(seen, ['A', 'B', 'C', 'D']);
+    // A launcher from before phases were recorded still reports its changes.
+    const legacy = [{ pid, status: 'starting', phase: 'X' }, { pid, status: 'starting', phase: 'X' }, { pid, status: 'running', phase: 'Y' }];
+    seen.length = 0;
+    await followLaunch({ pid, interval: 1, isAlive: () => true, readState: async () => legacy.shift(), onPhase: ({ phase }) => seen.push(phase) });
+    assert.deepEqual(seen, ['X', 'Y']);
+});
+
+test('npm start reports a failed or vanished launcher, and Ctrl+C only stops following', async () => {
+    const failed = await followLaunch({ pid: 7, interval: 1, isAlive: () => true,
+        readState: async () => ({ pid: 7, status: 'failed', error: 'Không kết nối được MySQL', phases: [] }) });
+    assert.equal(failed.error, 'Không kết nối được MySQL');
+    const vanished = await followLaunch({ pid: 7, interval: 1, isAlive: () => false,
+        readState: async () => ({ pid: 7, status: 'starting', phases: [] }) });
+    assert.equal(vanished.status, 'failed');
+    assert.match(vanished.error, /đã dừng đột ngột/);
+    // The final state written just before exiting wins over the exited process.
+    const stopped = await followLaunch({ pid: 7, interval: 1, isAlive: () => false,
+        readState: async () => ({ pid: 7, status: 'stopped', phases: [] }) });
+    assert.equal(stopped.status, 'stopped');
+    const controller = new AbortController();
+    const following = followLaunch({ pid: 7, interval: 60000, isAlive: () => true, signal: controller.signal,
+        readState: async () => ({ pid: 7, status: 'starting', phases: [] }) });
+    controller.abort();
+    assert.equal(await following, null);
 });
 
 test('stop aborts an in-flight command', async () => {

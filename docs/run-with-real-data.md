@@ -2,20 +2,24 @@
 
 ## Khởi chạy
 
-Trên máy hiện tại, bật Docker Desktop và MySQL/XAMPP (cổng `3333`, database `jobfindtest`). Từ thư mục gốc dự án:
+Trên máy hiện tại, JobFind cần Docker Desktop và MySQL/XAMPP (cổng `3333`, database `jobfindtest`). Từ thư mục gốc dự án:
 
 ```powershell
 npm start
-npm run dev:status
 ```
 
-Lần đầu dựng image có thể mất vài phút. Khi trạng thái là `running`, mở:
+`npm start` in từng bước kèm thời gian và chỉ kết thúc khi ứng dụng sẵn sàng (mã thoát 0) hoặc khi khởi chạy thất bại (in lỗi, mã thoát 1). Lần đầu dựng image có thể mất vài phút. Khi xong:
 
 - Ứng dụng: http://localhost:3001
 - Gateway: http://localhost:4000
 - Backend: http://localhost:5000
 
-`npm start` chạy nền và không mở cửa sổ terminal mới. Chạy lại khi phiên đang hoạt động chỉ trả về trạng thái hiện tại. `npm run dev:stop` dừng backend/frontend và các dịch vụ ứng dụng thuộc JobFind; các kho dữ liệu và volume vẫn còn.
+Giao diện được bật đầu tiên, nên chỉ vài giây sau `npm start` địa chỉ http://localhost:3001 (kể cả `/admin/`) đã trả về trang tiến độ thay vì lỗi "từ chối kết nối"; trang tự tải lại vào ứng dụng khi mọi dịch vụ sẵn sàng và hiển thị lỗi nếu khởi chạy thất bại.
+
+- Docker chưa chạy: trình khởi chạy mở Docker Desktop (qua Explorer, như mở từ Start menu) và chờ tối đa 5 phút.
+- MySQL chưa bật: trình khởi chạy chờ tối đa 10 phút với thông báo `Đang chờ MySQL tại 127.0.0.1:3333`; bật MySQL trong XAMPP Control Panel là tiếp tục. MySQL không được tự bật để vẫn do XAMPP quản lý.
+
+Tiến trình ứng dụng chạy nền, không mở cửa sổ terminal mới; nhấn Ctrl+C trong lúc `npm start` đang theo dõi chỉ dừng việc theo dõi. Chạy lại `npm start` khi phiên đang khởi động sẽ tiếp tục theo dõi, khi đang chạy chỉ in địa chỉ. `npm run dev:status` vẫn trả về trạng thái JSON (có danh sách bước `phases`). `npm run dev:stop` dừng backend/frontend và các dịch vụ ứng dụng thuộc JobFind, chỉ kết thúc khi đã dừng hẳn nên có thể chạy `npm start` ngay sau đó; các kho dữ liệu và volume vẫn còn.
 
 Có thể chọn cổng frontend/backend trước khi chạy bằng `JOBFIND_WEB_PORT` và `JOBFIND_BACKEND_PORT`. Gateway vẫn dùng cổng 4000. Cấu hình CORS và địa chỉ API được truyền đồng bộ theo cổng đã chọn. Không thay đổi hay dừng project Docker `job-portal` đang dùng cổng 3000.
 
@@ -27,7 +31,7 @@ Giữ cấu hình kết nối MySQL trong `backend/.env`, cấu hình cùng data
 
 Trình khởi chạy dùng các container hạ tầng `ai-job-portal` hiện có. Khi hạ tầng chưa được tạo, chỉ các dịch vụ còn thiếu được tạo mới. Các ứng dụng dùng image vừa dựng từ source, không dùng thư mục node_modules Windows trong container Linux.
 
-Sau khi tắt máy, mở lại Docker Desktop và MySQL rồi chạy lại `npm start`. Trình khởi chạy không đăng ký tự động chạy cùng Windows.
+Sau khi tắt máy, bật MySQL trong XAMPP rồi chạy lại `npm start` (Docker Desktop được tự mở nếu chưa chạy). Trình khởi chạy không đăng ký tự động chạy cùng Windows.
 
 ## Dữ liệu và đồng bộ
 

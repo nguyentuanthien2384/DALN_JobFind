@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { openSync, closeSync } from 'node:fs';
+import { openSync, closeSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import net from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { backupMysql, backupContainer, writeBackupManifest } from './backup-local.mjs';
-import { alive, stopChild, ownedSupervisor, effectiveState, waitFor as waitUntil, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches } from './dev-runtime.mjs';
+import { alive, stopChild, ownedSupervisor, effectiveState, waitFor as waitUntil, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches, canConnect, awaitService, followLaunch } from './dev-runtime.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const script = fileURLToPath(import.meta.url);
@@ -73,14 +73,39 @@ const freePort = port => new Promise((resolve, reject) => {
     server.once('error', () => reject(new Error(`Cổng ${port} đang được sử dụng. Chọn JOBFIND_WEB_PORT hoặc JOBFIND_BACKEND_PORT khác.`)));
     server.listen(port, '127.0.0.1', () => server.close(resolve));
 });
+const dockerReady = () => command(['info', '--format', '{{.ServerVersion}}'], { timeout: 15000 }).then(() => true, () => false);
+// Explorer opens it exactly like the Start menu does, outside this launcher's
+// process tree, so stopping JobFind never takes Docker Desktop down with it.
+const openDockerDesktop = () => {
+    const app = path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Docker', 'Docker', 'Docker Desktop.exe');
+    if (process.platform !== 'win32' || !existsSync(app)) return false;
+    spawn('explorer.exe', [app], { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
+    return true;
+};
+// MySQL stays under the developer's control (XAMPP); the launcher waits for it
+// and says what to start instead of failing after npm start has returned.
+async function awaitPrerequisites(backend, update) {
+    const host = backend.DB_HOST || '127.0.0.1', port = Number(backend.DB_PORT || 3306);
+    const dockerUp = await dockerReady();
+    const dockerOpening = !dockerUp && openDockerDesktop();
+    await awaitService(() => canConnect(host, port), { timeout: 600000, onWaiting: update, signal: lifecycleSignal,
+        waiting: `Đang chờ MySQL tại ${host}:${port} – hãy bật MySQL (Start MySQL trong XAMPP Control Panel)`,
+        failed: `Không kết nối được MySQL tại ${host}:${port} (DB_HOST/DB_PORT trong backend/.env). Bật MySQL rồi chạy lại npm start.` });
+    if (!dockerUp) await awaitService(dockerReady, { timeout: 300000, interval: 3000, onWaiting: update, signal: lifecycleSignal,
+        waiting: dockerOpening ? 'Đang mở Docker Desktop (thường mất 1–2 phút)' : 'Đang chờ Docker – hãy mở Docker Desktop',
+        failed: 'Docker chưa sẵn sàng sau 5 phút. Mở Docker Desktop, chờ Engine running rồi chạy lại npm start.' });
+}
 
 async function serve() {
     let lock;
     try { lock = await fs.open(lockFile, 'wx'); await lock.writeFile(String(process.pid)); }
     catch { throw new Error('Một phiên khởi chạy khác đang tồn tại. Dùng npm run dev:status.'); }
     const instance = randomUUID();
-    const state = { instance, pid: process.pid, workspace: root, startedAt: new Date().toISOString(), status: 'starting', phase: 'Kiểm tra cấu hình', children: [] };
+    const startedAt = new Date().toISOString();
+    const state = { instance, pid: process.pid, workspace: root, startedAt, status: 'starting', phase: 'Kiểm tra cấu hình',
+        phases: [{ phase: 'Kiểm tra cấu hình', at: startedAt }], children: [] };
     const children = [];
+    let frontend;
     let stopping = false;
     let failure;
     let appsStarted = false;
@@ -88,28 +113,43 @@ async function serve() {
     const controller = new AbortController();
     lifecycleSignal = controller.signal;
     let monitor;
-    const update = async phase => { state.phase = phase; await writeState(state); console.log(phase); };
+    // The dev server shows this on the web port (frontend/scripts/launcher-gate.cjs).
+    const notifyFrontend = () => {
+        if (!frontend?.connected) return;
+        const { status, phase, phases, error } = state;
+        try { frontend.send({ type: 'jobfind:launcher', status, phase, phases, error, startedAt }, () => {}); } catch {}
+    };
+    // Steps are what npm start and the progress page list; shutdown messages are not.
+    const update = async (phase, { step = true } = {}) => {
+        state.phase = phase;
+        if (step) state.phases.push({ phase, at: new Date().toISOString() });
+        notifyFrontend(); await writeState(state); console.log(`${new Date().toISOString()} ${phase}`);
+    };
     const shutdown = async (error) => {
         if (stopping) return;
         stopping = true;
         failure ||= error instanceof Error ? error : undefined;
         controller.abort(failure || new Error('Đã yêu cầu dừng ứng dụng.'));
         clearInterval(monitor);
-        state.status = 'stopping'; await update('Đang dừng ứng dụng').catch(() => {});
+        state.status = 'stopping';
+        if (failure) state.error = failure.message;
+        await update('Đang dừng ứng dụng', { step: false }).catch(() => {});
+        // The web server goes last so an open progress page can still show why the launch stopped.
         for (const child of children.reverse()) {
-            stopChild(child);
+            if (child !== frontend) stopChild(child);
         }
         if (appsStarted) await command([...composeApps, 'stop', ...applications], { signal: undefined, timeout: 60000 }).catch(() => {});
         state.status = failure ? 'failed' : 'stopped'; state.children = [];
-        if (failure) state.error = failure.message;
-        await update(failure ? 'Khởi chạy chưa hoàn tất: ' + failure.message : 'Đã dừng; cơ sở dữ liệu vẫn được giữ').catch(() => {});
+        await update(failure ? 'Khởi chạy chưa hoàn tất: ' + failure.message : 'Đã dừng; cơ sở dữ liệu vẫn được giữ', { step: false }).catch(() => {});
+        if (failure && frontend?.connected) await sleep(1500);
+        if (frontend) stopChild(frontend);
         await lock.close(); await releaseOwnedLock(lockFile, process.pid);
         process.exit(failure ? 1 : 0);
     };
-    const launchNode = async (name, entry, args, cwd, env) => {
+    const launchNode = async (name, entry, args, cwd, env, { ipc = false } = {}) => {
         lifecycleSignal.throwIfAborted();
         const output = openSync(path.join(local, name + '.log'), 'a');
-        const child = spawn(process.execPath, [entry, ...args], { cwd, env, windowsHide: true, stdio: ['ignore', output, output] });
+        const child = spawn(process.execPath, [entry, ...args], { cwd, env, windowsHide: true, stdio: ['ignore', output, output, ...(ipc ? ['ipc'] : [])] });
         closeSync(output); children.push(child); state.children.push({ name, pid: child.pid });
         child.on('error', error => { if (!stopping) void shutdown(new Error(`${name}: ${error.code || 'không thể khởi chạy'}`)); });
         child.on('exit', code => { if (!stopping) void shutdown(new Error(`${name} đã dừng (${code}); xem .local/${name}.log`)); });
@@ -131,7 +171,19 @@ async function serve() {
         await freePort(webPort); await freePort(backendPort);
         state.webUrl = `http://localhost:${webPort}`; state.apiUrl = 'http://localhost:4000';
         dockerEnvironment = localComposeEnvironment(process.env, micro, { JOBFIND_WEB_PORT: String(webPort), JOBFIND_BACKEND_PORT: String(backendPort) });
-        await command(['info', '--format', '{{.ServerVersion}}']);
+        // Own the web port first: until the APIs are ready the browser gets a
+        // progress page instead of "connection refused".
+        await update('Khởi động giao diện tuyển dụng');
+        await exec(process.execPath, ['scripts/copy-pdf-assets.cjs'], { cwd: path.join(root, 'frontend'), windowsHide: true, timeout: 60000, signal: lifecycleSignal });
+        frontend = await launchNode('frontend', path.join(root, 'frontend/scripts/start.cjs'), [], path.join(root, 'frontend'), {
+            ...process.env, NODE_ENV: 'development', BROWSER: 'none', HOST: '0.0.0.0', PORT: String(webPort),
+            REACT_APP_BACKEND_URL: state.apiUrl,
+        }, { ipc: true });
+        notifyFrontend();
+        waitFor(() => canConnect('127.0.0.1', webPort, 1000), 'Giao diện', 120000)
+            .then(() => { state.webListening = true; return writeState(state); }).catch(() => {});
+        await update('Kiểm tra Docker và MySQL');
+        await awaitPrerequisites(backend, update);
         // A worker from a previous keyed run must not keep consuming with stale credentials.
         if (await reconcileAiWorker(micro.ANTHROPIC_API_KEY, containerId,
             service => command([...composeApps, 'stop', service]))) applications = [...baseApplications, 'ai-worker'];
@@ -172,12 +224,7 @@ async function serve() {
             const result = await command(['exec', id, 'node', '-e', `Promise.all(${JSON.stringify(applications.map(name => `http://${name}:${applicationPorts[name]}/readyz`))}.map(async url=>{const r=await fetch(url,{signal:AbortSignal.timeout(4000)});await r.body?.cancel();if(!r.ok)throw Error(url)})).then(()=>console.log('ready')).catch(()=>process.exit(1))`]);
             return result === 'ready';
         }, 'Các dịch vụ API', 180000);
-        await update('Khởi động giao diện tuyển dụng');
-        await exec(process.execPath, ['scripts/copy-pdf-assets.cjs'], { cwd: path.join(root, 'frontend'), windowsHide: true, timeout: 60000, signal: lifecycleSignal });
-        await launchNode('frontend', path.join(root, 'frontend/scripts/start.cjs'), [], path.join(root, 'frontend'), {
-            ...process.env, NODE_ENV: 'development', BROWSER: 'none', HOST: '0.0.0.0', PORT: String(webPort),
-            REACT_APP_BACKEND_URL: state.apiUrl,
-        });
+        await update('Hoàn tất biên dịch giao diện');
         await waitFor(() => httpOk(state.webUrl), 'Giao diện', 180000);
         state.status = 'running'; await update(`Ứng dụng sẵn sàng: ${state.webUrl}`);
     } catch (error) {
@@ -185,19 +232,54 @@ async function serve() {
     }
 }
 
+const clock = (from, to) => {
+    const seconds = Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 1000)) || 0;
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+};
+// npm start stays until the app answers (or says why it cannot), instead of
+// returning while the web port is still closed.
+async function follow(pid) {
+    const controller = new AbortController();
+    const interrupt = () => controller.abort();
+    process.once('SIGINT', interrupt);
+    let hinted = false;
+    const final = await followLaunch({ pid, readState, signal: controller.signal,
+        onPhase: ({ phase, at }, state) => console.log(`[${clock(state.startedAt, at || new Date().toISOString())}] ${phase}`),
+        onState: state => {
+            if (hinted || !state.webListening || state.status !== 'starting') return;
+            hinted = true;
+            console.log(`       Có thể mở ${state.webUrl} ngay: trang hiển thị tiến độ và tự vào ứng dụng khi sẵn sàng.`);
+        } });
+    process.off('SIGINT', interrupt);
+    if (!final) { console.log('Đã thôi theo dõi; JobFind vẫn khởi chạy nền. Xem tiến độ bằng npm run dev:status.'); return 0; }
+    if (final.status === 'running') { console.log('Dừng ứng dụng bằng npm run dev:stop; cơ sở dữ liệu được giữ nguyên.'); return 0; }
+    if (final.status === 'stopped') { console.log('JobFind đã dừng.'); return 0; }
+    console.error(`Khởi chạy chưa hoàn tất: ${final.error || final.phase}\nNhật ký: .local/runtime.log, .local/backend.log, .local/frontend.log, .local/docker.log`);
+    return 1;
+}
+
 await fs.mkdir(local, { recursive: true });
 if (action === 'serve') await serve();
 else if (action === 'start') {
-    await withStartLock(root, async () => {
-    const existing = await readState();
-    if (existing?.workspace === root && await ownedSupervisor(existing.pid, script)) {
-        console.log(`${existing.phase}\n${existing.webUrl || ''}`);
-        try {
-            if (existing.status === 'running' && !(await currentClaudeConfiguration())) {
-                console.log('Cấu hình Claude trong container đã khác microservices/.env; dùng npm run dev:stop rồi npm start để áp dụng.');
+    const pid = await withStartLock(root, async () => {
+        const existing = await readState();
+        if (existing?.workspace === root && await ownedSupervisor(existing.pid, script)) {
+            // The launcher polls stop requests, so right after dev:stop it may still report running.
+            const stopRequested = await fs.readFile(stopFile, 'utf8').then(text => JSON.parse(text).instance === existing.instance, () => false);
+            if (existing.status === 'running' && !stopRequested) {
+                console.log(`JobFind đang chạy: ${existing.webUrl}`);
+                try {
+                    if (!(await currentClaudeConfiguration())) {
+                        console.log('Cấu hình Claude trong container đã khác microservices/.env; dùng npm run dev:stop rồi npm start để áp dụng.');
+                    }
+                } catch { console.log('Chưa đối chiếu được cấu hình Claude trong container; xem npm run dev:status.'); }
+                return null;
             }
-        } catch { console.log('Chưa đối chiếu được cấu hình Claude trong container; xem npm run dev:status.'); }
-    } else {
+            if (existing.status === 'starting' && !stopRequested) return existing.pid;
+            // A stopping or failed launcher is still exiting; start again once it has.
+            console.log('Đang chờ phiên trước dừng hẳn...');
+            await waitUntil(async () => !alive(existing.pid), 'phiên trước dừng hẳn', { timeout: 120000, interval: 500 });
+        }
         try { const pid = Number(await fs.readFile(lockFile, 'utf8')); if (pid && await ownedSupervisor(pid, script)) throw new Error('Đang có tiến trình khởi chạy.'); await fs.rm(lockFile); } catch (error) { if (error.code !== 'ENOENT') throw error; }
         // Detect missing local setup in the foreground rather than reporting a detached success.
         for (const relative of ['backend/.env', 'microservices/.env', 'frontend/node_modules/react-scripts/scripts/start.js', 'frontend/scripts/start.cjs']) {
@@ -214,21 +296,13 @@ else if (action === 'start') {
         }
         const output = openSync(path.join(local, 'runtime.log'), 'a');
         const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], { cwd: root, detached: true, windowsHide: true, stdio: ['ignore', output, output] });
-        let spawnError;
-        child.once('error', error => { spawnError = error; });
+        child.once('error', () => {});
         child.unref(); closeSync(output);
-        const deadline = Date.now() + 10000;
-        while (Date.now() < deadline) {
-            if (spawnError) throw new Error('Không thể tạo tiến trình JobFind.');
-            const current = await readState();
-            if (current?.pid === child.pid && current.status === 'failed') throw new Error(current.error || current.phase);
-            if (current?.pid === child.pid && current.phase !== 'Kiểm tra cấu hình') break;
-            if (!alive(child.pid)) throw new Error('Tiến trình JobFind đã dừng; xem .local/runtime.log.');
-            await sleep(200);
-        }
-        console.log('Đang khởi chạy JobFind. Xem tiến độ bằng npm run dev:status; nhật ký: .local/runtime.log.');
-    }
+        if (!child.pid) throw new Error('Không thể tạo tiến trình JobFind.');
+        console.log('Đang khởi chạy JobFind (Ctrl+C chỉ thôi theo dõi, ứng dụng vẫn chạy nền).');
+        return child.pid;
     });
+    if (pid) process.exitCode = await follow(pid);
 } else if (action === 'status') {
     const state = await readState();
     if (!state) console.log('Chưa khởi chạy. Dùng npm start.');
@@ -245,6 +319,11 @@ else if (action === 'start') {
     const state = await readState();
     if (state?.workspace === root && await ownedSupervisor(state.pid, script)) {
         await fs.writeFile(stopFile, JSON.stringify({ instance: state.instance }));
-        console.log('Đã yêu cầu dừng JobFind. Cơ sở dữ liệu và volume được giữ.');
+        console.log('Đang dừng JobFind...');
+        // Return only once it has exited, so "dev:stop, then npm start" starts a fresh launch.
+        try {
+            await waitUntil(async () => !alive(state.pid), 'JobFind dừng hẳn', { timeout: 120000, interval: 500 });
+            console.log('Đã dừng JobFind. Cơ sở dữ liệu và volume được giữ.');
+        } catch { console.log('JobFind vẫn đang dừng; xem npm run dev:status.'); }
     } else console.log('Không có phiên JobFind do trình khởi chạy quản lý.');
 } else { console.error('Dùng start, status hoặc stop.'); process.exitCode = 1; }

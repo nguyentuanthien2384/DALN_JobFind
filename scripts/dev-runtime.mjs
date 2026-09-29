@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { setTimeout as delay } from 'node:timers/promises';
 import net from 'node:net';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -122,6 +123,47 @@ export async function waitFor(check, label, { timeout = 180000, interval = 1500,
         });
     }
     throw new Error(`Chưa sẵn sàng: ${label}. Xem nhật ký trong .local.`);
+}
+// A TCP probe only: it never authenticates, so a wrong password is reported by
+// the real connection later instead of looking like a stopped server.
+export const canConnect = (host, port, timeout = 2000) => new Promise(resolve => {
+    const socket = net.connect({ host, port });
+    const done = open => { socket.destroy(); resolve(open); };
+    socket.setTimeout(timeout, () => done(false));
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+});
+// Waits for a prerequisite the developer may still be starting (Docker Desktop,
+// MySQL), naming it once instead of failing the whole launch immediately.
+export async function awaitService(probe, { waiting, failed, timeout, interval = 2000, onWaiting, signal }) {
+    if (await probe().catch(() => false)) return false;
+    await onWaiting?.(waiting);
+    try { await waitFor(probe, waiting, { timeout, interval, signal }); }
+    catch (error) { throw signal?.aborted ? error : new Error(failed); }
+    return true;
+}
+const finished = ['running', 'failed', 'stopped'];
+// Follows a detached launcher until it runs, stops or fails, reporting each
+// startup step once. Aborting (Ctrl+C) stops following, not the launcher.
+export async function followLaunch({ pid, readState, isAlive = alive, onPhase, onState, interval = 500, signal }) {
+    let shown = 0;
+    let lastPhase;
+    while (true) {
+        // Checked before reading, so a launcher that wrote its final state and
+        // exited in between is still reported by that state.
+        const running = isAlive(pid);
+        const state = await readState();
+        const own = state?.pid === pid ? state : null;
+        if (own) {
+            if (Array.isArray(own.phases)) for (; shown < own.phases.length; shown++) onPhase?.(own.phases[shown], own);
+            else if (own.phase !== lastPhase) onPhase?.({ phase: own.phase }, own);
+            lastPhase = own.phase;
+            onState?.(own);
+            if (finished.includes(own.status)) return own;
+        }
+        if (!running) return { ...own, status: 'failed', error: 'Tiến trình JobFind đã dừng đột ngột; xem .local/runtime.log.' };
+        try { await delay(interval, undefined, { signal }); } catch { return null; }
+    }
 }
 export async function runLoggedCommand(executable, args, { file, signal, timeout = 600000, ...options }) {
     signal?.throwIfAborted();

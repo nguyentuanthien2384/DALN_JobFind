@@ -400,7 +400,7 @@ Từ thư mục gốc `D:\job_find`:
 npm start
 ```
 
-Mở **http://localhost:3001** khi `npm run dev:status` báo `running`.
+`npm start` hiển thị từng bước và chỉ kết thúc khi in `Ứng dụng sẵn sàng: http://localhost:3001` (hoặc lỗi cụ thể). Có thể mở **http://localhost:3001** ngay sau vài giây: trong lúc khởi động, trang hiển thị tiến độ và tự vào ứng dụng khi sẵn sàng. Docker Desktop được tự mở nếu chưa chạy; nếu MySQL (XAMPP) chưa bật, trình khởi chạy chờ và nhắc bật thay vì dừng.
 
 Danh mục đăng tuyển hiện gồm 12 cấp bậc và 34 tỉnh/thành phố sau sáp nhập. Với dữ liệu cũ, xem [cách cập nhật danh mục và đối chiếu địa phương](docs/recruitment-catalog.md).
 
