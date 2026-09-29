@@ -35,6 +35,7 @@ jest.mock("./container/footer/Footer", () => () => <div>site-footer</div>);
 jest.mock("./container/home/home", () => () => <div>home-page</div>);
 jest.mock("./container/JobPage/JobPage", () => () => <div>job-page</div>);
 jest.mock("./container/JobDetail/JobDetail", () => () => <div>job-detail-page</div>);
+jest.mock("./container/JobDetail/ExternalJobDetail", () => () => <div>external-job-detail-page</div>);
 jest.mock("./container/About/About", () => () => <div>about-page</div>);
 jest.mock("./container/Contact/Contact", () => () => <div>contact-page</div>);
 jest.mock("./container/system/HomeAdmin", () => () => <div>admin-page</div>);
@@ -97,6 +98,7 @@ describe("application routes", () => {
         ["/company", "company-page"],
         ["/detail-company/12", "company-detail-page"],
         ["/detail-job/34", "job-detail-page"],
+        ["/external-job/external-123", "external-job-detail-page"],
         ["/login", "login-page"],
         ["/register", "register-page"],
         ["/forget-password", "forget-password-page"],

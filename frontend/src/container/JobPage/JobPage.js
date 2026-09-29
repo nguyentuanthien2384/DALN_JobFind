@@ -8,6 +8,7 @@ import { loadSearchPage, loadSearchLabels, searchMode } from '../../service/sear
 import CommonUtils from '../../util/CommonUtils';
 import { SEARCH_SNAPSHOT_TTL, useJobSearchHistory } from './jobSearchHistory';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
+import { externalCatalogVersion, vietnamDate } from '../../service/externalJobs';
 const JobSearchPage = ({ historyKey }) => {
     const [restored, remember] = useJobSearchHistory(historyKey);
     const saved = restored || {};
@@ -81,7 +82,7 @@ const JobSearchPage = ({ historyKey }) => {
             loadedQuery.current = null;
             setLoading(true);
         }
-        loadSearchPage(params, mode, labels).then(result => {
+        loadSearchPage(params, mode, labels, { includeExternal: true }).then(result => {
             if (!active) return;
             const available = mode === 'core' ? Math.min(result.count, 10000) : result.count;
             const validPage = clampListPage(numberPage, available, limit);
@@ -189,7 +190,7 @@ const JobSearchPage = ({ historyKey }) => {
 
 const JobPage = () => {
     const location = useLocation();
-    const historyKey = `${searchMode()}:${location.key}:${location.search}`;
+    const historyKey = `${externalCatalogVersion}:${vietnamDate()}:${searchMode()}:${location.key}:${location.search}`;
     return <JobSearchPage key={`${searchMode()}:${localStorage.getItem('token_user') || ''}`} historyKey={historyKey} />;
 };
 

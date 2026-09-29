@@ -14,6 +14,10 @@ jest.mock("react-router-dom", () => {
 jest.mock("../../service/userService", () => ({
     getListPostService: jest.fn(),
 }));
+jest.mock("../../service/externalJobs", () => ({
+    filterExternalJobs: () => [], externalJobCard: job => job,
+    externalCatalogVersion: 'test', vietnamDate: () => '2026-09-29',
+}));
 jest.mock("../../util/CommonUtils", () => ({
     __esModule: true,
     default: { removeSpace: (value) => value.trim().replace(/\s+/g, " ") },

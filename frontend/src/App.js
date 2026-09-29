@@ -12,6 +12,7 @@ import Home from "./container/home/home";
 import JobPage from "./container/JobPage/JobPage";
 import { JobNavigationScroll } from './container/JobPage/jobSearchHistory';
 import DetailPage from "./container/JobDetail/JobDetail";
+import ExternalJobDetail from "./container/JobDetail/ExternalJobDetail";
 import About from "./container/About/About";
 import Contact from "./container/Contact/Contact";
 import Login from "./container/login/Login";
@@ -191,6 +192,16 @@ function App() {
                         <>
                             <Header />
                             <DetailCompany />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/external-job/:id"
+                    element={
+                        <>
+                            <Header />
+                            <ExternalJobDetail />
                             <Footer />
                         </>
                     }

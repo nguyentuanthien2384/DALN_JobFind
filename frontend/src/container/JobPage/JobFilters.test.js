@@ -91,4 +91,15 @@ describe("job filters and results", () => {
         expect(screen.getByText("0 công việc được tìm thấy")).toBeInTheDocument();
         expect(screen.queryByText("React")).not.toBeInTheDocument();
     });
+
+    it('routes external vacancies separately without prefetching a local employer post', () => {
+        render(<RightContent count={1} post={[{ id: 'external-123', listingSource: 'external',
+            title: 'Kỹ thuật viên tại Lào Cai', employer: 'Doanh nghiệp', provinceCodes: ['Lào Cai'],
+            sourceName: 'Trang doanh nghiệp', checkedAt: '2026-09-29' }]} handleSearch={jest.fn()} />);
+        const link = screen.getByRole('link', { name: /Kỹ thuật viên tại Lào Cai/ });
+        expect(link).toHaveAttribute('href', '/external-job/external-123');
+        fireEvent.mouseEnter(link); fireEvent.focus(link); fireEvent.touchStart(link);
+        expect(prefetchJobDetail).not.toHaveBeenCalled();
+        expect(screen.getByText('Tin từ nguồn bên ngoài')).toBeInTheDocument();
+    });
 });

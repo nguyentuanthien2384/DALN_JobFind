@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import Job from '../../../components/Job/Job'
+import ExternalJobCard from '../../../components/Job/ExternalJobCard'
 import JobSearchAutocomplete from './JobSearchAutocomplete'
 import { prefetchJobDetail } from '../../JobDetail/jobDetailResource'
 import './JobResults.css';
@@ -34,6 +35,10 @@ const RightContent = (props) => {
                         </div>
                         <StableList busy={props.loading} resetKey={props.resetKey} label="Đang tìm việc…">
                         {props.post.map((data) => {
+                            if (data.listingSource === 'external') return <Link key={data.id}
+                                className="job-result-link" to={`/external-job/${encodeURIComponent(data.id)}`}>
+                                <ExternalJobCard data={data} />
+                            </Link>;
                             return (
                                 <Link
                                     key={data.id}

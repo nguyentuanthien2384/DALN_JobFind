@@ -1,0 +1,1185 @@
+{
+  "version": "2026-09-29.1",
+  "checkedAt": "2026-09-29",
+  "provinces": [
+    {
+      "code": "Hà Nội",
+      "value": "Hà Nội",
+      "administrativeCode": "01",
+      "previousNames": []
+    },
+    {
+      "code": "Cao Bằng",
+      "value": "Cao Bằng",
+      "administrativeCode": "04",
+      "previousNames": []
+    },
+    {
+      "code": "Tuyên Quang",
+      "value": "Tuyên Quang",
+      "administrativeCode": "08",
+      "previousNames": [
+        "Hà Giang"
+      ]
+    },
+    {
+      "code": "Điện Biên",
+      "value": "Điện Biên",
+      "administrativeCode": "11",
+      "previousNames": []
+    },
+    {
+      "code": "Lai Châu",
+      "value": "Lai Châu",
+      "administrativeCode": "12",
+      "previousNames": []
+    },
+    {
+      "code": "Sơn La",
+      "value": "Sơn La",
+      "administrativeCode": "14",
+      "previousNames": []
+    },
+    {
+      "code": "Lào Cai",
+      "value": "Lào Cai",
+      "administrativeCode": "15",
+      "previousNames": [
+        "Yên Bái"
+      ]
+    },
+    {
+      "code": "Thái Nguyên",
+      "value": "Thái Nguyên",
+      "administrativeCode": "19",
+      "previousNames": [
+        "Bắc Kạn"
+      ]
+    },
+    {
+      "code": "Lạng Sơn",
+      "value": "Lạng Sơn",
+      "administrativeCode": "20",
+      "previousNames": []
+    },
+    {
+      "code": "Quảng Ninh",
+      "value": "Quảng Ninh",
+      "administrativeCode": "22",
+      "previousNames": []
+    },
+    {
+      "code": "Bắc Ninh",
+      "value": "Bắc Ninh",
+      "administrativeCode": "24",
+      "previousNames": [
+        "Bắc Giang"
+      ]
+    },
+    {
+      "code": "Phú Thọ",
+      "value": "Phú Thọ",
+      "administrativeCode": "25",
+      "previousNames": [
+        "Vĩnh Phúc",
+        "Hòa Bình"
+      ]
+    },
+    {
+      "code": "Hải Phòng",
+      "value": "Hải Phòng",
+      "administrativeCode": "31",
+      "previousNames": [
+        "Hải Dương"
+      ]
+    },
+    {
+      "code": "Hưng Yên",
+      "value": "Hưng Yên",
+      "administrativeCode": "33",
+      "previousNames": [
+        "Thái Bình"
+      ]
+    },
+    {
+      "code": "Ninh Bình",
+      "value": "Ninh Bình",
+      "administrativeCode": "37",
+      "previousNames": [
+        "Hà Nam",
+        "Nam Định"
+      ]
+    },
+    {
+      "code": "Thanh Hóa",
+      "value": "Thanh Hóa",
+      "administrativeCode": "38",
+      "previousNames": []
+    },
+    {
+      "code": "Nghệ An",
+      "value": "Nghệ An",
+      "administrativeCode": "40",
+      "previousNames": []
+    },
+    {
+      "code": "Hà Tĩnh",
+      "value": "Hà Tĩnh",
+      "administrativeCode": "42",
+      "previousNames": []
+    },
+    {
+      "code": "Quảng Trị",
+      "value": "Quảng Trị",
+      "administrativeCode": "44",
+      "previousNames": [
+        "Quảng Bình"
+      ]
+    },
+    {
+      "code": "Huế",
+      "value": "Huế",
+      "administrativeCode": "46",
+      "previousNames": [
+        "Thừa Thiên Huế",
+        "Thừa Thiên - Huế"
+      ]
+    },
+    {
+      "code": "Đà Nẵng",
+      "value": "Đà Nẵng",
+      "administrativeCode": "48",
+      "previousNames": [
+        "Quảng Nam"
+      ]
+    },
+    {
+      "code": "Quảng Ngãi",
+      "value": "Quảng Ngãi",
+      "administrativeCode": "51",
+      "previousNames": [
+        "Kon Tum"
+      ]
+    },
+    {
+      "code": "Gia Lai",
+      "value": "Gia Lai",
+      "administrativeCode": "52",
+      "previousNames": [
+        "Bình Định"
+      ]
+    },
+    {
+      "code": "Khánh Hòa",
+      "value": "Khánh Hòa",
+      "administrativeCode": "56",
+      "previousNames": [
+        "Ninh Thuận"
+      ]
+    },
+    {
+      "code": "Đắk Lắk",
+      "value": "Đắk Lắk",
+      "administrativeCode": "66",
+      "previousNames": [
+        "Phú Yên"
+      ]
+    },
+    {
+      "code": "Lâm Đồng",
+      "value": "Lâm Đồng",
+      "administrativeCode": "68",
+      "previousNames": [
+        "Đắk Nông",
+        "Bình Thuận"
+      ]
+    },
+    {
+      "code": "Đồng Nai",
+      "value": "Đồng Nai",
+      "administrativeCode": "75",
+      "previousNames": [
+        "Bình Phước"
+      ]
+    },
+    {
+      "code": "Hồ Chí Minh",
+      "value": "Hồ Chí Minh",
+      "administrativeCode": "79",
+      "previousNames": [
+        "Bình Dương",
+        "Bà Rịa - Vũng Tàu",
+        "Bà Rịa – Vũng Tàu"
+      ]
+    },
+    {
+      "code": "Tây Ninh",
+      "value": "Tây Ninh",
+      "administrativeCode": "80",
+      "previousNames": [
+        "Long An"
+      ]
+    },
+    {
+      "code": "Đồng Tháp",
+      "value": "Đồng Tháp",
+      "administrativeCode": "82",
+      "previousNames": [
+        "Tiền Giang"
+      ]
+    },
+    {
+      "code": "Vĩnh Long",
+      "value": "Vĩnh Long",
+      "administrativeCode": "86",
+      "previousNames": [
+        "Bến Tre",
+        "Trà Vinh"
+      ]
+    },
+    {
+      "code": "An Giang",
+      "value": "An Giang",
+      "administrativeCode": "91",
+      "previousNames": [
+        "Kiên Giang"
+      ]
+    },
+    {
+      "code": "Cần Thơ",
+      "value": "Cần Thơ",
+      "administrativeCode": "92",
+      "previousNames": [
+        "Sóc Trăng",
+        "Hậu Giang"
+      ]
+    },
+    {
+      "code": "Cà Mau",
+      "value": "Cà Mau",
+      "administrativeCode": "96",
+      "previousNames": [
+        "Bạc Liêu"
+      ]
+    }
+  ],
+  "jobs": [
+    {
+      "postedAt": null,
+      "salaryText": null,
+      "categoryJobCode": "cong-nghe-thong-tin",
+      "categoryJoblevelCode": null,
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": "1-nam",
+      "title": "Lập trình PL/SQL",
+      "employer": "Công ty Công nghệ thông tin VNPT",
+      "provinceCodes": [
+        "Hà Nội",
+        "Hải Phòng"
+      ],
+      "sourceLocation": "Hà Nội, Hải Phòng",
+      "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/lap-trinh-plsql-jid5028.html",
+      "sourceName": "Cổng tuyển dụng VNPT",
+      "deadline": "2026-10-05",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "VNPT tuyển lập trình viên Oracle tại Hà Nội và Hải Phòng, tham gia phát triển và tối ưu hệ thống dữ liệu.",
+      "responsibilities": [
+        "Phát triển PL/SQL, tối ưu truy vấn và xây dựng luồng ETL.",
+        "Xử lý lỗi cơ sở dữ liệu và phối hợp tích hợp ứng dụng."
+      ],
+      "requirements": [
+        "Đại học CNTT hoặc ngành liên quan; ít nhất một năm làm việc với Oracle.",
+        "Sử dụng tốt SQL/PLSQL và đọc hiểu tài liệu tiếng Anh."
+      ],
+      "id": "external-a16a0d2c3e4e"
+    },
+    {
+      "postedAt": null,
+      "salaryText": null,
+      "categoryJobCode": "cong-nghe-thong-tin",
+      "categoryJoblevelCode": null,
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Kỹ sư Lập trình",
+      "employer": "Viễn thông Cao Bằng",
+      "provinceCodes": [
+        "Cao Bằng"
+      ],
+      "sourceLocation": "Cao Bằng",
+      "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/ky-su-lap-trinh-jid6426.html",
+      "sourceName": "Cổng tuyển dụng VNPT",
+      "deadline": "2026-11-10",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "Viễn thông Cao Bằng tuyển kỹ sư phát triển phần mềm, từ phân tích yêu cầu đến bảo trì và hỗ trợ sử dụng.",
+      "responsibilities": [
+        "Xây dựng ứng dụng, kiểm thử, sửa lỗi và nâng cấp phần mềm."
+      ],
+      "requirements": [
+        "Tốt nghiệp đại học chính quy ngành CNTT.",
+        "Biết lập trình hướng đối tượng, ít nhất một ngôn ngữ lập trình và cơ sở dữ liệu SQL Server hoặc Oracle."
+      ],
+      "id": "external-0642f260a509"
+    },
+    {
+      "postedAt": null,
+      "salaryText": null,
+      "categoryJobCode": "cong-nghe-thong-tin",
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Nhân viên Kỹ thuật địa bàn",
+      "employer": "Viễn thông Tuyên Quang",
+      "provinceCodes": [
+        "Tuyên Quang"
+      ],
+      "sourceLocation": "Tuyên Quang",
+      "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/nhan-vien-ky-thuat-dia-ban-jid6414.html",
+      "sourceName": "Cổng tuyển dụng VNPT",
+      "deadline": "2026-10-15",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "VNPT Tuyên Quang tuyển nhân sự kỹ thuật phụ trách hạ tầng mạng và dịch vụ tại địa bàn.",
+      "responsibilities": [
+        "Bảo dưỡng mạng ngoại vi, lắp đặt thiết bị và xử lý sự cố thuê bao.",
+        "Khảo sát kết nối và hỗ trợ khách hàng."
+      ],
+      "requirements": [
+        "Đại học chính quy ngành CNTT hoặc nhóm điện, điện tử, viễn thông theo tiêu chuẩn trong tin gốc.",
+        "Đáp ứng điều kiện xếp loại tốt nghiệp và độ tuổi của VNPT."
+      ],
+      "id": "external-264b88282511"
+    },
+    {
+      "postedAt": null,
+      "salaryText": null,
+      "categoryJobCode": "cong-nghe-thong-tin",
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Nhân viên Kỹ thuật địa bàn",
+      "employer": "Viễn thông Ninh Bình",
+      "provinceCodes": [
+        "Ninh Bình"
+      ],
+      "sourceLocation": "Ninh Bình",
+      "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/nhan-vien-ky-thuat-dia-ban-jid6419.html",
+      "sourceName": "Cổng tuyển dụng VNPT",
+      "deadline": "2026-10-12",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "Viễn thông Ninh Bình tuyển nhân viên triển khai, bảo trì hạ tầng và hỗ trợ dịch vụ viễn thông.",
+      "responsibilities": [
+        "Lắp thiết bị thuê bao, sửa chữa mạng và cập nhật dữ liệu hạ tầng.",
+        "Khảo sát nhu cầu kết nối, hỗ trợ kỹ thuật cho khách hàng."
+      ],
+      "requirements": [
+        "Đại học chính quy ngành CNTT hoặc ngành điện, điện tử, viễn thông phù hợp.",
+        "Đáp ứng tiêu chuẩn xếp loại tốt nghiệp và giới hạn độ tuổi nêu tại nguồn."
+      ],
+      "id": "external-0907e63f6021"
+    },
+    {
+      "postedAt": null,
+      "salaryText": null,
+      "categoryJobCode": "cong-nghe-thong-tin",
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Nhân viên kỹ thuật địa bàn",
+      "employer": "Viễn thông Bắc Ninh",
+      "provinceCodes": [
+        "Bắc Ninh"
+      ],
+      "sourceLocation": "Bắc Ninh",
+      "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/nhan-vien-ky-thuat-dia-ban-jid5301.html",
+      "sourceName": "Cổng tuyển dụng VNPT",
+      "deadline": "2026-09-30",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "VNPT Bắc Ninh tuyển nhân viên kỹ thuật mạng và dịch vụ tại địa bàn.",
+      "responsibilities": [
+        "Bảo dưỡng mạng, lắp thiết bị, xử lý sự cố và hỗ trợ khách hàng."
+      ],
+      "requirements": [
+        "Đại học chính quy CNTT, điện tử viễn thông hoặc toán tin; đáp ứng yêu cầu chứng chỉ CNTT.",
+        "Có kinh nghiệm triển khai, sửa chữa thiết bị và dịch vụ viễn thông; xem đầy đủ điều kiện tại nguồn."
+      ],
+      "id": "external-3a75f8475725"
+    },
+    {
+      "postedAt": null,
+      "salaryText": null,
+      "categoryJobCode": "cong-nghe-thong-tin",
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Nhân viên kỹ thuật địa bàn đa nhiệm",
+      "employer": "Viễn thông Hưng Yên",
+      "provinceCodes": [
+        "Hưng Yên"
+      ],
+      "sourceLocation": "Hưng Yên",
+      "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/nhan-vien-ky-thuat-dia-ban-da-nhiem-jid6421.html",
+      "sourceName": "Cổng tuyển dụng VNPT",
+      "deadline": "2026-09-30",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "Viễn thông Hưng Yên tuyển nhân viên phụ trách vận hành mạng và hỗ trợ kỹ thuật viễn thông, CNTT.",
+      "responsibilities": [
+        "Lắp đặt dịch vụ, bảo dưỡng mạng ngoại vi và khắc phục sự cố.",
+        "Sửa thiết bị đầu cuối, đo kiểm chất lượng mạng di động."
+      ],
+      "requirements": [
+        "Đại học chính quy ngành CNTT hoặc ngành điện, điện tử, viễn thông phù hợp.",
+        "Thông thường không quá 30 tuổi; nguồn nêu ngoại lệ cho lao động thuê lại của VNPT."
+      ],
+      "id": "external-ef5c7b7aaf17"
+    },
+    {
+      "postedAt": "2026-09-18",
+      "salaryText": "Thỏa thuận",
+      "categoryJobCode": "giao-vien",
+      "categoryJoblevelCode": null,
+      "categoryWorktypeCode": null,
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": null,
+      "title": "Ban giám hiệu và Quản lí chuyên môn — FPT Schools",
+      "employer": "Hệ thống Trường Phổ thông FPT (FPT Schools)",
+      "provinceCodes": [
+        "Điện Biên",
+        "Phú Thọ",
+        "Hà Tĩnh",
+        "Hồ Chí Minh"
+      ],
+      "sourceLocation": "Điện Biên Phủ (Điện Biên); Vĩnh Yên (Phú Thọ); Thành Sen (Hà Tĩnh); Bình Dương (TP. Hồ Chí Minh)",
+      "sourceUrl": "https://career.fpt.edu.vn/Job/Detail/79770",
+      "sourceName": "Tuyển dụng FPT Education",
+      "deadline": "2026-12-31",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "FPT Schools tuyển nhân sự quản lý tuyển sinh và chuyên môn tại bốn tổ hợp giáo dục được nêu trong tin.",
+      "responsibilities": [
+        "Điều hành chuyên môn, phát triển giáo viên và duy trì chất lượng giảng dạy."
+      ],
+      "requirements": [
+        "Đại học trở lên ngành sư phạm hoặc quản lý giáo dục.",
+        "Ít nhất năm năm kinh nghiệm giảng dạy, quản lý chuyên môn tại trường chuyên hoặc trường công top đầu; hiểu chương trình giáo dục phổ thông 2018."
+      ],
+      "id": "external-bdcdb2d95c05"
+    },
+    {
+      "postedAt": null,
+      "salaryText": "6.000.000 - 9.000.000 VNĐ",
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": "khong-yeu-cau",
+      "title": "Nhân viên tư vấn bán hàng — Lai Châu",
+      "employer": "TokyoLife",
+      "provinceCodes": [
+        "Lai Châu"
+      ],
+      "sourceLocation": "77 - 79 - 81 Trần Hưng Đạo, Đoàn Kết, TP Lai Châu, Lai Châu",
+      "sourceUrl": "https://tuyendung.tokyolife.vn/jobs/772",
+      "sourceName": "Tuyển dụng TokyoLife",
+      "deadline": "2026-10-08",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "TokyoLife tuyển tư vấn bán hàng tại cửa hàng Lai Châu, có đào tạo cho người chưa có kinh nghiệm.",
+      "responsibilities": [
+        "Tư vấn sản phẩm, sắp xếp hàng hóa và hỗ trợ thanh toán."
+      ],
+      "requirements": [
+        "Từ đủ 18 tuổi, chăm chỉ và yêu thích bán hàng.",
+        "Làm xoay ca 08:00–16:00 hoặc 14:00–22:00, nghỉ bốn ngày mỗi tháng."
+      ],
+      "id": "external-9f6a7884628b"
+    },
+    {
+      "postedAt": null,
+      "salaryText": "Thỏa thuận",
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": "chuyen-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": "3nam",
+      "title": "Chuyên viên Quan hệ Khách hàng - Account Manager (Lạng Sơn)",
+      "employer": "VNPAY",
+      "provinceCodes": [
+        "Lạng Sơn"
+      ],
+      "sourceLocation": "Lạng Sơn",
+      "sourceUrl": "https://tuyendung.vnpay.vn/tuyen-dung/chuyen-vien-quan-he-khach-hang-account-manager-lang-son.html",
+      "sourceName": "Tuyển dụng VNPAY",
+      "deadline": "2026-09-30",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "VNPAY tuyển nhân sự phát triển giải pháp thanh toán cho khách hàng doanh nghiệp qua kênh ngân hàng tại Lạng Sơn.",
+      "responsibilities": [
+        "Duy trì đối tác ngân hàng, hướng dẫn khách hàng và theo dõi hiệu quả kinh doanh."
+      ],
+      "requirements": [
+        "Cao đẳng hoặc đại học trở lên; ít nhất ba năm kinh nghiệm kinh doanh hoặc quan hệ đối tác.",
+        "Hiểu dịch vụ ngân hàng, Fintech; giao tiếp, đàm phán và tin học văn phòng tốt."
+      ],
+      "id": "external-bdc7033d1f49"
+    },
+    {
+      "postedAt": null,
+      "salaryText": null,
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": "truong-nhom",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Trưởng nhóm bán hàng kênh GT — khu vực Đông Bắc",
+      "employer": "Rohto-Mentholatum Việt Nam",
+      "provinceCodes": [
+        "Thái Nguyên",
+        "Bắc Ninh",
+        "Cao Bằng"
+      ],
+      "sourceLocation": "Bắc Ninh, Bắc Giang, Thái Nguyên, Cao Bằng, Bắc Kạn",
+      "sourceUrl": "https://rohto.com.vn/tuyen-dung/co-hoi-nghe-nghiep/nhan-vien-kinh-nghiem/truong-nhom-ban-hang-kenh-gt-central-highland.html",
+      "sourceName": "Tuyển dụng Rohto-Mentholatum Việt Nam",
+      "deadline": "2026-09-30",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "Rohto tuyển trưởng nhóm bán hàng phụ trách các địa bàn Đông Bắc được liệt kê trong tin gốc.",
+      "responsibilities": [
+        "Theo dõi doanh số, phát triển thị trường và hướng dẫn đội ngũ bán hàng.",
+        "Thu thập thông tin thị trường và lập báo cáo."
+      ],
+      "requirements": [
+        "Trung cấp trở lên; ba đến năm năm kinh nghiệm quản lý bán hàng kênh GT trong mỹ phẩm, dược phẩm, hóa phẩm hoặc FMCG.",
+        "Có kỹ năng quản lý dữ liệu và đào tạo nhân viên."
+      ],
+      "id": "external-25739cac6534"
+    },
+    {
+      "postedAt": "2026-08-18",
+      "salaryText": "Thương lượng",
+      "categoryJobCode": null,
+      "categoryJoblevelCode": "chuyen-vien-cao-cap",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": null,
+      "title": "Chuyên viên chính / cấp cao Quản lý thiết kế mảng điện nặng",
+      "employer": "Tập đoàn Sun Group",
+      "provinceCodes": [
+        "Hà Nội",
+        "Quảng Ninh"
+      ],
+      "sourceLocation": "Hà Nội, Quảng Ninh",
+      "sourceUrl": "https://tuyendung.sungroup.com.vn/job/ha-noiquang-ninh-chuyen-vien-cap-caochuyen-vien-chinh-quan-ly-thiet-ke-mang-dien-nang-12781",
+      "sourceName": "Tuyển dụng Sun Group",
+      "deadline": "2026-09-30",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "Sun Group tuyển chuyên viên quản lý thiết kế mảng điện nặng tại Hà Nội hoặc Quảng Ninh.",
+      "responsibilities": [
+        "Tham gia thiết kế, kiểm tra hồ sơ và phối hợp xử lý công việc tại công trường."
+      ],
+      "requirements": [
+        "Đại học chính quy chuyên ngành liên quan; từ ba đến năm năm kinh nghiệm tương đương.",
+        "Sử dụng thành thạo phần mềm thiết kế, BIM và đọc hiểu bản vẽ kỹ thuật."
+      ],
+      "id": "external-a01272892fa1"
+    },
+    {
+      "postedAt": "2026-03-06",
+      "salaryText": "Thương lượng",
+      "categoryJobCode": null,
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": "2-nam",
+      "title": "Nhân viên kỹ thuật thời vụ — Sa Pa",
+      "employer": "Tập đoàn Sun Group",
+      "provinceCodes": [
+        "Lào Cai"
+      ],
+      "sourceLocation": "Sa Pa, Lào Cai",
+      "sourceUrl": "https://tuyendung.sungroup.com.vn/job/sa-pa-lao-cai-nhan-vien-ky-thuat-thoi-vu-10987",
+      "sourceName": "Tuyển dụng Sun Group",
+      "deadline": "2026-11-30",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "Sun Group tuyển nhân viên kỹ thuật thời vụ tại Sa Pa để vận hành và bảo trì hệ thống tòa nhà.",
+      "responsibilities": [
+        "Bảo dưỡng thiết bị điện, nước, điện lạnh; xử lý sự cố và quản lý hồ sơ bảo trì."
+      ],
+      "requirements": [
+        "Trung cấp trở lên ngành điện, điện lạnh hoặc cơ điện.",
+        "Ít nhất hai năm vận hành, bảo trì tòa nhà; có kỹ năng giải quyết sự cố."
+      ],
+      "id": "external-5af55f24b66b"
+    },
+    {
+      "postedAt": "2026-09-22",
+      "salaryText": null,
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": null,
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Tuyển dụng Tín dụng và Kế toán — Agribank Chi nhánh Sơn La",
+      "employer": "Agribank Chi nhánh Sơn La",
+      "provinceCodes": [
+        "Sơn La"
+      ],
+      "sourceLocation": "Mai Sơn, Mường La, Thuận Châu, Sông Mã, Quỳnh Nhai — Sơn La",
+      "sourceUrl": "https://www.agribank.com.vn/vn/tuyen-dung/dtl?current=true&urile=wcm:path:/agbank/tuyen-dung/chuong-trinh-tuyen-dung/2019/thong-bao-tuyen-dung-dot-1-nam-2026",
+      "sourceName": "Tuyển dụng Agribank",
+      "evidenceUrls": [
+        "https://www.agribank.com.vn/wcm/connect/f365072a-ca79-494d-bc17-9e6324b0507a/DS%2Btuy%E1%BB%83n%2Bd%E1%BB%A5ng%2B%C4%91%E1%BB%A3t%2B1%2Bn%C4%83m%2B2026.pdf?CVID=q3846es&MOD=AJPERES",
+        "https://baosonla.vn/thong-tin-quang-cao/agribank-chi-nhanh-son-la-thong-bao-tuyen-dung-dot-1-nam-2026-P7FHQvuvR.html"
+      ],
+      "deadline": "2026-09-30",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "summary": "Agribank Chi nhánh Sơn La tuyển năm chỉ tiêu tín dụng và năm kế toán trong đợt một năm 2026; nộp hồ sơ trực tiếp theo thông báo.",
+      "responsibilities": [],
+      "requirements": [
+        "Chuyên ngành phù hợp; trình độ tối thiểu thay đổi theo chi nhánh dự tuyển.",
+        "Hồ sơ và điều kiện chi tiết có trong thông báo Agribank; thời gian tiếp nhận kết thúc ngày 30/09/2026."
+      ],
+      "id": "external-4c539d8dcdf8"
+    },
+    {
+      "postedAt": null,
+      "salaryText": "10–25 triệu đồng",
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Nhân viên kinh doanh – Thanh Hóa",
+      "employer": "Công ty Cổ phần Công nghệ Sapo",
+      "provinceCodes": [
+        "Thanh Hóa"
+      ],
+      "sourceLocation": "68 Hà Huy Tập, Quảng Thắng, TP. Thanh Hóa, Thanh Hóa",
+      "sourceUrl": "https://tuyendung.sapo.vn/co-hoi-viec-lam/nhan-vien-kinh-doanh-thanh-hoa-a3597.html",
+      "sourceName": "Sapo – Tuyển dụng chính thức",
+      "deadline": "2026-09-30",
+      "summary": "Sapo tuyển nhân viên kinh doanh phần mềm tại Thanh Hóa.",
+      "responsibilities": [
+        "Tìm khách hàng qua kênh trực tuyến, tư vấn phần mềm và theo dõi hợp đồng.",
+        "Chăm sóc khách hàng sau bán."
+      ],
+      "requirements": [
+        "Tốt nghiệp cao đẳng/đại học hoặc có tối thiểu 6 tháng kinh nghiệm tư vấn, bán hàng, chăm sóc khách hàng.",
+        "Có máy tính cá nhân và làm toàn thời gian."
+      ],
+      "id": "external-05a00fe2d943",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": null,
+      "salaryText": "15–40 triệu đồng",
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": "truong-phong",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Trưởng phòng Kinh doanh – Kênh Thuế",
+      "employer": "Công ty Cổ phần Công nghệ Sapo",
+      "provinceCodes": [
+        "Nghệ An"
+      ],
+      "sourceLocation": "127 Lý Thường Kiệt, Thành Vinh, Nghệ An",
+      "sourceUrl": "https://tuyendung.sapo.vn/co-hoi-viec-lam/truong-phong-kinh-doanh-kenh-thue-a3973.html",
+      "sourceName": "Sapo – Tuyển dụng chính thức",
+      "deadline": "2026-09-30",
+      "summary": "Phụ trách phát triển khách hàng và đội ngũ kinh doanh giải pháp công nghệ cho hộ kinh doanh.",
+      "responsibilities": [
+        "Tổ chức hoạt động bán hàng, theo dõi chỉ tiêu và đào tạo đội ngũ.",
+        "Phối hợp triển khai kế hoạch phát triển thị trường."
+      ],
+      "requirements": [
+        "Tốt nghiệp đại học; có 2–3 năm kinh nghiệm bán hàng và ít nhất 1 năm dẫn dắt nhóm."
+      ],
+      "id": "external-99dd89818002",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": null,
+      "salaryText": "10–15 triệu đồng",
+      "categoryJobCode": "giao-vien",
+      "categoryJoblevelCode": "pho-phong",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": "10-15tr",
+      "experienceJobCode": null,
+      "title": "Phó phòng đào tạo",
+      "employer": "Công ty CP cung ứng nhân lực Aladdin",
+      "provinceCodes": [
+        "Hà Tĩnh"
+      ],
+      "sourceLocation": "Hà Tĩnh",
+      "sourceUrl": "https://vieclamhatinh.vn/job/details/Pho-phong-dao-tao-8764.html",
+      "sourceName": "Trung tâm Dịch vụ việc làm Hà Tĩnh",
+      "deadline": "2026-10-30",
+      "summary": "Tin tuyển 2 phó phòng đào tạo làm toàn thời gian tại Hà Tĩnh.",
+      "responsibilities": [
+        "Theo dõi chất lượng lớp học, hỗ trợ giáo viên và cải tiến tài liệu đào tạo.",
+        "Tổng hợp kết quả học tập, đề xuất biện pháp nâng chất lượng."
+      ],
+      "requirements": [
+        "Trình độ đại học; có kinh nghiệm giảng dạy và chuyên môn quản lý đào tạo ngoại ngữ."
+      ],
+      "id": "external-e2de04a99a43",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employment_center"
+    },
+    {
+      "postedAt": "2026-09-15",
+      "salaryText": "Thỏa thuận",
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": null,
+      "title": "Nhân viên Dịch vụ Khách hàng (hợp đồng qua kênh đối tác)",
+      "employer": "Hanwha Life Vietnam",
+      "provinceCodes": [
+        "Huế",
+        "Khánh Hòa"
+      ],
+      "sourceLocation": "GA Huế: 73 Thuận Hoá, phường Hương Thuỷ, Huế; GA Nha Trang: STH 24.32 đường số 5, KĐT Lê Hồng Phong 2, phường Nam Nha Trang, Khánh Hòa",
+      "sourceUrl": "https://hanwhalifevietnam.talent.vn/job/customer-services-staff-outsourcing-contract-nhan-vien-dich-vu-khach-hang-hop-dong-qua-kenh-doi-tac-4912",
+      "sourceName": "Hanwha Life Vietnam – Cổng tuyển dụng",
+      "deadline": "2026-10-31",
+      "summary": "Tiếp nhận yêu cầu khách hàng tại văn phòng Huế hoặc Nha Trang; hợp đồng qua đối tác.",
+      "responsibilities": [
+        "Xử lý hồ sơ bảo hiểm, chứng từ và giao dịch thu chi.",
+        "Giải đáp thắc mắc, hỗ trợ thủ tục cho khách hàng."
+      ],
+      "requirements": [
+        "Có kỹ năng giao tiếp, xử lý tình huống và phần mềm văn phòng.",
+        "Ưu tiên kinh nghiệm dịch vụ khách hàng ngành bảo hiểm hoặc tài chính."
+      ],
+      "id": "external-d25dde94432a",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": "2026-09-24",
+      "salaryText": "Thỏa thuận",
+      "categoryJobCode": "giao-vien",
+      "categoryJoblevelCode": "chuyen-vien-cao-cap",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": null,
+      "title": "Chuyên viên Cấp cao Huấn luyện & Hỗ trợ đại lý",
+      "employer": "Hanwha Life Vietnam",
+      "provinceCodes": [
+        "Đắk Lắk"
+      ],
+      "sourceLocation": "Dak Lak; phụ trách khu vực Phú Yên theo nội dung tin",
+      "sourceUrl": "https://hanwhalifevietnam.talent.vn/job/agency-training-senior-officer-chuyen-vien-cap-cao-huan-luyen-ho-tro-dai-ly-4932",
+      "sourceName": "Hanwha Life Vietnam – Cổng tuyển dụng",
+      "deadline": "2026-10-24",
+      "summary": "Vị trí huấn luyện đại lý bảo hiểm, phụ trách khu vực Phú Yên thuộc Đắk Lắk sau sáp nhập.",
+      "responsibilities": [
+        "Triển khai khóa học tài chính, hỗ trợ bán hàng và theo dõi chất lượng đào tạo.",
+        "Thực hiện báo cáo và hướng dẫn đội ngũ."
+      ],
+      "requirements": [
+        "Tốt nghiệp đại học và có ít nhất 3 năm kinh nghiệm bảo hiểm nhân thọ.",
+        "Ưu tiên kinh nghiệm giảng dạy người lớn; có kỹ năng thuyết trình."
+      ],
+      "id": "external-15d6ba7dec46",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": "2026-09-15",
+      "salaryText": "Thỏa thuận",
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": "giam-doc",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": null,
+      "title": "Giám đốc Kinh doanh Khu vực",
+      "employer": "Hanwha Life Vietnam",
+      "provinceCodes": [
+        "Lâm Đồng",
+        "Quảng Ngãi",
+        "Quảng Ninh",
+        "Gia Lai"
+      ],
+      "sourceLocation": "Lam Dong, Quang Ngai, Quang Ninh, Gia Lai",
+      "sourceUrl": "https://hanwhalifevietnam.talent.vn/job/zone-director-giam-doc-kinh-doanh-khu-vuc-4880",
+      "sourceName": "Hanwha Life Vietnam – Cổng tuyển dụng",
+      "deadline": "2026-10-16",
+      "summary": "Quản lý hoạt động kinh doanh bảo hiểm tại một trong các địa bàn được nêu.",
+      "responsibilities": [
+        "Lập kế hoạch doanh số, phát triển đội ngũ và theo dõi hoạt động bán hàng.",
+        "Tổ chức huấn luyện và giám sát việc tuân thủ quy định."
+      ],
+      "requirements": [
+        "Có ít nhất 3 năm kinh nghiệm phù hợp trong bảo hiểm nhân thọ.",
+        "Đào tạo về kinh tế, quản trị kinh doanh, marketing hoặc ngành liên quan."
+      ],
+      "id": "external-2e05bbfdca46",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": null,
+      "salaryText": null,
+      "categoryJobCode": "cong-nghe-thong-tin",
+      "categoryJoblevelCode": "chuyen-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": "1-nam",
+      "title": "Chuyên viên phân tích nghiệp vụ (BA)",
+      "employer": "Công ty Công nghệ thông tin VNPT",
+      "provinceCodes": [
+        "Hà Nội",
+        "Đồng Tháp"
+      ],
+      "sourceLocation": "Hà Nội, Đồng Tháp",
+      "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/chuyen-vien-phan-tich-nghiep-vu-ba-jid5034.html",
+      "sourceName": "VNPT – Tuyển dụng chính thức",
+      "deadline": "2026-10-05",
+      "summary": "VNPT tuyển BA tham gia phân tích yêu cầu và triển khai sản phẩm phần mềm.",
+      "responsibilities": [
+        "Khảo sát nghiệp vụ, mô hình hóa quy trình và viết tài liệu yêu cầu.",
+        "Phối hợp với nhóm phát triển, đào tạo và hỗ trợ người dùng."
+      ],
+      "requirements": [
+        "Đại học chuyên ngành phù hợp và tối thiểu 1 năm làm BA.",
+        "Hiểu quy trình phát triển phần mềm và có khả năng dùng UML."
+      ],
+      "id": "external-79b2cf72845e",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": null,
+      "salaryText": null,
+      "categoryJobCode": "cong-nghe-thong-tin",
+      "categoryJoblevelCode": "chuyen-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Kỹ sư Học sâu",
+      "employer": "Công ty VNPT AI",
+      "provinceCodes": [
+        "Hà Nội",
+        "Hồ Chí Minh",
+        "Đà Nẵng"
+      ],
+      "sourceLocation": "Hà Nội, TP. Hồ Chí Minh, Đà Nẵng",
+      "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/ky-su-hoc-sau-jid5190.html",
+      "sourceName": "VNPT – Tuyển dụng chính thức",
+      "deadline": "2026-10-24",
+      "summary": "Nghiên cứu và phát triển mô hình học sâu phục vụ các sản phẩm AI.",
+      "responsibilities": [
+        "Thiết kế, huấn luyện, đánh giá và tối ưu mô hình xử lý ảnh, ngôn ngữ hoặc dữ liệu đa phương thức."
+      ],
+      "requirements": [
+        "Đại học chuyên ngành liên quan; nắm vững học máy, toán và thống kê.",
+        "Thành thạo Python cùng công cụ học sâu; gửi bằng và bảng điểm khi ứng tuyển."
+      ],
+      "id": "external-bf6dee807d97",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": "2026-09-15",
+      "salaryText": "Thỏa thuận",
+      "categoryJobCode": "logistics",
+      "categoryJoblevelCode": null,
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": null,
+      "title": "Trợ lý kho – Long Hậu",
+      "employer": "Jollibee Vietnam",
+      "provinceCodes": [
+        "Tây Ninh"
+      ],
+      "sourceLocation": "Kho SLP, Lô 3G-9, đường số 14, KCN Long Hậu, Cần Giuộc, Tây Ninh (Long An cũ)",
+      "sourceUrl": "https://tuyendung.jollibee.com.vn/job/long-hau-tro-ly-kho-15561",
+      "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
+      "deadline": "2026-10-15",
+      "summary": "Thực hiện và giám sát vận hành kho tại KCN Long Hậu.",
+      "responsibilities": [
+        "Theo dõi nhập xuất tồn, hạn sử dụng và kiểm kê.",
+        "Quản lý dữ liệu WMS, báo cáo và hướng dẫn nhân viên."
+      ],
+      "requirements": [
+        "Cao đẳng/đại học ngành phù hợp; từ 3 năm kinh nghiệm kho.",
+        "Thành thạo công cụ văn phòng, có khả năng phân tích tồn kho."
+      ],
+      "id": "external-229e5410b3eb",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": "2026-06-10",
+      "salaryText": "Thỏa thuận",
+      "categoryJobCode": null,
+      "categoryJoblevelCode": "truong-nhom",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": "khong-yeu-cau",
+      "title": "Tổ trưởng cửa hàng – Bảo Lộc",
+      "employer": "Jollibee Vietnam",
+      "provinceCodes": [
+        "Lâm Đồng"
+      ],
+      "sourceLocation": "Bảo Lộc",
+      "sourceUrl": "https://tuyendung.jollibee.com.vn/job/bao-loc-to-truong-cua-hang-ga-ran-jollibee-11950",
+      "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
+      "deadline": "2026-12-31",
+      "summary": "Tổ trưởng bộ phận phục vụ hoặc bếp tại cửa hàng Bảo Lộc.",
+      "responsibilities": [
+        "Chuẩn bị hàng hóa trong ca, phục vụ hoặc chế biến món ăn.",
+        "Hướng dẫn nhân viên và nhắc nhở thực hiện tiêu chuẩn bộ phận."
+      ],
+      "requirements": [
+        "Tốt nghiệp THPT; có thể làm toàn thời gian.",
+        "Không yêu cầu kinh nghiệm; có kỹ năng giao tiếp và làm việc nhóm."
+      ],
+      "id": "external-f55bf8104b7b",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": "2025-12-31",
+      "salaryText": "Thỏa thuận",
+      "categoryJobCode": null,
+      "categoryJoblevelCode": "truong-nhom",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": "khong-yeu-cau",
+      "title": "Tổ trưởng cửa hàng – Đồng Nai",
+      "employer": "Jollibee Vietnam",
+      "provinceCodes": [
+        "Đồng Nai"
+      ],
+      "sourceLocation": "Đồng Nai",
+      "sourceUrl": "https://tuyendung.jollibee.com.vn/job/dong-nai-to-truong-cua-hang-10565",
+      "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
+      "deadline": "2026-12-31",
+      "summary": "Tổ trưởng phục vụ hoặc bếp, làm việc tại Đồng Nai.",
+      "responsibilities": [
+        "Tổ chức hàng hóa trong ca và hỗ trợ hoạt động phục vụ, chế biến.",
+        "Hướng dẫn nhân viên mới theo tiêu chuẩn cửa hàng."
+      ],
+      "requirements": [
+        "Tốt nghiệp THPT và làm toàn thời gian.",
+        "Không yêu cầu kinh nghiệm; có tinh thần trách nhiệm và phối hợp nhóm."
+      ],
+      "id": "external-96992334d10d",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": "2026-08-01",
+      "salaryText": "Thu nhập đến 28.000 đồng/giờ",
+      "categoryJobCode": null,
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": null,
+      "experienceJobCode": "khong-yeu-cau",
+      "title": "Nhân viên cửa hàng – Đà Nẵng",
+      "employer": "Jollibee Vietnam",
+      "provinceCodes": [
+        "Đà Nẵng"
+      ],
+      "sourceLocation": "Đà Nẵng",
+      "sourceUrl": "https://tuyendung.jollibee.com.vn/job/da-nang-nhan-vien-cua-hang-7000",
+      "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
+      "deadline": "2026-09-30",
+      "summary": "Cửa hàng tuyển các công việc phục vụ, thu ngân, bếp và giao hàng.",
+      "responsibilities": [
+        "Tiếp nhận đơn, phục vụ khách hoặc chuẩn bị món ăn theo bộ phận.",
+        "Giữ vệ sinh và hỗ trợ vận hành cửa hàng."
+      ],
+      "requirements": [
+        "Không yêu cầu bằng cấp hoặc kinh nghiệm.",
+        "Thân thiện, chăm chỉ và sẵn sàng làm việc theo ca."
+      ],
+      "id": "external-97ac2000266d",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": "2026-08-22",
+      "salaryText": "Đến 28.000 đồng/giờ và thưởng doanh số",
+      "categoryJobCode": null,
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Nhân viên cửa hàng Jollibee GO! Bến Tre",
+      "employer": "Jollibee Vietnam",
+      "provinceCodes": [
+        "Vĩnh Long"
+      ],
+      "sourceLocation": "Tầng trệt TTTM GO! Bến Tre, Võ Nguyên Giáp QL60, khu phố 1, Sơn Đông, Vĩnh Long (mới)",
+      "sourceUrl": "https://tuyendung.jollibee.com.vn/job/ben-tre-nhan-vien-cua-hang-moi-jollibee-go-ben-tre-15798",
+      "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
+      "deadline": "2026-11-30",
+      "summary": "Tin tuyển nhân viên cửa hàng tại GO! Bến Tre, nay thuộc Vĩnh Long.",
+      "responsibilities": [
+        "Phục vụ, thu ngân, phụ bếp hoặc giao hàng theo vị trí được bố trí."
+      ],
+      "requirements": [
+        "Có thể làm cuối tuần, lễ, Tết.",
+        "Ưu tiên gắn bó lâu dài; đăng ký ca 4–8 giờ mỗi ngày."
+      ],
+      "id": "external-1f02d32dd4f2",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": "2026-08-20",
+      "salaryText": "Đến 28.000 đồng/giờ và thưởng doanh số",
+      "categoryJobCode": null,
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Nhân viên cửa hàng Jollibee Châu Đốc",
+      "employer": "Jollibee Vietnam",
+      "provinceCodes": [
+        "An Giang"
+      ],
+      "sourceLocation": "63 Sương Nguyệt Anh, phường Châu Đốc, An Giang",
+      "sourceUrl": "https://tuyendung.jollibee.com.vn/job/an-giang-nhan-vien-cua-hang-jollibee-chau-doc-15772",
+      "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
+      "deadline": "2026-12-31",
+      "summary": "Nhân viên phục vụ, thu ngân, phụ bếp hoặc giao hàng tại Châu Đốc.",
+      "responsibilities": [
+        "Hỗ trợ khách hàng, chuẩn bị món hoặc giao đơn theo công việc được giao."
+      ],
+      "requirements": [
+        "Sẵn sàng làm cuối tuần, lễ, Tết; ưu tiên gắn bó lâu dài.",
+        "Vị trí giao hàng cần bằng lái và thông thạo đường."
+      ],
+      "id": "external-f5e83859927c",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": null,
+      "salaryText": "Thỏa thuận",
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": "chuyen-vien",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": "thoa-thuan",
+      "experienceJobCode": null,
+      "title": "Chuyên viên Kinh doanh Dự án – Cần Thơ",
+      "employer": "FPT Telecom International",
+      "provinceCodes": [
+        "Cần Thơ"
+      ],
+      "sourceLocation": "1 Phan Văn Trị, phường Ninh Kiều, thành phố Cần Thơ",
+      "sourceUrl": "https://fticareer.vn/chuyen-vien-kinh-doanh-du-an-can-tho-302",
+      "sourceName": "FPT Telecom International – Cổng tuyển dụng",
+      "deadline": "2026-09-30",
+      "summary": "Phát triển khách hàng doanh nghiệp sử dụng dịch vụ viễn thông và công nghệ.",
+      "responsibilities": [
+        "Tìm kiếm khách hàng B2B, tư vấn giải pháp và đàm phán hợp đồng.",
+        "Phối hợp triển khai dịch vụ và chăm sóc khách sau bán."
+      ],
+      "requirements": [
+        "Cao đẳng/đại học ngành phù hợp.",
+        "Có kinh nghiệm bán giải pháp CNTT, viễn thông cho doanh nghiệp hoặc cơ quan nhà nước."
+      ],
+      "id": "external-dddb815461f3",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer"
+    },
+    {
+      "postedAt": "2026-09-04",
+      "salaryText": "20–50 triệu đồng/tháng theo bản tin",
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": "nhan-vien",
+      "categoryWorktypeCode": "fulltime",
+      "salaryJobCode": null,
+      "experienceJobCode": null,
+      "title": "Kế toán thống kê",
+      "employer": "Tổng Công ty Xây dựng Trường Sơn",
+      "provinceCodes": [
+        "Cà Mau",
+        "An Giang"
+      ],
+      "sourceLocation": "Tỉnh Cà Mau, Thành phố Cà Mau; nội dung tin ghi nơi làm việc An Giang, Cà Mau",
+      "sourceUrl": "https://vieclamcantho.vn/thongtinTD.aspx?idTuyendung=MgAAADgAAAA0AAAAOQAAADMAAAA%3D",
+      "sourceName": "Trung tâm Dịch vụ việc làm thành phố Cần Thơ",
+      "deadline": "2026-10-31",
+      "summary": "Tuyển kế toán thống kê làm việc tại dự án ở Cà Mau hoặc An Giang.",
+      "responsibilities": [],
+      "requirements": [
+        "Đại học ngành kế toán hoặc liên quan, sức khỏe phù hợp.",
+        "Ưu tiên có kinh nghiệm; sinh viên mới tốt nghiệp được đào tạo tại dự án."
+      ],
+      "id": "external-ffde361b6c94",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employment_center"
+    },
+    {
+      "postedAt": "2026-08-20",
+      "salaryText": "Lương cơ bản 8–18 triệu đồng/tháng và phụ cấp, thưởng theo tin gốc",
+      "categoryJobCode": "bat-dong-san",
+      "categoryJoblevelCode": "chuyen-vien",
+      "categoryWorktypeCode": null,
+      "salaryJobCode": null,
+      "experienceJobCode": "khong-yeu-cau",
+      "id": "external-f3202a58d8ce",
+      "title": "Chuyên viên kinh doanh – Quảng Trị",
+      "employer": "Công ty Cổ phần Bất động sản Nam Miền Trung",
+      "provinceCodes": [
+        "Quảng Trị"
+      ],
+      "sourceLocation": "Văn phòng bán hàng Đất Xanh Miền Trung – Regal Legend Đồng Hới – Quảng Trị",
+      "sourceUrl": "https://bdsnammientrung.com/tuyen-dung/tin-tuc-tuyen-dung/quang-tri-nhan-vien-kinh-doanh/",
+      "sourceName": "Bất động sản Nam Miền Trung – Tuyển dụng chính thức",
+      "deadline": "2026-09-30",
+      "checkedAt": "2026-09-29",
+      "sourceStatus": "open",
+      "sourceType": "employer",
+      "summary": "Nam Miền Trung tuyển 10 chuyên viên kinh doanh tại văn phòng Regal Legend Đồng Hới.",
+      "responsibilities": [
+        "Tư vấn sản phẩm bất động sản, chăm sóc khách hàng và cập nhật nhu cầu thị trường.",
+        "Tham gia hoạt động marketing hỗ trợ kinh doanh."
+      ],
+      "requirements": [
+        "Không yêu cầu kinh nghiệm; có máy tính cá nhân và kỹ năng giao tiếp."
+      ]
+    }
+  ]
+}
