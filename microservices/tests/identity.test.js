@@ -61,6 +61,44 @@ describe('identity profile and CV controller', () => {
         expect(profile.save).toHaveBeenCalledOnce();
     });
 
+    it('reads a current province without changing stored preferences or CV addresses', async () => {
+        const profile = makeProfile([{ _id: '507f1f77bcf86cd799439011', address: 'Thủ Dầu Một, Bình Dương' }]);
+        profile.legacyUserId = 8;
+        profile.jobPreference = { addressCode: 'Bình Dương', categoryJobCode: 'IT', isTakeMail: true };
+        db.Profile.findOne.mockResolvedValue(profile);
+        const { getMyProfile } = await import('../identity-service/src/controllers/profileController.js');
+        const res = makeRes();
+        await getMyProfile(makeReq({ headers: { 'x-user-id': '8' } }), res);
+        expect(res.body.data.jobPreference).toEqual({ addressCode: 'Hồ Chí Minh', categoryJobCode: 'IT', isTakeMail: true });
+        expect(profile.jobPreference.addressCode).toBe('Bình Dương');
+        expect(res.body.data.cvs[0].address).toBe('Thủ Dầu Một, Bình Dương');
+        expect(profile.save).not.toHaveBeenCalled();
+        expectResponseContract('profileGet', res);
+    });
+
+    it.each(['Quảng Nam', 'VN-UNKNOWN', null])('normalizes known preference writes but preserves other values: %s', async addressCode => {
+        const profile = makeProfile();
+        profile.jobPreference = { addressCode: 'Bình Dương', categoryJobCode: 'IT', isFindJob: true };
+        db.Profile.findOne.mockResolvedValue(profile);
+        const { updateMyProfile } = await import('../identity-service/src/controllers/profileController.js');
+        const res = makeRes();
+        await updateMyProfile(makeReq({ headers: { 'x-user-id': '8' }, body: { jobPreference: { addressCode } } }), res);
+        expect(profile.jobPreference).toEqual({
+            addressCode: addressCode === 'Quảng Nam' ? 'Đà Nẵng' : addressCode,
+            categoryJobCode: 'IT', isFindJob: true
+        });
+        expect(profile.save).toHaveBeenCalledOnce();
+    });
+
+    it('normalizes the existing province when saving another preference without losing flags', async () => {
+        const profile = makeProfile();
+        profile.jobPreference = { addressCode: 'Bình Dương', isFindJob: true, isTakeMail: false };
+        db.Profile.findOne.mockResolvedValue(profile);
+        const { updateMyProfile } = await import('../identity-service/src/controllers/profileController.js');
+        await updateMyProfile(makeReq({ headers: { 'x-user-id': '8' }, body: { jobPreference: { salaryJobCode: 'S1' } } }), makeRes());
+        expect(profile.jobPreference).toEqual({ addressCode: 'Hồ Chí Minh', isFindJob: true, isTakeMail: false, salaryJobCode: 'S1' });
+    });
+
     it('lists CVs with a count', async () => {
         const profile = makeProfile([{ _id: 'a' }, { _id: 'b' }]);
         db.Profile.findOne.mockResolvedValue(profile);

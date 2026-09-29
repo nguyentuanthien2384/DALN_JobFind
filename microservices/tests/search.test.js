@@ -136,6 +136,56 @@ describe('Elasticsearch adapter', () => {
 });
 
 describe('search controllers', () => {
+    it.each(['Hồ Chí Minh', 'Bình Dương'])('finds both historical and canonical indexed provinces for %s', async addressCode => {
+        const { searchJobs } = await import('../search-service/src/controllers/searchController.js');
+        const oldSource = { id: 7, name: 'Developer', addressCode: 'Bình Dương' };
+        mocks.es.search.mockResolvedValue({ hits: { hits: [{ _source: oldSource }] } });
+        const res = makeRes();
+        await searchJobs(makeReq({ query: { addressCode } }), res);
+        const locationFilter = mocks.es.search.mock.lastCall[0].query.bool.filter.find(item => item.terms?.addressCode);
+        expect(locationFilter.terms.addressCode).toEqual(expect.arrayContaining([
+            'Hồ Chí Minh', 'Bình Dương', 'Bà Rịa - Vũng Tàu', 'Bà Rịa – Vũng Tàu'
+        ]));
+        expect(res.body.data[0].addressCode).toBe('Hồ Chí Minh');
+        expect(oldSource.addressCode).toBe('Bình Dương');
+    });
+
+    it('deduplicates expanded province filters and preserves unknown codes', async () => {
+        const { searchJobs } = await import('../search-service/src/controllers/searchController.js');
+        const res = makeRes();
+        await searchJobs(makeReq({ query: { addressCode: ['Bình Dương', 'Hồ Chí Minh', 'Quảng Nam', 'VN-UNKNOWN', ''] } }), res);
+        const codes = mocks.es.search.mock.lastCall[0].query.bool.filter.find(item => item.terms?.addressCode).terms.addressCode;
+        expect(codes).toEqual(expect.arrayContaining(['Hồ Chí Minh', 'Đà Nẵng', 'Quảng Nam', 'VN-UNKNOWN']));
+        expect(new Set(codes).size).toBe(codes.length);
+        expect(codes).not.toContain('');
+    });
+
+    it('merges historical province counts while retaining all 34 current provinces', async () => {
+        const { default: catalog } = await import('../shared/recruitmentCatalog.cjs');
+        const { facets } = await import('../search-service/src/controllers/searchController.js');
+        mocks.es.search.mockResolvedValue({ aggregations: { byProvince: { buckets: [
+            ...catalog.PROVINCES.map(province => ({ key: province.code, doc_count: 1 })),
+            { key: 'Bình Dương', doc_count: 2 }, { key: 'Bà Rịa – Vũng Tàu', doc_count: 3 }
+        ] } } });
+        const res = makeRes();
+        await facets(makeReq(), res);
+        expect(mocks.es.search.mock.lastCall[0].aggs.byProvince.terms.size).toBeGreaterThanOrEqual(66);
+        expect(res.body.data.provinces).toHaveLength(34);
+        expect(res.body.data.provinces[0]).toEqual({ code: 'Hồ Chí Minh', count: 6 });
+        expect(res.body.data.provinces.reduce((total, province) => total + province.count, 0)).toBe(39);
+        expectResponseContract('searchFacets', res);
+    });
+
+    it('normalizes new projections, retaining unknown or absent province codes', async () => {
+        const { toDocument, publicSearchDocument } = await import('../search-service/src/libs/elastic.js');
+        const job = { id: 8, addressCode: 'Quảng Nam' };
+        expect(toDocument(job).addressCode).toBe('Đà Nẵng');
+        expect(job.addressCode).toBe('Quảng Nam');
+        expect(toDocument({ addressCode: 'VN-UNKNOWN' }).addressCode).toBe('VN-UNKNOWN');
+        expect(toDocument({ addressCode: null }).addressCode).toBeNull();
+        expect(publicSearchDocument({ id: 8 })).toEqual({ id: 8 });
+    });
+
     it.each(['searchJobs', 'suggest', 'related', 'facets'])('hides tombstones and internal metadata in %s', async (action) => {
         const controller = await import('../search-service/src/controllers/searchController.js');
         mocks.es.search.mockResolvedValue({ hits: { hits: [{ _source: {

@@ -402,6 +402,8 @@ npm start
 
 Mở **http://localhost:3001** khi `npm run dev:status` báo `running`.
 
+Danh mục đăng tuyển hiện gồm 12 cấp bậc và 34 tỉnh/thành phố sau sáp nhập. Với dữ liệu cũ, xem [cách cập nhật danh mục và đối chiếu địa phương](docs/recruitment-catalog.md).
+
 | Lệnh | Mô tả |
 | --- | --- |
 | `npm run dev:status` | Xem tiến độ và trạng thái chạy |

@@ -8,12 +8,13 @@ import { prepareJobCreateAttempt, settleJobCreateAttempt, readJobCreateAttempt }
 import AddPost from './AddPost';
 
 let mockParams = {};
+let mockClassifications = {};
 const mockNavigate = jest.fn();
 jest.mock('react-router-dom', () => ({ useParams: () => mockParams, useNavigate: () => mockNavigate }));
 jest.mock('../../../axios', () => ({ __esModule: true, default: { post: jest.fn() } }));
 jest.mock('../../../service/userService', () => ({ createPostService: jest.fn(), getDetailCompanyByUserId: jest.fn(),
     getDetailPostByIdService: jest.fn(), updatePostService: jest.fn(), reupPostService: jest.fn() }));
-jest.mock('../../../util/fetch', () => ({ useFetchAllcode: type => ({ data: [{ code: `${type}-1`, value: type }] }) }));
+jest.mock('../../../util/fetch', () => ({ useFetchAllcode: type => ({ data: mockClassifications[type] || [{ code: `${type}-1`, value: type }] }) }));
 jest.mock('react-toastify', () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 jest.mock('markdown-it', () => function MarkdownIt() { return { render: text => text }; });
 jest.mock('react-markdown-editor-lite', () => ({ value, onChange }) => <textarea aria-label="Mô tả" value={value}
@@ -31,7 +32,7 @@ let originalMode;
 let consoleError;
 beforeEach(() => {
     originalMode = process.env.REACT_APP_JOB_CREATE_MODE; process.env.REACT_APP_JOB_CREATE_MODE = 'core';
-    jest.restoreAllMocks(); jest.clearAllMocks(); mockParams = {};
+    jest.restoreAllMocks(); jest.clearAllMocks(); mockParams = {}; mockClassifications = {};
     consoleError = jest.spyOn(console, 'error');
     localStorage.clear(); sessionStorage.clear(); localStorage.setItem('userData', JSON.stringify(user));
     Object.defineProperty(window, 'crypto', { configurable: true, value: require('crypto').webcrypto });
@@ -93,6 +94,24 @@ test('new Core create uses the existing validated form adapter, persists before 
     expect(getDetailCompanyByUserId).toHaveBeenLastCalledWith(8, 9);
     fireEvent.click(screen.getByRole('button', { name: 'Xem tin đã tạo' })); expect(mockNavigate).toHaveBeenCalledWith('/admin/edit-post/101/');
 });
+test('expanded classifications default to employee and submit the employer-selected province and seniority', async () => {
+    mockClassifications = {
+        PROVINCE: [{ code: 'an-giang', value: 'An Giang' }, { code: 'tuyen-quang', value: 'Tuyên Quang' }],
+        JOBLEVEL: [{ code: 'thuc-tap-sinh', value: 'Thực tập sinh' }, { code: 'nhan-vien', value: 'Nhân viên' },
+            { code: 'truong-nhom', value: 'Trưởng nhóm' }]
+    };
+    await creator();
+    const province = screen.getByRole('combobox', { name: 'Tỉnh / thành phố' });
+    const level = screen.getByRole('combobox', { name: 'Cấp bậc / Chức vụ' });
+    expect(level).toHaveValue('nhan-vien');
+    expect(province).toHaveAccessibleDescription(expect.stringContaining('01/07/2025'));
+    expect(level).toHaveAccessibleDescription(expect.stringContaining('Tên bài đăng'));
+    fireEvent.change(province, { target: { value: 'tuyen-quang' } });
+    fireEvent.change(level, { target: { value: 'truong-nhom' } });
+    save(); await screen.findByRole('button', { name: 'Xem tin đã tạo' });
+    expect(axios.post.mock.calls[0][1]).toMatchObject({ addressCode: 'tuyen-quang', categoryJoblevelCode: 'truong-nhom' });
+});
+
 test.each(['0', '100001', '1.5', ''])('invalid count %s keeps the form editable, sends nothing and stores no intent', async amount => {
     const view = await creator(); fireEvent.change(view.container.querySelector('input[name="amount"]'), { target: { name: 'amount', value: amount } }); save();
     expect(toast.error).toHaveBeenCalledWith('Số lượng nhân viên phải là số nguyên từ 1 đến 100000');
@@ -172,16 +191,17 @@ test('unwritable storage preserves the draft without any POST', async () => {
     await screen.findByText('Storage full'); expect(view.name).toHaveValue('Backend Engineer'); expect(axios.post).not.toHaveBeenCalled();
 });
 test.each(['pending', 'rejected'])('restored Core %s preserves null classifications instead of choosing the first option', async status => {
+    mockClassifications.JOBLEVEL = [{ code: 'thuc-tap-sinh', value: 'Thực tập sinh' }, { code: 'nhan-vien', value: 'Nhân viên' }];
     const sent = prepareJobCreateAttempt(user, { name: 'Stored draft', descriptionHTML: '<p>Stored</p>', descriptionMarkdown: 'Stored',
         categoryJobCode: 'JOBTYPE-1', salaryJobCode: null, addressCode: null, genderPostCode: null,
         categoryWorktypeCode: null, categoryJoblevelCode: null, experienceJobCode: null,
         amount: 2, timeEnd: Date.parse('2030-01-02T00:00:00Z'), isHot: 0 }, null, 'core');
     settleJobCreateAttempt(user, sent, { status });
     const view = render(<AddPost />); await screen.findByText('3 bài bình thường');
-    for (const field of ['salaryJobCode', 'addressCode', 'genderCode']) expect(view.container.querySelector(`select[name="${field}"]`)).toHaveValue('');
+    for (const field of ['salaryJobCode', 'addressCode', 'genderCode', 'categoryJoblevelCode']) expect(view.container.querySelector(`select[name="${field}"]`)).toHaveValue('');
     if (status === 'pending') await retry(); else save();
     await screen.findByRole('button', { name: 'Xem tin đã tạo' });
-    expect(axios.post.mock.calls[0][1]).toMatchObject({ salaryJobCode: null, addressCode: null, genderPostCode: null });
+    expect(axios.post.mock.calls[0][1]).toMatchObject({ salaryJobCode: null, addressCode: null, genderPostCode: null, categoryJoblevelCode: null });
     expect(axios.post.mock.calls[0][2].headers['Idempotency-Key']).toBe(sent.key);
 });
 test.each(['bad-config', 'corrupt-core', 'corrupt-legacy'])('%s blocks fresh creation without rerouting or deleting evidence', async problem => {

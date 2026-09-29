@@ -30,6 +30,24 @@ test('catalog covers eight domains with unique accounts and strongly matching pr
     assert.ok(catalog.candidates.every(c => c.email.endsWith('@example.test') && c.setting.isTakeMail === 0));
 });
 
+test('demo catalogs seed 34 current provinces and 12 levels while keeping historical aliases out of province choices', async () => {
+    const { PROVINCES, JOB_LEVELS } = require('../../../microservices/shared/recruitmentCatalog.cjs');
+    let seedRows;
+    const allcodeSeeder = require('../../src/seeders/20250101000001-demo-allcodes.js');
+    await allcodeSeeder.up({ bulkInsert: async (table, rows) => { assert.equal(table, 'Allcodes'); seedRows = rows; } });
+    for (const rows of [buildCatalog(now).allcodes, seedRows]) {
+        assert.equal(new Set(rows.map(row => row.code)).size, rows.length);
+        assert.deepEqual(rows.filter(row => row.type === 'PROVINCE').map(({ code, value }) => ({ code, value })),
+            PROVINCES.map(({ code, value }) => ({ code, value })));
+        assert.equal(rows.filter(row => row.type === 'PROVINCE').length, 34);
+        assert.deepEqual(rows.filter(row => row.type === 'JOBLEVEL').map(({ code, value }) => ({ code, value })), JOB_LEVELS);
+        assert.equal(rows.filter(row => row.type === 'JOBLEVEL').length, 12);
+        for (const code of ['Bà Rịa – Vũng Tàu', 'Thừa Thiên Huế', 'Bắc Giang', 'Bình Dương']) {
+            assert.equal(rows.find(row => row.code === code)?.type, 'PROVINCE_LEGACY');
+        }
+    }
+});
+
 test('every generated PDF is readable and contains candidate-specific experience, skills and education', async () => {
     const extractor = new PDFExtract();
     for (const candidate of buildCatalog(now).candidates) {

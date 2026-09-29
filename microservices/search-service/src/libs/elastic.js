@@ -1,5 +1,8 @@
 import { Client } from '@elastic/elasticsearch';
 import { createLogger } from '../../../shared/logger.js';
+import recruitmentCatalog from '../../../shared/recruitmentCatalog.cjs';
+
+const { normalizeProvinceCode } = recruitmentCatalog;
 
 const logger = createLogger('search-service');
 
@@ -83,7 +86,7 @@ export const toDocument = (job) => ({
         .slice(0, 20000),
     statusCode: job.statusCode,
     categoryJobCode: job.categoryJobCode,
-    addressCode: job.addressCode,
+    addressCode: normalizeProvinceCode(job.addressCode),
     salaryJobCode: job.salaryJobCode,
     categoryJoblevelCode: job.categoryJoblevelCode,
     categoryWorktypeCode: job.categoryWorktypeCode,
@@ -105,5 +108,9 @@ export const liveIndexQuery = { bool: { must_not: [{ term: { searchDeleted: true
 
 export const publicSearchDocument = (source) => {
     const { searchSync: _sync, searchDeleted: _deleted, ...document } = source || {};
+    // Old indexed documents remain readable while their projection is refreshed.
+    if (Object.prototype.hasOwnProperty.call(document, 'addressCode')) {
+        document.addressCode = normalizeProvinceCode(document.addressCode);
+    }
     return document;
 };

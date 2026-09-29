@@ -59,6 +59,31 @@ describe('allcodeService', () => {
     expect((await service.getDetailAllcodeByCode('B')).errCode).toBe(1);
   });
 
+  test('orders job levels by progression and provinces by Vietnamese names', async () => {
+    const levels = [{ code: 'giam-doc', value: 'Giám đốc' }, { code: 'nhan-vien', value: 'Nhân viên' },
+      { code: 'thuc-tap-sinh', value: 'Thực tập sinh' }, { code: 'truong-nhom', value: 'Trưởng nhóm' }];
+    mockDb.Allcode.findAll.mockResolvedValueOnce(levels);
+    expect((await service.getAllCodeService('JOBLEVEL')).data.map(row => row.code))
+      .toEqual(['thuc-tap-sinh', 'nhan-vien', 'truong-nhom', 'giam-doc']);
+    expect(levels[0].code).toBe('giam-doc');
+    mockDb.Allcode.findAll.mockResolvedValueOnce(['Hà Nội', 'Đồng Nai', 'Bắc Ninh', 'An Giang', 'Đà Nẵng']
+      .map(value => ({ code: value, value })));
+    expect((await service.getAllCodeService('PROVINCE')).data.map(row => row.code))
+      .toEqual(['An Giang', 'Bắc Ninh', 'Đà Nẵng', 'Đồng Nai', 'Hà Nội']);
+  });
+
+  test('paginates ordered recruitment catalogs after search filtering', async () => {
+    mockDb.Allcode.findAll.mockResolvedValueOnce([
+      { code: 'truong-phong', value: 'Trưởng phòng' }, { code: 'truong-nhom', value: 'Trưởng nhóm' }
+    ]);
+    expect(await service.getListAllCodeService({ type: 'JOBLEVEL', limit: '1', offset: '1', search: 'Trưởng' }))
+      .toEqual({ errCode: 0, count: 2, data: [{ code: 'truong-phong', value: 'Trưởng phòng' }] });
+    const options = mockDb.Allcode.findAll.mock.calls[0][0];
+    expect(options).not.toHaveProperty('offset');
+    expect(options.where).toMatchObject({ type: 'JOBLEVEL', value: { [require('sequelize').Op.like]: '%Trưởng%' } });
+    expect(mockDb.Allcode.findAndCountAll).not.toHaveBeenCalled();
+  });
+
   test('updates existing allcodes and handles missing/failed saves', async () => {
     mockDb.Allcode.findOne.mockResolvedValueOnce(null);
     expect((await service.handleUpdateAllCode({ code: 'A', value: 'v' })).errCode).toBe(2);

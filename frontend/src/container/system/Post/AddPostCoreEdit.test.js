@@ -7,12 +7,13 @@ import { readCoreEditPending, readCoreJobSnapshot, prepareCoreEditPending } from
 import AddPost from './AddPost';
 
 let mockParams = { id: '55' };
+let mockClassifications = {};
 const mockNavigate = jest.fn();
 jest.mock('react-router-dom', () => ({ useParams: () => mockParams, useNavigate: () => mockNavigate }));
 jest.mock('../../../axios', () => ({ __esModule: true, default: { get: jest.fn(), put: jest.fn(), post: jest.fn() } }));
 jest.mock('../../../service/userService', () => ({ getDetailPostByIdService: jest.fn(), updatePostService: jest.fn(),
     reupPostService: jest.fn(), createPostService: jest.fn(), getDetailCompanyByUserId: jest.fn() }));
-jest.mock('../../../util/fetch', () => ({ useFetchAllcode: type => ({ data: [{ code: `${type}-1`, value: type }] }) }));
+jest.mock('../../../util/fetch', () => ({ useFetchAllcode: type => ({ data: mockClassifications[type] || [{ code: `${type}-1`, value: type }] }) }));
 jest.mock('react-toastify', () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 jest.mock('markdown-it', () => function MarkdownIt() { return { render: text => text }; });
 jest.mock('react-markdown-editor-lite', () => ({ value, onChange }) => <textarea aria-label="Mô tả" value={value}
@@ -31,7 +32,7 @@ const job = () => ({ id: 55, userId: 7, companyId: 9, statusCode: 'PS1', isHot: 
 let originalMode, source;
 beforeEach(() => {
     originalMode = process.env.REACT_APP_JOB_EDIT_MODE; process.env.REACT_APP_JOB_EDIT_MODE = 'core';
-    jest.restoreAllMocks(); jest.clearAllMocks(); mockParams = { id: '55' }; source = job();
+    jest.restoreAllMocks(); jest.clearAllMocks(); mockParams = { id: '55' }; mockClassifications = {}; source = job();
     localStorage.clear(); sessionStorage.clear(); localStorage.setItem('userData', JSON.stringify(user));
     Object.defineProperty(window, 'crypto', { configurable: true, value: require('crypto').webcrypto });
     axios.get.mockReset().mockImplementation(async () => ({ errCode: 0, data: { ...source } }));
@@ -61,6 +62,27 @@ test('uses only the private management read, preserves unknown/null codes and sh
     expect(view.container.querySelector('select[name="salaryJobCode"]')).toHaveValue('');
     expect(screen.getByLabelText('Hạn tin')).toBeDisabled();
 });
+test('expanded catalog preserves historical province and null level until the employer explicitly replaces them', async () => {
+    mockClassifications = {
+        PROVINCE: [{ code: 'an-giang', value: 'An Giang' }, { code: 'tuyen-quang', value: 'Tuyên Quang' }],
+        JOBLEVEL: [{ code: 'thuc-tap-sinh', value: 'Thực tập sinh' }, { code: 'nhan-vien', value: 'Nhân viên' },
+            { code: 'truong-nhom', value: 'Trưởng nhóm' }]
+    };
+    const view = await editor();
+    const province = screen.getByRole('combobox', { name: 'Tỉnh / thành phố' });
+    const level = screen.getByRole('combobox', { name: 'Cấp bậc / Chức vụ' });
+    expect(province).toHaveValue('OLD-CODE'); expect(level).toHaveValue('');
+    changeName(view); save(); await waitFor(() => expect(readCoreEditPending(user, 55)).toBeNull());
+    expect(axios.put.mock.calls[0][1]).toEqual({ name: 'Bản sửa cần giữ', expectedRevision: revision('a') });
+    axios.put.mockImplementationOnce(async (path, { expectedRevision, ...patch }) =>
+        ({ errCode: 0, data: { ...source, ...patch, editRevision: revision('c') } }));
+    fireEvent.change(province, { target: { value: 'tuyen-quang' } });
+    fireEvent.change(level, { target: { value: 'truong-nhom' } });
+    save(); await waitFor(() => expect(axios.put).toHaveBeenCalledTimes(2));
+    expect(axios.put.mock.calls[1][1]).toEqual({ addressCode: 'tuyen-quang', categoryJoblevelCode: 'truong-nhom', expectedRevision: revision('b') });
+    await waitFor(() => expect(readCoreEditPending(user, 55)).toBeNull());
+});
+
 test.each(['PS1', 'PS2', 'PS3'])('no-op from %s sends no PUT or new AI request; explicit metadata edit sends only diff + loaded revision', async statusCode => {
     source.statusCode = statusCode; const view = await editor(); save();
     expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Không có thay đổi')); expect(axios.put).not.toHaveBeenCalled();

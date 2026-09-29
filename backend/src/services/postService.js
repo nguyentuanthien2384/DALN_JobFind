@@ -8,6 +8,7 @@ import { repostLegacyPost } from '../utils/jobRepost';
 import { LegacyJobRequestError, runLegacyCreateRequest } from '../utils/legacyJobRequest';
 import { APPROVED_COMPANY_WHERE } from '../utils/publicResources';
 const { Op, where, cast, col } = require("sequelize");
+const { normalizeProvinceCode, provinceFilterCodes } = require('../../../microservices/shared/recruitmentCatalog.cjs');
 require('dotenv').config();
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
 const PUBLIC_COMPANY_ATTRIBUTES = [
@@ -452,7 +453,10 @@ let getFilterPost = (data) => {
                 }
             }
             if (data.categoryJobCode && data.categoryJobCode !== '') objectFilter.where = { ...objectFilter.where, categoryJobCode: data.categoryJobCode }
-            if (data.addressCode && data.addressCode !== '') objectFilter.where = { ...objectFilter.where, addressCode: data.addressCode }
+            if (data.addressCode && data.addressCode !== '') {
+                const provinceCodes = provinceFilterCodes(data.addressCode)
+                objectFilter.where = { ...objectFilter.where, addressCode: provinceCodes.length > 1 ? { [Op.in]: provinceCodes } : data.addressCode }
+            }
             if (data.search) objectFilter.where = {...objectFilter.where,name: {[Op.like] : `%${data.search}%`}}
             let listDetailPost = await db.DetailPost.findAll(objectFilter)
             let listDetailPostId = listDetailPost.map(item => {
@@ -750,7 +754,7 @@ let getRecommendedPost = (data, { notificationCollection = false } = {}) => {
                     })
                     if (userSetting) {
                         if (userSetting.categoryJobCode && userSetting.categoryJobCode === detail.categoryJobCode) score += 3
-                        if (userSetting.addressCode && userSetting.addressCode === detail.addressCode) score += 1
+                        if (userSetting.addressCode && normalizeProvinceCode(userSetting.addressCode) === normalizeProvinceCode(detail.addressCode)) score += 1
                         if (userSetting.salaryJobCode && userSetting.salaryJobCode === detail.salaryJobCode) score += 1
                         if (userSetting.experienceJobCode && userSetting.experienceJobCode === detail.experienceJobCode) score += 1
                     }

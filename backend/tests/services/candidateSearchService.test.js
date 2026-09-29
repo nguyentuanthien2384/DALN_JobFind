@@ -27,6 +27,16 @@ test('accepts arrays and comma-separated skills, deduplicates and preserves punc
         .toMatchObject({ listSkills: [8], otherSkills: ['C++', 'C#', '.NET'] });
 });
 
+test.each(['Hồ Chí Minh', 'Bình Dương', 'Bà Rịa – Vũng Tàu'])('province filter %s includes merged and historic locations', async provinceCode => {
+    await searchCandidates({ ...query, provinceCode });
+    const options = mockDb.UserSetting.findAndCountAll.mock.calls[0][0];
+    expect(options.where.addressCode[Sequelize.Op.in]).toEqual(expect.arrayContaining([
+        'Hồ Chí Minh', 'Bình Dương', 'Bà Rịa – Vũng Tàu', 'Bà Rịa - Vũng Tàu'
+    ]));
+    expect(options.attributes.find(item => Array.isArray(item) && item[1] === 'matchScore')[0].val)
+        .toContain('(1) / 1');
+});
+
 test('rejects stale skill ids explicitly', async () => {
     expect(await searchCandidates({ ...query, listSkills: '5' })).toMatchObject({ errCode: 1 });
     expect(mockDb.UserSetting.findAndCountAll).not.toHaveBeenCalled();
@@ -95,6 +105,14 @@ test('job suggestions use only the authenticated company and return editable pub
     expect(result.data[0].criteria.listSkills).toEqual([{ id: 2, name: 'C++' }, { id: 3, name: 'React' }]);
     expect(JSON.stringify(result)).not.toContain('descriptionHTML');
     expect(await listCandidateSearchJobs({}, null)).toMatchObject({ httpStatus: 403 });
+});
+
+test('criteria copied from older job addresses select the merged province', async () => {
+    mockDb.Post.findAndCountAll.mockResolvedValue({ count: 1, rows: [{ id: 7, postDetailData: {
+        name: 'Developer', categoryJobCode: 'IT', addressCode: 'Quảng Nam',
+    } }] });
+    const result = await listCandidateSearchJobs({}, 5);
+    expect(result.data[0].criteria.provinceCode).toBe('Đà Nẵng');
 });
 
 test('detects complete skill names and preserves distinctions between C, C++, C# and Java/JavaScript', () => {

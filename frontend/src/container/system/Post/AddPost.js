@@ -206,7 +206,9 @@ const AddPost = () => {
             if (current.preserveEmptyCodes) return current; // A stored null is an explicit Core intent, not an unloaded default.
             const changes = Object.fromEntries(Object.entries(defaults)
                 .filter(([field, items]) => current[field] === '' && items?.[0]?.code)
-                .map(([field, items]) => [field, items[0].code]));
+                .map(([field, items]) => [field, field === 'categoryJoblevelCode'
+                    ? (items.find(item => item.code === 'nhan-vien')?.code || items[0].code)
+                    : items[0].code]));
             return Object.keys(changes).length ? { ...current, ...changes } : current;
         });
     }, [id, dataGenderPost, dataJobType, dataJobLevel, dataSalaryType, dataExpType, dataWorkType, dataProvince,
@@ -577,8 +579,8 @@ const AddPost = () => {
                                     </div>
                                     <div className="col-md-6">
                                         <div className="form-group row">
-                                            <label className="col-sm-3 col-form-label">
-                                                Địa chỉ
+                                            <label htmlFor="post-province" className="col-sm-3 col-form-label">
+                                                Tỉnh / thành phố
                                             </label>
                                             <div className="col-sm-9">
                                                 <select
@@ -594,6 +596,8 @@ const AddPost = () => {
                                                         inputValues.addressCode
                                                     }
                                                     name="addressCode"
+                                                    id="post-province"
+                                                    aria-describedby="post-province-help"
                                                     onChange={(event) =>
                                                         handleOnChange(event)
                                                     }
@@ -617,6 +621,9 @@ const AddPost = () => {
                                                             }
                                                         )}
                                                 </select>
+                                                <small id="post-province-help" className="form-text text-muted">
+                                                    34 tỉnh, thành phố theo đơn vị hành chính từ 01/07/2025.
+                                                </small>
                                             </div>
                                         </div>
                                     </div>
@@ -811,8 +818,8 @@ const AddPost = () => {
                                     </div>
                                     <div className="col-md-6">
                                         <div className="form-group row">
-                                            <label className="col-sm-3 col-form-label">
-                                                Chức vụ
+                                            <label htmlFor="post-job-level" className="col-sm-3 col-form-label">
+                                                Cấp bậc / Chức vụ
                                             </label>
                                             <div className="col-sm-9">
                                                 <select
@@ -828,6 +835,8 @@ const AddPost = () => {
                                                         inputValues.categoryJoblevelCode
                                                     }
                                                     name="categoryJoblevelCode"
+                                                    id="post-job-level"
+                                                    aria-describedby="post-job-level-help"
                                                     onChange={(event) =>
                                                         handleOnChange(event)
                                                     }
@@ -851,6 +860,9 @@ const AddPost = () => {
                                                             }
                                                         )}
                                                 </select>
+                                                <small id="post-job-level-help" className="form-text text-muted">
+                                                    Chọn cấp bậc chuyên môn hoặc quản lý. Ghi vị trí cụ thể trong Tên bài đăng.
+                                                </small>
                                             </div>
                                         </div>
                                     </div>

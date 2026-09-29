@@ -435,6 +435,22 @@ describe('postService', () => {
     expectPublicOwnerScope(mockDb.Post.findAndCountAll.mock.calls[0][0]);
   });
 
+  test.each(['Bắc Ninh', 'Bắc Giang'])('legacy post filter %s includes both names of the merged province', async addressCode => {
+    mockDb.DetailPost.findAll.mockResolvedValue([{ id: 20 }]);
+    mockDb.Post.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });
+    await service.getFilterPost({ addressCode });
+    expect(mockDb.DetailPost.findAll.mock.calls[0][0].where.addressCode[require('sequelize').Op.in])
+      .toEqual(expect.arrayContaining(['Bắc Ninh', 'Bắc Giang']));
+    expectPublicOwnerScope(mockDb.Post.findAndCountAll.mock.calls[0][0]);
+  });
+
+  test('legacy post filter preserves custom unrecognized province codes', async () => {
+    mockDb.DetailPost.findAll.mockResolvedValue([]);
+    mockDb.Post.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });
+    await service.getFilterPost({ addressCode: 'CUSTOM' });
+    expect(mockDb.DetailPost.findAll.mock.calls[0][0].where.addressCode).toBe('CUSTOM');
+  });
+
   test('returns type statistics and total active post count', async () => {
     mockDb.Post.findAll.mockResolvedValue([{ amount: 2 }]);
     mockDb.Post.count.mockResolvedValue(9);
@@ -501,6 +517,17 @@ describe('postService', () => {
     mockDb.UserSetting.findOne.mockResolvedValueOnce(null);
     mockDb.Post.findAll.mockResolvedValueOnce([{ id: 3, timePost: 3, postDetailData: { name: 'None' } }]);
     expect((await service.getRecommendedPost({ userId: 7 })).data[0].id).toBe(3);
+  });
+
+  test('recommendations recognize locations joined by a province merger', async () => {
+    mockDb.UserSkill.findAll.mockResolvedValue([]);
+    mockDb.UserSetting.findOne.mockResolvedValue({ addressCode: 'Bình Dương' });
+    mockDb.Post.findAll.mockResolvedValue([
+      { id: 1, timePost: 1, postDetailData: { name: 'Local', addressCode: 'Hồ Chí Minh' } },
+      { id: 2, timePost: 2, postDetailData: { name: 'Other', addressCode: 'Hà Nội' } }
+    ]);
+    expect((await service.getRecommendedPost({ userId: 7 })).data)
+      .toEqual([expect.objectContaining({ id: 1, matchScore: 1 })]);
   });
 
   test('each read workflow propagates database errors', async () => {

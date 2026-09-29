@@ -1,5 +1,11 @@
 import { es, INDEX, publicSearchDocument } from '../libs/elastic.js';
 import { createLogger } from '../../../shared/logger.js';
+import recruitmentCatalog from '../../../shared/recruitmentCatalog.cjs';
+
+const { PROVINCES, normalizeProvinceCode, provinceFilterCodes } = recruitmentCatalog;
+// Keep every known historical spelling during an in-place index refresh, not
+// only the top 30 buckets. Unknown/custom codes remain visible as well.
+const provinceBucketLimit = Math.max(100, new Set(PROVINCES.flatMap(province => provinceFilterCodes(province.code))).size);
 
 const logger = createLogger('search-service');
 
@@ -33,7 +39,12 @@ export const searchJobs = async (req, res) => {
         }
     };
     addTerm('categoryJobCode', categoryJobCode);
-    addTerm('addressCode', addressCode);
+    const provinceCodes = [...new Set((Array.isArray(addressCode) ? addressCode : [addressCode])
+        .filter(code => code !== undefined && code !== null && code !== '' && code !== 'undefined')
+        .flatMap(code => provinceFilterCodes(code)))];
+    // A saved URL naming an old province and a new province filter match the
+    // same region, including documents still carrying the historical code.
+    addTerm('addressCode', provinceCodes.length === 1 ? provinceCodes[0] : provinceCodes);
     addTerm('salaryJobCode', salaryJobCode);
     addTerm('categoryJoblevelCode', categoryJoblevelCode);
     addTerm('categoryWorktypeCode', categoryWorktypeCode);
@@ -127,16 +138,23 @@ export const facets = async (req, res) => {
             query: { bool: { filter: publicJobFilter() } },
             aggs: {
                 byCategory: { terms: { field: 'categoryJobCode', size: 30 } },
-                byProvince: { terms: { field: 'addressCode', size: 30 } },
+                byProvince: { terms: { field: 'addressCode', size: provinceBucketLimit } },
                 bySalary: { terms: { field: 'salaryJobCode', size: 20 } }
             }
         });
         const shape = (agg) => (agg?.buckets || []).map((b) => ({ code: b.key, count: b.doc_count }));
+        const provinceCounts = new Map();
+        for (const bucket of result.aggregations?.byProvince?.buckets || []) {
+            const code = normalizeProvinceCode(bucket.key);
+            provinceCounts.set(code, (provinceCounts.get(code) || 0) + bucket.doc_count);
+        }
+        const provinces = [...provinceCounts].map(([code, count]) => ({ code, count }))
+            .sort((left, right) => right.count - left.count || left.code.localeCompare(right.code, 'vi'));
         return res.json({
             errCode: 0,
             data: {
                 categories: shape(result.aggregations?.byCategory),
-                provinces: shape(result.aggregations?.byProvince),
+                provinces,
                 salaries: shape(result.aggregations?.bySalary)
             }
         });

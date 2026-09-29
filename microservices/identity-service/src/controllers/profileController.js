@@ -1,7 +1,21 @@
 import { Profile } from '../models/Profile.js';
 import { createLogger } from '../../../shared/logger.js';
+import recruitmentCatalog from '../../../shared/recruitmentCatalog.cjs';
+
+const { normalizeProvinceCode } = recruitmentCatalog;
 
 const logger = createLogger('identity-service');
+
+// Reads expose the current administrative name without mutating a profile or
+// its CV/free-text address merely because the user opened their account.
+const profileForResponse = (profile) => {
+    const addressCode = normalizeProvinceCode(profile.jobPreference?.addressCode);
+    if (addressCode === profile.jobPreference?.addressCode) return profile;
+    return {
+        ...(profile.toObject?.() ?? profile),
+        jobPreference: { ...(profile.jobPreference.toObject?.() ?? profile.jobPreference), addressCode }
+    };
+};
 
 // Gateway da xac thuc va dat san danh tinh vao header.
 const identity = (req) => ({
@@ -30,7 +44,7 @@ export const getMyProfile = async (req, res) => {
         return res.status(401).json({ errCode: 401, errMessage: 'Chưa xác định được người dùng' });
     }
     const profile = await findOrCreate(id);
-    return res.json({ errCode: 0, data: profile });
+    return res.json({ errCode: 0, data: profileForResponse(profile) });
 };
 
 export const updateMyProfile = async (req, res) => {
@@ -49,11 +63,15 @@ export const updateMyProfile = async (req, res) => {
         if (b[key] !== undefined) profile[key] = b[key];
     }
     if (b.jobPreference) {
-        profile.jobPreference = { ...profile.jobPreference?.toObject?.() ?? {}, ...b.jobPreference };
+        const preference = { ...(profile.jobPreference?.toObject?.() ?? profile.jobPreference ?? {}), ...b.jobPreference };
+        if (Object.prototype.hasOwnProperty.call(preference, 'addressCode')) {
+            preference.addressCode = normalizeProvinceCode(preference.addressCode);
+        }
+        profile.jobPreference = preference;
     }
 
     await profile.save();
-    return res.json({ errCode: 0, data: profile });
+    return res.json({ errCode: 0, data: profileForResponse(profile) });
 };
 
 // ===== CV Builder =====

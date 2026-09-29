@@ -1,12 +1,13 @@
 'use strict';
+const { PROVINCES, JOB_LEVELS } = require('../../../microservices/shared/recruitmentCatalog.cjs');
 
 /**
- * Seeder dữ liệu mẫu cho bảng `allcodes` (53 bản ghi).
- * Được sinh tự động từ jobfindtest.sql.
+ * Seeder danh mục dùng chung, gồm 34 tỉnh/thành và 12 cấp bậc.
+ * Giữ mã tỉnh cũ cho liên kết dữ liệu mẫu; không đưa vào danh sách chọn mới.
  */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    const rows = [
+    const originalRows = [
   {
     "code": "1-nam",
     "type": "EXPTYPE",
@@ -326,6 +327,12 @@ module.exports = {
     "image": null
   }
 ];
+    const rows = [
+      ...originalRows.filter(row => !['PROVINCE', 'JOBLEVEL'].includes(row.type)),
+      ...PROVINCES.map(({ code, value }) => ({ code, type: 'PROVINCE', value, image: null })),
+      ...PROVINCES.flatMap(province => province.previousNames.map(code => ({ code, type: 'PROVINCE_LEGACY', value: code, image: null }))),
+      ...JOB_LEVELS.map(({ code, value }) => ({ code, type: 'JOBLEVEL', value, image: '' }))
+    ];
     await queryInterface.bulkInsert('Allcodes', rows, {});
   },
 

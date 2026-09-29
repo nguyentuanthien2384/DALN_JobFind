@@ -2,6 +2,16 @@ import e from "express";
 import db from "../models/index";
 const cloudinary = require('../utils/cloudinary');
 const { Op, and } = require("sequelize");
+const { JOB_LEVELS } = require('../../../microservices/shared/recruitmentCatalog.cjs');
+const jobLevelOrder = new Map(JOB_LEVELS.map((level, index) => [level.code, index]));
+const provinceCollator = new Intl.Collator('vi');
+const sortRecruitmentCodes = (rows, type) => {
+    if (type === 'JOBLEVEL') return [...rows].sort((left, right) =>
+        (jobLevelOrder.get(left.code) ?? JOB_LEVELS.length) - (jobLevelOrder.get(right.code) ?? JOB_LEVELS.length)
+        || provinceCollator.compare(left.value, right.value));
+    if (type === 'PROVINCE') return [...rows].sort((left, right) => provinceCollator.compare(left.value, right.value));
+    return rows;
+};
 let handleCreateNewAllCode = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
@@ -62,7 +72,7 @@ let getAllCodeService = (typeInput) => {
                 })
                 resolve({
                     errCode: 0,
-                    data: allcode
+                    data: sortRecruitmentCodes(allcode, typeInput)
                 })
             }
         } catch (error) {
@@ -209,6 +219,13 @@ let getListAllCodeService = (data) => {
                     objectFilter.where = { ...objectFilter.where, value: { [Op.like]: `%${data.search}%` } }
                 }
 
+                // These small catalogs require the same locale/business ordering
+                // before pagination as the complete dropdown response.
+                if (data.type === 'JOBLEVEL' || data.type === 'PROVINCE') {
+                    const rows = sortRecruitmentCodes(await db.Allcode.findAll({ where: objectFilter.where }), data.type);
+                    resolve({ errCode: 0, data: rows.slice(+data.offset, +data.offset + +data.limit), count: rows.length });
+                    return;
+                }
                 let allcode = await db.Allcode.findAndCountAll(objectFilter)
                 resolve({
                     errCode: 0,

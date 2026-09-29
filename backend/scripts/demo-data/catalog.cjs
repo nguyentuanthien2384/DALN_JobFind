@@ -1,4 +1,5 @@
 'use strict';
+const { PROVINCES, JOB_LEVELS } = require('../../../microservices/shared/recruitmentCatalog.cjs');
 
 // Pure, repeatable demo fixtures. All people, companies and achievements are fictional.
 // No database or external service is contacted by this module.
@@ -220,10 +221,11 @@ function buildCatalog(now = new Date()) {
   }));
   const allcodes = [
     ...COMPANIES.map(company => ({ code: company[0], type: 'JOBTYPE', value: company[1], image: '' })),
-    ...[...new Set(COMPANIES.map(company => company[4]))].map(code => ({ code, type: 'PROVINCE', value: code, image: '' })),
+    ...PROVINCES.map(({ code, value }) => ({ code, type: 'PROVINCE', value, image: '' })),
+    ...PROVINCES.flatMap(province => province.previousNames.map(code => ({ code, type: 'PROVINCE_LEGACY', value: code, image: '' }))),
     ...SALARIES.map(([code, value]) => ({ code, type: 'SALARYTYPE', value, image: '' })),
     ...EXPERIENCES.map(([code, value]) => ({ code, type: 'EXPTYPE', value, image: '' })),
-    ...[['nhan-vien', 'Nhân viên'], ['truong-phong', 'Trưởng phòng']].map(([code, value]) => ({ code, type: 'JOBLEVEL', value, image: '' })),
+    ...JOB_LEVELS.map(({ code, value }) => ({ code, type: 'JOBLEVEL', value, image: '' })),
     ...[['fulltime', 'Toàn thời gian'], ['part-time', 'Bán thời gian'], ['thuc-tap', 'Thực tập'], ['remote', 'Remote']].map(([code, value]) => ({ code, type: 'WORKTYPE', value, image: '' })),
     { code: 'ca-hai', type: 'GENDERPOST', value: 'Cả hai', image: '' },
   ];

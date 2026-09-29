@@ -1,5 +1,6 @@
 import db from '../models/index';
 import { Op, literal } from 'sequelize';
+const { normalizeProvinceCode, provinceFilterCodes } = require('../../../microservices/shared/recruitmentCatalog.cjs');
 
 const invalid = (message) => ({ errCode: 1, httpStatus: 400, errMessage: message });
 const scalar = (value, max = 100) => {
@@ -72,7 +73,10 @@ export const searchCandidates = async (data, companyId = null) => {
     const conditions = [literal('LENGTH(`UserSetting`.`file`) > 0')];
     const where = { isFindJob: 1, [Op.and]: conditions };
     const preferences = Object.entries(preferenceFields).filter(([key]) => filters[key]);
-    preferences.forEach(([key, column]) => { where[column] = filters[key]; });
+    preferences.forEach(([key, column]) => {
+        const codes = key === 'provinceCode' ? provinceFilterCodes(filters[key]) : [];
+        where[column] = codes.length > 1 ? { [Op.in]: codes } : filters[key];
+    });
     if (filters.keyword) {
         // LOCATE treats %, _, +, # and quotes as text, not LIKE wildcards.
         const keyword = escape(filters.keyword.toLocaleLowerCase('vi'));
@@ -170,7 +174,7 @@ export const listCandidateSearchJobs = async (data, companyId) => {
         const detail = row.postDetailData;
         return { id: row.id, name: detail.name, criteria: {
             categoryJobCode: detail.categoryJobCode || '', experienceJobCode: detail.experienceJobCode || '',
-            salaryCode: detail.salaryJobCode || '', provinceCode: detail.addressCode || '',
+            salaryCode: detail.salaryJobCode || '', provinceCode: normalizeProvinceCode(detail.addressCode) || '',
             listSkills: skillsFromDescription(`${detail.descriptionHTML || ''} ${detail.descriptionMarkdown || ''}`,
                 skills.filter(skill => skill.categoryJobCode === detail.categoryJobCode)).map(skill => ({ id: skill.id, name: skill.name })),
         } };
