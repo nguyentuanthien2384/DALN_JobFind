@@ -1,11 +1,14 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { suggestJobs } from "../../../service/aiSearchService";
+import { loadJobSuggestions } from "../../../service/jobSuggestions";
 import JobSearchAutocomplete from "./JobSearchAutocomplete";
 
-jest.mock("../../../service/aiSearchService", () => ({
-    suggestJobs: jest.fn(),
+jest.mock("../../../service/jobSuggestions", () => ({
+    loadJobSuggestions: jest.fn(),
 }));
+
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', () => ({useNavigate: () => mockNavigate}));
 
 const typeKeyword = (value) => {
     fireEvent.change(screen.getByRole("combobox", { name: "Tìm kiếm việc làm" }), {
@@ -37,7 +40,7 @@ describe("JobSearchAutocomplete", () => {
     beforeEach(() => {
         jest.useFakeTimers();
         jest.clearAllMocks();
-        suggestJobs.mockResolvedValue({ errCode: 0, data: [] });
+        loadJobSuggestions.mockResolvedValue({ errCode: 0, data: [] });
         scrollIntoViewMock = jest.fn();
         Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
             configurable: true,
@@ -55,23 +58,23 @@ describe("JobSearchAutocomplete", () => {
 
         typeKeyword("r");
         expect(screen.getByRole("listbox", { name: "Gợi ý tìm kiếm" })).toBeInTheDocument();
-        expect(screen.getByRole("option", { name: /r.*Tìm kiếm việc làm/i })).toBeInTheDocument();
+        expect(screen.getByRole("option", { name: /Xem tất cả kết quả cho.*r/i })).toBeInTheDocument();
         await finishDebounce();
-        expect(suggestJobs).not.toHaveBeenCalled();
+        expect(loadJobSuggestions).not.toHaveBeenCalled();
 
         typeKeyword("re");
         await finishDebounce();
-        expect(suggestJobs).toHaveBeenCalledWith("re");
+        expect(loadJobSuggestions).toHaveBeenCalledWith("re");
     });
 
-    it("renders job suggestions with their companies and submits one selected with the mouse", async () => {
+    it("renders actual jobs and navigates directly to the selected job", async () => {
         const onSearch = jest.fn();
-        suggestJobs.mockResolvedValue({
+        loadJobSuggestions.mockResolvedValue({
             errCode: 0,
             data: [
-                { id: 1, name: "React Developer", companyName: "Acme" },
-                { id: 2, name: "React Developer", companyName: "Duplicate" },
-                { id: 3, name: "React Native Engineer", companyName: "Mobile Co" },
+                { id: 1, name: "React Developer", companyName: "Acme", detailPath: "/detail-job/1" },
+                { id: 2, name: "React Developer", companyName: "Duplicate", detailPath: "/detail-job/2" },
+                { id: 3, name: "React Native Engineer", companyName: "Mobile Co", detailPath: "/detail-job/3" },
             ],
         });
         render(<JobSearchAutocomplete onSearch={onSearch} />);
@@ -83,16 +86,46 @@ describe("JobSearchAutocomplete", () => {
         expect(screen.getByText("Duplicate")).toBeInTheDocument();
         fireEvent.click(screen.getByRole("option", { name: /React Native Engineer Mobile Co/i }));
 
-        expect(onSearch).toHaveBeenCalledWith("React Native Engineer");
-        expect(screen.getByRole("combobox")).toHaveValue("React Native Engineer");
+        expect(mockNavigate).toHaveBeenCalledWith("/detail-job/3");
+        expect(onSearch).not.toHaveBeenCalled();
+        expect(screen.getByRole("combobox")).toHaveValue("react");
         expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    });
+
+    it('shows a sourced PL/SQL vacancy and opens its external detail without submitting another search', async () => {
+        const onSearch = jest.fn();
+        loadJobSuggestions.mockResolvedValue({data:[{id:'external-plsql',name:'Lập trình PL/SQL',companyName:'VNPT',addressText:'Hà Nội, Hải Phòng',listingSource:'external',detailPath:'/external-job/external-plsql'}]});
+        render(<JobSearchAutocomplete onSearch={onSearch} />);
+        typeKeyword('PL');
+        await finishDebounce();
+        const options = screen.getAllByRole('option');
+        expect(options[0]).toHaveTextContent('Lập trình PL/SQL');
+        expect(options[0]).toHaveTextContent('Hà Nội, Hải Phòng');
+        expect(options[0]).toHaveTextContent('Tin từ nguồn bên ngoài');
+        fireEvent.click(options[0]);
+        expect(mockNavigate).toHaveBeenCalledWith('/external-job/external-plsql');
+        expect(onSearch).not.toHaveBeenCalled();
+    });
+
+    it('keeps the all-results action and distinguishes no matches from a failed source', async () => {
+        const onSearch = jest.fn();
+        render(<JobSearchAutocomplete onSearch={onSearch} />);
+        typeKeyword('zzzz');
+        await finishDebounce();
+        expect(screen.getByRole('status')).toHaveTextContent('Chưa có công việc gợi ý');
+        fireEvent.click(screen.getByRole('option',{name:/Xem tất cả kết quả cho/}));
+        expect(onSearch).toHaveBeenCalledWith('zzzz');
+        loadJobSuggestions.mockResolvedValueOnce({data:[],unavailable:true});
+        typeKeyword('PL');
+        await finishDebounce();
+        expect(screen.getByRole('status')).toHaveTextContent('Chưa tải được một số gợi ý');
     });
 
     it("supports keyboard selection, ordinary submit, escape, clear and outside click", async () => {
         const onSearch = jest.fn();
-        suggestJobs.mockResolvedValue({
+        loadJobSuggestions.mockResolvedValue({
             errCode: 0,
-            data: [{ id: 1, name: "Node Developer", companyName: "Acme" }],
+            data: [{ id: 1, name: "Node Developer", companyName: "Acme", detailPath: "/detail-job/1" }],
         });
         render(
             <div>
@@ -105,9 +138,8 @@ describe("JobSearchAutocomplete", () => {
         await finishDebounce();
         const input = screen.getByRole("combobox");
         fireEvent.keyDown(input, { key: "ArrowDown" });
-        fireEvent.keyDown(input, { key: "ArrowDown" });
         fireEvent.keyDown(input, { key: "Enter" });
-        expect(onSearch).toHaveBeenLastCalledWith("Node Developer");
+        expect(mockNavigate).toHaveBeenLastCalledWith("/detail-job/1");
 
         typeKeyword("  backend   engineer  ");
         fireEvent.submit(input.closest("form"));
@@ -134,7 +166,7 @@ describe("JobSearchAutocomplete", () => {
 
     it("ignores stale responses and keeps typed search usable when suggestions fail", async () => {
         let resolveFirst;
-        suggestJobs
+        loadJobSuggestions
             .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
             .mockResolvedValueOnce({ errCode: -1, errMessage: "offline" });
         const onSearch = jest.fn();
@@ -148,7 +180,7 @@ describe("JobSearchAutocomplete", () => {
         await act(async () => {
             resolveFirst({
                 errCode: 0,
-                data: [{ id: 1, name: "React Developer", companyName: "Old result" }],
+                data: [{ id: 1, name: "React Developer", companyName: "Old result", detailPath: "/detail-job/1" }],
             });
             await Promise.resolve();
         });
@@ -159,7 +191,7 @@ describe("JobSearchAutocomplete", () => {
     });
 
     it("handles a rejected suggestion request without rendering a broken option", async () => {
-        suggestJobs.mockRejectedValue(new Error("network"));
+        loadJobSuggestions.mockRejectedValue(new Error("network"));
         render(<JobSearchAutocomplete onSearch={jest.fn()} />);
 
         typeKeyword("python");
@@ -184,12 +216,13 @@ describe("JobSearchAutocomplete", () => {
     });
 
     it("does not intercept IME composition and keeps keyboard options visible", async () => {
-        suggestJobs.mockResolvedValue({
+        loadJobSuggestions.mockResolvedValue({
             errCode: 0,
             data: Array.from({ length: 8 }, (_, index) => ({
                 id: index + 1,
                 name: `Tuyển dụng vị trí ${index + 1}`,
                 companyName: `Công ty ${index + 1}`,
+                detailPath: `/detail-job/${index+1}`,
             })),
         });
         render(<JobSearchAutocomplete onSearch={jest.fn()} />);
@@ -203,6 +236,7 @@ describe("JobSearchAutocomplete", () => {
         expect(input).not.toHaveAttribute("aria-activedescendant");
 
         fireEvent.compositionEnd(input);
+        fireEvent.keyDown(input, { key: "ArrowUp" });
         fireEvent.keyDown(input, { key: "ArrowUp" });
         const lastOption = screen.getByRole("option", { name: /Tuyển dụng vị trí 8 Công ty 8/i });
         expect(input).toHaveAttribute("aria-activedescendant", lastOption.id);

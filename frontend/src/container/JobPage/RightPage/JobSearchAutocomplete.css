@@ -194,13 +194,15 @@
 }
 
 .job-listing-area .count-job .job-search-autocomplete__option-title {
-    overflow: hidden;
     color: #1e2147;
     font-size: 15px;
     line-height: 1.35;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
+
+.job-search-autocomplete__heading { padding: 12px 20px 5px; color: #52617d; font-size: 12px; font-weight: 600; }
+.job-listing-area .count-job .job-search-autocomplete__option-location { color: #68748a; font-size: 12px; line-height: 1.5; margin-top: 3px; }
 
 .job-listing-area .count-job .job-search-autocomplete__option-company {
     overflow: hidden;

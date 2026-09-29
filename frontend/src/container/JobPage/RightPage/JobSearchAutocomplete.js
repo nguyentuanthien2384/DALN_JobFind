@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { suggestJobs } from "../../../service/aiSearchService";
+import { useNavigate } from "react-router-dom";
+import { loadJobSuggestions } from "../../../service/jobSuggestions";
 import "./JobSearchAutocomplete.css";
 
 const SUGGESTION_DELAY_MS = 300;
@@ -35,11 +36,13 @@ const HighlightedText = ({ text, query }) => {
 };
 
 const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledValue, onValueChange }) => {
+    const navigate = useNavigate();
     const [localValue, setLocalValue] = useState(initialValue);
     const value = controlledValue === undefined ? localValue : controlledValue;
     const setValue = next => { setLocalValue(next); onValueChange?.(next); };
     const [suggestions, setSuggestions] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [unavailable, setUnavailable] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
     const wrapperRef = useRef(null);
@@ -53,6 +56,7 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
     useEffect(() => {
         const requestId = ++requestIdRef.current;
         setActiveIndex(-1);
+        setUnavailable(false);
 
         if (normalizedValue.length < 2) {
             setSuggestions([]);
@@ -64,15 +68,16 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
         setIsLoading(true);
         const timer = window.setTimeout(async () => {
             try {
-                const response = await suggestJobs(normalizedValue);
+                const response = await loadJobSuggestions(normalizedValue);
                 if (requestIdRef.current !== requestId) return;
 
-                const data = response?.errCode === 0 && Array.isArray(response.data)
-                    ? response.data.filter((item) => item && typeof item.name === "string")
+                const data = Array.isArray(response?.data)
+                    ? response.data.filter((item) => item && typeof item.name === "string" && typeof item.detailPath === "string")
                     : [];
                 setSuggestions(data);
+                setUnavailable(Boolean(response?.unavailable));
             } catch {
-                if (requestIdRef.current === requestId) setSuggestions([]);
+                if (requestIdRef.current === requestId) { setSuggestions([]); setUnavailable(true); }
             } finally {
                 if (requestIdRef.current === requestId) setIsLoading(false);
             }
@@ -103,13 +108,13 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
         if (!normalizedValue) return [];
 
         return [
-            { key: "current-search", kind: "search", searchTerm: normalizedValue },
             ...suggestions.map((item, index) => ({
                 key: `job-${item.id ?? "unknown"}-${index}`,
                 kind: "job",
                 searchTerm: normalizeSearchTerm(item.name),
                 job: item,
             })),
+            { key: "current-search", kind: "search", searchTerm: normalizedValue },
         ];
     }, [normalizedValue, suggestions]);
 
@@ -124,6 +129,13 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
     const handleSubmit = (event) => {
         event.preventDefault();
         submitSearch(value);
+    };
+
+    const selectOption = option => {
+        if (option.kind === 'search') { submitSearch(option.searchTerm); return; }
+        setIsOpen(false);
+        setActiveIndex(-1);
+        navigate(option.job.detailPath);
     };
 
     const handleKeyDown = (event) => {
@@ -155,7 +167,7 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
 
         if (event.key === "Enter" && isOpen && activeIndex >= 0) {
             event.preventDefault();
-            submitSearch(options[activeIndex].searchTerm);
+            selectOption(options[activeIndex]);
         }
     };
 
@@ -239,6 +251,7 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
 
             {showDropdown && (
                 <div className="job-search-autocomplete__dropdown">
+                    {suggestions.length > 0 && <div className="job-search-autocomplete__heading">Công việc phù hợp</div>}
                     <div id={listboxId} role="listbox" aria-label="Gợi ý tìm kiếm">
                         {options.map((option, index) => (
                             <button
@@ -251,7 +264,7 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
                                 tabIndex={-1}
                                 onMouseDown={(event) => event.preventDefault()}
                                 onMouseEnter={() => setActiveIndex(index)}
-                                onClick={() => submitSearch(option.searchTerm)}
+                                onClick={() => selectOption(option)}
                             >
                                 <span className="job-search-autocomplete__option-icon">
                                     <SearchIcon />
@@ -259,8 +272,8 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
                                 {option.kind === "search" ? (
                                     <span className="job-search-autocomplete__option-copy">
                                         <span className="job-search-autocomplete__option-title">
-                                            <strong>{option.searchTerm}</strong>
-                                            <span className="job-search-autocomplete__search-label"> — Tìm kiếm việc làm</span>
+                                            <span className="job-search-autocomplete__search-label">Xem tất cả kết quả cho </span>
+                                            <strong>“{option.searchTerm}”</strong>
                                         </span>
                                     </span>
                                 ) : (
@@ -273,6 +286,9 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
                                                 {option.job.companyName}
                                             </span>
                                         )}
+                                        {option.job.addressText && <span className="job-search-autocomplete__option-location">
+                                            {option.job.addressText}{option.job.listingSource === 'external' ? ' · Tin từ nguồn bên ngoài' : ''}
+                                        </span>}
                                     </span>
                                 )}
                                 {option.kind === "job" && (
@@ -288,6 +304,12 @@ const JobSearchAutocomplete = ({ onSearch, initialValue = '', value: controlledV
                             Đang tìm gợi ý phù hợp...
                         </div>
                     )}
+                    {!isLoading && normalizedValue.length >= 2 && unavailable && <div className="job-search-autocomplete__loading" role="status">
+                        Chưa tải được một số gợi ý. Bạn vẫn có thể nhấn Tìm kiếm.
+                    </div>}
+                    {!isLoading && normalizedValue.length >= 2 && !unavailable && !suggestions.length && <div className="job-search-autocomplete__loading" role="status">
+                        Chưa có công việc gợi ý khớp từ khóa. Nhấn Tìm kiếm để xem toàn bộ kết quả.
+                    </div>}
                 </div>
             )}
         </div>
