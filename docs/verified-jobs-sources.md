@@ -92,3 +92,27 @@ Covered: Thanh Hóa,Nghệ An,Hà Tĩnh,Quảng Trị,Huế,Đà Nẵng,Quảng 
 - [external-dddb815461f3](https://fticareer.vn/chuyen-vien-kinh-doanh-du-an-can-tho-302) — Cần Thơ
 - [external-ffde361b6c94](https://vieclamcantho.vn/thongtinTD.aspx?idTuyendung=MgAAADgAAAA0AAAAOQAAADMAAAA%3D) — Cà Mau, An Giang
 - [external-f3202a58d8ce](https://bdsnammientrung.com/tuyen-dung/tin-tuc-tuyen-dung/quang-tri-nhan-vien-kinh-doanh/) — Quảng Trị
+- [external-39313e8f2f99](https://vieclam.thegioididong.com/tuyen-dung/cong-tac-vien-ban-hang-sieu-thi-tgdd-dmx-topzone-563) — Lạng Sơn, Phú Thọ
+
+# Source sync — 2026-09-30
+
+All source pages were fetched with `npm run jobs:sync`; titles, deadlines, salary wording, head counts,
+work types, labelled facts and capped section excerpts now come from each official page. Logos and
+banners are copies of images each source publishes (origins listed in `scripts/external-jobs/sites.mjs`).
+
+- external-bdc7033d1f49 (VNPAY Lạng Sơn): detail URL returned HTTP 404 twice on 30/09/2026 and the posting is no longer in
+  https://tuyendung.vnpay.vn/co-hoi-nghe-nghiep listings. Marked `removed`; hidden from search, no source link on its page.
+  A later fetch returned HTTP 500, which the sync treats as transient and leaves the status unchanged.
+- external-39313e8f2f99 (new, replaces Lạng Sơn coverage): Thế Giới Di Động official careers page, "Cộng Tác Viên Bán Hàng
+  Siêu Thị TGDĐ/ĐMX/TOPZONE". The detail page's own workplace list names 29 Trần Đăng Ninh (Tam Thanh) and 69 Ngô Quyền
+  (Đông Kinh), Lạng Sơn, plus 1606A Hùng Vương (Việt Trì), Phú Thọ. Deadline 31/12/2030 as printed by the source,
+  13 positions, "Cộng tác viên/Thời vụ/Bán thời gian" mapped to part-time, no experience required, category sales.
+- Rejected for Lạng Sơn: TGDĐ "Nhân Viên Kho Vận (Kho chi nhánh)" — the listing card said Lạng Sơn but the detail page's
+  workplace list (Đồng Nai, Đắk Lắk, Lâm Đồng, Quảng Ngãi, Vĩnh Long) does not; detail controls. VNPT portal had no
+  Lạng Sơn vacancy (https://tuyendung.vnpt.vn/viec-lam/lang-son-l36.html).
+- external-05a00fe2d943 (Sapo Thanh Hóa): detail page now shows "Thời gian ứng tuyển: 31/10/2026"; deadline updated from 30/09.
+- Agribank Sơn La keeps its branch-specific title; the notice-wide 744-position count is not shown, the Sơn La quota
+  (5 credit + 5 accounting) from the official PDF annex is shown as a labelled fact.
+- Cần Thơ centre posting: the reported 100 head count is still not shown because it may be campaign-level.
+- Đất Xanh Miền Trung: the source has no salary field; salary text is the base-pay line of its benefits list. The job poster
+  image attached to the source post is shown on the detail page.

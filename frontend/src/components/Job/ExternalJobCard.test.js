@@ -12,6 +12,19 @@ test('shows source-check date separately from posting time and keeps missing fac
     expect(screen.queryByText(/hôm nay|ngày trước/)).not.toBeInTheDocument();
 });
 
+test('shows the employer logo copied from the source, with initials when the source has none', () => {
+    const { rerender, container } = render(<ExternalJobCard data={{ title: 'Nhân viên cửa hàng', employer: 'Jollibee Vietnam',
+        provinceCodes: ['Đà Nẵng'], sourceName: 'Jollibee', checkedAt: '2026-09-30', logo: '/external-jobs/logos/jollibee.png',
+        workTypeText: 'Bán thời gian', quantity: '13 người' }} />);
+    expect(screen.getByRole('img', { name: 'Logo Jollibee Vietnam' })).toHaveAttribute('src', '/external-jobs/logos/jollibee.png');
+    expect(screen.getByText('Bán thời gian')).toBeInTheDocument();
+    expect(screen.getByText('Số lượng: 13 người')).toBeInTheDocument();
+    rerender(<ExternalJobCard data={{ title: 'Kế toán', employer: 'Tổng Công ty Xây dựng Trường Sơn',
+        provinceCodes: ['Cà Mau'], sourceName: 'Trung tâm', checkedAt: '2026-09-30', logo: null }} />);
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByText('TS')).toBeInTheDocument();
+});
+
 test('keeps a multi-province vacancy compact without implying nationwide coverage', () => {
     render(<ExternalJobCard data={{ title: 'Kỹ thuật viên', employer: 'Doanh nghiệp',
         provinceCodes: ['Hà Nội', 'Hải Phòng', 'Hưng Yên', 'Ninh Bình'],

@@ -1,6 +1,6 @@
 {
-  "version": "2026-09-29.1",
-  "checkedAt": "2026-09-29",
+  "version": "2026-09-30.2",
+  "checkedAt": "2026-09-30",
   "provinces": [
     {
       "code": "Hà Nội",
@@ -282,18 +282,43 @@
       "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/lap-trinh-plsql-jid5028.html",
       "sourceName": "Cổng tuyển dụng VNPT",
       "deadline": "2026-10-05",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "VNPT tuyển lập trình viên Oracle tại Hà Nội và Hải Phòng, tham gia phát triển và tối ưu hệ thống dữ liệu.",
-      "responsibilities": [
-        "Phát triển PL/SQL, tối ưu truy vấn và xây dựng luồng ETL.",
-        "Xử lý lỗi cơ sở dữ liệu và phối hợp tích hợp ứng dụng."
+      "summary": "Thiết kế và lập trình các đối tượng cơ sở dữ liệu bao gồm: Stored Procedures, Functions, Packages, Triggers và Views sử dụng ngôn ngữ PL/SQL.",
+      "id": "external-a16a0d2c3e4e",
+      "quantity": "4",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Thiết kế và lập trình các đối tượng cơ sở dữ liệu bao gồm: Stored Procedures, Functions, Packages, Triggers và Views sử dụng ngôn ngữ PL/SQL.",
+            "Tối ưu hóa hiệu năng (Performance Tuning): Phân tích và tinh chỉnh các câu lệnh SQL phức tạp, tối ưu hóa các tiến trình xử lý dữ liệu lớn bằng kỹ thuật Bulk Collect, Forall và xử lý song song (Parallel Processing).",
+            "Thiết kế Database: Tham gia thiết kế cấu trúc bảng, lập chỉ mục (Indexing strategy), phân vùng dữ liệu (Partitioning) và đảm bảo tính toàn vẹn của dữ liệu.",
+            "Xây dựng báo cáo & ETL: Phát triển các tiến trình trích xuất, chuyển đổi và nạp dữ liệu (ETL) từ nhiều nguồn khác nhau. Xây dựng các hàm pipeline để hỗ trợ báo cáo thời gian thực.",
+            "Xử lý sự cố: Phân tích Log, xử lý các lỗi phát sinh (ORA- errors) và đảm bảo hệ thống Database hoạt động ổn định 24/7.",
+            "Phối hợp với đội ngũ Backend/Frontend để tích hợp logic nghiệp vụ từ tầng Database lên ứng dụng thông qua các API."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Tốt nghiệp Đại học hệ chính quy tập trung chuyên ngành Công nghệ thông tin, Khoa học máy tính hoặc các ngành liên quan.",
+            "Tối thiểu 1 năm kinh nghiệm làm việc trực tiếp với Oracle Database.",
+            "Thành thạo SQL và PL/SQL. Hiểu các đặc tính nâng cao của Oracle 12c, 18c, 19c (như JSON support, Identity Columns, Private Temporary Tables) là yếu tố ưu tiên.",
+            "Có kinh nghiệm đọc và phân tích Execution Plan, có khả năng sử dụng các công cụ hỗ trợ như SQL Trace, SQL Tuning Advisor.",
+            "Hiểu về kiến trúc Oracle (SGA, PGA, Library Cache, Undo Management) để xử lý các vấn đề như tranh chấp tài nguyên.",
+            "Xử lý dữ liệu lớn: Sử dụng thành thạo các kỹ thuật xử lý lô (Bulk Processing), Index, Partition tối ưu hiệu năng câu lệnh khi làm việc với dữ liệu lớn.",
+            "Sử dụng tốt các công cụ quản trị và phát triển như Oracle SQL Developer, PL/SQL Developer, hoặc Toad.",
+            "Đọc hiểu tài liệu kỹ thuật tiếng Anh tốt, có khả năng tự nghiên cứu tài liệu."
+          ],
+          "truncated": true
+        }
       ],
-      "requirements": [
-        "Đại học CNTT hoặc ngành liên quan; ít nhất một năm làm việc với Oracle.",
-        "Sử dụng tốt SQL/PLSQL và đọc hiểu tài liệu tiếng Anh."
-      ],
-      "id": "external-a16a0d2c3e4e"
+      "companyIntro": "Công ty Công nghệ thông tin VNPT (Tên viết tắt: VNPT-IT) được thành lập theo Quyết định số 39/QĐ-VNPT-HĐTV-NL ngày 01 tháng 03 năm 2018 của Chủ tịch Tập đoàn Bưu chính Viễn thông Việt Nam, trên cơ sở tổ chức lại các nhiệm vụ và nguồn lực công nghệ thông tin thuộc Tập đoàn. VNPT-IT hoạt động trong lĩnh vực nghiên cứu phát triển, tích hợp các sản phẩm dịch vụ công nghệ thông tin phục vụ nội bộ Tập đoàn Bưu chính Viễn thông Việt Nam (VNPT) và các khách hàng bên ngoài VNPT (bao…",
+      "logo": "/external-jobs/logos/vnpt.png",
+      "coverImage": "/external-jobs/covers/vnpt.jpg"
     },
     {
       "postedAt": null,
@@ -312,17 +337,43 @@
       "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/ky-su-lap-trinh-jid6426.html",
       "sourceName": "Cổng tuyển dụng VNPT",
       "deadline": "2026-11-10",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "Viễn thông Cao Bằng tuyển kỹ sư phát triển phần mềm, từ phân tích yêu cầu đến bảo trì và hỗ trợ sử dụng.",
-      "responsibilities": [
-        "Xây dựng ứng dụng, kiểm thử, sửa lỗi và nâng cấp phần mềm."
+      "summary": "Tiếp nhận yêu cầu về chức năng, nội dung của phần mềm/ứng dụng. Phân tích, đánh giá, tư vấn, đề xuất phương án xây dựng, phát triển phần mềm/ứng dụng;",
+      "id": "external-0642f260a509",
+      "quantity": "1",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Tiếp nhận yêu cầu về chức năng, nội dung của phần mềm/ứng dụng. Phân tích, đánh giá, tư vấn, đề xuất phương án xây dựng, phát triển phần mềm/ứng dụng;",
+            "Trực tiếp xây dựng, phát triển phần mềm/ứng dụng theo bản thiết kế, framework đã được thông qua;",
+            "Thực hiện kiểm thử và sửa, tiếp nhận ý kiến của bộ phận kiểm thử, liên quan khác để điều chỉnh, bổ sung đến khi phần mềm/ứng dụng được hoàn thiện;",
+            "Giám sát và kiểm tra hệ thống và các thành phần liên quan để phát hiện các sự cố tiềm ấn, đưa ra giải pháp kịp thời để ngăn chặn và xử lý;",
+            "Quản lý phần mềm/ứng dụng. Tham gia công tác hướng dẫn sử dụng, hỗ trợ xử lý sự cố phần mềm/ứng dụng",
+            "Bảo trì sửa chữa nâng cấp phần mềm;",
+            "Thực hiện các công việc khác theo sự phân công của quản lý cấp trên."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Tốt nghiệp Đại học chính quy chuyên nghành CNTT.",
+            "Có khả năng phân tích, thiết kế, lập trình hướng đối tượng;thiết kế web, Thông thạo ít nhất một ngôn ngữ lập trình, ưu tiên các ngôn ngữ lập trình PHP, C# và .Net, Java…",
+            "Có khả năng sử dụng tốt với các hệ quản trị CSDL SQL Server, Oracle.",
+            "Có kỹ năng tư vấn giải pháp, lựa chọn giải pháp kỹ thuật phù hợp với nhu cầu của khách hàng.",
+            "Có khả năng đánh giá giải pháp công nghệ kỹ thuật, quản lý thông tin sản phẩm CNTT",
+            "Có khả năng thuyết phục khách hàng",
+            "Nắm bắt về công nghệ, giải pháp, các ứng dụng và nghiệp vụ liên quan",
+            "Có khả năng làm việc độc lập hoặc theo nhóm"
+          ],
+          "truncated": true
+        }
       ],
-      "requirements": [
-        "Tốt nghiệp đại học chính quy ngành CNTT.",
-        "Biết lập trình hướng đối tượng, ít nhất một ngôn ngữ lập trình và cơ sở dữ liệu SQL Server hoặc Oracle."
-      ],
-      "id": "external-0642f260a509"
+      "logo": "/external-jobs/logos/vnpt.png",
+      "coverImage": "/external-jobs/covers/vnpt.jpg"
     },
     {
       "postedAt": null,
@@ -341,18 +392,44 @@
       "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/nhan-vien-ky-thuat-dia-ban-jid6414.html",
       "sourceName": "Cổng tuyển dụng VNPT",
       "deadline": "2026-10-15",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "VNPT Tuyên Quang tuyển nhân sự kỹ thuật phụ trách hạ tầng mạng và dịch vụ tại địa bàn.",
-      "responsibilities": [
-        "Bảo dưỡng mạng ngoại vi, lắp đặt thiết bị và xử lý sự cố thuê bao.",
-        "Khảo sát kết nối và hỗ trợ khách hàng."
+      "summary": "Thực hiện công tác bảo trì, bảo dưỡng định kỳ các phần tử dấu nối dây thuê bao đồng/quang và đường dây thuê bao đồng/quang do đơn vị quản lý, khai thác tuân thủ quy chuẩn lắp đặt, tiêu chuẩn kỹ thuật nhằm đảm bảo mạng…",
+      "id": "external-264b88282511",
+      "quantity": "4",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Thực hiện vận hành khai thác và bảo trì, bảo dưỡng, sửa chữa, cải tạo, nâng cấp hạ tầng mạng từ phần tử đấu nối dây thuê bao (tủ cáp/hộp cáp/hộp splitter cấp 2/măng sông/ODF) đến nhà khách hàng:",
+            "Thực hiện công tác bảo trì, bảo dưỡng định kỳ các phần tử dấu nối dây thuê bao đồng/quang và đường dây thuê bao đồng/quang do đơn vị quản lý, khai thác tuân thủ quy chuẩn lắp đặt, tiêu chuẩn kỹ thuật nhằm đảm bảo mạng lưới luôn trong tình trạng tốt, giảm thiểu nguy cơ xảy ra sự cố MNV.",
+            "Sửa chữa, thay thế các phần tử đấu nối dây thuê bao hoặc các linh kiện, vật tư (splitter, dây nối quang, adapter, fast connector…) bị hư hỏng; Hỗ trợ sơ cứu/ thay thế các phần tử đấu nối mạng (tủ cáp/hộp cáp/ hộp splitter cấp 2/măng sông/ODF.",
+            "Thực hiện số hóa toàn bộ thông tin về các phần tử mạng ngoại vi do đơn vị quản lý (vị trí/tọa độ, chủng loại/dung lượng tủ/hộp/măng sông cáp; dung lượng/cấp splitter/vị trí/tọa độ lắp đặt splitter và sợi cáp hàn nối đầu vào splitter; thông tin địa chỉ/tọa độ thuê bao và cổng đấu nối thuê bao trên S2/ODF/OTB/MS) lên…",
+            "Thực hiện quản trị chất lượng một cách chủ động thông qua công tác kiểm tra, giám sát chất lượng phần tử đấu nối thuê bao và đường dây thuê bao theo các tiêu chí đánh giá",
+            "chất lượng MNV để đề xuất các giải pháp tối ưu, nâng cấp/cải tạo mạng ngoại vi nhằm nâng cao chất lượng mạng và đáp ứng nhu cầu phát triển thuê bao.",
+            "Thi công lắp đặt/dịch chuyển/sửa chữa các dịch vụ BRCĐ, PSTN cho khách hàng:",
+            "Thi công lắp đặt đường dây thuê bao từ phần tử đấu nối dây thuê bao đến vị trí kết cuối tại nhà khách hàng; lắp đặt các thiết bị ONT/CPE/Wifi Mesh/Camera/STB/MyTV… và cài đặt các dịch vụ BRCĐ theo phiếu lắp đặt dịch vụ đảm bảo đúng quy trình, chất lượng kỹ thuật, tuân thủ quy định 5S tại nhà khách hàng."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Trình độ và hình thức đào tạo: Tốt nghiệp Đại học hệ chính quy (hệ đào tạo tập trung) hoặc được các cơ sở đào tạo nước ngoài (đào tạo tại nước ngoài hoặc Việt Nam) cấp bằng; đối với những Bằng tốt nghiệp Đại học được cấp từ 01/7/2019 trở về sau không ghi hình thức đào tạo, hình thức đào tạo căn cứ trên Phụ lục của…",
+            "Ngành đào tạo: Đáp ứng 01 trong các điều kiện sau:",
+            "Tốt nghiệp từ Đại học trở lên các ngành: Công nghệ kỹ thuật điện, điện tử; Công nghệ kỹ thuật điện tử - viễn thông; Công nghệ kỹ thuật điều khiển và tự động hóa; Kỹ thuật điện tử - viễn thông; Điện tử - Viễn thông và có chứng chỉ quốc tế về CNTT phù hợp chuyên môn vị trí tuyển dụng theo hướng dẫn tại văn bản hướng…",
+            "Tốt nghiệp từ Đại học trở lên thuộc nhóm ngành Công nghệ thông tin*.",
+            "Xếp loại tốt nghiệp Đại học/sau Đại học",
+            "Lao động tuyển dụng phải có xếp loại tốt nghiệp đạt yêu cầu của các nhóm trường, cụ thể như sau:",
+            "Nhóm 1: Tốt nghiệp từ Trung bình trở lên đối với các trường: Đại học Bách Khoa Hà Nội; Trường Đại học Bách Khoa, Đại học Quốc Gia TP. Hồ Chí Minh; Trường Đại học Bách Khoa, Đại học Đà Nẵng; Trường Đại học Công nghệ, Đại học Quốc gia Hà Nội; Trường Đại học Khoa học Tự nhiên, Đại học Quốc gia Hà Nội; Trường Đại học…",
+            "Nhóm 2: Tốt nghiệp trên Trung bình đối với các trường còn lại."
+          ],
+          "truncated": true
+        }
       ],
-      "requirements": [
-        "Đại học chính quy ngành CNTT hoặc nhóm điện, điện tử, viễn thông theo tiêu chuẩn trong tin gốc.",
-        "Đáp ứng điều kiện xếp loại tốt nghiệp và độ tuổi của VNPT."
-      ],
-      "id": "external-264b88282511"
+      "logo": "/external-jobs/logos/vnpt.png",
+      "coverImage": "/external-jobs/covers/vnpt.jpg"
     },
     {
       "postedAt": null,
@@ -371,18 +448,42 @@
       "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/nhan-vien-ky-thuat-dia-ban-jid6419.html",
       "sourceName": "Cổng tuyển dụng VNPT",
       "deadline": "2026-10-12",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "Viễn thông Ninh Bình tuyển nhân viên triển khai, bảo trì hạ tầng và hỗ trợ dịch vụ viễn thông.",
-      "responsibilities": [
-        "Lắp thiết bị thuê bao, sửa chữa mạng và cập nhật dữ liệu hạ tầng.",
-        "Khảo sát nhu cầu kết nối, hỗ trợ kỹ thuật cho khách hàng."
+      "summary": "Vận hành & Bảo trì hạ tầng: Thực hiện bảo dưỡng, sửa chữa, ứng cứu sự cố và thay thế linh kiện (splitter, dây nối, măng sông...) mạng ngoại vi từ tủ/hộp cáp đến nhà khách hàng.",
+      "id": "external-0907e63f6021",
+      "quantity": "7",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Vận hành & Bảo trì hạ tầng: Thực hiện bảo dưỡng, sửa chữa, ứng cứu sự cố và thay thế linh kiện (splitter, dây nối, măng sông...) mạng ngoại vi từ tủ/hộp cáp đến nhà khách hàng.",
+            "Số hóa dữ liệu: Cập nhật và chuẩn hóa thông tin hạ tầng, tọa độ, cổng đấu nối của khách hàng lên hệ thống OneBSS/Cabman.",
+            "Triển khai dịch vụ: Thi công kéo cáp, lắp đặt và cài đặt thiết bị đầu cuối (ONT, Wifi Mesh, Camera, MyTV...) tại nhà khách hàng; bàn giao và hướng dẫn khách hàng sử dụng.",
+            "Khảo sát & Phát triển mạng: Khảo sát địa bàn để tư vấn giải pháp kết nối cho khách hàng; phối hợp dự báo nhu cầu và đề xuất mở rộng, nâng cấp mạng lưới (ODN).",
+            "Hỗ trợ kỹ thuật: Tiếp nhận và xử lý nhanh các sự cố kỹ thuật (suy hao tín hiệu, đứt cáp, lỗi cổng từ S2 đến ONT); giải quyết phản ánh của khách hàng về chất lượng dịch vụ.",
+            "Quản lý địa bàn & Vật tư: Tham gia tiếp thị, chăm sóc khách hàng và kiểm soát doanh thu địa bàn; thu hồi thiết bị cũ và thanh quyết toán vật tư sử dụng.",
+            "Thực hiện các công việc khác theo sự giao việc của cấp trên."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Trình độ và hình thức đào tạo",
+            "Tốt nghiệp Đại học hệ chính quy (hệ đào tạo tập trung) hoặc được các cơ sở đào tạo nước ngoài (đào tạo tại nước ngoài hoặc Việt Nam) cấp bằng; đối với những Bằng tốt nghiệp Đại học được cấp từ 01/7/2019 trở về sau không ghi hình thức đào tạo, hình thức đào tạo căn cứ trên Phụ lục của Bằng Đại học.",
+            "Ngành đào tạo",
+            "Ngành đào tạo của lao động tuyển dụng đáp ứng 01 trong các điều kiện sau:",
+            "Tốt nghiệp từ Đại học trở lên các ngành: Công nghệ kỹ thuật điện, điện tử; Công nghệ kỹ thuật điện tử - viễn thông; Công nghệ kỹ thuật điều khiển và tự động hóa; Kỹ thuật điện tử - viễn thông; Điện tử - Viễn thông và có chứng chỉ quốc tế về CNTT phù hợp chuyên môn vị trí tuyển dụng theo hướng dẫn tại văn bản hướng…",
+            "Tốt nghiệp từ Đại học trở lên thuộc nhóm ngành Công nghệ thông tin.",
+            "Xếp loại tốt nghiệp Đại học/sau Đại học"
+          ],
+          "truncated": true
+        }
       ],
-      "requirements": [
-        "Đại học chính quy ngành CNTT hoặc ngành điện, điện tử, viễn thông phù hợp.",
-        "Đáp ứng tiêu chuẩn xếp loại tốt nghiệp và giới hạn độ tuổi nêu tại nguồn."
-      ],
-      "id": "external-0907e63f6021"
+      "logo": "/external-jobs/logos/vnpt.png",
+      "coverImage": "/external-jobs/covers/vnpt.jpg"
     },
     {
       "postedAt": null,
@@ -401,17 +502,43 @@
       "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/nhan-vien-ky-thuat-dia-ban-jid5301.html",
       "sourceName": "Cổng tuyển dụng VNPT",
       "deadline": "2026-09-30",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "VNPT Bắc Ninh tuyển nhân viên kỹ thuật mạng và dịch vụ tại địa bàn.",
-      "responsibilities": [
-        "Bảo dưỡng mạng, lắp thiết bị, xử lý sự cố và hỗ trợ khách hàng."
+      "summary": "Vận hành & Bảo trì hạ tầng: Thực hiện bảo dưỡng, sửa chữa, ứng cứu sự cố và thay thế linh kiện (splitter, dây nối, măng sông...) mạng ngoại vi từ tủ/hộp cáp đến nhà khách hàng.",
+      "id": "external-3a75f8475725",
+      "quantity": "2",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Vận hành & Bảo trì hạ tầng: Thực hiện bảo dưỡng, sửa chữa, ứng cứu sự cố và thay thế linh kiện (splitter, dây nối, măng sông...) mạng ngoại vi từ tủ/hộp cáp đến nhà khách hàng.",
+            "Số hóa dữ liệu: Cập nhật và chuẩn hóa thông tin hạ tầng, tọa độ, cổng đấu nối của khách hàng lên hệ thống OneBSS/Cabman.",
+            "Triển khai dịch vụ: Thi công kéo cáp, lắp đặt và cài đặt thiết bị đầu cuối (ONT, Wifi Mesh, Camera, MyTV...) tại nhà khách hàng; bàn giao và hướng dẫn khách hàng sử dụng.",
+            "Khảo sát & Phát triển mạng: Khảo sát địa bàn để tư vấn giải pháp kết nối cho khách hàng; phối hợp dự báo nhu cầu và đề xuất mở rộng, nâng cấp mạng lưới (ODN).",
+            "Hỗ trợ kỹ thuật: Tiếp nhận và xử lý nhanh các sự cố kỹ thuật (suy hao tín hiệu, đứt cáp, lỗi cổng từ S2 đến ONT); giải quyết phản ánh của khách hàng về chất lượng dịch vụ.",
+            "Quản lý địa bàn & Vật tư: Tham gia tiếp thị, chăm sóc khách hàng và kiểm soát doanh thu địa bàn; thu hồi thiết bị cũ và thanh quyết toán vật tư sử dụng.",
+            "Thực hiện các công việc khác theo sự giao việc của cấp trên."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Tốt nghiệp Đại học chuyên ngành CNTT, nhóm ngành Điện tử - Viễn thông, Toán tin, hệ đào tạo chính quy và có một trong các chứng chỉ CNTT theo tiêu chuẩn quốc tế (có thể cam kết bổ sung).",
+            "Am hiểu về hạ tầng kỹ thuật, mạng ngoại vi, mạng di động.",
+            "Có kinh nghiệm lắp đặt, dịch chuyển, ứng cứu, sửa chữa, xử lý sự cố các thiết bị, dịch vụ VT- CNTT liên quan.",
+            "Có kỹ năng triển khai, giám sát, vận hành bảo dưỡng, đảm bảo chất lượng đối với hạ tầng kỹ thuật, mạng ngoại vi, mạng di động.",
+            "Có kỹ năng tương tác, xử lý phản ánh của khách hàng.",
+            "Có khả năng leo cột cao (sẽ được đào tạo sau khi tuyển dụng).",
+            "Ưu tiên đối với ứng viên có các kỹ năng/ chuyên môn nghiệp vụ:",
+            "Có kinh nghiệm về kỹ thuật viễn thông;"
+          ],
+          "truncated": true
+        }
       ],
-      "requirements": [
-        "Đại học chính quy CNTT, điện tử viễn thông hoặc toán tin; đáp ứng yêu cầu chứng chỉ CNTT.",
-        "Có kinh nghiệm triển khai, sửa chữa thiết bị và dịch vụ viễn thông; xem đầy đủ điều kiện tại nguồn."
-      ],
-      "id": "external-3a75f8475725"
+      "logo": "/external-jobs/logos/vnpt.png",
+      "coverImage": "/external-jobs/covers/vnpt.jpg"
     },
     {
       "postedAt": null,
@@ -430,28 +557,52 @@
       "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/nhan-vien-ky-thuat-dia-ban-da-nhiem-jid6421.html",
       "sourceName": "Cổng tuyển dụng VNPT",
       "deadline": "2026-09-30",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "Viễn thông Hưng Yên tuyển nhân viên phụ trách vận hành mạng và hỗ trợ kỹ thuật viễn thông, CNTT.",
-      "responsibilities": [
-        "Lắp đặt dịch vụ, bảo dưỡng mạng ngoại vi và khắc phục sự cố.",
-        "Sửa thiết bị đầu cuối, đo kiểm chất lượng mạng di động."
+      "summary": "Vận hành, khai thác bảo dưỡng; ứng cứu xử lý sự cố; tham gia lắp đặt các phần tử mạng ngoại vi.",
+      "id": "external-ef5c7b7aaf17",
+      "quantity": "1",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Triển khai các công việc trên mạng ngoại vi bao gồm:",
+            "Vận hành, khai thác bảo dưỡng; ứng cứu xử lý sự cố; tham gia lắp đặt các phần tử mạng ngoại vi.",
+            "Lắp đặt, khai báo cài đặt dịch vụ Viễn thông - CNTT.",
+            "Sữa chữa, xử lý sự cố, đảm bảo chất lượng dịch vụ Viễn thông-CNTT cung cấp cho khách hàng",
+            "Bảo hành, sửa chữa thiết bị đầu cuối - Vận hành, khai thác, bảo dưỡng, đo kiểm giám sát chất lượng thiết bị di động 2G, 3G. 4G…",
+            "Thực hiện một số nhiệm vụ khác do cấp trên giao."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Trình độ và hình thức đào tạo:",
+            "Tốt nghiệp Đại học hệ chính quy (hệ đào tạo tập trung) hoặc được các cơ sở đào tạo nước ngoài (đào tạo tại nước ngoài hoặc Việt Nam) cấp bằng; đối với những Bằng tốt nghiệp Đại học được cấp từ 01/7/2019 trở về sau không ghi hình thức đào tạo, hình thức đào tạo căn cứ trên Phụ lục của Bằng Đại học",
+            "Chuyên ngành:",
+            "Tốt nghiệp từ Đại học trở lên các ngành: Công nghệ kỹ thuật điện, điện tử; Công nghệ kỹ thuật điện tử - viễn thông; Công nghệ kỹ thuật điều khiển và tự động hóa; Kỹ thuật điện tử - viễn thông; Điện tử - Viễn thông và có chứng chỉ quốc tế về CNTT phù hợp chuyên môn vị trí tuyển dụng theo hướng dẫn tại văn bản hướng…",
+            "Tốt nghiệp từ Đại học trở lên thuộc nhóm ngành Công nghệ thông tin.",
+            "Độ tuổi:",
+            "Không quá 30 tuổi (đối với lao động đang là lao động thuê lại của VNPT,",
+            "độ tuổi tuyển dụng được cộng thêm thời gian làm thuê lại tại VNPT nhưng tối đa không quá 3 năm)."
+          ],
+          "truncated": false
+        }
       ],
-      "requirements": [
-        "Đại học chính quy ngành CNTT hoặc ngành điện, điện tử, viễn thông phù hợp.",
-        "Thông thường không quá 30 tuổi; nguồn nêu ngoại lệ cho lao động thuê lại của VNPT."
-      ],
-      "id": "external-ef5c7b7aaf17"
+      "logo": "/external-jobs/logos/vnpt.png",
+      "coverImage": "/external-jobs/covers/vnpt.jpg"
     },
     {
       "postedAt": "2026-09-18",
-      "salaryText": "Thỏa thuận",
+      "salaryText": "Theo thỏa thuận",
       "categoryJobCode": "giao-vien",
       "categoryJoblevelCode": null,
       "categoryWorktypeCode": null,
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": null,
-      "title": "Ban giám hiệu và Quản lí chuyên môn — FPT Schools",
+      "title": "FPT School Điện Biên, Phú Thọ, Hà Tĩnh, Bình Dương tuyển BGH và Quản lí chuyên môn",
       "employer": "Hệ thống Trường Phổ thông FPT (FPT Schools)",
       "provinceCodes": [
         "Điện Biên",
@@ -463,17 +614,68 @@
       "sourceUrl": "https://career.fpt.edu.vn/Job/Detail/79770",
       "sourceName": "Tuyển dụng FPT Education",
       "deadline": "2026-12-31",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "FPT Schools tuyển nhân sự quản lý tuyển sinh và chuyên môn tại bốn tổ hợp giáo dục được nêu trong tin.",
-      "responsibilities": [
-        "Điều hành chuyên môn, phát triển giáo viên và duy trì chất lượng giảng dạy."
+      "summary": "Tổ hợp Giáo dục FPT tại Điện Biên Phủ, Điện Biên",
+      "id": "external-bdcdb2d95c05",
+      "quantity": "20",
+      "facts": [
+        {
+          "label": "Ngành nghề",
+          "value": "Quản lí"
+        }
       ],
-      "requirements": [
-        "Đại học trở lên ngành sư phạm hoặc quản lý giáo dục.",
-        "Ít nhất năm năm kinh nghiệm giảng dạy, quản lý chuyên môn tại trường chuyên hoặc trường công top đầu; hiểu chương trình giáo dục phổ thông 2018."
+      "sections": [
+        {
+          "title": "Địa điểm làm việc",
+          "items": [
+            "Tổ hợp Giáo dục FPT tại Điện Biên Phủ, Điện Biên",
+            "Tổ hợp Giáo dục FPT tại Vĩnh Yên, Vĩnh Yên, Phú Thọ",
+            "Tổ hợp Giáo dục FPT tại Hà Tĩnh, Thành Sen, Hà Tĩnh",
+            "Tổ hợp Giáo dục FPT tại Bình Dương, TP. Hồ Chí Minh"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Chịu trách nhiệm quản lý, điều hành các hoạt động tuyển sinh và chuyên môn",
+            "Xây dựng, đào tạo và phát triển đội ngũ cán bộ, giáo viên theo định hướng hoạt động trường",
+            "Đảm bảo chất lượng hoạt động giảng dạy, học tập, kỉ luật, nề nếp",
+            "Xây dựng, duy trì mối quan hệ với các cơ quan chức năng, đối tác, phụ huynh học",
+            "Các công việc khác theo phân công của Cán bộ Quản lý trực tiếp"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu",
+          "items": [
+            "Tốt nghiệp Đại học trở lên, các chuyên ngành sư phạm hoặc quản lý giáo dục",
+            "Có ít nhất 05 năm kinh nghiệm giảng dạy, quản lý chuyên môn tại các trường chuyên, trường công top đầu trên địa bàn tỉnh",
+            "Hiểu và có kinh nghiệm triển khai chương trình giáo dục phổ thông 2018",
+            "Có chuyên môn vững, khả năng đào tạo nội bộ - truyền cảm hứng tốt",
+            "Chính trực, tận tâm, tinh thần học hỏi, sáng tạo, tư duy dịch vụ khách hàng",
+            "Hiểu biết cơ bản về quản lí nhân sự, hành chính, chất lượng, khảo thí"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Chế độ đãi ngộ",
+          "items": [
+            "Môi trường làm việc năng động, chuyên nghiệp",
+            "Có mức thu nhập hấp dẫn",
+            "Có cơ hội tham gia các hoạt động đào tạo nâng cao trình độ",
+            "Hưởng chế độ chăm sóc sức khỏe đặc biệt dành cho bản thân và gia đình (FPT care)",
+            "Được đóng BHXH, BHYT, BHTN… theo quy định của Nhà nước",
+            "Người nhà được hưởng chế độ ưu đãi học phí khi học tập tại Tổ chức Giáo dục FPT",
+            "Các quyền lợi khác: du lịch nghỉ mát hàng năm, tham gia các hoạt động vui chơi giải trí…"
+          ],
+          "truncated": false
+        }
       ],
-      "id": "external-bdcdb2d95c05"
+      "companyIntro": "Thành lập vào năm 2013, Hệ thống Trường Phổ thông FPT (FPT Schools) trực thuộc Tổ chức Giáo dục FPT, là hệ thống giáo dục chất lượng cao gồm 3 cấp Tiểu học, Trung học cơ sở và Trung học phổ thông với nhiều cơ sở tại các tỉnh thành trên toàn quốc. FPT Schools ra đời với mong muốn tạo ra một ngôi trường nơi học sinh được phát triển cá nhân toàn diện, xác định được đam mê và chuẩn bị những kiến thức, kỹ năng, thái độ ứng xử, nền tảng văn hóa và trên hết là một tinh thần tự lập…",
+      "logo": "/external-jobs/logos/fpt-schools.png",
+      "coverImage": "/external-jobs/covers/fpt-schools.jpg"
     },
     {
       "postedAt": null,
@@ -483,7 +685,7 @@
       "categoryWorktypeCode": null,
       "salaryJobCode": null,
       "experienceJobCode": "khong-yeu-cau",
-      "title": "Nhân viên tư vấn bán hàng — Lai Châu",
+      "title": "[LAI CHÂU] NHÂN VIÊN TƯ VẤN BÁN HÀNG",
       "employer": "TokyoLife",
       "provinceCodes": [
         "Lai Châu"
@@ -492,17 +694,58 @@
       "sourceUrl": "https://tuyendung.tokyolife.vn/jobs/772",
       "sourceName": "Tuyển dụng TokyoLife",
       "deadline": "2026-10-08",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "TokyoLife tuyển tư vấn bán hàng tại cửa hàng Lai Châu, có đào tạo cho người chưa có kinh nghiệm.",
-      "responsibilities": [
-        "Tư vấn sản phẩm, sắp xếp hàng hóa và hỗ trợ thanh toán."
+      "summary": "Tư vấn, giải đáp thắc mắc của khách hàng về sản phẩm và dịch vụ",
+      "id": "external-9f6a7884628b",
+      "quantity": "2",
+      "facts": [
+        {
+          "label": "Công việc",
+          "value": "Tư vấn bán hàng"
+        },
+        {
+          "label": "Chức danh",
+          "value": "Nhân viên"
+        }
       ],
-      "requirements": [
-        "Từ đủ 18 tuổi, chăm chỉ và yêu thích bán hàng.",
-        "Làm xoay ca 08:00–16:00 hoặc 14:00–22:00, nghỉ bốn ngày mỗi tháng."
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Tư vấn, giải đáp thắc mắc của khách hàng về sản phẩm và dịch vụ",
+            "Trưng bày, bảo quản hàng hóa, chăm sóc hình ảnh cửa hàng",
+            "Thanh toán hóa đơn, gói hàng"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Từ đủ 18 tuổi trở lên",
+            "Nhanh nhẹn, chăm chỉ",
+            "Yêu thích công việc bán hàng, sẽ được đào tạo nghiệp vụ nếu chưa có kinh nghiệm",
+            "Đảm bảo thời gian làm việc xoay ca, nghỉ 4 ngày/tháng: Ca sáng: 08h00- 16h00 Ca chiều: 14h00- 22h00"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Được hưởng mức thu nhập bao gồm: Lương cơ bản + Thưởng doanh số + Phụ cấp",
+            "Thử việc hưởng 100% Lương cứng + Thưởng Doanh số",
+            "Được xét tăng lương định kỳ 1 lần/ năm dựa trên hiệu quả làm việc",
+            "Được nhận thưởng các ngày Lễ (Tết dương lịch, Tết âm lịch, 30/4 - 1/5, 8/3, 2/9) , các phúc lợi (sinh nhật, hiếu hỉ, ốm đau, thâm niên,...) và tham gia BHXH",
+            "Được cấp phát đồng phục để làm việc",
+            "Được tạo cơ hội thăng tiến, phát triển lên vị trí quản lý hoặc tại khối văn phòng",
+            "Được làm việc trong môi trường trẻ trung, năng động, được đào tạo bài bản",
+            "Được tham gia các hoạt động gắn kết, phát triển kỹ năng công việc"
+          ],
+          "truncated": false
+        }
       ],
-      "id": "external-9f6a7884628b"
+      "logo": "/external-jobs/logos/tokyolife.png",
+      "coverImage": "/external-jobs/covers/tokyolife.jpg"
     },
     {
       "postedAt": null,
@@ -521,17 +764,11 @@
       "sourceUrl": "https://tuyendung.vnpay.vn/tuyen-dung/chuyen-vien-quan-he-khach-hang-account-manager-lang-son.html",
       "sourceName": "Tuyển dụng VNPAY",
       "deadline": "2026-09-30",
-      "checkedAt": "2026-09-29",
-      "sourceStatus": "open",
-      "summary": "VNPAY tuyển nhân sự phát triển giải pháp thanh toán cho khách hàng doanh nghiệp qua kênh ngân hàng tại Lạng Sơn.",
-      "responsibilities": [
-        "Duy trì đối tác ngân hàng, hướng dẫn khách hàng và theo dõi hiệu quả kinh doanh."
-      ],
-      "requirements": [
-        "Cao đẳng hoặc đại học trở lên; ít nhất ba năm kinh nghiệm kinh doanh hoặc quan hệ đối tác.",
-        "Hiểu dịch vụ ngân hàng, Fintech; giao tiếp, đàm phán và tin học văn phòng tốt."
-      ],
-      "id": "external-bdc7033d1f49"
+      "checkedAt": "2026-09-30",
+      "sourceStatus": "removed",
+      "summary": null,
+      "id": "external-bdc7033d1f49",
+      "sections": []
     },
     {
       "postedAt": null,
@@ -541,7 +778,7 @@
       "categoryWorktypeCode": null,
       "salaryJobCode": null,
       "experienceJobCode": null,
-      "title": "Trưởng nhóm bán hàng kênh GT — khu vực Đông Bắc",
+      "title": "Trưởng Nhóm Bán Hàng Kênh GT/ GT Team Leader (Bắc Ninh, Bắc Giang, Thái Nguyên, Cao Bằng, Bắc Kạn)",
       "employer": "Rohto-Mentholatum Việt Nam",
       "provinceCodes": [
         "Thái Nguyên",
@@ -552,18 +789,57 @@
       "sourceUrl": "https://rohto.com.vn/tuyen-dung/co-hoi-nghe-nghiep/nhan-vien-kinh-nghiem/truong-nhom-ban-hang-kenh-gt-central-highland.html",
       "sourceName": "Tuyển dụng Rohto-Mentholatum Việt Nam",
       "deadline": "2026-09-30",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "Rohto tuyển trưởng nhóm bán hàng phụ trách các địa bàn Đông Bắc được liệt kê trong tin gốc.",
-      "responsibilities": [
-        "Theo dõi doanh số, phát triển thị trường và hướng dẫn đội ngũ bán hàng.",
-        "Thu thập thông tin thị trường và lập báo cáo."
+      "summary": "Địa Bàn Tuyển Dụng: Bắc Ninh, Bắc Giang, Thái Nguyên, Cao Bằng, Bắc Kạn",
+      "id": "external-25739cac6534",
+      "quantity": "1",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Địa Bàn Tuyển Dụng: Bắc Ninh, Bắc Giang, Thái Nguyên, Cao Bằng, Bắc Kạn",
+            "Vai Trò:",
+            "Trợ lý cho Supervisor trong việc theo dõi và phát triển Doanh Số Bán Hàng, theo dõi và phát triển tình hình Trưng Bày trên thị trường, theo dõi và phát triển thị trường khách hàng mới.",
+            "Trách Nhiệm:",
+            "Theo dõi và thúc đẩy Sales Rep (Đại Diện Bán Hàng) & Medical Rep (Trình Dược Viên) hoàn thành Chỉ Tiêu Doanh Số.",
+            "Theo dõi và thúc đẩy Nhân Viên trong việc Bán Hàng & Trưng Bày sản phẩm.",
+            "Theo dõi và thúc đẩy Nhân Viên mở rộng và phát triển thị trường, khách hàng & POP trên địa bàn.",
+            "Tuân thủ các quy định và thực hiện các công việc khác của Công Ty."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Tốt Nghiệp Cao Đẳng/Trung Cấp/Đại Học (còn giữ bằng cấp)",
+            "Kinh Nghiệm: 3-5 Năm vị trí Trưởng nhóm bán hàng kênh GT/ Giám sát bán hàng/ ASM thuộc mảng Mỹ Phẩm/ Dược Phẩm/ Hóa Phẩm/ FMCG)",
+            "Có khả năng sử dụng Vi Tính văn phòng (Word/ Excel), Mail",
+            "Kỹ năng quản trị số liệu/ NVBH/ đại lý - nhà phân phối",
+            "Kĩ năng đào tạo, phát triển đội ngũ",
+            "Kĩ năng bán hàng, tiếp nhận và xử lý phản đối của khách hàng",
+            "Năng động, nhiệt huyết và chịu khó"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Thông tin khác",
+          "items": [
+            "Cơ hội huấn luyện: A2E skill training",
+            "Được đào tạo nghiệp vụ & kỹ năng làm việc",
+            "Đồng nghiệp: Hỗ trợ, tinh thần teamwork, thân thiện",
+            "Thử việc 100% lương, Công ty đóng đầy đủ BHXH, BHYT, BHTN, BH Tai Nạn 24/7 sau 2 tháng thử việc",
+            "Có lương thưởng tháng 13, 15 ngày phép/ năm",
+            "Được bảo hiểm sức khỏe tư nhân Tokyo Marine cho nhân viên gắn bó từ 2 năm trở lên",
+            "Xem xét tăng lương định kì hằng năm",
+            "Chính sách, chế độ lương thưởng rõ ràng và cơ hội thăng tiến cao."
+          ],
+          "truncated": true
+        }
       ],
-      "requirements": [
-        "Trung cấp trở lên; ba đến năm năm kinh nghiệm quản lý bán hàng kênh GT trong mỹ phẩm, dược phẩm, hóa phẩm hoặc FMCG.",
-        "Có kỹ năng quản lý dữ liệu và đào tạo nhân viên."
-      ],
-      "id": "external-25739cac6534"
+      "logo": "/external-jobs/logos/rohto-mentholatum.png",
+      "coverImage": "/external-jobs/covers/rohto-mentholatum.jpg"
     },
     {
       "postedAt": "2026-08-18",
@@ -573,7 +849,7 @@
       "categoryWorktypeCode": null,
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": null,
-      "title": "Chuyên viên chính / cấp cao Quản lý thiết kế mảng điện nặng",
+      "title": "Hà Nội/Quảng Ninh - Chuyên viên cấp cao/Chuyên viên chính Quản lý Thiết kế (Mảng điện nặng)",
       "employer": "Tập đoàn Sun Group",
       "provinceCodes": [
         "Hà Nội",
@@ -583,17 +859,58 @@
       "sourceUrl": "https://tuyendung.sungroup.com.vn/job/ha-noiquang-ninh-chuyen-vien-cap-caochuyen-vien-chinh-quan-ly-thiet-ke-mang-dien-nang-12781",
       "sourceName": "Tuyển dụng Sun Group",
       "deadline": "2026-09-30",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "Sun Group tuyển chuyên viên quản lý thiết kế mảng điện nặng tại Hà Nội hoặc Quảng Ninh.",
-      "responsibilities": [
-        "Tham gia thiết kế, kiểm tra hồ sơ và phối hợp xử lý công việc tại công trường."
+      "summary": "Trực tiếp tham gia Thiết kế theo sự phân công của Trưởng phòng/Chủ trì.",
+      "id": "external-a01272892fa1",
+      "facts": [
+        {
+          "label": "Phòng ban",
+          "value": "Xây dựng"
+        }
       ],
-      "requirements": [
-        "Đại học chính quy chuyên ngành liên quan; từ ba đến năm năm kinh nghiệm tương đương.",
-        "Sử dụng thành thạo phần mềm thiết kế, BIM và đọc hiểu bản vẽ kỹ thuật."
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Trực tiếp tham gia Thiết kế theo sự phân công của Trưởng phòng/Chủ trì.",
+            "Tham gia thiết kế ý tưởng theo phân công của Quản lý trực tiếp",
+            "Phối hợp với các chuyên viên khác trong nhóm để bảo đảm hồ sơ đạt chất lượng.",
+            "Thực hiện GS tác giả, phối hợp với công trường để xử lý công việc",
+            "Kiểm tra HS thiết kế của bản thân và của thành viên khác trong BP Kiến trúc để bảo đảm HS đúng và đủ các tiêu chuẩn, quy chuẩn thiết kế hiện hành",
+            "Tìm kiếm và cập nhật, lưu thư viện các SPEC, vật liệu, cấu tạo mới trên thị trường để phục vụ cho công việc chung.",
+            "Hỗ trợ các thành viên khác trong BP để bảo đảm công việc chung đạt kết quả tốt."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Yêu cầu bằng cấp chuyên môn:",
+            "Tốt nghiệp đại học hệ chính quy các chuyên ngành liên quan",
+            "Có từ 3-5 năm kinh nghiệm trở lên tại vị trí tương đương, sử dụng thành thạo các phần mềm Thiết kế, BIM...",
+            "Yêu cầu kỹ năng:",
+            "Kỹ năng thể hiện bản vẽ kỹ thuật, sơ phát ý tưởng nếu cần",
+            "Kỹ năng thể hiện bản vẽ 3D, sơ phát. Sử dụng thành thạo các phầm mềm chuyên ngành như autocad, photoshop, skechup, World để khai triển bản vẽ.",
+            "Kỹ năng phối hợp, combine các bộ môn thiết kế, bảo đảm yêu cầu kỹ thuật.",
+            "Kỹ năng đọc hiểu các bản vẽ kỹ thuật, chỉ dẫn, biểu mẫu, tiêu chuẩn trong và ngoài chuyên ngành kiến trúc, vận dụng vào đồ án thiết kế."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Hưởng thu nhập cạnh tranh, hấp dẫn theo năng lực của bản thân;",
+            "Hưởng đầy đủ quyền lợi theo Bộ luật Lao động;",
+            "Lương, thưởng, thưởng khoán sản lượng và các chế độ phúc lợi, đãi ngộ hấp dẫn;",
+            "Đặc biệt ưu đãi khi sử dụng các hệ thống dịch vụ cao cấp của Tập đoàn Sun Group như: Vé máy bay, Cáp treo, Nghỉ dưỡng, Chế độ bảo hiểm Suncare...",
+            "Được đào tạo nâng cao nghiệp vụ, cơ hội phát triển nghề nghiệp;",
+            "Được làm việc trong môi trường chuyên nghiệp, năng động và hiệu quả."
+          ],
+          "truncated": false
+        }
       ],
-      "id": "external-a01272892fa1"
+      "logo": "/external-jobs/logos/sungroup.png"
     },
     {
       "postedAt": "2026-03-06",
@@ -603,7 +920,7 @@
       "categoryWorktypeCode": null,
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": "2-nam",
-      "title": "Nhân viên kỹ thuật thời vụ — Sa Pa",
+      "title": "[Sa Pa - Lào Cai] Nhân viên Kỹ thuật (thời vụ)",
       "employer": "Tập đoàn Sun Group",
       "provinceCodes": [
         "Lào Cai"
@@ -612,17 +929,57 @@
       "sourceUrl": "https://tuyendung.sungroup.com.vn/job/sa-pa-lao-cai-nhan-vien-ky-thuat-thoi-vu-10987",
       "sourceName": "Tuyển dụng Sun Group",
       "deadline": "2026-11-30",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "Sun Group tuyển nhân viên kỹ thuật thời vụ tại Sa Pa để vận hành và bảo trì hệ thống tòa nhà.",
-      "responsibilities": [
-        "Bảo dưỡng thiết bị điện, nước, điện lạnh; xử lý sự cố và quản lý hồ sơ bảo trì."
+      "summary": "A.Kiểm tra và bảo trì định kỳ",
+      "id": "external-5af55f24b66b",
+      "facts": [
+        {
+          "label": "Phòng ban",
+          "value": "Kỹ thuật và Bảo trì"
+        }
       ],
-      "requirements": [
-        "Trung cấp trở lên ngành điện, điện lạnh hoặc cơ điện.",
-        "Ít nhất hai năm vận hành, bảo trì tòa nhà; có kỹ năng giải quyết sự cố."
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "A.Kiểm tra và bảo trì định kỳ",
+            "Hệ thống điện, nước, điện lạnh, PCCC, xử lý rác thải, thang máy, máy bơm,",
+            "Đảm bảo các thiết bị hoạt động ổn định liên tục, tối ưu và an toàn",
+            "B.Sửa chữa sự cố kỹ thuật",
+            "Tiếp nhận và xử lý các sự cố liên quan đến hệ thống kỹ thuật trong tòa nhà.",
+            "Báo cáo kết quả thực hiện cho quản lý trực tiếp.",
+            "C.Lắp đặt và vận hành thiết bị",
+            "Hỗ trợ lắp đặt thiết bị mới, chạy thử và nghiệm thu."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Tốt nghiệp Trung cấp trở lên chuyên ngành điện, điện lạnh, cơ điện",
+            "Kiến thức tổng quan về hệ thống ME của toàn nhà",
+            "Kỹ năng giải quyết sự cố.",
+            "Kỹ năng giao tiếp",
+            "Kinh nghiệm đã làm vận hành, bảo trì tòa nhà tối thiểu 2 năm."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Hưởng mức lương cạnh tranh kèm theo phụ cấp ăn ca,",
+            "Thưởng thâm niên, thưởng tháng 13 và thưởng cuối năm theo thành tích công việc;",
+            "Đóng bảo hiểm đầy đủ và quyền lợi bảo hiểm sức khỏe Suncare 24/7;",
+            "Được ưu đãi đặc biệt khi sử dụng dịch vụ tại các Khu vui chơi, giải trí cho bản thân và gia đình theo chế độ dành cho CBNV;",
+            "Được đào tạo nâng cao nghiệp vụ liên tục;",
+            "Hưởng chính sách “An cư lạc nghiệp” - đối với cán bộ nhân viên có thâm niên.",
+            "Có hỗ trợ nhà ở miễn phí cho ứng viên ở xa"
+          ],
+          "truncated": false
+        }
       ],
-      "id": "external-5af55f24b66b"
+      "logo": "/external-jobs/logos/sungroup.png"
     },
     {
       "postedAt": "2026-09-22",
@@ -645,25 +1002,70 @@
         "https://baosonla.vn/thong-tin-quang-cao/agribank-chi-nhanh-son-la-thong-bao-tuyen-dung-dot-1-nam-2026-P7FHQvuvR.html"
       ],
       "deadline": "2026-09-30",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "summary": "Agribank Chi nhánh Sơn La tuyển năm chỉ tiêu tín dụng và năm kế toán trong đợt một năm 2026; nộp hồ sơ trực tiếp theo thông báo.",
-      "responsibilities": [],
-      "requirements": [
-        "Chuyên ngành phù hợp; trình độ tối thiểu thay đổi theo chi nhánh dự tuyển.",
-        "Hồ sơ và điều kiện chi tiết có trong thông báo Agribank; thời gian tiếp nhận kết thúc ngày 30/09/2026."
+      "summary": "Thi tuyển được thực hiện qua các vòng: Vòng 1 (sơ tuyển hồ sơ), vòng 2 (thi chuyên môn nghiệp vụ trên máy tính), vòng 3 (thi phỏng vấn).",
+      "id": "external-4c539d8dcdf8",
+      "facts": [
+        {
+          "label": "Vị trí trong đợt tuyển dụng",
+          "value": "Tín dụng; Kế toán; Thanh toán quốc tế; Pháp chế; Thủ quỹ, kiểm ngân; Công nghệ thông tin; Xây dựng cơ bản; Lái xe"
+        },
+        {
+          "label": "Chỉ tiêu tại Chi nhánh Sơn La",
+          "value": "5 Tín dụng và 5 Kế toán (phụ lục chỉ tiêu Agribank công bố)"
+        }
       ],
-      "id": "external-4c539d8dcdf8"
+      "sections": [
+        {
+          "title": "Tổ chức thi tuyển",
+          "items": [
+            "Thi tuyển được thực hiện qua các vòng: Vòng 1 (sơ tuyển hồ sơ), vòng 2 (thi chuyên môn nghiệp vụ trên máy tính), vòng 3 (thi phỏng vấn).",
+            "Đối với ứng viên dự tuyển vị trí tín dụng, kế toán, thanh toán quốc tế, pháp chế có 03 năm kinh nghiệm trở lên liên quan đến vị trí tuyển dụng, làm việc tại các công ty kiểm toán lớn (Deloitte, E&Y, PwC, KPMG,...), ngân hàng lớn (VietinBank, Vietcombank, BIDV,...) hoặc ứng viên tốt nghiệp loại xuất sắc các trường Đại…",
+            "Thời gian, địa điểm thi tuyển: Agribank sẽ thông báo đến ứng viên đủ điều kiện tham gia dự thi (dự kiến thời gian thi trong tháng 10 năm 2026).",
+            "Lưu ý: Agribank không thu lệ phí dự thi, không tổ chức ôn thi và không ủy quyền cho các đơn vị khác tổ chức ôn thi dưới mọi hình thức."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu ứng viên",
+          "items": [
+            "Về độ tuổi: Ứng viên dự tuyển vị trí lao động chuyên môn nghiệp vụ có độ tuổi không quá 35, một số trường hợp cần thu hút lao động giỏi thì độ tuổi không quá 40.",
+            "Về trình độ đào tạo:",
+            "Đối với vị trí chuyên môn nghiệp vụ (tín dụng, kế toán, thanh toán quốc tế, pháp chế): Yêu cầu tốt nghiệp Đại học, hệ chính quy (không bao gồm ứng viên tốt nghiệp hệ liên thông lên Đại học), chuyên ngành phù hợp với vị trí dự tuyển (Tài chính ngân hàng, Kế toán, Kiểm toán, Kinh tế, Thanh toán quốc tế, Quản trị kinh…",
+            "Đối với ứng viên dự tuyển vị trí thủ quỹ, kiểm ngân và ứng viên dự tuyển vào các Chi nhánh thuộc địa bàn có điều kiện kinh tế - xã hội đặc biệt khó khăn; khu vực biên giới; hải đảo và Chi nhánh, phòng giao dịch cách Trung tâm tỉnh, thành phố (hoặc trụ sở Chi nhánh loại I) trên 100 km có điều kiện đi lại khó khăn: Tối…",
+            "Các yêu cầu bổ sung khác: xem tại đây."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu hồ sơ",
+          "items": [
+            "Phiếu đăng ký dự tuyển lao động có dán ảnh 3x4cm (download tại đây). Ứng viên được đăng ký tối đa 02 nguyện vọng:",
+            "Nguyện vọng 1: Ứng viên lựa chọn 01 địa điểm làm việc theo danh sách các đơn vị phụ thuộc Chi nhánh loại I (Hội sở/Chi nhánh loại II) có chỉ tiêu tuyển dụng nêu trên.",
+            "Nguyện vọng 2: Địa điểm làm việc do Hội đồng tuyển dụng Chi nhánh loại I phân công. Trường hợp này ứng viên phải cam kết làm việc lâu dài tại đơn vị tối thiểu 05 năm (nếu được tuyển dụng).",
+            "Sơ yếu lý lịch được cơ quan nhà nước có thẩm quyền xác nhận trong thời gian không quá 06 tháng tính đến ngày nộp hồ sơ dự tuyển.",
+            "Bản sao có chứng thực văn bằng, bảng điểm (phụ lục văn bằng), chứng chỉ theo yêu cầu của vị trí dự tuyển.",
+            "Bản sao có chứng thực công chứng Căn cước công dân.",
+            "Giấy khám sức khỏe do cơ quan y tế có thẩm quyền cấp trong thời hạn 12 tháng tính đến ngày nộp hồ sơ dự tuyển.",
+            "Bản sao các Quyết định, Hợp đồng lao động hoặc sổ Bảo hiểm xã hội,... chứng minh quá trình công tác của ứng viên đối với trường hợp tuyển dụng vào vị trí công việc yêu cầu bắt buộc có kinh nghiệm liên quan."
+          ],
+          "truncated": true
+        }
+      ],
+      "logo": "/external-jobs/logos/agribank.png",
+      "logoBackground": "#9d1d26",
+      "coverImage": "/external-jobs/covers/agribank.jpg"
     },
     {
       "postedAt": null,
-      "salaryText": "10–25 triệu đồng",
+      "salaryText": "10 - 25 triệu",
       "categoryJobCode": "kinh-te",
       "categoryJoblevelCode": "nhan-vien",
       "categoryWorktypeCode": "fulltime",
       "salaryJobCode": null,
       "experienceJobCode": null,
-      "title": "Nhân viên kinh doanh – Thanh Hóa",
+      "title": "Nhân Viên Kinh Doanh - Thanh Hóa",
       "employer": "Công ty Cổ phần Công nghệ Sapo",
       "provinceCodes": [
         "Thanh Hóa"
@@ -671,30 +1073,66 @@
       "sourceLocation": "68 Hà Huy Tập, Quảng Thắng, TP. Thanh Hóa, Thanh Hóa",
       "sourceUrl": "https://tuyendung.sapo.vn/co-hoi-viec-lam/nhan-vien-kinh-doanh-thanh-hoa-a3597.html",
       "sourceName": "Sapo – Tuyển dụng chính thức",
-      "deadline": "2026-09-30",
-      "summary": "Sapo tuyển nhân viên kinh doanh phần mềm tại Thanh Hóa.",
-      "responsibilities": [
-        "Tìm khách hàng qua kênh trực tuyến, tư vấn phần mềm và theo dõi hợp đồng.",
-        "Chăm sóc khách hàng sau bán."
-      ],
-      "requirements": [
-        "Tốt nghiệp cao đẳng/đại học hoặc có tối thiểu 6 tháng kinh nghiệm tư vấn, bán hàng, chăm sóc khách hàng.",
-        "Có máy tính cá nhân và làm toàn thời gian."
-      ],
+      "deadline": "2026-10-31",
+      "summary": "Tìm kiếm khách hàng online qua các trang sàn TMDT ( Shopee, TikTok, Lazada,..), MXH,..",
       "id": "external-05a00fe2d943",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "facts": [
+        {
+          "label": "Ngành nghề",
+          "value": "Bán Hàng/Kinh Doanh"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Tìm kiếm khách hàng online qua các trang sàn TMDT ( Shopee, TikTok, Lazada,..), MXH,..",
+            "Khai thác data công ty chạy marketing đổ về.",
+            "Kết nối online tư vấn giới thiệu thuyết phục khách hàng sử dụng sản phẩm Phần mềm của công ty",
+            "Thực hiện ký kết hợp đồng với khách hàng ( online hoặc offline )",
+            "Thực hiện một vài công tác chăm sóc khách hàng sau bán"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Tốt nghiệp Cao Đẳng, Đại học trở lên hoặc có từ 6 tháng kinh nghiệm Tư vấn/ Sale/ CSKH. Ưu tiên đã từng tiếp xúc với phần mềm Quản lý bán hàng.",
+            "Có laptop cá nhân.",
+            "Độ tuổi từ 2005 - 1996, đảm bảo đi làm fulltime.",
+            "Giao tiếp nhanh nhẹn, không ngại học hỏi đào tạo.",
+            "Yêu thích lĩnh vực Công nghệ và Thương Mại Điện Tử, định hướng công việc rõ ràng"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Thu nhập không giới hạn: Lương cơ bản từ 5,5 triệu - 12 triệu + % hoa hồng từ 5% - 43% + thưởng (có các level phân cấp)",
+            "Review lương 3 tháng/lần",
+            "Được làm việc trong môi trường chuyên nghiệp, trẻ trung, năng động.",
+            "Chế độ BHXH, BHYT theo luật Lao động, ngoài ra được tham gia chương trình bảo hiểm Sapo Care",
+            "Được tham gia các khoá đào tạo từ các chuyên gia hàng đầu về thương mại điện tử, marketing online, phầm mềm ..."
+          ],
+          "truncated": false
+        }
+      ],
+      "companyIntro": "Sapo là công ty Công nghệ. Với khả năng và hướng đi rõ ràng, Sapo nhanh chóng khẳng định được vị trí hàng đầu trong việc xây dựng nền tảng công nghệ hỗ trợ lĩnh vực bán lẻ và TMĐT. Với hơn 230.000 khách hàng trên toàn quốc tin tưởng sử dụng, Sapo đang là doanh nghiệp có nền tảng quản lý và bán hàng đa kênh từ Online đến Offline được sử dụng nhiều nhất tại Việt Nam. Đội ngũ nhân viên Sapo hiện có hơn 1000 nhân sự có trình độ chuyên môn cao, luôn làm việc với tất cả sự nhiệt…",
+      "logo": "/external-jobs/logos/sapo.svg",
+      "coverImage": "/external-jobs/covers/sapo.jpg"
     },
     {
       "postedAt": null,
-      "salaryText": "15–40 triệu đồng",
+      "salaryText": "15 - 40 triệu",
       "categoryJobCode": "kinh-te",
       "categoryJoblevelCode": "truong-phong",
       "categoryWorktypeCode": null,
       "salaryJobCode": null,
       "experienceJobCode": null,
-      "title": "Trưởng phòng Kinh doanh – Kênh Thuế",
+      "title": "Trưởng phòng Kinh doanh - Kênh Thuế",
       "employer": "Công ty Cổ phần Công nghệ Sapo",
       "provinceCodes": [
         "Nghệ An"
@@ -703,22 +1141,67 @@
       "sourceUrl": "https://tuyendung.sapo.vn/co-hoi-viec-lam/truong-phong-kinh-doanh-kenh-thue-a3973.html",
       "sourceName": "Sapo – Tuyển dụng chính thức",
       "deadline": "2026-09-30",
-      "summary": "Phụ trách phát triển khách hàng và đội ngũ kinh doanh giải pháp công nghệ cho hộ kinh doanh.",
-      "responsibilities": [
-        "Tổ chức hoạt động bán hàng, theo dõi chỉ tiêu và đào tạo đội ngũ.",
-        "Phối hợp triển khai kế hoạch phát triển thị trường."
-      ],
-      "requirements": [
-        "Tốt nghiệp đại học; có 2–3 năm kinh nghiệm bán hàng và ít nhất 1 năm dẫn dắt nhóm."
-      ],
+      "summary": "Hoàn thành mục tiêu kinh doanh cá nhân",
       "id": "external-99dd89818002",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "facts": [
+        {
+          "label": "Ngành nghề",
+          "value": "Bán Hàng/Kinh Doanh"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Hoàn thành mục tiêu kinh doanh cá nhân",
+            "Chủ động phát triển khách hàng từ network cá nhân, nguồn cơ quan Thuế và các nguồn khác của Công ty.",
+            "Tư vấn, demo và bán các giải pháp phù hợp với hộ kinh doanh, doanh nghiệp.",
+            "Đảm bảo hoàn thành chỉ tiêu doanh số cá nhân được giao.",
+            "Quản lý và phát triển đội ngũ",
+            "Quản lý, đào tạo và phát triển đội ngũ kinh doanh phối hợp làm việc với cơ quan Thuế.",
+            "Hỗ trợ nhân viên trong tư vấn, xử lý từ chối và chốt hợp đồng.",
+            "Phân bổ mục tiêu, theo dõi hiệu quả và đảm bảo KPI đội nhóm."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Tốt nghiệp Đại học trở lên, ưu tiên các chuyên ngành Kinh tế, Quản trị kinh doanh, Tài chính – Kế toán, Thuế hoặc liên quan.",
+            "Có 2–3 năm kinh nghiệm Sales, trong đó ít nhất 1 năm quản lý/dẫn dắt đội nhóm.",
+            "Ưu tiên kinh nghiệm trong Công nghệ, SaaS, Phần mềm, Thương mại điện tử hoặc Dịch vụ.",
+            "Có khả năng đào tạo, coaching và phát triển đội ngũ.",
+            "Có kỹ năng giao tiếp, đàm phán và xây dựng quan hệ với khách hàng, đối tác.",
+            "Chủ động, trung thực, trách nhiệm, chịu được áp lực doanh số và sẵn sàng di chuyển khi cần.",
+            "Có khả năng xây dựng và duy trì quan hệ với cơ quan Thuế.",
+            "Nắm bắt và cập nhật nhanh các chính sách, quy định thuế liên quan đến hộ kinh doanh."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Thu nhập cạnh tranh gồm lương cứng thỏa thuận + thưởng hiệu quả kinh doanh + thưởng quản lý đội ngũ + Phụ cấp.",
+            "Tiên phong khai thác phân khúc hộ kinh doanh/chuỗi nhà hàng - thị trường tiềm năng lớn; được trao quyền xây dựng, mở rộng đội ngũ và mạng lưới quan hệ cơ quan thuế của riêng mình",
+            "Làm việc trực tiếp với Ban Lãnh đạo để xây dựng chiến lược tăng trưởng doanh thu cho nhóm khách hàng doanh nghiệp.",
+            "Được trao quyền xây dựng, phát triển và mở rộng đội ngũ kinh doanh của riêng mình; lộ trình thăng tiến rõ ràng theo năng lực.",
+            "Được tiếp cận hệ sinh thái khách hàng lớn trong lĩnh vực bán lẻ, thương mại điện tử và chuyển đổi số.",
+            "Môi trường công nghệ tăng trưởng nhanh với hơn 1.000 nhân sự trên toàn quốc.",
+            "Được hưởng đầy đủ chế độ BHXH, BHYT, BHTN, nghỉ phép năm theo quy định của Nhà nước."
+          ],
+          "truncated": false
+        }
+      ],
+      "companyIntro": "Sapo là công ty công nghệ hàng đầu tại Việt Nam, cung cấp nền tảng quản lý và bán hàng đa kênh giúp hơn 230.000 khách hàng trong lĩnh vực bán lẻ và thương mại điện tử quản trị kinh doanh hiệu quả từ Online đến Offline. Với hơn 1.000 nhân sự trẻ trung, nhiệt huyết, Sapo không ngừng sáng tạo để mang đến giải pháp công nghệ tối ưu, đồng hành cùng sự phát triển của các nhà bán hàng trên toàn quốc. SAPO đang tìm kiếm Trưởng phòng Kinh doanh Direct – Kênh Thuế, chịu trách nhiệm…",
+      "logo": "/external-jobs/logos/sapo.svg",
+      "coverImage": "/external-jobs/covers/sapo.jpg"
     },
     {
       "postedAt": null,
-      "salaryText": "10–15 triệu đồng",
+      "salaryText": "10 - 15 Triệu",
       "categoryJobCode": "giao-vien",
       "categoryJoblevelCode": "pho-phong",
       "categoryWorktypeCode": "fulltime",
@@ -733,28 +1216,61 @@
       "sourceUrl": "https://vieclamhatinh.vn/job/details/Pho-phong-dao-tao-8764.html",
       "sourceName": "Trung tâm Dịch vụ việc làm Hà Tĩnh",
       "deadline": "2026-10-30",
-      "summary": "Tin tuyển 2 phó phòng đào tạo làm toàn thời gian tại Hà Tĩnh.",
-      "responsibilities": [
-        "Theo dõi chất lượng lớp học, hỗ trợ giáo viên và cải tiến tài liệu đào tạo.",
-        "Tổng hợp kết quả học tập, đề xuất biện pháp nâng chất lượng."
-      ],
-      "requirements": [
-        "Trình độ đại học; có kinh nghiệm giảng dạy và chuyên môn quản lý đào tạo ngoại ngữ."
-      ],
+      "summary": "Theo dõi, kiểm soát chất lượng các lớp đào tạo thông qua chuyên cần, điểm số, tiến độ học và tỷ lệ học viên đạt chuẩn.",
       "id": "external-e2de04a99a43",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employment_center"
+      "sourceType": "employment_center",
+      "quantity": "2",
+      "workTypeText": "Toàn thời gian",
+      "facts": [
+        {
+          "label": "Trình độ",
+          "value": "Đại học - Tất cả các nghành nghề"
+        },
+        {
+          "label": "Ngoại ngữ",
+          "value": "Tiếng Anh"
+        },
+        {
+          "label": "Kinh nghiệm",
+          "value": "Dưới 1 năm"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Theo dõi, kiểm soát chất lượng các lớp đào tạo thông qua chuyên cần, điểm số, tiến độ học và tỷ lệ học viên đạt chuẩn.",
+            "Dự giờ, đánh giá, góp ý và hướng dẫn chuyên môn cho đội ngũ giáo viên.",
+            "Hỗ trợ xử lý các lớp/học viên có vấn đề: chậm tiến độ, nghỉ học nhiều, học viên yếu, cá biệt hoặc mất động lực.",
+            "Phân tích kết quả đào tạo và đề xuất phương án nâng cao chất lượng học viên.",
+            "Xây dựng, cải tiến giáo án, tài liệu, đề kiểm tra, chuyên đề phát âm, Kaiwa, phỏng vấn, văn hóa – tác phong và kỹ năng tự học.",
+            "Tham gia xây dựng chuẩn đầu ra và tiêu chí đánh giá học viên trước phỏng vấn/xuất cảnh.",
+            "Hướng dẫn, kèm cặp giáo viên về phương pháp giảng dạy, quản lý lớp và đánh giá học viên.",
+            "Phối hợp với các bộ phận liên quan trong việc quản lý, hỗ trợ và xử lý các vấn đề của học viên."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu",
+          "items": [
+            "Có kinh nghiệm giảng dạy và quản lý/chuyên môn đào tạo ngoại ngữ.",
+            "Có năng lực xây dựng giáo án, tài liệu và đánh giá chất lượng học viên"
+          ],
+          "truncated": false
+        }
+      ]
     },
     {
       "postedAt": "2026-09-15",
-      "salaryText": "Thỏa thuận",
+      "salaryText": "Negotiable",
       "categoryJobCode": "kinh-te",
       "categoryJoblevelCode": "nhan-vien",
       "categoryWorktypeCode": "fulltime",
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": null,
-      "title": "Nhân viên Dịch vụ Khách hàng (hợp đồng qua kênh đối tác)",
+      "title": "Customer Services Staff (Outsourcing contract)/ Nhân viên Dịch vụ Khách hàng (Hợp đồng qua kênh đối tác)",
       "employer": "Hanwha Life Vietnam",
       "provinceCodes": [
         "Huế",
@@ -764,29 +1280,63 @@
       "sourceUrl": "https://hanwhalifevietnam.talent.vn/job/customer-services-staff-outsourcing-contract-nhan-vien-dich-vu-khach-hang-hop-dong-qua-kenh-doi-tac-4912",
       "sourceName": "Hanwha Life Vietnam – Cổng tuyển dụng",
       "deadline": "2026-10-31",
-      "summary": "Tiếp nhận yêu cầu khách hàng tại văn phòng Huế hoặc Nha Trang; hợp đồng qua đối tác.",
-      "responsibilities": [
-        "Xử lý hồ sơ bảo hiểm, chứng từ và giao dịch thu chi.",
-        "Giải đáp thắc mắc, hỗ trợ thủ tục cho khách hàng."
-      ],
-      "requirements": [
-        "Có kỹ năng giao tiếp, xử lý tình huống và phần mềm văn phòng.",
-        "Ưu tiên kinh nghiệm dịch vụ khách hàng ngành bảo hiểm hoặc tài chính."
-      ],
+      "summary": "Location: Miền Trung/ Central",
       "id": "external-d25dde94432a",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "workTypeText": "Full-time",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Location: Miền Trung/ Central",
+            "GA Huế: 73 Thuận Hoá, Phường Hương Thuỷ, Thành Phố Huế",
+            "GA Nha Trang: STH 24.32 đường số 5, KĐT Lê Hồng Phong 2, Phường Nam Nha Trang, Tỉnh Khánh Hòa",
+            "Job Responsibilities:",
+            "Receive, check, and distribute documents/files to customers in accordance with procedures. (Tiếp nhận, kiểm tra và phân phát hồ sơ/chứng từ cho khách hàng theo đúng quy trình).",
+            "Manage, store, and transfer documents to the company on time and as regulated. (Quản lý, lưu trữ và chuyển giao chứng từ về công ty đúng hạn và theo quy định).",
+            "Accurately, transparently, and honestly collect insurance premiums from customers, ensuring timely payment (Thu phí bảo hiểm từ khách hàng một cách chính xác, minh bạch và trung thực, đảm bảo việc đúng hạn).",
+            "Manage, handle collection and payment transactions, deposit money into the bank; prepare daily and monthly expense reports (Quản lý tiền mặt, thực hiện thu - chi và nộp tiền vào ngân hàng; lập báo cáo chi phí hàng ngày, hàng tháng)."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Requirements",
+          "items": [
+            "Candidates with experience in customer service within life insurance, banking, or finance sectors are preferred. (Ưu tiên ứng viên có kinh nghiệm trong lĩnh vực dịch vụ khách hàng trong lĩnh vực bảo hiểm nhân thọ/ tài chính ngân hàng,…)",
+            "Communication, persuasion, and problem-solving skills. (Có kỹ năng giao tiếp, thuyết phục và giải quyết vấn đề).",
+            "Patient, honest, and friendly demeanor. (Kiên nhẫn, trung thực và thái độ thân thiện).",
+            "Proficient in office software and customer management tools. (Sử dụng thành thạo các phần mềm văn phòng và công cụ quản lý khách hàng).",
+            "Ability to work under pressure and handle situations quickly. (Có khả năng làm việc dưới áp lực và giải quyết tình huống nhanh chóng)."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Benefits",
+          "items": [
+            "Insurance coverage: Social Insurance (SI), Unemployment Insurance (UI), Health Insurance (HI), and 24/7 PVI Health Insurance. (Chế độ bảo hiểm: BHXH, BHTN, BHYT, BH Sức khỏe PVI 24/7).",
+            "Birthday, weddings, public holidays, etc. (Chế độ phúc lợi: Sinh nhật, cưới hỏi, lễ tết, v.v).",
+            "13th-month salary (Lương tháng 13).",
+            "Annual leave: 12 days/year. (Nghỉ phép năm: 12 ngày phép/năm).",
+            "Work equipment: Fully provided (computer, software, etc.) to support job performance. (Trang thiết bị làm việc: Được cung cấp đầy đủ thiết bị làm việc (máy tính, phần mềm, v.v.) phục vụ công việc).",
+            "Performance evaluation: Annual performance review to acknowledge achievements and adjust salary based on results. (Đánh giá hiệu suất công việc: Được đánh giá hiệu suất công việc định kỳ hàng năm để ghi nhận và điều chỉnh lương dựa trên kết quả công việc)."
+          ],
+          "truncated": false
+        }
+      ],
+      "logo": "/external-jobs/logos/hanwha-life.png"
     },
     {
       "postedAt": "2026-09-24",
-      "salaryText": "Thỏa thuận",
+      "salaryText": "Negotiable",
       "categoryJobCode": "giao-vien",
       "categoryJoblevelCode": "chuyen-vien-cao-cap",
       "categoryWorktypeCode": "fulltime",
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": null,
-      "title": "Chuyên viên Cấp cao Huấn luyện & Hỗ trợ đại lý",
+      "title": "Agency Training Senior Officer/ Chuyên viên Cấp cao Huấn luyện & Hỗ trợ đại lý",
       "employer": "Hanwha Life Vietnam",
       "provinceCodes": [
         "Đắk Lắk"
@@ -795,29 +1345,54 @@
       "sourceUrl": "https://hanwhalifevietnam.talent.vn/job/agency-training-senior-officer-chuyen-vien-cap-cao-huan-luyen-ho-tro-dai-ly-4932",
       "sourceName": "Hanwha Life Vietnam – Cổng tuyển dụng",
       "deadline": "2026-10-24",
-      "summary": "Vị trí huấn luyện đại lý bảo hiểm, phụ trách khu vực Phú Yên thuộc Đắk Lắk sau sáp nhập.",
-      "responsibilities": [
-        "Triển khai khóa học tài chính, hỗ trợ bán hàng và theo dõi chất lượng đào tạo.",
-        "Thực hiện báo cáo và hướng dẫn đội ngũ."
-      ],
-      "requirements": [
-        "Tốt nghiệp đại học và có ít nhất 3 năm kinh nghiệm bảo hiểm nhân thọ.",
-        "Ưu tiên kinh nghiệm giảng dạy người lớn; có kỹ năng thuyết trình."
-      ],
+      "summary": "In charge of the Phú Yên area.",
       "id": "external-15d6ba7dec46",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "workTypeText": "Full-time",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "In charge of the Phú Yên area.",
+            "To supervise the team to conduct Basic Financial Course (BFC) for potential candidates to ensure the following KPIs",
+            "Comply the company policy and MOF regulations",
+            "Online test passed ratio",
+            "First month activity ratio",
+            "To follow and track the team to conduct post BFC course – mind set, then skillsset, and tool set for existing agents to uplift their sale capabilities",
+            "To motivate and involve the team to provide sale support activities to all of the offices/ GAs in-charge to meet monthly/ quarterly/ yearly sale target including:",
+            "Career Opportunity Presentation"
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Job Requirements (Yêu cầu tuyển dụng)",
+          "items": [
+            "University graduation, majoring in Insurance/ Economics/ Pedagogy is preferred",
+            "Experience at least 3 years in Life Insurance industry",
+            "Experience in adult training/ teaching is preferable",
+            "Basic knowledge in Life Insurance including: overview of agency activities, basic knowledge about agency training activities",
+            "Good presentation skill",
+            "Working independently with limited instructions from line manager",
+            "Working in team effectively",
+            "Good communication"
+          ],
+          "truncated": false
+        }
+      ],
+      "logo": "/external-jobs/logos/hanwha-life.png"
     },
     {
       "postedAt": "2026-09-15",
-      "salaryText": "Thỏa thuận",
+      "salaryText": "Negotiable",
       "categoryJobCode": "kinh-te",
       "categoryJoblevelCode": "giam-doc",
       "categoryWorktypeCode": "fulltime",
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": null,
-      "title": "Giám đốc Kinh doanh Khu vực",
+      "title": "Zone Director/ Giám đốc Kinh doanh Khu vực",
       "employer": "Hanwha Life Vietnam",
       "provinceCodes": [
         "Lâm Đồng",
@@ -829,19 +1404,59 @@
       "sourceUrl": "https://hanwhalifevietnam.talent.vn/job/zone-director-giam-doc-kinh-doanh-khu-vuc-4880",
       "sourceName": "Hanwha Life Vietnam – Cổng tuyển dụng",
       "deadline": "2026-10-16",
-      "summary": "Quản lý hoạt động kinh doanh bảo hiểm tại một trong các địa bàn được nêu.",
-      "responsibilities": [
-        "Lập kế hoạch doanh số, phát triển đội ngũ và theo dõi hoạt động bán hàng.",
-        "Tổ chức huấn luyện và giám sát việc tuân thủ quy định."
-      ],
-      "requirements": [
-        "Có ít nhất 3 năm kinh nghiệm phù hợp trong bảo hiểm nhân thọ.",
-        "Đào tạo về kinh tế, quản trị kinh doanh, marketing hoặc ngành liên quan."
-      ],
+      "summary": "Report to: RD (Regional Director)",
       "id": "external-2e05bbfdca46",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "workTypeText": "Full-time",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Report to: RD (Regional Director)",
+            "Báo cáo: Giám đốc Kinh doanh Vùng"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Key Accountabilities",
+          "items": [
+            "Manage and develop the assigned area: (Quản lý & phát triển kinh doanh tại Khu vực được giao)",
+            "Propose plan to complete assigned sales targets. (Lập kế hoạch để hoàn thành chỉ tiêu được giao).",
+            "Deploy business plan to GAD, DM, UM, RM, sales team, and monitor plan’s implementation. (Triển khai kế hoạch kinh doanh đến GAD, DM, UM, RM và đội ngũ kinh doanh và giám sát việc thực hiện kế hoạch đã triển khai).",
+            "Report daily sales activities to RD. (Báo cáo kết quả kinh doanh hàng ngày cho RD)",
+            "Supervise, manage sales activities: (Giám sát, điều hành hoạt động kinh doanh)",
+            "Organize business support activities: sales meetings, training, sales seminars (recruitment, sales…). (Tổ chức các hoạt động hỗ trợ kinh doanh: Họp, huấn luyện, tổ chức hội thảo (tuyển dụng, bán hàng…)).",
+            "Join 1:1 meeting with management levels every month. (Họp 1:1 định kỳ hàng tháng với các cấp quản lý).",
+            "Ensure and maintain the quality of sales team at the area. (Đảm bảo, duy trì chất lượng đội ngũ kinh doanh tại khu vực)."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Requirements",
+          "items": [
+            "At least 3 years of experience in life insurance as Sales Manager, Trainer or as the same role. (Ít nhất 3 năm kinh nghiệm liên tục làm việc tại Công ty Bảo hiểm Nhân thọ với vị trí Quản lý Kinh doanh, Chuyên Viên Huấn luyện hoặc đang kiêm nhiệm vị trí tương đương).",
+            "University/college graduated, major in economic, business administration, marketing, commerce or related field. (Tốt nghiệp Đại học chuyên ngành Kinh tế, Quản trị kinh doanh, Marketing, Thương Mại hoặc các ngành liên quan)",
+            "Skil: Organize business activities,Planning, Training, Management, Presentations, Enhance team’s engagement, Team management and development. (Kỹ năng: Tổ chức các hoạt động kinh doanh, Lập kế hoạch, Huấn luyện, Quản lý, Thuyết trình, Tạo động lực gắn kết cho đội ngũ, Quản lý và phát triển đội ngũ)"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Benefits",
+          "items": [
+            "Competitive salary (100% salary during probation) (Mức lương cạnh tranh - nhận 100% lương trong thời gian thử việc)",
+            "Bonus: 13th-month salary and monthly Incentive Bonus (Thưởng: Lương tháng 13 và thưởng doanh số hàng tháng)",
+            "Full social insurance, personal accidental & health care insurance, group life insurance (death and dismemberment). (Bảo hiểm xã hội toàn diện, bảo hiểm tai nạn và chăm sóc sức khỏe cá nhân, bảo hiểm nhân mạng nhóm,..)",
+            "Gifts for new comers and on special occasions (Quà tặng cho người mới gia nhập và vào các dịp đặc biệt)",
+            "Modern facilities in the spacious office (Cơ sở vật chất hiện đại)",
+            "15 Annual leaves (15 ngày nghỉ phép hằng năm)"
+          ],
+          "truncated": false
+        }
+      ],
+      "logo": "/external-jobs/logos/hanwha-life.png"
     },
     {
       "postedAt": null,
@@ -861,19 +1476,46 @@
       "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/chuyen-vien-phan-tich-nghiep-vu-ba-jid5034.html",
       "sourceName": "VNPT – Tuyển dụng chính thức",
       "deadline": "2026-10-05",
-      "summary": "VNPT tuyển BA tham gia phân tích yêu cầu và triển khai sản phẩm phần mềm.",
-      "responsibilities": [
-        "Khảo sát nghiệp vụ, mô hình hóa quy trình và viết tài liệu yêu cầu.",
-        "Phối hợp với nhóm phát triển, đào tạo và hỗ trợ người dùng."
-      ],
-      "requirements": [
-        "Đại học chuyên ngành phù hợp và tối thiểu 1 năm làm BA.",
-        "Hiểu quy trình phát triển phần mềm và có khả năng dùng UML."
-      ],
+      "summary": "Quản trị chiến lược, kế hoạch và điều hành: Lập kế hoạch triển khai, hỗ trợ khách hàng",
       "id": "external-79b2cf72845e",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "quantity": "12",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Quản trị chiến lược, kế hoạch và điều hành: Lập kế hoạch triển khai, hỗ trợ khách hàng",
+            "Sản xuất & cung cấp sản phẩm phần mềm",
+            "Khảo sát yêu cầu khách hàng, xây dựng đầu bài nghiệp vụ cho sản phẩm/dịch vụ phụ trách",
+            "Phân tích và đề xuất các giải pháp phù hợp, mô hình hoá các quy trình, tài liệu hoá yêu cầu và xác nhận thông tin với khách hàng",
+            "Xây dựng, mô tả/đặc tả chức năng, nghiệp vụ cho các sản phẩm/dịch vụ: URD, SRS, …",
+            "Chuyển giao thông tin yêu cầu của khách hàng cho đội dự án",
+            "Phối hợp với đội phát triển để xây dựng sản phẩm.",
+            "Tham gia triển khai, đào tạo và hỗ trợ sử dụng phần mềm cho các bên liên quan."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Tốt nghiệp ĐH hệ chính quy tập trung chuyên ngành CNTT, kinh tế, quản trị kinh doanh....",
+            "Có tối thiểu 1 năm kinh nghiệm làm việc tại vị trí BA",
+            "Hiểu biết về quy trình phát triển phần mềm. Có hiểu biết tốt hoặc đã thực hiện công việc ở một trong các công đoạn: phân tích thiết kế phần mềm; lập trình; kiểm tra chất lượng (test).",
+            "Có khả năng tìm kiếm, thu thập và tổng hợp thông tin yêu cầu nghiệp vụ của khách hàng.",
+            "Có khả năng phân tích và thiết kế bằng UML (Processing diagram, Use case diagram, activity diagram …), sử dụng các tool hỗ trợ cho việc xây dựng tài liệu phân tích yêu cầu và prototype.",
+            "Có khả năng viết tài liệu URD, SRS, xây dựng chương trình, tài liệu và thực hiện đào tạo.",
+            "Có khả năng thực hiện kiểm tra (test) các yêu cầu nghiệp vụ.",
+            "Có hiểu biết về trải nghiệm khách hàng"
+          ],
+          "truncated": true
+        }
+      ],
+      "companyIntro": "Công ty Công nghệ thông tin VNPT (Tên viết tắt: VNPT-IT) được thành lập theo Quyết định số 39/QĐ-VNPT-HĐTV-NL ngày 01 tháng 03 năm 2018 của Chủ tịch Tập đoàn Bưu chính Viễn thông Việt Nam, trên cơ sở tổ chức lại các nhiệm vụ và nguồn lực công nghệ thông tin thuộc Tập đoàn. VNPT-IT hoạt động trong lĩnh vực nghiên cứu phát triển, tích hợp các sản phẩm dịch vụ công nghệ thông tin phục vụ nội bộ Tập đoàn Bưu chính Viễn thông Việt Nam (VNPT) và các khách hàng bên ngoài VNPT (bao…",
+      "logo": "/external-jobs/logos/vnpt.png",
+      "coverImage": "/external-jobs/covers/vnpt.jpg"
     },
     {
       "postedAt": null,
@@ -894,18 +1536,45 @@
       "sourceUrl": "https://tuyendung.vnpt.vn/tim-viec-lam/ky-su-hoc-sau-jid5190.html",
       "sourceName": "VNPT – Tuyển dụng chính thức",
       "deadline": "2026-10-24",
-      "summary": "Nghiên cứu và phát triển mô hình học sâu phục vụ các sản phẩm AI.",
-      "responsibilities": [
-        "Thiết kế, huấn luyện, đánh giá và tối ưu mô hình xử lý ảnh, ngôn ngữ hoặc dữ liệu đa phương thức."
-      ],
-      "requirements": [
-        "Đại học chuyên ngành liên quan; nắm vững học máy, toán và thống kê.",
-        "Thành thạo Python cùng công cụ học sâu; gửi bằng và bảng điểm khi ứng tuyển."
-      ],
+      "summary": "Nghiên cứu, thiết kế và phát triển các mô hình Deep Learning phục vụ các bài toán phức tạp trong xử lý ảnh, xử lý ngôn ngữ tự nhiên, xử lý tiếng nói, chuỗi thời gian, dữ liệu đa phương thức và các hệ thống AI ứng dụng…",
       "id": "external-bf6dee807d97",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "quantity": "1",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Nghiên cứu, thiết kế và phát triển các mô hình Deep Learning phục vụ các bài toán phức tạp trong xử lý ảnh, xử lý ngôn ngữ tự nhiên, xử lý tiếng nói, chuỗi thời gian, dữ liệu đa phương thức và các hệ thống AI ứng dụng thực tế.",
+            "Thiết kế, huấn luyện và tối ưu các mạng nơ-ron sâu như Convolutional Neural Networks, Recurrent Neural Networks, Transformer, Vision Transformer, Encoder-Decoder, Autoencoder, Graph Neural Networks và các kiến trúc học sâu hiện đại khác.",
+            "Dẫn dắt nghiên cứu, thử nghiệm và so sánh nhiều kiến trúc mô hình khác nhau nhằm lựa chọn phương án phù hợp nhất với từng bài toán cụ thể, cân bằng giữa độ chính xác, khả năng tổng quát, chi phí tính toán và khả năng triển khai.",
+            "Phân tích yêu cầu nghiệp vụ và yêu cầu sản phẩm để chuyển hóa thành bài toán học sâu cụ thể, xác định dữ liệu cần thiết, kiến trúc mô hình phù hợp, phương pháp huấn luyện và tiêu chí đánh giá hiệu quả.",
+            "Thiết kế và cải tiến kiến trúc mô hình nhằm nâng cao hiệu năng trên dữ liệu thực tế, bao gồm dữ liệu nhiễu, dữ liệu thiếu, dữ liệu mất cân bằng, dữ liệu quy mô lớn hoặc dữ liệu có phân phối thay đổi theo thời gian.",
+            "Tối ưu hóa quá trình huấn luyện mô hình thông qua các kỹ thuật như hyperparameter tuning, regularization, transfer learning, fine-tuning, self-supervised learning, contrastive learning, curriculum learning và các phương pháp huấn luyện nâng cao khác.",
+            "Xây dựng quy trình đánh giá mô hình học sâu toàn diện dựa trên các chỉ số về độ chính xác, độ ổn định, khả năng tổng quát, độ trễ, thông lượng xử lý, mức sử dụng bộ nhớ và chi phí vận hành.",
+            "Phân tích chuyên sâu lỗi mô hình, xác định nguyên nhân gốc rễ từ dữ liệu, kiến trúc, hàm mất mát, chiến lược huấn luyện hoặc điều kiện triển khai; từ đó đề xuất giải pháp cải tiến có tính hệ thống."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Yêu cầu bắt buộc: Ứng viên gửi kèm bằng tốt nghiệp và bảng điểm trong đơn ứng tuyển.",
+            "Tốt nghiệp đại học trở lên chuyên ngành Công nghệ thông tin, Khoa học máy tính, Trí tuệ nhân tạo, Toán ứng dụng, Khoa học dữ liệu, Điện tử viễn thông hoặc các lĩnh vực liên quan. Ưu tiên ứng viên có trình độ thạc sĩ, tiến sĩ hoặc kinh nghiệm nghiên cứu chuyên sâu về AI/Deep Learning.",
+            "Có kiến thức nền tảng vững chắc về Machine Learning, Deep Learning, xác suất thống kê, tối ưu hóa, đại số tuyến tính, xử lý tín hiệu, xử lý ảnh, xử lý ngôn ngữ tự nhiên hoặc dữ liệu chuỗi thời gian.",
+            "Có kinh nghiệm chuyên sâu trong thiết kế, huấn luyện và tối ưu các kiến trúc mạng nơ-ron sâu như CNN, RNN, LSTM, GRU, Transformer, Vision Transformer, Encoder-Decoder, Autoencoder, Graph Neural Networks, Diffusion Models hoặc các kiến trúc hiện đại khác.",
+            "Thành thạo Python và các framework học sâu như PyTorch, TensorFlow, Hugging Face Transformers, OpenCV, NumPy, Pandas hoặc các công cụ tương đương.",
+            "Có kinh nghiệm xây dựng mô hình học sâu cho một hoặc nhiều lĩnh vực như Computer Vision, NLP, Speech, OCR, Time-series Forecasting, Multimodal AI, Generative AI, LLM hoặc các hệ thống AI ứng dụng thực tế.",
+            "Có khả năng thiết kế kiến trúc mô hình từ đầu, cải tiến kiến trúc hiện có, lựa chọn loss function, chiến lược huấn luyện, phương pháp regularization và kỹ thuật tối ưu phù hợp với từng bài toán.",
+            "Nắm vững các kỹ thuật huấn luyện nâng cao như transfer learning, fine-tuning, self-supervised learning, contrastive learning, multi-task learning, curriculum learning, distributed training, mixed precision training."
+          ],
+          "truncated": true
+        }
+      ],
+      "logo": "/external-jobs/logos/vnpt.png",
+      "coverImage": "/external-jobs/covers/vnpt.jpg"
     },
     {
       "postedAt": "2026-09-15",
@@ -915,7 +1584,7 @@
       "categoryWorktypeCode": "fulltime",
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": null,
-      "title": "Trợ lý kho – Long Hậu",
+      "title": "[Long Hậu] - Trợ Lý Kho",
       "employer": "Jollibee Vietnam",
       "provinceCodes": [
         "Tây Ninh"
@@ -924,19 +1593,70 @@
       "sourceUrl": "https://tuyendung.jollibee.com.vn/job/long-hau-tro-ly-kho-15561",
       "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
       "deadline": "2026-10-15",
-      "summary": "Thực hiện và giám sát vận hành kho tại KCN Long Hậu.",
-      "responsibilities": [
-        "Theo dõi nhập xuất tồn, hạn sử dụng và kiểm kê.",
-        "Quản lý dữ liệu WMS, báo cáo và hướng dẫn nhân viên."
-      ],
-      "requirements": [
-        "Cao đẳng/đại học ngành phù hợp; từ 3 năm kinh nghiệm kho.",
-        "Thành thạo công cụ văn phòng, có khả năng phân tích tồn kho."
-      ],
+      "summary": "Quản lý hoạt động kho",
       "id": "external-229e5410b3eb",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "workTypeText": "Toàn thời gian",
+      "facts": [
+        {
+          "label": "Phòng ban",
+          "value": "Khối chuỗi cung ứng"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Quản lý hoạt động kho",
+            "Thực hiện và giám sát các hoạt động nhập, xuất, lưu trữ hàng hóa theo đúng quy trình.",
+            "Kiểm soát số lượng hàng hóa trên hệ thống và thực tế, đảm bảo tính chính xác của dữ liệu tồn kho.",
+            "Theo dõi và cập nhật tình hình nhập - xuất - tồn hằng ngày.",
+            "Phối hợp với các bộ phận liên quan để đảm bảo kế hoạch xuất nhập hàng đúng tiến độ.",
+            "Kiểm soát tồn kho",
+            "Theo dõi số lượng hàng tồn kho tại kho.",
+            "Theo dõi hạn sử dụng (HSD) của các mặt hàng lưu kho; đảm bảo thực hiện FIFO/FEFO theo quy định."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Tốt nghiệp Cao đẳng/Đại học các chuyên ngành Logistics, Quản lý chuỗi cung ứng, Quản trị kinh doanh hoặc các ngành liên quan.",
+            "Có từ 3 năm kinh nghiệm vận hành kho hoặc quản lý kho trong môi trường sản xuất, FMCG hoặc thực phẩm là lợi thế.",
+            "Có kiến thức về nghiệp vụ kho: nhập hàng, xuất hàng, quản lý tồn kho, kiểm kê và truy xuất nguồn gốc.",
+            "Thành thạo Microsoft Office.",
+            "Có khả năng lập báo cáo, phân tích dữ liệu tồn kho.",
+            "Có kỹ năng hướng dẫn và đào tạo nhân viên.",
+            "Cẩn thận, trung thực, có tinh thần trách nhiệm cao và chịu được áp lực công việc."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "BHXH full lương;",
+            "Bảo hiểm sức khoẻ cá nhân PJICO;",
+            "Bảo hiểm tai nạn 24/7",
+            "Mức lương rất cạnh tranh, lương tháng 13 và thưởng năm.",
+            "18 ngày phép (12 ngày nghỉ phép năm, 3 ngày nghỉ ốm, 3 ngày nghỉ phép gia đình);",
+            "Tham gia các hoạt động ngoại khóa và teambuilding;",
+            "Được đào tạo công việc rõ ràng;",
+            "Cơ hội học hỏi, tham gia các khóa huấn luyện nội bộ, cơ hội phát triển và thăng tiến nhanh đến vị trí quản lý cấp cao."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Địa điểm làm việc",
+          "items": [
+            "Kho SLP - Lô 3G-9, Đường số 14, KCN Long Hậu, Cần Giuộc, Tây Ninh (Long An cũ)."
+          ],
+          "truncated": false
+        }
+      ],
+      "logo": "/external-jobs/logos/jollibee.png",
+      "coverImage": "/external-jobs/covers/jollibee.jpg"
     },
     {
       "postedAt": "2026-06-10",
@@ -946,7 +1666,7 @@
       "categoryWorktypeCode": "fulltime",
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": "khong-yeu-cau",
-      "title": "Tổ trưởng cửa hàng – Bảo Lộc",
+      "title": "[Bảo Lộc] Tổ Trưởng Cửa Hàng Gà Rán Jollibee",
       "employer": "Jollibee Vietnam",
       "provinceCodes": [
         "Lâm Đồng"
@@ -955,19 +1675,68 @@
       "sourceUrl": "https://tuyendung.jollibee.com.vn/job/bao-loc-to-truong-cua-hang-ga-ran-jollibee-11950",
       "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
       "deadline": "2026-12-31",
-      "summary": "Tổ trưởng bộ phận phục vụ hoặc bếp tại cửa hàng Bảo Lộc.",
-      "responsibilities": [
-        "Chuẩn bị hàng hóa trong ca, phục vụ hoặc chế biến món ăn.",
-        "Hướng dẫn nhân viên và nhắc nhở thực hiện tiêu chuẩn bộ phận."
-      ],
-      "requirements": [
-        "Tốt nghiệp THPT; có thể làm toàn thời gian.",
-        "Không yêu cầu kinh nghiệm; có kỹ năng giao tiếp và làm việc nhóm."
-      ],
+      "summary": "Regular Crew Leader – Service (RCL – Service)",
       "id": "external-f55bf8104b7b",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "workTypeText": "Toàn thời gian",
+      "facts": [
+        {
+          "label": "Phòng ban",
+          "value": "Khối cửa hàng"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Regular Crew Leader – Service (RCL – Service)"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Trách nhiệm công việc",
+          "items": [
+            "Chào đón khách đến với nhà hàng",
+            "Nhận order từ khách hàng & tư vấn món ăn",
+            "Thực hiện công tác thu ngân: check bill, in bill, thanh toán tiền cho khách",
+            "Chuyển thông tin món vào bếp",
+            "Xử lý các vấn đề phát sinh tại quầy",
+            "Mang món ăn, đồ uống lên bàn cho khách khi được chuẩn bị xong",
+            "Hỗ trợ khách trong bữa ăn khi cần",
+            "Hỗ trợ dọn dẹp nhà hàng sạch sẽ, thoáng mát"
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu",
+          "items": [
+            "Tốt nghiệp từ THPT trở lên.",
+            "Từ 18 - 35 tuổi",
+            "Không yêu cầu kinh nghiệm, chỉ cần yêu thích làm việc trong ngành F&B và có thể làm Full Time",
+            "Ngoại hình ưa nhìn, giọng nói rõ ràng, dễ nghe",
+            "Có khả năng giao tiếp, quản lý thời gian và làm việc theo nhóm.",
+            "Thân thiện, nhiệt tình, có trách nhiệm, chăm chỉ"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Thu nhập: lương cơ bản + phụ cấp + thưởng doanh thu",
+            "Được tham gia đầy đủ các chế độ bảo hiểm theo luật quy định(Bảo Hiểm Xã Hội; Bảo Hiểm Y Tế; Bảo Hiểm Thất Nghiệp)",
+            "Gói bảo hiểm tai nạn 24/7",
+            "Cơ hội phát triển và thăng tiến lên Giám Sát Cửa Hàng, Cửa Hàng Trưởng cùng những vị trí cao hơn",
+            "Tham gia các chương trình đào tạo các nghiệp vụ chuyên môn, kỹ năng mềm của Jollibee",
+            "Tham gia các hoạt động nội bọ của cửa hàng: teambuilding,...",
+            "Thời gian làm việc: 6 ngày/ tuần"
+          ],
+          "truncated": true
+        }
+      ],
+      "logo": "/external-jobs/logos/jollibee.png",
+      "coverImage": "/external-jobs/covers/jollibee.jpg"
     },
     {
       "postedAt": "2025-12-31",
@@ -977,7 +1746,7 @@
       "categoryWorktypeCode": "fulltime",
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": "khong-yeu-cau",
-      "title": "Tổ trưởng cửa hàng – Đồng Nai",
+      "title": "[ĐỒNG NAI] TỔ TRƯỞNG CỬA HÀNG",
       "employer": "Jollibee Vietnam",
       "provinceCodes": [
         "Đồng Nai"
@@ -986,29 +1755,78 @@
       "sourceUrl": "https://tuyendung.jollibee.com.vn/job/dong-nai-to-truong-cua-hang-10565",
       "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
       "deadline": "2026-12-31",
-      "summary": "Tổ trưởng phục vụ hoặc bếp, làm việc tại Đồng Nai.",
-      "responsibilities": [
-        "Tổ chức hàng hóa trong ca và hỗ trợ hoạt động phục vụ, chế biến.",
-        "Hướng dẫn nhân viên mới theo tiêu chuẩn cửa hàng."
-      ],
-      "requirements": [
-        "Tốt nghiệp THPT và làm toàn thời gian.",
-        "Không yêu cầu kinh nghiệm; có tinh thần trách nhiệm và phối hợp nhóm."
-      ],
+      "summary": "Regular Crew Leader – Service (RCL – Service)",
       "id": "external-96992334d10d",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "workTypeText": "Toàn thời gian",
+      "facts": [
+        {
+          "label": "Phòng ban",
+          "value": "Khối cửa hàng"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Regular Crew Leader – Service (RCL – Service)"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Trách nhiệm công việc",
+          "items": [
+            "Chào đón khách đến với nhà hàng",
+            "Nhận order từ khách hàng & tư vấn món ăn",
+            "Thực hiện công tác thu ngân: check bill, in bill, thanh toán tiền cho khách",
+            "Chuyển thông tin món vào bếp",
+            "Xử lý các vấn đề phát sinh tại quầy",
+            "Mang món ăn, đồ uống lên bàn cho khách khi được chuẩn bị xong",
+            "Hỗ trợ khách trong bữa ăn khi cần",
+            "Hỗ trợ dọn dẹp nhà hàng sạch sẽ, thoáng mát"
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu",
+          "items": [
+            "Tốt nghiệp từ THPT trở lên.",
+            "Từ 18 - 35 tuổi",
+            "Không yêu cầu kinh nghiệm, chỉ cần yêu thích làm việc trong ngành F&B và có thể làm Full Time",
+            "Ngoại hình ưa nhìn, giọng nói rõ ràng, dễ nghe",
+            "Có khả năng giao tiếp, quản lý thời gian và làm việc theo nhóm.",
+            "Thân thiện, nhiệt tình, có trách nhiệm, chăm chỉ"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Thu nhập: lương cơ bản + phụ cấp + thưởng doanh thu",
+            "Được tham gia đầy đủ các chế độ bảo hiểm theo luật quy định(Bảo Hiểm Xã Hội; Bảo Hiểm Y Tế; Bảo Hiểm Thất Nghiệp)",
+            "Gói bảo hiểm tai nạn 24/7",
+            "Cơ hội phát triển và thăng tiến lên Giám Sát Cửa Hàng, Cửa Hàng Trưởng cùng những vị trí cao hơn",
+            "Tham gia các chương trình đào tạo các nghiệp vụ chuyên môn, kỹ năng mềm của Jollibee",
+            "Tham gia các hoạt động nội bọ của cửa hàng: teambuilding,...",
+            "Thời gian làm việc: 6 ngày/ tuần"
+          ],
+          "truncated": true
+        }
+      ],
+      "logo": "/external-jobs/logos/jollibee.png",
+      "coverImage": "/external-jobs/covers/jollibee.jpg"
     },
     {
       "postedAt": "2026-08-01",
-      "salaryText": "Thu nhập đến 28.000 đồng/giờ",
+      "salaryText": "Thỏa thuận",
       "categoryJobCode": null,
       "categoryJoblevelCode": "nhan-vien",
       "categoryWorktypeCode": "fulltime",
       "salaryJobCode": null,
       "experienceJobCode": "khong-yeu-cau",
-      "title": "Nhân viên cửa hàng – Đà Nẵng",
+      "title": "[ĐÀ NẴNG] NHÂN VIÊN CỬA HÀNG",
       "employer": "Jollibee Vietnam",
       "provinceCodes": [
         "Đà Nẵng"
@@ -1017,29 +1835,66 @@
       "sourceUrl": "https://tuyendung.jollibee.com.vn/job/da-nang-nhan-vien-cua-hang-7000",
       "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
       "deadline": "2026-09-30",
-      "summary": "Cửa hàng tuyển các công việc phục vụ, thu ngân, bếp và giao hàng.",
-      "responsibilities": [
-        "Tiếp nhận đơn, phục vụ khách hoặc chuẩn bị món ăn theo bộ phận.",
-        "Giữ vệ sinh và hỗ trợ vận hành cửa hàng."
-      ],
-      "requirements": [
-        "Không yêu cầu bằng cấp hoặc kinh nghiệm.",
-        "Thân thiện, chăm chỉ và sẵn sàng làm việc theo ca."
-      ],
+      "summary": "Những vị trí đang tuyển tại Cửa Hàng Gà Rán Jollibee",
       "id": "external-97ac2000266d",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "workTypeText": "Toàn thời gian",
+      "facts": [
+        {
+          "label": "Phòng ban",
+          "value": "Khối cửa hàng"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Những vị trí đang tuyển tại Cửa Hàng Gà Rán Jollibee",
+            "Nhân viên Phục Vụ: Chào đón khách và phục vụ khách tại cửa hàng, đảm bảo vệ sinh nhà hàng sạch sẽ, thoáng mát.",
+            "Thu Ngân: Tư vấn món ăn, nhận order từ khách hàng, kiểm tra hóa đơn và thanh toán tiền cho khách, xử lý các vấn đề phát sinh tại quầy.",
+            "Nhân viên Bếp: Sơ chế và chế biến các món ăn theo tiêu chuẩn cửa hàng, vệ sinh công cụ dụng cụ, giữ sạch sẽ khu vực bếp.",
+            "Nhân viên Giao Hàng: Nhận đơn hàng và giao hàng đến tận nơi cho Khách. Hỗ trợ cửa hàng khi không đi giao hàng"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi dành cho bạn",
+          "items": [
+            "Thu nhập đến 28k/giờ",
+            "Được tham gia đầy đủ các chế độ bảo hiểm theo quy định của Luật",
+            "Được x4 lương khi làm OT các ngày Lễ, Tết",
+            "Được hỗ trợ đăng ký ca làm việc theo tuần, linh hoạt với lịch học (có ca làm cho sinh viên)",
+            "Được xét tăng bậc lương & khen thưởng theo thời gian làm việc",
+            "Tham gia các khóa đào tạo phát triển chuyên môn và kỹ năng mềm",
+            "Cơ hội thăng tiến lên vị trí Tổ Trưởng, Giám Sát Cửa Hàng và những vị trí cao hơn",
+            "Thời gian làm việc: Đăng kí ca làm xoay ca từ 4 đến 8 tiếng/ngày từ 8h30 đến 22h30(thời gian làm việc trên không áp dụng tất cả các cửa hàng, bạn hãy trao đổi kĩ hơn trong buổi phỏng vấn nhé)"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Không yêu cầu bằng cấp, kinh nghiệm",
+            "Nam/nữ, từ đủ 16 tuổi trở lên (một số tỉnh thành yêu cầu từ đủ 18 tuổi trở lên)",
+            "Chịu khó, thân thiện, yêu thích công việc phục vụ Khách Hàng"
+          ],
+          "truncated": false
+        }
+      ],
+      "logo": "/external-jobs/logos/jollibee.png",
+      "coverImage": "/external-jobs/covers/jollibee.jpg"
     },
     {
       "postedAt": "2026-08-22",
-      "salaryText": "Đến 28.000 đồng/giờ và thưởng doanh số",
+      "salaryText": "Thỏa thuận",
       "categoryJobCode": null,
       "categoryJoblevelCode": "nhan-vien",
       "categoryWorktypeCode": null,
       "salaryJobCode": null,
       "experienceJobCode": null,
-      "title": "Nhân viên cửa hàng Jollibee GO! Bến Tre",
+      "title": "[Bến Tre] Nhân viên cửa hàng mới Jollibee GO! Bến Tre",
       "employer": "Jollibee Vietnam",
       "provinceCodes": [
         "Vĩnh Long"
@@ -1048,28 +1903,68 @@
       "sourceUrl": "https://tuyendung.jollibee.com.vn/job/ben-tre-nhan-vien-cua-hang-moi-jollibee-go-ben-tre-15798",
       "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
       "deadline": "2026-11-30",
-      "summary": "Tin tuyển nhân viên cửa hàng tại GO! Bến Tre, nay thuộc Vĩnh Long.",
-      "responsibilities": [
-        "Phục vụ, thu ngân, phụ bếp hoặc giao hàng theo vị trí được bố trí."
-      ],
-      "requirements": [
-        "Có thể làm cuối tuần, lễ, Tết.",
-        "Ưu tiên gắn bó lâu dài; đăng ký ca 4–8 giờ mỗi ngày."
-      ],
+      "summary": "Nhận order từ khách hàng & tư vấn món ăn;",
       "id": "external-1f02d32dd4f2",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "workTypeText": "Bán thời gian",
+      "facts": [
+        {
+          "label": "Phòng ban",
+          "value": "Khối cửa hàng"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Thu ngân:",
+            "Nhận order từ khách hàng & tư vấn món ăn;",
+            "Thực hiện công tác thu ngân: check bill, in bill, thanh toán tiền cho khách;",
+            "Chuyển thông tin món vào bếp Xử lý các vấn đề phát sinh tại quầy.",
+            "Phục vụ:",
+            "Chào đón khách đến với nhà hàng;",
+            "Mang món ăn, đồ uống lên bàn cho khách khi được chuẩn bị xong;",
+            "Hỗ trợ dọn dẹp nhà hàng sạch sẽ, thoáng mát;"
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu",
+          "items": [
+            "Độ tuổi: Nam Nữ từ đủ 16t - 40t (ưu tiên gắn bó lâu dài, không tuyển thời vụ);",
+            "Sẵn sàng làm việc các ngày cuối tuần, Lễ, Tết;",
+            "Ngoại hình ưa nhìn, sức khỏe tốt, nhanh nhẹn, không có hình xăm, yêu thích công việc phục vụ khách hàng."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền Lợi",
+          "items": [
+            "Tham gia BHXH theo luật;",
+            "Được đào tạo các kỹ năng nghiệp vụ miễn phí;",
+            "Làm việc trong môi trường năng động, giúp nhân viên phát triển kỹ năng giao tiếp, giải quyết vấn đề và quản lý công việc;",
+            "Cơ hội phát triển và thăng tiến lên vị trí Store Manager rõ ràng.",
+            "Thời gian làm việc: Được đăng kí ca 4-8 tiếng/ngày, Xoay ca (sáng - chiều) linh động do Quản lý sắp xếp mỗi tuần.",
+            "Thu nhập: Lương lên đến 28,000 đồng/giờ + Thưởng doanh số + Tăng lương sau 3 tháng khi làm tốt (làm việc lễ, Tết được nhân hệ số theo Luật);",
+            "Địa điểm làm việc: Tầng trệt Trung tâm thương mại GO! Bến Tre, Võ Nguyên Giáp QL60, Khu phố 1, Sơn Đông, Vĩnh Long (mới)"
+          ],
+          "truncated": true
+        }
+      ],
+      "logo": "/external-jobs/logos/jollibee.png",
+      "coverImage": "/external-jobs/covers/jollibee.jpg"
     },
     {
       "postedAt": "2026-08-20",
-      "salaryText": "Đến 28.000 đồng/giờ và thưởng doanh số",
+      "salaryText": "Thỏa thuận",
       "categoryJobCode": null,
       "categoryJoblevelCode": "nhan-vien",
       "categoryWorktypeCode": null,
       "salaryJobCode": null,
       "experienceJobCode": null,
-      "title": "Nhân viên cửa hàng Jollibee Châu Đốc",
+      "title": "[An Giang] Nhân viên cửa hàng Jollibee Châu Đốc",
       "employer": "Jollibee Vietnam",
       "provinceCodes": [
         "An Giang"
@@ -1078,28 +1973,70 @@
       "sourceUrl": "https://tuyendung.jollibee.com.vn/job/an-giang-nhan-vien-cua-hang-jollibee-chau-doc-15772",
       "sourceName": "Jollibee Vietnam – Tuyển dụng chính thức",
       "deadline": "2026-12-31",
-      "summary": "Nhân viên phục vụ, thu ngân, phụ bếp hoặc giao hàng tại Châu Đốc.",
-      "responsibilities": [
-        "Hỗ trợ khách hàng, chuẩn bị món hoặc giao đơn theo công việc được giao."
-      ],
-      "requirements": [
-        "Sẵn sàng làm cuối tuần, lễ, Tết; ưu tiên gắn bó lâu dài.",
-        "Vị trí giao hàng cần bằng lái và thông thạo đường."
-      ],
+      "summary": "Nhận order từ khách hàng & tư vấn món ăn;",
       "id": "external-f5e83859927c",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "workTypeText": "Bán thời gian",
+      "facts": [
+        {
+          "label": "Phòng ban",
+          "value": "Khối cửa hàng"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Thu ngân:",
+            "Nhận order từ khách hàng & tư vấn món ăn;",
+            "Thực hiện công tác thu ngân: check bill, in bill, thanh toán tiền cho khách;",
+            "Chuyển thông tin món vào bếp Xử lý các vấn đề phát sinh tại quầy.",
+            "Phục vụ:",
+            "Chào đón khách đến với nhà hàng;",
+            "Mang món ăn, đồ uống lên bàn cho khách khi được chuẩn bị xong;",
+            "Hỗ trợ dọn dẹp nhà hàng sạch sẽ, thoáng mát;"
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu",
+          "items": [
+            "Độ tuổi: Nam Nữ từ đủ 17t - 30t (ưu tiên gắn bó lâu dài, không tuyển thời vụ);",
+            "Sẵn sàng làm việc các ngày cuối tuần, Lễ, Tết;",
+            "Ngoại hình ưa nhìn, sức khỏe tốt, nhanh nhẹn, không có hình xăm, yêu thích công việc phục vụ khách hàng;",
+            "Giao hàng yêu cầu có bằng lái xe và rành đường."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền Lợi",
+          "items": [
+            "Chế độ lương thưởng hấp dẫn;",
+            "Có chế độ BHXH;",
+            "Được đào tạo các kỹ năng nghiệp vụ miễn phí;",
+            "Làm việc trong môi trường năng động, giúp nhân viên phát triển kỹ năng giao tiếp, giải quyết vấn đề và quản lý công việc;",
+            "Cơ hội phát triển và thăng tiến lên vị trí Store Manager rõ ràng.",
+            "Thời gian làm việc: Được đăng kí ca 4-8 tiếng/ngày, Xoay ca (sáng - chiều) linh động do Quản lý sắp xếp mỗi tuần.",
+            "Thu nhập: Lương lên đến 28,000 đồng/giờ + Thưởng doanh số + Tăng lương sau 3 tháng khi làm tốt (làm việc lễ, Tết được nhân hệ số theo Luật);",
+            "Địa điểm làm việc: Số 63 đường Sương Nguyệt Anh, Phường Châu Đốc, An Giang"
+          ],
+          "truncated": true
+        }
+      ],
+      "logo": "/external-jobs/logos/jollibee.png",
+      "coverImage": "/external-jobs/covers/jollibee.jpg"
     },
     {
       "postedAt": null,
-      "salaryText": "Thỏa thuận",
+      "salaryText": "Lương thỏa thuận",
       "categoryJobCode": "kinh-te",
       "categoryJoblevelCode": "chuyen-vien",
       "categoryWorktypeCode": "fulltime",
       "salaryJobCode": "thoa-thuan",
       "experienceJobCode": null,
-      "title": "Chuyên viên Kinh doanh Dự án – Cần Thơ",
+      "title": "Chuyên viên Kinh doanh Dự án (Cần Thơ)",
       "employer": "FPT Telecom International",
       "provinceCodes": [
         "Cần Thơ"
@@ -1108,23 +2045,71 @@
       "sourceUrl": "https://fticareer.vn/chuyen-vien-kinh-doanh-du-an-can-tho-302",
       "sourceName": "FPT Telecom International – Cổng tuyển dụng",
       "deadline": "2026-09-30",
-      "summary": "Phát triển khách hàng doanh nghiệp sử dụng dịch vụ viễn thông và công nghệ.",
-      "responsibilities": [
-        "Tìm kiếm khách hàng B2B, tư vấn giải pháp và đàm phán hợp đồng.",
-        "Phối hợp triển khai dịch vụ và chăm sóc khách sau bán."
-      ],
-      "requirements": [
-        "Cao đẳng/đại học ngành phù hợp.",
-        "Có kinh nghiệm bán giải pháp CNTT, viễn thông cho doanh nghiệp hoặc cơ quan nhà nước."
-      ],
+      "summary": "Sử dụng các kênh như internet, các mối quan hệ cá nhân để tìm kiếm, phát triển và tiếp cận khách hàng tiềm năng là các doanh nghiệp lớn trong và ngoài nước (B2B).",
       "id": "external-dddb815461f3",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employer"
+      "sourceType": "employer",
+      "quantity": "2",
+      "workTypeText": "Toàn thời gian",
+      "facts": [],
+      "sections": [
+        {
+          "title": "Chi tiết công việc",
+          "items": [
+            "Sử dụng các kênh như internet, các mối quan hệ cá nhân để tìm kiếm, phát triển và tiếp cận khách hàng tiềm năng là các doanh nghiệp lớn trong và ngoài nước (B2B).",
+            "Nghiên cứu thị trường, thu thập và xây dựng dữ liệu khách hàng tiềm năng.",
+            "Tư vấn, giải thích cho khách hàng về các dịch vụ Viễn thông mà công ty đang cung cấp như:",
+            "Dịch vụ thuê máy chủ chuyên dụng, share hosting, tủ Rack.",
+            "Dịch vụ đám mây: public cloud (bộ nhớ S3, BaaS, DRaaS, Cloud Camera, CDN), private cloud, hydrid cloud, các cloud solution từ đối tác (VMWare, Openstack, AWS, Alibaba, Microsoft)",
+            "Các dịch vụ khác như mạng, giải pháp bảo mật, an ninh mạng,…",
+            "Đàm phán, thương lượng, thuyết phục khách hàng sử dụng dịch vụ và ký kết hợp đồng.",
+            "Phối hợp với các phòng ban để theo dõi và hỗ trợ quá trình triển khai dịch vụ cho khách hàng sau khi ký kết hợp đồng."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Trình độ học vấn: tốt nghiệp các trường Cao đẳng/ Đại học chuyên ngành Kinh tế, Tài chính, CNTT, Điện tử viễn thông và các chuyên ngành liên quan.",
+            "Có kinh nghiệm bán cho khối Enterprise, SME, BFSI và khối Chính Phủ.",
+            "Có kinh nghiệm bán giải pháp công nghệ thông tin (phần mềm/ phần cứng), viễn thông, điện toán đám mây, lữu trữ dữ liệu.",
+            "Có kinh nghiệm trong việc chủ động phát triển mối quan hệ với khách hàng trong một tài khoản đồng thời mở rộng hiểu biết của họ về hoạt động kinh doanh của khách hàng.",
+            "Có khả năng thuyết trình, đàm phán, thương lượng",
+            "Có khả năng chủ động tìm kiếm khách hàng bằng nhiều hình thức khác nhau.",
+            "Kinh nghiệm trong việc xác định, phát triển, đàm phán và chốt các giao dịch công nghệ.",
+            "Kinh nghiệm định vị và bán công nghệ cho khách hàng mới và phân khúc thị trường mới."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Thu nhập:",
+            "Lương tháng bao gồm lương cứng (thỏa thuận theo năng lực và kinh nghiệm làm việc) và lương hoa hồng (không giới hạn)",
+            "Các khoản thu nhập khác: Lương tháng 13, thưởng hiệu quả kinh doanh, thưởng tết,...",
+            "Các chương trình khen thưởng thi đua hàng tháng, quý, năm dành cho nhân viên kinh doanh xuất sắc. Khen thưởng dành cho nhân viên ký được hợp đồng giá trị cao.",
+            "Xét tăng lương theo năng lực và kết quả công việc định kỳ 1 lần/năm. Hoặc tăng lương đột xuất theo hiệu quả công việc",
+            "Chế độ đào tạo và phát triển:",
+            "Hỗ trợ chi phí tham gia các khóa học, thi chứng chỉ CNTT Quốc tế (up to 100%)",
+            "Chính sách phát triển, lộ trình thăng tiến phù hợp"
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Nơi làm việc",
+          "items": [
+            "1 Phan Văn Trị, Phường Ninh Kiều, Thành phố Cần Thơ"
+          ],
+          "truncated": false
+        }
+      ],
+      "logo": "/external-jobs/logos/fpt-telecom.png",
+      "coverImage": "/external-jobs/covers/fpt-telecom.jpg"
     },
     {
       "postedAt": "2026-09-04",
-      "salaryText": "20–50 triệu đồng/tháng theo bản tin",
+      "salaryText": "20-50 triệu/tháng",
       "categoryJobCode": "kinh-te",
       "categoryJoblevelCode": "nhan-vien",
       "categoryWorktypeCode": "fulltime",
@@ -1140,27 +2125,59 @@
       "sourceUrl": "https://vieclamcantho.vn/thongtinTD.aspx?idTuyendung=MgAAADgAAAA0AAAAOQAAADMAAAA%3D",
       "sourceName": "Trung tâm Dịch vụ việc làm thành phố Cần Thơ",
       "deadline": "2026-10-31",
-      "summary": "Tuyển kế toán thống kê làm việc tại dự án ở Cà Mau hoặc An Giang.",
-      "responsibilities": [],
-      "requirements": [
-        "Đại học ngành kế toán hoặc liên quan, sức khỏe phù hợp.",
-        "Ưu tiên có kinh nghiệm; sinh viên mới tốt nghiệp được đào tạo tại dự án."
-      ],
+      "summary": "Tốt nghiệp đại học trở lên các chuyên ngành liên quan.",
       "id": "external-ffde361b6c94",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
-      "sourceType": "employment_center"
+      "sourceType": "employment_center",
+      "workTypeText": "Toàn thời gian",
+      "facts": [
+        {
+          "label": "Chức danh",
+          "value": "Nhân viên"
+        },
+        {
+          "label": "Trình độ",
+          "value": "Đại học"
+        },
+        {
+          "label": "Ngành nghề đào tạo",
+          "value": "Kế toán xây dựng; Kế toán"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Tốt nghiệp đại học trở lên các chuyên ngành liên quan.",
+            "Lý lịch bản thân và gia đình rõ ràng.",
+            "Tư tưởng chính trị, phẩm chất đạo đức tốt.",
+            "Sức khỏe tốt.",
+            "ƯU tiên ứng viên có kinh nghiệm.",
+            "SInh viên mới tốt nghiệp được đào tạo tại dự án.",
+            "Nơi làm việc An Giang, Cà mau"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Đóng BHXH, BHYT, BHTN"
+          ],
+          "truncated": false
+        }
+      ]
     },
     {
       "postedAt": "2026-08-20",
-      "salaryText": "Lương cơ bản 8–18 triệu đồng/tháng và phụ cấp, thưởng theo tin gốc",
+      "salaryText": "Lương cơ bản từ 8-18 triệu/tháng",
       "categoryJobCode": "bat-dong-san",
       "categoryJoblevelCode": "chuyen-vien",
       "categoryWorktypeCode": null,
       "salaryJobCode": null,
       "experienceJobCode": "khong-yeu-cau",
       "id": "external-f3202a58d8ce",
-      "title": "Chuyên viên kinh doanh – Quảng Trị",
+      "title": "QUẢNG TRỊ - CHUYÊN VIÊN KINH DOANH",
       "employer": "Công ty Cổ phần Bất động sản Nam Miền Trung",
       "provinceCodes": [
         "Quảng Trị"
@@ -1169,17 +2186,146 @@
       "sourceUrl": "https://bdsnammientrung.com/tuyen-dung/tin-tuc-tuyen-dung/quang-tri-nhan-vien-kinh-doanh/",
       "sourceName": "Bất động sản Nam Miền Trung – Tuyển dụng chính thức",
       "deadline": "2026-09-30",
-      "checkedAt": "2026-09-29",
+      "checkedAt": "2026-09-30",
       "sourceStatus": "open",
       "sourceType": "employer",
-      "summary": "Nam Miền Trung tuyển 10 chuyên viên kinh doanh tại văn phòng Regal Legend Đồng Hới.",
-      "responsibilities": [
-        "Tư vấn sản phẩm bất động sản, chăm sóc khách hàng và cập nhật nhu cầu thị trường.",
-        "Tham gia hoạt động marketing hỗ trợ kinh doanh."
+      "summary": "Tiếp nhận, tư vấn và hỗ trợ khách hàng về các sản phẩm BĐS của công ty đang phân phối",
+      "quantity": "10",
+      "facts": [
+        {
+          "label": "Vị trí tuyển dụng",
+          "value": "10 Chuyên viên Kinh doanh"
+        }
       ],
-      "requirements": [
-        "Không yêu cầu kinh nghiệm; có máy tính cá nhân và kỹ năng giao tiếp."
-      ]
+      "sections": [
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Tiếp nhận, tư vấn và hỗ trợ khách hàng về các sản phẩm BĐS của công ty đang phân phối",
+            "Chủ động chăm sóc khách hàng hiện tại & khách hàng tiềm năng qua các kênh online/offline.",
+            "Duy trì mối quan hệ với khách hàng, hỗ trợ giải đáp thắc mắc, nâng cao trải nghiệm dịch vụ.",
+            "Cập nhật thông tin thị trường, nhu cầu khách hàng để nâng cao chất lượng chăm sóc.",
+            "Tham gia các hoạt động marketing nhằm gia tăng tệp khách hàng và độ nhận diện thương hiệu.",
+            "Nâng cao kỹ năng giao tiếp, xử lý tình huống và hình ảnh chuyên nghiệp khi làm việc với khách hàng.",
+            "Địa điểm làm việc:",
+            "VP Quảng Trị: VP bán hàng Đất Xanh Miền Trung – Regal Legend Đồng Hới – Quảng Trị"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Lương cơ bản từ 8-18 triệu/tháng (Không phụ thuộc KPI) +730 nghìn phụ cấp cơm ca. Được xét tăng lương cơ bản hàng quý.",
+            "Hỗ trợ chi phí Marketing lên đến 100% chi phí",
+            "Thưởng nóng lên đến 100Tr",
+            "Phụ cấp thâm niên, hỗ trợ xăng xe cho nhân viên có ô tô.",
+            "Nhân viên và người thân được mua nhà ưu đãi theo chính sách công ty.",
+            "Thưởng tết âm lịch (Lương tháng 13): Dao động từ 01 đến 06 tháng tiền lương. Thưởng thi đua cuối năm cực hấp dẫn từ Công ty-Tổng công ty – Tập đoàn. Thưởng các ngày lễ trong năm cho toàn bộ nhân viên, con em của nhân viên.",
+            "Được tham gia các khóa đào tạo – huấn luyện phát triển năng lực và được tiếp cận bộ tài liệu đào tạo chuẩn của Tập đoàn.",
+            "Được chăm sóc sức khỏe từ A-Z với các chính sách như: Bảo hiểm tai nạn 24/24, Bảo hiểm quốc tế, khám sức khỏe định kỳ…., du lịch, nghỉ dưỡng 4-5 sao trong và ngoài ngước, team building, sinh nhật, lễ tết, được hỗ trợ học phí cho con em lãnh đạo."
+          ],
+          "truncated": true
+        },
+        {
+          "title": "Yêu cầu",
+          "items": [
+            "Không yêu cầu kinh nghiệm, chỉ cần đam mê, nhiệt huyết, muốn bứt phá và ham học hỏi;",
+            "Có kinh nghiệm về sales trong các ngành bán hàng cao cấp (ô tô, các tài sản có giá trị lớn, VLXD dự án, bảo hiểm, tư vấn tài chính, hàng không,…) là 1 ưu thế",
+            "Giao tiếp: trình bày rõ ràng để người nghe hiểu được, biết lắng nghe và phản biện đúng lúc.",
+            "Phong cách: Năng động, trẻ trung, thanh lịch, tự tin",
+            "Yêu cầu có Laptop cá nhân để làm việc."
+          ],
+          "truncated": false
+        }
+      ],
+      "logo": "/external-jobs/logos/dat-xanh-mien-trung.png",
+      "jobImage": {
+        "src": "/external-jobs/jobs/external-f3202a58d8ce.jpg",
+        "alt": "Ảnh tin tuyển dụng Chuyên viên kinh doanh Quảng Trị do Đất Xanh Miền Trung đăng"
+      }
+    },
+    {
+      "postedAt": null,
+      "salaryText": "Theo đơn hàng",
+      "categoryJobCode": "kinh-te",
+      "categoryJoblevelCode": null,
+      "categoryWorktypeCode": "part-time",
+      "salaryJobCode": null,
+      "experienceJobCode": "khong-yeu-cau",
+      "title": "Cộng Tác Viên Bán Hàng Siêu Thị TGDĐ/ĐMX/TOPZONE",
+      "employer": "Công ty Cổ phần Thế Giới Di Động",
+      "provinceCodes": [
+        "Lạng Sơn",
+        "Phú Thọ"
+      ],
+      "sourceLocation": "Số 29 Trần Đăng Ninh, phường Tam Thanh và 69 Ngô Quyền, phường Đông Kinh, Lạng Sơn; số 1606A Hùng Vương, phường Việt Trì, Phú Thọ",
+      "sourceUrl": "https://vieclam.thegioididong.com/tuyen-dung/cong-tac-vien-ban-hang-sieu-thi-tgdd-dmx-topzone-563",
+      "sourceName": "Việc làm Thế Giới Di Động – Tuyển dụng chính thức",
+      "deadline": "2030-12-31",
+      "checkedAt": "2026-09-30",
+      "sourceStatus": "open",
+      "summary": "Cơ hội lên NV chính thức",
+      "id": "external-39313e8f2f99",
+      "quantity": "13 người",
+      "workTypeText": "Cộng tác viên/Thời vụ/ Bán thời gian",
+      "facts": [
+        {
+          "label": "Bằng cấp",
+          "value": "THPT trở lên"
+        },
+        {
+          "label": "Kinh nghiệm",
+          "value": "Không yêu cầu kinh nghiệm"
+        },
+        {
+          "label": "Cấp bậc",
+          "value": "Cộng tác viên"
+        }
+      ],
+      "sections": [
+        {
+          "title": "Phúc lợi",
+          "items": [
+            "Cơ hội lên NV chính thức",
+            "Đào tạo phát triển",
+            "Phúc lợi toàn diện: BHXH, BHYT, BHTN, chế độ chăm sóc theo quy định",
+            "Thời gian làm việc linh hoạt"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Mô tả công việc",
+          "items": [
+            "Chào đón - hỗ trợ khách hàng khi đến tham quan và mua sắm tại siêu thị.",
+            "Giới thiệu, tư vấn cho khách hàng về tính năng, cách sử dụng sản phẩm, thông tin giá cả, khuyến mại và bảo hành, dịch vụ sau bán hàng và các thông tin khác về sản phẩm phù hợp với nhu cầu của khách hàng.",
+            "Chịu trách nhiệm trưng bày, trang trí và vệ sinh sản phẩm tại siêu thị.",
+            "Thực hiện các công việc khác theo yêu cầu của quản lý.",
+            "Ca làm việc và thu nhập:",
+            "Ca làm việc: Ca xoay linh hoạt",
+            "Thu nhập theo năng lực"
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Yêu cầu công việc",
+          "items": [
+            "Nam/Nữ. Tốt nghiệp THPT trở lên.",
+            "Ưu tiên ứng viên là Cựu Nhân viên tại khối Siêu Thị TGDĐ/ĐMX/TOPZONE hoặc là sinh viên (cần có giấy xác nhận sinh viên hoặc Thẻ sinh viên) hoặc ứng viên có kinh nghiệm bán hàng."
+          ],
+          "truncated": false
+        },
+        {
+          "title": "Quyền lợi",
+          "items": [
+            "Trở thành cộng tác viên tại tập đoàn Bán lẻ số 1 Việt Nam.",
+            "Được đào tạo bài bản về kỹ năng bán hàng, kiến thức sản phẩm từ cấp Quản lý trực tiếp.",
+            "Cơ hội trở thành nhân viên chính thức."
+          ],
+          "truncated": false
+        }
+      ],
+      "logo": "/external-jobs/logos/the-gioi-di-dong.png",
+      "coverImage": "/external-jobs/covers/the-gioi-di-dong.jpg"
     }
   ]
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import ExternalJobLogo from './ExternalJobLogo';
 import './ExternalJobCard.css';
 
 export const externalJobDate = value => {
@@ -13,12 +14,7 @@ export default function ExternalJobCard({ data }) {
         ? `${provinces.slice(0, 3).join(', ')} và ${provinces.length - 3} tỉnh/thành khác`
         : provinces.join(', ');
     return <article className="external-job-card">
-        <span className="external-job-card__icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <rect x="3" y="7" width="18" height="14" rx="2" />
-                <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12a24 24 0 0 0 18 0M10 12v3h4v-3" />
-            </svg>
-        </span>
+        <ExternalJobLogo job={data} />
         <div className="external-job-card__body">
             <span className="external-job-card__badge">Tin từ nguồn bên ngoài</span>
             <h3>{data.title}</h3>
@@ -26,6 +22,8 @@ export default function ExternalJobCard({ data }) {
             <div className="external-job-card__facts">
                 <span>{location || data.sourceLocation || 'Địa điểm chưa công bố'}</span>
                 <span>{data.salaryText || 'Lương: nguồn chưa công bố'}</span>
+                {data.workTypeText && <span>{data.workTypeText}</span>}
+                {data.quantity && <span>Số lượng: {data.quantity}</span>}
             </div>
             <p className="external-job-card__source">Nguồn: {data.sourceName} · Kiểm tra {externalJobDate(data.checkedAt)}</p>
         </div>

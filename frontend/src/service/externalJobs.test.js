@@ -1,5 +1,5 @@
 import catalog from '../data/verifiedJobs.json';
-import { filterExternalJobs, isExternalJobExpired, vietnamDate } from './externalJobs';
+import { externalAssetUrl, filterExternalJobs, isExternalJobExpired, vietnamDate } from './externalJobs';
 
 const now = new Date('2026-09-29T12:00:00Z');
 const vacancy = {id:'external-test', title:'Kỹ sư phần mềm', employer:'Công ty A',
@@ -26,6 +26,29 @@ test('search ignores Vietnamese accents and intersects all selected filters', ()
     expect(filterExternalJobs({search:'ky su',categoryJoblevelCode:['truong-phong','nhan-vien']},now,[vacancy])).toEqual([vacancy]);
     expect(filterExternalJobs({categoryJobCode:'kinh-te'},now,[vacancy])).toEqual([]);
     expect(filterExternalJobs({salaryJobCode:['thoa-thuan']},now,[vacancy])).toEqual([]);
+});
+
+test('vacancies removed from or closed at their source never appear in searches', () => {
+    expect(filterExternalJobs({}, now, [{...vacancy, deadline:'2026-10-30', sourceStatus:'removed'}])).toEqual([]);
+    expect(filterExternalJobs({}, now, [{...vacancy, deadline:'2026-10-30', sourceStatus:'closed'}])).toEqual([]);
+    expect(filterExternalJobs({}, now, [{...vacancy, deadline:'2026-10-30', sourceStatus:'open'}])).toHaveLength(1);
+    expect(catalog.jobs.filter(job => job.sourceStatus === 'removed').every(job => !filterExternalJobs({}, now).includes(job))).toBe(true);
+});
+
+test('source images are served only from the local external-jobs folder', () => {
+    expect(externalAssetUrl('/external-jobs/logos/vnpt.png')).toBe('/external-jobs/logos/vnpt.png');
+    for (const path of ['https://cdn.example.test/logo.png', '/external-jobs/../index.html', 'external-jobs/a.png', null]) {
+        expect(externalAssetUrl(path)).toBeNull();
+    }
+});
+
+test('every listed vacancy carries source sections and points at existing local images', () => {
+    const listed = catalog.jobs.filter(job => ['open', 'deadline-not-published'].includes(job.sourceStatus));
+    expect(listed.length).toBeGreaterThan(0);
+    for (const job of listed) {
+        expect(job.sections.length).toBeGreaterThan(0);
+        for (const path of [job.logo, job.coverImage, job.jobImage?.src].filter(Boolean)) expect(externalAssetUrl(path)).not.toBeNull();
+    }
 });
 
 test('expired jobs leave active searches and each current province had a sourced match when checked', () => {

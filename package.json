@@ -9,6 +9,7 @@
     "dev:check": "node scripts/check-live-data.mjs",
     "catalog:migrate": "node scripts/migrate-recruitment-catalog.mjs",
     "jobs:verify": "node scripts/check-verified-jobs.mjs",
+    "jobs:sync": "node scripts/sync-external-jobs.mjs",
     "seed:revenue-data": "npm --prefix backend run seed:revenue-data --",
     "seed:demo-data": "node backend/scripts/seed-project-demo.cjs",
     "test:demo-data": "node backend/scripts/test-demo-data.cjs",

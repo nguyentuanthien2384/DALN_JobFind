@@ -11,12 +11,18 @@ const fields = {
   experienceJobCode: ['1-nam', '2-nam', '3nam', 'khong-yeu-cau', 'tren-5-nam'],
   salaryJobCode: ['10-15tr', '15-20tr', '20-30tr', '3-5tr', '5-10tr', 'thoa-thuan', 'tren-30tr'],
 };
+const STATUSES = ['open', 'deadline-not-published', 'closed', 'removed'];
+const publicDir = fileURLToPath(new URL('../frontend/public/', import.meta.url));
+const assetExists = src => typeof src === 'string' && /^\/external-jobs\/[a-z0-9/_.-]+$/.test(src)
+  && fs.existsSync(path.join(publicDir, src));
+const validText = value => typeof value === 'string' && value.trim().length > 0;
+export const isListed = job => job.sourceStatus === 'open' || job.sourceStatus === 'deadline-not-published';
 const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
   && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 
 export function validateVerifiedJobs(catalog) {
   const errors = [];
-  const requiredText = ['title', 'employer', 'sourceLocation', 'sourceUrl', 'sourceName', 'summary'];
+  const requiredText = ['title', 'employer', 'sourceLocation', 'sourceUrl', 'sourceName'];
   const provinceCodes = recruitmentCatalog.PROVINCES.map(row => row.code);
   const ids = new Set();
   const urls = new Set();
@@ -41,12 +47,28 @@ export function validateVerifiedJobs(catalog) {
       || new Set(job.provinceCodes).size !== job.provinceCodes.length
       || job.provinceCodes.some(code => !provinceCodes.includes(code))) fail('invalid provinceCodes');
     if (!validDate(job.checkedAt) || job.checkedAt > catalog.checkedAt) fail('invalid checkedAt');
-    if (job.deadline !== null && (!validDate(job.deadline) || job.deadline < job.checkedAt)) fail('deadline was already expired when checked');
+    if (job.deadline !== null && !validDate(job.deadline)) fail('invalid deadline');
+    if (!STATUSES.includes(job.sourceStatus)) fail('invalid sourceStatus');
+    else if (job.sourceStatus === 'open' && !(job.deadline && job.deadline >= job.checkedAt)) fail('open vacancy needs a deadline on or after checkedAt');
+    else if (job.sourceStatus === 'deadline-not-published' && job.deadline !== null) fail('sourceStatus does not match deadline');
+    else if (job.sourceStatus === 'closed' && !(job.deadline && job.deadline < job.checkedAt)) fail('closed vacancy needs a deadline before checkedAt');
     if (job.postedAt !== null && (!validDate(job.postedAt) || job.postedAt > job.checkedAt)) fail('invalid postedAt');
-    if (job.sourceStatus !== (job.deadline ? 'open' : 'deadline-not-published')) fail('sourceStatus does not match deadline');
-    if (job.salaryText !== null && (typeof job.salaryText !== 'string' || !job.salaryText.trim())) fail('invalid salaryText');
-    for (const field of ['responsibilities', 'requirements']) {
-      if (!Array.isArray(job[field]) || job[field].some(item => typeof item !== 'string' || !item.trim())) fail(`invalid ${field}`);
+    if (job.salaryText !== null && !validText(job.salaryText)) fail('invalid salaryText');
+    for (const field of ['quantity', 'workTypeText', 'companyIntro', 'logoBackground']) {
+      if (job[field] != null && !validText(job[field])) fail(`invalid ${field}`);
+    }
+    if (job.logoBackground != null && !/^#[0-9a-f]{6}$/i.test(job.logoBackground)) fail('invalid logoBackground');
+    for (const field of ['logo', 'coverImage']) if (job[field] != null && !assetExists(job[field])) fail(`missing ${field} file`);
+    if (job.jobImage != null && (!assetExists(job.jobImage.src) || !validText(job.jobImage.alt))) fail('invalid jobImage');
+    if (!Array.isArray(job.facts ?? []) || (job.facts ?? []).some(entry => !validText(entry?.label) || !validText(entry?.value))) fail('invalid facts');
+    if ('responsibilities' in job || 'requirements' in job) fail('paraphrased fields are replaced by source sections');
+    if (isListed(job)) {
+      if (!validText(job.summary)) fail('missing summary');
+      if (!Array.isArray(job.sections) || !job.sections.length) fail('listed vacancy needs source sections');
+    }
+    for (const section of job.sections ?? []) {
+      if (!validText(section?.title) || !Array.isArray(section.items) || !section.items.length
+        || section.items.some(item => !validText(item)) || typeof section.truncated !== 'boolean') fail('invalid section');
     }
     for (const [field, codes] of Object.entries(fields)) if (job[field] !== null && !codes.includes(job[field])) fail(`invalid ${field}`);
   }
@@ -54,7 +76,7 @@ export function validateVerifiedJobs(catalog) {
 }
 
 export function coverageAt(catalog, date) {
-  const active = catalog.jobs.filter(job => !job.deadline || job.deadline >= date);
+  const active = catalog.jobs.filter(job => (!job.sourceStatus || isListed(job)) && (!job.deadline || job.deadline >= date));
   return Object.fromEntries(recruitmentCatalog.PROVINCES.map(province => [province.code, active.filter(job => job.provinceCodes.includes(province.code)).length]));
 }
 
