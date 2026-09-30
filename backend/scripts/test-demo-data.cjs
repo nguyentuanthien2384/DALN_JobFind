@@ -129,9 +129,12 @@ async function main() {
         const publicResponse = await context.request.get(api + '/api/search/jobs?limit=10&offset=0');
         const publicJobs = await publicResponse.json();
         assert.equal(publicJobs.errCode, 0);
-        assert.ok(publicJobs.data.some(job => job.name.includes('[Demo]')));
+        // `npm run demo:hide-jobs` keeps fictional vacancies out of public search; `demo:show-jobs` restores them.
+        const hidden = await fs.access(path.join(output, 'hidden-demo-posts.json')).then(() => true, () => false);
+        assert.equal(publicJobs.data.some(job => job.name.includes('[Demo]')), !hidden);
         assert.deepEqual(faults, []);
-        pass('Tìm kiếm công khai đã có tin demo; các màn đã mở không có lỗi JavaScript');
+        pass(hidden ? 'Tin demo đã được ẩn khỏi tìm kiếm công khai; các màn đã mở không có lỗi JavaScript'
+            : 'Tìm kiếm công khai đã có tin demo; các màn đã mở không có lỗi JavaScript');
         await fs.writeFile(path.join(output, 'acceptance.json'), JSON.stringify({ ok: true, checkedAt: new Date().toISOString(), checks }, null, 2));
     } finally {
         for (const context of contexts) {

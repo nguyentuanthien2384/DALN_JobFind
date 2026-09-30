@@ -1,7 +1,10 @@
 # Tin tuyển dụng có nguồn đối chiếu
 
-Danh mục gồm **31 thông báo tuyển dụng** (30 tin đang hiển thị, 1 tin nguồn đã gỡ), phủ
-**34 tỉnh/thành phố** tại ngày kiểm tra **30/09/2026**, lưu tại `frontend/src/data/verifiedJobs.json`.
+Danh mục gồm **120 thông báo tuyển dụng** (119 tin đang hiển thị, 1 tin nguồn đã gỡ) từ 15 trang
+tuyển dụng chính thức, phủ **34 tỉnh/thành phố** tại ngày kiểm tra **30/09/2026**. Dữ liệu tách hai file:
+`frontend/src/data/verifiedJobs.json` (chỉ mục cho thẻ tin, bộ lọc, tìm kiếm) và
+`frontend/src/data/verifiedJobDetails.json` (các mục trích từ tin gốc, chỉ tải khi mở trang chi tiết).
+Các script luôn đọc/ghi hai file qua `scripts/external-jobs/catalog-io.mjs`.
 Mỗi tin có doanh nghiệp, nơi làm việc được nguồn nêu rõ, liên kết bài gốc, ngày kiểm tra,
 hạn nộp, logo/ảnh lấy từ trang nguồn và phần trích ngắn nội dung tin gốc.
 Không suy rộng thông báo “toàn quốc” thành 34 tỉnh.
@@ -46,6 +49,38 @@ Quy tắc trích cho từng trang nằm ở `scripts/external-jobs/sites.mjs`; p
 
 Tùy chọn: `--dry-run` (chỉ báo cáo), `--only=<id,...>`, `--save-html=<thư mục>` (lưu trang đã tải để rà),
 `--cache=<thư mục>` (đọc lại trang đã lưu, không gọi mạng), `--download-images` (tải ảnh còn thiếu).
+
+## Tìm thêm tin thật
+
+`npm run jobs:discover` đọc trang danh sách chính thức của VNPT, Jollibee, Sun Group, Hanwha Life,
+Sapo, FPT Education, TokyoLife và Thế Giới Di Động, rồi thêm tin chưa có vào danh mục. Mỗi nguồn
+mặc định tối đa 12 tin (`--limit=`), có thể chọn nguồn bằng `--site=` và chạy thử bằng `--dry-run --verbose`.
+
+Một tin chỉ được thêm khi trang chi tiết của nó có:
+
+- hạn nộp cụ thể chưa qua (tin "tuyển liên tục" không có hạn bị bỏ qua);
+- nơi làm việc ánh xạ được sang 34 tỉnh/thành hiện tại, kể cả tên không dấu, tên tỉnh cũ và tên
+  thành phố như Nha Trang, Phú Quốc (`scripts/external-jobs/classify.mjs`); ghi "Toàn quốc" thì bỏ qua;
+- ít nhất một mục mô tả hoặc yêu cầu, không chỉ có phúc lợi.
+
+Mã lọc được gán thận trọng từ chính chữ của nguồn: ngành theo từ khóa tiêu đề, cấp bậc theo chức danh,
+hình thức theo ô "Toàn thời gian/Bán thời gian", mức lương chỉ khi khoảng lương trùng đúng một mức của
+Job Finder hoặc ghi "thỏa thuận", kinh nghiệm theo ô "Kinh nghiệm" hoặc câu "tối thiểu N năm".
+Trường hợp không rõ để `null`. Chuỗi cửa hàng đăng cùng một vị trí ở nhiều nơi chỉ lấy một tin cho mỗi
+tiêu đề và nhóm tỉnh. Tin FPT Education dùng tên và logo của đơn vị tuyển (Đại học FPT, FPT Schools,
+Swinburne, Gachon, FSB) lấy từ trang tin.
+
+## Tin demo nội bộ
+
+Bộ dữ liệu `npm run seed:demo-data` tạo công ty, ứng viên, hồ sơ và tin tuyển dụng **hư cấu** có nhãn
+"[Demo]" để trình diễn luồng nhà tuyển dụng/ứng viên trên máy local. Nhãn này không được gỡ vì nội dung
+không phải tin tuyển dụng thật. Để trang tìm việc chỉ hiện tin thật:
+
+- `npm run demo:hide-jobs` chuyển các tin "[Demo]" do bộ seed sở hữu từ PS1 sang PS4 (trạng thái "chặn"
+  của quản trị viên), lưu trạng thái cũ ở `.local/demo-data/hidden-demo-posts.json` và lập chỉ mục lại tìm kiếm;
+- `npm run demo:show-jobs` khôi phục đúng trạng thái đã lưu. Quản trị viên cũng có thể mở lại từng tin.
+
+Tài khoản demo, hồ sơ ứng tuyển và tin nhắn không bị thay đổi.
 
 ## Hình ảnh
 

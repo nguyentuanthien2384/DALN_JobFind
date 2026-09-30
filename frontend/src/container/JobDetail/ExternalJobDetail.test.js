@@ -1,10 +1,10 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import ExternalJobDetail from './ExternalJobDetail';
-import { getExternalJob, isExternalJobExpired } from '../../service/externalJobs';
+import { getExternalJob, isExternalJobExpired, loadExternalJobDetails } from '../../service/externalJobs';
 
 jest.mock('../../service/externalJobs', () => ({ ...jest.requireActual('../../service/externalJobs'),
-    getExternalJob: jest.fn(), isExternalJobExpired: jest.fn() }));
+    getExternalJob: jest.fn(), isExternalJobExpired: jest.fn(), loadExternalJobDetails: jest.fn() }));
 jest.mock('react-router-dom', () => {
     const React = require('react');
     return { useParams: () => ({ id: 'external-source-123' }),
@@ -20,7 +20,28 @@ const job = {
         { title: 'Yêu cầu công việc', items: ['Có chuyên môn kỹ thuật.'], truncated: false }],
 };
 
-beforeEach(() => { jest.clearAllMocks(); getExternalJob.mockReturnValue(job); isExternalJobExpired.mockReturnValue(false); });
+beforeEach(() => { jest.clearAllMocks(); getExternalJob.mockReturnValue(job); isExternalJobExpired.mockReturnValue(false); loadExternalJobDetails.mockResolvedValue({}); });
+
+test('loads the source excerpt separately from the search index', async () => {
+    const { sections, ...listing } = job;
+    getExternalJob.mockReturnValue(listing);
+    loadExternalJobDetails.mockResolvedValue({ sections: [{ title: 'Quyền lợi', items: ['Bảo hiểm đầy đủ'], truncated: false }] });
+    render(<ExternalJobDetail />);
+    expect(screen.getByText('Đang tải nội dung tin gốc…')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Quyền lợi' })).toBeInTheDocument();
+    expect(loadExternalJobDetails).toHaveBeenCalledWith(job.id);
+    expect(screen.queryByText('Đang tải nội dung tin gốc…')).not.toBeInTheDocument();
+});
+
+test('falls back to the summary when the excerpt file cannot be loaded', async () => {
+    const { sections, ...listing } = job;
+    getExternalJob.mockReturnValue(listing);
+    loadExternalJobDetails.mockRejectedValue(new Error('offline'));
+    render(<ExternalJobDetail />);
+    expect(await screen.findByText(/Chưa tải được phần trích dẫn/)).toBeInTheDocument();
+    expect(screen.getByText(job.summary)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Xem tin và ứng tuyển tại nguồn/ })).toBeInTheDocument();
+});
 
 test('shows provenance and sends applications only to the HTTPS original source without local CV or account actions', () => {
     const { container } = render(<ExternalJobDetail />);

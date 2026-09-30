@@ -1,9 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { catalogPath, validateVerifiedJobs, coverageAt } from './check-verified-jobs.mjs';
+import { readCatalog, validateVerifiedJobs, coverageAt } from './check-verified-jobs.mjs';
+import { detailsPath, splitCatalog } from './external-jobs/catalog-io.mjs';
 
-const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+const catalog = readCatalog();
+test('the detail file matches the index version and holds every source excerpt', () => {
+  const details = JSON.parse(fs.readFileSync(detailsPath, 'utf8'));
+  assert.equal(details.version, catalog.version);
+  assert.deepEqual(splitCatalog(catalog).details, details);
+});
 test('curated vacancies have unique sources and valid dates, filters, and province mappings', () => {
   assert.deepEqual(validateVerifiedJobs(catalog), []);
 });

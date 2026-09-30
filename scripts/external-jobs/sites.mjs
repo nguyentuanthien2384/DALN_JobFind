@@ -5,6 +5,7 @@ import {
     between, domLines, firstUpper, introFrom, lastDate, normalizeQuantity, normalizeSalary,
     splitSections, finalizeSections, squash, texts, valueAfter,
 } from './extract.mjs';
+import { provinceFromAddress, provinceOf, provincesFromList } from './classify.mjs';
 
 const $ = (doc, selector) => doc.querySelector(selector);
 const text = (doc, selector) => squash($(doc, selector)?.textContent);
@@ -16,6 +17,11 @@ const fact = (label, value) => {
     return clean ? { label, value: clean } : null;
 };
 const facts = (...entries) => entries.filter(Boolean);
+
+const place = (text, provinces) => (squash(text) ? { text: squash(text), provinces: provinces || null } : null);
+const listPlace = text => place(text, provincesFromList(text));
+const unique = values => [...new Set(values.filter(Boolean))];
+const linksIn = (html, base, pattern) => unique([...html.matchAll(pattern)].map(match => new URL(match[1] || match[0], base).href));
 
 const media = (logo, cover = null, extra = {}) => ({
     logo: logo && { file: `logos/${logo.file}`, origin: logo.origin },
@@ -29,9 +35,23 @@ export const SITES = [
         hosts: ['tuyendung.vnpt.vn'],
         media: media({ file: 'vnpt.png', origin: 'https://tuyendung.vnpt.vn/images/logo_mau1.png' },
             { file: 'vnpt.jpg', origin: 'https://tuyendung.vnpt.vn/Images/social-facebook.jpg' }),
+        profile: { employer: 'Tập đoàn Bưu chính Viễn thông Việt Nam (VNPT)', sourceName: 'Cổng tuyển dụng VNPT' },
+        async discover(get) {
+            const urls = [];
+            for (let page = 1; page <= 8; page += 1) {
+                const html = await get(`https://tuyendung.vnpt.vn/viec-lam/tat-ca-viec-lam.html?pageIndex=${page}`);
+                const found = linksIn(html, 'https://tuyendung.vnpt.vn/', /https:\/\/tuyendung\.vnpt\.vn\/tim-viec-lam\/[a-z0-9-]+-jid\d+\.html/g);
+                const fresh = found.filter(url => !urls.includes(url));
+                if (!fresh.length) break;
+                urls.push(...fresh);
+            }
+            return urls;
+        },
         extract(doc) {
             return {
                 title: text(doc, '.detail-job h1'),
+                employer: text(doc, '.detail-job .div-department'),
+                location: listPlace($(doc, '.detail-job .div-location span')?.getAttribute('title') || text(doc, '.detail-job .div-location')),
                 deadline: lastDate(text(doc, '.detail-job .div-date')),
                 salaryText: normalizeSalary(text(doc, '.detail-job .div-salary')),
                 quantity: normalizeQuantity(text(doc, '.detail-job .div-number')),
@@ -46,22 +66,32 @@ export const SITES = [
         hosts: ['tuyendung.jollibee.com.vn'],
         media: media({ file: 'jollibee.png', origin: 'https://data-talent-v2.basecdn.net/jollibee/logo.png' },
             { file: 'jollibee.jpg', origin: 'https://data-talent-v2.basecdn.net/jollibee/banner-job.jpg' }),
+        profile: { employer: 'Jollibee Vietnam', sourceName: 'Jollibee Vietnam – Tuyển dụng chính thức' },
+        discover: get => baseHiringLinks(get, 'https://tuyendung.jollibee.com.vn'),
         extract: baseHiring,
     },
     {
         key: 'sungroup',
         hosts: ['tuyendung.sungroup.com.vn'],
         media: media({ file: 'sungroup.png', origin: 'https://data-talent-v2.basecdn.net/sungroup/logo.png' }),
+        profile: { employer: 'Tập đoàn Sun Group', sourceName: 'Tuyển dụng Sun Group' },
+        discover: get => baseHiringLinks(get, 'https://tuyendung.sungroup.com.vn'),
         extract: baseHiring,
     },
     {
         key: 'hanwha-life',
         hosts: ['hanwhalifevietnam.talent.vn'],
         media: media({ file: 'hanwha-life.png', origin: 'https://data-gcdn.basecdn.net/202312/sys8636/hiring/04/10/HZC97VVCYD/3e3b39039b37dc1424207e2e0c0f341a/MLR9HXJ5MKTD4ZL3EVRHAAQ8BAKRDWBCPSZ97CRKCUGNKY77M764LS875Z3VA7PZX7RSHNSZMX4P9L2CXMULML/b0/4b/e7/7d/70/30b1bb547196a68d90a9cda54bf690b8/horizontal_logo_hanhwa_life_white_background.png' }),
+        profile: { employer: 'Hanwha Life Vietnam', sourceName: 'Hanwha Life Vietnam – Cổng tuyển dụng' },
+        async discover(get) {
+            const html = await get('https://hanwhalifevietnam.talent.vn/');
+            return linksIn(html, 'https://hanwhalifevietnam.talent.vn/', /https:\/\/hanwhalifevietnam\.talent\.vn\/job\/[a-z0-9-]+-\d+/g);
+        },
         extract(doc) {
             const info = linesOf(doc, '#info-job');
             return {
                 title: text(doc, '#job .overview h1') || ogTitle(doc),
+                location: listPlace(valueAfter(info, /^Location$/i)),
                 deadline: lastDate(valueAfter(info, /^Application deadline$/i)),
                 salaryText: normalizeSalary(valueAfter(info, /^Salary$/i)),
                 workTypeText: valueAfter(info, /^Type$/i),
@@ -75,11 +105,17 @@ export const SITES = [
         hosts: ['tuyendung.sapo.vn'],
         media: media({ file: 'sapo.svg', origin: 'https://tuyendung.sapo.vn/Themes/Portal/Default/Styles/Images/logo/Sapo-logo.svg' },
             { file: 'sapo.jpg', origin: 'https://tuyendung.sapo.vn/Themes/Portal/Default/Styles/images/job-detail/article-image.png' }),
+        profile: { employer: 'Công ty Cổ phần Công nghệ Sapo', sourceName: 'Sapo – Tuyển dụng chính thức' },
+        async discover(get) {
+            const html = await get('https://tuyendung.sapo.vn/co-hoi-viec-lam.html');
+            return linksIn(html, 'https://tuyendung.sapo.vn/', /(?:https:\/\/tuyendung\.sapo\.vn)?\/co-hoi-viec-lam\/[a-z0-9-]+-a\d+\.html/g);
+        },
         extract(doc) {
             const info = linesOf(doc, '.article-detail .info');
             const body = linesOf(doc, '.article-detail .col-lg-8');
             return {
                 title: text(doc, '.article-detail h1'),
+                location: listPlace(valueAfter(info, /^Địa điểm/i)),
                 deadline: lastDate(valueAfter(info, /^Thời gian ứng tuyển/i)),
                 salaryText: normalizeSalary(valueAfter(info, /^Thu nhập/i)),
                 facts: facts(fact('Ngành nghề', valueAfter(info, /^Ngành nghề/i))),
@@ -89,15 +125,25 @@ export const SITES = [
         },
     },
     {
-        key: 'fpt-schools',
+        key: 'fpt-education',
         hosts: ['career.fpt.edu.vn'],
         media: media({ file: 'fpt-schools.png', origin: 'https://career.fpt.edu.vn/Content/images/logo_unit/logoFE--10-20250905154545.png' },
             { file: 'fpt-schools.jpg', origin: 'https://career.fpt.edu.vn/Content/images/banner2-min.jpg' }),
+        profile: { employer: 'Tổ chức Giáo dục FPT', sourceName: 'Tuyển dụng FPT Education' },
+        async discover(get) {
+            const html = await get('https://career.fpt.edu.vn/Job/Search');
+            return linksIn(html, 'https://career.fpt.edu.vn/', /\/Job\/Detail\/\d+/g);
+        },
         extract(doc) {
             const intro = $(doc, '#job_introduction');
             const lines = domLines($(doc, '.job-detail-content')).filter(line => !intro || !intro.textContent.includes(line.text));
+            const places = texts(between(lines, /^Địa điểm làm việc/i, /^Mô tả công việc/i));
+            const placeCodes = places.map(provinceFromAddress);
             return {
-                title: ogTitle(doc),
+                title: firstUpper(valueAfter(lines, /^Vị trí/i) || ogTitle(doc)),
+                ...fptEducationUnit(doc),
+                postedAt: lastDate((valueAfter(lines, /^Ngày đăng - Ngày hết hạn/i) || '').split(/\s+-\s+/)[0]),
+                location: place(places.join('; '), places.length && placeCodes.every(Boolean) ? unique(placeCodes) : null),
                 deadline: lastDate(valueAfter(lines, /^Ngày đăng - Ngày hết hạn/i)),
                 salaryText: normalizeSalary(valueAfter(lines, /^Mức lương/i)),
                 quantity: normalizeQuantity(valueAfter(lines, /^Số lượng/i)),
@@ -112,10 +158,18 @@ export const SITES = [
         hosts: ['tuyendung.tokyolife.vn'],
         media: media({ file: 'tokyolife.png', origin: 'https://tuyendung.tokyolife.vn/frontend/images/logo-tkl.png' },
             { file: 'tokyolife.jpg', origin: 'https://tuyendung.tokyolife.vn/frontend/images/image.jpg' }),
+        profile: { employer: 'TokyoLife', sourceName: 'Tuyển dụng TokyoLife' },
+        async discover(get) {
+            const html = await get('https://tuyendung.tokyolife.vn/');
+            return linksIn(html, 'https://tuyendung.tokyolife.vn/', /(?:https:\/\/tuyendung\.tokyolife\.vn)?\/jobs\/\d+/g);
+        },
         extract(doc) {
             const table = linesOf(doc, 'table.information-table');
+            const address = valueAfter(table, /^Nơi làm việc$/i);
+            const code = provinceFromAddress(address);
             return {
                 title: text(doc, '.breadcrumb .breadcrumb-item.active'),
+                location: place(address, code ? [code] : null),
                 deadline: lastDate(valueAfter(table, /^Hạn nộp hồ sơ$/i)),
                 salaryText: normalizeSalary(valueAfter(table, /^Thu nhập$/i)),
                 quantity: normalizeQuantity(valueAfter(table, /^Số lượng$/i)),
@@ -244,13 +298,32 @@ export const SITES = [
         hosts: ['vieclam.thegioididong.com'],
         media: media({ file: 'the-gioi-di-dong.png', origin: 'https://cdnv2.tgdd.vn/vieclam/candidate/avatar/logo-dt-1024-5507c88d-77e0-4c1a-b28c-b5ea8213ffcd.png' },
             { file: 'the-gioi-di-dong.jpg', origin: 'https://vieclam.thegioididong.com/img/web/searchv2/detail_banner/tgdd_v26.png' }),
+        profile: { employer: 'Công ty Cổ phần Thế Giới Di Động', sourceName: 'Việc làm Thế Giới Di Động – Tuyển dụng chính thức' },
+        async discover(get) {
+            const categories = ['cong-nghe-thong-tin-it-lap-trinh', 'marketing-media-pr', 'ke-toan-kiem-toan-tai-chinh',
+                'bo-phan-khac-bao-hanh-phap-che', 'kho-van-kho-trung-tam', 'ban-hang-thu-ngan-ky-thuat-kho-sieu-thi'];
+            const urls = [];
+            for (const category of categories) {
+                const html = await get(`https://vieclam.thegioididong.com/tuyen-dung/${category}`);
+                urls.push(...linksIn(html, 'https://vieclam.thegioididong.com/', /href="(\/tuyen-dung\/[a-z0-9-]+-\d+)"/g));
+            }
+            return unique(urls);
+        },
         extract(doc) {
             const header = linesOf(doc, '.jobdetail_header');
             const titleIndex = texts(header).findIndex(line => /^Hạn nhận hồ sơ/i.test(line));
             const body = linesOf(doc, '.detaillist-center .job_content_left');
             const all = linesOf(doc, '.detaillist-center');
+            // The page lists each workplace province under "Chọn địa điểm làm việc", then street addresses.
+            const where = texts(between(all, /^Chọn địa điểm làm việc/i, /^Quy trình tuyển dụng$/i));
+            const provinceNames = unique([...doc.querySelectorAll('.list span')].map(node => squash(node.textContent))
+                .filter(name => /^(Tỉnh|Thành phố)\s/i.test(name)));
+            const addresses = where.filter(line => /Việt Nam\.?$/.test(line)).map(line => line.replace(/,?\s*Việt Nam\.?$/, ''));
+            const codes = provinceNames.map(provinceOf);
             return {
                 title: titleIndex > 0 ? header[titleIndex - 1].text : text(doc, '.jobdetail_header h1'),
+                location: place(addresses.length && addresses.length <= 4 ? addresses.join('; ') : provinceNames.join(', '),
+                    codes.length && codes.every(Boolean) ? unique(codes) : null),
                 deadline: lastDate(valueAfter(header, /^Hạn nhận hồ sơ/i)),
                 salaryText: normalizeSalary(valueAfter(all, /^Thu nhập/i)),
                 quantity: normalizeQuantity(valueAfter(all, /^Số lượng tuyển/i)),
@@ -277,12 +350,37 @@ function baseHiring(doc) {
     const title = text(doc, 'h1.banner--title') || (head[0]?.text ?? '') || ogTitle(doc);
     return {
         title,
+        location: listPlace(valueAfter(head, /^Địa điểm/i)),
         deadline: lastDate(valueAfter(head, /^Hạn nộp hồ sơ/i)),
         salaryText: normalizeSalary(valueAfter(head, /^Lương/i)),
         workTypeText: squash($(doc, '.post-type .icon-access_time')?.parentElement?.textContent) || null,
         facts: facts(fact('Phòng ban', valueAfter(head, /^Phòng ban/i) || squash($(doc, '.post-type .icon-briefcase')?.parentElement?.textContent))),
         sections: splitSections(between(linesOf(doc, '.content-article'), null, /^(Ứng tuyển vị trí này|Công việc liên quan)$/i)),
     };
+}
+
+/** Base E-Hiring lists vacancies on /jobs?page=N. */
+async function baseHiringLinks(get, origin) {
+    const urls = [];
+    const pattern = new RegExp(`${origin.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\/job\\/[a-z0-9-]+-\\d+`, 'g');
+    for (let page = 1; page <= 6; page += 1) {
+        const html = await get(`${origin}/jobs?page=${page}`);
+        const fresh = linksIn(html, origin, pattern).filter(url => !urls.includes(url));
+        if (!fresh.length) break;
+        urls.push(...fresh);
+    }
+    return urls;
+}
+
+/** FPT Education pages name the hiring unit (university, school…) and show that unit's logo. */
+function fptEducationUnit(doc) {
+    const img = doc.querySelector('img[alt="Ảnh Đơn Vị Làm Việc"]');
+    const src = img?.getAttribute('src');
+    const name = squash(img?.parentElement?.nextElementSibling?.textContent) || null;
+    if (!src) return { employer: name };
+    const file = decodeURIComponent(src.split('/').pop()).replace(/-\d{8,}(?=\.\w+$)/, '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9.]+/g, '-').replace(/-+(?=\.)/g, '').replace(/^-+/, '');
+    return { employer: name, logo: { file: `logos/fpt-edu/${file}`, origin: new URL(src, 'https://career.fpt.edu.vn/').href } };
 }
 
 export const siteFor = url => {

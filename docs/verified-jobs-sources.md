@@ -116,3 +116,18 @@ banners are copies of images each source publishes (origins listed in `scripts/e
 - Cần Thơ centre posting: the reported 100 head count is still not shown because it may be campaign-level.
 - Đất Xanh Miền Trung: the source has no salary field; salary text is the base-pay line of its benefits list. The job poster
   image attached to the source post is shown on the detail page.
+
+# Discovery — 2026-09-30
+
+`npm run jobs:discover` added 90 vacancies from official listing pages; one Bách Hóa Xanh posting whose page only
+listed benefits was removed again and the rule was added. Per source: VNPT 12, Jollibee 12, Sun Group 12,
+Hanwha Life 12, Sapo 10, FPT Education 12, TokyoLife 8, Thế Giới Di Động 11.
+
+- Every added page showed a future deadline and a workplace mapped to the current provinces. Pages without a
+  deadline (26, mostly evergreen Thế Giới Di Động postings), with a passed deadline (4), without any content section (1) or with a "Toàn quốc"/unmappable
+  workplace (3) were skipped; two chain postings repeating a title for the same provinces were skipped as duplicates.
+- Hanwha Life locations such as "Ho Chi Minh - Head Office" and "Binh Duong - Ho Chi Minh" map through their place part.
+- Thế Giới Di Động workplace provinces come from the page's own province selector, not the site-wide menu.
+- FPT Education employer and logo come from each page's "Thông tin đơn vị" block (unit logos stored under
+  `frontend/public/external-jobs/logos/fpt-edu/`, the Gachon logo resized from 9168 px to 320 px).
+- The 138 fictional "[Demo]" internal postings were taken off public search with `npm run demo:hide-jobs`.

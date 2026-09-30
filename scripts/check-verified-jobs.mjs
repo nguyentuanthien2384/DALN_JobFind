@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import recruitmentCatalog from '../microservices/shared/recruitmentCatalog.cjs';
 
-export const catalogPath = fileURLToPath(new URL('../frontend/src/data/verifiedJobs.json', import.meta.url));
+import { catalogPath, readCatalog } from './external-jobs/catalog-io.mjs';
+
+export { catalogPath, readCatalog };
 const fields = {
   categoryJobCode: ['bat-dong-san', 'cong-nghe-thong-tin', 'giao-vien', 'kinh-te', 'logistics', 'luat', 'quan-ly-nhan-su', 'truyen-thong'],
   categoryWorktypeCode: ['fulltime', 'part-time', 'remote', 'thuc-tap'],
@@ -81,7 +83,7 @@ export function coverageAt(catalog, date) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+  const catalog = readCatalog();
   const errors = validateVerifiedJobs(catalog);
   const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
   const coverage = coverageAt(catalog, today);

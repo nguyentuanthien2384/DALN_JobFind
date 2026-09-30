@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { cleanItem, isoDates, lastDate, normalizeSalary, normalizeQuantity, sentenceCase, splitSections, summaryFrom, valueAfter, LIMITS } from './external-jobs/extract.mjs';
 import { SITES, siteFor } from './external-jobs/sites.mjs';
 import { mergeVacancy } from './sync-external-jobs.mjs';
+import { categoryOf, experienceOf, levelOf, provinceFromAddress, provincesFromList, salaryCodeOf, workTypeOf } from './external-jobs/classify.mjs';
+import { buildVacancy, vacancyId } from './discover-external-jobs.mjs';
+import { splitCatalog } from './external-jobs/catalog-io.mjs';
 
 test('dates are read in Vietnamese day-first order and invalid dates are ignored', () => {
     assert.deepEqual(isoDates('Hạn nộp hồ sơ: 22/08 — 30/11/2026'), ['2026-11-30']);
@@ -93,4 +96,62 @@ test('a missing source page or a passed deadline takes the vacancy out of listin
     const closed = mergeVacancy(job, { deadline: '2026-09-15', facts: [], sections: [{ title: 'A', items: ['Nội dung đủ dài để tóm tắt'], truncated: false }] },
         { today: '2026-09-30', site, override: {} }).job;
     assert.equal(closed.sourceStatus, 'closed');
+});
+
+test('workplaces map to current provinces, including unaccented, former and city names', () => {
+    assert.deepEqual(provincesFromList('Lam Dong, Quang Ngai, Quang Ninh, Gia Lai'), ['Lâm Đồng', 'Quảng Ngãi', 'Quảng Ninh', 'Gia Lai']);
+    assert.deepEqual(provincesFromList('Vung Tau, Tay Ninh, Binh Duong - Ho Chi Minh'), ['Hồ Chí Minh', 'Tây Ninh']);
+    assert.deepEqual(provincesFromList('Bến Tre'), ['Vĩnh Long']);
+    assert.deepEqual(provincesFromList('Hà Nội/Quảng Ninh'), ['Hà Nội', 'Quảng Ninh']);
+    assert.equal(provincesFromList('Toàn Quốc'), null);
+    assert.equal(provincesFromList('Hà Nội, Nơi nào đó'), null);
+    assert.equal(provinceFromAddress('77 Trần Hưng Đạo, Đoàn Kết, TP Lai Châu, Lai Châu'), 'Lai Châu');
+});
+
+test('filter codes come only from explicit source wording', () => {
+    assert.equal(categoryOf('Kỹ sư DataOps'), 'cong-nghe-thong-tin');
+    assert.equal(categoryOf('Category Procurement Specialist (IT/HR/ Legal)'), 'kinh-te');
+    assert.equal(categoryOf('[Sóc Trăng] Nhân viên cửa hàng'), null);
+    assert.equal(categoryOf('Giảng viên Luật'), 'giao-vien');
+    assert.equal(levelOf('Customer Services Senior Officer'), 'chuyen-vien-cao-cap');
+    assert.equal(levelOf('Kỹ sư lập trình'), null);
+    assert.equal(workTypeOf('Toàn thời gian'), 'fulltime');
+    assert.equal(workTypeOf('Part-time & Full-time'), null);
+    assert.equal(salaryCodeOf('10 - 15 Triệu'), '10-15tr');
+    assert.equal(salaryCodeOf('6.000.000 - 9.000.000 VNĐ'), null);
+    assert.equal(salaryCodeOf('Thương lượng'), 'thoa-thuan');
+    assert.equal(experienceOf('Không yêu cầu kinh nghiệm'), 'khong-yeu-cau');
+    assert.equal(experienceOf(null, ['Tối thiểu 1 năm kinh nghiệm với Oracle']), '1-nam');
+    assert.equal(experienceOf(null, ['Từ 3-5 năm kinh nghiệm']), null);
+});
+
+const discoverSite = { key: 'test', media: { logo: { file: 'logos/a.png' }, cover: null }, profile: { employer: 'Doanh nghiệp', sourceName: 'Nguồn' } };
+const page = { title: 'Nhân viên kinh doanh', deadline: '2026-10-31', location: { text: 'Hà Nội', provinces: ['Hà Nội'] }, facts: [],
+    workTypeText: 'Toàn thời gian', salaryText: 'Thỏa thuận',
+    sections: [{ title: 'Mô tả công việc', items: ['Tư vấn giải pháp cho khách hàng doanh nghiệp'], truncated: false }] };
+
+test('a discovered page becomes an open vacancy with a stable id and conservative codes', () => {
+    const url = 'https://careers.example.test/jobs/1';
+    const { job } = buildVacancy({ site: discoverSite, url, result: page, today: '2026-09-30' });
+    assert.equal(job.id, vacancyId(url));
+    assert.match(job.id, /^external-[0-9a-f]{12}$/);
+    assert.deepEqual([job.categoryJobCode, job.categoryJoblevelCode, job.categoryWorktypeCode, job.salaryJobCode],
+        ['kinh-te', 'nhan-vien', 'fulltime', 'thoa-thuan']);
+    assert.equal(job.employer, 'Doanh nghiệp');
+    assert.equal(job.sourceStatus, 'open');
+    assert.equal(job.summary, 'Tư vấn giải pháp cho khách hàng doanh nghiệp');
+});
+
+test('pages without a deadline, a mappable workplace or a description are not added', () => {
+    const skip = result => buildVacancy({ site: discoverSite, url: 'https://careers.example.test/jobs/2', result, today: '2026-09-30' }).reason;
+    assert.match(skip({ ...page, deadline: null }), /deadline/);
+    assert.match(skip({ ...page, deadline: '2026-09-01' }), /deadline passed/);
+    assert.match(skip({ ...page, location: { text: 'Toàn quốc', provinces: null } }), /not mappable/);
+    assert.match(skip({ ...page, sections: [{ title: 'Phúc lợi', items: ['Thưởng tháng 13'], truncated: false }] }), /no job description/);
+});
+
+test('the catalogue splits into a light index and a lazily loaded detail file', () => {
+    const { index, details } = splitCatalog({ version: 'v', jobs: [{ id: 'external-a', title: 'A', sections: [{ title: 'S', items: ['x'], truncated: false }], facts: [] }] });
+    assert.deepEqual(index.jobs, [{ id: 'external-a', title: 'A' }]);
+    assert.deepEqual(details, { version: 'v', jobs: { 'external-a': { sections: [{ title: 'S', items: ['x'], truncated: false }], facts: [] } } });
 });

@@ -16,14 +16,15 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { summaryFrom } from './external-jobs/extract.mjs';
 import { JOB_OVERRIDES, siteFor } from './external-jobs/sites.mjs';
-import { catalogPath, validateVerifiedJobs } from './check-verified-jobs.mjs';
+import { validateVerifiedJobs } from './check-verified-jobs.mjs';
+import { catalogPath, readCatalog, writeCatalog } from './external-jobs/catalog-io.mjs';
 
 export const publicDir = fileURLToPath(new URL('../frontend/public/', import.meta.url));
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36 JobFinderSourceCheck/1.0';
 
 export const vietnamToday = (now = new Date()) => new Date(now.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 
-function loadJsdom() {
+export function loadJsdom() {
     try {
         return createRequire(new URL('../frontend/package.json', import.meta.url))('jsdom').JSDOM;
     } catch {
@@ -31,7 +32,7 @@ function loadJsdom() {
     }
 }
 
-async function fetchPage(url) {
+export async function fetchPage(url) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 45000);
     try {
@@ -41,7 +42,7 @@ async function fetchPage(url) {
     } finally { clearTimeout(timer); }
 }
 
-async function downloadImage(origin, target) {
+export async function downloadImage(origin, target) {
     const response = await fetch(encodeURI(decodeURI(origin)), { headers: { 'user-agent': USER_AGENT } });
     const type = response.headers.get('content-type') || '';
     if (!response.ok || !/^image\//.test(type)) throw new Error(`HTTP ${response.status} ${type}`);
@@ -52,7 +53,7 @@ async function downloadImage(origin, target) {
 }
 
 const publicPath = file => `/external-jobs/${file}`;
-const localFile = file => path.join(publicDir, 'external-jobs', file);
+export const localFile = file => path.join(publicDir, 'external-jobs', file);
 
 /** Applies an extraction result to a catalogue entry. Pure: returns the new entry and a change list. */
 export function mergeVacancy(job, result, { today, site, override = {}, status }) {
@@ -82,7 +83,8 @@ export function mergeVacancy(job, result, { today, site, override = {}, status }
     if (result.sections?.length) set('sections', result.sections);
     set('companyIntro', result.companyIntro ?? null);
     set('summary', summaryFrom(next.sections || [], next.summary));
-    set('logo', site.media.logo ? publicPath(site.media.logo.file) : null);
+    const logo = result.logo || site.media.logo;
+    set('logo', logo ? publicPath(logo.file) : null);
     set('logoBackground', site.media.logoBackground ?? null);
     set('coverImage', site.media.cover ? publicPath(site.media.cover.file) : null);
     set('jobImage', override.jobImage ? { src: publicPath(override.jobImage.file), alt: override.jobImage.alt } : null);
@@ -107,7 +109,7 @@ function parseArgs(argv) {
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     const JSDOM = loadJsdom();
-    const catalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+    const catalog = readCatalog();
     const report = [];
     let failures = 0;
     for (const [index, job] of catalog.jobs.entries()) {
@@ -153,7 +155,7 @@ async function main() {
         if (before.deadline !== merged.job.deadline) notes.push(`deadline ${before.deadline} → ${merged.job.deadline}`);
         if (merged.job.sourceStatus === 'closed') notes.push('deadline passed: closed');
         report.push({ id: job.id, result: `${merged.job.sections.length} sections; ${merged.changes.join(', ') || 'no change'}${notes.length ? ` (${notes.join('; ')})` : ''}` });
-        for (const image of [site.media.logo, site.media.cover, override.jobImage].filter(Boolean)) {
+        for (const image of [result.logo || site.media.logo, site.media.cover, override.jobImage].filter(Boolean)) {
             const target = localFile(image.file);
             if (fs.existsSync(target)) continue;
             if (!args.downloadImages) { report.push({ id: job.id, result: `missing image ${image.file} (run with --download-images)` }); failures += 1; continue; }
@@ -172,7 +174,7 @@ async function main() {
         return;
     }
     if (args.dryRun) { console.log('\nDry run: catalogue not written.'); return; }
-    fs.writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+    writeCatalog(catalog);
     console.log(`\nWrote ${path.relative(process.cwd(), catalogPath)} (version ${catalog.version}).`);
     if (failures) { console.warn(`${failures} source(s) need attention; see the lines above.`); process.exitCode = 2; }
 }

@@ -1,5 +1,6 @@
 import catalog from '../data/verifiedJobs.json';
-import { externalAssetUrl, filterExternalJobs, isExternalJobExpired, vietnamDate } from './externalJobs';
+import details from '../data/verifiedJobDetails.json';
+import { externalAssetUrl, filterExternalJobs, isExternalJobExpired, loadExternalJobDetails, vietnamDate } from './externalJobs';
 
 const now = new Date('2026-09-29T12:00:00Z');
 const vacancy = {id:'external-test', title:'Kỹ sư phần mềm', employer:'Công ty A',
@@ -42,13 +43,21 @@ test('source images are served only from the local external-jobs folder', () => 
     }
 });
 
-test('every listed vacancy carries source sections and points at existing local images', () => {
+test('every listed vacancy has source sections in the lazily loaded file and local image paths', () => {
     const listed = catalog.jobs.filter(job => ['open', 'deadline-not-published'].includes(job.sourceStatus));
     expect(listed.length).toBeGreaterThan(0);
+    expect(details.version).toBe(catalog.version);
     for (const job of listed) {
-        expect(job.sections.length).toBeGreaterThan(0);
-        for (const path of [job.logo, job.coverImage, job.jobImage?.src].filter(Boolean)) expect(externalAssetUrl(path)).not.toBeNull();
+        expect(job.sections).toBeUndefined();
+        expect(details.jobs[job.id].sections.length).toBeGreaterThan(0);
+        for (const path of [job.logo, job.coverImage, details.jobs[job.id].jobImage?.src].filter(Boolean)) expect(externalAssetUrl(path)).not.toBeNull();
     }
+});
+
+test('the detail loader returns one vacancy excerpt and an empty object for unknown ids', async () => {
+    const id = catalog.jobs.find(job => job.sourceStatus === 'open').id;
+    await expect(loadExternalJobDetails(id)).resolves.toEqual(details.jobs[id]);
+    await expect(loadExternalJobDetails('external-missing')).resolves.toEqual({});
 });
 
 test('expired jobs leave active searches and each current province had a sourced match when checked', () => {

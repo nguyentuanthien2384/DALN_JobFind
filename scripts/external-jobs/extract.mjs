@@ -93,8 +93,8 @@ export function between(lines, start, stop, { includeStart = false } = {}) {
 }
 
 const HEADINGS = [
-    /^(mô tả công việc|chi tiết công việc|mô tả|nội dung công việc|trách nhiệm công việc|nhiệm vụ|job description|key accountabilities)$/i,
-    /^(yêu cầu( công việc| ứng viên| tuyển dụng| chung)?|job requirements?( \(yêu cầu tuyển dụng\))?|requirements)$/i,
+    /^(mô tả công việc|chi tiết công việc|mô tả|nội dung công việc|công việc chính|nhiệm vụ chính|trách nhiệm( công việc| chính)?|nhiệm vụ|job description|job responsibilities|responsibilities|key accountabilities)$/i,
+    /^(yêu cầu( công việc| ứng viên| tuyển dụng| chung| chuyên môn| kỹ năng)?|tiêu chuẩn ứng viên|job requirements?( \(yêu cầu tuyển dụng\))?|requirements)$/i,
     /^(quyền lợi( được hưởng| dành cho bạn)?|phúc lợi|chế độ đãi ngộ|chế độ phúc lợi|benefits?|thông tin khác)$/i,
     /^(địa điểm làm việc|nơi làm việc)$/i,
     /^(tổ chức thi tuyển|yêu cầu hồ sơ|hồ sơ dự tuyển)$/i,

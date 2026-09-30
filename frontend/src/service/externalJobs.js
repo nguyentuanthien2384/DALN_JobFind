@@ -8,6 +8,14 @@ export const isExternalJobExpired = (job, now = new Date()) => Boolean(job?.dead
 export const isExternalJobWithdrawn = job => job?.sourceStatus === 'removed' || job?.sourceStatus === 'closed';
 export const externalJobCard = job => ({ ...job, listingSource: 'external' });
 export const getExternalJob = id => catalog.jobs.find(job => job.id === id);
+// Source excerpts (sections, facts, company intro, job image) live in a separate chunk that only
+// the detail page downloads; search and cards use the index above.
+let detailsRequest;
+export const loadExternalJobDetails = id => {
+    detailsRequest ||= import('../data/verifiedJobDetails.json').then(module => module.default?.jobs || module.jobs || {})
+        .catch(error => { detailsRequest = undefined; throw error; });
+    return detailsRequest.then(jobs => jobs[id] || {});
+};
 // Logos and banners are copies of the source's own images served from /public/external-jobs.
 export const externalAssetUrl = path => (typeof path === 'string' && /^\/external-jobs\/[\w./-]+$/.test(path) && !path.includes('..')
     ? `${process.env.PUBLIC_URL || ''}${path}` : null);

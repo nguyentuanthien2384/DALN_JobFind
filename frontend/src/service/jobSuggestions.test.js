@@ -72,7 +72,8 @@ test('limits results to eight with external vacancies before native vacancies', 
     suggestJobs.mockResolvedValue({ errCode: 0, data: Array.from({ length: 10 }, (_, index) => ({
         id: index + 1, name: `PL/SQL Developer ${index + 1}`,
     })) });
-    const result = await loadJobSuggestions('PL');
+    // A query only one sourced vacancy matches, so the catalogue can grow without changing the test.
+    const result = await loadJobSuggestions('PL/SQL');
     expect(result.data).toHaveLength(8);
     expect(result.data[0]).toMatchObject({ name: 'Lập trình PL/SQL', listingSource: 'external' });
     expect(result.data.slice(1).every(job => job.listingSource === 'native')).toBe(true);

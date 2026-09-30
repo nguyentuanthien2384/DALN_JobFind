@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { externalAssetUrl, getExternalJob, isExternalJobExpired } from '../../service/externalJobs';
+import { externalAssetUrl, getExternalJob, isExternalJobExpired, loadExternalJobDetails } from '../../service/externalJobs';
 import { externalJobDate } from '../../components/Job/ExternalJobCard';
 import ExternalJobLogo from '../../components/Job/ExternalJobLogo';
 import './ExternalJobDetail.css';
@@ -35,8 +35,21 @@ const SourceSection = ({ section, href }) => <section>
 
 export default function ExternalJobDetail() {
     const { id } = useParams();
-    const job = getExternalJob(id);
+    const listing = getExternalJob(id);
+    // The index carries what cards need; the source excerpts arrive in a second, lazily loaded file.
+    const needsDetails = Boolean(listing) && !Array.isArray(listing.sections);
+    const [details, setDetails] = useState({ id: null, data: null, failed: false });
     useEffect(() => { window.scrollTo(0, 0); }, [id]);
+    useEffect(() => {
+        if (!needsDetails) return undefined;
+        let active = true;
+        loadExternalJobDetails(id)
+            .then(data => { if (active) setDetails({ id, data, failed: false }); })
+            .catch(() => { if (active) setDetails({ id, data: null, failed: true }); });
+        return () => { active = false; };
+    }, [id, needsDetails]);
+    const detailsReady = !needsDetails || details.id === id;
+    const job = listing && { ...listing, ...(details.id === id ? details.data : null) };
     if (!job) return <main className="external-job-detail"><div className="external-job-detail__shell external-job-detail__empty">
         <h1>Không tìm thấy tin tuyển dụng</h1>
         <p>Tin này không có trong danh sách nguồn đã kiểm tra.</p>
@@ -93,11 +106,16 @@ export default function ExternalJobDetail() {
 
             <div className="external-job-detail__layout">
                 <article className="external-job-detail__content">
-                    {sections.length ? sections.map((section, index) => <SourceSection key={`${section.title}-${index}`} section={section} href={href} />)
-                        : <section>
-                            <h2>Thông tin tuyển dụng</h2>
-                            <p>{job.summary || 'Xem nội dung chi tiết trên trang tuyển dụng gốc.'}</p>
-                        </section>}
+                    {!detailsReady ? <section aria-busy="true">
+                        <h2>Thông tin tuyển dụng</h2>
+                        <p className="external-job-detail__muted" role="status">Đang tải nội dung tin gốc…</p>
+                    </section>
+                        : sections.length ? sections.map((section, index) => <SourceSection key={`${section.title}-${index}`} section={section} href={href} />)
+                            : <section>
+                                <h2>Thông tin tuyển dụng</h2>
+                                <p>{job.summary || 'Xem nội dung chi tiết trên trang tuyển dụng gốc.'}</p>
+                                {details.failed && <p className="external-job-detail__muted">Chưa tải được phần trích dẫn. Vui lòng xem tin gốc hoặc tải lại trang.</p>}
+                            </section>}
                     {jobImage && <figure className="external-job-detail__figure">
                         <SourceImage src={jobImage} alt={job.jobImage.alt || `Ảnh tin tuyển dụng ${job.title}`} />
                         <figcaption>Ảnh đăng kèm tin gốc trên {job.sourceName}</figcaption>
