@@ -5,15 +5,17 @@ const { createRequire } = require('node:module');
 const path = require('node:path');
 
 const serviceRequire = createRequire(path.resolve(__dirname, '../../..', 'microservices/package.json'));
-const { ObjectId } = serviceRequire('mongodb');
+// The Mongo driver is installed with the microservices, not the backend. Load it only when a seed
+// actually writes, so backend-only test runs (e.g. the realtime CI job) never need it.
+const driverObjectId = () => serviceRequire('mongodb').ObjectId;
 const DATASET = 'jobfind-comprehensive-demo-v1';
 const DATABASE = 'identity_db';
 
 const text = value => value == null ? '' : String(value).trim();
 const list = value => Array.isArray(value) ? value : [];
 const strings = value => list(value).map(item => typeof item === 'string' ? item : item?.name).map(text).filter(Boolean);
-const stableId = (userId, variant) => new ObjectId(createHash('sha256')
-    .update(`${DATASET}:profile:${userId}:${variant}`).digest('hex').slice(0, 24));
+const stableHex = (userId, variant) => createHash('sha256')
+    .update(`${DATASET}:profile:${userId}:${variant}`).digest('hex').slice(0, 24);
 
 function candidatesFrom(manifest) {
     if (!Array.isArray(manifest?.candidates)) throw new Error('Identity demo requires manifest.candidates');
@@ -27,7 +29,7 @@ function candidatesFrom(manifest) {
     return manifest.candidates;
 }
 
-function makeCvs(candidate, now) {
+function makeCvs(candidate, now, ObjectId) {
     const experiences = list(candidate.experience ?? candidate.experiences).map(item => ({
         company: text(item.company), position: text(item.position ?? item.role ?? item.title),
         from: text(item.from ?? item.start ?? item.startDate), to: text(item.to ?? item.end ?? item.endDate),
@@ -51,16 +53,16 @@ function makeCvs(candidate, now) {
         experiences, educations, createdAt: now, updatedAt: now,
     };
     return [
-        { ...common, _id: stableId(candidate.id, 'general'), title: `CV tổng quan — ${text(candidate.headline) || common.fullName}` },
-        { ...common, _id: stableId(candidate.id, 'projects'), title: `CV dự án — ${text(candidate.headline) || common.fullName}`,
+        { ...common, _id: new ObjectId(stableHex(candidate.id, 'general')), title: `CV tổng quan — ${text(candidate.headline) || common.fullName}` },
+        { ...common, _id: new ObjectId(stableHex(candidate.id, 'projects')), title: `CV dự án — ${text(candidate.headline) || common.fullName}`,
             summary: [text(candidate.headline), common.summary].filter(Boolean).join('\n\n') },
     ];
 }
 
-function makeProfile(candidate, now) {
+function makeProfile(candidate, now, ObjectId) {
     const preference = candidate.setting || {};
     return {
-        _id: stableId(candidate.id, 'profile'), legacyUserId: candidate.id,
+        _id: new ObjectId(stableHex(candidate.id, 'profile')), legacyUserId: candidate.id,
         phonenumber: text(candidate.phone), email: text(candidate.email),
         firstName: text(candidate.firstName), lastName: text(candidate.lastName),
         roleCode: 'CANDIDATE', companyId: null, headline: text(candidate.headline),
@@ -70,19 +72,20 @@ function makeProfile(candidate, now) {
             salaryJobCode: text(preference.salaryJobCode), experienceJobCode: text(preference.experienceJobCode),
             isFindJob: Boolean(preference.isFindJob), isTakeMail: false,
         },
-        cvs: makeCvs(candidate, now), createdAt: now, updatedAt: now,
+        cvs: makeCvs(candidate, now, ObjectId), createdAt: now, updatedAt: now,
     };
 }
 
-async function seedIdentity({ mongo, manifest, now = new Date() }) {
+async function seedIdentity({ mongo, manifest, now = new Date(), ObjectId }) {
     const candidates = candidatesFrom(manifest);
     const timestamp = new Date(now);
     if (!Number.isFinite(timestamp.getTime())) throw new Error('Identity demo requires a valid date');
+    const IdType = ObjectId || driverObjectId();
     const profiles = mongo.db(DATABASE).collection('profiles');
     const result = { database: DATABASE, candidates: candidates.length, createdProfiles: 0, addedCvs: 0, preservedProfiles: 0 };
     for (const candidate of candidates) {
         const inserted = await profiles.updateOne({ legacyUserId: candidate.id },
-            { $setOnInsert: makeProfile(candidate, timestamp) }, { upsert: true });
+            { $setOnInsert: makeProfile(candidate, timestamp, IdType) }, { upsert: true });
         if (inserted.upsertedCount) {
             result.createdProfiles += 1;
             result.addedCvs += 2;
@@ -94,7 +97,7 @@ async function seedIdentity({ mongo, manifest, now = new Date() }) {
         if (candidate.id === 9003) {
             const supplemented = await profiles.updateOne({ legacyUserId: candidate.id,
                 $or: [{ cvs: { $exists: false } }, { cvs: { $size: 0 } }] },
-            { $set: { cvs: makeCvs(candidate, timestamp) } });
+            { $set: { cvs: makeCvs(candidate, timestamp, IdType) } });
             if (supplemented.modifiedCount) result.addedCvs += 2;
         }
     }
@@ -112,7 +115,7 @@ async function verifyIdentity({ mongo, manifest }) {
     const profilesWithoutCvs = profiles.filter(profile => !Array.isArray(profile.cvs) || !profile.cvs.length)
         .map(profile => profile.legacyUserId);
     const generatedCvs = profiles.flatMap(profile => list(profile.cvs).filter(cv =>
-        ['general', 'projects'].some(variant => String(cv._id) === String(stableId(profile.legacyUserId, variant)))));
+        ['general', 'projects'].some(variant => String(cv._id) === stableHex(profile.legacyUserId, variant))));
     return {
         ok: missingProfiles.length === 0 && profilesWithoutCvs.length === 0,
         database: DATABASE, profiles: profiles.length, builderCvs: profiles.reduce((sum, profile) => sum + list(profile.cvs).length, 0),

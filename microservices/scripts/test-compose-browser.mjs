@@ -29,6 +29,10 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
     const server = await new Promise(resolve => { const value = app.listen(0, '127.0.0.1', () => resolve(value)); });
     origin = `http://127.0.0.1:${server.address().port}`;
     let browser; const errors = [], calls = [], failures = [], checkpoints = []; let current;
+    // While the test itself restarts services, pages that stay open keep polling
+    // notifications/chat in the background and can hit the stopped upstream (502).
+    // Those reads are expected; anything else during or outside that window still fails.
+    let deliberateRestart = false; const restartFailures = [];
     const screenshot = (page, name) => page.screenshot({ path: path.join(artifacts, name + '.png'), fullPage: true });
     const pass = message => { checkpoints.push(message); console.log('PASS browser: ' + message); };
     try {
@@ -43,7 +47,10 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
             page.on('response', async response => {
                 const url = new URL(response.url()); if (!url.pathname.startsWith('/api/')) return;
                 const request = response.request(); calls.push({ path: url.pathname, method: request.method(), status: response.status() });
-                if (response.status() >= 500) failures.push(`${response.status()} ${url.pathname}`);
+                if (response.status() >= 500) {
+                    if (deliberateRestart) restartFailures.push({ status: response.status(), method: request.method(), path: url.pathname });
+                    else failures.push(`${response.status()} ${url.pathname}`);
+                }
             });
             await page.goto(origin + '/login');
             await page.getByPlaceholder('Email hoặc số điện thoại', { exact: true }).fill(String(user).padStart(4, '0'));
@@ -255,9 +262,14 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         candidate.once('dialog', dialog => dialog.accept());
         await candidate.getByRole('button', { name: 'Xóa CV', exact: true }).click();
         await expect(candidate.getByRole('button', { name: 'Xóa CV', exact: true })).not.toBeVisible();
+        deliberateRestart = true;
         await compose('restart', 'application-service', 'identity-service', 'legacy');
         await compose('run', '--rm', '--no-deps', 'runner', 'node', '--input-type=module', '-e',
             "for (const url of ['http://legacy:4011/readyz','http://identity-service:4001/readyz','http://application-service:4004/readyz']) { let ready=false; for(let n=0;n<90;n++){try{ready=(await fetch(url,{signal:AbortSignal.timeout(1000)})).ok;}catch{} if(ready)break;await new Promise(r=>setTimeout(r,1000));}if(!ready)throw Error('Restart readiness timeout'); }");
+        deliberateRestart = false;
+        // Only background reads may fail while the services are down; a failed write would be a real loss.
+        assert.deepEqual(restartFailures.filter(entry => entry.method !== 'GET'), [], 'writes failed during the deliberate restart');
+        if (restartFailures.length) console.log(`Expected during deliberate restart: ${restartFailures.map(entry => `${entry.status} ${entry.method} ${entry.path}`).join(', ')}`);
         await candidate.goto(origin + '/candidate/cv-post');
         await expect(historyRow).toContainText('Phỏng vấn', { timeout: 30000 });
         const restartPdfResponse = candidate.waitForResponse(response => new URL(response.url()).pathname === '/api/get-detail-cv-by-id');
@@ -295,10 +307,10 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         assert.deepEqual(errors, [], 'browser runtime errors'); assert.deepEqual(failures, [], 'unexpected server errors');
         await writeFile(path.join(artifacts, 'evidence.json'), JSON.stringify({ checkpoints, calls,
             jobId, legacyCvId: receipt.cvId, preparedCvId: cv._id, pdfBytes: pdfBytes.length,
-            pdfSha256: createHash('sha256').update(pdfBytes).digest('hex'), browserErrors: errors, serverErrors: failures }, null, 2));
+            pdfSha256: createHash('sha256').update(pdfBytes).digest('hex'), browserErrors: errors, serverErrors: failures, restartFailures }, null, 2));
         console.log('Browser artifacts: ' + artifacts);
     } catch (error) {
-        await writeFile(path.join(artifacts, 'failure-evidence.json'), JSON.stringify({ checkpoints, calls, browserErrors: errors, serverErrors: failures }, null, 2));
+        await writeFile(path.join(artifacts, 'failure-evidence.json'), JSON.stringify({ checkpoints, calls, browserErrors: errors, serverErrors: failures, restartFailures }, null, 2));
         if (current) {
             await screenshot(current, 'failure').catch(() => {});
             console.error('Current page: ' + current.url());

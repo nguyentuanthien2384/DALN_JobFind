@@ -15,7 +15,7 @@ const { seedIdentity, verifyIdentity } = require('./demo-data/identity.cjs');
 const root = path.resolve(__dirname, '../..');
 const microRequire = createRequire(path.join(root, 'microservices/application-service/package.json'));
 const { Client } = microRequire('pg');
-const { MongoClient } = microRequire('mongodb');
+const { MongoClient, ObjectId } = microRequire('mongodb');
 const execute = promisify(execFile);
 
 function parseOptions(args) {
@@ -111,7 +111,7 @@ async function seedProjectDemo(args = process.argv.slice(2)) {
         // Cross-store writes are resumable, not one distributed transaction.
         // Each module has stable identities and preserves user edits on retry.
         const workflow = await seedWorkflow({ client: pg, manifest, now, databaseHost: pgHost, apply: true });
-        const identity = await seedIdentity({ mongo, manifest, now });
+        const identity = await seedIdentity({ mongo, manifest, now, ObjectId });
         const search = await searchCommand(container, 'reindex');
         await writeAssets();
         const workflowCheck = await verifyWorkflow({ client: pg, manifest });

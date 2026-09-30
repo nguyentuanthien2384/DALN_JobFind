@@ -1,6 +1,14 @@
 'use strict';
 
-const { seedIdentity, verifyIdentity } = require('../../scripts/demo-data/identity.cjs');
+const { seedIdentity: seedWithDriver, verifyIdentity } = require('../../scripts/demo-data/identity.cjs');
+
+// Stand-in for the Mongo driver's ObjectId, which lives in microservices/node_modules and is not
+// installed when only the backend is tested.
+class TestObjectId {
+    constructor(hex) { this.hex = hex; }
+    toString() { return this.hex; }
+}
+const seedIdentity = options => seedWithDriver({ ObjectId: TestObjectId, ...options });
 
 function memoryMongo(initial = []) {
     const documents = new Map(initial.map(profile => [profile.legacyUserId, profile]));
