@@ -58,7 +58,7 @@ async function seedMysql(db, catalog, { now = new Date() } = {}) {
         const id = await owned(`user:${key}`, 'users', {
             firstName: person.firstName, lastName: person.lastName, email: person.email,
             address: person.address || '', genderCode: person.genderCode || 'FE',
-            dob: person.dob || '1990-01-01', image: '/demo/avatar.svg', companyId
+            dob: person.dob || '1990-01-01', image: person.avatar || '/demo/avatar.svg', companyId
         });
         await owned(`account:${key}`, 'accounts', { userId: id, phonenumber: person.phone,
             password: hash, roleCode: role, statusCode: 'S1', ...timestamp(75) });
@@ -88,7 +88,7 @@ async function seedMysql(db, catalog, { now = new Date() } = {}) {
             name: company.name, descriptionHTML: company.descriptionHTML, descriptionMarkdown: company.descriptionMarkdown,
             website: company.website, address: company.address, phonenumber: company.phonenumber,
             taxnumber: company.taxnumber, amountEmployer: company.amountEmployer,
-            thumbnail: `/demo/company-${index + 1}.svg`, coverimage: '/demo/company-cover.svg',
+            thumbnail: company.logo, coverimage: company.cover,
             statusCode: 'S1', censorCode: 'CS1', userId: recruiterId,
             allowPost: 100, allowHotPost: 20, allowCvFree: 20, allowCV: 200, ...timestamp(90 - index)
         });

@@ -113,6 +113,15 @@ const NAMES = [
   'Nguyễn Ngọc Diệp', 'Trần Việt Hoàng', 'Lê Khánh Ngân', 'Phạm Đức Hòa', 'Hoàng Ngọc Bích', 'Võ Quang Hưng', 'Đặng Bảo Anh', 'Bùi Minh Đức', 'Đỗ Thanh Vy',
   'Nguyễn Hồng Phúc', 'Trần Tuệ Nhi', 'Lê Anh Duy', 'Phạm Ngọc Quỳnh', 'Hoàng Bảo Long', 'Võ Yến Nhi', 'Đặng Minh Triết', 'Bùi Lan Anh', 'Đỗ Quốc Bảo',
 ];
+// Gender follows the given name (the list does not strictly alternate), so the
+// profile and its portrait in frontend/public/demo/people stay consistent.
+const FEMALE_GIVEN_NAMES = new Set([
+  'Bảo Ngọc', 'Thu Hà', 'Khánh Linh', 'Ngọc Mai', 'Hoài Thương', 'Phương Anh', 'Thảo Vy', 'Mai Chi', 'Ngọc Hân', 'Diệu Linh',
+  'Ngọc Trâm', 'Bảo Châu', 'Hà My', 'Khánh Hòa', 'Thanh Hằng', 'Kim Ngân', 'Mỹ Duyên', 'Phương Thảo', 'Ngọc Ánh', 'Bảo Trân',
+  'Thùy Dương', 'Thanh Tâm', 'Khánh Vân', 'Minh Thư', 'Bích Ngọc', 'Nhã Uyên', 'Tú Anh', 'Ngọc Diệp', 'Khánh Ngân', 'Ngọc Bích',
+  'Bảo Anh', 'Thanh Vy', 'Tuệ Nhi', 'Ngọc Quỳnh', 'Yến Nhi', 'Lan Anh',
+]);
+const genderOf = fullName => FEMALE_GIVEN_NAMES.has(fullName.split(' ').slice(-2).join(' ')) ? 'FE' : 'M';
 
 function buildCatalog(now = new Date()) {
   const date = new Date(now);
@@ -120,6 +129,7 @@ function buildCatalog(now = new Date()) {
   const year = date.getUTCFullYear();
   const companies = COMPANIES.map(([domain, domainLabel, brand, slug, city, size, product, major, mission], index) => ({
     key: `demo-company-${pad(index + 1)}`, domain, domainLabel, major, slug, city,
+    logo: `/demo/companies/demo-company-${pad(index + 1)}-logo.jpg`, cover: `/demo/companies/demo-company-${pad(index + 1)}-cover.jpg`,
     name: `${brand} (Demo)`, website: `https://${slug}.example.test`,
     address: `Tầng ${index + 2}, Tòa nhà Demo ${index + 1}, ${city} (địa chỉ giả lập)`,
     phonenumber: `091880${String(index + 1).padStart(4, '0')}`, taxnumber: `DEMO-${pad(index + 1)}-0000`,
@@ -197,7 +207,7 @@ function buildCatalog(now = new Date()) {
       email: `candidate.${String(index + 1).padStart(3, '0')}@example.test`,
       phone: `092880${String(index + 1).padStart(4, '0')}`,
       address: `Khu dân cư Demo ${index + 1}, ${addressCode} (địa chỉ giả lập)`,
-      genderCode: index % 2 ? 'FE' : 'M', dob: `${graduationYear - 22}-${pad(index % 12 + 1)}-${pad(index % 27 + 1)}`,
+      genderCode: genderOf(fullName), avatar: `/demo/people/demo-candidate-${String(index + 1).padStart(3, '0')}.jpg`, dob: `${graduationYear - 22}-${pad(index % 12 + 1)}-${pad(index % 27 + 1)}`,
       headline: job.title, summary, yearsExperience: experienceYears,
       expectedSalary: SALARIES.find(entry => entry[0] === salaryJobCode)[2],
       setting: { categoryJobCode: company.domain, addressCode, salaryJobCode, experienceJobCode: job.experienceJobCode, isTakeMail: 0, isFindJob: 1 },

@@ -30,6 +30,22 @@ test('catalog covers eight domains with unique accounts and strongly matching pr
     assert.ok(catalog.candidates.every(c => c.email.endsWith('@example.test') && c.setting.isTakeMail === 0));
 });
 
+test('every demo profile and company points to its own portrait, logo and cover image', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const publicDir = path.join(__dirname, '../../../frontend/public');
+    const catalog = buildCatalog(now);
+    const images = [...catalog.candidates.map(c => c.avatar), ...catalog.companies.flatMap(c => [c.logo, c.cover])];
+    assert.equal(new Set(images).size, images.length);
+    for (const image of images) assert.ok(fs.existsSync(path.join(publicDir, image)), image);
+    const gender = name => catalog.candidates.find(c => c.fullName === name).genderCode;
+    assert.equal(gender('Đỗ Khánh Vân'), 'FE');
+    assert.equal(gender('Nguyễn Hữu Phước'), 'M');
+    assert.equal(gender('Trần Minh Thư'), 'FE');
+    assert.equal(gender('Đỗ Quốc Bảo'), 'M');
+    assert.equal(catalog.candidates.filter(c => c.genderCode === 'FE').length, 36);
+});
+
 test('demo catalogs seed 34 current provinces and 12 levels while keeping historical aliases out of province choices', async () => {
     const { PROVINCES, JOB_LEVELS } = require('../../../microservices/shared/recruitmentCatalog.cjs');
     let seedRows;
