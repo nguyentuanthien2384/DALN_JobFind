@@ -3,6 +3,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import mysql from 'mysql2/promise';
 import pg from 'pg';
+import { fixturePdf, fixturePdfBytes } from './pdf.mjs';
 
 // HTTP acceptance against actual Gateway/legacy routes and eight running services.
 // SQL is used only to seed historical records, change account state and inspect
@@ -18,7 +19,7 @@ const one = async (query, values = []) => (await rows(query, values))[0];
 const eventually = async (name, work) => {
     const deadline = Date.now() + 90000; let last;
     while (Date.now() < deadline) {
-        try { const result = await work(); if (result) return result; } catch (error) { last = error; }
+        try { const result = await work(); if (result) return result; } catch (error) { if (error.terminal) throw error; last = error; }
         await delay(500);
     }
     throw Error(`Timeout: ${name}${last ? ': ' + last.message : ''}`);
@@ -51,23 +52,6 @@ const legacyHistory = user => ok(user, '/get-all-cv-by-userId?limit=100&offset=0
 const hash = file => createHash('sha256').update(file).digest('hex');
 let checks = 0;
 const pass = name => { checks++; console.log(`PASS: ${name}`); };
-
-// Small valid PDF transport fixture. Browser generation, layout and reviewed-byte
-// selection are covered separately by test-candidate-browser, not simulated here.
-const fixturePdf = () => {
-    const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
-        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
-    const content = 'BT /F1 16 Tf 48 790 Td (Synthetic reviewed CV - Node developer) Tj ET';
-    objects.push(`<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`);
-    let pdf = '%PDF-1.4\n'; const offsets = [0];
-    objects.forEach((object, index) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${index + 1} 0 obj\n${object}\nendobj\n`; });
-    const start = Buffer.byteLength(pdf);
-    pdf += `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
-    pdf += offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
-    pdf += `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;
-    return `data:application/pdf;base64,${Buffer.from(pdf).toString('base64')}`;
-};
 
 try {
     for (const [service, port] of [['legacy',4011], ['api-gateway',4000], ['identity-service',4001], ['application-service',4004]]) {
@@ -117,10 +101,11 @@ try {
         assert.equal((await history(8)).length, 2);
         pass('historical read/unread, missing dictionaries/detail/post and deleted candidate remain readable and correctly scoped');
 
-        const ai = await ok(8, '/ai/parse-resume', 'POST', { fileName: 'synthetic.pdf', fileBase64: Buffer.from('%PDF-1.4\nSynthetic CV').toString('base64') }, { 'idempotency-key': randomUUID() });
+        const ai = await ok(8, '/ai/parse-resume', 'POST', { fileName: 'synthetic.pdf', fileBase64: fixturePdfBytes().toString('base64') }, { 'idempotency-key': randomUUID() });
         const parsed = await eventually('resume parsed by actual worker with synthetic AI', async () => {
             const task = (await ok(8, `/ai/tasks/${ai.taskId}`)).data;
-            assert.notEqual(task.status, 'failed'); return task.status === 'done' && task.result;
+            if (task.status === 'failed') throw Object.assign(Error('resume parse reached failed state'), { terminal: true });
+            return task.status === 'done' && task.result;
         });
         const prepared = (await ok(8, '/profile/cvs', 'POST', { title: 'Reviewed application CV', fullName: parsed.fullName,
             email: parsed.email, skills: parsed.skills, summary: 'Synthetic reviewed CV - Node developer' })).data;

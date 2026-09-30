@@ -39,6 +39,18 @@ export const alive = pid => {
     if (!Number.isSafeInteger(pid) || pid <= 0) return false;
     try { process.kill(pid, 0); return true; } catch { return false; }
 };
+// Keep the starter mutex until the detached supervisor has published its own
+// state. Otherwise a concurrent starter can spawn again in the handoff gap.
+export async function awaitSupervisorPublication({ pid, instance, readState, isAlive = alive, timeout = 20000, interval = 50 }) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+        const state = await readState();
+        if (state?.pid === pid && state.instance === instance) return state;
+        if (!isAlive(pid)) throw new Error('Tiến trình JobFind đã dừng trước khi ghi tiến độ; xem .local/runtime.log.');
+        await delay(interval);
+    }
+    throw new Error('Chưa nhận được tiến độ từ trình khởi chạy JobFind; xem .local/runtime.log.');
+}
 export const stopChild = child => {
     if (child.pid && child.exitCode === null && child.signalCode === null && !child.killed) child.kill('SIGTERM');
 };

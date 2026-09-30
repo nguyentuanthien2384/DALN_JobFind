@@ -4,7 +4,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
-import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches, canConnect, awaitService, followLaunch } from './dev-runtime.mjs';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches, canConnect, awaitService, followLaunch, awaitSupervisorPublication } from './dev-runtime.mjs';
 
 test('concurrent starters cannot reclaim or replace each others runtime lock', async () => {
     const workspace = path.join(os.tmpdir(), `jobfind-starter-${process.pid}-${Date.now()}`);
@@ -18,6 +20,51 @@ test('concurrent starters cannot reclaim or replace each others runtime lock', a
     assert.equal(maximumOwners, 1);
     await assert.rejects(withStartLock(workspace, async () => { throw new Error('preflight failed'); }), /preflight failed/);
     assert.equal(await withStartLock(workspace, async () => 'recovered'), 'recovered');
+});
+
+test('concurrent starters follow one supervisor even when state publication is delayed', { timeout: 15000 }, async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jobfind-publication-'));
+    const file = path.join(directory, 'runtime.json');
+    const children = [];
+    const readState = async () => {
+        try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch { return null; }
+    };
+    const start = () => withStartLock(directory, async () => {
+        const existing = await readState();
+        if (existing && alive(existing.pid)) return existing.pid;
+        const instance = 'delayed-child-' + children.length;
+        const code = `const fs = require('node:fs');
+            setTimeout(() => fs.writeFileSync(process.argv[1], JSON.stringify({ pid: process.pid, instance: process.argv[2], status: 'starting' })), 300);
+            setInterval(() => {}, 1000);`;
+        const child = spawn(process.execPath, ['-e', code, file, instance], { stdio: 'ignore', windowsHide: true });
+        children.push(child);
+        await awaitSupervisorPublication({ pid: child.pid, instance, readState, timeout: 10000, interval: 10 });
+        return child.pid;
+    });
+    try {
+        const pids = await Promise.all([start(), start(), start()]);
+        assert.equal(children.length, 1, 'the publication gap must not create a second supervisor');
+        assert.deepEqual(pids, Array(3).fill(children[0].pid));
+    } finally {
+        await Promise.all(children.map(async child => {
+            if (child.exitCode !== null || child.signalCode !== null) return;
+            const closed = once(child, 'close');
+            child.kill();
+            await closed;
+        }));
+        assert.equal(path.dirname(directory), path.resolve(os.tmpdir()));
+        assert.ok(path.basename(directory).startsWith('jobfind-publication-'));
+        await fs.rm(directory, { recursive: true, force: true });
+    }
+});
+
+test('supervisor publication rejects stale instances and reports a child that exits before publishing', async () => {
+    await assert.rejects(awaitSupervisorPublication({ pid: 7, instance: 'new', isAlive: () => false,
+        readState: async () => ({ pid: 7, instance: 'old', status: 'running' }) }), /đã dừng trước khi ghi tiến độ/);
+    await assert.rejects(awaitSupervisorPublication({ pid: 7, instance: 'new', isAlive: () => true, timeout: 20, interval: 5,
+        readState: async () => ({ pid: 7, instance: 'old', status: 'running' }) }), /Chưa nhận được tiến độ/);
+    const failed = { pid: 7, instance: 'new', status: 'failed', error: 'prerequisite failed' };
+    assert.equal(await awaitSupervisorPublication({ pid: 7, instance: 'new', isAlive: () => false, readState: async () => failed }), failed);
 });
 
 test('shutdown preserves a runtime lock belonging to a different supervisor', async () => {

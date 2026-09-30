@@ -16,7 +16,7 @@ import { optionalAuth, requireAuth, requireRole, requirePermission } from './mid
 import { PERMISSIONS } from '../../shared/accessControl.js';
 import { operations, publicPath } from '../../shared/contracts/operations.js';
 import { assertSecureJwtSecret, getJwtPolicy } from '../../shared/securityConfig.js';
-import { createRateLimiter, checkRedis, closeRedis } from './middlewares/rateLimit.js';
+import { createRateLimiter, createAiRateLimiter, checkRedis, closeRedis } from './middlewares/rateLimit.js';
 import { auditMiddleware } from './middlewares/audit.js';
 import {
     applySocketCorsHeaders,
@@ -101,7 +101,7 @@ const ssoLimiter = createRateLimiter({ name: 'sso', windowSeconds: 900, max: 30,
 const publicLimiter = createRateLimiter({ name: 'public', windowSeconds: 60, max: 120 });
 const writeLimiter = createRateLimiter({ name: 'write', windowSeconds: 60, max: 30 });
 // AI ton kem nen siet chat hon han cac API thuong.
-const aiLimiter = createRateLimiter({ name: 'ai', windowSeconds: 3600, max: 30, failClosed: true });
+const aiLimiter = createAiRateLimiter();
 
 // Route nay tiep tuc roi xuong proxy legacy o cuoi file sau khi vuot qua limiter.
 // Dat rieng tai day de moi IP co toi da 10 lan dang nhap that bai / 15 phut.

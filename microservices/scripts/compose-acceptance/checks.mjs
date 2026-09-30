@@ -5,6 +5,7 @@ import mysql from 'mysql2/promise';
 import { MongoClient } from 'mongodb';
 import amqp from 'amqplib';
 import { publishOutboxEvent, closeOutboxPublisher } from '/app/shared/outboxPublisher.js';
+import { fixturePdfBytes } from './pdf.mjs';
 
 assert.equal(process.env.MYSQL_HOST, 'mysql');
 assert.equal(process.env.MYSQL_DATABASE, 'acceptance');
@@ -20,7 +21,7 @@ const eventually = async (name, fn, ms = 90000) => {
     const deadline = Date.now() + ms; let last;
     while (Date.now() < deadline) {
         try { const result = await fn(); if (result) return result; }
-        catch (error) { last = error; }
+        catch (error) { if (error.terminal) throw error; last = error; }
         await delay(500);
     }
     throw Error(`Timeout: ${name}${last ? ': ' + last.message : ''}`);
@@ -213,7 +214,7 @@ try {
             assert.ok(job);
             let parsed;
             for (const [route,type,payload] of [
-                ['parse-resume','parse_resume',{fileName:'synthetic.pdf',fileBase64:Buffer.from('%PDF-1.4\nSynthetic').toString('base64')}],
+                ['parse-resume','parse_resume',{fileName:'synthetic.pdf',fileBase64:fixturePdfBytes().toString('base64')}],
                 ['match-cv','match_cv',{resumeText:'Synthetic Node CV',jobId:job.id}],
                 ['cover-letter','cover_letter',{resumeText:'Synthetic Node CV',jobId:job.id,language:'vi'}]
             ]) {
@@ -222,10 +223,20 @@ try {
                 assert.equal((await candidate(`/ai/${route}`,'POST',payload,key)).taskId,accepted.taskId);
                 const result=await eventually(type+' completes',async()=>{
                     const response=await candidate(`/ai/tasks/${accepted.taskId}`);
+                    if (response.data.status==='failed') throw Object.assign(Error(`${type} reached failed state`),{terminal:true});
                     assert.equal(response.data.type,type);return response.data.status==='done' && response.data.result;
                 });
                 assert.equal(await countCalls(),calls+1);
-                if (type==='parse_resume') { parsed=result;assert.equal(parsed.fullName,'Synthetic Candidate'); }
+                if (type==='parse_resume') {
+                    parsed=result;assert.equal(parsed.fullName,'Synthetic Candidate');
+                    // Status reads must not consume the 30/hour model budget.
+                    // Subsequent matching and cover-letter submissions still run.
+                    for (let poll=0;poll<35;poll++) {
+                        const response=await candidate(`/ai/tasks/${accepted.taskId}`);
+                        assert.equal(response.data.status,'done');
+                    }
+                    pass('35 persisted task reads keep the candidate generation allowance available');
+                }
                 if (type==='match_cv') assert.equal(result.score,80);
                 if (type==='cover_letter') assert.equal(result.letter,'Synthetic application letter.');
                 const forbidden=await fetch(`http://api-gateway:4000/api/ai/tasks/${accepted.taskId}`,{headers:{authorization:`Bearer ${token}`}});

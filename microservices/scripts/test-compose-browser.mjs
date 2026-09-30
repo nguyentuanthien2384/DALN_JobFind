@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import express from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { chromium, expect } from 'playwright/test';
+import { fixturePdfBytes } from './compose-acceptance/pdf.mjs';
 
 // Invoked only by the owning Compose runner. All /api requests are proxied to
 // its actual loopback Gateway. No route.fulfill, seeded JWT or browser storage.
@@ -75,7 +76,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         };
         const candidate = await session(18, '/candidate/ai-cv');
         await expect(candidate.getByRole('heading', { name: 'CV và trợ lý AI' })).toBeVisible();
-        await candidate.getByLabel('Tệp CV PDF (tối đa 5 MiB)').setInputFiles({ name: 'synthetic.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\nSynthetic') });
+        await candidate.getByLabel('Tệp CV PDF (tối đa 5 MiB)').setInputFiles({ name: 'synthetic.pdf', mimeType: 'application/pdf', buffer: fixturePdfBytes() });
         await candidate.getByRole('button', { name: 'Gửi yêu cầu AI', exact: true }).click();
         await expect(candidate.getByRole('button', { name: 'Xem và chỉnh sửa toàn bộ CV' })).toBeVisible({ timeout: 90000 });
         await candidate.getByRole('button', { name: 'Xem và chỉnh sửa toàn bộ CV' }).click();

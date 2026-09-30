@@ -88,5 +88,13 @@ export const createRateLimiter = ({ windowSeconds, max, name, countOnlyFailures 
     };
 };
 
+// Reading a persisted task does not call the model. Give polling its own short
+// window so waiting for one task cannot exhaust the paid-generation allowance.
+export const createAiRateLimiter = () => {
+    const generation = createRateLimiter({ name: 'ai', windowSeconds: 3600, max: 30, failClosed: true });
+    const taskRead = createRateLimiter({ name: 'ai-task-read', windowSeconds: 60, max: 120, failClosed: true });
+    return (req, res, next) => (req.method === 'GET' ? taskRead : generation)(req, res, next);
+};
+
 export const closeRedis = () => redis.quit().catch(() => {});
 export const checkRedis = async () => redisReady && await redis.ping() === 'PONG';

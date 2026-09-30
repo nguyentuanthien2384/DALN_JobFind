@@ -376,6 +376,45 @@ describe('Redis rate limiter', () => {
         expect(res.body.errCode).toBe(429);
     });
 
+    it('allows task polling without consuming the AI generation budget and still limits both routes', async () => {
+        const { createAiRateLimiter } = await import('../api-gateway/src/middlewares/rateLimit.js');
+        redis.handlers.ready();
+        const counts = new Map();
+        redis.incr.mockImplementation(async key => {
+            const count = (counts.get(key) || 0) + 1;
+            counts.set(key, count);
+            return count;
+        });
+        const limiter = createAiRateLimiter();
+        const read = makeReq({ method: 'GET', user: { id: 5 } });
+        const generate = makeReq({ method: 'POST', user: { id: 5 } });
+        const readNext = vi.fn(), generateNext = vi.fn();
+        for (let poll = 0; poll < 120; poll++) await limiter(read, makeRes(), readNext);
+        for (let task = 0; task < 30; task++) await limiter(generate, makeRes(), generateNext);
+        expect(readNext).toHaveBeenCalledTimes(120);
+        expect(generateNext).toHaveBeenCalledTimes(30);
+        const blockedRead = makeRes(), blockedGeneration = makeRes();
+        await limiter(read, blockedRead, readNext);
+        await limiter(generate, blockedGeneration, generateNext);
+        expect(blockedRead.statusCode).toBe(429);
+        expect(blockedGeneration.statusCode).toBe(429);
+        expect(redis.expire).toHaveBeenCalledWith('ratelimit:ai-task-read:user:5', 60);
+        expect(redis.expire).toHaveBeenCalledWith('ratelimit:ai:user:5', 3600);
+        expect(generateNext).toHaveBeenCalledTimes(30);
+    });
+
+    it('fails closed for both AI generation and task reads when Redis is unavailable', async () => {
+        const { createAiRateLimiter } = await import('../api-gateway/src/middlewares/rateLimit.js');
+        redis.handlers.close();
+        const limiter = createAiRateLimiter(), next = vi.fn();
+        for (const method of ['GET', 'POST']) {
+            const response = makeRes();
+            await limiter(makeReq({ method, user: { id: 5 } }), response, next);
+            expect(response.statusCode).toBe(503);
+        }
+        expect(next).not.toHaveBeenCalled();
+    });
+
     it('refunds successful login attempts and fails open on Redis errors', async () => {
         redis.handlers.ready();
         redis.incr.mockResolvedValueOnce(2).mockRejectedValueOnce(new Error('redis down'));

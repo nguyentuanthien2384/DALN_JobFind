@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import net from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { backupMysql, backupContainer, writeBackupManifest } from './backup-local.mjs';
-import { alive, stopChild, ownedSupervisor, effectiveState, waitFor as waitUntil, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches, canConnect, awaitService, followLaunch } from './dev-runtime.mjs';
+import { alive, stopChild, ownedSupervisor, effectiveState, waitFor as waitUntil, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches, canConnect, awaitService, followLaunch, awaitSupervisorPublication } from './dev-runtime.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const script = fileURLToPath(import.meta.url);
@@ -100,7 +100,7 @@ async function serve() {
     let lock;
     try { lock = await fs.open(lockFile, 'wx'); await lock.writeFile(String(process.pid)); }
     catch { throw new Error('Một phiên khởi chạy khác đang tồn tại. Dùng npm run dev:status.'); }
-    const instance = randomUUID();
+    const instance = process.argv[3] || randomUUID();
     const startedAt = new Date().toISOString();
     const state = { instance, pid: process.pid, workspace: root, startedAt, status: 'starting', phase: 'Kiểm tra cấu hình',
         phases: [{ phase: 'Kiểm tra cấu hình', at: startedAt }], children: [] };
@@ -295,11 +295,13 @@ else if (action === 'start') {
             throw new Error('INTERNAL_SECRET chưa khớp ở hai file .env.');
         }
         const output = openSync(path.join(local, 'runtime.log'), 'a');
-        const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve'], { cwd: root, detached: true, windowsHide: true, stdio: ['ignore', output, output] });
+        const instance = randomUUID();
+        const child = spawn(process.execPath, [fileURLToPath(import.meta.url), 'serve', instance], { cwd: root, detached: true, windowsHide: true, stdio: ['ignore', output, output] });
         child.once('error', () => {});
         child.unref(); closeSync(output);
         if (!child.pid) throw new Error('Không thể tạo tiến trình JobFind.');
         console.log('Đang khởi chạy JobFind (Ctrl+C chỉ thôi theo dõi, ứng dụng vẫn chạy nền).');
+        await awaitSupervisorPublication({ pid: child.pid, instance, readState });
         return child.pid;
     });
     if (pid) process.exitCode = await follow(pid);
