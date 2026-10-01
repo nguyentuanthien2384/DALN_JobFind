@@ -70,3 +70,83 @@ it('accepts phone interviews and compares times in Vietnam time', () => {
     expect(formatInterviewTime(input)).toBe('Thứ Năm, 01/10/2026 lúc 08:00');
     expect(formatInterviewTime({ interviewDate: 'bad', interviewTime: '08:00' })).toBe('');
 });
+
+it('marks the phone number as required only for phone interviews and sends it without a location', () => {
+    const onSend = setup({ company: { name: 'Job Example', address: '12 Nguyễn Huệ' } });
+    expect(screen.getByLabelText('Số điện thoại HR')).not.toBeRequired();
+    fireEvent.change(screen.getByLabelText('Hình thức phỏng vấn *'), { target: { value: 'phone' } });
+    expect(screen.getByLabelText('Số điện thoại HR *')).toBeRequired();
+    expect(screen.queryByLabelText(/Địa điểm phỏng vấn/)).not.toBeInTheDocument();
+    fill('Ngày phỏng vấn *', '2099-10-15');
+    fill('Giờ bắt đầu *', '09:30');
+    fireEvent.click(screen.getByRole('button', { name: 'Xem trước thư mời phỏng vấn' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('số điện thoại');
+    fill('Số điện thoại HR *', ' 0901234567 ');
+    fireEvent.change(screen.getByLabelText('Thời lượng dự kiến'), { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Xem trước thư mời phỏng vấn' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('30 phút')).toBeInTheDocument();
+    expect(screen.getByText('Qua điện thoại')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận gửi thư mời phỏng vấn' }));
+    expect(onSend.mock.calls[0][0]).toEqual({ companyName: 'Job Example', interviewDate: '2099-10-15', interviewTime: '09:30', durationMinutes: '30',
+        timeZone: 'Asia/Ho_Chi_Minh', interviewMode: 'phone', contactName: 'Nguyễn Hà', contactEmail: 'hr@example.com', contactPhone: '0901234567' });
+});
+
+it('clears an error as soon as the recruiter edits the form', () => {
+    setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Xem trước thư mời phỏng vấn' }));
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    fill('Ngày phỏng vấn *', '2099-10-15');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('locks every input and action while the invitation is being sent', () => {
+    const onCancel = jest.fn();
+    setup({ busy: true, onCancel });
+    expect(screen.getByLabelText('Tên công ty *')).toBeDisabled();
+    expect(screen.getByLabelText('Hình thức phỏng vấn *')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Xem trước thư mời phỏng vấn' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Đóng phần soạn thư' })).toBeDisabled();
+});
+
+it('closes the composer without sending', () => {
+    const onCancel = jest.fn();
+    const onSend = setup({ onCancel });
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng phần soạn thư' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
+});
+
+it('falls back to the account company and an empty contact when profile data is missing', () => {
+    render(<InterviewInvitationForm detail={{ ...detail, timeline: null }} user={{ companyName: 'Tài khoản Co' }} onSend={jest.fn()} onCancel={jest.fn()} />);
+    expect(screen.getByLabelText('Tên công ty *')).toHaveValue('Tài khoản Co');
+    expect(screen.getByLabelText('Người liên hệ HR *')).toHaveValue('');
+    expect(screen.getByLabelText('Email HR nhận phản hồi *')).toHaveValue('');
+    expect(screen.getByLabelText('Địa điểm phỏng vấn cụ thể *')).toHaveValue('');
+});
+
+it('uses the latest interview snapshot rather than an older one or another decision', () => {
+    setup({ detail: { ...detail, timeline: [
+        { decision_snapshot: { decision: 'accepted', offer: { companyName: 'Offer Co' } } },
+        { decision_snapshot: { decision: 'interview', interview: { ...interview, round: 'Vòng 3' } } },
+        { decision_snapshot: { decision: 'interview', interview: { ...interview, round: 'Vòng 1' } } }
+    ] } });
+    expect(screen.getByLabelText('Vòng phỏng vấn')).toHaveValue('Vòng 3');
+    expect(screen.getByLabelText('Tên công ty *')).toHaveValue('Job Example');
+});
+
+it.each([
+    [{ companyName: 'x'.repeat(256) }, 'tên công ty'],
+    [{ preparation: 'x'.repeat(3001) }, 'chuẩn bị'],
+    [{ contactEmail: 'hr@' + 'a'.repeat(64) + '.com' }, 'Email'],
+    [{ contactEmail: '.hr@example.com' }, 'Email'],
+    [{ contactEmail: 'hr..team@example.com' }, 'Email'],
+    [{ confirmBy: '2099-10-13' }, 'Hạn xác nhận'],
+    [{ confirmBy: '2099-10-15T09:31' }, 'Hạn xác nhận phải']
+])('explains which field is wrong %#', (changes, message) => {
+    expect(validateInterviewForm({ ...interview, ...changes })).toContain(message);
+});
+
+it('accepts a confirmation deadline equal to the interview start', () => {
+    expect(validateInterviewForm({ ...interview, confirmBy: '2099-10-15T09:30' })).toBe('');
+});

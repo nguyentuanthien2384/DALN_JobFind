@@ -11,6 +11,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { useParams } from "react-router-dom";
 import useListQuery, { clampListPage } from "../../../util/useListQuery";
 
+// Màu và nhãn phải dùng cùng ngưỡng: trước đây 1–30% hiện huy hiệu đỏ nhưng ghi "Tạm chấp nhận".
+export const matchLevel = (file) => {
+    const score = Number.parseFloat(String(file ?? ""));
+    if (score >= 70) return { badge: "badge-success", label: "Tốt" };
+    if (score > 30) return { badge: "badge-warning", label: "Tạm chấp nhận" };
+    return { badge: "badge-danger", label: "Tệ" };
+};
+
 const ManageCv = () => {
     const [dataCv, setdataCv] = useState([]);
     const [count, setCount] = useState(0);
@@ -114,28 +122,8 @@ const ManageCv = () => {
                                                     </td>
                                                     <td>{item.file}</td>
                                                     <td>
-                                                        <label
-                                                            className={
-                                                                +item.file.split(
-                                                                    "%"
-                                                                )[0] >= 70
-                                                                    ? "badge badge-success"
-                                                                    : +item.file.split(
-                                                                          "%"
-                                                                      )[0] > 30
-                                                                    ? "badge badge-warning"
-                                                                    : "badge badge-danger"
-                                                            }
-                                                        >
-                                                            {+item.file.split(
-                                                                "%"
-                                                            )[0] >= 70
-                                                                ? "Tốt"
-                                                                : +item.file.split(
-                                                                      "%"
-                                                                  )[0]
-                                                                ? "Tạm chấp nhận"
-                                                                : "Tệ"}
+                                                        <label className={`badge ${matchLevel(item.file).badge}`}>
+                                                            {matchLevel(item.file).label}
                                                         </label>
                                                     </td>
                                                     <td>

@@ -33,6 +33,10 @@ const isDemoRecipient = (value) => {
             .some((suffix) => domain.endsWith(suffix));
 };
 
+const recipientLabel = (email) => (isDemoRecipient(email)
+    ? "hộp thư demo (nếu đã cấu hình)"
+    : (email || "email đã đăng ký của ứng viên"));
+
 // Ung vien da duoc moi phong van (qua thu moi hoac keo vao cot) thi thu tu choi
 // mac dinh cam on ho da tham gia buoi phong van.
 const wasInvited = (detail) => detail.stage === "phong_van"
@@ -130,6 +134,12 @@ const KanbanBoard = () => {
             return;
         }
 
+        // Keo vao cot Tu choi gui ngay email khong trung tuyen cho ung vien: phai hoi
+        // lai nhu nut "Gui khong trung tuyen", tha nham cot thi khong rut lai duoc.
+        if (targetStage === "tu_choi" && !window.confirm(
+            `Chuyển ${moved.candidate_name || "ứng viên"} sang "Từ chối"? Ứng viên sẽ nhận email thông báo không trúng tuyển tại ${recipientLabel(moved.candidate_email)}.`
+        )) return;
+
         // Cap nhat giao dien truoc, goi may chu sau. Neu cho may chu tra loi moi
         // ve lai the thi thao tac keo tha se giat, cam giac nhu bi treo.
         const previous = columns;
@@ -216,10 +226,7 @@ const KanbanBoard = () => {
     const queueCandidateEmail = async (label, send) => {
         if (sendingDecision.current || !detail) return;
         const applicationId = detail.id;
-        const destination = isDemoRecipient(detail.candidate_email)
-            ? "hộp thư demo (nếu đã cấu hình)"
-            : (detail.candidate_email || "email đã đăng ký của ứng viên");
-        if (!window.confirm(`Gửi email ${label} đến ${destination}?`)) return;
+        if (!window.confirm(`Gửi email ${label} đến ${recipientLabel(detail.candidate_email)}?`)) return;
 
         sendingDecision.current = true;
         setIsSendingDecision(true);

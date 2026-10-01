@@ -51,6 +51,44 @@ describe('mailTemplate', () => {
     expect(html).toContain('</html>');
   });
 
+  test('escapes job, company and user text so other accounts cannot inject markup', () => {
+    process.env.URL_REACT = 'https://jobfind.example.com';
+    const html = render([{
+      id: '10"><script>',
+      companyData: { name: '<a href="https://phish.example">Acme</a>', thumbnail: 'x" onerror="alert(1)' },
+      postDetailData: {
+        name: '<img src=x onerror=alert(1)>Backend',
+        provincePostData: { value: '<b>Đà Nẵng</b>' },
+        workTypePostData: { value: 'Toàn & thời gian' },
+        salaryTypePostData: { value: "20' triệu" }
+      }
+    }], { userSettingData: { firstName: '<i>An</i>', lastName: 'Nguyễn', image: 'a.png onload=alert(1)' } });
+
+    expect(html).not.toMatch(/<(?:script|img src=x|a href="https:\/\/phish|b>|i>)/);
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;Backend');
+    expect(html).toContain('&lt;a href=&quot;https://phish.example&quot;&gt;Acme&lt;/a&gt;');
+    expect(html).toContain('src="x&quot; onerror=&quot;alert(1)"');
+    expect(html).toContain('src="a.png onload=alert(1)"');
+    expect(html).toContain('&lt;i&gt;An&lt;/i&gt; Nguyễn');
+    expect(html).toContain('&lt;b&gt;Đà Nẵng&lt;/b&gt;');
+    expect(html).toContain('Toàn &amp; thời gian');
+    expect(html).toContain('20&#039; triệu');
+    expect(html).toContain('href="https://jobfind.example.com/detail-job/10%22%3E%3Cscript%3E"');
+  });
+
+  test('does not print "null" for a missing last name or catalogue value', () => {
+    const html = render([{
+      id: 3,
+      companyData: { name: 'Acme', thumbnail: null },
+      postDetailData: { name: 'Tester', provincePostData: { value: null }, workTypePostData: {}, salaryTypePostData: null }
+    }], { userSettingData: { firstName: 'An', lastName: null, image: null } });
+    expect(html).toContain('<span>An</span>');
+    expect(html).not.toMatch(/>\s*null\b|: null|An null/);
+    expect(html).toContain('Địa điểm: Chưa cập nhật');
+    expect(html).toContain('Lương: Chưa cập nhật');
+    expect(html).toContain('src=""');
+  });
+
   test('renders a valid empty recommendation email', () => {
     const html = render([], { userSettingData: { firstName: 'A', lastName: 'B', image: 'avatar.png' } });
     expect(html).toContain('A B');

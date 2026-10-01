@@ -14,8 +14,13 @@ let encodeToken = (userId, roleCode = null, companyId = null) =>{
 }
 
 let pdfToString = async(file) => {
+    // Ho so thieu file hoac khong phai data URI cung tra ve null nhu PDF hong,
+    // de nguoi goi bo qua dung ho so do thay vi lam hong ca danh sach.
+    if (file === null || file === undefined) return null
     file = Buffer.from(file, 'base64').toString('binary');
-    let buffer = Buffer.from(file.split(",")[1], 'base64');
+    const encoded = file.split(",")[1]
+    if (!encoded) return null
+    let buffer = Buffer.from(encoded, 'base64');
     const options = {}
     let pdfData = null
     await pdfExtract.extractBuffer(buffer, options)

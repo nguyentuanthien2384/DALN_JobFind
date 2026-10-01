@@ -42,7 +42,8 @@ const PdfPreview = ({ file, fileName = 'Tài liệu.pdf', onClose, maxPages = 30
     const viewport = useRef(null);
     const source = useMemo(() => file || null, [file]);
     useEffect(() => {
-        setPage(1); setPages(0); setError(''); setZoom(1); setDocument(null);
+        // Never keep offering a download link for the previous, already revoked file.
+        setPage(1); setPages(0); setError(''); setZoom(1); setDocument(null); setUrl('');
         if (!file) return;
         const value = URL.createObjectURL(file);
         setUrl(value);

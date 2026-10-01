@@ -8,10 +8,9 @@ const mockDb = {
 };
 const mockTransaction = { LOCK: { UPDATE: 'UPDATE' } };
 const mockPdfToString = jest.fn();
-const mockFlat = jest.fn((value) => String(value || '').toLowerCase().replace(/[^a-z]/g, ''));
 
 jest.mock('../../src/models/index', () => mockDb);
-jest.mock('../../src/utils/CommonUtils', () => ({ pdfToString: mockPdfToString, flatAllString: mockFlat }));
+jest.mock('../../src/utils/CommonUtils', () => ({ pdfToString: mockPdfToString }));
 
 const service = require('../../src/services/cvService');
 
@@ -32,7 +31,6 @@ const reset = () => {
   mockDb.DetailPost.findOne.mockResolvedValue({id:1,name:'Synthetic job'});
   mockDb.sequelize.transaction.mockImplementation(async (callback) => callback(mockTransaction));
   mockPdfToString.mockReset();
-  mockFlat.mockClear();
 };
 
 describe('cvService', () => {
@@ -95,6 +93,89 @@ describe('cvService', () => {
     const result = await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' });
     expect(result).toEqual({ errCode: 0, data: [{ id: 1, file: '100%' }], count: 1 });
     expect(mockDb.Cv.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 0 }));
+  });
+
+  describe('applicant list skill match', () => {
+    const listPost = (descriptionHTML = 'We need node, react and sql') => {
+      mockDb.Post.findOne.mockResolvedValue({ postDetailData: { descriptionHTML, jobTypePostData: { code: 'IT' } } });
+    };
+    const pdf = (...texts) => ({ pages: [{ content: texts.map(str => ({ str })) }] });
+
+    test('reports 0% instead of "NaN%" when the job has no skill to compare against', async () => {
+      mockDb.Cv.findAndCountAll.mockResolvedValue({ rows: [{ id: 1, file: 'pdf' }, { id: 2, file: 'pdf' }], count: 2 });
+      listPost('Generic description with no listed skill');
+      mockDb.Skill.findAll.mockResolvedValue([{ id: 1, name: 'Kubernetes' }]);
+      mockPdfToString.mockResolvedValue(pdf('Kubernetes expert'));
+      const result = await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' });
+      expect(result.data.map(row => row.file)).toEqual(['0%', '0%']);
+      expect(mockPdfToString).not.toHaveBeenCalled();
+    });
+
+    test('reports 0% when the job category has no skills at all', async () => {
+      mockDb.Cv.findAndCountAll.mockResolvedValue({ rows: [{ id: 1, file: 'pdf' }], count: 1 });
+      listPost();
+      mockDb.Skill.findAll.mockResolvedValue([]);
+      expect((await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' })).data[0].file).toBe('0%');
+    });
+
+    test('one unreadable CV scores 0% without hiding the other applicants', async () => {
+      mockDb.Cv.findAndCountAll.mockResolvedValue({
+        rows: [{ id: 1, file: 'broken' }, { id: 2, file: 'empty' }, { id: 3, file: 'good' }, { id: 4, file: 'throws' }], count: 4
+      });
+      listPost();
+      mockDb.Skill.findAll.mockResolvedValue([{ id: 1, name: 'Node' }, { id: 2, name: 'React' }]);
+      mockPdfToString.mockImplementation(async file => {
+        if (file === 'broken') return null;
+        if (file === 'empty') return { pages: [{}] };
+        if (file === 'throws') throw new TypeError('bad data uri');
+        return pdf('Node', 'React developer');
+      });
+      const result = await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' });
+      expect(result.errCode).toBe(0);
+      expect(result.data.map(row => [row.id, row.file])).toEqual([[1, '0%'], [2, '0%'], [3, '100%'], [4, '0%']]);
+    });
+
+    test('counts each required skill once and rounds the share of matched skills', async () => {
+      mockDb.Cv.findAndCountAll.mockResolvedValue({ rows: [{ id: 1, file: 'pdf' }], count: 1 });
+      listPost();
+      mockDb.Skill.findAll.mockResolvedValue([{ id: 1, name: 'Node' }, { id: 2, name: 'React' }, { id: 3, name: 'SQL' }]);
+      mockPdfToString.mockResolvedValue(pdf('node node NODE', 'react'));
+      expect((await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' })).data[0].file).toBe('67%');
+    });
+
+    test('ignores skills whose normalised name is empty instead of matching every CV', async () => {
+      mockDb.Cv.findAndCountAll.mockResolvedValue({ rows: [{ id: 1, file: 'pdf' }], count: 1 });
+      listPost('We need node');
+      mockDb.Skill.findAll.mockResolvedValue([{ id: 1, name: 'Node' }, { id: 2, name: '123' }, { id: 3, name: null }]);
+      mockPdfToString.mockResolvedValue(pdf('Python only'));
+      expect((await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' })).data[0].file).toBe('0%');
+    });
+
+    test('C++ and C# requirements are not satisfied by any CV that merely contains the letter c', async () => {
+      mockDb.Cv.findAndCountAll.mockResolvedValue({ rows: [{ id: 1, file: 'react' }, { id: 2, file: 'cpp' }, { id: 3, file: 'both' }], count: 3 });
+      listPost('<ul><li>C++ cho hệ thống nhúng</li><li>C# cho công cụ nội bộ</li></ul>');
+      mockDb.Skill.findAll.mockResolvedValue([{ id: 1, name: 'C++' }, { id: 2, name: 'C#' }, { id: 3, name: 'Go' }]);
+      mockPdfToString.mockImplementation(async file => ({
+        react: pdf('React, Docker, Google Cloud'), cpp: pdf('Lập trình C++17'), both: pdf('C++', 'C# .NET')
+      })[file]);
+      const result = await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' });
+      expect(result.data.map(row => [row.id, row.file])).toEqual([[1, '0%'], [2, '50%'], [3, '100%']]);
+    });
+
+    test('a short skill only counts when the job description names it as a word', async () => {
+      mockDb.Cv.findAndCountAll.mockResolvedValue({ rows: [{ id: 1, file: 'pdf' }], count: 1 });
+      listPost('Backend với Node.js và MongoDB trên Google Cloud');
+      mockDb.Skill.findAll.mockResolvedValue([{ id: 1, name: 'Go' }, { id: 2, name: 'Node.js' }]);
+      mockPdfToString.mockResolvedValue(pdf('NodeJS developer'));
+      expect((await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' })).data[0].file).toBe('100%');
+    });
+
+    test('tolerates a job without description text', async () => {
+      mockDb.Cv.findAndCountAll.mockResolvedValue({ rows: [{ id: 1, file: 'pdf' }], count: 1 });
+      listPost(null);
+      mockDb.Skill.findAll.mockResolvedValue([{ id: 1, name: 'Node' }]);
+      expect((await service.getAllListCvByPost({ postId: 2, limit: '10', offset: '0' })).data[0].file).toBe('0%');
+    });
   });
 
   test('submission freezes server identity and event in the same transaction without including the PDF', async () => {
