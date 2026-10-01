@@ -1,5 +1,16 @@
 const { getFrontendLink } = require('./frontendUrl');
 
+// Job, company and user names come from other accounts: never let them add markup or
+// attributes to a recommendation email sent to candidates.
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+// A missing catalogue entry is joined as { value: null }; do not print "null".
+const codeValue = (entry) => escapeHtml(entry?.value ?? 'Chưa cập nhật');
+
 const getHead = () => {
   return `<!doctype html>
   <html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -196,7 +207,7 @@ const getHeadMailTemplate = (userInfo) => {
                                         <tbody>
                                           <tr>
                                             <td style="width:40px;">
-                                              <img height="40" src=${userInfo.userSettingData.image} style="border:0;border-radius:50%;display:block;outline:none;text-decoration:none;height:40px;width:100%;font-size:13px;" width="40" />
+                                              <img height="40" src="${escapeHtml(userInfo.userSettingData.image)}" style="border:0;border-radius:50%;display:block;outline:none;text-decoration:none;height:40px;width:100%;font-size:13px;" width="40" />
                                             </td>
                                           </tr>
                                         </tbody>
@@ -214,7 +225,7 @@ const getHeadMailTemplate = (userInfo) => {
                                     <td align="left" style="font-size:0px;padding:10px 25px;padding-top:20px;word-break:break-word;">
                                       <div style="font-family:SF Pro Display;font-size:16px;font-style:normal;font-weight:600;line-height:20px;text-align:left;color:#000000;">
                                         <div>
-                                          <span>${userInfo.userSettingData.firstName + " " + userInfo.userSettingData.lastName}</span>
+                                          <span>${escapeHtml([userInfo.userSettingData.firstName, userInfo.userSettingData.lastName].filter(Boolean).join(' '))}</span>
                                         </div>
                                       </div>
                                     </td>
@@ -234,7 +245,7 @@ const getHeadMailTemplate = (userInfo) => {
 
 const getPostTemplate = (postInfo) => {
   return `<!--[if mso | IE]></td></tr></table></td></tr><tr><td class="" width="600px" ><table align="center" border="0" cellpadding="0" cellspacing="0" class="" style="width:550px;" width="550" bgcolor="#ffffff" ><tr><td style="line-height:0px;font-size:0px;mso-line-height-rule:exactly;"><![endif]-->
-  <a href="${getFrontendLink(`/detail-job/${postInfo.id}`)}">
+  <a href="${escapeHtml(getFrontendLink(`/detail-job/${encodeURIComponent(postInfo.id)}`))}">
   <div style="background:#ffffff;background-color:#ffffff;margin:0px auto;max-width:550px;">
     <table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="background:#ffffff;background-color:#ffffff;width:100%;">
       <tbody>
@@ -250,7 +261,7 @@ const getPostTemplate = (postInfo) => {
                         <tbody>
                           <tr>
                             <td style="width:102px;">
-                              <img height="60" src=${postInfo.companyData.thumbnail} style="border:0;display:block;outline:none;text-decoration:none;height:60px;width:100%;font-size:13px;" width="102" />
+                              <img height="60" src="${escapeHtml(postInfo.companyData.thumbnail)}" style="border:0;display:block;outline:none;text-decoration:none;height:60px;width:100%;font-size:13px;" width="102" />
                             </td>
                           </tr>
                         </tbody>
@@ -268,11 +279,11 @@ const getPostTemplate = (postInfo) => {
                     <td align="left" style="font-size:0px;padding:10px 25px;word-break:break-word;">
                       <div style="font-family:SF Pro Display;font-size:16px;font-style:normal;line-height:1;text-align:left;color:#000000;">
                         <div>
-                          <h3 style="color: blue">${postInfo.postDetailData.name}</h3>
-                          <h4>${postInfo.companyData.name}</h4>
-                          <div>Địa điểm: ${postInfo.postDetailData.provincePostData.value}</div>
-                          <div>Hình thức làm việc: ${postInfo.postDetailData.workTypePostData.value} </div>
-                          <div>Lương: ${postInfo.postDetailData.salaryTypePostData.value}</div>
+                          <h3 style="color: blue">${escapeHtml(postInfo.postDetailData.name)}</h3>
+                          <h4>${escapeHtml(postInfo.companyData.name)}</h4>
+                          <div>Địa điểm: ${codeValue(postInfo.postDetailData.provincePostData)}</div>
+                          <div>Hình thức làm việc: ${codeValue(postInfo.postDetailData.workTypePostData)} </div>
+                          <div>Lương: ${codeValue(postInfo.postDetailData.salaryTypePostData)}</div>
                         </div>
                       </div>
                     </td>
@@ -304,7 +315,7 @@ const getTailMailTemplate = () => {
                       <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="border-collapse:separate;line-height:100%;">
                         <tr>
                           <td align="center" bgcolor="red" role="presentation" style="border:none;border-radius:3px;cursor:auto;mso-padding-alt:10px 25px;background:red;" valign="middle">
-                            <a href="${getFrontendLink('/job')}" style="display:inline-block;background:red;color:white;font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:13px;font-weight:normal;line-height:120%;margin:0;text-decoration:none;text-transform:none;padding:10px 25px;mso-padding-alt:0px;border-radius:3px;" target="_blank" rel="noopener noreferrer"> Xem thêm công việc </a>
+                            <a href="${escapeHtml(getFrontendLink('/job'))}" style="display:inline-block;background:red;color:white;font-family:Ubuntu, Helvetica, Arial, sans-serif;font-size:13px;font-weight:normal;line-height:120%;margin:0;text-decoration:none;text-transform:none;padding:10px 25px;mso-padding-alt:0px;border-radius:3px;" target="_blank" rel="noopener noreferrer"> Xem thêm công việc </a>
                           </td>
                         </tr>
                       </table>

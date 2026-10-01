@@ -4,6 +4,11 @@ import db from "../models/index";
 import getStringMailTemplate from "./mailTemplate";
 const { Op } = require("sequelize");
 const nodemailer = require('nodemailer');
+const { createSkillMatcher, prepareSkillText } = require('./skillMatch');
+// SQL LIKE chi loc so bo ("%C%" cua ky nang "C" khop moi tin), nen lay mot nhom
+// tin ngau nhien roi so khop ky nang lai bang cung quy tac voi cham diem CV.
+const SUGGESTION_LIMIT = 5
+const SUGGESTION_POOL = 50
 let rule = new schedule.RecurrenceRule();
 rule.dayOfWeek = [0, 1, 2, 3, 4, 5, 6]
 rule.hour = 8
@@ -40,7 +45,7 @@ let getTemplateMail = async (infoUser) => {
     try {
         const timeStampOfMonthAgo = 2592000000
         let listpost = await db.Post.findAll({
-            limit: 5,
+            limit: SUGGESTION_POOL,
             // offset: 0,
             where: {
                 timePost: {
@@ -48,6 +53,10 @@ let getTemplateMail = async (infoUser) => {
                 },
                 statusCode: 'PS1',
                 [Op.and]: [
+                    // Chi goi y tin con han nop ho so, cung dieu kien voi trang tim viec.
+                    db.Sequelize.where(db.Sequelize.cast(db.sequelize.col('Post.timeEnd'), 'SIGNED'), {
+                        [Op.gt]: Date.now()
+                    }),
                     db.Sequelize.where(db.sequelize.col('postDetailData.jobTypePostData.code'), {
                         [Op.like]: `%${infoUser.categoryJobCode}%`
                     }),
@@ -85,20 +94,29 @@ let getTemplateMail = async (infoUser) => {
             raw: true,
             nest: true,
         })
-        if (listpost && listpost.length > 0) {
-            for (let post of listpost) {
-                let user = await db.User.findOne({
-                    where: { id: post.userId },
-                    attributes: {
-                        exclude: ['userId']
-                    }
-                })
-                let company = await db.Company.findOne({
-                    where: { id: user.companyId }
-                })
-                post.companyData = company
-            }
-            return getStringMailTemplate(listpost, infoUser)
+        let postsWithCompany = []
+        for (let post of listpost || []) {
+            if (postsWithCompany.length >= SUGGESTION_LIMIT) break
+            const description = prepareSkillText(post.postDetailData?.descriptionHTML)
+            if (!infoUser.skillMatchers.some((matcher) => matcher.matches(description))) continue
+            let user = await db.User.findOne({
+                where: { id: post.userId },
+                attributes: {
+                    exclude: ['userId']
+                }
+            })
+            // Nguoi dang da bi xoa hoac roi cong ty: bo qua rieng tin do, khong
+            // de mot tin loi lam mat ca email goi y cua ung vien.
+            if (!user || !user.companyId) continue
+            let company = await db.Company.findOne({
+                where: { id: user.companyId }
+            })
+            if (!company) continue
+            post.companyData = company
+            postsWithCompany.push(post)
+        }
+        if (postsWithCompany.length > 0) {
+            return getStringMailTemplate(postsWithCompany, infoUser)
         }
         else {
             return 0
@@ -134,11 +152,12 @@ const sendJobMail = () => {
                     raw: true,
                     nest: true
                 })
-                user.listSkills = listSkills.map(item => {
-                    return {
-                        [Op.like] : `%${item.Skill.name}%`
-                    }
-                })
+                const skillNames = listSkills.map(item => item.Skill?.name).filter(name => createSkillMatcher(name))
+                // Chua khai bao ky nang thi khong co co so de goi y: Op.or rong khien
+                // Sequelize bo han dieu kien ky nang va gui tin ngau nhien cua ca nganh.
+                if (!skillNames.length) continue
+                user.listSkills = skillNames.map(name => ({ [Op.like]: `%${name}%` }))
+                user.skillMatchers = skillNames.map(createSkillMatcher)
                 let mailTemplate = await getTemplateMail(user)
                 if (mailTemplate !== 0) {
                         sendmail(mailTemplate, user.userSettingData.email)

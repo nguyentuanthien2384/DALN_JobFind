@@ -81,9 +81,14 @@ module.exports = async ({ nodes, db, tokenFor, seedSessions }) => {
       await expect(waiting(a.page)).toHaveCount(0);
       await expect(waiting(b.page)).toHaveCount(0);
       const send = async (from, to, content) => {
+        // REST history can finish before the socket reconnects after a reload.
+        // Ephemeral typing requires both browser connections to be ready.
+        await Promise.all([from, to].map(({ page }) => expect(page.locator('.jf-chat-page'))
+          .toHaveAttribute('data-realtime', 'connected', { timeout: 10000 })));
         const input = from.page.getByPlaceholder("Nhập tin nhắn...");
         await input.fill(content);
-        await expect(to.page.getByText("đang soạn tin nhắn...")).toBeVisible({
+        await expect(to.page.getByText("đang soạn tin nhắn..."),
+          `${engine}: typing before message ${transcript.length + 1}`).toBeVisible({
           timeout: 8000,
         });
         await from.page

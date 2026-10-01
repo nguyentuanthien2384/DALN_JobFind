@@ -17,7 +17,7 @@ import {
     getDetailUserById,
 } from "../../service/userService";
 import FilterCv from "./Cv/FilterCv";
-import ManageCv from "./Cv/ManageCv";
+import ManageCv, { matchLevel } from "./Cv/ManageCv";
 import UserCv from "./Cv/UserCv";
 import DetailFilterUser from "./Cv/DetailFilterUser";
 import { SESSION_ENDED_EVENT } from "../../auth/sessionExpiry";
@@ -233,6 +233,29 @@ describe("CV list and detail", () => {
         expect(screen.getByText("Xem CV")).toHaveAttribute("href", "/admin/user-cv/31/");
         fireEvent.click(screen.getByTestId("next-page"));
         await waitFor(() => expect(getAllListCvByPostService).toHaveBeenLastCalledWith({ limit: 5, offset: 5, postId: "post-10" }));
+    });
+
+    it.each([
+        ["100%", "badge-success", "Tốt"], ["70%", "badge-success", "Tốt"], ["69%", "badge-warning", "Tạm chấp nhận"],
+        ["31%", "badge-warning", "Tạm chấp nhận"], ["30%", "badge-danger", "Tệ"], ["20%", "badge-danger", "Tệ"],
+        ["0%", "badge-danger", "Tệ"], ["NaN%", "badge-danger", "Tệ"], [null, "badge-danger", "Tệ"], [undefined, "badge-danger", "Tệ"],
+    ])("uses one threshold for the colour and label of a %s match", (file, badge, label) => {
+        expect(matchLevel(file)).toEqual({ badge, label });
+    });
+
+    it("labels a low score with the same danger level as its badge and survives a missing score", async () => {
+        getDetailPostByIdService.mockResolvedValue({ errCode: 0, data: { postDetailData: { name: "Kỹ sư React" } } });
+        const user = (firstName) => ({ firstName, lastName: "Trần", userAccountData: { phonenumber: "0901" } });
+        getAllListCvByPostService.mockResolvedValue({ errCode: 0, count: 2, data: [
+            { id: 31, file: "20%", isChecked: 1, userCvData: user("Bình") },
+            { id: 32, file: null, isChecked: 0, userCvData: user("Chi") },
+        ] });
+        render(<ManageCv />);
+        const low = (await screen.findByText("Bình Trần")).closest("tr");
+        expect(within(low).getByText("Tệ")).toHaveClass("badge", "badge-danger");
+        expect(within(low).queryByText("Tạm chấp nhận")).not.toBeInTheDocument();
+        expect(within(low).getByText("Đã xem")).toBeInTheDocument();
+        expect(within(screen.getByText("Chi Trần").closest("tr")).getByText("Tệ")).toBeInTheDocument();
     });
 
     it("loads the selected CV with the current role and supports back navigation", async () => {

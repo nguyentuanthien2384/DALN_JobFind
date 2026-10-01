@@ -343,12 +343,91 @@ describe("ChatPage", () => {
         await act(async () => {
             await new Promise((resolve) => setTimeout(resolve, 300));
         });
-        expect(socket.volatile.emit).toHaveBeenCalledWith("chat:typing", { receiverId: 20 });
+        expect(socket.emit).toHaveBeenCalledWith("chat:typing", { receiverId: 20 });
 
         unmount();
         ["connect", "disconnect", "chat:new-message", "chat:typing", "chat:read"].forEach(
             (event) => expect(socket.off).toHaveBeenCalledWith(event, expect.any(Function))
         );
+    });
+
+    describe('typing lifecycle', () => {
+        const typingCalls = () => socket.emit.mock.calls.filter(([event]) => event === 'chat:typing');
+        const draft = (value) => fireEvent.change(screen.getByPlaceholderText('Nhập tin nhắn...'), { target: { value } });
+        const openChat = async () => {
+            mockPartnerId = '20';
+            socket.connected = true;
+            const view = render(<ChatPage />);
+            await act(async () => {});
+            return view;
+        };
+
+        beforeEach(() => {
+            jest.useFakeTimers();
+            jest.setSystemTime(new Date('2026-10-01T00:00:00Z'));
+        });
+        afterEach(() => jest.useRealTimers());
+
+        it('cancels a queued notification on send and still announces a rapid next message', async () => {
+            await openChat();
+            draft('First draft');
+            draft('First draft edited');
+            await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Gửi tin nhắn' })));
+            expect(screen.getByPlaceholderText('Nhập tin nhắn...')).toHaveValue('');
+            act(() => jest.advanceTimersByTime(600));
+            draft('Second message');
+            expect(typingCalls()).toHaveLength(1);
+            act(() => jest.advanceTimersByTime(600));
+            expect(typingCalls()).toEqual([
+                ['chat:typing', { receiverId: 20 }],
+                ['chat:typing', { receiverId: 20 }],
+            ]);
+            await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Gửi tin nhắn' })));
+            act(() => jest.advanceTimersByTime(2000));
+            expect(typingCalls()).toHaveLength(2);
+        });
+
+        it('does not announce a sent or erased draft after the composer is cleared', async () => {
+            await openChat();
+            draft('First');
+            draft('Erase this');
+            draft('');
+            act(() => jest.advanceTimersByTime(1200));
+            expect(typingCalls()).toHaveLength(1);
+            draft('Send this');
+            draft('Send this edit');
+            await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Gửi tin nhắn' })));
+            act(() => jest.advanceTimersByTime(1200));
+            expect(typingCalls()).toHaveLength(2);
+        });
+
+        it('cancels an old recipient on route change and an active draft on unmount', async () => {
+            const view = await openChat();
+            draft('First');
+            draft('Pending old recipient');
+            mockPartnerId = '30';
+            await act(async () => view.rerender(<ChatPage />));
+            act(() => jest.advanceTimersByTime(1200));
+            expect(typingCalls()).toEqual([['chat:typing', { receiverId: 20 }]]);
+            draft('New recipient');
+            draft('Pending new recipient');
+            view.unmount();
+            act(() => jest.advanceTimersByTime(1200));
+            expect(typingCalls()).toEqual([
+                ['chat:typing', { receiverId: 20 }],
+                ['chat:typing', { receiverId: 30 }],
+            ]);
+        });
+
+        it('does not revive a queued edit after disconnect and reconnect', async () => {
+            await openChat();
+            draft('First');
+            draft('Pending');
+            act(() => { socket.connected = false; socketHandlers.disconnect(); });
+            await act(async () => { socket.connected = true; socketHandlers.connect(); });
+            act(() => jest.advanceTimersByTime(1200));
+            expect(typingCalls()).toHaveLength(1);
+        });
     });
 
     it('retains an uncertain send across remount and retries with the same key without blocking the button', async () => {

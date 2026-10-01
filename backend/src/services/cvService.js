@@ -2,6 +2,7 @@ import db from "../models/index";
 import { searchCandidates, listCandidateSearchJobs } from './candidateSearchService';
 import CommonUtils from '../utils/CommonUtils';
 import { submitLegacyApplication } from '../utils/legacyApplication';
+import { createSkillMatcher, prepareSkillText } from '../utils/skillMatch';
 const { Op, and } = require("sequelize");
 let caculateMatchCv = async(file,mapRequired) => {
     let myMapRequired = new Map(mapRequired)
@@ -9,12 +10,15 @@ let caculateMatchCv = async(file,mapRequired) => {
         return 0
     }
     let match = 0
-    let cvData = await CommonUtils.pdfToString(file)
-    cvData = cvData.pages
-    cvData.forEach(item=> {
-        item.content.forEach(data => {
-            for (let key of myMapRequired.keys()) {
-                if(CommonUtils.flatAllString(data.str).includes(CommonUtils.flatAllString(myMapRequired.get(key)))) {
+    // Mot CV khong doc duoc chi duoc tinh 0%, khong duoc lam hong ca danh sach ung vien.
+    let cvData = null
+    try { cvData = await CommonUtils.pdfToString(file) } catch { cvData = null }
+    if (!cvData || !Array.isArray(cvData.pages)) return 0
+    cvData.pages.forEach(item=> {
+        (item.content || []).forEach(data => {
+            const text = prepareSkillText(data.str)
+            for (let [key, matcher] of myMapRequired) {
+                if(matcher.matches(text)) {
                     myMapRequired.delete(key)
                     match++
                 }
@@ -23,12 +27,16 @@ let caculateMatchCv = async(file,mapRequired) => {
     })
     return match
 }
-let getMapRequiredSkill = (mapRequired,post) => {
-    for (let key of mapRequired.keys()) {
-        if(!CommonUtils.flatAllString(post.postDetailData.descriptionHTML).includes(CommonUtils.flatAllString(mapRequired.get(key).toLowerCase()))) {
-            mapRequired.delete(key)
-        }
+// Ky nang cua nganh co nhac den trong mo ta tin, kem bo so khop cua tung ky nang.
+// Ten rong sau khi chuan hoa khong phai la yeu cau (truoc day no "khop" moi chuoi).
+let getRequiredSkills = (listSkills, post) => {
+    const description = prepareSkillText(post.postDetailData.descriptionHTML)
+    const required = new Map()
+    for (const skill of listSkills) {
+        const matcher = createSkillMatcher(skill.name)
+        if (matcher && matcher.matches(description)) required.set(skill.id, matcher)
     }
+    return required
 }
 const handleCreateCv = submitLegacyApplication;
 let getAllListCvByPost = (data) => {
@@ -83,15 +91,13 @@ let getAllListCvByPost = (data) => {
                 let listSkills = await db.Skill.findAll({
                     where: {categoryJobCode: postInfo.postDetailData.jobTypePostData.code}
                 })
-                let mapRequired = new Map()
-                listSkills = listSkills.map(item => {
-                    mapRequired.set(item.id,item.name)
-                })
-                console.log(mapRequired)
-                getMapRequiredSkill(mapRequired,postInfo)
+                let mapRequired = getRequiredSkills(listSkills, postInfo)
                 for (let i= 0; i< cv.rows.length; i++) {
                     let match = await caculateMatchCv(cv.rows[i].file,mapRequired)
-                    cv.rows[i].file = Math.round((match/mapRequired.size + Number.EPSILON) * 100) + '%'
+                    // Tin khong co ky nang nao de doi chieu thi khong chia cho 0 ("NaN%").
+                    cv.rows[i].file = mapRequired.size
+                        ? Math.round((match/mapRequired.size + Number.EPSILON) * 100) + '%'
+                        : '0%'
                 }
                 resolve({
                     errCode: 0,

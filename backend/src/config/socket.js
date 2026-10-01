@@ -173,7 +173,7 @@ const initSocket = (server, adapter) => {
             const relation = await chatService.canParticipantsChat(userId, receiverId);
             if (!relation.allowed) return protocol.error('CHAT_NOT_ALLOWED', 'Bạn không có quyền mở cuộc trò chuyện này', 5);
             const rate = await limiter.consume(`typing:${userId}:${receiverId}`, 1, 750);
-            if (rate.allowed) runtime.to(roomOf(receiverId)).volatile.emit('chat:typing', { v: 1, fromUserId: userId });
+            if (rate.allowed) runtime.to(roomOf(receiverId)).emit('chat:typing', { v: 1, fromUserId: userId });
             return { errCode: 0 };
         });
         register('chat:read', async ({ partnerId, throughMessageId }) => {

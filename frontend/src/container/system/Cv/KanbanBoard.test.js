@@ -393,4 +393,311 @@ describe("KanbanBoard", () => {
         fireEvent.click(screen.getByText("Lan Nguyen"));
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không mở được hồ sơ"));
     });
+
+    describe("edge cases", () => {
+        const openModal = async () => {
+            await renderLoadedBoard();
+            fireEvent.click(screen.getByText("Lan Nguyen"));
+            return screen.findByRole("dialog", { name: "Chi tiết hồ sơ Lan Nguyen" });
+        };
+        const stars = (container) => within(container).getAllByTitle(/sao$/).filter((star) => star.classList.contains("on"));
+
+        it.each(["Enter", " "])("opens the detail from the keyboard with %p and ignores other keys", async (key) => {
+            await renderLoadedBoard();
+            const card = screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" });
+            fireEvent.keyDown(card, { key: "Tab" });
+            expect(getApplicationDetail).not.toHaveBeenCalled();
+            fireEvent.keyDown(card, { key });
+            expect(await screen.findByRole("dialog", { name: "Chi tiết hồ sơ Lan Nguyen" })).toBeInTheDocument();
+        });
+
+        it("closes the detail from the backdrop or the close button, but not from inside the box", async () => {
+            const modal = await openModal();
+            fireEvent.click(within(modal).getByText("Tôi phù hợp với vị trí này."));
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+            fireEvent.click(modal);
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+            fireEvent.click(screen.getByText("Lan Nguyen"));
+            fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "×" }));
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+
+        it("labels unnamed candidates, hides a missing match score and marks read cards", async () => {
+            getApplicationBoard.mockResolvedValue({ errCode: 0, data: { total: 1, columns: [
+                { stage: "applied", label: "Mới ứng tuyển", count: 1,
+                    items: [{ ...candidate, candidate_name: "", match_score: null, is_read: true, job_title: "" }] },
+            ] } });
+            render(<KanbanBoard />);
+            const card = await screen.findByRole("button", { name: "Hồ sơ Ứng viên #10" });
+            expect(card).not.toHaveClass("unread");
+            expect(within(card).queryByText(/% khớp/)).not.toBeInTheDocument();
+            expect(within(card).queryByTitle("Chưa xem")).not.toBeInTheDocument();
+            expect(within(card).getByText("—")).toBeInTheDocument();
+        });
+
+        it("shows an empty column placeholder, the unread marker and the match score", async () => {
+            await renderLoadedBoard();
+            expect(within(screen.getByRole("region", { name: "Phỏng vấn" })).getByText("Chưa có hồ sơ")).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" })).toHaveClass("unread");
+            expect(screen.getByText("84% khớp")).toBeInTheDocument();
+            expect(screen.getByTitle("Chưa xem")).toBeInTheDocument();
+        });
+
+        it("reports failed rating, note and talent pool saves without changing the detail", async () => {
+            rateApplication.mockResolvedValue({ errCode: 1, errMessage: "Rating locked" });
+            addApplicationNote.mockResolvedValue({ errCode: 1 });
+            saveToTalentPool.mockResolvedValue({ errCode: 1 });
+            const modal = await openModal();
+            fireEvent.click(within(modal).getByTitle("4 sao"));
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Rating locked"));
+            expect(stars(within(modal).getByText("Đánh giá:").parentElement)).toHaveLength(2);
+
+            const note = within(modal).getByPlaceholderText("Nhận xét về ứng viên…");
+            fireEvent.change(note, { target: { value: "Ghi chú" } });
+            fireEvent.click(within(modal).getByRole("button", { name: "Thêm" }));
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không thêm được ghi chú"));
+            expect(note).toHaveValue("Ghi chú");
+            expect(within(modal).getByText("Ghi chú nội bộ (0)")).toBeInTheDocument();
+
+            fireEvent.click(within(modal).getByRole("button", { name: "Lưu vào kho ứng viên" }));
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không lưu được"));
+        });
+
+        it("falls back to a generic message when rating fails without a reason", async () => {
+            rateApplication.mockResolvedValue(null);
+            const modal = await openModal();
+            fireEvent.click(within(modal).getByTitle("1 sao"));
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không chấm được điểm"));
+        });
+
+        it("ignores a blank internal note", async () => {
+            const modal = await openModal();
+            fireEvent.change(within(modal).getByPlaceholderText("Nhận xét về ứng viên…"), { target: { value: "   " } });
+            fireEvent.click(within(modal).getByRole("button", { name: "Thêm" }));
+            expect(addApplicationNote).not.toHaveBeenCalled();
+        });
+
+        it("updates a rated card on the board as well as in the open detail", async () => {
+            const modal = await openModal();
+            fireEvent.click(within(modal).getByTitle("5 sao"));
+            await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Đã chấm 5 sao"));
+            expect(stars(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" }))).toHaveLength(5);
+            expect(stars(within(modal).getByText("Đánh giá:").parentElement)).toHaveLength(5);
+        });
+
+        it("shows a business rejection from the server as-is and keeps the composer open", async () => {
+            sendInterviewInvitation.mockResolvedValue({ errCode: 4, errMessage: "Ứng viên đã nhận việc; không gửi thư mời phỏng vấn cho hồ sơ này" });
+            const interview = { companyName: "Example Company", interviewDate: "2099-10-15", interviewTime: "09:30", durationMinutes: "60",
+                timeZone: "Asia/Ho_Chi_Minh", interviewMode: "onsite", location: "12 Nguyễn Huệ", contactName: "Hà", contactEmail: "hr@example.com" };
+            getApplicationDetail.mockResolvedValue({ ...detailResponse, data: { ...detailResponse.data, stage: "phong_van", timeline: [
+                { id: 9, to_stage: "phong_van", created_at: "2026-08-22T10:00:00Z", decision_snapshot: { decision: "interview", interview } }] } });
+            const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+            const modal = await openModal();
+            fireEvent.click(within(modal).getByRole("button", { name: "Gửi lại / đổi lịch phỏng vấn" }));
+            const form = within(modal).getByRole("region", { name: "Soạn thư mời phỏng vấn" });
+            fireEvent.click(within(form).getByRole("button", { name: "Xem trước thư mời phỏng vấn" }));
+            fireEvent.click(within(form).getByRole("button", { name: "Xác nhận gửi thư mời phỏng vấn" }));
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Ứng viên đã nhận việc; không gửi thư mời phỏng vấn cho hồ sơ này"));
+            expect(sendInterviewInvitation).toHaveBeenCalledWith(1, "", interview);
+            expect(within(modal).getByRole("region", { name: "Soạn thư mời phỏng vấn" })).toBeInTheDocument();
+            expect(getApplicationBoard).toHaveBeenCalledTimes(1);
+            confirm.mockRestore();
+        });
+
+        it.each(["network", "timeout", "cancelled", "unavailable"])("treats a %s outcome as unknown rather than failed", async (errorType) => {
+            sendApplicationDecision.mockResolvedValue({ errCode: -1, errorType, errMessage: "raw transport error" });
+            const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+            const modal = await openModal();
+            fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Chưa xác định được kết quả gửi")));
+            expect(toast.error).not.toHaveBeenCalledWith("raw transport error");
+            confirm.mockRestore();
+        });
+
+        it("uses a generic message when a domain failure has no reason", async () => {
+            sendApplicationDecision.mockResolvedValue({ errCode: 2 });
+            const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+            const modal = await openModal();
+            fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không thể gửi email thông báo"));
+            confirm.mockRestore();
+        });
+
+        it("does not reopen a closed detail when a slow send finishes, and blocks other cards meanwhile", async () => {
+            let finish;
+            sendApplicationDecision.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+            const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+            const modal = await openModal();
+            fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
+            expect(within(modal).getAllByRole("button", { name: "Đang gửi…" })).toHaveLength(3);
+            fireEvent.click(modal);
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+            getApplicationDetail.mockClear();
+            fireEvent.keyDown(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" }), { key: "Enter" });
+            expect(getApplicationDetail).not.toHaveBeenCalled();
+            await act(async () => finish({ errCode: 0, data: { id: 1, stage: "tu_choi" } }));
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+            expect(toast.success).toHaveBeenCalledWith("Đã xếp hàng gửi email thông báo không trúng tuyển");
+            confirm.mockRestore();
+        });
+
+        it("keeps only one composer open and disables the rejection while composing", async () => {
+            const modal = await openModal();
+            const reject = within(modal).getByRole("button", { name: "Gửi không trúng tuyển" });
+            fireEvent.click(within(modal).getByRole("button", { name: "Mời phỏng vấn" }));
+            expect(within(modal).getByRole("region", { name: "Soạn thư mời phỏng vấn" })).toBeInTheDocument();
+            expect(reject).toBeDisabled();
+            fireEvent.click(within(modal).getByRole("button", { name: "Gửi trúng tuyển" }));
+            expect(within(modal).queryByRole("region", { name: "Soạn thư mời phỏng vấn" })).not.toBeInTheDocument();
+            expect(within(modal).getByRole("region", { name: "Soạn thư mời nhận việc" })).toBeInTheDocument();
+            fireEvent.click(within(modal).getByRole("button", { name: "Đóng phần soạn thư" }));
+            expect(within(modal).queryByRole("region", { name: /Soạn thư/ })).not.toBeInTheDocument();
+            expect(reject).toBeEnabled();
+        });
+
+        it("hides the attendance question for candidates who were never invited", async () => {
+            const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+            const modal = await openModal();
+            expect(within(modal).queryByRole("checkbox")).not.toBeInTheDocument();
+            fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
+            await waitFor(() => expect(sendApplicationDecision).toHaveBeenCalledWith(1, "rejected", ""));
+            confirm.mockRestore();
+        });
+
+        it("treats a past interview step in the history as invited and hides the question while composing", async () => {
+            getApplicationDetail.mockResolvedValue({ ...detailResponse, data: { ...detailResponse.data, stage: "tu_choi", timeline: [
+                { id: 3, from_stage: "phong_van", to_stage: "tu_choi", created_at: "2026-08-23T10:00:00Z" },
+                { id: 2, from_stage: "dang_xem_xet", to_stage: "phong_van", created_at: "2026-08-22T10:00:00Z" }] } });
+            const modal = await openModal();
+            expect(within(modal).getByRole("checkbox", { name: /đã tham gia phỏng vấn/ })).toBeChecked();
+            fireEvent.click(within(modal).getByRole("button", { name: "Mời phỏng vấn" }));
+            expect(within(modal).queryByRole("checkbox")).not.toBeInTheDocument();
+        });
+
+        it("explains in the history which rejection email was requested", async () => {
+            getApplicationDetail.mockResolvedValue({ ...detailResponse, data: { ...detailResponse.data, timeline: [
+                { id: 5, to_stage: "tu_choi", created_at: "2026-08-24T10:00:00Z", decision_snapshot: { decision: "rejected", interviewed: true, message: "Cảm ơn bạn" } },
+                { id: 4, to_stage: "tu_choi", created_at: "2026-08-23T10:00:00Z", decision_snapshot: { decision: "rejected", interviewed: false, message: null } }] } });
+            const modal = await openModal();
+            expect(within(modal).getByText("Thư cảm ơn ứng viên đã tham gia phỏng vấn (không trúng tuyển).")).toBeInTheDocument();
+            expect(within(modal).getByText("Thư thông báo không trúng tuyển.")).toBeInTheDocument();
+            expect(within(modal).getByText("Cảm ơn bạn")).toBeInTheDocument();
+        });
+
+        it("keeps the previous funnel when its refresh fails after a move", async () => {
+            await renderLoadedBoard();
+            getFunnel.mockResolvedValueOnce({ errCode: 1 });
+            fireEvent.dragStart(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" }));
+            fireEvent.drop(screen.getByRole("region", { name: "Phỏng vấn" }));
+            await waitFor(() => expect(getFunnel).toHaveBeenCalledTimes(2));
+            expect(screen.getByText("25%")).toBeInTheDocument();
+        });
+
+        it("restores the card with a generic message when the move request returns nothing", async () => {
+            moveApplicationStage.mockResolvedValue(null);
+            await renderLoadedBoard();
+            fireEvent.dragStart(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" }));
+            fireEvent.drop(screen.getByRole("region", { name: "Phỏng vấn" }));
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không chuyển được trạng thái"));
+            expect(within(screen.getByRole("region", { name: "Mới ứng tuyển" })).getByText("Lan Nguyen")).toBeInTheDocument();
+        });
+
+        it("ignores a drop when nothing is being dragged and clears the hover state on leave", async () => {
+            await renderLoadedBoard();
+            const target = screen.getByRole("region", { name: "Phỏng vấn" });
+            const card = screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" });
+            fireEvent.dragOver(target);
+            expect(target).toHaveClass("over");
+            fireEvent.dragLeave(target);
+            expect(target).not.toHaveClass("over");
+            fireEvent.drop(target);
+            fireEvent.dragStart(card);
+            fireEvent.dragEnd(card);
+            fireEvent.drop(target);
+            expect(moveApplicationStage).not.toHaveBeenCalled();
+        });
+
+        it("still loads the board when company details or job posts are unavailable", async () => {
+            getDetailCompanyById.mockRejectedValue(new Error("offline"));
+            getAllPostByAdminService.mockResolvedValue({ errCode: 1 });
+            await renderLoadedBoard();
+            expect(screen.getAllByRole("option")).toHaveLength(1);
+        });
+
+        it("does not look up a company for an account without one, and names untitled posts", async () => {
+            localStorage.setItem("userData", JSON.stringify({ id: 3, roleCode: "ADMIN" }));
+            getAllPostByAdminService.mockResolvedValue({ errCode: 0, data: [{ id: 44 }] });
+            await renderLoadedBoard();
+            expect(getDetailCompanyById).not.toHaveBeenCalled();
+            expect(screen.getByRole("option", { name: "Tin #44" })).toBeInTheDocument();
+        });
+
+        it("uses a generic board error and keeps the funnel hidden when both requests fail", async () => {
+            getApplicationBoard.mockResolvedValue(null);
+            getFunnel.mockResolvedValue(null);
+            render(<KanbanBoard />);
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không tải được danh sách ứng viên"));
+            expect(screen.queryByText("Tỷ lệ tuyển thành công")).not.toBeInTheDocument();
+            expect(screen.queryByText("Đang tải…")).not.toBeInTheDocument();
+        });
+    });
+    describe("dragging into the rejected column", () => {
+        const dragToRejected = async () => {
+            getApplicationBoard.mockImplementation(async () => pipelineBoard());
+            await renderLoadedBoard();
+            fireEvent.dragStart(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" }));
+            fireEvent.drop(screen.getByRole("region", { name: "Từ chối" }));
+        };
+
+        it("asks before a drop that emails the candidate a rejection, and keeps the card when cancelled", async () => {
+            const confirm = jest.spyOn(window, "confirm").mockReturnValue(false);
+            await dragToRejected();
+            expect(confirm).toHaveBeenCalledWith(
+                'Chuyển Lan Nguyen sang "Từ chối"? Ứng viên sẽ nhận email thông báo không trúng tuyển tại lan@candidate.vn.'
+            );
+            expect(moveApplicationStage).not.toHaveBeenCalled();
+            expect(within(screen.getByRole("region", { name: "Đang xem xét" })).getByText("Lan Nguyen")).toBeInTheDocument();
+            expect(within(screen.getByRole("region", { name: "Từ chối" })).queryByText("Lan Nguyen")).not.toBeInTheDocument();
+            confirm.mockRestore();
+        });
+
+        it("moves the card once the recruiter confirms", async () => {
+            const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+            await dragToRejected();
+            await waitFor(() => expect(moveApplicationStage).toHaveBeenCalledWith(1, "tu_choi"));
+            expect(within(screen.getByRole("region", { name: "Từ chối" })).getByText("Lan Nguyen")).toBeInTheDocument();
+            expect(toast.success).toHaveBeenCalledWith("Đã chuyển Lan Nguyen sang bước mới");
+            confirm.mockRestore();
+        });
+
+        it("names a demo or missing recipient the same way as the email buttons", async () => {
+            const confirm = jest.spyOn(window, "confirm").mockReturnValue(false);
+            getApplicationBoard.mockImplementation(async () => ({ errCode: 0, data: { total: 2, columns: [
+                { stage: "dang_xem_xet", label: "Đang xem xét", count: 2, items: [
+                    { ...candidate, stage: "dang_xem_xet", candidate_email: "demo@example.com" },
+                    { ...candidate, id: 2, stage: "dang_xem_xet", candidate_name: "", candidate_email: null },
+                ] },
+                { stage: "tu_choi", label: "Từ chối", count: 0, items: [] },
+            ] } }));
+            render(<KanbanBoard />);
+            fireEvent.dragStart(await screen.findByRole("button", { name: "Hồ sơ Lan Nguyen" }));
+            fireEvent.drop(screen.getByRole("region", { name: "Từ chối" }));
+            expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining("tại hộp thư demo (nếu đã cấu hình)."));
+            fireEvent.dragStart(screen.getByRole("button", { name: "Hồ sơ Ứng viên #10" }));
+            fireEvent.drop(screen.getByRole("region", { name: "Từ chối" }));
+            expect(confirm).toHaveBeenLastCalledWith('Chuyển ứng viên sang "Từ chối"? Ứng viên sẽ nhận email thông báo không trúng tuyển tại email đã đăng ký của ứng viên.');
+            expect(moveApplicationStage).not.toHaveBeenCalled();
+            confirm.mockRestore();
+        });
+
+        it("does not ask for moves that do not send a rejection", async () => {
+            const confirm = jest.spyOn(window, "confirm");
+            await renderLoadedBoard();
+            fireEvent.dragStart(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" }));
+            fireEvent.drop(screen.getByRole("region", { name: "Phỏng vấn" }));
+            await waitFor(() => expect(moveApplicationStage).toHaveBeenCalledWith(1, "interview"));
+            expect(confirm).not.toHaveBeenCalled();
+            confirm.mockRestore();
+        });
+    });
 });

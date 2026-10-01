@@ -17,6 +17,7 @@ import ChatDocumentPreview from '../../components/chat/ChatDocumentPreview';
 import { chatMessageSummary } from '../../service/chatMediaService';
 import WaitingReply from "./WaitingReply";
 import { mergeMessages, synchronizeConversation } from './conversationSync';
+import { createTypingNotifier } from './typingNotifier';
 import './ChatPage.css';
 
 const ChatPage = () => {
@@ -50,8 +51,8 @@ const ChatPage = () => {
     const listSequenceRef = useRef(0);
     const pageRef = useRef(null);
     const typingTimerRef = useRef(null);
-    const typingEmitTimerRef = useRef(null);
     const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
+    const [typingNotifier] = useState(() => createTypingNotifier(getSocket, userData?.id));
     const chatBasePath = location.pathname.startsWith("/admin/chat")
         ? "/admin/chat"
         : location.pathname.startsWith("/support/chat") ? "/support/chat" : "/chat";
@@ -65,6 +66,8 @@ const ChatPage = () => {
             else list.scrollTop = list.scrollHeight;
         }
     }, []);
+
+    useEffect(() => () => typingNotifier.cancel(), [partnerId, typingNotifier]);
 
     useEffect(() => {
         const element = pageRef.current;
@@ -209,7 +212,7 @@ const ChatPage = () => {
             fetchListConversation();
             if (partnerId && !document.hidden) fetchConversation(false);
         };
-        const onDisconnect = () => { setIsRealtime(false); setPartnerOnline(null); setPartnerLastSeen(null); };
+        const onDisconnect = () => { typingNotifier.cancel(); setIsRealtime(false); setPartnerOnline(null); setPartnerLastSeen(null); };
 
         const onNewMessage = (msg) => {
             const involved =
@@ -239,7 +242,7 @@ const ChatPage = () => {
             if (!partnerId || +fromUserId !== +partnerId) return;
             setPartnerTyping(true);
             clearTimeout(typingTimerRef.current);
-            typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 2500);
+            typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 4500);
         };
 
         const onMessagesRead = ({ byUserId, throughMessageId }) => {
@@ -268,9 +271,8 @@ const ChatPage = () => {
             socket.off("chat:typing", onTyping);
             socket.off("chat:read", onMessagesRead);
             clearTimeout(typingTimerRef.current);
-            clearTimeout(typingEmitTimerRef.current);
         };
-    }, [fetchConversation, fetchListConversation, partnerId, scrollToBottom, userData]);
+    }, [fetchConversation, fetchListConversation, partnerId, scrollToBottom, typingNotifier, userData]);
 
     useEffect(() => {
         if (partnerId && userData && !document.hidden) {
@@ -310,6 +312,7 @@ const ChatPage = () => {
 
     const handleSend = async () => {
         if ((!content.trim() && !mediaDraft) || !partnerId || sendLockRef.current || uploading) return;
+        typingNotifier.cancel();
         const text = content.trim(), target = partnerId;
         sendLockRef.current = true;
         setIsSending(true);
@@ -321,6 +324,7 @@ const ChatPage = () => {
             if (res?.errCode === 0) {
                 clearPending(userData.id, target, payload.clientMessageId);
                 if (activePartnerRef.current === target) {
+                    typingNotifier.cancel();
                     setContent(''); setMediaDraft(null); setSendUncertain(false);
                     if (res.data) setMessages((prev) => prev.some((m) => +m.id === +res.data.id) ? prev : [...prev, res.data].sort((a, b) => a.id - b.id));
                     Promise.allSettled([fetchConversation(true), fetchListConversation()]);
@@ -358,13 +362,7 @@ const ChatPage = () => {
 
     const handleTyping = (value) => {
         setContent(value);
-        clearTimeout(typingEmitTimerRef.current);
-        typingEmitTimerRef.current = setTimeout(() => {
-            const socket = getSocket();
-            if (value.trim() && socket && socket.connected && partnerId) {
-                socket.volatile.emit("chat:typing", { receiverId: Number(partnerId) });
-            }
-        }, 250);
+        typingNotifier.notify(partnerId, value);
     };
 
     const getPartnerName = (partner) => {
@@ -384,7 +382,7 @@ const ChatPage = () => {
     if (!userData) return <></>;
 
     return (
-        <main aria-label="Tin nhắn" className={`jf-chat-page${partnerId ? ' jf-chat-page--conversation' : ''}`}>
+        <main aria-label="Tin nhắn" data-realtime={isRealtime ? 'connected' : 'disconnected'} className={`jf-chat-page${partnerId ? ' jf-chat-page--conversation' : ''}`}>
             {preview && <ChatDocumentPreview key={`${partnerId}:${preview.id}`} attachment={preview} onClose={() => setPreview(null)} />}
             <div ref={pageRef} className="container chat-page-container">
                 <div className="chat-wrapper">

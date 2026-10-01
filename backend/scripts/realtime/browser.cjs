@@ -52,8 +52,9 @@ exports.run = async ({url,db,tokenFor,seedSessions}) => {
             await other.addInitScript(({id,token})=>{localStorage.setItem('userData',JSON.stringify({id,roleCode:'ADMIN'}));localStorage.setItem('token_user',token);},{id:adminId,token:tokenFor(adminId)});
             const peer=await other.newPage();await peer.goto(`${url}/chat/${candidateId}`);
             await expect(peer.getByText(content,{exact:true}).first()).toBeVisible();
+            await expect(peer.getByText(/Đang trực tuyến|Đang kết nối trực tiếp/)).toBeVisible({timeout:10000});
             await peer.getByPlaceholder('Nhập tin nhắn...').fill(`${engine} live reply`);
-            await expect(page.getByText('đang soạn tin nhắn...')).toBeVisible({timeout:6000});
+            await expect(page.getByText('đang soạn tin nhắn...')).toBeVisible({timeout:10000});
             await peer.getByRole('button',{name:'Gửi tin nhắn',exact:true}).click();
             await expect(page.getByRole('log').getByText(`${engine} live reply`,{exact:true})).toBeVisible();
             await expect(peer.getByText('Đã xem',{exact:true})).toBeVisible({timeout:8000});

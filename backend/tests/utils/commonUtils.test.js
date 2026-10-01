@@ -61,6 +61,26 @@ describe('CommonUtils', () => {
     expect(await pdfToString(Buffer.from('data:x;base64,eA==').toString('base64'))).toBeNull();
   });
 
+  test('reads a CV stored as a raw BLOB buffer holding the data URI', async () => {
+    const pdfResult = { pages: [] };
+    mockExtractBuffer.mockResolvedValue(pdfResult);
+    const { pdfToString } = require('../../src/utils/CommonUtils');
+    const blob = Buffer.from(`data:application/pdf;base64,${Buffer.from('%PDF-1.7').toString('base64')}`);
+    expect(await pdfToString(blob)).toBe(pdfResult);
+    expect(mockExtractBuffer.mock.calls[0][0].toString()).toBe('%PDF-1.7');
+  });
+
+  test.each([
+    ['a missing file', null],
+    ['an undefined file', undefined],
+    ['a value that is not a data URI', Buffer.from('plain text without separator').toString('base64')],
+    ['a data URI without payload', Buffer.from('data:application/pdf;base64,').toString('base64')]
+  ])('returns null for %s without calling the PDF parser', async (_label, file) => {
+    const { pdfToString } = require('../../src/utils/CommonUtils');
+    await expect(pdfToString(file)).resolves.toBeNull();
+    expect(mockExtractBuffer).not.toHaveBeenCalled();
+  });
+
   test('maps extracted keywords by stable numeric indexes', () => {
     mockExtractKeywords.mockReturnValue(['node', 'react']);
     const { getAllKeyWords } = require('../../src/utils/CommonUtils');
@@ -73,5 +93,22 @@ describe('CommonUtils', () => {
   test('flattens Vietnamese text for accent-insensitive matching', () => {
     const { flatAllString } = require('../../src/utils/CommonUtils');
     expect(flatAllString('Đặng Văn Lâm 2026!')).toBe('dangvanlam');
+  });
+
+  test.each([
+    ['ĐÀ NẴNG', 'danang'],
+    ['Node.js / React', 'nodejsreact'],
+    ['Kỹ năng giao tiếp', 'kynanggiaotiep'],
+    ['  ', ''],
+    ['2026 - 100%', '']
+  ])('flattens %p to %p', (input, expected) => {
+    const { flatAllString } = require('../../src/utils/CommonUtils');
+    expect(flatAllString(input)).toBe(expected);
+  });
+
+  test('returns an empty keyword map when no keyword is found', () => {
+    mockExtractKeywords.mockReturnValue([]);
+    const { getAllKeyWords } = require('../../src/utils/CommonUtils');
+    expect(getAllKeyWords('').size).toBe(0);
   });
 });
