@@ -8,7 +8,6 @@
 # 1. Dependencies — thư mục nặng nhất, cài lại bằng `npm install`
 # --------------------------------------------------
 node_modules/
-**/node_modules/
 jspm_packages/
 web_modules/
 .pnp/
@@ -17,52 +16,66 @@ web_modules/
 .yarn/unplugged/
 .yarn/build-state.yml
 .yarn/install-state.gz
+.npm/
+.pnpm-store/
 
 # --------------------------------------------------
 # 2. Build outputs — được tạo lại bằng `npm run build`
 # --------------------------------------------------
 dist/
-**/dist/
 build/
-**/build/
 out/
-**/out/
 .next/
 .nuxt/
 .cache/
 .parcel-cache/
 .turbo/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# Source maps của thư viện giao diện chỉ phục vụ debug, không cần để chạy.
+# Giữ các file CSS/JS, ảnh và font trong public/.
+/frontend/public/**/*.css.map
+/frontend/public/**/*.js.map
+# PDF.js trong frontend/public/pdfjs/ được tạo lại khi start/build;
+# thư mục này đã có .gitignore riêng.
 
 # --------------------------------------------------
 # 3. Test coverage — được tạo lại bằng `npm run test:coverage`
 # --------------------------------------------------
 coverage/
-**/coverage/
 *.lcov
 .nyc_output/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 # --------------------------------------------------
 # 4. Thư mục làm việc cục bộ — logs, screenshots, kết quả test
 #    Không cần thiết cho người khác clone về
 # --------------------------------------------------
 .local/
-**/.local/
+
+# File trung gian do backend/scripts/sync-sql-dump.js tạo.
+# Giữ database/jobfindtest.sql để người clone có dữ liệu mẫu.
+/database/sync-append.sql
 
 # --------------------------------------------------
 # 5. Environment & Secrets — chứa thông tin nhạy cảm
-#    Giữ lại .env.example và frontend/.env.test làm mẫu
+#    Giữ lại cấu hình mẫu và frontend/.env.test cho kiểm thử
 # --------------------------------------------------
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.sample
-**/.env
-**/.env.*
+.env.*
 !**/.env.example
+!**/.env.*.example
+!**/.env.sample
+!**/.env.*.sample
+!**/.env.template
+!**/.env.*.template
 !frontend/.env.test
-**/.secrets/
+.secrets/
 
 # --------------------------------------------------
 # 6. Logs — file ghi log được sinh ra khi chạy/test
@@ -80,9 +93,7 @@ lerna-debug.log*
 *.pid
 *.seed
 *.pid.lock
-*.lock
-!package-lock.json
-!**/package-lock.json
+# Không dùng *.lock: cần giữ package-lock.json, yarn.lock, pnpm-lock.yaml.
 *.tmp
 *.temp
 *.swp
@@ -120,8 +131,6 @@ $RECYCLE.BIN/
 *.sublime-workspace
 *.suo
 *.ntvs*
-*.njsproj
-*.sln
 *.sw?
 .project
 .classpath
@@ -148,4 +157,7 @@ docker-compose.override.yml
 # 12. Uploads — file user upload khi chạy local
 # --------------------------------------------------
 uploads/
-**/uploads/
+
+# Luôn giữ mã nguồn, scripts setup/build, migrations/seeders, fixtures,
+# package.json/lockfiles, Docker/Compose, .github, tài liệu và public assets.
+# Không bỏ qua toàn bộ database/, tests/, frontend/public/ hoặc assetsAdmin/.
