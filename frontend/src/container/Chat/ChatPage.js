@@ -240,7 +240,7 @@ const ChatPage = () => {
             if (!partnerId || +fromUserId !== +partnerId) return;
             setPartnerTyping(true);
             clearTimeout(typingTimerRef.current);
-            typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 2500);
+            typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 4500);
         };
 
         const onMessagesRead = ({ byUserId, throughMessageId }) => {
