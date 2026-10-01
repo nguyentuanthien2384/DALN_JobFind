@@ -226,7 +226,7 @@ const connect = async (url, id) => {
     const reconnected = waitEvent(recovering, 'connect'); recovering.connect(); await reconnected;
     assert.equal(recovering.recovered, true); assert.equal((await delivered).id, missed.data.id);
     console.log('PASS recovery through proxy on another node after original node shuts down');
-})().catch((error) => { console.error(error.message); process.exitCode = 1; }).finally(async () => {
+})().catch((error) => { console.error(error.stack || error.message); process.exitCode = 1; }).finally(async () => {
     clients.forEach((socket) => socket.disconnect());
     if (proxy) await proxy.close();
     if (nginx) await nginx.close();
