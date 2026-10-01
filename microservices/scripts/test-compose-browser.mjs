@@ -108,9 +108,11 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         await expect(candidate.getByText('Không tìm thấy công việc phù hợp. Hãy thử đổi từ khóa hoặc bộ lọc.')).toBeVisible();
         await candidate.getByRole('button', { name: 'Xóa từ khóa', exact: true }).click();
         await expect(search).toHaveValue('');
+        const composeResults = candidate.waitForResponse(response => new URL(response.url()).pathname === '/api/search/jobs' && new URL(response.url()).searchParams.get('q') === 'Compose');
         await search.fill('Compose');
         await candidate.getByRole('button', { name: 'Tìm kiếm', exact: true }).click();
-        await expect(candidate.getByText('Compose accepted', { exact: true }).first()).toBeVisible();
+        assert.equal((await (await composeResults).json()).errCode, 0);
+        await expect(candidate.getByText('Compose accepted', { exact: true }).first()).toBeVisible({ timeout: 20000 });
         const filtered = candidate.waitForResponse(response => new URL(response.url()).pathname === '/api/search/jobs' && new URL(response.url()).searchParams.get('categoryWorktypeCode') === 'WT1');
         await candidate.locator('label').filter({ has: candidate.locator('input[value="WT1"]') }).click();
         assert.equal((await (await filtered).json()).errCode, 0);
