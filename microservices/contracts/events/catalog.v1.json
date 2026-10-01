@@ -1256,6 +1256,160 @@
       ],
       "maxBytes": 8388608
     },
+    "ai.write_assist": {
+      "payloadVersion": 1,
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+            "maxLength": 64
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": [
+              "application_intro",
+              "candidate_email",
+              "chat_reply",
+              "chat_polish"
+            ]
+          },
+          "language": {
+            "enum": [
+              "vi",
+              "en"
+            ]
+          },
+          "fileBase64": {
+            "type": "string",
+            "maxLength": 8388608,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "jobTitle": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "jobDescription": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "companyName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "emailType": {
+            "enum": [
+              "interview",
+              "offer",
+              "rejection"
+            ]
+          },
+          "candidateName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recruiterNotes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "interviewed": {
+            "type": "boolean"
+          },
+          "senderRole": {
+            "enum": [
+              "candidate",
+              "recruiter"
+            ]
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "enum": [
+                    "me",
+                    "partner"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "from",
+                "text"
+              ],
+              "additionalProperties": true
+            },
+            "maxItems": 20
+          },
+          "draft": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "taskId",
+          "kind"
+        ],
+        "additionalProperties": true
+      },
+      "aggregateField": "taskId",
+      "producers": [
+        "job-core-service"
+      ],
+      "consumers": [
+        "ai-worker.jobs",
+        "admin-service.audit"
+      ],
+      "maxBytes": 8388608
+    },
     "ai.result": {
       "payloadVersion": 1,
       "schema": {
@@ -2089,6 +2243,111 @@
             "type": "object",
             "properties": {
               "type": {
+                "const": "write_assist"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "result": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "application_intro",
+                      "candidate_email",
+                      "chat_reply",
+                      "chat_polish"
+                    ]
+                  },
+                  "suggestions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "maxItems": 5,
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "suggestions"
+                ],
+                "additionalProperties": true
+              },
+              "error": {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              "taskId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+                "maxLength": 64
+              },
+              "jobId": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[1-9][0-9]{0,15}$",
+                        "format": "jobfind-id"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "ok",
+              "taskId"
+            ],
+            "additionalProperties": true,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "result"
+                  ],
+                  "properties": {
+                    "result": {},
+                    "error": false
+                  }
+                },
+                "else": {
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {},
+                    "result": false
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
                 "const": "moderate_job"
               },
               "ok": {
@@ -2205,7 +2464,8 @@
         "parse_resume": "taskId",
         "generate_cv": "taskId",
         "match_cv": "taskId",
-        "cover_letter": "taskId"
+        "cover_letter": "taskId",
+        "write_assist": "taskId"
       },
       "producers": [
         "ai-worker"

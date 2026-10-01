@@ -9,7 +9,8 @@ const eventTypes = Object.freeze({
     parse_resume: EVENTS.AI_PARSE_RESUME,
     generate_cv: EVENTS.AI_GENERATE_CV,
     match_cv: EVENTS.AI_MATCH_CV,
-    cover_letter: EVENTS.AI_COVER_LETTER
+    cover_letter: EVENTS.AI_COVER_LETTER,
+    write_assist: EVENTS.AI_WRITE_ASSIST
 });
 
 const requestError = (code, message) => Object.assign(new Error(message), { code });
@@ -84,7 +85,8 @@ export const enqueueAiTask = async ({ type, userId, input, payload, requestData,
                 return saved.taskId;
             }
         }
-        const data = initialData ?? JSON.parse(boundedJson({ ...await payload(conn), taskId }));
+        // The factory may write rows linked to this task in the same transaction.
+        const data = initialData ?? JSON.parse(boundedJson({ ...await payload(conn, taskId), taskId }));
         // Keep only request metadata here; the outbox holds the complete worker input.
         await conn.query(
             'INSERT INTO ai_tasks (id, type, status, userId, input, createdAt, updatedAt) VALUES (?,?,?,?,?,?,?)',

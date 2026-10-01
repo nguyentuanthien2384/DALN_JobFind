@@ -26,6 +26,9 @@ export const EVENTS = {
     AI_GENERATE_CV: 'ai.generate_cv',
     AI_MATCH_CV: 'ai.match_cv',
     AI_COVER_LETTER: 'ai.cover_letter',
+    // Ban nhap ngan cho nguoi dung sua truoc khi gui: loi gioi thieu ung tuyen,
+    // loi nhan trong email ket qua, goi y/viet lai tin nhan chat.
+    AI_WRITE_ASSIST: 'ai.write_assist',
 
     // AI Worker tra ket qua ve.
     AI_RESULT: 'ai.result',

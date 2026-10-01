@@ -390,3 +390,48 @@
         }
     }
 }
+
+// AI cham CV va soan loi nhan: mau rieng de nha tuyen dung nhan ra day la goi y.
+.kanban-board {
+    .kb-head-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .kb-ai-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+        .kb-check { margin: 0; align-items: center; }
+        .kb-check input { margin-top: 0; }
+    }
+    .kb-btn.ai { background: #0f766e; &:hover { background: #115e59; } }
+    .kb-ai-tag { display: inline-block; padding: 0 6px; margin-right: 6px; border-radius: 4px; background: #0f766e; color: #fff; font-size: 11px; font-weight: 700; vertical-align: 1px; }
+    .kb-card-foot { flex-wrap: wrap; gap: 4px; }
+    .kb-ai-badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; font-weight: 600; white-space: nowrap;
+        &.high { background: #dcfce7; color: #166534; }
+        &.good { background: #e0f2fe; color: #075985; }
+        &.mid { background: #fef9c3; color: #854d0e; }
+        &.low { background: #fee2e2; color: #991b1b; }
+        &.pending { background: #f1f5f9; color: #475569; font-weight: 500; }
+        &.failed { background: #fff1f2; color: #be123c; font-weight: 500; }
+    }
+    .kb-ai-panel { border: 1px solid #ccfbf1; background: #f0fdfa; border-radius: 8px; padding: 12px 14px; }
+    .kb-ai-result { margin: 8px 0 12px;
+        p { margin: 6px 0; font-size: 13px; color: #1f2937; }
+    }
+    .kb-ai-score { display: flex; align-items: baseline; gap: 6px;
+        strong { font-size: 26px; line-height: 1; }
+        span { font-size: 13px; color: #475569; }
+        &.high strong { color: #15803d; } &.good strong { color: #0369a1; }
+        &.mid strong { color: #a16207; } &.low strong { color: #b91c1c; }
+    }
+    .kb-ai-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 16px;
+        h6 { margin: 6px 0 2px; font-size: 12px; font-weight: 600; color: #334155; }
+        ul { margin: 0; padding-left: 18px; font-size: 13px; color: #1f2937; }
+    }
+    .kb-ai-error { color: #b91c1c; font-size: 13px; margin: 6px 0; }
+    .kb-ai-draft { margin-top: 8px;
+        .kb-hint { margin: 4px 0 0; }
+    }
+    .kb-ai-draft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+        select { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: #fff; }
+    }
+    .kb-ai-suggestion { margin-top: 8px; padding: 10px 12px; border: 1px dashed #14b8a6; border-radius: 6px; background: #f0fdfa;
+        p { margin: 0 0 8px; white-space: pre-wrap; font-size: 13px; color: #1f2937; }
+        div { display: flex; gap: 8px; flex-wrap: wrap; }
+    }
+}

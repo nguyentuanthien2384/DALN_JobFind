@@ -17,6 +17,7 @@ export const taskId = { ...eventId, maxLength: 64 };
 export const date = { anyOf: [{ type: 'string', format: 'date' }, { type: 'string', format: 'date-time' }] };
 export const stage = { type: 'string', enum: ['moi_ung_tuyen', 'dang_xem_xet', 'phong_van', 'de_nghi', 'nhan_viec', 'tu_choi'] };
 const optionalText = (max) => nullable(text(max));
+const aiLanguage = { type: 'string', enum: ['vi', 'en'] };
 const listOfText = array(nonblank(255));
 const searchCodes = { anyOf: [text(64), { ...array(nonblank(64), 20), minItems: 1 }] };
 const experience = object({ company: optionalText(255), position: optionalText(255), from: optionalText(100), to: optionalText(100), description: optionalText(10000) });
@@ -65,6 +66,14 @@ export const schemas = {
     MatchCv: { ...object({ resumeText: nonblank(10000), fileBase64: nonblank(8 * 1024 * 1024), fileName: optionalText(255), jobId: id }, ['jobId']),
         oneOf: [{ required: ['resumeText'], properties: { resumeText: {}, fileBase64: false, fileName: false } }, { required: ['fileBase64'], properties: { fileBase64: {}, resumeText: false } }] },
     CoverLetter: object({ resumeText: nonblank(500000), jobId: id, language: optionalText(32) }, ['resumeText', 'jobId']),
+    ApplicationIntro: object({ jobId: id, fileBase64: nonblank(8 * 1024 * 1024), language: aiLanguage }, ['jobId', 'fileBase64']),
+    CandidateMessage: object({ jobId: id, emailType: { type: 'string', enum: ['interview', 'offer', 'rejection'] }, candidateName: optionalText(255),
+        recruiterNotes: optionalText(2000), interviewed: { type: 'boolean' }, language: aiLanguage }, ['jobId', 'emailType']),
+    ChatAssist: { ...object({ mode: { type: 'string', enum: ['suggest', 'polish'] }, language: aiLanguage, draft: nonblank(2000),
+        messages: array(object({ from: { type: 'string', enum: ['me', 'partner'] }, text: nonblank(2000) }, ['from', 'text']), 20) }, ['mode']),
+        allOf: [{ if: { properties: { mode: { const: 'suggest' } } }, then: { required: ['messages'], properties: { messages: { type: 'array', minItems: 1 }, draft: false } } },
+            { if: { properties: { mode: { const: 'polish' } } }, then: { required: ['draft'] } }] },
+    ScreenApplication: object({ cvId: id }, ['cvId']),
     ProfileUpdate: { ...object({ headline: optionalText(255), about: optionalText(20000), skills: listOfText,
         email: optionalText(320), firstName: optionalText(255), lastName: optionalText(255), phonenumber: optionalText(100),
         jobPreference: object({ categoryJobCode: optionalText(64), addressCode: optionalText(64), salaryJobCode: optionalText(64), experienceJobCode: optionalText(64), isFindJob: { type: 'boolean' }, isTakeMail: { type: 'boolean' } })
@@ -98,7 +107,7 @@ export const schemas = {
     Error: object({ errCode: { type: 'integer' }, errMessage: text(1000), requestId: requestKey, conflict: { type: 'boolean' } }, ['errCode'], true),
     Ack: object({ errCode: { const: 0 }, errMessage: text(1000) }, ['errCode'], true),
     AcceptedTask: object({ errCode: { const: 0 }, taskId, errMessage: text(1000) }, ['errCode', 'taskId']),
-    Task: object({ id: taskId, type: { type: 'string', enum: ['parse_resume', 'generate_cv', 'match_cv', 'cover_letter'] },
+    Task: object({ id: taskId, type: { type: 'string', enum: ['parse_resume', 'generate_cv', 'match_cv', 'cover_letter', 'write_assist'] },
         status: { type: 'string', enum: ['pending', 'done', 'failed'] }, result: {}, error: optionalText(20000), createdAt: date, updatedAt: date
     }, ['id', 'type', 'status', 'result', 'error', 'createdAt', 'updatedAt']),
     Job: object({ id, name: text(255), descriptionHTML: text(200000), statusCode: { type: 'string', enum: ['PS1', 'PS2', 'PS3', 'PS4'] },

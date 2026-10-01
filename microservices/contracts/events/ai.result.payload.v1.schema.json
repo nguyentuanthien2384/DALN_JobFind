@@ -829,6 +829,111 @@
       "type": "object",
       "properties": {
         "type": {
+          "const": "write_assist"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "application_intro",
+                "candidate_email",
+                "chat_reply",
+                "chat_polish"
+              ]
+            },
+            "suggestions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "maxItems": 5,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "suggestions"
+          ],
+          "additionalProperties": true
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        "taskId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+          "maxLength": 64
+        },
+        "jobId": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,15}$",
+                  "format": "jobfind-id"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "ok",
+        "taskId"
+      ],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ok": {
+                "const": true
+              }
+            },
+            "required": [
+              "ok"
+            ]
+          },
+          "then": {
+            "required": [
+              "result"
+            ],
+            "properties": {
+              "result": {},
+              "error": false
+            }
+          },
+          "else": {
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {},
+              "result": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
           "const": "moderate_job"
         },
         "ok": {

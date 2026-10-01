@@ -10,6 +10,7 @@ import { generateCv } from '../jobs/cvGenerator.js';
 import { matchCv } from '../jobs/smartMatching.js';
 import { moderateJob } from '../jobs/moderation.js';
 import { generateCoverLetter } from '../jobs/coverLetter.js';
+import { writeAssist } from '../jobs/writeAssist.js';
 
 const logger = createLogger('ai-worker');
 
@@ -18,7 +19,8 @@ export const handlers = {
     [EVENTS.AI_PARSE_RESUME]: { type: 'parse_resume', run: (payload) => parseResume(payload) },
     [EVENTS.AI_GENERATE_CV]: { type: 'generate_cv', run: (payload) => generateCv(payload) },
     [EVENTS.AI_MATCH_CV]: { type: 'match_cv', run: (payload) => matchCv(payload) },
-    [EVENTS.AI_COVER_LETTER]: { type: 'cover_letter', run: (payload) => generateCoverLetter(payload) }
+    [EVENTS.AI_COVER_LETTER]: { type: 'cover_letter', run: (payload) => generateCoverLetter(payload) },
+    [EVENTS.AI_WRITE_ASSIST]: { type: 'write_assist', run: (payload) => writeAssist(payload) }
 };
 
 export const publishTaskResult = (event) => publishOutboxEvent(event.eventType, event.data, {

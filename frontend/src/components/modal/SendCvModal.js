@@ -3,13 +3,14 @@ import { toast } from 'react-toastify';
 import { Modal, ModalFooter, ModalBody, Button } from 'reactstrap';
 import { createNewCv } from '../../service/cvService';
 import { getDetailUserById } from '../../service/userService';
-import { preparedCvEnabled } from '../../service/candidateWorkspace';
+import { preparedCvEnabled, candidateAiEnabled } from '../../service/candidateWorkspace';
 import CommonUtils from '../../util/CommonUtils';
 import { readJsonStorage } from '../../util/storage';
 import SessionContext from '../../auth/SessionContext';
 import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
 import PreparedCvPicker from './PreparedCvPicker';
 import PdfPreviewButton from '../documents/PdfPreviewButton';
+import ApplicationAiHelper from './ApplicationAiHelper';
 import './modal.css';
 import './SendCvModal.css';
 
@@ -114,6 +115,8 @@ function ApplicationForm({ user, token, postId, jobTitle, onHide, onSubmitted })
                     <PreparedCvPicker token={token} disabled={isLoading} onPrepared={acceptPrepared} />
                     {prepared && <label className="cv-review-check"><input type="checkbox" checked={reviewed} onChange={event => setReviewed(event.target.checked)} /> Tôi đã xem và chọn bản PDF này để ứng tuyển</label>}
                 </>}
+                {candidateAiEnabled() && <ApplicationAiHelper source={reading ? '' : selectedFile} postId={postId} disabled={isLoading}
+                    onUseIntro={text => setDescription(Array.from(text).slice(0, 255).join(''))} />}
             </fieldset>
             {feedback && <p role="alert">{feedback} <a href="/candidate/cv-post">Xem Công việc đã nộp</a></p>}
             {isLoading && <p role="status">Đang gửi hồ sơ…</p>}

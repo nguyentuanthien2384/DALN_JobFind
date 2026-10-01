@@ -5,7 +5,7 @@ import { assertEventPayload } from '../shared/eventContract.js';
 const mocks = vi.hoisted(() => ({
     consume: vi.fn(), publish: vi.fn(), isConfigured: vi.fn(),
     claim: vi.fn(), complete: vi.fn(), markPublished: vi.fn(),
-    parseResume: vi.fn(), generateCv: vi.fn(), matchCv: vi.fn(), moderateJob: vi.fn(), generateCoverLetter: vi.fn()
+    parseResume: vi.fn(), generateCv: vi.fn(), matchCv: vi.fn(), moderateJob: vi.fn(), generateCoverLetter: vi.fn(), writeAssist: vi.fn()
 }));
 
 vi.mock('../shared/rabbitmq.js', () => ({ consume: mocks.consume }));
@@ -17,6 +17,7 @@ vi.mock('../ai-worker/src/jobs/cvGenerator.js', () => ({ generateCv: mocks.gener
 vi.mock('../ai-worker/src/jobs/smartMatching.js', () => ({ matchCv: mocks.matchCv }));
 vi.mock('../ai-worker/src/jobs/moderation.js', () => ({ moderateJob: mocks.moderateJob }));
 vi.mock('../ai-worker/src/jobs/coverLetter.js', () => ({ generateCoverLetter: mocks.generateCoverLetter }));
+vi.mock('../ai-worker/src/jobs/writeAssist.js', () => ({ writeAssist: mocks.writeAssist }));
 
 beforeEach(() => {
     for (const fn of Object.values(mocks)) fn.mockReset();
@@ -34,7 +35,8 @@ describe('AI RabbitMQ task consumer', () => {
         ['ai.parse_resume', 'parseResume', { fullName: null, skills: [] }],
         ['ai.generate_cv', 'generateCv', { fullName: 'Lan', skills: ['Node.js'] }],
         ['ai.match_cv', 'matchCv', { score: 80 }],
-        ['ai.cover_letter', 'generateCoverLetter', { letter: 'Synthetic letter' }]
+        ['ai.cover_letter', 'generateCoverLetter', { letter: 'Synthetic letter' }],
+        ['ai.write_assist', 'writeAssist', { kind: 'chat_reply', suggestions: ['Dạ, thứ Hai em phỏng vấn được ạ.'] }]
     ])('accepts the published %s input and returns a typed result through the actual consumer', async (key, method, result) => {
         const { handleTask } = await import('../ai-worker/src/consumers/taskConsumer.js');
         const { payload, metadata } = decodeEventFixture(key);
@@ -66,7 +68,8 @@ describe('AI RabbitMQ task consumer', () => {
         ['ai.parse_resume', 'parse_resume', 'parseResume'],
         ['ai.generate_cv', 'generate_cv', 'generateCv'],
         ['ai.match_cv', 'match_cv', 'matchCv'],
-        ['ai.cover_letter', 'cover_letter', 'generateCoverLetter']
+        ['ai.cover_letter', 'cover_letter', 'generateCoverLetter'],
+        ['ai.write_assist', 'write_assist', 'writeAssist']
     ])('executes %s and publishes a successful result', async (routingKey, type, fnName) => {
         mocks[fnName].mockResolvedValue({ answer: type });
         const { handleTask } = await import('../ai-worker/src/consumers/taskConsumer.js');

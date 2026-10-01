@@ -27,19 +27,22 @@ export const ensureAiTaskTable = async (db = pool) => {
     logger.info('bang ai_tasks da san sang');
 };
 
-const userIdOf = (req) => (req.headers['x-user-id'] ? Number(req.headers['x-user-id']) : null);
+export const userIdOf = (req) => (req.headers['x-user-id'] ? Number(req.headers['x-user-id']) : null);
 const nonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
 const optionalString = (value) => value == null || typeof value === 'string';
-const validJobId = (value) => (typeof value === 'number' || typeof value === 'string')
+export const validJobId = (value) => (typeof value === 'number' || typeof value === 'string')
     && /^[1-9][0-9]*$/.test(String(value)) && Number.isSafeInteger(Number(value));
 const validLanguage = (value) => value == null || value === '' || value === 'vi' || value === 'en';
-const recruiterRole = (role) => ['COMPANY', 'EMPLOYER'].includes(role);
+export const recruiterRole = (role) => ['COMPANY', 'EMPLOYER'].includes(role);
+export const roleOf = (req) => req.user?.roleCode || req.headers['x-user-role'];
+// Task types a recruiter may read back. Every recruiter task stores its companyId.
+const RECRUITER_TASK_TYPES = new Set(['match_cv', 'write_assist']);
 
 // Replays must recheck tenant access even though the immutable job snapshot is
 // reused. Read membership from the database, never from client-supplied metadata.
-const recruiterJob = async (db, userId, jobId, companyId) => {
+export const recruiterJob = async (db, userId, jobId, companyId) => {
     const [rows] = await db.query(
-        `SELECT d.name, d.descriptionHTML, c.id AS companyId FROM posts p
+        `SELECT d.name, d.descriptionHTML, c.id AS companyId, c.name AS companyName FROM posts p
          JOIN detailposts d ON d.id = p.detailPostId
          JOIN users u ON u.id = p.userId
          JOIN companies c ON c.id = u.companyId
@@ -56,7 +59,7 @@ const recruiterJob = async (db, userId, jobId, companyId) => {
     return { ...rows[0], companyId: Number(rows[0].companyId) };
 };
 
-const requestFailed = (res, type, error) => {
+export const requestFailed = (res, type, error) => {
     if (error.code === 'AI_REQUEST_TOO_LARGE') {
         return res.status(413).json({ errCode: 1, errMessage: 'Dữ liệu yêu cầu AI vượt giới hạn 8 MiB' });
     }
@@ -65,7 +68,10 @@ const requestFailed = (res, type, error) => {
         AI_REQUEST_UNAUTHORIZED: [401, 'Bạn cần đăng nhập để gửi yêu cầu AI'],
         AI_REQUEST_KEY_CONFLICT: [409, 'Mã gửi lại đã được dùng cho nội dung khác'],
         AI_REQUEST_STATE_CONFLICT: [409, 'Yêu cầu đã lưu cần được kiểm tra, không thể tự tạo lại'],
-        AI_REQUEST_JOB_NOT_FOUND: [404, 'Không tìm thấy tin tuyển dụng']
+        AI_REQUEST_JOB_NOT_FOUND: [404, 'Không tìm thấy tin tuyển dụng'],
+        AI_REQUEST_CV_NOT_FOUND: [404, 'Không tìm thấy hồ sơ đã nộp vào tin của công ty bạn'],
+        AI_REQUEST_CV_INVALID: [422, 'CV đã nộp không phải PDF hợp lệ tối đa 5 MiB nên AI chưa đọc được'],
+        AI_REQUEST_FORBIDDEN: [403, 'Tài khoản của bạn không dùng được chức năng AI này']
     };
     if (Object.hasOwn(expected, error.code)) {
         const [status, errMessage] = expected[error.code];
@@ -140,7 +146,7 @@ export const matchCv = async (req, res) => {
         return res.status(400).json({ errCode: 1, errMessage: 'Nội dung CV hoặc mã tin tuyển dụng không hợp lệ' });
     }
     const resume = fromPdf ? { fileBase64, fileName: fileName ?? null } : { resumeText };
-    const recruiter = recruiterRole(req.user?.roleCode || req.headers['x-user-role']);
+    const recruiter = recruiterRole(roleOf(req));
 
     try {
         const companyId = recruiter ? (await recruiterJob(pool, userIdOf(req), jobId)).companyId : undefined;
@@ -207,7 +213,7 @@ export const coverLetter = async (req, res) => {
 // Client hoi ket qua bang taskId nhan duoc luc gui yeu cau.
 export const getTask = async (req, res) => {
     const userId = userIdOf(req);
-    const role = req.user?.roleCode || req.headers['x-user-role'];
+    const role = roleOf(req);
     const [rows] = await pool.query('SELECT * FROM ai_tasks WHERE id = ?', [req.params.taskId]);
     if (!rows.length) {
         return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy yêu cầu' });
@@ -216,7 +222,7 @@ export const getTask = async (req, res) => {
     const task = rows[0];
     // Ket qua AI co the chua noi dung CV cua nguoi dung, khong de nguoi khac xem.
     if (role !== 'ADMIN' && (task.userId === null || task.userId !== userId
-        || (recruiterRole(role) && task.type !== 'match_cv'))) {
+        || (recruiterRole(role) && !RECRUITER_TASK_TYPES.has(task.type)))) {
         return res.status(403).json({ errCode: 3, errMessage: 'Bạn không có quyền xem kết quả này' });
     }
 

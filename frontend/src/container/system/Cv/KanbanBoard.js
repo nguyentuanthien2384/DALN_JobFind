@@ -15,6 +15,8 @@ import {
     saveToTalentPool,
 } from "../../../service/applicationService";
 import { getAllPostByAdminService, getDetailCompanyById } from "../../../service/userService";
+import { useScreenings, needsScreening, ScreeningBadge, ScreeningPanel, AiMessageDraft } from "./KanbanAi";
+import { aiErrorMessage } from "../../../service/aiAssist";
 import "./KanbanBoard.scss";
 
 // Bang Kanban quan ly ho so ung tuyen.
@@ -66,6 +68,11 @@ const KanbanBoard = () => {
 
     const user = JSON.parse(localStorage.getItem("userData") || "{}");
     const boardRequest = useRef(0);
+    // AI cham CV va soan thu chi danh cho tai khoan thuoc cong ty (khong cho ADMIN).
+    const recruiterAi = ["COMPANY", "EMPLOYER"].includes(user.roleCode);
+    const { byCv: screenings, refresh: refreshScreenings, screen: screenCv, markFailed } = useScreenings();
+    const [sortByAi, setSortByAi] = useState(false);
+    const [bulk, setBulk] = useState(null);
 
     const loadBoard = useCallback(async (selectedJobId) => {
         // Lan tai dau (tat ca tin) co the ve sau khi nguoi dung da chon loc: chi
@@ -80,11 +87,16 @@ const KanbanBoard = () => {
         if (board && board.errCode === 0) {
             setColumns(board.data.columns);
             setTotal(board.data.total);
+            if (recruiterAi) {
+                const jobIds = [selectedJobId, ...board.data.columns.flatMap((col) => col.items.map((item) => item.job_id))];
+                refreshScreenings(jobIds).catch(() => {});
+            }
         } else {
             toast.error((board && board.errMessage) || "Không tải được danh sách ứng viên");
         }
         if (funnelRes && funnelRes.errCode === 0) setFunnel(funnelRes.data);
         setIsLoading(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -174,6 +186,7 @@ const KanbanBoard = () => {
         const res = await getApplicationDetail(id);
         if (res && res.errCode === 0) {
             setDetail(res.data);
+            if (recruiterAi && res.data.job_id) refreshScreenings([res.data.job_id]).catch(() => {});
             setNoteText("");
             setDecisionMessage("");
             setAttended(true);
@@ -271,6 +284,38 @@ const KanbanBoard = () => {
     const handleSendInterview = (interview) => queueCandidateEmail("thư mời phỏng vấn",
         (id) => sendInterviewInvitation(id, decisionMessage.trim(), interview));
 
+    // AI cham lan luot cac ho so chua co ket qua cua tin dang chon (2 ho so cung luc).
+    const handleBulkScreen = async () => {
+        if (bulk || !jobId) return;
+        const targets = columns.flatMap((col) => col.items)
+            .filter((item) => item.legacy_cv_id && String(item.job_id) === String(jobId)
+                && !["tu_choi", "nhan_viec"].includes(item.stage) && needsScreening(screenings[item.legacy_cv_id]))
+            .slice(0, 50);
+        if (!targets.length) {
+            toast.success("Các hồ sơ đang xét của tin này đều đã có kết quả AI");
+            return;
+        }
+        if (!window.confirm(`AI sẽ đọc và chấm ${targets.length} hồ sơ chưa có kết quả của tin này (mỗi hồ sơ là một lượt gọi AI, tối đa 50 hồ sơ mỗi lần). Kết quả chỉ để tham khảo. Tiếp tục?`)) return;
+        const queue = [...targets];
+        let sent = 0, failed = 0;
+        setBulk({ total: targets.length, sent: 0, failed: 0 });
+        const worker = async () => {
+            while (queue.length) {
+                const item = queue.shift();
+                try { await screenCv(item.legacy_cv_id, item.job_id); sent += 1; }
+                catch (error) { failed += 1; markFailed(item.legacy_cv_id, item.job_id, aiErrorMessage(error)); }
+                setBulk({ total: targets.length, sent, failed });
+            }
+        };
+        await Promise.all([worker(), worker()]);
+        setBulk(null);
+        if (failed) toast.error(`Đã gửi ${sent} hồ sơ cho AI; ${failed} hồ sơ chưa gửi được`);
+        else toast.success(`Đã gửi ${sent} hồ sơ cho AI chấm. Điểm sẽ hiện trên từng thẻ khi có kết quả.`);
+    };
+
+    const aiScore = (item) => screenings[item.legacy_cv_id]?.result?.score ?? -1;
+    const orderedItems = (items) => (sortByAi ? [...items].sort((a, b) => aiScore(b) - aiScore(a)) : items);
+
     const stageLabel = (stage) => columns.find((col) => col.stage === stage)?.label || stage;
 
     const renderStars = (id, current) => (
@@ -298,6 +343,24 @@ const KanbanBoard = () => {
                         Tổng cộng <b>{total}</b> hồ sơ.
                     </p>
                 </div>
+                <div className="kb-head-actions">
+                {recruiterAi && (
+                    <div className="kb-ai-tools">
+                        <button
+                            type="button"
+                            className="kb-btn ai"
+                            disabled={!jobId || Boolean(bulk) || isLoading}
+                            title={jobId ? undefined : "Chọn một tin tuyển dụng để AI sàng lọc hồ sơ"}
+                            onClick={handleBulkScreen}
+                        >
+                            {bulk ? `AI đang nhận hồ sơ ${bulk.sent + bulk.failed}/${bulk.total}…` : "AI sàng lọc hồ sơ"}
+                        </button>
+                        <label className="kb-check">
+                            <input type="checkbox" checked={sortByAi} onChange={(e) => setSortByAi(e.target.checked)} />
+                            Sắp xếp theo điểm AI
+                        </label>
+                    </div>
+                )}
                 <select
                     className="kb-filter"
                     value={jobId}
@@ -310,6 +373,7 @@ const KanbanBoard = () => {
                         </option>
                     ))}
                 </select>
+                </div>
             </div>
 
             {funnel && (
@@ -353,7 +417,7 @@ const KanbanBoard = () => {
                                 {col.items.length === 0 && (
                                     <div className="kb-col-empty">Chưa có hồ sơ</div>
                                 )}
-                                {col.items.map((item) => (
+                                {orderedItems(col.items).map((item) => (
                                     <div
                                         key={item.id}
                                         role="button"
@@ -381,6 +445,7 @@ const KanbanBoard = () => {
                                             {item.match_score !== null && item.match_score !== undefined && (
                                                 <span className="kb-match">{item.match_score}% khớp</span>
                                             )}
+                                            {recruiterAi && <ScreeningBadge item={screenings[item.legacy_cv_id]} />}
                                         </div>
                                     </div>
                                 ))}
@@ -414,6 +479,10 @@ const KanbanBoard = () => {
                                 <div><b>Ngày nộp:</b> {new Date(detail.applied_at).toLocaleDateString("vi-VN")}</div>
                                 <div><b>Đánh giá:</b> {renderStars(detail.id, detail.rating)}</div>
                             </div>
+
+                            {recruiterAi && (
+                                <ScreeningPanel detail={detail} item={screenings[detail.legacy_cv_id]} onScreen={screenCv} />
+                            )}
 
                             {detail.cover_letter && (
                                 <div className="kb-section">
@@ -460,6 +529,11 @@ const KanbanBoard = () => {
                                     disabled={isSendingDecision}
                                     onChange={(e) => setDecisionMessage(e.target.value)}
                                 />
+                                {recruiterAi && (
+                                    <AiMessageDraft key={`ai-draft-${detail.id}`} detail={detail} composer={composer}
+                                        notes={decisionMessage} interviewed={wasInvited(detail) ? attended : false}
+                                        disabled={isSendingDecision} onUse={(text) => setDecisionMessage(text.slice(0, 3000))} />
+                                )}
                                 {composer === "interview" && <InterviewInvitationForm key={`interview-${detail.id}`} detail={detail} user={user} company={company}
                                     message={decisionMessage.trim()} busy={isSendingDecision}
                                     onSend={handleSendInterview} onCancel={() => setComposer(null)} />}

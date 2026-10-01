@@ -952,7 +952,7 @@ kiểm tra startup, header qua Gateway, chuẩn hóa input và helper frontend. 
 test gọi các handler với middleware tin cậy thật trên localhost, chưa chạy qua
 Gateway/JWT thật hay trình duyệt/AI Worker; không gọi AI tính phí.
 
-## Bốn tính năng AI
+## Các tính năng AI
 
 Tất cả chạy trong AI Worker — **không mở cổng HTTP**, chỉ nhận việc qua RabbitMQ.
 Một đợt CV ồ ạt chỉ làm hàng đợi dài ra, không làm sập API.
@@ -960,11 +960,13 @@ Một đợt CV ồ ạt chỉ làm hàng đợi dài ra, không làm sập API.
 | Tính năng | Sự kiện | Mô tả |
 |---|---|---|
 | Resume Parser | `ai.parse_resume` | Bóc tách PDF → JSON có cấu trúc |
-| Smart Matching | `ai.match_cv` | Chấm điểm % độ khớp CV ↔ mô tả công việc |
+| CV Generator | `ai.generate_cv` | Tạo bản nháp CV từ thông tin ứng viên |
+| Smart Matching | `ai.match_cv` | Chấm điểm % độ khớp CV ↔ mô tả công việc; cũng dùng để AI sàng lọc CV đã nộp (`/api/ai/screen-application`) |
 | Content Moderation | `ai.moderate_job` | Quét tin tuyển dụng tìm dấu hiệu lừa đảo, đa cấp, thu phí ứng viên |
 | Cover Letter | `ai.cover_letter` | Sinh thư ứng tuyển |
+| Writing Assistant | `ai.write_assist` | Bản nháp ngắn để người dùng sửa: lời giới thiệu khi nộp CV, lời nhắn trong email phỏng vấn/trúng tuyển/từ chối, gợi ý trả lời và viết lại tin nhắn chat |
 
-Ba tính năng đầu dùng **structured outputs** (`output_config.format`) nên kết quả
+Các tính năng trả JSON dùng **structured outputs** (`output_config.format`) nên kết quả
 luôn đúng schema, không phải tự parse JSON lẫn trong văn xuôi.
 
 Với gateway tương thích Anthropic cấu hình qua `ANTHROPIC_BASE_URL`, worker trích

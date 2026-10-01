@@ -83,6 +83,31 @@ const matchCvPdfAi = (fileBase64, jobId, options) =>
 const coverLetterAi = (resumeText, jobId, language = "en", options) =>
     postAi(`/api/ai/cover-letter`, { resumeText, jobId, language }, options);
 
+// Loi gioi thieu ngan (<= 255 ky tu) tu CV PDF dang chon khi nop ho so.
+const applicationIntroAi = (fileBase64, jobId, language = "vi", options) =>
+    postAi(`/api/ai/application-intro`, { fileBase64, jobId: Number(jobId), language }, options);
+
+// Nha tuyen dung: loi nhan them cho email moi phong van / trung tuyen / tu choi.
+const candidateMessageAi = ({ jobId, emailType, candidateName, recruiterNotes, interviewed, language = "vi" }, options) =>
+    postAi(`/api/ai/candidate-message`, {
+        jobId: Number(jobId), emailType, language,
+        ...(candidateName ? { candidateName: String(candidateName).slice(0, 255) } : {}),
+        ...(recruiterNotes ? { recruiterNotes } : {}),
+        ...(emailType === "rejection" && typeof interviewed === "boolean" ? { interviewed } : {})
+    }, options);
+
+// Goi y tra loi (mode "suggest") hoac viet lai ban nhap (mode "polish") trong chat.
+const chatAssistAi = ({ mode, messages = [], draft, language = "vi" }, options) =>
+    postAi(`/api/ai/chat-assist`, mode === "suggest"
+        ? { mode, messages, language }
+        : { mode, draft, language, ...(messages.length ? { messages } : {}) }, options);
+
+// Nha tuyen dung: AI cham CV da nop (doc tep tai may chu) va danh sach ket qua theo tin.
+const screenApplicationAi = (cvId, options) =>
+    postAi(`/api/ai/screen-application`, { cvId: Number(cvId) }, options);
+const getJobScreenings = (jobId) =>
+    axios.get(`/api/ai/jobs/${encodeURIComponent(jobId)}/screenings`);
+
 // Hoi ket qua cua mot tac vu AI.
 const getAiTask = (taskId, options) => options
     ? axios.get(`/api/ai/tasks/${encodeURIComponent(taskId)}`, options)
@@ -109,6 +134,7 @@ const getSystemStatus = () => axios.get(`/status`);
 export {
     searchJobs, suggestJobs, getSearchFacets, getRelatedJobs,
     createAiRequestOptions, parseResumeAi, generateCvAi, matchCvAi, matchCvPdfAi, coverLetterAi, getAiTask, waitForAiTask,
+    applicationIntroAi, candidateMessageAi, chatAssistAi, screenApplicationAi, getJobScreenings,
     getMyProfile, updateMyProfile,
     listMyCvs, createMyCv, updateMyCv, deleteMyCv, importParsedCv,
     getSystemStatus

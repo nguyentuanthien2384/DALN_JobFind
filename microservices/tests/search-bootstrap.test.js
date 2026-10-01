@@ -27,6 +27,9 @@ vi.mock('../job-core-service/src/controllers/jobController.js', () => ({
 vi.mock('../job-core-service/src/controllers/aiController.js', () => ({
     ensureAiTaskTable: vi.fn(), parseResume: vi.fn(), generateCv: vi.fn(), matchCv: vi.fn(), coverLetter: vi.fn(), getTask: vi.fn(), handleAiResult: mocks.handleAiResult
 }));
+vi.mock('../job-core-service/src/controllers/aiAssistController.js', () => ({
+    ensureAiScreeningTable: vi.fn(), applicationIntro: vi.fn(), candidateMessage: vi.fn(), chatAssist: vi.fn(), screenApplication: vi.fn(), listJobScreenings: vi.fn()
+}));
 vi.mock('../shared/rabbitmq.js', () => ({ consume: mocks.consume }));
 
 beforeEach(() => {

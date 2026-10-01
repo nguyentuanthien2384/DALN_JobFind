@@ -24,6 +24,9 @@ import {
 import {
     ensureAiTaskTable, parseResume, generateCv, matchCv, coverLetter, getTask, handleAiResult
 } from './controllers/aiController.js';
+import {
+    ensureAiScreeningTable, applicationIntro, candidateMessage, chatAssist, screenApplication, listJobScreenings
+} from './controllers/aiAssistController.js';
 
 const logger = createLogger('job-core-service');
 const app = express();
@@ -69,6 +72,12 @@ contractRoute(app, 'aiParseResume', canUseCandidateAi, parseResume);
 contractRoute(app, 'aiGenerateCv', canUseCandidateAi, generateCv);
 contractRoute(app, 'aiMatchCv', canUseMatchingAi, matchCv);
 contractRoute(app, 'aiCoverLetter', canUseCandidateAi, coverLetter);
+contractRoute(app, 'aiApplicationIntro', canUseCandidateAi, applicationIntro);
+contractRoute(app, 'aiChatAssist', canUseMatchingAi, chatAssist);
+const canUseRecruiterAi = requireServicePermission(PERMISSIONS.AI_RECRUITER_USE);
+contractRoute(app, 'aiCandidateMessage', canUseRecruiterAi, candidateMessage);
+contractRoute(app, 'aiScreenApplication', canUseRecruiterAi, screenApplication);
+contractRoute(app, 'aiJobScreenings', canUseRecruiterAi, listJobScreenings);
 contractRoute(app, 'aiTaskGet', canUseMatchingAi, getTask);
 
 // --- Noi bo: Search Service goi de dung lai index tu dau ---
@@ -82,6 +91,7 @@ const start = async () => {
     await ensureOutboxTable();
     await ensureAiResultTables();
     await ensureAiRequestTable();
+    await ensureAiScreeningTable();
     await ensureJobRequestTable();
 
     // Lang nghe ket qua tra ve tu AI Worker.

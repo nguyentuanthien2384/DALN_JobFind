@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+      "maxLength": 64
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "enum": [
+        "application_intro",
+        "candidate_email",
+        "chat_reply",
+        "chat_polish"
+      ]
+    },
+    "language": {
+      "enum": [
+        "vi",
+        "en"
+      ]
+    },
+    "fileBase64": {
+      "type": "string",
+      "maxLength": 8388608,
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "jobTitle": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "jobDescription": {
+      "type": "string",
+      "maxLength": 200000
+    },
+    "companyName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 255
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "emailType": {
+      "enum": [
+        "interview",
+        "offer",
+        "rejection"
+      ]
+    },
+    "candidateName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 255
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recruiterNotes": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 2000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "interviewed": {
+      "type": "boolean"
+    },
+    "senderRole": {
+      "enum": [
+        "candidate",
+        "recruiter"
+      ]
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "enum": [
+              "me",
+              "partner"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "from",
+          "text"
+        ],
+        "additionalProperties": true
+      },
+      "maxItems": 20
+    },
+    "draft": {
+      "type": "string",
+      "maxLength": 2000
+    }
+  },
+  "required": [
+    "taskId",
+    "kind"
+  ],
+  "additionalProperties": true,
+  "title": "ai.write_assist payload v1",
+  "examples": [
+    {
+      "taskId": "task-1",
+      "kind": "chat_reply",
+      "language": "vi",
+      "senderRole": "candidate",
+      "messages": [
+        {
+          "from": "partner",
+          "text": "Bạn có thể phỏng vấn thứ Hai không?"
+        }
+      ]
+    }
+  ]
+}

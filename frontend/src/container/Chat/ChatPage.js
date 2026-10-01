@@ -14,6 +14,7 @@ import ChatAvatar from "./ChatAvatar";
 import ChatShareTools from '../../components/chat/ChatShareTools';
 import ChatMessageContent, { ChatFileCard, ChatJobCard } from '../../components/chat/ChatMessageContent';
 import ChatDocumentPreview from '../../components/chat/ChatDocumentPreview';
+import ChatAiAssist from '../../components/chat/ChatAiAssist';
 import { chatMessageSummary } from '../../service/chatMediaService';
 import WaitingReply from "./WaitingReply";
 import { mergeMessages, synchronizeConversation } from './conversationSync';
@@ -611,6 +612,9 @@ const ChatPage = () => {
                                         {mediaDraft.attachment && <ChatFileCard attachment={mediaDraft.attachment} onPreview={setPreview} />}
                                         {mediaDraft.job && <ChatJobCard job={mediaDraft.job} draft />}
                                     </div>}
+                                    {conversationMeta?.richContent && ['CANDIDATE', 'COMPANY', 'EMPLOYER'].includes(userData?.roleCode)
+                                        && <ChatAiAssist key={partnerId} messages={messages} userId={userData.id} draft={content}
+                                            disabled={isSending || sendUncertain} onUse={handleTyping} />}
                                     {sendUncertain && <p role="status" className="chat-media-status">Chưa xác nhận. Bấm gửi lại để kiểm tra cùng tin nhắn.</p>}
                                     <div className="chat-composer-row">
                                         <textarea className="form-control" placeholder="Nhập tin nhắn..." aria-label="Nội dung tin nhắn"

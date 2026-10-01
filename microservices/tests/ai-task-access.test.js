@@ -74,4 +74,23 @@ describe('recruiter AI results remain within their original company', () => {
         expect((await read()).statusCode).toBe(403);
         expect(mocks.pool.query).toHaveBeenCalledOnce();
     });
+
+    it('lets a recruiter read its own writing draft after the same company check', async () => {
+        mocks.pool.query.mockReset()
+            .mockResolvedValueOnce([[{ ...task, type: 'write_assist', input: '{"kind":"candidate_email","companyId":3}', result: '{"suggestions":["Cảm ơn bạn"]}' }]])
+            .mockResolvedValue([[{ companyId: 3 }]]);
+        expect((await read()).body.data.result.suggestions).toEqual(['Cảm ơn bạn']);
+        expect(mocks.pool.query.mock.calls[1][1]).toEqual([9, 3]);
+    });
+
+    it('fails closed for a recruiter writing draft without company metadata', async () => {
+        mocks.pool.query.mockReset().mockResolvedValueOnce([[{ ...task, type: 'write_assist', input: '{"kind":"chat_reply"}' }]]);
+        expect((await read()).statusCode).toBe(403);
+        expect(mocks.pool.query).toHaveBeenCalledOnce();
+    });
+
+    it('lets a candidate read its own chat suggestion', async () => {
+        mocks.pool.query.mockReset().mockResolvedValueOnce([[{ ...task, type: 'write_assist', input: '{"kind":"chat_reply"}', result: '{"suggestions":["Dạ được ạ"]}' }]]);
+        expect((await read('CANDIDATE')).body.data.result.suggestions).toEqual(['Dạ được ạ']);
+    });
 });

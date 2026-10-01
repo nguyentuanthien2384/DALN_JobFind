@@ -64,6 +64,10 @@ export const responseDefinitions = {
         topCongTy: list(record({ congTyId: nullable(id), soHoSo: integer(), daTuyen: integer() })) }),
     ReportActivity: record({ theoLoai: list(namedCount), theoService: list(namedCount), theoNgay: list(datedCount) }),
     SyncResult: record({ total: integer(), imported: integer(), error: text(20000) }, ['total', 'imported']),
+    Screening: record({ cvId: id, taskId: text(64), status: { enum: ['pending', 'done', 'failed'] }, error: nullable(text(20000)),
+        createdAt: date, updatedAt: date, score: integer(0, 100), verdict: text(64), summary: text(20000),
+        ...Object.fromEntries(['matchedSkills', 'missingSkills', 'strengths', 'concerns'].map((field) => [field, list(text(2000))])) },
+    ['cvId', 'taskId', 'status', 'createdAt']),
     ReindexResponse: record({ errCode: { const: 0 }, indexed: integer(), reconciliation: record({ total: integer(), changed: integer(), deleted: integer() }) })
 };
 const resultNames = {
@@ -73,7 +77,7 @@ const resultNames = {
     myApplications: 'MyApplication', talentList: 'Talent', talentSave: 'Talent',
     auditList: 'Audit', auditTarget: 'Audit', masterList: 'Master', masterSave: 'Tag', aliasMap: 'AliasMap',
     ...Object.fromEntries(['Overview', 'Timeseries', 'Distribution', 'Funnel', 'Activity'].map((name) => [`report${name}`, `Report${name}`])),
-    applicationSync: 'SyncResult'
+    applicationSync: 'SyncResult', aiJobScreenings: 'Screening'
 };
 
 // Response validation is a CI assertion, never a post-commit production filter:
