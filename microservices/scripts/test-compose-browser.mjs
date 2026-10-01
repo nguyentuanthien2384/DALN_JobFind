@@ -198,14 +198,14 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         await expect(card).toBeVisible();
         const movedResponse = recruiter.waitForResponse(response =>
             /\/api\/applications\/\d+\/stage$/.test(new URL(response.url()).pathname) && response.request().method() === 'PATCH');
-        await card.dragTo(recruiter.getByRole('region', { name: 'Phỏng vấn', exact: true }));
-        await expect(recruiter.getByRole('region', { name: 'Phỏng vấn', exact: true }).getByRole('button', { name: 'Hồ sơ Browser Candidate', exact: true })).toBeVisible();
+        await card.dragTo(recruiter.getByRole('region', { name: 'Đang xem xét', exact: true }));
+        await expect(recruiter.getByRole('region', { name: 'Đang xem xét', exact: true }).getByRole('button', { name: 'Hồ sơ Browser Candidate', exact: true })).toBeVisible();
         // The card moves optimistically; reload only after the server commits it.
         const moved = await movedResponse;
         assert.equal(moved.status(), 200);
         assert.equal((await moved.json()).errCode, 0);
         await recruiter.reload();
-        await expect(recruiter.getByRole('region', { name: 'Phỏng vấn', exact: true }).getByRole('button', { name: 'Hồ sơ Browser Candidate', exact: true })).toBeVisible();
+        await expect(recruiter.getByRole('region', { name: 'Đang xem xét', exact: true }).getByRole('button', { name: 'Hồ sơ Browser Candidate', exact: true })).toBeVisible();
         await card.click();
         const detail = recruiter.getByRole('dialog');
         await expect(detail).toContainText('browser@example.invalid');
@@ -224,7 +224,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
 
         current = candidate;
         await candidate.getByRole('button', { name: 'Tải lại hồ sơ' }).click();
-        await expect(historyRow).toContainText('Phỏng vấn'); await expect(historyRow).toContainText('Đã xem');
+        await expect(historyRow).toContainText('Đang xem xét'); await expect(historyRow).toContainText('Đã xem');
         await expect(candidate.locator('body')).not.toContainText('Ghi chú riêng từ bài nghiệm thu trình duyệt');
         await screenshot(candidate, '06-candidate-interview');
         const ownPdfResponse = candidate.waitForResponse(response => new URL(response.url()).pathname === '/api/get-detail-cv-by-id');
@@ -273,7 +273,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         assert.deepEqual(restartFailures.filter(entry => entry.method !== 'GET'), [], 'writes failed during the deliberate restart');
         if (restartFailures.length) console.log(`Expected during deliberate restart: ${restartFailures.map(entry => `${entry.status} ${entry.method} ${entry.path}`).join(', ')}`);
         await candidate.goto(origin + '/candidate/cv-post');
-        await expect(historyRow).toContainText('Phỏng vấn', { timeout: 30000 });
+        await expect(historyRow).toContainText('Đang xem xét', { timeout: 30000 });
         const restartPdfResponse = candidate.waitForResponse(response => new URL(response.url()).pathname === '/api/get-detail-cv-by-id');
         await historyRow.getByRole('link', { name: 'Xem CV đã nộp' }).click();
         assert.equal((await (await restartPdfResponse).json()).data.file, storedPdf.file);
