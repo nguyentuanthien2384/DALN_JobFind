@@ -82,13 +82,10 @@ module.exports = async ({ nodes, db, tokenFor, seedSessions }) => {
       await expect(waiting(b.page)).toHaveCount(0);
       const send = async (from, to, content) => {
         const input = from.page.getByPlaceholder("Nhập tin nhắn...");
-        await expect(async () => {
-          await input.focus();
-          await input.fill(content);
-          await expect(to.page.getByText("đang soạn tin nhắn...")).toBeVisible({
-            timeout: 4000,
-          });
-        }).toPass({ timeout: 20000 });
+        await input.fill(content);
+        await expect(to.page.getByText("đang soạn tin nhắn...")).toBeVisible({
+          timeout: 25000,
+        });
         await from.page
           .getByRole("button", { name: "Gửi tin nhắn", exact: true })
           .click();

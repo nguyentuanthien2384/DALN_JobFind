@@ -51,7 +51,6 @@ const ChatPage = () => {
     const pageRef = useRef(null);
     const typingTimerRef = useRef(null);
     const typingEmitTimerRef = useRef(null);
-    const lastTypingEmitRef = useRef(0);
     const [userData] = useState(() => JSON.parse(localStorage.getItem("userData")));
     const chatBasePath = location.pathname.startsWith("/admin/chat")
         ? "/admin/chat"
@@ -361,17 +360,12 @@ const ChatPage = () => {
         setContent(value);
         const socket = getSocket();
         if (value.trim() && socket && socket.connected && partnerId) {
-            const now = Date.now();
-            if (now - lastTypingEmitRef.current > 1500) {
-                lastTypingEmitRef.current = now;
-                socket.volatile.emit("chat:typing", { receiverId: Number(partnerId) });
-            }
+            socket.volatile.emit("chat:typing", { receiverId: Number(partnerId) });
         }
         clearTimeout(typingEmitTimerRef.current);
         typingEmitTimerRef.current = setTimeout(() => {
             const socket = getSocket();
             if (value.trim() && socket && socket.connected && partnerId) {
-                lastTypingEmitRef.current = Date.now();
                 socket.volatile.emit("chat:typing", { receiverId: Number(partnerId) });
             }
         }, 250);
