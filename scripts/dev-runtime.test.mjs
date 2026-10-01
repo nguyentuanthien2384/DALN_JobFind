@@ -6,7 +6,7 @@ import path from 'node:path';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches, canConnect, awaitService, followLaunch, awaitSupervisorPublication } from './dev-runtime.mjs';
+import { alive, stopChild, ownedSupervisor, matchesSupervisor, effectiveState, waitFor, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, localEmailDeliveryEnabled, claudeRuntimeMatches, canConnect, awaitService, followLaunch, awaitSupervisorPublication } from './dev-runtime.mjs';
 
 test('concurrent starters cannot reclaim or replace each others runtime lock', async () => {
     const workspace = path.join(os.tmpdir(), `jobfind-starter-${process.pid}-${Date.now()}`);
@@ -164,6 +164,21 @@ test('local Compose uses Claude settings from project env, not stale host settin
     for (const name of ['ANTHROPIC_BASE_URL', 'CLAUDE_MODEL', 'SUPPORT_CLAUDE_MODEL']) {
         assert.equal(Object.hasOwn(withoutKey, name), false);
     }
+});
+
+test('local Compose passes the project mail sender only when real email is explicitly enabled', () => {
+    const host = { JOBFIND_EMAIL_APP: 'stale@host.example', JOBFIND_EMAIL_APP_PASSWORD: 'stale' };
+    const project = { EMAIL_APP: 'sender@gmail.com', EMAIL_APP_PASSWORD: 'app $pass', EMAIL_DEMO_RECIPIENT: '' };
+    const off = localComposeEnvironment(host, project);
+    for (const name of ['JOBFIND_EMAIL_APP', 'JOBFIND_EMAIL_APP_PASSWORD', 'JOBFIND_EMAIL_DEMO_RECIPIENT']) assert.equal(Object.hasOwn(off, name), false);
+    assert.equal(localEmailDeliveryEnabled(project), false);
+    const enabled = { ...project, LOCAL_EMAIL_DELIVERY: ' TRUE ' };
+    const on = localComposeEnvironment(host, enabled);
+    assert.equal(localEmailDeliveryEnabled(enabled), true);
+    assert.equal(on.JOBFIND_EMAIL_APP, 'sender@gmail.com');
+    assert.equal(on.JOBFIND_EMAIL_APP_PASSWORD, 'app $pass');
+    assert.equal(Object.hasOwn(on, 'JOBFIND_EMAIL_DEMO_RECIPIENT'), false);
+    assert.equal(localEmailDeliveryEnabled({ LOCAL_EMAIL_DELIVERY: 'yes' }), false);
 });
 
 test('Claude runtime comparison detects stale provider settings without storing secrets', () => {

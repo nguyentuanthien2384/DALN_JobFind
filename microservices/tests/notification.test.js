@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { offerFixture } from './offerFixture.js';
+import { interviewFixture } from './interviewFixture.js';
 
 const mocks = vi.hoisted(() => ({
     createPool: vi.fn(),
@@ -386,6 +387,74 @@ describe('notification templates', () => {
         expect(template.email.html).toContain('&quot;Lan&quot;');
         expect(template.email.html).toMatch(/&lt;script&gt;x&lt;\/script&gt;<br\s*\/?>(?:\s*)Next/);
         expect(template.email.html).not.toMatch(/<(?:script|img)\b/i);
+    });
+
+    it('renders a complete interview invitation with logistics, HR reply-to and a calendar link', async () => {
+        vi.stubEnv('FRONTEND_URL', 'https://jobs.example.test');
+        const { applicationInterviewTemplate } = await import('../notification-service/src/templates.js');
+        const template = applicationInterviewTemplate({ jobTitle: 'Frontend Developer', candidateName: 'Lan', companyName: 'Example Company',
+            message: 'Hẹn gặp bạn\nTại tầng 5', interview: interviewFixture });
+        expect(template).toMatchObject({ typeCode: 'APPLICATION_INTERVIEW', link: '/candidate/cv-post/' });
+        expect(template.content).toBe('Bạn được mời phỏng vấn vị trí "Frontend Developer" vào Thứ Năm, 15/10/2099 lúc 09:30');
+        const { email } = template;
+        expectRichEmail(email, { ctaUrl: 'https://jobs.example.test/candidate/cv-post/', progressCurrent: 3 });
+        expect(email.subject).toBe('Thư mời phỏng vấn — Frontend Developer');
+        expect(email.replyTo).toBe(interviewFixture.contactEmail);
+        for (const value of ['Thứ Năm, 15/10/2099 lúc 09:30 (giờ Việt Nam, UTC+7)', '60 phút', 'Phỏng vấn trực tiếp', interviewFixture.location,
+            interviewFixture.round, interviewFixture.interviewers, interviewFixture.contactName, interviewFixture.contactEmail,
+            interviewFixture.contactPhone, '13/10/2099 lúc 17:00', 'Example Company', 'Chào Lan']) {
+            expect(email.html).toContain(value);
+            expect(email.text).toContain(value);
+        }
+        expect(email.html).toContain('Mang theo CCCD<br>Chuẩn bị portfolio');
+        expect(email.html).toContain('Hẹn gặp bạn<br>Tại tầng 5');
+        expect(email.html).toContain('href="https://calendar.google.com/calendar/render?action=TEMPLATE&amp;');
+        expect(email.text).toContain('dates=20991015T023000Z%2F20991015T033000Z');
+        expect(email.text).toContain('Trân trọng,\nNguyễn Hà\nExample Company');
+        expect(email.html).not.toContain('Vui lòng không trả lời');
+        expect(email.html).not.toContain('Link phỏng vấn trực tuyến');
+    });
+
+    it('shows only the chosen interview mode logistics and escapes every invitation field', async () => {
+        const { applicationInterviewTemplate } = await import('../notification-service/src/templates.js');
+        const online = applicationInterviewTemplate({ jobTitle: 'Dev', interview: { ...interviewFixture, interviewMode: 'online',
+            meetingUrl: 'https://meet.example.com/join?a=1&b=2', interviewers: '<img src=x onerror=alert(1)>' } }).email;
+        expect(online.html).toContain('href="https://meet.example.com/join?a=1&amp;b=2"');
+        expect(online.html).not.toContain(interviewFixture.location);
+        expect(online.html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+        expect(online.html).not.toMatch(/<img\b/i);
+        const unsafe = applicationInterviewTemplate({ interview: { ...interviewFixture, interviewMode: 'online', meetingUrl: 'javascript:alert(1)' } }).email;
+        expect(unsafe.html).not.toContain('javascript:');
+        const phone = applicationInterviewTemplate({ jobTitle: 'Dev', interview: { ...interviewFixture, interviewMode: 'phone' } }).email;
+        expect(phone.text).toContain('Phỏng vấn qua điện thoại');
+        expect(phone.text).toContain('gọi cho bạn từ số 0901234567');
+        expect(phone.text).not.toContain(interviewFixture.location);
+        const minimal = applicationInterviewTemplate({ interview: { interviewMode: 'onsite', contactEmail: 'bad\r\nBcc: x@y.z' } });
+        expect(minimal.email.replyTo).toBeUndefined();
+        expect(minimal.email.subject).toBe('Thư mời phỏng vấn — Job Finder');
+        expect(minimal.email.text).toContain('Bộ phận tuyển dụng');
+    });
+
+    it('thanks an interviewed candidate in the rejection email and signs it as the interview contact', async () => {
+        const { applicationDecisionTemplate, applicationStageTemplate } = await import('../notification-service/src/templates.js');
+        const thanked = applicationDecisionTemplate({ decision: 'rejected', jobTitle: 'Dev', candidateName: 'Lan',
+            companyName: 'Example Company', interviewed: true, interview: interviewFixture });
+        expect(thanked.content).toBe('Cảm ơn bạn đã tham gia phỏng vấn vị trí "Dev"');
+        expect(thanked.email.subject).toBe('Cảm ơn bạn đã tham gia phỏng vấn — Dev');
+        expect(thanked.email.replyTo).toBe(interviewFixture.contactEmail);
+        for (const value of ['Cảm ơn bạn đã tham gia buổi phỏng vấn', 'tham gia buổi phỏng vấn cho vị trí “Dev” tại Example Company', 'Trân trọng,']) {
+            expect(thanked.email.text).toContain(value);
+        }
+        expect(thanked.email.text).not.toContain(interviewFixture.location);
+        const notAttended = applicationDecisionTemplate({ decision: 'rejected', jobTitle: 'Dev', interviewed: false, interview: interviewFixture });
+        expect(notAttended.email.subject).toBe('Kết quả ứng tuyển — Dev');
+        expect(notAttended.email.text).not.toContain('tham gia buổi phỏng vấn');
+        const offer = applicationDecisionTemplate({ decision: 'accepted', jobTitle: 'Dev', offer: offerFixture, interviewed: true, interview: interviewFixture });
+        expect(offer.email.replyTo).toBe(offerFixture.contactEmail);
+        const dragged = applicationStageTemplate({ toStage: 'tu_choi', jobTitle: 'Dev', candidateName: 'Lan', interviewed: true });
+        expect(dragged.email.subject).toBe('Cảm ơn bạn đã tham gia phỏng vấn — Dev');
+        expect(dragged.content).toBe('Cảm ơn bạn đã tham gia phỏng vấn vị trí "Dev"');
+        expect(applicationStageTemplate({ toStage: 'tu_choi', jobTitle: 'Dev' }).email.subject).toBe('Kết quả ứng tuyển vị trí Dev');
     });
 
     it('renders decision defaults and omits an empty custom-message section', async () => {

@@ -10,7 +10,7 @@ import { testConnection, initSchema, pool, STAGES, STAGE_LABELS } from './libs/d
 import { ensureOutboxTable, startOutboxRelay, stopOutboxRelay } from './libs/outbox.js';
 import {
     getBoard, listApplications, getApplication, moveStage,
-    sendDecisionNotification, rateApplication, addNote, getFunnel, myApplications
+    sendDecisionNotification, sendInterviewInvitation, rateApplication, addNote, getFunnel, myApplications
 } from './controllers/applicationController.js';
 import { savedCandidates, saveCandidate, removeCandidate } from './controllers/talentPoolController.js';
 import { syncFromLegacy, syncEndpoint, closeLegacySource } from './controllers/syncController.js';
@@ -65,6 +65,7 @@ contractRoute(app, 'applicationList', canManageApplications, listApplications);
 contractRoute(app, 'applicationGet', canManageApplications, getApplication);
 contractRoute(app, 'applicationMove', canManageApplications, moveStage);
 contractRoute(app, 'applicationDecision', canManageApplications, sendDecisionNotification);
+contractRoute(app, 'applicationInterview', canManageApplications, sendInterviewInvitation);
 contractRoute(app, 'applicationRating', canManageApplications, rateApplication);
 contractRoute(app, 'applicationNote', canManageApplications, addNote);
 

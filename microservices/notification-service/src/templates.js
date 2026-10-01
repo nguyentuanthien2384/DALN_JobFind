@@ -98,8 +98,20 @@ const STAGE_MESSAGES = {
     }
 };
 
-export const applicationStageTemplate = ({ toStage, jobTitle, candidateName, companyName }) => {
-    const config = STAGE_MESSAGES[toStage];
+// Tu choi sau buoi phong van: cam on ung vien da danh thoi gian tham gia.
+const AFTER_INTERVIEW_REJECTION = {
+    ...STAGE_MESSAGES.tu_choi,
+    headline: 'Cảm ơn bạn đã tham gia buổi phỏng vấn',
+    short: (job) => `Cảm ơn bạn đã tham gia phỏng vấn vị trí "${job}"`,
+    subject: (job) => `Cảm ơn bạn đã tham gia phỏng vấn — ${job}`,
+    body: ({ name, jobContext }) => [
+        `Chào ${name}, cảm ơn bạn đã dành thời gian tham gia buổi phỏng vấn cho ${jobContext}. Sau khi cân nhắc kỹ, chúng tôi rất tiếc chưa thể tiếp tục với hồ sơ của bạn trong đợt tuyển dụng này.`,
+        'Kết quả này chỉ áp dụng cho vị trí và lần tuyển dụng hiện tại. Chúng tôi trân trọng sự quan tâm của bạn và mong có dịp đồng hành trong những cơ hội phù hợp hơn.'
+    ]
+};
+
+export const applicationStageTemplate = ({ toStage, jobTitle, candidateName, companyName, interviewed }) => {
+    const config = toStage === 'tu_choi' && interviewed === true ? AFTER_INTERVIEW_REJECTION : STAGE_MESSAGES[toStage];
     // Buoc moi ung tuyen khong can bao lai cho ung vien: chinh ho vua bam nop.
     if (!config) return null;
 
@@ -138,32 +150,38 @@ export const applicationStageTemplate = ({ toStage, jobTitle, candidateName, com
 };
 
 export const applicationDecisionTemplate = ({
-    decision, jobTitle, candidateName, companyName, message, offer
+    decision, jobTitle, candidateName, companyName, message, offer, interviewed, interview
 }) => {
     const accepted = decision === 'accepted';
+    // Chi thu tu choi dung thong tin phong van: cam on da tham gia va ky ten nguoi lien he.
+    const afterInterview = !accepted && interviewed === true;
+    const hrContact = !accepted && interview && displayText(interview.contactName) ? interview : null;
     const job = displayText(jobTitle, 'vị trí bạn đã ứng tuyển');
     const name = displayText(candidateName, 'bạn');
-    const company = displayText(companyName || (accepted ? offer?.companyName : ''));
+    const company = displayText(companyName || (accepted ? offer?.companyName : hrContact?.companyName));
     const subject = sanitizeSubject(accepted
         ? `${offer ? 'Thư mời nhận việc' : 'Chúc mừng bạn đã trúng tuyển'} — ${jobTitle || 'Job Finder'}`
-        : `Kết quả ứng tuyển — ${jobTitle || 'Job Finder'}`);
+        : `${afterInterview ? 'Cảm ơn bạn đã tham gia phỏng vấn' : 'Kết quả ứng tuyển'} — ${jobTitle || 'Job Finder'}`);
     const accent = accepted ? '#15803d' : '#be123c';
     const softAccent = accepted ? '#ecfdf3' : '#fff1f2';
     const status = accepted ? (offer ? 'Mời nhận việc · Chờ phản hồi' : 'Trúng tuyển') : 'Chưa trúng tuyển';
     const headline = accepted
         ? (name === 'bạn' ? 'Chúc mừng, bạn đã trúng tuyển' : `Chúc mừng ${name}, bạn đã trúng tuyển`)
-        : 'Cảm ơn bạn đã dành thời gian cho vị trí này';
+        : afterInterview ? 'Cảm ơn bạn đã tham gia buổi phỏng vấn' : 'Cảm ơn bạn đã dành thời gian cho vị trí này';
     const body = accepted && offer
         ? [`Chào ${name}, cảm ơn bạn đã tham gia quy trình tuyển dụng${company ? ` tại ${company}` : ''}. Chúng tôi trân trọng mời bạn nhận việc ở vị trí “${job}” với thông tin dưới đây.`, 'Vui lòng xem kỹ nội dung thư và phản hồi đồng ý hoặc từ chối trước thời hạn. Chúng tôi mong được chào đón bạn vào đội ngũ.']
         : accepted
         ? [`Nhà tuyển dụng đã xác nhận bạn được chọn cho vị trí “${job}”${company ? ` tại ${company}` : ''}. Thông báo này ghi nhận kết quả trên Job Finder; lương, ngày bắt đầu và các điều khoản cần được hai bên xác nhận trực tiếp.`]
+        : afterInterview
+        ? [`Chào ${name}, cảm ơn bạn đã dành thời gian tham gia buổi phỏng vấn cho vị trí “${job}”${company ? ` tại ${company}` : ''}. Sau khi cân nhắc kỹ, chúng tôi rất tiếc chưa thể tiếp tục với hồ sơ của bạn trong đợt tuyển dụng này.`,
+            'Chúng tôi trân trọng sự quan tâm và những chia sẻ của bạn trong buổi trao đổi, và mong có dịp đồng hành cùng bạn ở những cơ hội phù hợp hơn.']
         : [`Chào ${name}, nhà tuyển dụng chưa lựa chọn hồ sơ của bạn cho vị trí “${job}”${company ? ` tại ${company}` : ''} trong đợt tuyển dụng này. Kết quả này chỉ áp dụng cho vị trí và lần tuyển dụng hiện tại.`];
     const ctaPath = accepted ? CANDIDATE_APPLICATIONS_PATH : JOBS_PATH;
     const email = renderNotificationEmail({
         subject,
         preheader: accepted
             ? `Chúc mừng! Bạn đã trúng tuyển vị trí ${job}`
-            : `Kết quả ứng tuyển vị trí ${job}`,
+            : afterInterview ? `Cảm ơn bạn đã tham gia phỏng vấn vị trí ${job}` : `Kết quả ứng tuyển vị trí ${job}`,
         eyebrow: 'KẾT QUẢ TUYỂN DỤNG',
         status,
         headline,
@@ -187,18 +205,121 @@ export const applicationDecisionTemplate = ({
         secondaryLink: accepted ? null : { label: 'Xem hồ sơ đã nộp', path: CANDIDATE_APPLICATIONS_PATH },
         customMessage: displayMultilineText(message),
         ...(accepted && offer ? { signoff: `Trân trọng,\n${offer.contactName}\n${company}` } : {}),
-        ...(accepted && offer && isValidEmailRecipient(offer.contactEmail) ? { replyTo: offer.contactEmail } : {})
+        ...(accepted && offer && isValidEmailRecipient(offer.contactEmail) ? { replyTo: offer.contactEmail } : {}),
+        ...(hrContact ? { signoff: ['Trân trọng,', displayText(hrContact.contactName), company].filter(Boolean).join('\n') } : {}),
+        ...(hrContact && isValidEmailRecipient(hrContact.contactEmail) ? { replyTo: hrContact.contactEmail } : {})
     });
 
     return {
         typeCode: accepted ? 'APPLICATION_ACCEPTED' : 'APPLICATION_REJECTED',
         content: accepted
             ? `Chúc mừng! Bạn đã trúng tuyển vị trí "${job}"`
-            : `Kết quả ứng tuyển vị trí "${job}"`,
+            : afterInterview ? `Cảm ơn bạn đã tham gia phỏng vấn vị trí "${job}"` : `Kết quả ứng tuyển vị trí "${job}"`,
         link: CANDIDATE_APPLICATIONS_PATH,
         email
     };
 };
+
+const INTERVIEW_MODES = {
+    onsite: 'Phỏng vấn trực tiếp',
+    online: 'Phỏng vấn trực tuyến',
+    phone: 'Phỏng vấn qua điện thoại'
+};
+const WEEKDAYS = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+
+// Thu moi phong van: du thong tin de ung vien den dung gio, dung noi va biet
+// phan hoi cho ai. Reply-To dan ve HR nhu thu moi nhan viec.
+export const applicationInterviewTemplate = ({ jobTitle, candidateName, companyName, message, interview = {} }) => {
+    const job = displayText(jobTitle, 'vị trí bạn đã ứng tuyển');
+    const name = displayText(candidateName, 'bạn');
+    const company = displayText(companyName || interview.companyName);
+    const contactName = displayText(interview.contactName, 'Bộ phận tuyển dụng');
+    const when = formatInterviewTime(interview);
+    const mode = INTERVIEW_MODES[interview.interviewMode];
+    const replyTo = isValidEmailRecipient(interview.contactEmail) ? interview.contactEmail : null;
+    const meetingUrl = interview.interviewMode === 'online' ? safeOfferUrl(interview.meetingUrl) : null;
+    const minutes = /^[1-9][0-9]{1,2}$/.test(interview.durationMinutes || '') ? Number(interview.durationMinutes) : null;
+    const details = [
+        ['Vị trí', job],
+        ['Công ty', company],
+        ['Thời gian', when ? `${when} (giờ Việt Nam, UTC+7)` : ''],
+        ['Thời lượng dự kiến', minutes ? `${minutes} phút` : ''],
+        ['Hình thức', mode],
+        ['Địa điểm', interview.interviewMode === 'onsite' ? interview.location : ''],
+        ['Link phỏng vấn trực tuyến', meetingUrl],
+        ['Vòng phỏng vấn', interview.round],
+        ['Người phỏng vấn', interview.interviewers],
+        ['Cần chuẩn bị', interview.preparation],
+        ['Người liên hệ', interview.contactName],
+        ['Email liên hệ', interview.contactEmail],
+        ['Số điện thoại', interview.contactPhone],
+        ['Xác nhận tham gia trước', interview.confirmBy ? `${formatOfferDateTime(interview.confirmBy)} (giờ Việt Nam, UTC+7)` : '']
+    ].filter(([, value]) => displayText(value)).map(([label, value]) => ({
+        label, value: String(value), ...(label === 'Link phỏng vấn trực tuyến' ? { href: meetingUrl } : {})
+    }));
+    const calendarUrl = googleCalendarUrl({ interview, job, company, minutes, meetingUrl });
+    const replyStep = replyTo
+        ? `Vui lòng trả lời email này đến ${replyTo}${interview.confirmBy ? ` trước ${formatOfferDateTime(interview.confirmBy)} (giờ Việt Nam, UTC+7)` : ''} để xác nhận tham gia, hoặc đề xuất thời gian khác nếu bạn chưa thể sắp xếp.`
+        : 'Vui lòng liên hệ nhà tuyển dụng để xác nhận tham gia, hoặc đề xuất thời gian khác nếu bạn chưa thể sắp xếp.';
+    const modeStep = interview.interviewMode === 'phone'
+        ? ` Nhà tuyển dụng sẽ gọi cho bạn${interview.contactPhone ? ` từ số ${displayText(interview.contactPhone)}` : ''} vào đúng giờ hẹn; hãy chuẩn bị nơi yên tĩnh.`
+        : interview.interviewMode === 'online'
+            ? ' Hãy kiểm tra trước kết nối mạng, camera và micro, và vào phòng họp sớm vài phút.'
+            : ' Hãy có mặt trước giờ hẹn khoảng 10–15 phút.';
+    const email = renderNotificationEmail({
+        subject: sanitizeSubject(`Thư mời phỏng vấn — ${jobTitle || 'Job Finder'}`),
+        preheader: `Mời phỏng vấn vị trí ${job}${when ? ` vào ${when}` : ''}`,
+        eyebrow: 'THƯ MỜI PHỎNG VẤN',
+        status: 'Mời phỏng vấn · Chờ xác nhận',
+        headline: 'Chúc mừng! Hồ sơ của bạn đã vào vòng phỏng vấn',
+        icon: '&rarr;',
+        accent: '#7c3aed',
+        softAccent: '#f5f3ff',
+        progressStep: 3,
+        body: [
+            `Chào ${name}, cảm ơn bạn đã quan tâm và ứng tuyển vị trí “${job}”${company ? ` tại ${company}` : ''}. Sau khi xem xét hồ sơ, chúng tôi trân trọng mời bạn tham gia buổi phỏng vấn với thông tin dưới đây.`
+        ],
+        details,
+        nextStep: replyStep + modeStep,
+        ctaLabel: 'Xem hồ sơ ứng tuyển',
+        ctaPath: CANDIDATE_APPLICATIONS_PATH,
+        ...(calendarUrl ? { secondaryLink: { label: 'Thêm lịch phỏng vấn vào Google Calendar', url: calendarUrl } } : {}),
+        customMessage: displayMultilineText(message),
+        signoff: ['Trân trọng,', contactName, company].filter(Boolean).join('\n'),
+        ...(replyTo ? { replyTo } : {})
+    });
+
+    return {
+        typeCode: 'APPLICATION_INTERVIEW',
+        content: notificationPreview(`Bạn được mời phỏng vấn vị trí "${job}"${when ? ` vào ${when}` : ''}`),
+        link: CANDIDATE_APPLICATIONS_PATH,
+        email
+    };
+};
+
+// "Thứ Năm, 15/10/2026 lúc 09:00" - ngay trong lich Viet Nam, khong phu thuoc TZ may chu.
+function formatInterviewTime({ interviewDate, interviewTime } = {}) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(interviewDate || '') || !/^\d{2}:\d{2}$/.test(interviewTime || '')) return '';
+    const day = new Date(`${interviewDate}T00:00:00Z`).getUTCDay();
+    return `${WEEKDAYS[day] ? `${WEEKDAYS[day]}, ` : ''}${formatOfferDateTime(interviewDate)} lúc ${interviewTime}`;
+}
+
+function googleCalendarUrl({ interview, job, company, minutes, meetingUrl }) {
+    const start = Date.parse(`${interview.interviewDate}T${interview.interviewTime}:00+07:00`);
+    if (!Number.isFinite(start)) return null;
+    const stamp = (time) => new Date(time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const params = new URLSearchParams({
+        action: 'TEMPLATE',
+        text: `Phỏng vấn ${job}${company ? ` — ${company}` : ''}`,
+        dates: `${stamp(start)}/${stamp(start + (minutes || 60) * 60000)}`,
+        details: [INTERVIEW_MODES[interview.interviewMode], meetingUrl, interview.contactName && `Liên hệ: ${interview.contactName}`]
+            .filter(Boolean).join('\n'),
+        ctz: 'Asia/Ho_Chi_Minh'
+    });
+    const where = interview.interviewMode === 'onsite' ? interview.location : meetingUrl;
+    if (where) params.set('location', where);
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
 
 function formatOfferDateTime(value) {
     const [date, time] = String(value || '').split('T');
@@ -371,13 +492,14 @@ function renderNotificationEmail({
     const safeAccent = safeColor(accent, '#2563eb');
     const safeSoftAccent = safeColor(softAccent, '#eff6ff');
     const ctaUrl = absoluteFrontendUrl(ctaPath);
-    const secondaryUrl = secondaryLink ? absoluteFrontendUrl(secondaryLink.path) : null;
+    // Lien ket ngoai (vd. Google Calendar) do template tu dung tu du lieu da kiem tra.
+    const secondaryUrl = secondaryLink ? (secondaryLink.url || absoluteFrontendUrl(secondaryLink.path)) : null;
     const bodyRows = body.map((paragraph) => `
                                 <p style="margin:0 0 12px;color:#475569;font-size:15px;line-height:1.72;mso-line-height-rule:exactly">${escapeHtml(paragraph)}</p>`).join('');
     const detailsRows = details.map(({ label, value, href }, index) => `
                                             <tr>
                                                 <td style="padding:${index ? '12px 0 0' : '0'};color:#64748b;font-size:12px;line-height:1.4;text-transform:uppercase;letter-spacing:.06em;width:120px;vertical-align:top">${escapeHtml(label)}</td>
-                                                <td style="padding:${index ? '12px 0 0' : '0'};color:#0f172a;font-size:15px;font-weight:700;line-height:1.45;vertical-align:top;word-break:break-word">${href ? `<a href="${escapeHtml(href)}" style="color:#15803d;text-decoration:underline">${escapeHtml(value)}</a>` : escapeHtml(value).replace(/\r\n?|\n/g, '<br>')}</td>
+                                                <td style="padding:${index ? '12px 0 0' : '0'};color:#0f172a;font-size:15px;font-weight:700;line-height:1.45;vertical-align:top;word-break:break-word">${href ? `<a href="${escapeHtml(href)}" style="color:${safeAccent};text-decoration:underline">${escapeHtml(value)}</a>` : escapeHtml(value).replace(/\r\n?|\n/g, '<br>')}</td>
                                             </tr>`).join('');
     const progress = progressStep ? renderProgress(progressStep, safeAccent) : '';
     const customMessageHtml = customMessage ? `

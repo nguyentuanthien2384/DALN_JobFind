@@ -1,6 +1,6 @@
 # Thư mời nhận việc
 
-Luồng tại `/admin/pipeline` đã được mở rộng từ thông báo trúng tuyển kèm lời nhắn thành thư mời nhận việc có thông tin rõ ràng. Nội dung tham khảo các nhóm thông tin trong [hướng dẫn thư mời nhận việc của TopCV](https://www.topcv.vn/thu-moi-nhan-viec); đây là tính năng của JobFind, không phải tích hợp hệ thống TopCV.
+Luồng tại `/admin/pipeline` đã được mở rộng từ thông báo trúng tuyển kèm lời nhắn thành thư mời nhận việc có thông tin rõ ràng. Bước mời phỏng vấn trước đó và thư cảm ơn sau phỏng vấn được mô tả trong [Thư mời phỏng vấn](recruitment-interview-email.md). Nội dung tham khảo các nhóm thông tin trong [hướng dẫn thư mời nhận việc của TopCV](https://www.topcv.vn/thu-moi-nhan-viec); đây là tính năng của JobFind, không phải tích hợp hệ thống TopCV.
 
 ## Cách sử dụng
 

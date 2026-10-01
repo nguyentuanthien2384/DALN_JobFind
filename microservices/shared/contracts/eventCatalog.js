@@ -1,4 +1,5 @@
 import { offerSchema } from './offerSchema.js';
+import { interviewSchema } from './interviewSchema.js';
 // Frozen payload-v1 wire contracts, independent of HTTP DTOs and DB models.
 // Additive fields are accepted; changing/removing fields requires a new version.
 const string = (maxLength = 1000000) => ({ type: 'string', maxLength });
@@ -16,6 +17,7 @@ const date = { anyOf: [{ type: 'string', format: 'date-time' }, { type: 'string'
 const optionalText = nullable(string());
 const stages = ['moi_ung_tuyen', 'dang_xem_xet', 'phong_van', 'de_nghi', 'nhan_viec', 'tu_choi'];
 const stage = { type: 'string', enum: stages };
+const interview = { ...interviewSchema, additionalProperties: true };
 const job = object({ id, name: optionalText, statusCode: { enum: ['PS1', 'PS2', 'PS3', 'PS4'] },
     descriptionHTML: optionalText, descriptionMarkdown: optionalText, userId: nullable(id), companyId: nullable(id),
     companyName: optionalText, companyLogo: nullable(string(50 * 1024 * 1024)),
@@ -81,10 +83,12 @@ export const eventCatalog = {
     }, 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
     'ai.cover_letter': metadata(object({ taskId, jobId: nullable(id), resumeText: string(), jobTitle: string(), jobDescription: string(), companyName: optionalText, language: string(32) }, ['taskId', 'resumeText', 'jobTitle', 'jobDescription']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
     'ai.result': metadata(aiResult, { moderate_job: 'jobId', parse_resume: 'taskId', generate_cv: 'taskId', match_cv: 'taskId', cover_letter: 'taskId' }, ['ai-worker'], ['job-core-service.ai-results'], 1024 * 1024),
-    'application.stage_changed': metadata(object(application, ['applicationId', 'candidateId', 'jobId', 'fromStage', 'toStage']), 'applicationId', ['application-service'], ['notification-service.events']),
-    'application.decision_email_requested': metadata({ ...object({ ...application, decision: { enum: ['accepted', 'rejected'] }, message: optionalText, offer: { ...offerSchema, additionalProperties: true } }, ['applicationId', 'candidateId', 'jobId', 'decision', 'toStage']),
+    'application.stage_changed': metadata(object({ ...application, interviewed: bool }, ['applicationId', 'candidateId', 'jobId', 'fromStage', 'toStage']), 'applicationId', ['application-service'], ['notification-service.events']),
+    'application.decision_email_requested': metadata({ ...object({ ...application, decision: { enum: ['accepted', 'rejected'] }, message: optionalText, offer: { ...offerSchema, additionalProperties: true }, interviewed: bool, interview }, ['applicationId', 'candidateId', 'jobId', 'decision', 'toStage']),
         allOf: [{ if: { properties: { decision: { const: 'accepted' } }, required: ['decision'] }, then: { properties: { toStage: { enum: ['de_nghi', 'nhan_viec'] } } }, else: { properties: { toStage: { const: 'tu_choi' } } } }]
     }, 'applicationId', ['application-service'], ['notification-service.events']),
+    'application.interview_invitation_requested': metadata(object({ ...application, toStage: { const: 'phong_van' }, message: optionalText, interview },
+        ['applicationId', 'candidateId', 'jobId', 'toStage', 'interview']), 'applicationId', ['application-service'], ['notification-service.events']),
     'application.submitted': metadata(object({ cvId: id, jobId: id, candidateId: id, companyId: id, posterId: nullable(id),
         jobTitle: optionalText, candidateName: optionalText, candidateEmail: optionalText, candidatePhone: optionalText, coverLetter: optionalText, appliedAt: nullable(date)
     }, ['cvId', 'jobId', 'candidateId', 'companyId']), 'cvId', ['legacy-backend'], ['application-service.submissions', 'notification-service.events'])
@@ -107,5 +111,8 @@ export const eventExamples = {
     'ai.result': { taskId: 'task-1', type: 'match_cv', ok: true, result: { score: 80, matchedSkills: ['Node'] } },
     'application.stage_changed': { ...base, applicationId: 31, fromStage: 'moi_ung_tuyen', toStage: 'phong_van', reason: null },
     'application.decision_email_requested': { ...base, applicationId: 31, companyId: 3, fromStage: null, toStage: 'nhan_viec', decision: 'accepted', message: 'Congratulations' },
+    'application.interview_invitation_requested': { ...base, applicationId: 31, companyId: 3, companyName: 'Example', fromStage: 'dang_xem_xet', toStage: 'phong_van',
+        message: 'Synthetic note', interview: { companyName: 'Example', interviewDate: '2099-10-15', interviewTime: '09:00', durationMinutes: '60',
+            timeZone: 'Asia/Ho_Chi_Minh', interviewMode: 'online', meetingUrl: 'https://meet.example.invalid/room', contactName: 'HR', contactEmail: 'hr@example.invalid' } },
     'application.submitted': { ...base, cvId: 21, companyId: 3, posterId: 5, candidatePhone: null, coverLetter: 'Synthetic letter', appliedAt: '2026-09-05T00:00:00.000Z' }
 };

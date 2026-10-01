@@ -39,6 +39,10 @@ export const EVENTS = {
     // trang thai ho so them mot lan nua.
     APPLICATION_DECISION_EMAIL_REQUESTED: 'application.decision_email_requested',
 
+    // Thu moi phong van co ngay gio, hinh thuc va nguoi lien he. Tach khoi su kien
+    // keo tha de gui lai (doi lich) ma khong tao them mot lan chuyen buoc.
+    APPLICATION_INTERVIEW_INVITATION_REQUESTED: 'application.interview_invitation_requested',
+
     // Backend cu phat ra khi ung vien nop CV. Frontend van nop qua backend cu nen
     // day la duong duy nhat de Application Service biet co ho so moi.
     APPLICATION_SUBMITTED: 'application.submitted'

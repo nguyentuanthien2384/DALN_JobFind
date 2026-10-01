@@ -9,7 +9,7 @@ import {
     saveNotification, getUserEmail, getCompanyFollowers, sendEmail, pushRealtime
 } from '../libs/channels.js';
 import {
-    applicationStageTemplate, applicationDecisionTemplate, jobModeratedTemplate,
+    applicationStageTemplate, applicationDecisionTemplate, applicationInterviewTemplate, jobModeratedTemplate,
     newJobFromFollowedCompanyTemplate, newApplicationTemplate, manualModerationTemplate, manualApprovalFollowerTemplate, approvedJobFollowerTemplate
 } from '../templates.js';
 
@@ -98,7 +98,8 @@ export const handlers = {
             toStage: payload.toStage,
             jobTitle: payload.jobTitle,
             candidateName: payload.candidateName,
-            companyName: payload.companyName
+            companyName: payload.companyName,
+            interviewed: payload.interviewed
         });
         if (!template) return;
         await deliver({
@@ -119,7 +120,9 @@ export const handlers = {
             candidateName: payload.candidateName,
             companyName: payload.companyName,
             message: payload.message,
-            offer: payload.offer
+            offer: payload.offer,
+            interviewed: payload.interviewed,
+            interview: payload.interview
         });
         await deliver({
             eventId: metadata.eventId,
@@ -131,6 +134,22 @@ export const handlers = {
             applicationId: payload.applicationId,
             candidateId: payload.candidateId,
             decision: payload.decision
+        });
+    },
+
+    [EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED]: async (payload, metadata = {}) => {
+        // Thu moi co Reply-To den HR; chi gui qua hang doi ben vung de khong gui trung.
+        if (!metadata.eventId) throw new Error('Interview invitation requires eventId');
+        assertEventPayload(EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED, payload, { aggregateId: metadata.aggregateId });
+        await deliver({
+            eventId: metadata.eventId,
+            userId: payload.candidateId,
+            recipientEmail: payload.candidateEmail,
+            template: applicationInterviewTemplate(payload)
+        });
+        logger.info('da xu ly yeu cau gui thu moi phong van', {
+            applicationId: payload.applicationId,
+            candidateId: payload.candidateId
         });
     },
 

@@ -1,18 +1,20 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import OfferLetterForm, { OfferSummary } from './OfferLetterForm';
+import InterviewInvitationForm, { InterviewSummary } from './InterviewInvitationForm';
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import {
     getApplicationBoard,
     moveApplicationStage,
     sendApplicationDecision,
+    sendInterviewInvitation,
     rateApplication,
     addApplicationNote,
     getApplicationDetail,
     getFunnel,
     saveToTalentPool,
 } from "../../../service/applicationService";
-import { getAllPostByAdminService } from "../../../service/userService";
+import { getAllPostByAdminService, getDetailCompanyById } from "../../../service/userService";
 import "./KanbanBoard.scss";
 
 // Bang Kanban quan ly ho so ung tuyen.
@@ -31,6 +33,11 @@ const isDemoRecipient = (value) => {
             .some((suffix) => domain.endsWith(suffix));
 };
 
+// Ung vien da duoc moi phong van (qua thu moi hoac keo vao cot) thi thu tu choi
+// mac dinh cam on ho da tham gia buoi phong van.
+const wasInvited = (detail) => detail.stage === "phong_van"
+    || (detail.timeline || []).some((event) => event.to_stage === "phong_van");
+
 const KanbanBoard = () => {
     const navigate = useNavigate();
     const [columns, setColumns] = useState([]);
@@ -44,20 +51,28 @@ const KanbanBoard = () => {
     const [noteText, setNoteText] = useState("");
     const [decisionMessage, setDecisionMessage] = useState("");
     const [isSendingDecision, setIsSendingDecision] = useState(false);
-    const [showOffer, setShowOffer] = useState(false);
+    // null | "interview" | "offer": chi mo mot bieu mau soan thu tai mot thoi diem.
+    const [composer, setComposer] = useState(null);
+    const [attended, setAttended] = useState(true);
+    const [company, setCompany] = useState(null);
     const sendingDecision = useRef(false);
     const currentDetail = useRef(null);
     currentDetail.current = detail?.id;
     const [isLoading, setIsLoading] = useState(true);
 
     const user = JSON.parse(localStorage.getItem("userData") || "{}");
+    const boardRequest = useRef(0);
 
     const loadBoard = useCallback(async (selectedJobId) => {
+        // Lan tai dau (tat ca tin) co the ve sau khi nguoi dung da chon loc: chi
+        // ap ket qua cua lan tai moi nhat, neu khong bang hien sai tin dang chon.
+        const request = ++boardRequest.current;
         setIsLoading(true);
         const [board, funnelRes] = await Promise.all([
             getApplicationBoard(selectedJobId),
             getFunnel(selectedJobId),
         ]);
+        if (request !== boardRequest.current) return;
         if (board && board.errCode === 0) {
             setColumns(board.data.columns);
             setTotal(board.data.total);
@@ -71,6 +86,12 @@ const KanbanBoard = () => {
     useEffect(() => {
         let mounted = true;
         const init = async () => {
+            // Ten va dia chi cong ty dien san vao thu moi; loi o day khong chan bang Kanban.
+            if (user.companyId) {
+                getDetailCompanyById(user.companyId).then((res) => {
+                    if (mounted && res?.errCode === 0 && res.data) setCompany({ name: res.data.name || "", address: res.data.address || "" });
+                }).catch(() => {});
+            }
             const res = await getAllPostByAdminService({
                 limit: 100, offset: 0, companyId: user.companyId, search: "", censorCode: "",
             });
@@ -97,6 +118,17 @@ const KanbanBoard = () => {
 
         const moved = dragging;
         setDragging(null);
+
+        // Moi phong van can ngay gio, hinh thuc va noi hen: mo thu moi thay vi gui
+        // email chuyen buoc khong co thong tin. Ho so chi chuyen cot khi da gui thu.
+        if (targetStage === "phong_van") {
+            if (moved.stage === "nhan_viec") {
+                toast.error("Ứng viên đã nhận việc nên không gửi thư mời phỏng vấn");
+                return;
+            }
+            await openDetail(moved.id, { compose: "interview" });
+            return;
+        }
 
         // Cap nhat giao dien truoc, goi may chu sau. Neu cho may chu tra loi moi
         // ve lai the thi thao tac keo tha se giat, cam giac nhu bi treo.
@@ -127,14 +159,15 @@ const KanbanBoard = () => {
         }
     };
 
-    const openDetail = async (id) => {
+    const openDetail = async (id, { compose = null } = {}) => {
         if (sendingDecision.current) return;
         const res = await getApplicationDetail(id);
         if (res && res.errCode === 0) {
             setDetail(res.data);
             setNoteText("");
             setDecisionMessage("");
-            setShowOffer(false);
+            setAttended(true);
+            setComposer(compose && res.data.stage !== "nhan_viec" ? compose : null);
         } else {
             toast.error("Không mở được hồ sơ");
         }
@@ -178,27 +211,26 @@ const KanbanBoard = () => {
         else toast.error("Không lưu được");
     };
 
-    const handleSendDecision = async (decision, offer) => {
+    // Moi email gui ung vien: xac nhan dia chi nhan, gui dung mot lan, roi tai lai
+    // bang va lich su. Loi mang khong duoc coi la gui that bai (co the da vao hang doi).
+    const queueCandidateEmail = async (label, send) => {
         if (sendingDecision.current || !detail) return;
         const applicationId = detail.id;
-        const label = decision === "accepted" ? "trúng tuyển" : "không trúng tuyển";
         const destination = isDemoRecipient(detail.candidate_email)
             ? "hộp thư demo (nếu đã cấu hình)"
             : (detail.candidate_email || "email đã đăng ký của ứng viên");
-        if (!window.confirm(`Gửi email thông báo ${label} đến ${destination}?`)) return;
+        if (!window.confirm(`Gửi email ${label} đến ${destination}?`)) return;
 
         sendingDecision.current = true;
         setIsSendingDecision(true);
         try {
-            const res = offer
-                ? await sendApplicationDecision(applicationId, decision, decisionMessage.trim(), offer)
-                : await sendApplicationDecision(applicationId, decision, decisionMessage.trim());
+            const res = await send(applicationId);
             if (res && res.errCode === 0) {
-                toast.success(`Đã xếp hàng gửi email thông báo ${label}`);
+                toast.success(`Đã xếp hàng gửi email ${label}`);
                 if (currentDetail.current === applicationId) {
                     setDetail((d) => d?.id === applicationId ? { ...d, ...res.data } : d);
                     setDecisionMessage("");
-                    setShowOffer(false);
+                    setComposer(null);
                 }
                 // A refresh failure must not imply the successful send failed.
                 await Promise.allSettled([loadBoard(jobId), getApplicationDetail(applicationId).then((fresh) => {
@@ -216,6 +248,23 @@ const KanbanBoard = () => {
             setIsSendingDecision(false);
         }
     };
+
+    const handleSendDecision = (decision, offer) => {
+        const message = decisionMessage.trim();
+        if (decision === "accepted") {
+            return queueCandidateEmail("thông báo trúng tuyển", (id) => sendApplicationDecision(id, decision, message, offer));
+        }
+        if (!detail || !wasInvited(detail)) {
+            return queueCandidateEmail("thông báo không trúng tuyển", (id) => sendApplicationDecision(id, decision, message));
+        }
+        return queueCandidateEmail(attended ? "cảm ơn đã tham gia phỏng vấn (không trúng tuyển)" : "thông báo không trúng tuyển",
+            (id) => sendApplicationDecision(id, decision, message, undefined, attended));
+    };
+
+    const handleSendInterview = (interview) => queueCandidateEmail("thư mời phỏng vấn",
+        (id) => sendInterviewInvitation(id, decisionMessage.trim(), interview));
+
+    const stageLabel = (stage) => columns.find((col) => col.stage === stage)?.label || stage;
 
     const renderStars = (id, current) => (
         <div className="kb-stars">
@@ -389,7 +438,7 @@ const KanbanBoard = () => {
                             </div>
 
                             <div className="kb-section kb-decision">
-                                <h5>Thông báo kết quả cho ứng viên</h5>
+                                <h5>Gửi email cho ứng viên</h5>
                                 <p className="kb-hint">
                                     Email sẽ gửi đến: <b>{detail.candidate_email || "email đã đăng ký"}</b>
                                     {isDemoRecipient(detail.candidate_email)
@@ -404,20 +453,38 @@ const KanbanBoard = () => {
                                     disabled={isSendingDecision}
                                     onChange={(e) => setDecisionMessage(e.target.value)}
                                 />
-                                {showOffer && <OfferLetterForm key={detail.id} detail={detail} user={user}
+                                {composer === "interview" && <InterviewInvitationForm key={`interview-${detail.id}`} detail={detail} user={user} company={company}
                                     message={decisionMessage.trim()} busy={isSendingDecision}
-                                    onSend={(offer) => handleSendDecision('accepted', offer)} onCancel={() => setShowOffer(false)} />}
+                                    onSend={handleSendInterview} onCancel={() => setComposer(null)} />}
+                                {composer === "offer" && <OfferLetterForm key={`offer-${detail.id}`} detail={detail} user={user} company={company}
+                                    message={decisionMessage.trim()} busy={isSendingDecision}
+                                    onSend={(offer) => handleSendDecision('accepted', offer)} onCancel={() => setComposer(null)} />}
+                                {wasInvited(detail) && !composer && (
+                                    <label className="kb-check">
+                                        <input type="checkbox" checked={attended} disabled={isSendingDecision}
+                                            onChange={(e) => setAttended(e.target.checked)} />
+                                        Ứng viên đã tham gia phỏng vấn — thư không trúng tuyển sẽ cảm ơn ứng viên đã tham gia buổi phỏng vấn
+                                    </label>
+                                )}
                                 <div className="kb-decision-actions">
+                                    <button
+                                        className="kb-btn interview"
+                                        disabled={isSendingDecision || detail.stage === "nhan_viec"}
+                                        title={detail.stage === "nhan_viec" ? "Ứng viên đã nhận việc" : undefined}
+                                        onClick={() => setComposer("interview")}
+                                    >
+                                        {isSendingDecision ? "Đang gửi…" : detail.stage === "phong_van" ? "Gửi lại / đổi lịch phỏng vấn" : "Mời phỏng vấn"}
+                                    </button>
                                     <button
                                         className="kb-btn success"
                                         disabled={isSendingDecision}
-                                        onClick={() => setShowOffer(true)}
+                                        onClick={() => setComposer("offer")}
                                     >
                                         {isSendingDecision ? "Đang gửi…" : "Gửi trúng tuyển"}
                                     </button>
                                     <button
                                         className="kb-btn danger"
-                                        disabled={isSendingDecision || showOffer}
+                                        disabled={isSendingDecision || Boolean(composer)}
                                         onClick={() => handleSendDecision("rejected")}
                                     >
                                         {isSendingDecision ? "Đang gửi…" : "Gửi không trúng tuyển"}
@@ -434,12 +501,16 @@ const KanbanBoard = () => {
                                     <div className="kb-time" key={t.id}>
                                         <span className="kb-time-dot" />
                                         <span>
-                                            {t.from_stage ? `${t.from_stage} → ` : ""}<b>{t.to_stage}</b>
+                                            {t.from_stage ? `${stageLabel(t.from_stage)} → ` : ""}<b>{stageLabel(t.to_stage)}</b>
                                             {t.reason ? ` — ${t.reason}` : ""}
                                         </span>
                                         {t.decision_snapshot && <details className="kb-decision-history">
                                             <summary>Xem nội dung đã yêu cầu gửi</summary>
+                                            {t.decision_snapshot.interview && <InterviewSummary interview={t.decision_snapshot.interview} />}
                                             {t.decision_snapshot.offer && <OfferSummary offer={t.decision_snapshot.offer} />}
+                                            {t.decision_snapshot.decision === "rejected" && <p className="kb-hint">{t.decision_snapshot.interviewed
+                                                ? "Thư cảm ơn ứng viên đã tham gia phỏng vấn (không trúng tuyển)."
+                                                : "Thư thông báo không trúng tuyển."}</p>}
                                             {t.decision_snapshot.message && <p className="kb-cover">{t.decision_snapshot.message}</p>}
                                         </details>}
                                         <span className="kb-time-at">

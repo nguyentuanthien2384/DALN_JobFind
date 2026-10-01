@@ -9,8 +9,10 @@ services:
     environment:
       FRONTEND_URL: http://localhost:${JOBFIND_WEB_PORT:-3001}
       LEGACY_URL: http://host.docker.internal:${JOBFIND_BACKEND_PORT:-5000}
-      # Running the local project does not send external email. Pending email
-      # deliveries remain stored for a separately configured email rollout.
-      EMAIL_APP: ""
-      EMAIL_APP_PASSWORD: ""
-      EMAIL_DEMO_RECIPIENT: ""
+      # Running the local project sends no external email unless
+      # microservices/.env sets LOCAL_EMAIL_DELIVERY=true; the launcher then
+      # passes the configured sender. Otherwise email deliveries stay stored
+      # (pending) and are sent once a sender is configured.
+      EMAIL_APP: ${JOBFIND_EMAIL_APP:-}
+      EMAIL_APP_PASSWORD: ${JOBFIND_EMAIL_APP_PASSWORD:-}
+      EMAIL_DEMO_RECIPIENT: ${JOBFIND_EMAIL_DEMO_RECIPIENT:-}

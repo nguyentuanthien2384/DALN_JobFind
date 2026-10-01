@@ -26,8 +26,15 @@ const moveApplicationStage = (id, stage, reason) =>
     axios.patch(`/api/applications/${id}/stage`, { stage, reason });
 
 // Gui thu moi nhan viec hoac thong bao tu choi; thu moi cho ung vien phan hoi.
-const sendApplicationDecision = (id, decision, message, offer) =>
-    axios.post(`/api/applications/${id}/decision-notification`, { decision, message, ...(offer ? { offer } : {}) });
+// `interviewed` chi dung cho tu choi: false = khong cam on "da tham gia phong van".
+const sendApplicationDecision = (id, decision, message, offer, interviewed) =>
+    axios.post(`/api/applications/${id}/decision-notification`, {
+        decision, message, ...(offer ? { offer } : {}), ...(typeof interviewed === 'boolean' ? { interviewed } : {})
+    });
+
+// Thu moi phong van: chuyen ho so sang buoc phong van va gui email co ngay gio, dia diem.
+const sendInterviewInvitation = (id, message, interview) =>
+    axios.post(`/api/applications/${id}/interview-invitation`, { message, interview });
 
 const rateApplication = (id, rating) =>
     axios.patch(`/api/applications/${id}/rating`, { rating });
@@ -57,7 +64,7 @@ const getMyApplications = () => axios.get(`/api/my-applications`);
 
 export {
     getApplicationBoard, getStages, getApplications, getApplicationDetail,
-    moveApplicationStage, sendApplicationDecision, rateApplication, addApplicationNote, getFunnel,
+    moveApplicationStage, sendApplicationDecision, sendInterviewInvitation, rateApplication, addApplicationNote, getFunnel,
     getTalentPool, saveToTalentPool, removeFromTalentPool,
     getMyApplications
 };

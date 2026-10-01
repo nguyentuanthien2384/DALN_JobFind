@@ -148,6 +148,9 @@
           "type": "null"
         }
       ]
+    },
+    "interviewed": {
+      "type": "boolean"
     }
   },
   "required": [

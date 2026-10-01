@@ -55,6 +55,7 @@ export const operations = [
     op('applicationGet', 'applications', 'get', '/applications/:id', P.APPLICATION_MANAGE, { params: jobParams, response: 'Application', ...company }),
     op('applicationMove', 'applications', 'patch', '/applications/:id/stage', P.APPLICATION_MANAGE, { params: jobParams, body: 'MoveStage', response: 'Application', ...company }),
     op('applicationDecision', 'applications', 'post', '/applications/:id/decision-notification', P.APPLICATION_MANAGE, { params: jobParams, body: 'Decision', response: 'Application', ...company }),
+    op('applicationInterview', 'applications', 'post', '/applications/:id/interview-invitation', P.APPLICATION_MANAGE, { params: jobParams, body: 'InterviewInvitation', response: 'Application', ...company }),
     op('applicationRating', 'applications', 'patch', '/applications/:id/rating', P.APPLICATION_MANAGE, { params: jobParams, body: 'Rating', response: 'Application', ...company }),
     op('applicationNote', 'applications', 'post', '/applications/:id/notes', P.APPLICATION_MANAGE, { params: jobParams, body: 'Note', status: 201, ...company }),
     op('myApplications', 'applications', 'get', '/my-applications', P.APPLICATION_SELF_READ, { list: true }),

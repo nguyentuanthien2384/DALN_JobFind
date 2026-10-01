@@ -3,6 +3,7 @@ import { enqueueOutboxEvent } from '../libs/outbox.js';
 import { EVENTS } from '../../../shared/events.js';
 import { createLogger } from '../../../shared/logger.js';
 import { validateOffer } from '../libs/offer.js';
+import { validateInterview } from '../libs/interview.js';
 
 const logger = createLogger('application-service');
 
@@ -15,6 +16,22 @@ const identity = (req) => ({
 
 const forbidden = (res, msg) =>
     res.status(403).json({ errCode: 3, errMessage: msg || 'Bạn không có quyền truy cập dữ liệu này' });
+
+// Ung vien da tung o buoc phong van thi email tu choi phai cam on ho da tham gia,
+// va ky ten/nhan phan hoi theo thu moi phong van gan nhat neu co.
+const interviewHistory = async (client, app) => {
+    const { rows } = await client.query(
+        `SELECT decision_snapshot FROM application_events
+         WHERE application_id = $1 AND to_stage = 'phong_van'
+         ORDER BY created_at DESC, id DESC`,
+        [app.id]
+    );
+    const invitation = rows.find((row) => row.decision_snapshot?.decision === 'interview');
+    return {
+        interviewed: app.stage === 'phong_van' || rows.length > 0,
+        interview: invitation ? invitation.decision_snapshot.interview : null
+    };
+};
 
 // Nha tuyen dung chi thay ho so ung tuyen vao tin cua chinh cong ty minh. Dieu kien
 // nay duoc gan vao MOI truy van thay vi kiem tra rieng le - quen mot cho la lo ca kho
@@ -178,6 +195,7 @@ export const moveStage = async (req, res) => {
             );
 
             const changedApp = updated[0];
+            const history = stage === 'tu_choi' ? await interviewHistory(client, app) : null;
             await enqueueOutboxEvent(client, {
                 aggregateId: app.id,
                 eventType: EVENTS.APPLICATION_STAGE_CHANGED,
@@ -191,7 +209,9 @@ export const moveStage = async (req, res) => {
                     jobTitle: changedApp.job_title,
                     fromStage: app.stage,
                     toStage: stage,
-                    reason: reason || null
+                    reason: reason || null,
+                    ...(history ? { interviewed: history.interviewed } : {}),
+                    ...(history?.interview ? { companyName: history.interview.companyName } : {})
                 }
             });
             return { app: changedApp, from: app.stage };
@@ -216,7 +236,7 @@ export const moveStage = async (req, res) => {
 // outbox trong cung giao dich. Gui lai khong tu dong xac nhan ung vien da nhan viec.
 export const sendDecisionNotification = async (req, res) => {
     const { userId, roleCode, companyId } = identity(req);
-    const { decision, message, offer: offerInput } = req.body || {};
+    const { decision, message, offer: offerInput, interviewed: interviewedInput } = req.body || {};
     const stageByDecision = { accepted: 'de_nghi', rejected: 'tu_choi' };
     const requestedStage = stageByDecision[decision];
     const candidateMessage = String(message || '').trim().slice(0, 3000);
@@ -241,6 +261,11 @@ export const sendDecisionNotification = async (req, res) => {
 
             const app = rows[0];
             if (roleCode !== 'ADMIN' && app.company_id !== companyId) return { denied: true };
+
+            // Nha tuyen dung co the xac nhan ung vien chua den phong van (khong cam on
+            // "da tham gia"); mac dinh theo lich su ho so.
+            const history = decision === 'rejected' ? await interviewHistory(client, app) : null;
+            const interviewed = history && (typeof interviewedInput === 'boolean' ? interviewedInput : history.interviewed);
 
             // An invitation awaits a reply; sending again must not undo a confirmed hire.
             const stage = decision === 'accepted' && app.stage === 'nhan_viec' ? 'nhan_viec' : requestedStage;
@@ -268,8 +293,10 @@ export const sendDecisionNotification = async (req, res) => {
                     userId,
                     decision === 'accepted'
                         ? 'Đã yêu cầu gửi thư mời nhận việc; chờ ứng viên phản hồi qua email HR'
-                        : 'Đã yêu cầu gửi email thông báo không trúng tuyển cho ứng viên',
-                    JSON.stringify(snapshot)
+                        : interviewed
+                            ? 'Đã yêu cầu gửi email cảm ơn ứng viên đã tham gia phỏng vấn (không trúng tuyển)'
+                            : 'Đã yêu cầu gửi email thông báo không trúng tuyển cho ứng viên',
+                    JSON.stringify(history ? { ...snapshot, interviewed } : snapshot)
                 ]
             );
 
@@ -287,9 +314,11 @@ export const sendDecisionNotification = async (req, res) => {
                     jobTitle: updated.job_title,
                     companyId: updated.company_id,
                     ...(validated.offer ? { companyName: validated.offer.companyName } : {}),
+                    ...(history?.interview ? { companyName: history.interview.companyName, interview: history.interview } : {}),
                     decision,
                     message: candidateMessage || null,
                     ...(validated.offer ? { offer: validated.offer } : {}),
+                    ...(history ? { interviewed } : {}),
                     fromStage: from,
                     toStage: stage
                 }
@@ -307,6 +336,96 @@ export const sendDecisionNotification = async (req, res) => {
     } catch (error) {
         logger.error('gui ket qua tuyen dung that bai', { error: error.message });
         return res.status(500).json({ errCode: -1, errMessage: 'Không thể gửi email kết quả' });
+    }
+};
+
+// ===== GUI THU MOI PHONG VAN =====
+// Chuyen ho so sang buoc phong van va gui thu co ngay gio, hinh thuc, dia diem
+// hoac duong dan va nguoi lien he. Gui lai (doi lich) chi them snapshot moi.
+export const sendInterviewInvitation = async (req, res) => {
+    const { userId, roleCode, companyId } = identity(req);
+    const { message, interview: interviewInput } = req.body || {};
+    const candidateMessage = String(message || '').trim().slice(0, 3000);
+    const validated = validateInterview(interviewInput);
+    if (validated.error) return res.status(400).json({ errCode: 1, errMessage: validated.error });
+    const { interview } = validated;
+    const snapshot = { decision: 'interview', message: candidateMessage || null, interview };
+
+    try {
+        const result = await withTransaction(async (client) => {
+            const { rows } = await client.query(
+                'SELECT * FROM applications WHERE id = $1 FOR UPDATE', [req.params.id]
+            );
+            if (!rows.length) return { notFound: true };
+
+            const app = rows[0];
+            if (roleCode !== 'ADMIN' && app.company_id !== companyId) return { denied: true };
+            // Moi phong van khong duoc lam mat ket qua da xac nhan nhan viec.
+            if (app.stage === 'nhan_viec') return { hired: true };
+
+            const changed = app.stage !== 'phong_van';
+            let updated = app;
+            if (changed) {
+                const { rows: changedRows } = await client.query(
+                    `UPDATE applications
+                     SET stage = 'phong_van', stage_changed_at = NOW(), updated_at = NOW()
+                     WHERE id = $1 RETURNING *`,
+                    [app.id]
+                );
+                updated = changedRows[0];
+            }
+
+            await client.query(
+                `INSERT INTO application_events (application_id, from_stage, to_stage, actor_id, reason, decision_snapshot)
+                 VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+                [
+                    app.id,
+                    changed ? app.stage : null,
+                    'phong_van',
+                    userId,
+                    changed
+                        ? 'Đã yêu cầu gửi thư mời phỏng vấn; chờ ứng viên xác nhận qua email HR'
+                        : 'Đã yêu cầu gửi lại thư mời phỏng vấn (cập nhật lịch); chờ ứng viên xác nhận qua email HR',
+                    JSON.stringify(snapshot)
+                ]
+            );
+
+            const from = changed ? app.stage : null;
+            await enqueueOutboxEvent(client, {
+                aggregateId: app.id,
+                eventType: EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED,
+                correlationId: req.headers['x-correlation-id'] || req.correlationId || null,
+                payload: {
+                    applicationId: updated.id,
+                    candidateId: updated.candidate_id,
+                    candidateEmail: updated.candidate_email,
+                    candidateName: updated.candidate_name,
+                    jobId: updated.job_id,
+                    jobTitle: updated.job_title,
+                    companyId: updated.company_id,
+                    companyName: interview.companyName,
+                    message: candidateMessage || null,
+                    interview,
+                    fromStage: from,
+                    toStage: 'phong_van'
+                }
+            });
+            return { app: updated, changed };
+        });
+
+        if (result.notFound) return res.status(404).json({ errCode: 2, errMessage: 'Không tìm thấy hồ sơ ứng tuyển' });
+        if (result.denied) return forbidden(res, 'Bạn không có quyền gửi thư mời cho hồ sơ này');
+        if (result.hired) {
+            return res.status(409).json({ errCode: 4, errMessage: 'Ứng viên đã nhận việc; không gửi thư mời phỏng vấn cho hồ sơ này' });
+        }
+
+        logger.info('da yeu cau gui thu moi phong van', {
+            applicationId: result.app.id, actor: userId, changed: result.changed
+        });
+        return res.json({ errCode: 0, data: result.app, emailQueued: true });
+    } catch (error) {
+        logger.error('gui thu moi phong van that bai', { error: error.message });
+        return res.status(500).json({ errCode: -1, errMessage: 'Không thể gửi thư mời phỏng vấn' });
     }
 };
 

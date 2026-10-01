@@ -49,7 +49,7 @@ JobFind là nền tảng tuyển dụng toàn diện, kết hợp trải nghiệ
 | 🔔 **Realtime & Web Push** | Socket.IO + Web Push Notifications cho thông báo tức thì |
 | 📄 **Prepared CV PDF** | Xuất CV chuẩn bị từ hệ thống với pdf-lib, fontkit |
 | ✨ **AI cho CV** | Tạo bản nháp CV từ thông tin ứng viên; đối chiếu PDF với tin tuyển dụng, giải thích điểm phù hợp. [Hướng dẫn](docs/ai-cv.md) |
-| ✉️ **Email thư mời nhận việc** | Template card hiện đại, CSS inline tương thích Gmail/Outlook/mobile |
+| ✉️ **Email tuyển dụng** | Thư mời phỏng vấn (ngày giờ, hình thức, địa điểm/link, Google Calendar), thư mời nhận việc, thư cảm ơn sau phỏng vấn; card hiện đại, CSS inline tương thích Gmail/Outlook/mobile |
 | 🔐 **HttpOnly Session & Google SSO** | Cookie bảo mật, tự gia hạn, OIDC Google, quản lý phiên |
 | 📊 **Dashboard & Báo cáo** | Chart.js/Recharts, phễu tuyển dụng, chuỗi thời gian, audit log |
 | 💳 **Thanh toán PayPal** | Gói đăng tin, gói xem CV qua PayPal Sandbox |
@@ -67,7 +67,7 @@ JobFind là nền tảng tuyển dụng toàn diện, kết hợp trải nghiệ
 - **Nhắn tin trực tiếp**: Chat realtime với nhà tuyển dụng qua Socket.IO, đồng bộ trạng thái đã đọc.
 - **Chuông thông báo**: Header hiển thị thông báo chưa đọc, cập nhật tức thì bằng Socket.IO; hỗ trợ **Web Push Notifications** trên trình duyệt.
 - **Chatbot AI hỗ trợ**: Trợ lý dùng assistant-ui — hỏi đáp, tìm tin tuyển dụng công khai, tra cứu theo tài khoản, phản hồi trực tiếp, sửa câu hỏi, quản lý lịch sử phiên. Chuyển hội thoại cho nhân viên hỗ trợ khi cần. Xem [cấu hình chatbot](CHATBOT_SETUP.md).
-- **Email kết quả tuyển dụng**: Nhận email trúng tuyển hoặc không trúng tuyển với bố cục thẻ hiện đại, nút trả lời gửi trực tiếp đến HR.
+- **Email tuyển dụng**: Nhận thư mời phỏng vấn có ngày giờ, địa điểm hoặc link họp và liên kết thêm vào Google Calendar; sau phỏng vấn nhận thư mời nhận việc hoặc thư cảm ơn đã tham gia phỏng vấn. Bố cục thẻ hiện đại, trả lời email là gửi trực tiếp đến HR; tiến trình hồ sơ hiển thị tại **Công việc đã nộp**.
 - **Đánh giá công ty**: Xem và viết đánh giá công ty.
 
 ### 🏢 Nhà tuyển dụng
@@ -87,7 +87,8 @@ JobFind là nền tảng tuyển dụng toàn diện, kết hợp trải nghiệ
   | ❌ Từ chối | Không phù hợp |
 
 - **Kéo thả hồ sơ** giữa các cột, chấm sao đánh giá, ghi chú nội bộ, xem lịch sử xử lý, lưu ứng viên vào talent pool.
-- **Thư mời nhận việc**: Soạn thư mời với ngày giờ (giờ VN), địa điểm hoặc link trực tuyến, người liên hệ HR, hạn phản hồi; bổ sung lương, thử việc, phúc lợi, giấy tờ và hướng dẫn ngày đầu. Xem trước trước khi gửi. Thông báo không trúng tuyển kèm lời nhắn tùy chọn.
+- **Thư mời phỏng vấn**: Nút **Mời phỏng vấn** hoặc kéo thẻ vào cột Phỏng vấn mở biểu mẫu ngày giờ (giờ VN), hình thức trực tiếp/trực tuyến/điện thoại, địa điểm hoặc link họp, người phỏng vấn, người liên hệ, hạn xác nhận; xem trước rồi gửi, có thể gửi lại khi đổi lịch. Xem [hướng dẫn](docs/recruitment-interview-email.md).
+- **Thư mời nhận việc**: Soạn thư mời với ngày giờ (giờ VN), địa điểm hoặc link trực tuyến, người liên hệ HR, hạn phản hồi; bổ sung lương, thử việc, phúc lợi, giấy tờ và hướng dẫn ngày đầu. Xem trước trước khi gửi. Thông báo không trúng tuyển kèm lời nhắn tùy chọn; ứng viên đã phỏng vấn nhận thư cảm ơn đã tham gia buổi phỏng vấn.
 - **Thống kê pipeline**: Xem số lượng hồ sơ theo từng giai đoạn và tỷ lệ tuyển thành công ngay trên bảng.
 
 ### 🛡️ Quản trị viên
@@ -111,7 +112,7 @@ Giao diện ưu tiên **thao tác nhanh**, **trạng thái rõ ràng** và **tr�
 | 📱 **Header** | Logo, navigation, ô tìm kiếm nhanh; chuông thông báo và tin nhắn chưa đọc cập nhật realtime bằng Socket.IO. |
 | 🔧 **Khu quản trị** | Sidebar accordion theo vai trò (Admin/Employer), chỉ mở một nhóm menu, đánh dấu trang hiện hành; header riêng với thông báo. |
 | 📋 **Pipeline Kanban** | Mã màu riêng từng giai đoạn, phản hồi cập nhật ngay khi kéo thả, modal chi tiết không mất ngữ cảnh bảng, counter theo cột. |
-| 📨 **Kết quả tuyển dụng** | Hai nút hành động phân biệt xanh (trúng)/đỏ (không trúng), dialog xác nhận trước khi gửi, ô lời nhắn tùy chọn; form xem trước thư mời. |
+| 📨 **Mời phỏng vấn & kết quả** | Ba nút tím (mời phỏng vấn)/xanh (trúng)/đỏ (không trúng), dialog xác nhận trước khi gửi, ô lời nhắn tùy chọn; form xem trước thư mời; lịch sử hiển thị tên bước và nội dung thư đã gửi. |
 | ✉️ **Email** | Bố cục card, nhãn trạng thái, màu ngữ cảnh xanh/đỏ; CSS inline tương thích Gmail/Outlook/mobile. Nút trả lời gửi trực tiếp đến HR. |
 | 💬 **Chat** | Giao diện messenger 2 panel: danh sách hội thoại + cửa sổ chat; avatar, trạng thái đã đọc, đang gõ, đồng bộ tin nhắn đáng tin cậy. |
 | 🤖 **Chatbot hỗ trợ** | Widget nổi góc phải, hỗ trợ Markdown, lịch sử hội thoại, tra cứu cá nhân, chuyển nhân viên, chế độ dự phòng khi chưa có AI. |
@@ -206,13 +207,14 @@ flowchart LR
 | `ai-worker` | — | Worker không HTTP, xử lý tác vụ parse CV, matching, moderation, cover letter qua hàng đợi RabbitMQ. |
 | `backend` (legacy) | 5000 | API gốc, Socket.IO realtime hub, Sequelize/MySQL, xác thực session, Web Push, chatbot bridge. |
 
-### 🔄 Luồng thông báo kết quả tuyển dụng
+### 🔄 Luồng mời phỏng vấn và thông báo kết quả tuyển dụng
 
 1. Nhà tuyển dụng mở hồ sơ tại `/admin/pipeline`.
-2. Chọn **Gửi trúng tuyển** → điền thông tin → **Xem trước thư mời** → **Xác nhận gửi thư mời**; hoặc chọn **Gửi không trúng tuyển** kèm lời nhắn.
-3. `application-service` kiểm tra quyền theo công ty, cập nhật trạng thái (`de_nghi` cho thư mời, giữ `nhan_viec` nếu đã xác nhận), lưu nội dung vào lịch sử.
-4. Service phát sự kiện `application.decision_email_requested` qua RabbitMQ.
-5. `notification-service` lưu thông báo trong ứng dụng, gửi realtime nếu online, gửi email kết quả. Thư mời có `Reply-To` gửi về HR.
+2. Chọn **Mời phỏng vấn** (hoặc kéo thẻ vào cột Phỏng vấn) → điền ngày giờ, hình thức, địa điểm/link → **Xem trước thư mời phỏng vấn** → xác nhận gửi.
+3. Sau phỏng vấn, chọn **Gửi trúng tuyển** → điền thông tin → **Xem trước thư mời** → **Xác nhận gửi thư mời**; hoặc chọn **Gửi không trúng tuyển** kèm lời nhắn (ứng viên đã phỏng vấn nhận thư cảm ơn đã tham gia phỏng vấn).
+4. `application-service` kiểm tra quyền theo công ty, cập nhật trạng thái (`phong_van` cho thư mời phỏng vấn, `de_nghi` cho thư mời nhận việc, giữ `nhan_viec` nếu đã xác nhận), lưu nội dung vào lịch sử.
+5. Service phát sự kiện `application.interview_invitation_requested` hoặc `application.decision_email_requested` qua RabbitMQ (outbox cùng giao dịch).
+6. `notification-service` lưu thông báo trong ứng dụng, gửi realtime nếu online, gửi email. Thư mời phỏng vấn, thư mời nhận việc và thư cảm ơn sau phỏng vấn có `Reply-To` gửi về HR.
 
 > 📌 Email dùng địa chỉ lưu trong hồ sơ tại thời điểm ứng tuyển — ứng viên thay đổi hồ sơ sau đó không ảnh hưởng dữ liệu tuyển dụng lịch sử.
 
@@ -478,6 +480,9 @@ EMAIL_APP_PASSWORD=gmail-app-password-16-characters
 
 # Tùy chọn: hộp thư nhận toàn bộ email của dữ liệu demo
 EMAIL_DEMO_RECIPIENT=your-address@gmail.com
+
+# Tùy chọn: npm start gửi email thật qua EMAIL_APP (mặc định không gửi ra ngoài)
+LOCAL_EMAIL_DELIVERY=true
 
 # Tùy chọn: AI features
 # Dùng URL gốc của nhà cung cấp tương thích Anthropic, không thêm /v1/messages.
@@ -757,6 +762,7 @@ Chi tiết: [Bộ triển khai và quay lui](microservices/docs/release-preparat
 
 - [Cấu hình chatbot AI hỗ trợ](CHATBOT_SETUP.md)
 - [Đối chiếu PDF chatbot](docs/chatbot-pdf-implementation.md)
+- [Thư mời phỏng vấn & thư cảm ơn sau phỏng vấn](docs/recruitment-interview-email.md)
 - [Thư mời nhận việc & email](docs/recruitment-offer-email.md)
 - [Web Push Notifications](docs/web-push.md)
 - [WebSocket & Realtime upgrade](docs/websocket-upgrade.md)

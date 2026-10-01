@@ -305,6 +305,9 @@
     }
 
     .kb-offer { margin-top: 16px; padding: 16px; border: 1px solid #bbdfce; background: #f5faf7; border-radius: 10px; }
+    .kb-offer.kb-interview { border-color: #ddd6fe; background: #faf8ff; }
+    .kb-check { display: flex; align-items: flex-start; gap: 8px; margin: 10px 0 0; font-size: 13px; color: #334155; cursor: pointer; }
+    .kb-check input { margin-top: 3px; flex-shrink: 0; }
     .kb-offer-fields { border: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .kb-offer-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: #334155; margin: 0; }
     .kb-offer-fields input, .kb-offer-fields select { min-width: 0; width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; }
@@ -374,6 +377,11 @@
         &.danger {
             background: #dc2626;
             &:hover { background: #b91c1c; }
+        }
+
+        &.interview {
+            background: #7c3aed;
+            &:hover { background: #6d28d9; }
         }
 
         &:disabled {

@@ -100,7 +100,8 @@ như mô tả bên dưới, chưa áp dụng cho toàn bộ consumer.
 ## Outbox Application và publisher confirms
 
 Application Service ghi trạng thái hồ sơ, lịch sử và sự kiện trong cùng transaction
-PostgreSQL cho `application.stage_changed` và `application.decision_email_requested`.
+PostgreSQL cho `application.stage_changed`, `application.interview_invitation_requested` và
+`application.decision_email_requested`.
 Địa chỉ email, tên ứng viên và thông tin việc làm trong sự kiện vẫn lấy từ snapshot
 hồ sơ. `emailQueued: true` nghĩa là yêu cầu gửi đã được lưu bền vững, chưa có nghĩa
 SMTP đã giao thư. Gửi lại kết quả bằng một thao tác mới tạo một event ID mới.
@@ -1083,7 +1084,8 @@ email và realtime độc lập. Sự kiện legacy không có ID vẫn dùng lu
 Sự kiện đang nghe:
 
 - `application.stage_changed` → báo ứng viên khi hồ sơ chuyển bước
-- `application.decision_email_requested` → gửi kết quả trúng tuyển hoặc không trúng tuyển do nhà tuyển dụng chọn
+- `application.interview_invitation_requested` → gửi thư mời phỏng vấn có ngày giờ, hình thức, địa điểm/link và người liên hệ (Reply-To về HR)
+- `application.decision_email_requested` → gửi kết quả trúng tuyển hoặc không trúng tuyển do nhà tuyển dụng chọn; hồ sơ đã qua bước phỏng vấn nhận thư cảm ơn đã tham gia phỏng vấn
 - `job.moderated` → báo người đăng tin khi AI duyệt xong
 - `job.created` → báo những người đang theo dõi công ty đó
 
@@ -1157,8 +1159,6 @@ nhóm việc; `allcodes` không có chỗ cho thứ đó.
 - Nối bảng từ đồng nghĩa vào Search Service (`GET /internal/alias-map` đã sẵn sàng,
   chỉ còn thiếu bên đọc)
 
-So với TopCV, còn thiếu: hẹn lịch phỏng vấn, xuất CV ra PDF theo mẫu, gửi email
-hàng loạt cho ứng viên, đánh giá công ty có kiểm chứng, và bản đồ lương theo ngành.
-
-So với TopCV, còn thiếu: hẹn lịch phỏng vấn, xuất CV ra PDF theo mẫu, gửi email
-hàng loạt cho ứng viên, đánh giá công ty có kiểm chứng, và bản đồ lương theo ngành.
+So với TopCV, còn thiếu: đặt lịch phỏng vấn đồng bộ hai chiều với lịch của ứng viên (hiện là thư mời
+phỏng vấn qua email kèm liên kết Google Calendar), xuất CV ra PDF theo mẫu, gửi email hàng loạt cho
+ứng viên, đánh giá công ty có kiểm chứng, và bản đồ lương theo ngành.

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeEventFixture } from './contractAssertions.js';
 import { eventCatalog, eventExamples } from '../shared/contracts/eventCatalog.js';
 import { offerFixture } from './offerFixture.js';
+import { interviewFixture } from './interviewFixture.js';
 
 const mocks = vi.hoisted(() => ({
     consume: vi.fn(),
@@ -172,6 +173,34 @@ describe('notification event consumer', () => {
         mocks.queueNotification.mockRejectedValue(new Error('inbox unavailable'));
         await expect(handleNotificationEvent({ candidateId: 2, toStage: 'phong_van' }, 'application.stage_changed', { eventId: 'e1' })).rejects.toThrow('inbox unavailable');
         expect(mocks.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('queues interview invitations durably with HR reply-to and refuses unidentified or incomplete ones', async () => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const type = 'application.interview_invitation_requested';
+        const decoded = decodeEventFixture(type, { ...eventExamples[type], interview: interviewFixture });
+        await handleNotificationEvent(decoded.payload, type, decoded.metadata);
+        const queued = mocks.queueNotification.mock.calls[0][0];
+        expect(queued).toMatchObject({ eventId: decoded.metadata.eventId, userId: 9, recipientEmail: eventExamples[type].candidateEmail });
+        expect(queued.template.typeCode).toBe('APPLICATION_INTERVIEW');
+        expect(queued.template.email.replyTo).toBe(interviewFixture.contactEmail);
+        expect(queued.template.email.text).toContain(interviewFixture.location);
+        await expect(handleNotificationEvent(decoded.payload, type, {})).rejects.toThrow('requires eventId');
+        await expect(handleNotificationEvent({ ...decoded.payload, interview: { ...interviewFixture, location: '' } }, type, decoded.metadata)).rejects.toThrow();
+        expect(mocks.queueNotification).toHaveBeenCalledTimes(1);
+        expect(mocks.sendEmail).not.toHaveBeenCalled();
+    });
+
+    it('passes interview context into rejection and dragged-stage emails', async () => {
+        const { handlers } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        await handlers['application.decision_email_requested']({ candidateId: 2, candidateEmail: 'a@x.com', decision: 'rejected', toStage: 'tu_choi',
+            jobTitle: 'Dev', interviewed: true, interview: interviewFixture, companyName: interviewFixture.companyName }, { eventId: 'r1' });
+        await handlers['application.stage_changed']({ candidateId: 2, candidateEmail: 'a@x.com', fromStage: 'phong_van', toStage: 'tu_choi',
+            jobTitle: 'Dev', interviewed: true }, { eventId: 's1' });
+        const [decision, stage] = mocks.queueNotification.mock.calls.map(([call]) => call.template.email);
+        expect(decision.subject).toBe('Cảm ơn bạn đã tham gia phỏng vấn — Dev');
+        expect(decision.replyTo).toBe(interviewFixture.contactEmail);
+        expect(stage.subject).toBe('Cảm ơn bạn đã tham gia phỏng vấn — Dev');
     });
 
     it('registers every handler with bounded prefetch', async () => {

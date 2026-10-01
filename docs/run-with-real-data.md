@@ -47,9 +47,17 @@ Các cờ tạo/sửa/đăng lại/tìm kiếm/CV tiếp tục dùng cấu hình
 
 ## Email và tác vụ định kỳ
 
-Phiên local này không gửi email ra ngoài: thông tin SMTP được bỏ khỏi môi trường chạy; email của Notification được giữ chờ khi thiếu cấu hình. Các thông báo trong ứng dụng và đồng bộ dữ liệu vẫn hoạt động. Hai lịch gửi gợi ý việc làm/reset lượt xem CV được tắt bằng `SCHEDULED_JOBS_ENABLED=false`.
+Mặc định phiên local không gửi email ra ngoài: trình khởi chạy không truyền thông tin SMTP cho Notification; email được lưu chờ trong `notification_deliveries` và được gửi khi có cấu hình. Các thông báo trong ứng dụng và đồng bộ dữ liệu vẫn hoạt động. Hai lịch gửi gợi ý việc làm/reset lượt xem CV được tắt bằng `SCHEDULED_JOBS_ENABLED=false`.
 
-Để triển khai gửi email thật, cấu hình và chạy bằng quy trình dịch vụ thủ công, xem xét các email đang chờ trước khi bật. Những thông tin đăng nhập SMTP đã lưu trong `.env` không bị sửa bởi trình khởi chạy.
+Để demo gửi email thật (thư mời phỏng vấn, thư mời nhận việc, thư cảm ơn đã tham gia phỏng vấn…), đặt trong `microservices/.env`:
+
+```env
+EMAIL_APP=dia-chi-gui@gmail.com
+EMAIL_APP_PASSWORD=gmail-app-password-16-ky-tu
+LOCAL_EMAIL_DELIVERY=true
+```
+
+rồi chạy `npm run dev:stop` và `npm start`. Khi đang bật, `npm run dev:status` có `"emailDelivery": "gmail"`. Trước khi bật, xem các email đang chờ (`channel='email'`, `status='pending'` trong `notification_deliveries`): chúng sẽ được gửi ngay. Ở development, địa chỉ mẫu (`example.test`, `example@gmail.com`…) được chuyển tới `EMAIL_DEMO_RECIPIENT`, nếu trống thì tới `EMAIL_APP`, kèm tiền tố `[DEMO]`; địa chỉ thật nhận đúng thư. Bỏ dòng `LOCAL_EMAIL_DELIVERY` hoặc đặt `false` để quay lại chế độ không gửi. Trình khởi chạy không sửa thông tin SMTP đã lưu trong `.env`.
 
 ## Kiểm tra và nhật ký
 

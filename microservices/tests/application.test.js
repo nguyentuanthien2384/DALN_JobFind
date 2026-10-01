@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
 import { offerFixture } from './offerFixture.js';
+import { interviewFixture } from './interviewFixture.js';
 import { expectResponseContract, decodeEventFixture } from './contractAssertions.js';
 
 const mocks = vi.hoisted(() => ({
@@ -171,6 +172,18 @@ describe('application pipeline controller', () => {
         expect(res.body.data.stage).toBe('phong_van');
     });
 
+    it('marks a drag into the rejected column after an interview so the email thanks the candidate', async () => {
+        const before = { id: 1, stage: 'phong_van', company_id: 9, candidate_id: 2, candidate_email: 'lan@example.com', candidate_name: 'Lan', job_id: 3, job_title: 'Dev' };
+        const client = { query: vi.fn().mockResolvedValueOnce({ rows: [before] }).mockResolvedValueOnce({ rows: [{ ...before, stage: 'tu_choi' }] })
+            .mockResolvedValueOnce({}).mockResolvedValueOnce({ rows: [{ decision_snapshot: { decision: 'interview', interview: interviewFixture } }] }) };
+        mocks.withTransaction.mockImplementation((work) => work(client));
+        const { moveStage } = await import('../application-service/src/controllers/applicationController.js');
+        await moveStage(companyReq({ params: { id: '1' }, body: { stage: 'tu_choi' } }), makeRes());
+        const payload = mocks.enqueueOutboxEvent.mock.calls[0][1].payload;
+        expect(payload).toMatchObject({ fromStage: 'phong_van', toStage: 'tu_choi', interviewed: true, companyName: interviewFixture.companyName });
+        expect(() => decodeEventFixture('application.stage_changed', payload)).not.toThrow();
+    });
+
     it('maps stage transaction failures to 500', async () => {
         mocks.withTransaction.mockRejectedValue(new Error('db'));
         const { moveStage } = await import('../application-service/src/controllers/applicationController.js');
@@ -209,17 +222,50 @@ describe('application pipeline controller', () => {
 
     it('supports resending an unchanged rejection and maps failures', async () => {
         const app = { id: 1, stage: 'tu_choi', company_id: 9, candidate_id: 2 };
-        const client = { query: vi.fn().mockResolvedValueOnce({ rows: [app] }).mockResolvedValueOnce({}) };
+        const client = { query: vi.fn().mockResolvedValueOnce({ rows: [app] }).mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({}) };
         mocks.withTransaction.mockImplementationOnce((work) => work(client));
         const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
         const ok = makeRes();
         await sendDecisionNotification(companyReq({ body: { decision: 'rejected', message: ' ' } }), ok);
-        expect(client.query).toHaveBeenCalledTimes(2);
-        expect(mocks.enqueueOutboxEvent.mock.calls[0][1].payload).toMatchObject({ fromStage: null, message: null });
+        expect(client.query).toHaveBeenCalledTimes(3);
+        expect(mocks.enqueueOutboxEvent.mock.calls[0][1].payload).toMatchObject({ fromStage: null, message: null, interviewed: false });
+        expect(mocks.enqueueOutboxEvent.mock.calls[0][1].payload).not.toHaveProperty('interview');
         mocks.withTransaction.mockRejectedValue(new Error('db'));
         const failed = makeRes();
         await sendDecisionNotification(companyReq({ body: { decision: 'accepted', offer: offerFixture } }), failed);
         expect(failed.statusCode).toBe(500);
+    });
+
+    it('thanks an interviewed candidate and reuses the latest invitation contact when rejecting', async () => {
+        const app = { id: 1, stage: 'phong_van', company_id: 9, candidate_id: 2, candidate_email: 'a@b.com', candidate_name: 'Lan', job_id: 3, job_title: 'Dev' };
+        const older = { ...interviewFixture, contactName: 'Old HR' };
+        const history = { rows: [{ decision_snapshot: { decision: 'interview', interview: interviewFixture } }, { decision_snapshot: { decision: 'interview', interview: older } }] };
+        const client = { query: vi.fn().mockResolvedValueOnce({ rows: [app] }).mockResolvedValueOnce(history)
+            .mockResolvedValueOnce({ rows: [{ ...app, stage: 'tu_choi' }] }).mockResolvedValueOnce({}) };
+        mocks.withTransaction.mockImplementation((work) => work(client));
+        const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
+        const res = makeRes();
+        await sendDecisionNotification(companyReq({ params: { id: '1' }, body: { decision: 'rejected' } }), res);
+        expect(client.query.mock.calls[1]).toEqual([expect.stringContaining("to_stage = 'phong_van'"), [1]]);
+        const payload = mocks.enqueueOutboxEvent.mock.calls[0][1].payload;
+        expect(payload).toMatchObject({ decision: 'rejected', interviewed: true, interview: interviewFixture,
+            companyName: interviewFixture.companyName, fromStage: 'phong_van', toStage: 'tu_choi' });
+        const insert = client.query.mock.calls[3][1];
+        expect(insert[4]).toContain('tham gia phỏng vấn');
+        expect(JSON.parse(insert[5])).toEqual({ decision: 'rejected', message: null, interviewed: true });
+        expect(() => decodeEventFixture('application.decision_email_requested', payload)).not.toThrow();
+        expectResponseContract('applicationDecision', res);
+    });
+
+    it('lets the employer say an invited candidate did not attend before the rejection is sent', async () => {
+        const app = { id: 1, stage: 'phong_van', company_id: 9, candidate_id: 2 };
+        const client = { query: vi.fn().mockResolvedValueOnce({ rows: [app] }).mockResolvedValueOnce({ rows: [] })
+            .mockResolvedValueOnce({ rows: [{ ...app, stage: 'tu_choi' }] }).mockResolvedValueOnce({}) };
+        mocks.withTransaction.mockImplementation((work) => work(client));
+        const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
+        await sendDecisionNotification(companyReq({ params: { id: '1' }, body: { decision: 'rejected', interviewed: false } }), makeRes());
+        expect(mocks.enqueueOutboxEvent.mock.calls[0][1].payload).toMatchObject({ interviewed: false, toStage: 'tu_choi' });
+        expect(client.query.mock.calls[3][1][4]).toBe('Đã yêu cầu gửi email thông báo không trúng tuyển cho ứng viên');
     });
 
     it('refuses incomplete offers before any transaction or email is queued', async () => {
@@ -264,6 +310,71 @@ describe('application pipeline controller', () => {
         const res = makeRes();
         await getApplication(companyReq({ params: { id: '1' } }), res);
         expect(res.body.data.latestDecision).toEqual({ ...event.decision_snapshot, requestedAt: event.created_at });
+    });
+
+    it('refuses incomplete interview invitations before any transaction or email is queued', async () => {
+        const { sendInterviewInvitation } = await import('../application-service/src/controllers/applicationController.js');
+        for (const interview of [undefined, { ...interviewFixture, location: ' ' }, { ...interviewFixture, interviewDate: '2020-01-01' },
+            { ...interviewFixture, interviewMode: 'phone', contactPhone: '' }, { ...interviewFixture, confirmBy: '2099-10-16T09:00' }]) {
+            const res = makeRes();
+            await sendInterviewInvitation(companyReq({ params: { id: '1' }, body: { interview } }), res);
+            expect(res.statusCode).toBe(400);
+        }
+        expect(mocks.withTransaction).not.toHaveBeenCalled();
+        expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
+    });
+
+    it('moves to the interview stage, saves the invitation and queues its email in one transaction', async () => {
+        const before = { id: 1, stage: 'dang_xem_xet', company_id: 9, candidate_id: 2, candidate_email: 'a@b.com', candidate_name: 'Lan', job_id: 3, job_title: 'Dev' };
+        const after = { ...before, stage: 'phong_van' };
+        const client = { query: vi.fn().mockResolvedValueOnce({ rows: [before] }).mockResolvedValueOnce({ rows: [after] }).mockResolvedValueOnce({}) };
+        mocks.withTransaction.mockImplementation((work) => work(client));
+        const { sendInterviewInvitation } = await import('../application-service/src/controllers/applicationController.js');
+        const res = makeRes();
+        await sendInterviewInvitation(companyReq({ params: { id: '1' }, body: { interview: { ...interviewFixture, contactName: ' Nguyễn Hà ' }, message: '  ' + 'x'.repeat(4000) + '  ' } }), res);
+        expect(client.query.mock.calls[1][0]).toContain("SET stage = 'phong_van'");
+        const insert = client.query.mock.calls[2][1];
+        expect(insert.slice(0, 4)).toEqual([1, 'dang_xem_xet', 'phong_van', 5]);
+        expect(JSON.parse(insert[5])).toEqual({ decision: 'interview', message: 'x'.repeat(3000), interview: interviewFixture });
+        const queued = mocks.enqueueOutboxEvent.mock.calls[0][1];
+        expect(queued).toMatchObject({ aggregateId: 1, eventType: 'application.interview_invitation_requested' });
+        expect(queued.payload).toMatchObject({ applicationId: 1, candidateEmail: 'a@b.com', companyName: interviewFixture.companyName,
+            interview: interviewFixture, fromStage: 'dang_xem_xet', toStage: 'phong_van' });
+        expect(() => decodeEventFixture('application.interview_invitation_requested', queued.payload)).not.toThrow();
+        expect(res.body).toMatchObject({ errCode: 0, emailQueued: true, data: { stage: 'phong_van' } });
+        expectResponseContract('applicationInterview', res);
+    });
+
+    it('resends an updated invitation without another stage change', async () => {
+        const app = { id: 1, stage: 'phong_van', company_id: 9, candidate_id: 2, job_id: 3 };
+        const client = { query: vi.fn().mockResolvedValueOnce({ rows: [app] }).mockResolvedValueOnce({}) };
+        mocks.withTransaction.mockImplementation((work) => work(client));
+        const { sendInterviewInvitation } = await import('../application-service/src/controllers/applicationController.js');
+        const res = makeRes();
+        await sendInterviewInvitation(companyReq({ params: { id: '1' }, body: { interview: interviewFixture } }), res);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes('UPDATE applications'))).toBe(false);
+        expect(client.query.mock.calls[1][1][1]).toBeNull();
+        expect(client.query.mock.calls[1][1][4]).toContain('gửi lại');
+        expect(mocks.enqueueOutboxEvent.mock.calls[0][1].payload).toMatchObject({ fromStage: null, toStage: 'phong_van', message: null });
+        expect(res.body.emailQueued).toBe(true);
+    });
+
+    it('maps missing, foreign, hired and failed interview invitations without queuing email', async () => {
+        const { sendInterviewInvitation } = await import('../application-service/src/controllers/applicationController.js');
+        const send = async () => {
+            const res = makeRes();
+            await sendInterviewInvitation(companyReq({ params: { id: '1' }, body: { interview: interviewFixture } }), res);
+            return res;
+        };
+        for (const [rows, status] of [[[], 404], [[{ id: 1, company_id: 19, stage: 'moi_ung_tuyen' }], 403], [[{ id: 1, company_id: 9, stage: 'nhan_viec' }], 409]]) {
+            const client = { query: vi.fn().mockResolvedValueOnce({ rows }) };
+            mocks.withTransaction.mockImplementationOnce((work) => work(client));
+            expect((await send()).statusCode).toBe(status);
+            expect(client.query).toHaveBeenCalledTimes(1);
+        }
+        mocks.withTransaction.mockRejectedValueOnce(new Error('db'));
+        expect((await send()).statusCode).toBe(500);
+        expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
     });
 
     it('validates and updates ratings with ownership checks', async () => {

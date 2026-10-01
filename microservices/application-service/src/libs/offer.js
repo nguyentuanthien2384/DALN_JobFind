@@ -1,11 +1,25 @@
 import { offerSchema } from '../../../shared/contracts/offerSchema.js';
 
-const validDate = (value) => {
+export const validDate = (value) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
     const date = new Date(`${value}T00:00:00Z`);
     return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 };
-const validTime = (value) => /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(value);
+export const validTime = (value) => /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(value);
+export const validMeetingUrl = (value) => {
+    try {
+        const url = new URL(value);
+        return ['https:', 'http:'].includes(url.protocol) && Boolean(url.hostname) && !url.username && !url.password && !/\s/.test(value);
+    } catch { return false; }
+};
+// `raw` is the untrimmed input: a trailing CR/LF must not survive trimming into a header.
+export const validContactEmail = (raw, value) => {
+    const localPart = value.split('@')[0];
+    const domain = value.split('@')[1] || '';
+    return !(/[\u0000-\u001f\u007f]/.test(raw) || localPart.length > 64 || localPart.startsWith('.') || localPart.endsWith('.') || localPart.includes('..')
+        || domain.split('.').some((label) => label.length > 63)
+        || !/^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?)+$/i.test(value));
+};
 
 export const validateOffer = (input, now = Date.now()) => {
     const fail = (error) => ({ error });
@@ -28,16 +42,7 @@ export const validateOffer = (input, now = Date.now()) => {
     if (!['onsite', 'remote', 'hybrid'].includes(offer.workMode)) return fail('Hình thức làm việc không hợp lệ');
     if (offer.workMode !== 'remote' && !offer.location) return fail('Vui lòng nhập địa điểm nhận việc cụ thể');
     if (offer.workMode === 'remote' && !offer.meetingUrl) return fail('Vui lòng nhập đường dẫn nhận việc trực tuyến');
-    if (offer.meetingUrl) {
-        try {
-            const url = new URL(offer.meetingUrl);
-            if (!['https:', 'http:'].includes(url.protocol) || !url.hostname || url.username || url.password || /\s/.test(offer.meetingUrl)) throw new Error();
-        } catch { return fail('Đường dẫn trực tuyến phải là URL http hoặc https hợp lệ'); }
-    }
-    const localPart = offer.contactEmail.split('@')[0];
-    const domain = offer.contactEmail.split('@')[1] || '';
-    if (/[\u0000-\u001f\u007f]/.test(input.contactEmail) || localPart.length > 64 || localPart.startsWith('.') || localPart.endsWith('.') || localPart.includes('..')
-        || domain.split('.').some((label) => label.length > 63)
-        || !/^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?)+$/i.test(offer.contactEmail)) return fail('Email người liên hệ không hợp lệ');
+    if (offer.meetingUrl && !validMeetingUrl(offer.meetingUrl)) return fail('Đường dẫn trực tuyến phải là URL http hoặc https hợp lệ');
+    if (!validContactEmail(input.contactEmail, offer.contactEmail)) return fail('Email người liên hệ không hợp lệ');
     return { offer };
 };

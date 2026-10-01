@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import net from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { backupMysql, backupContainer, writeBackupManifest } from './backup-local.mjs';
-import { alive, stopChild, ownedSupervisor, effectiveState, waitFor as waitUntil, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, claudeRuntimeMatches, canConnect, awaitService, followLaunch, awaitSupervisorPublication } from './dev-runtime.mjs';
+import { alive, stopChild, ownedSupervisor, effectiveState, waitFor as waitUntil, runLoggedCommand, withStartLock, releaseOwnedLock, reconcileAiWorker, localComposeEnvironment, localEmailDeliveryEnabled, claudeRuntimeMatches, canConnect, awaitService, followLaunch, awaitSupervisorPublication } from './dev-runtime.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const script = fileURLToPath(import.meta.url);
@@ -171,6 +171,8 @@ async function serve() {
         await freePort(webPort); await freePort(backendPort);
         state.webUrl = `http://localhost:${webPort}`; state.apiUrl = 'http://localhost:4000';
         dockerEnvironment = localComposeEnvironment(process.env, micro, { JOBFIND_WEB_PORT: String(webPort), JOBFIND_BACKEND_PORT: String(backendPort) });
+        // dev:status shows whether this run sends real email (opt-in, see docs/run-with-real-data.md).
+        state.emailDelivery = localEmailDeliveryEnabled(micro) && Boolean(micro.EMAIL_APP && micro.EMAIL_APP_PASSWORD) ? 'gmail' : 'off';
         // Own the web port first: until the APIs are ready the browser gets a
         // progress page instead of "connection refused".
         await update('Khởi động giao diện tuyển dụng');

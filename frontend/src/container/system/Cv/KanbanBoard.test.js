@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { toast } from "react-toastify";
 import {
     addApplicationNote,
@@ -10,8 +10,9 @@ import {
     rateApplication,
     saveToTalentPool,
     sendApplicationDecision,
+    sendInterviewInvitation,
 } from "../../../service/applicationService";
-import { getAllPostByAdminService } from "../../../service/userService";
+import { getAllPostByAdminService, getDetailCompanyById } from "../../../service/userService";
 import KanbanBoard from "./KanbanBoard";
 
 const mockNavigate = jest.fn();
@@ -28,9 +29,11 @@ jest.mock("../../../service/applicationService", () => ({
     rateApplication: jest.fn(),
     saveToTalentPool: jest.fn(),
     sendApplicationDecision: jest.fn(),
+    sendInterviewInvitation: jest.fn(),
 }));
 jest.mock("../../../service/userService", () => ({
     getAllPostByAdminService: jest.fn(),
+    getDetailCompanyById: jest.fn(),
 }));
 jest.mock("react-toastify", () => ({
     toast: { error: jest.fn(), success: jest.fn() },
@@ -83,6 +86,19 @@ const detailResponse = {
     },
 };
 
+// Ma buoc that cua application-service: keo vao "phong_van" mo thu moi phong van.
+const pipelineBoard = () => ({
+    errCode: 0,
+    data: {
+        total: 1,
+        columns: [
+            { stage: "dang_xem_xet", label: "Đang xem xét", count: 1, items: [{ ...candidate, stage: "dang_xem_xet" }] },
+            { stage: "phong_van", label: "Phỏng vấn", count: 0, items: [] },
+            { stage: "tu_choi", label: "Từ chối", count: 0, items: [] },
+        ],
+    },
+});
+
 const renderLoadedBoard = async () => {
     const view = render(<KanbanBoard />);
     expect(await screen.findByText("Lan Nguyen")).toBeInTheDocument();
@@ -108,6 +124,8 @@ describe("KanbanBoard", () => {
         });
         saveToTalentPool.mockResolvedValue({ errCode: 0 });
         sendApplicationDecision.mockResolvedValue({ errCode: 0, data: { decision: "rejected" } });
+        sendInterviewInvitation.mockResolvedValue({ errCode: 0, data: { stage: "phong_van" } });
+        getDetailCompanyById.mockResolvedValue({ errCode: 0, data: { name: "Example Company", address: "12 Nguyễn Huệ, TP. Hồ Chí Minh" } });
     });
 
     it("loads jobs, the board and funnel, then filters by job", async () => {
@@ -126,6 +144,22 @@ describe("KanbanBoard", () => {
         fireEvent.change(screen.getByRole("combobox"), { target: { value: "12" } });
         await waitFor(() => expect(getApplicationBoard).toHaveBeenLastCalledWith("12"));
         expect(getFunnel).toHaveBeenLastCalledWith("12");
+    });
+
+    it("keeps the selected job's board when the initial all-jobs response arrives late", async () => {
+        let releaseInitial;
+        const allJobs = { errCode: 0, data: { total: 2, columns: [{ stage: "applied", label: "Mới ứng tuyển", count: 2,
+            items: [{ ...candidate }, { ...candidate, id: 2, candidate_name: "Other Job Person" }] }] } };
+        getApplicationBoard.mockImplementation((jobId) => (jobId
+            ? Promise.resolve(boardResponse())
+            : new Promise((resolve) => { releaseInitial = () => resolve(allJobs); })));
+        render(<KanbanBoard />);
+        await waitFor(() => expect(getApplicationBoard).toHaveBeenCalledWith(""));
+        fireEvent.change(screen.getByRole("combobox"), { target: { value: "12" } });
+        expect(await screen.findByText("Lan Nguyen")).toBeInTheDocument();
+        await act(async () => { releaseInitial(); });
+        expect(screen.queryByText("Other Job Person")).not.toBeInTheDocument();
+        expect(screen.getByText(/Tổng cộng/)).toHaveTextContent("Tổng cộng 1 hồ sơ.");
     });
 
     it("moves a card optimistically and refreshes the funnel", async () => {
@@ -253,6 +287,96 @@ describe("KanbanBoard", () => {
         expect(send).not.toBeDisabled();
         expect(within(modal).getByText('12 Nguyễn Huệ')).toBeInTheDocument();
         confirm.mockRestore();
+    });
+
+    it("opens the interview invitation instead of moving a card dropped into Phỏng vấn, then sends it", async () => {
+        getApplicationBoard.mockImplementation(async () => pipelineBoard());
+        getApplicationDetail.mockResolvedValue({ ...detailResponse, data: { ...detailResponse.data, stage: "dang_xem_xet" } });
+        const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+        await renderLoadedBoard();
+        expect(getDetailCompanyById).toHaveBeenCalledWith(9);
+        fireEvent.dragStart(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" }));
+        fireEvent.drop(screen.getByRole("region", { name: "Phỏng vấn" }));
+
+        const form = await screen.findByRole("region", { name: "Soạn thư mời phỏng vấn" });
+        expect(moveApplicationStage).not.toHaveBeenCalled();
+        expect(within(screen.getByRole("region", { name: "Đang xem xét" })).getByText("Lan Nguyen")).toBeInTheDocument();
+        expect(within(form).getByLabelText("Tên công ty *")).toHaveValue("Example Company");
+        expect(within(form).getByLabelText("Địa điểm phỏng vấn cụ thể *")).toHaveValue("12 Nguyễn Huệ, TP. Hồ Chí Minh");
+        for (const [label, value] of [["Ngày phỏng vấn *", "2099-10-15"], ["Giờ bắt đầu *", "09:30"],
+            ["Người liên hệ HR *", "Hà"], ["Email HR nhận phản hồi *", "hr@example.com"]]) {
+            fireEvent.change(within(form).getByLabelText(label), { target: { value } });
+        }
+        fireEvent.click(within(form).getByRole("button", { name: "Xem trước thư mời phỏng vấn" }));
+        expect(sendInterviewInvitation).not.toHaveBeenCalled();
+        fireEvent.click(within(form).getByRole("button", { name: "Xác nhận gửi thư mời phỏng vấn" }));
+
+        await waitFor(() => expect(sendInterviewInvitation).toHaveBeenCalledWith(1, "", {
+            companyName: "Example Company", interviewDate: "2099-10-15", interviewTime: "09:30", durationMinutes: "60",
+            timeZone: "Asia/Ho_Chi_Minh", interviewMode: "onsite", location: "12 Nguyễn Huệ, TP. Hồ Chí Minh",
+            contactName: "Hà", contactEmail: "hr@example.com",
+        }));
+        expect(confirm).toHaveBeenCalledWith("Gửi email thư mời phỏng vấn đến lan@candidate.vn?");
+        expect(toast.success).toHaveBeenCalledWith("Đã xếp hàng gửi email thư mời phỏng vấn");
+        await waitFor(() => expect(getApplicationBoard).toHaveBeenCalledTimes(2));
+        expect(screen.queryByRole("region", { name: "Soạn thư mời phỏng vấn" })).not.toBeInTheDocument();
+        confirm.mockRestore();
+    });
+
+    it("shows stage names and the saved interview invitation in the recruitment history", async () => {
+        getApplicationBoard.mockImplementation(async () => pipelineBoard());
+        getApplicationDetail.mockResolvedValue({ ...detailResponse, data: { ...detailResponse.data, stage: "phong_van", timeline: [{
+            id: 2, from_stage: "dang_xem_xet", to_stage: "phong_van", reason: "Đã yêu cầu gửi thư mời phỏng vấn", created_at: "2026-08-22T10:00:00Z",
+            decision_snapshot: { decision: "interview", message: null, interview: { companyName: "Example Company", interviewDate: "2099-10-15",
+                interviewTime: "09:30", timeZone: "Asia/Ho_Chi_Minh", interviewMode: "online", meetingUrl: "https://meet.example.com/abc",
+                contactName: "Hà", contactEmail: "hr@example.com" } },
+        }] } });
+        await renderLoadedBoard();
+        fireEvent.click(screen.getByText("Lan Nguyen"));
+        const modal = await screen.findByRole("dialog", { name: "Chi tiết hồ sơ Lan Nguyen" });
+        expect(within(modal).getByText(/Đang xem xét →/)).toBeInTheDocument();
+        expect(within(modal).queryByText(/dang_xem_xet|phong_van/)).not.toBeInTheDocument();
+        expect(within(modal).getByText("https://meet.example.com/abc")).toBeInTheDocument();
+        expect(within(modal).getByText("Thứ Năm, 15/10/2099 lúc 09:30 (giờ Việt Nam, UTC+7)")).toBeInTheDocument();
+        expect(within(modal).getByRole("button", { name: "Gửi lại / đổi lịch phỏng vấn" })).toBeEnabled();
+    });
+
+    it("thanks an interviewed candidate in the rejection unless the employer says they did not attend", async () => {
+        getApplicationDetail.mockResolvedValue({ ...detailResponse, data: { ...detailResponse.data, stage: "phong_van" } });
+        const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
+        await renderLoadedBoard();
+        fireEvent.click(screen.getByText("Lan Nguyen"));
+        const modal = await screen.findByRole("dialog", { name: "Chi tiết hồ sơ Lan Nguyen" });
+        const attended = within(modal).getByRole("checkbox", { name: /đã tham gia phỏng vấn/ });
+        expect(attended).toBeChecked();
+
+        fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
+        await waitFor(() => expect(sendApplicationDecision).toHaveBeenCalledWith(1, "rejected", "", undefined, true));
+        expect(confirm).toHaveBeenLastCalledWith("Gửi email cảm ơn đã tham gia phỏng vấn (không trúng tuyển) đến lan@candidate.vn?");
+        await waitFor(() => expect(getApplicationBoard).toHaveBeenCalledTimes(2));
+
+        fireEvent.click(within(modal).getByRole("checkbox", { name: /đã tham gia phỏng vấn/ }));
+        fireEvent.click(within(modal).getByRole("button", { name: "Gửi không trúng tuyển" }));
+        await waitFor(() => expect(sendApplicationDecision).toHaveBeenLastCalledWith(1, "rejected", "", undefined, false));
+        expect(confirm).toHaveBeenLastCalledWith("Gửi email thông báo không trúng tuyển đến lan@candidate.vn?");
+        confirm.mockRestore();
+    });
+
+    it("keeps hired candidates out of interview invitations", async () => {
+        getApplicationBoard.mockImplementation(async () => ({ errCode: 0, data: { total: 1, columns: [
+            { stage: "nhan_viec", label: "Đã nhận việc", count: 1, items: [{ ...candidate, stage: "nhan_viec" }] },
+            { stage: "phong_van", label: "Phỏng vấn", count: 0, items: [] },
+        ] } }));
+        getApplicationDetail.mockResolvedValue({ ...detailResponse, data: { ...detailResponse.data, stage: "nhan_viec" } });
+        await renderLoadedBoard();
+        fireEvent.dragStart(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" }));
+        fireEvent.drop(screen.getByRole("region", { name: "Phỏng vấn" }));
+        expect(toast.error).toHaveBeenCalledWith("Ứng viên đã nhận việc nên không gửi thư mời phỏng vấn");
+        expect(getApplicationDetail).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByText("Lan Nguyen"));
+        const modal = await screen.findByRole("dialog", { name: "Chi tiết hồ sơ Lan Nguyen" });
+        expect(within(modal).getByRole("button", { name: "Mời phỏng vấn" })).toBeDisabled();
+        expect(moveApplicationStage).not.toHaveBeenCalled();
     });
 
     it("shows load and detail errors without crashing", async () => {

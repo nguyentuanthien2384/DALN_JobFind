@@ -65,12 +65,12 @@ export function OfferSummary({ offer }) {
     </dl>;
 }
 
-export default function OfferLetterForm({ detail, user, message, busy, onSend, onCancel }) {
+export default function OfferLetterForm({ detail, user, company, message, busy, onSend, onCancel }) {
     const [offer, setOffer] = useState(() => {
         const previous = (detail.timeline || []).find((event) => event.decision_snapshot?.decision === 'accepted')?.decision_snapshot?.offer
             || (detail.latestDecision?.decision === 'accepted' && detail.latestDecision.offer);
         return { ...Object.fromEntries(fields.map(([key]) => [key, ''])), timeZone: 'Asia/Ho_Chi_Minh', workMode: 'onsite',
-            companyName: detail.company_name || user.companyName || '',
+            companyName: detail.company_name || company?.name || user.companyName || '',
             contactName: [user.firstName, user.lastName].filter(Boolean).join(' '), contactEmail: user.email || '', ...previous };
     });
     const [preview, setPreview] = useState(false);
