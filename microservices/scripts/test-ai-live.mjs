@@ -160,6 +160,8 @@ try {
             assert.equal(data.language, language); assert.equal(data.wordCount, data.letter.trim().split(/\s+/).length);
             assert.ok(data.wordCount >= 120 && data.wordCount <= 400); assert.match(data.letter, /React/i);
             assert.ok(!/\[(?:your|company|name|tên)/i.test(data.letter));
+            // Written as the applicant, not about "TRAN MINH AN" in the third person.
+            assert.match(data.letter, language === 'vi' ? /\btôi\b/i : /\b(?:I|my)\b/);
             if (language === 'vi') assert.match(data.letter, /[ăâđêôơưáàảãạéèẻẽẹ]/i);
             return { wordCount: data.wordCount, repeatedRequestCalls: 0 };
         }]),

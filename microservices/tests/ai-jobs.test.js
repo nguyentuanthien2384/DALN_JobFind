@@ -169,6 +169,8 @@ describe('AI worker jobs', () => {
         expect(ai.askForText.mock.calls[0][0].prompt).toContain('Write the letter in English.');
         expect(ai.askForText.mock.calls[0][0].prompt).toContain('Build apps');
         expect(ai.askForText.mock.calls[0][0].system).toContain('Use only the candidate resume facts.');
+        // A live gateway answer once described the candidate in the third person.
+        expect(ai.askForText.mock.calls[0][0].system).toContain('in the first person, as the job applicant');
         expect(ai.askForText.mock.calls[0][0].maxTokens).toBe(4096);
         const viResult = await generateCoverLetter({ resumeText: 'CV', jobTitle: 'Dev', jobDescription: '', companyName: '', language: 'vi' });
         expect(viResult.language).toBe('vi');

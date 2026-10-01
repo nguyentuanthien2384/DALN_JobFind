@@ -66,13 +66,35 @@ const providerSchema = (schema) => {
   providerSchemas.set(schema, output);
   return output;
 };
+// Some requests through the third-party gateway reach a backend that ignores
+// output_config.format: the answer is then Markdown-fenced JSON, or a sentence
+// followed by JSON with invented field names. Restate the schema for gateway
+// calls so that backend still knows the exact fields.
+const withSchemaInstruction = (system, schema) => process.env.ANTHROPIC_BASE_URL?.trim()
+  ? `${system}\n\nChỉ trả về một đối tượng JSON hợp lệ đúng JSON Schema sau, không markdown, không lời giải thích:\n${JSON.stringify(schema)}`
+  : system;
+// The exact text first, then a fenced block, then the outermost object. This
+// leniency is safe because only an object that passes the full schema is used.
+const jsonCandidates = (text) => {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  return [
+    text,
+    text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1],
+    start >= 0 && end > start ? text.slice(start, end + 1) : null,
+  ].filter(Boolean);
+};
 const parseStructured = (text, schema) => {
   let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error("Không đọc được JSON từ kết quả của Claude");
-  }
+  const found = jsonCandidates(text).some((candidate) => {
+    try {
+      parsed = JSON.parse(candidate);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  if (!found) throw new Error("Không đọc được JSON từ kết quả của Claude");
   let validate = validators.get(schema);
   if (!validate) {
     validate = ajv.compile(schema);
@@ -109,7 +131,7 @@ export const askForJson = async ({
       effort,
       format: { type: "json_schema", schema: providerSchema(schema) },
     },
-    system,
+    system: withSchemaInstruction(system, schema),
     messages: [{ role: "user", content: prompt }],
   });
 

@@ -147,6 +147,40 @@ describe('Claude adapter', () => {
         await expect(api.askForJson({ system: '', prompt: '', schema })).rejects.toThrow(/không đúng cấu trúc/);
     });
 
+    it('restates the schema in the system prompt only for a custom gateway', async () => {
+        const schema = { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'], additionalProperties: false };
+        sdk.create.mockResolvedValue({ stop_reason: 'end_turn', content: [{ type: 'text', text: '{"ok":true}' }] });
+        vi.stubEnv('ANTHROPIC_BASE_URL', '');
+        await api.askForJson({ system: 'sys', prompt: 'p', schema });
+        expect(sdk.create.mock.lastCall[0].system).toBe('sys');
+        vi.stubEnv('ANTHROPIC_BASE_URL', 'https://gateway.example.test');
+        await api.askForJson({ system: 'sys', prompt: 'p', schema });
+        const { system, output_config } = sdk.create.mock.lastCall[0];
+        expect(system).toMatch(/^sys\n\n/);
+        expect(system).toContain(JSON.stringify(schema));
+        expect(output_config.format.schema).toEqual(schema);
+    });
+
+    // Seen through the configured gateway when a request skips output_config.format.
+    it.each([
+        '```json\n{"ok":true}\n```',
+        'Dưới đây là dữ liệu có cấu trúc:\n\n```json\n{"ok":true}\n```',
+        'Kết quả: {"ok":true}'
+    ])('accepts schema-valid JSON wrapped by a gateway backend: %#', async (text) => {
+        const schema = { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'], additionalProperties: false };
+        sdk.create.mockResolvedValue({ stop_reason: 'end_turn', content: [{ type: 'text', text }] });
+        await expect(api.askForJson({ system: '', prompt: '', schema })).resolves.toEqual({ ok: true });
+    });
+
+    it('still rejects wrapped JSON that invents its own fields', async () => {
+        const { resumeSchema } = await import('../ai-worker/src/jobs/resumeParser.js');
+        sdk.create.mockResolvedValue({ stop_reason: 'end_turn',
+            content: [{ type: 'text', text: '```json\n{"personal_info":{"full_name":"Lan"},"skills":[]}\n```' }] });
+        await expect(api.askForJson({ system: '', prompt: '', schema: resumeSchema })).rejects.toThrow(/không đúng cấu trúc/);
+        sdk.create.mockResolvedValue({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Dưới đây là dữ liệu: {"fullName": ' }] });
+        await expect(api.askForJson({ system: '', prompt: '', schema: resumeSchema })).rejects.toThrow(/Không đọc được JSON/);
+    });
+
     it('streams normal text with caller token/effort options', async () => {
         sdk.finalMessage.mockResolvedValue({ stop_reason: 'end_turn', content: [{ type: 'text', text: ' hello ' }] });
         await expect(api.askForText({ system: 's', prompt: 'p', effort: 'high', maxTokens: 99 })).resolves.toBe('hello');

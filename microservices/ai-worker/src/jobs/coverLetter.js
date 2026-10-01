@@ -5,7 +5,7 @@ import { askForText } from '../libs/claude.js';
 // Keep the instruction compact. The configured gateway has returned HTTP 502
 // for the previous, longer instruction even when the same short candidate/job
 // prompt succeeds with this wording.
-const system = `Write a professional cover letter for a job applicant. Use only the candidate resume facts. Write 200 to 300 words in 3 to 4 paragraphs. No markdown, headings, bullet points, or placeholders. Open with the role and a concrete match. End with a direct invitation to interview. Return only the letter body.`;
+const system = `Write a professional cover letter in the first person, as the job applicant. Use only the candidate resume facts. Write 200 to 300 words in 3 to 4 paragraphs. No markdown, headings, bullet points, or placeholders. Open with the role and a concrete match. End with a direct invitation to interview. Return only the letter body.`;
 
 const stripHtml = (html) =>
     String(html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
