@@ -10,6 +10,7 @@ const record = (properties, required = Object.keys(properties)) => object(proper
 const bucket = record({ code: text(), count: integer() });
 const namedCount = record({ ten: nullable(text()), soLuong: numeric });
 const datedCount = record({ ngay: date, soLuong: numeric });
+const datedMoney = record({ ngay: date, tien: number });
 const range = record({ from: date, to: date });
 const stageLabel = record({ stage, label: text() });
 
@@ -58,10 +59,10 @@ export const responseDefinitions = {
     ReportOverview: record({ khoangThoiGian: range, nguoiDung: record({ tong: numeric, moi: numeric }), congTy: numeric,
         tinTuyenDung: record({ dangHienThi: numeric, choDuyet: numeric }), hoSoUngTuyen: record({ tong: numeric, daTuyen: numeric }),
         doanhThu: record({ goiTin: number, goiXemCv: number, tong: number }) }),
-    ReportTimeseries: record({ tinTuyenDung: list(datedCount), nguoiDungMoi: list(datedCount), doanhThu: list(record({ ngay: date, tien: number })), hoSoUngTuyen: list(datedCount) }),
+    ReportTimeseries: record({ tinTuyenDung: list(datedCount), nguoiDungMoi: list(datedCount), doanhThu: list(datedMoney), doanhThuXemCv: list(datedMoney), hoSoUngTuyen: list(datedCount) }),
     ReportDistribution: record(Object.fromEntries(['theoNganhNghe', 'theoTinhThanh', 'theoMucLuong', 'theoVaiTro'].map((key) => [key, list(namedCount)]))),
     ReportFunnel: record({ pheu: list(record({ stage, ten: text(), soLuong: integer() })), tong: integer(), tyLeTuyen: number,
-        topCongTy: list(record({ congTyId: nullable(id), soHoSo: integer(), daTuyen: integer() })) }),
+        topCongTy: list(record({ congTyId: nullable(id), tenCongTy: nullable(text()), soHoSo: integer(), daTuyen: integer() })) }),
     ReportActivity: record({ theoLoai: list(namedCount), theoService: list(namedCount), theoNgay: list(datedCount) }),
     SyncResult: record({ total: integer(), imported: integer(), error: text(20000) }, ['total', 'imported']),
     Screening: record({ cvId: id, taskId: text(64), status: { enum: ['pending', 'done', 'failed'] }, error: nullable(text(20000)),

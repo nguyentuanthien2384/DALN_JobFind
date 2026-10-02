@@ -2,6 +2,7 @@ import React from "react";
 import SupportInbox from '../../components/support/SupportInbox';
 import Header from "./Header";
 import Menu from "./Menu";
+import AdminPageHeader from "./AdminPageHeader";
 import Home from "./Home";
 import Footer from "./Footer";
 import ManageUser from "./User/ManageUser";
@@ -137,6 +138,7 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                 {/* partial */}
                 <div className="main-panel">
                     <div className="content-wrapper">
+                        <AdminPageHeader user={user} />
                         <Routes>
                             <Route
                                 path="/"

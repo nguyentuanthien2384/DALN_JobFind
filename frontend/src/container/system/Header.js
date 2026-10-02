@@ -11,6 +11,12 @@ import {
 import { readJsonStorage } from "../../util/storage";
 import { getDefaultRouteForUser } from "../../auth/accessControl";
 
+const ROLE_LABELS = {
+    ADMIN: "Quản trị viên",
+    COMPANY: "Chủ doanh nghiệp",
+    EMPLOYER: "Nhân viên tuyển dụng",
+};
+
 const Header = ({ user: suppliedUser }) => {
     const user = useMemo(
         () => suppliedUser || readJsonStorage("userData", {}),
@@ -28,6 +34,8 @@ const Header = ({ user: suppliedUser }) => {
     const profileRef = useRef(null);
     const refreshVersion = useRef(0);
     const homePath = getDefaultRouteForUser(user);
+    const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || "Tài khoản";
+    const roleLabel = ROLE_LABELS[user.roleCode] || "";
 
     const handleSidebarToggle = () => {
         const willBeMinimized = !document.body.classList.contains("sidebar-icon-only");
@@ -182,10 +190,22 @@ const Header = ({ user: suppliedUser }) => {
                 </button>
 
                 <ul className="navbar-nav navbar-nav-right" style={{ flexDirection: "row", alignItems: "center" }}>
+                    <li className="nav-item d-none d-md-flex">
+                        <a
+                            className="jf-admin__site-link"
+                            href="/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Mở trang tuyển dụng trong tab mới"
+                        >
+                            <i className="fas fa-external-link-alt" aria-hidden="true"></i>
+                            Xem trang tuyển dụng
+                        </a>
+                    </li>
                     <li
                         className="nav-item"
                         ref={boxRef}
-                        style={{ position: "relative", marginRight: "18px" }}
+                        style={{ position: "relative", marginRight: "8px" }}
                     >
                         <button
                             type="button"
@@ -272,6 +292,10 @@ const Header = ({ user: suppliedUser }) => {
                             onClick={toggleProfileMenu}
                             style={{ border: 0, background: "none", cursor: "pointer" }}
                         >
+                            <span className="jf-admin__identity d-none d-lg-flex" aria-hidden="true">
+                                <span className="jf-admin__identity-name">{displayName}</span>
+                                {roleLabel && <span className="jf-admin__identity-role">{roleLabel}</span>}
+                            </span>
                             <img
                                 style={{ objectFit: "cover" }}
                                 src={user.image}
@@ -283,6 +307,10 @@ const Header = ({ user: suppliedUser }) => {
                             className={`dropdown-menu dropdown-menu-right navbar-dropdown${showProfileMenu ? " show" : ""}`}
                             aria-labelledby="profileDropdown"
                         >
+                            <div className="jf-admin__profile-summary">
+                                <strong>{displayName}</strong>
+                                {roleLabel && <span>{roleLabel}</span>}
+                            </div>
                             <Link
                                 to={"/admin/user-info/"}
                                 className="dropdown-item"
@@ -299,7 +327,10 @@ const Header = ({ user: suppliedUser }) => {
                                 <i className="ti-settings text-primary" />
                                 Đổi mật khẩu
                             </Link>
-                            <Link className="dropdown-item" to="/account/security">Bảo mật và đăng nhập</Link>
+                            <Link className="dropdown-item" to="/account/security">
+                                <i className="fas fa-shield-alt text-primary" aria-hidden="true" />
+                                Bảo mật và đăng nhập
+                            </Link>
                             <button
                                 type="button"
                                 onClick={() => handleLogout()}

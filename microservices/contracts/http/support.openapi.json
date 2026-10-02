@@ -8099,6 +8099,34 @@
               "additionalProperties": true
             }
           },
+          "doanhThuXemCv": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ngay": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  ]
+                },
+                "tien": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "ngay",
+                "tien"
+              ],
+              "additionalProperties": true
+            }
+          },
           "hoSoUngTuyen": {
             "type": "array",
             "items": {
@@ -8140,6 +8168,7 @@
           "tinTuyenDung",
           "nguoiDungMoi",
           "doanhThu",
+          "doanhThuXemCv",
           "hoSoUngTuyen"
         ],
         "additionalProperties": true
@@ -8367,6 +8396,17 @@
                     }
                   ]
                 },
+                "tenCongTy": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "soHoSo": {
                   "type": "integer",
                   "minimum": 0,
@@ -8380,6 +8420,7 @@
               },
               "required": [
                 "congTyId",
+                "tenCongTy",
                 "soHoSo",
                 "daTuyen"
               ],

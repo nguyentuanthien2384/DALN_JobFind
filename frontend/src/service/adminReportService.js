@@ -24,6 +24,9 @@ const getSystemFunnel = () => axios.get(`/api/admin/reports/funnel`);
 // Thong ke hoat dong lay tu nhat ky.
 const getActivity = (params) => axios.get(`/api/admin/reports/activity${qs(params)}`);
 
+// Tinh trang cac service sau Gateway (chi ADMIN). Khong nam duoi /api.
+const getSystemStatus = () => axios.get(`/status`);
+
 // ===== NHAT KY HOAT DONG =====
 const getAuditLogs = (params) => axios.get(`/api/admin/audit${qs(params)}`);
 // Toan bo dau vet cua mot doi tuong, vi du tat ca thao tac len tin #51.
@@ -35,7 +38,7 @@ const saveMasterDataTag = (data) => axios.post(`/api/admin/master-data`, data);
 const deleteMasterDataTag = (id) => axios.delete(`/api/admin/master-data/${id}`);
 
 export {
-    getOverview, getTimeseries, getDistribution, getSystemFunnel, getActivity,
+    getOverview, getTimeseries, getDistribution, getSystemFunnel, getActivity, getSystemStatus,
     getAuditLogs, getTargetHistory,
     getMasterData, saveMasterDataTag, deleteMasterDataTag
 };

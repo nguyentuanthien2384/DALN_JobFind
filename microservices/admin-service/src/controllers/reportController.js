@@ -4,16 +4,26 @@ import { createLogger } from '../../../shared/logger.js';
 
 const logger = createLogger('admin-service');
 
+// Ngay trong bao cao la ngay lich Viet Nam (UTC+7, khong co gio mua he) va
+// tinh CA ngay ket thuc: toDate=2026-10-02 lay het 23:59:59 ngay 02/10. Truoc
+// day toDate bi hieu la 00:00 UTC nen chon "den hom nay" lai bo mat hom nay.
+const VN_OFFSET_MS = 7 * 3600 * 1000;
+const VN_TIME = "+ INTERVAL '7 hours'";
+const isCalendarDay = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+const boundary = (value, time) => new Date(isCalendarDay(value) ? `${value}T${time}+07:00` : value);
+
 // Khoang thoi gian mac dinh: 30 ngay gan nhat.
 const range = (req) => {
-    const to = req.query.toDate ? new Date(req.query.toDate) : new Date();
+    const to = req.query.toDate ? boundary(req.query.toDate, '23:59:59.999') : new Date();
     const from = req.query.fromDate
-        ? new Date(req.query.fromDate)
+        ? boundary(req.query.fromDate, '00:00:00.000')
         : new Date(to.getTime() - 30 * 24 * 3600 * 1000);
     return { from, to };
 };
 
-const fmt = (d) => d.toISOString().slice(0, 19).replace('T', ' ');
+// MySQL cua backend luu gio Viet Nam (Sequelize timezone +07:00), nen so sanh
+// bang chuoi gio Viet Nam chu khong phai chuoi UTC.
+const fmt = (d) => new Date(d.getTime() + VN_OFFSET_MS).toISOString().slice(0, 19).replace('T', ' ');
 
 // ===== TONG QUAN =====
 // Cac con so lon hien tren dau trang quan tri.
@@ -85,39 +95,38 @@ export const timeseries = async (req, res) => {
     try {
         // Gom theo ngay o phia CSDL thay vi keo het ve roi tinh trong Node: du lieu
         // truyen qua mang it hon han, va CSDL lam viec nay nhanh hon nhieu.
-        const [jobs] = await mysqlPool.query(
-            `SELECT DATE(createdAt) AS ngay, COUNT(*) AS soLuong FROM posts
-             WHERE createdAt BETWEEN ? AND ? GROUP BY DATE(createdAt) ORDER BY ngay`,
+        // Ngay tra ve dang chuoi YYYY-MM-DD de trinh duyet o mui gio nao cung
+        // doc ra dung mot ngay.
+        const daily = (table, value) => mysqlPool.query(
+            `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') AS ngay, ${value} FROM ${table}
+             WHERE createdAt BETWEEN ? AND ? GROUP BY ngay ORDER BY ngay`,
             [fmt(from), fmt(to)]
         );
-        const [users] = await mysqlPool.query(
-            `SELECT DATE(createdAt) AS ngay, COUNT(*) AS soLuong FROM accounts
-             WHERE createdAt BETWEEN ? AND ? GROUP BY DATE(createdAt) ORDER BY ngay`,
-            [fmt(from), fmt(to)]
-        );
-        const [revenue] = await mysqlPool.query(
-            `SELECT DATE(createdAt) AS ngay, SUM(currentPrice) AS tien FROM orderpackages
-             WHERE createdAt BETWEEN ? AND ? GROUP BY DATE(createdAt) ORDER BY ngay`,
-            [fmt(from), fmt(to)]
-        );
+        const [jobs] = await daily('posts', 'COUNT(*) AS soLuong');
+        const [users] = await daily('accounts', 'COUNT(*) AS soLuong');
+        const [revenue] = await daily('orderpackages', 'SUM(currentPrice) AS tien');
+        const [revenueCv] = await daily('orderpackagecvs', 'SUM(currentPrice) AS tien');
 
         let applications = [];
         try {
             const { rows } = await pgPool.query(
-                `SELECT DATE(applied_at) AS ngay, COUNT(*)::int AS "soLuong"
+                `SELECT to_char((applied_at AT TIME ZONE 'UTC') ${VN_TIME}, 'YYYY-MM-DD') AS ngay,
+                        COUNT(*)::int AS "soLuong"
                  FROM applications WHERE applied_at BETWEEN $1 AND $2
-                 GROUP BY DATE(applied_at) ORDER BY ngay`,
+                 GROUP BY 1 ORDER BY 1`,
                 [from, to]
             );
             applications = rows;
         } catch { /* Application Service chua san sang */ }
 
+        const money = (rows) => (rows || []).map((r) => ({ ngay: r.ngay, tien: Number(r.tien) }));
         return res.json({
             errCode: 0,
             data: {
                 tinTuyenDung: jobs,
                 nguoiDungMoi: users,
-                doanhThu: revenue.map((r) => ({ ngay: r.ngay, tien: Number(r.tien) })),
+                doanhThu: money(revenue),
+                doanhThuXemCv: money(revenueCv),
                 hoSoUngTuyen: applications
             }
         });
@@ -195,6 +204,17 @@ export const recruitmentFunnel = async (req, res) => {
                     COUNT(*) FILTER (WHERE stage = 'nhan_viec')::int AS "daTuyen"
              FROM applications GROUP BY company_id ORDER BY "soHoSo" DESC LIMIT 10`
         );
+        // Ten cong ty nam o MySQL. Day la thong tin phu: loi thi van tra so lieu.
+        const companyIds = topCompanies.map((r) => r.congTyId).filter((value) => value != null);
+        let companyNames = new Map();
+        if (companyIds.length) {
+            try {
+                const [rows] = await mysqlPool.query('SELECT id, name FROM companies WHERE id IN (?)', [companyIds]);
+                companyNames = new Map(rows.map((r) => [String(r.id), r.name]));
+            } catch (error) {
+                logger.warn('khong doc duoc ten cong ty cho bao cao pheu', { error: error.message });
+            }
+        }
 
         return res.json({
             errCode: 0,
@@ -202,7 +222,7 @@ export const recruitmentFunnel = async (req, res) => {
                 pheu: funnel,
                 tong,
                 tyLeTuyen: tong ? Number(((byStage.nhan_viec ?? 0) / tong * 100).toFixed(1)) : 0,
-                topCongTy: topCompanies
+                topCongTy: topCompanies.map((r) => ({ ...r, tenCongTy: companyNames.get(String(r.congTyId)) ?? null }))
             }
         });
     } catch (error) {
@@ -230,7 +250,7 @@ export const activity = async (req, res) => {
                 { $match: { createdAt: { $gte: from, $lte: to } } },
                 {
                     $group: {
-                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: '+07:00' } },
                         soLuong: { $sum: 1 }
                     }
                 },

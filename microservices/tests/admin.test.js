@@ -232,8 +232,24 @@ describe('admin reporting controller', () => {
             hoSoUngTuyen: { tong: 7, daTuyen: 2 },
             doanhThu: { goiTin: 100.5, goiXemCv: 20, tong: 120.5 }
         });
-        expect(mocks.mysqlPool.query.mock.calls[1][1]).toEqual(['2026-01-01 00:00:00', '2026-01-31 00:00:00']);
+        // Vietnam calendar days, inclusive of the whole end day (MySQL stores +07:00 local time).
+        expect(mocks.mysqlPool.query.mock.calls[1][1]).toEqual(['2026-01-01 00:00:00', '2026-01-31 23:59:59']);
+        expect(mocks.pgPool.query.mock.calls[0][1]).toEqual([
+            new Date('2025-12-31T17:00:00.000Z'), new Date('2026-01-31T16:59:59.999Z')
+        ]);
         expectResponseContract('reportOverview', res);
+    });
+
+    it('keeps an explicit timestamp range unchanged and defaults to the last 30 days', async () => {
+        for (let i = 0; i < 7; i++) mocks.mysqlPool.query.mockResolvedValueOnce([[{ total: 0 }]]);
+        mocks.pgPool.query.mockResolvedValue({ rows: [{ total: 0, hired: 0 }] });
+        const { overview } = await import('../admin-service/src/controllers/reportController.js');
+        await overview(makeReq({ query: { fromDate: '2026-01-01T03:00:00.000Z', toDate: '2026-01-02T03:00:00.000Z' } }), makeRes());
+        expect(mocks.mysqlPool.query.mock.calls[1][1]).toEqual(['2026-01-01 10:00:00', '2026-01-02 10:00:00']);
+        for (let i = 0; i < 7; i++) mocks.mysqlPool.query.mockResolvedValueOnce([[{ total: 0 }]]);
+        await overview(makeReq(), makeRes());
+        const [from, to] = mocks.pgPool.query.mock.calls[1][1];
+        expect(to.getTime() - from.getTime()).toBe(30 * 24 * 3600 * 1000);
     });
 
     it('degrades only application metrics when PostgreSQL is down and maps MySQL failure to 500', async () => {
@@ -250,15 +266,23 @@ describe('admin reporting controller', () => {
     });
 
     it('returns timeseries with numeric revenue and tolerates PostgreSQL outage', async () => {
-        mocks.mysqlPool.query.mockResolvedValueOnce([[{ ngay: 'd', soLuong: 1 }]]).mockResolvedValueOnce([[{ ngay: 'd', soLuong: 2 }]]).mockResolvedValueOnce([[{ ngay: 'd', tien: '12.5' }]]);
-        mocks.pgPool.query.mockResolvedValueOnce({ rows: [{ ngay: 'd', soLuong: 3 }] });
+        const day = '2026-01-02';
+        mocks.mysqlPool.query.mockResolvedValueOnce([[{ ngay: day, soLuong: 1 }]]).mockResolvedValueOnce([[{ ngay: day, soLuong: 2 }]])
+            .mockResolvedValueOnce([[{ ngay: day, tien: '12.5' }]]).mockResolvedValueOnce([[{ ngay: day, tien: '3.25' }]]);
+        mocks.pgPool.query.mockResolvedValueOnce({ rows: [{ ngay: day, soLuong: 3 }] });
         const { timeseries } = await import('../admin-service/src/controllers/reportController.js');
         const res = makeRes();
-        await timeseries(makeReq(), res);
+        await timeseries(makeReq({ query: { fromDate: '2026-01-01', toDate: '2026-01-31' } }), res);
         expect(res.body.data.doanhThu[0].tien).toBe(12.5);
+        expect(res.body.data.doanhThuXemCv).toEqual([{ ngay: day, tien: 3.25 }]);
         expect(res.body.data.hoSoUngTuyen[0].soLuong).toBe(3);
+        expectResponseContract('reportTimeseries', res);
+        // Calendar-day strings in Vietnam time from both databases.
+        expect(mocks.mysqlPool.query.mock.calls[3][0]).toMatch(/DATE_FORMAT\(createdAt, '%Y-%m-%d'\)[\s\S]*FROM orderpackagecvs/);
+        expect(mocks.mysqlPool.query.mock.calls[3][1]).toEqual(['2026-01-01 00:00:00', '2026-01-31 23:59:59']);
+        expect(mocks.pgPool.query.mock.calls[0][0]).toContain("(applied_at AT TIME ZONE 'UTC') + INTERVAL '7 hours'");
 
-        mocks.mysqlPool.query.mockReset().mockResolvedValueOnce([[]]).mockResolvedValueOnce([[]]).mockResolvedValueOnce([[]]);
+        mocks.mysqlPool.query.mockReset().mockResolvedValue([[]]);
         mocks.pgPool.query.mockRejectedValue(new Error('pg'));
         const degraded = makeRes();
         await timeseries(makeReq(), degraded);
@@ -283,12 +307,25 @@ describe('admin reporting controller', () => {
     });
 
     it('fills missing funnel stages and computes conversion rate', async () => {
-        mocks.pgPool.query.mockResolvedValueOnce({ rows: [{ stage: 'moi_ung_tuyen', soLuong: 8 }, { stage: 'nhan_viec', soLuong: 2 }] }).mockResolvedValueOnce({ rows: [{ congTyId: 1 }] });
+        mocks.pgPool.query.mockResolvedValueOnce({ rows: [{ stage: 'moi_ung_tuyen', soLuong: 8 }, { stage: 'nhan_viec', soLuong: 2 }] })
+            .mockResolvedValueOnce({ rows: [{ congTyId: 1, soHoSo: 6, daTuyen: 2 }, { congTyId: 5, soHoSo: 4, daTuyen: 0 }] });
+        mocks.mysqlPool.query.mockResolvedValueOnce([[{ id: 1, name: 'Sao Khuê Digital' }]]);
         const { recruitmentFunnel } = await import('../admin-service/src/controllers/reportController.js');
         const res = makeRes();
         await recruitmentFunnel(makeReq(), res);
-        expect(res.body.data).toMatchObject({ tong: 10, tyLeTuyen: 20, topCongTy: [{ congTyId: 1 }] });
+        expect(res.body.data).toMatchObject({ tong: 10, tyLeTuyen: 20, topCongTy: [
+            { congTyId: 1, tenCongTy: 'Sao Khuê Digital' }, { congTyId: 5, tenCongTy: null }
+        ] });
+        expect(mocks.mysqlPool.query).toHaveBeenCalledWith('SELECT id, name FROM companies WHERE id IN (?)', [[1, 5]]);
         expect(res.body.data.pheu).toHaveLength(6);
+        expectResponseContract('reportFunnel', res);
+
+        // Company names are optional: a MySQL failure keeps the funnel.
+        mocks.pgPool.query.mockReset().mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [{ congTyId: 2, soHoSo: 1, daTuyen: 0 }] });
+        mocks.mysqlPool.query.mockRejectedValueOnce(new Error('mysql'));
+        const unnamed = makeRes();
+        await recruitmentFunnel(makeReq(), unnamed);
+        expect(unnamed.body.data.topCongTy).toEqual([{ congTyId: 2, soHoSo: 1, daTuyen: 0, tenCongTy: null }]);
         mocks.pgPool.query.mockReset().mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
         const empty = makeRes();
         await recruitmentFunnel(makeReq(), empty);
@@ -313,6 +350,7 @@ describe('admin reporting controller', () => {
             theoNgay: [{ ngay: '2026-01-01', soLuong: 4 }]
         });
         expectResponseContract('reportActivity', res);
+        expect(mocks.AuditLog.aggregate.mock.calls[2][0][1].$group._id.$dateToString.timezone).toBe('+07:00');
         mocks.AuditLog.aggregate.mockRejectedValue(new Error('db'));
         const failed = makeRes();
         await activity(makeReq(), failed);

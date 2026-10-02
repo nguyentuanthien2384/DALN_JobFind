@@ -3,8 +3,10 @@ import { Link, useLocation } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getListChatConversationService } from '../../service/userService';
 import { getSocket } from '../../socket';
-import { hasCompanyMembership, hasPermission, PERMISSIONS } from '../../auth/accessControl';
+import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
 import { readJsonStorage } from '../../util/storage';
+import { getAdminNavigation, normalizePath, resolveAdminPage } from './adminNavigation';
+import { useAdminAttention } from './adminAttention';
 
 // Keep compact-menu flyouts inside the viewport while the navigation itself
 // scrolls. Fixed positioning also lets them extend beyond the 70px scrollport.
@@ -40,143 +42,21 @@ const refreshCollapsedFlyouts = (navigation) => {
  * nghia san hai class do.
  */
 
-// Dinh nghia menu theo du lieu cho de doc va de them bot, thay vi lap JSX.
-const MENU_ADMIN = [
-    {
-        key: 'support', permission: PERMISSIONS.SUPPORT_MANAGE, title: 'Hỗ trợ chatbot', icon: 'fas fa-comments menu-icon', children: [
-            { to: '/admin/support', label: 'Yêu cầu hỗ trợ' },
-        ],
-    },
-    {
-        key: 'report', permission: PERMISSIONS.VIEW_PLATFORM_REPORTS, title: 'Báo cáo & Thống kê', icon: 'fas fa-chart-line menu-icon', children: [
-            { to: '/admin/reports/', label: 'Bảng báo cáo' },
-        ]
-    },
-    {
-        key: 'chart', permission: PERMISSIONS.VIEW_PLATFORM_REPORTS, title: 'Đồ thị', icon: 'icon-head menu-icon', children: [
-            { to: '/admin/sum-by-year-post/', label: 'Đồ thị doanh thu gói bài viết' },
-            { to: '/admin/sum-by-year-cv/', label: 'Đồ thị doanh thu gói xem ứng viên' },
-        ]
-    },
-    {
-        key: 'user', permission: PERMISSIONS.MANAGE_USERS, title: 'Quản lý người dùng', icon: 'icon-head menu-icon', children: [
-            { to: '/admin/list-user/', label: 'Danh sách người dùng' },
-            { to: '/admin/add-user/', label: 'Thêm người dùng' },
-        ]
-    },
-    {
-        key: 'jobtype', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý loại công việc', icon: 'far fa-building menu-icon', children: [
-            { to: '/admin/list-job-type/', label: 'Danh sách loại công việc' },
-            { to: '/admin/add-job-type/', label: 'Thêm loại công việc' },
-        ]
-    },
-    {
-        key: 'jobskill', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý kĩ năng', icon: 'fas fa-lightbulb menu-icon', children: [
-            { to: '/admin/list-job-skill/', label: 'Danh sách kĩ năng' },
-            { to: '/admin/add-job-skill/', label: 'Thêm kĩ năng' },
-        ]
-    },
-    {
-        key: 'joblevel', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý cấp bậc', icon: 'fas fa-level-up-alt menu-icon', children: [
-            { to: '/admin/list-job-level/', label: 'Danh sách cấp bậc' },
-            { to: '/admin/add-job-level/', label: 'Thêm cấp bậc' },
-        ]
-    },
-    {
-        key: 'worktype', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý hình thức làm việc', icon: 'fas fa-briefcase menu-icon', children: [
-            { to: '/admin/list-work-type/', label: 'Danh sách hình thức làm việc' },
-            { to: '/admin/add-work-type/', label: 'Thêm hình thức làm việc' },
-        ]
-    },
-    {
-        key: 'salarytype', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý khoảng lương', icon: 'fas fa-money-check-alt menu-icon', children: [
-            { to: '/admin/list-salary-type/', label: 'Danh sách khoảng lương' },
-            { to: '/admin/add-salary-type/', label: 'Thêm khoảng lương' },
-        ]
-    },
-    {
-        key: 'exptype', permission: PERMISSIONS.MANAGE_REFERENCE_DATA, title: 'Quản lý kinh nghiệm làm việc', icon: 'far fa-clock menu-icon', children: [
-            { to: '/admin/list-exp-type/', label: 'Danh sách kinh nghiệm' },
-            { to: '/admin/add-exp-type/', label: 'Thêm kinh nghiệm' },
-        ]
-    },
-    {
-        key: 'packagepost', permission: PERMISSIONS.MANAGE_PACKAGES, title: 'Quản lý gói bài đăng', icon: 'fas fa-cube menu-icon', children: [
-            { to: '/admin/list-package-post/', label: 'Danh sách gói bài đăng' },
-            { to: '/admin/add-package-post/', label: 'Thêm gói bài đăng' },
-        ]
-    },
-    {
-        key: 'packagecv', permission: PERMISSIONS.MANAGE_PACKAGES, title: 'Quản lý gói xem ứng viên', icon: 'fas fa-cube menu-icon', children: [
-            { to: '/admin/list-package-cv/', label: 'Danh sách gói xem ứng viên' },
-            { to: '/admin/add-package-cv/', label: 'Thêm gói xem ứng viên' },
-        ]
-    },
-    {
-        key: 'admin-company', permission: PERMISSIONS.MODERATE_COMPANIES, title: 'Quản lý công ty', icon: 'fas fa-clipboard menu-icon', children: [
-            { to: '/admin/list-company-admin/', label: 'Danh sách công ty' },
-        ]
-    },
-    {
-        key: 'admin-post', permission: PERMISSIONS.MODERATE_POSTS, title: 'Quản lý bài đăng', icon: 'fas fa-clipboard menu-icon', children: [
-            { to: '/admin/list-post-admin/', label: 'Danh sách bài đăng' },
-        ]
-    },
-];
+// Cau truc menu (section, nhom, muc, quyen) nam trong adminNavigation.js, dung
+// chung voi breadcrumb va tieu de trang.
 
-const MENU_COMPANY = [
-    {
-        key: 'company-info', permission: PERMISSIONS.MANAGE_COMPANY, title: 'Quản lý công ty', icon: 'fas fa-clipboard menu-icon', children: [
-            { to: '/admin/edit-company/', label: 'Thông tin công ty', permission: PERMISSIONS.MANAGE_COMPANY },
-            { to: '/admin/recruitment/', label: 'Tuyển dụng vào công ty', permission: PERMISSIONS.MANAGE_TEAM },
-            { to: '/admin/list-employer/', label: 'Danh sách nhân viên', permission: PERMISSIONS.MANAGE_TEAM },
-            { to: '/admin/add-user/', label: 'Thêm nhân viên', permission: PERMISSIONS.MANAGE_TEAM },
-        ]
-    },
-    {
-        key: 'company-post', permission: PERMISSIONS.MANAGE_POSTS, title: 'Quản lý bài đăng', icon: 'fas fa-clipboard menu-icon', children: [
-            { to: '/admin/add-post/', label: 'Tạo mới bài đăng' },
-            { to: '/admin/list-post/', label: 'Danh sách bài đăng' },
-            { to: '/admin/buy-post/', label: 'Mua thêm lượt đăng bài' },
-        ]
-    },
-    {
-        key: 'company-candidate', permission: PERMISSIONS.MANAGE_CANDIDATES, title: 'Quản lý ứng viên', icon: 'icon-head menu-icon', children: [
-            { to: '/admin/pipeline/', label: 'Quy trình tuyển dụng' },
-            { to: '/admin/list-candiate/', label: 'Tìm kiếm ứng viên' },
-            { to: '/admin/buy-cv/', label: 'Mua thêm lượt xem ứng viên' },
-        ]
-    },
-    {
-        key: 'company-history', permission: PERMISSIONS.VIEW_TRANSACTIONS, title: 'Lịch sử giao dịch', icon: 'fas fa-money-check-alt menu-icon', children: [
-            { to: '/admin/history-post/', label: 'Lịch sử gói bài đăng' },
-            { to: '/admin/history-cv/', label: 'Lịch sử gói xem ứng viên' },
-        ]
-    },
-];
+const formatBadge = (value) => (value > 99 ? '99+' : String(value));
 
-const MENU_EMPLOYER_CHUA_CO_CONG_TY = [
-    {
-        key: 'employer-company', permission: PERMISSIONS.CREATE_COMPANY, title: 'Công ty', icon: 'fas fa-clipboard menu-icon', children: [
-            { to: '/admin/add-company/', label: 'Tạo mới công ty' },
-        ]
-    },
-];
+const MenuBadge = ({ value, label }) => (value > 0
+    ? <span className="jf-nav-badge" title={`${value} ${label}`}>{formatBadge(value)}</span>
+    : null);
 
-const MENU_EMPLOYER = [
-    {
-        key: 'employer-post', permission: PERMISSIONS.MANAGE_POSTS, title: 'Quản lý bài đăng', icon: 'fas fa-clipboard menu-icon', children: [
-            { to: '/admin/add-post/', label: 'Tạo mới bài đăng' },
-            { to: '/admin/list-post/', label: 'Danh sách bài đăng' },
-        ]
-    },
-    {
-        key: 'employer-candidate', permission: PERMISSIONS.MANAGE_CANDIDATES, title: 'Quản lý ứng viên', icon: 'icon-head menu-icon', children: [
-            { to: '/admin/pipeline/', label: 'Quy trình tuyển dụng' },
-            { to: '/admin/list-candiate/', label: 'Tìm kiếm ứng viên' },
-        ]
-    },
-];
+const BADGE_LABELS = {
+    unreadChat: 'tin nhắn chưa đọc',
+    pendingPosts: 'tin chờ duyệt',
+    pendingCompanies: 'công ty chờ duyệt',
+    waitingSupport: 'yêu cầu chờ tiếp nhận',
+};
 
 const Menu = ({ user: suppliedUser }) => {
     const location = useLocation()
@@ -188,7 +68,6 @@ const Menu = ({ user: suppliedUser }) => {
     const [unreadChat, setUnreadChat] = useState(0)
     const [openKey, setOpenKey] = useState(null)
     const canUseChat = hasPermission(user, PERMISSIONS.USE_CHAT)
-    const canViewDashboard = hasPermission(user, PERMISSIONS.VIEW_ADMIN_HOME)
 
     useEffect(() => {
         const reposition = () => refreshCollapsedFlyouts(navigationRef.current);
@@ -225,117 +104,93 @@ const Menu = ({ user: suppliedUser }) => {
         }
     }, [user, canUseChat])
 
-    // Danh sach nhom menu theo vai tro
-    const getGroups = () => {
-        const visibleGroups = (menu) => menu
-            .filter(group => hasPermission(user, group.permission))
-            .map(group => ({
-                ...group,
-                children: group.children.filter(child => (
-                    !child.permission || hasPermission(user, child.permission)
-                ))
-            }))
-            .filter(group => group.children.length > 0)
-        if (!user) return []
-        if (user.roleCode === 'ADMIN') return visibleGroups(MENU_ADMIN)
-        if (user.roleCode === 'COMPANY') return visibleGroups(MENU_COMPANY)
-        if (user.roleCode === 'EMPLOYER') {
-            const menu = hasCompanyMembership(user) ? MENU_EMPLOYER : MENU_EMPLOYER_CHUA_CO_CONG_TY
-            return visibleGroups(menu)
-        }
-        return []
-    }
-    const groups = getGroups()
-
-    const laDuongDanHienTai = (to) => {
-        const a = location.pathname.replace(/\/+$/, '')
-        const b = to.replace(/\/+$/, '')
-        return a === b
-    }
-
-    // Khong dung startsWith vi /admin/list-user khong phai la trang chu.
-    const dangOTrangChu = laDuongDanHienTai('/admin')
+    const navigation = useMemo(() => getAdminNavigation(user), [user])
+    // Trang con khong co trong menu (vd: /admin/add-user) van to sang muc cha.
+    const activePath = useMemo(
+        () => resolveAdminPage(user, location.pathname)?.navPath || null,
+        [user, location.pathname]
+    )
+    const isActive = (to) => normalizePath(to) === activePath
+    const attention = useAdminAttention(user?.roleCode === 'ADMIN')
+    const badges = { ...attention, unreadChat }
 
     // Vao thang mot trang con thi tu mo nhom chua trang do ra.
     useEffect(() => {
-        const nhomChuaTrang = groups.find(g => g.children.some(c => laDuongDanHienTai(c.to)))
+        const nhomChuaTrang = navigation.flatMap(section => section.items)
+            .find(item => item.children && item.children.some(child => normalizePath(child.to) === activePath))
         if (nhomChuaTrang) setOpenKey(nhomChuaTrang.key)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [location.pathname, user])
+    }, [navigation, activePath])
 
     // Bam vao nhom nao thi mo nhom do va dong tat ca nhom con lai.
     const toggleNhom = (key) => setOpenKey(prev => (prev === key ? null : key))
 
+    const renderLink = (item) => (
+        <li key={item.key} className={'nav-item relative' + (isActive(item.to) ? ' active' : '')} onMouseEnter={anchorFlyout} onFocus={anchorFlyout}>
+            <Link className="nav-link" to={item.to} onClick={() => setOpenKey(null)}
+                aria-current={isActive(item.to) ? 'page' : undefined}>
+                <i className={`${item.icon} menu-icon`} aria-hidden="true" />
+                <span className="menu-title">{item.label}</span>
+                {item.badge && <MenuBadge value={badges[item.badge]} label={BADGE_LABELS[item.badge]} />}
+            </Link>
+        </li>
+    )
+
+    const renderGroup = (group) => {
+        const dangMo = openKey === group.key
+        const dangXemTrongNhom = group.children.some(child => isActive(child.to))
+        return (
+            <li
+                key={group.key}
+                className={'nav-item relative' + (dangXemTrongNhom ? ' active' : '')}
+                onMouseEnter={anchorFlyout}
+                onFocus={anchorFlyout}
+            >
+                <a
+                    className="nav-link"
+                    href={`#${group.key}`}
+                    aria-expanded={dangMo}
+                    onClick={(e) => { e.preventDefault(); toggleNhom(group.key) }}
+                >
+                    <i className={`${group.icon} menu-icon`} aria-hidden="true" />
+                    <span className="menu-title">{group.title}</span>
+                    <i className="menu-arrow" />
+                </a>
+                {/* Dung class rieng (khong dung .collapse cua Bootstrap vi bo CSS cua
+                    theme khong dinh nghia san class do). Phai la CLASS chu khong phai
+                    inline style: che do thu gon sidebar (sidebar-icon-only) can ghi de
+                    cach hien thi de bien menu con thanh flyout — inline style se chan
+                    moi ghi de tu CSS. */}
+                <div className={'jf-submenu' + (dangMo ? ' jf-submenu--mo' : '')}>
+                    <ul className="nav flex-column sub-menu">
+                        {group.children.map(child => (
+                            <li className="nav-item relative" key={child.to + child.label}>
+                                <Link
+                                    className={'nav-link' + (isActive(child.to) ? ' active' : '')}
+                                    to={child.to}
+                                    aria-current={isActive(child.to) ? 'page' : undefined}
+                                >
+                                    {child.label}
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </li>
+        )
+    }
+
     return (
-        <nav className="sidebar sidebar-offcanvas" id="sidebar" ref={navigationRef}
+        <nav className="sidebar sidebar-offcanvas" id="sidebar" ref={navigationRef} aria-label="Điều hướng quản trị"
             onScroll={(event) => refreshCollapsedFlyouts(event.currentTarget)}>
             <ul className="nav">
-                {canViewDashboard && (
-                    <li className={'nav-item relative' + (dangOTrangChu ? ' active' : '')} onMouseEnter={anchorFlyout} onFocus={anchorFlyout}>
-                        <Link className="nav-link" to="/admin/" onClick={() => setOpenKey(null)}>
-                            <i className="icon-grid menu-icon" />
-                            <span className="menu-title">Trang chủ</span>
-                        </Link>
-                    </li>
-                )}
-
-                {canUseChat && (
-                    <li className={'nav-item relative' + (location.pathname.startsWith('/admin/chat') ? ' active' : '')} onMouseEnter={anchorFlyout} onFocus={anchorFlyout}>
-                        <Link className="nav-link" to="/admin/chat" onClick={() => setOpenKey(null)}>
-                            <i className="icon-paper menu-icon" />
-                            <span className="menu-title">Tin nhắn</span>
-                            {unreadChat > 0 &&
-                                <span style={{
-                                    background: '#fb246a', color: '#fff', borderRadius: '10px',
-                                    fontSize: '11px', padding: '1px 7px', marginLeft: '8px'
-                                }}>{unreadChat}</span>
-                            }
-                        </Link>
-                    </li>
-                )}
-
-                {groups.map(group => {
-                    const dangMo = openKey === group.key
-                    const dangXemTrongNhom = group.children.some(c => laDuongDanHienTai(c.to))
-                    return (
-                        <li
-                            key={group.key}
-                            className={'nav-item relative' + (dangXemTrongNhom ? ' active' : '')}
-                            onMouseEnter={anchorFlyout}
-                            onFocus={anchorFlyout}
-                        >
-                            <a
-                                className="nav-link"
-                                href={`#${group.key}`}
-                                aria-expanded={dangMo}
-                                onClick={(e) => { e.preventDefault(); toggleNhom(group.key) }}
-                            >
-                                <i className={group.icon} />
-                                <span className="menu-title">{group.title}</span>
-                                <i className="menu-arrow" />
-                            </a>
-                            {/* Dung class rieng (khong dung .collapse cua Bootstrap vi bo CSS cua
-                                theme khong dinh nghia san class do). Phai la CLASS chu khong phai
-                                inline style: che do thu gon sidebar (sidebar-icon-only) can ghi de
-                                cach hien thi de bien menu con thanh flyout — inline style se chan
-                                moi ghi de tu CSS. */}
-                            <div className={'jf-submenu' + (dangMo ? ' jf-submenu--mo' : '')}>
-                                <ul className="nav flex-column sub-menu">
-                                    {group.children.map(child => (
-                                        <li className="nav-item relative" key={child.to + child.label}>
-                                            <Link
-                                                className={'nav-link' + (laDuongDanHienTai(child.to) ? ' active' : '')}
-                                                to={child.to}
-                                            >
-                                                {child.label}
-                                            </Link>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </li>
-                    )
-                })}
+                {navigation.map(section => (
+                    <React.Fragment key={section.key}>
+                        {section.title && (
+                            <li className="nav-item jf-nav-section"><span>{section.title}</span></li>
+                        )}
+                        {section.items.map(item => (item.children ? renderGroup(item) : renderLink(item)))}
+                    </React.Fragment>
+                ))}
             </ul>
         </nav>
     )
