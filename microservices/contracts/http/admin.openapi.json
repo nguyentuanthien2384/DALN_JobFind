@@ -2825,6 +2825,22 @@
         ],
         "additionalProperties": false
       },
+      "SupportFeedback": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "enum": [
+              "up",
+              "down",
+              null
+            ]
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "additionalProperties": false
+      },
       "Empty": {
         "type": "object",
         "properties": {},

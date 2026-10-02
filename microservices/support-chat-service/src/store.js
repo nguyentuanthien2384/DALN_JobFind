@@ -84,8 +84,8 @@ export function createStore(pool, retentionDays = 30) {
                 if (messages.length + 2 > MAX_CONVERSATION_MESSAGES)
                     throw failure(409, 'Hội thoại đã đạt giới hạn 100 lượt hỏi đáp. Hãy tạo cuộc trò chuyện mới; lịch sử hiện tại vẫn được giữ nguyên.');
                 const answerId = randomUUID();
-                messages = [...messages, { id: input.requestId, role: 'user', text: input.text, status: 'complete' },
-                    { id: answerId, role: 'assistant', text: '', status: 'pending', cards: [], sources: [] }];
+                messages = [...messages, { id: input.requestId, role: 'user', text: input.text, status: 'complete', at: now },
+                    { id: answerId, role: 'assistant', text: '', status: 'pending', cards: [], sources: [], at: now }];
                 await db.query('UPDATE support_conversations SET title=?,messages=?,version=version+1,request_id=?,lease_until=?,updated_at=?,expires_at=? WHERE id=?',
                     [messages.find(message => message.role === 'user').text.slice(0,55), JSON.stringify(messages), input.requestId, now + 90000, now, now + ttl, id]);
                 return { ...state, messages, id, answerId, version: state.version + 1 };
@@ -96,6 +96,19 @@ export function createStore(pool, retentionDays = 30) {
             const [result] = await pool.query('UPDATE support_conversations SET messages=?,lease_until=0,updated_at=? WHERE id=? AND owner_key=? AND version=?',
                 [JSON.stringify(messages), Date.now(), state.id, owner, state.version]);
             if (result.affectedRows !== 1) throw failure(409, 'Không thể lưu câu trả lời.');
+        },
+        // Rating an answer does not change the conversation version, so an open
+        // tab can still continue the conversation afterwards.
+        async feedback(owner, id, messageId, value) {
+            return transaction(async db => {
+                const row = await owned(db, owner, id, true);
+                if (Number(row.lease_until) > Date.now()) throw failure(409, 'Hãy chờ câu trả lời hoàn tất rồi đánh giá.');
+                const messages = decode(row).messages;
+                const target = messages.find(message => message.id === messageId && message.role === 'assistant' && message.status === 'complete');
+                if (!target) throw failure(404, 'Không tìm thấy câu trả lời để đánh giá.');
+                if (value) target.feedback = value; else delete target.feedback;
+                await db.query('UPDATE support_conversations SET messages=? WHERE id=? AND owner_key=?', [JSON.stringify(messages), id, owner]);
+            });
         },
         async handoff(owner, id, userId) {
             return transaction(async db => {

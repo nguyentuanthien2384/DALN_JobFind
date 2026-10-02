@@ -62,7 +62,7 @@ describe('reviewed knowledge and provider fallback', () => {
         expect(answer).toMatchObject({ mode: 'claude', text: 'Xin chào từ Claude', status: 'complete' });
         expect(requests[0].key).toBe('test-only');
         expect(requests[0].body.model).toBe('claude-haiku-4-5');
-        expect(requests[0].body.tools.map(tool => tool.name)).toEqual(['search_jobs', 'get_job_details']);
+        expect(requests[0].body.tools.map(tool => tool.name)).toEqual(['search_jobs', 'get_job_details', 'job_market_overview']);
     });
     it('continues a Claude tool call with the verified result and returns the second-step text', async () => {
         const requests = [];
@@ -119,7 +119,7 @@ describe('reviewed knowledge and provider fallback', () => {
             return new Response(chunks.map(chunk=>`data: ${JSON.stringify(chunk)}\n\n`).join('')+'data: [DONE]\n\n',{headers:{'Content-Type':'text/event-stream'}});
         }}).chat('test-model');
         const answer=await createResponder({providers:[{name:'openai',model}],executePublicTool:vi.fn()})({messages:[{role:'user',text:'Xin chào',status:'complete'}],signal:new AbortController().signal,emit:vi.fn()});
-        expect(answer.mode).toBe('openai');expect(answer.text).toBe('Xin chào từ SDK');expect(bodies[0].tools.map(tool=>tool.function.name)).toEqual(['search_jobs','get_job_details']);
+        expect(answer.mode).toBe('openai');expect(answer.text).toBe('Xin chào từ SDK');expect(bodies[0].tools.map(tool=>tool.function.name)).toEqual(['search_jobs','get_job_details','job_market_overview']);
     });
     it('retrieves Vietnamese and unaccented instructions with vetted source links', () => {
         expect(localKnowledge('Tôi muốn tạo CV và ứng tuyển').some(a=>a.id==='cv')).toBe(true);
@@ -318,7 +318,7 @@ describe('reviewed knowledge and provider fallback', () => {
         expect(JSON.stringify(generate.mock.calls[0][0].messages)).not.toContain('bad partial');
         expect(JSON.stringify(generate.mock.calls[0][0].messages)).not.toContain('private account question');
         expect(JSON.stringify(generate.mock.calls[0][0].messages)).not.toContain('private account result');
-        expect(Object.keys(generate.mock.calls[0][0].tools)).toEqual(['search_jobs','get_job_details']);
+        expect(Object.keys(generate.mock.calls[0][0].tools)).toEqual(['search_jobs','get_job_details','job_market_overview']);
     });
     it('caps tool loops and forces final step to text', async()=>{
         const executePublicTool=vi.fn(async()=>({jobs:[]})); let settings;

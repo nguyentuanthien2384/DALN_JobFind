@@ -76,6 +76,7 @@ export const supportApi = {
     remove: id => supportRequest(`/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     privateTool: name => supportRequest(`/private/${encodeURIComponent(name)}`),
     handoff: id => supportRequest(`/conversations/${encodeURIComponent(id)}/handoff`, { method: 'POST', body: { consent: true } }),
+    feedback: (id, messageId, value) => supportRequest(`/conversations/${encodeURIComponent(id)}/messages/${encodeURIComponent(messageId)}/feedback`, { method: 'POST', body: { value } }),
     resetGuest: () => {
         guestRevision += 1;
         guestInMemory = null;
@@ -104,7 +105,7 @@ export const prepareSupportHistory = (messages) => {
     return recent;
 };
 
-export const streamSupportReply = async (messages, { signal, onText, onTool = () => {}, onState = () => {}, onSources = () => {}, onMode = () => {}, turn }) => {
+export const streamSupportReply = async (messages, { signal, onText, onTool = () => {}, onState = () => {}, onSources = () => {}, onMode = () => {}, onSuggestions = () => {}, onStatus = () => {}, turn }) => {
     const revision = guestRevision;
     const headers = { ...(turn ? await supportHeaders() : { 'Content-Type': 'application/json' }), Accept: 'text/event-stream' };
     const response = await fetch(`${API_BASE}${turn ? '/api/support/turn' : '/api/support-chat'}`, {
@@ -139,6 +140,8 @@ export const streamSupportReply = async (messages, { signal, onText, onTool = ()
         } else if (event === 'state') onState(payload);
         else if (event === 'sources') onSources(payload.sources || []);
         else if (event === 'mode') onMode(payload.mode);
+        else if (event === 'suggestions') onSuggestions(Array.isArray(payload.suggestions) ? payload.suggestions : []);
+        else if (event === 'status' && payload && typeof payload.stage === 'string') onStatus(payload);
         else if (event === 'tool' && payload && typeof payload.name === 'string') onTool(payload);
         else if (event === 'error') throw new Error(payload.message || 'AI không thể hoàn tất câu trả lời.');
         else if (event === 'done') completed = true;

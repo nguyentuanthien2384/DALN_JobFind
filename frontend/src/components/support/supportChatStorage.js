@@ -13,19 +13,30 @@ const createThread = () => ({
     messages: []
 });
 
+// Internal posts have numeric IDs; reviewed external listings use "external-<hex>".
+const EXTERNAL_JOB_ID = /^external-[a-f0-9]{6,32}$/;
+export const isExternalJobId = (id) => typeof id === 'string' && EXTERNAL_JOB_ID.test(id);
+const isJobId = (id) => (Number.isSafeInteger(id) && id > 0) || isExternalJobId(id);
 // Never persist model-provided URLs: generate same-origin job routes from validated IDs.
+export const supportJobPath = (id) => isExternalJobId(id) ? `/external-job/${id}` : `/detail-job/${id}`;
 export const normalizeSupportCards = (payload) => {
     const raw = Array.isArray(payload?.jobs) ? payload.jobs : (payload?.job ? [payload.job] : []);
-    return raw.slice(0, 5).filter((job) => Number.isSafeInteger(job?.id) && job.id > 0)
+    return raw.slice(0, 5).filter((job) => isJobId(job?.id))
         .map((job) => ({
             id: job.id,
             name: String(job.name || '').slice(0, 180),
             company: String(job.company || '').slice(0, 120),
             location: String(job.location || '').slice(0, 80),
             salary: String(job.salary || '').slice(0, 80),
-            workType: String(job.workType || '').slice(0, 80)
+            workType: String(job.workType || '').slice(0, 80),
+            ...(/^\d{4}-\d{2}-\d{2}$/.test(job.deadline || '') ? { deadline: job.deadline } : {}),
+            // Logos are copies served from /public/external-jobs, never remote URLs.
+            ...(/^\/external-jobs\/[\w./-]+$/.test(job.logo || '') && !job.logo.includes('..') ? { logo: job.logo } : {}),
+            source: isExternalJobId(job.id) ? 'external' : 'jobfind'
         }));
 };
+export const normalizeSupportSuggestions = (values) => (Array.isArray(values) ? values : [])
+    .filter((value) => typeof value === 'string' && value.trim()).map((value) => value.trim().slice(0, 80)).slice(0, 3);
 
 export const createSupportStore = (ownerKey) => {
     const thread = createThread();

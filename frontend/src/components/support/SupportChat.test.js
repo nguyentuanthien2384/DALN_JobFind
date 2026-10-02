@@ -5,9 +5,12 @@ import SessionContext from '../../auth/SessionContext';
 import { streamSupportReply, supportApi } from '../../service/supportChatService';
 import SupportChat from './SupportChat';
 
+// Read lazily by the mock factory; tests set the page the widget is shown on.
+let mockLocation = { pathname: '/' };
 jest.mock('react-router-dom', () => ({
     MemoryRouter: ({ children }) => children,
-    Link: ({ to, children, ...props }) => <a href={to} {...props}>{children}</a>
+    Link: ({ to, children, ...props }) => <a href={to} {...props}>{children}</a>,
+    useLocation: () => mockLocation
 }));
 // CRA's Jest runner cannot load assistant-ui's ESM bundle. These small primitives
 // keep the component's own conversation behavior observable through its controls.
@@ -58,7 +61,7 @@ jest.mock('../../service/supportChatService', () => ({
     streamSupportReply: jest.fn(),
     supportApi: {
         list: jest.fn(), get: jest.fn(), remove: jest.fn(), privateTool: jest.fn(),
-        handoff: jest.fn(), resetGuest: jest.fn()
+        handoff: jest.fn(), resetGuest: jest.fn(), feedback: jest.fn()
     }
 }));
 
@@ -72,9 +75,9 @@ const deferred = () => {
 };
 const open = async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Mở chatbot hỗ trợ JobFind' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Tìm việc React/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: /Tìm việc IT/ })).toBeEnabled());
 };
-const askQuickQuestion = () => fireEvent.click(screen.getByRole('button', { name: /Tìm việc React/ }));
+const askQuickQuestion = () => fireEvent.click(screen.getByRole('button', { name: /Tìm việc IT/ }));
 const remoteThread = (extra = {}) => ({
     id: 'conversation-1', title: 'Hỏi về hồ sơ', createdAt: 1700000000000,
     updatedAt: 1700000000000, version: 2,
@@ -86,6 +89,8 @@ const renderFor = user => <MemoryRouter><SessionContext.Provider value={user}><S
 
 beforeEach(() => {
     jest.resetAllMocks();
+    mockLocation = { pathname: '/' };
+    try { sessionStorage.clear(); } catch { /* jsdom always provides it */ }
     supportApi.list.mockResolvedValue([]);
     Object.defineProperty(global, 'crypto', { configurable: true, value: { randomUUID: jest.fn()
         .mockReturnValue('11111111-1111-4111-8111-111111111111') } });
@@ -101,7 +106,7 @@ test('opens guest support only on request and loads server history before enabli
     expect(supportApi.list).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Mở chatbot hỗ trợ JobFind' }));
     expect(await screen.findByRole('dialog', { name: 'Trợ lý hỗ trợ JobFind' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('button', { name: /Tìm việc React/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: /Tìm việc IT/ })).toBeEnabled());
     expect(supportApi.list).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('link', { name: 'Đăng nhập' })).toHaveAttribute('href', '/login');
     expect(screen.queryByLabelText('Tra cứu riêng tư')).not.toBeInTheDocument();
@@ -113,10 +118,10 @@ test('a history outage blocks sending until the guest explicitly reconnects', as
     show();
     fireEvent.click(screen.getByRole('button', { name: 'Mở chatbot hỗ trợ JobFind' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được lịch sử');
-    expect(screen.getByRole('button', { name: /Tìm việc React/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Tìm việc IT/ })).toBeDisabled();
     expect(streamSupportReply).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: /Kết nối lại/ }));
-    await waitFor(() => expect(screen.getByRole('button', { name: /Tìm việc React/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: /Tìm việc IT/ })).toBeEnabled());
     expect(supportApi.list).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
@@ -128,10 +133,10 @@ test('streams a single turn, shows only validated job cards and help links, then
     show(); await open(); askQuickQuestion();
     expect(streamSupportReply).toHaveBeenCalledTimes(1);
     expect(streamSupportReply).toHaveBeenCalledWith(
-        [expect.objectContaining({ role: 'user', text: 'Tìm việc React đang tuyển tại Hà Nội' })],
+        [expect.objectContaining({ role: 'user', text: 'Tìm việc IT đang tuyển tại Hà Nội' })],
         expect.objectContaining({ turn: expect.objectContaining({
             requestId: '11111111-1111-4111-8111-111111111111',
-            text: 'Tìm việc React đang tuyển tại Hà Nội', replaceFrom: null, parentId: null
+            text: 'Tìm việc IT đang tuyển tại Hà Nội', replaceFrom: null, parentId: null
         }), signal: expect.anything() })
     );
     expect(screen.getByRole('button', { name: 'Dừng trả lời' })).toBeInTheDocument();
@@ -164,7 +169,7 @@ test('labels verified job results when Claude is interrupted after a tool call',
     show(); await open(); askQuickQuestion();
     expect(await screen.findByText('Kết quả tra cứu trực tiếp · Claude tạm gián đoạn')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /React Engineer/ })).toHaveAttribute('href', '/detail-job/9');
-    expect(options.turn.text).toBe('Tìm việc React đang tuyển tại Hà Nội');
+    expect(options.turn.text).toBe('Tìm việc IT đang tuyển tại Hà Nội');
 });
 
 test('stop aborts the request, labels partial text and ignores late stream frames', async () => {
@@ -190,12 +195,12 @@ test('failed answer keeps the question and retries it once after an explicit cli
         .mockResolvedValueOnce('Đã trả lời lại');
     show(); await open(); askQuickQuestion();
     expect(await screen.findByRole('alert')).toHaveTextContent('Dịch vụ bận');
-    expect(screen.getAllByText('Tìm việc React đang tuyển tại Hà Nội')).toHaveLength(1);
+    expect(screen.getAllByText('Tìm việc IT đang tuyển tại Hà Nội')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: /Thử lại/ }));
     await screen.findByText('Đã trả lời lại');
     expect(streamSupportReply).toHaveBeenCalledTimes(2);
     expect(streamSupportReply.mock.calls[1][0].filter(item => item.role === 'user')).toHaveLength(1);
-    expect(streamSupportReply.mock.calls[1][1].turn.text).toBe('Tìm việc React đang tuyển tại Hà Nội');
+    expect(streamSupportReply.mock.calls[1][1].turn.text).toBe('Tìm việc IT đang tuyển tại Hà Nội');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
 
@@ -268,7 +273,7 @@ test('private lookup is role-scoped and only links to approved internal manageme
 
 test('handoff requires explicit consent after a saved conversation and displays its status', async () => {
     supportApi.get.mockResolvedValue(remoteThread({ title: 'Tìm việc React', messages: [
-        { id: 'question-1', role: 'user', text: 'Tìm việc React đang tuyển tại Hà Nội', status: 'complete' },
+        { id: 'question-1', role: 'user', text: 'Tìm việc IT đang tuyển tại Hà Nội', status: 'complete' },
         { id: 'answer-1', role: 'assistant', text: 'Có tin phù hợp', status: 'complete' }
     ] }));
     supportApi.handoff.mockRejectedValueOnce(new Error('Chưa thể chuyển yêu cầu'))
@@ -306,7 +311,7 @@ test('a new conversation stops the old stream and leaves its partial answer in h
     expect(screen.getByRole('heading', { name: 'Bạn cần hỗ trợ gì?' })).toBeInTheDocument();
     expect(screen.queryByText('Đã tìm được vài tin')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Lịch sử trò chuyện' }));
-    expect(screen.getByRole('button', { name: /^Tìm việc React đang tuyển/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Tìm việc IT đang tuyển/ })).toBeInTheDocument();
     await act(async () => pending.resolve('Kết quả muộn'));
     expect(screen.queryByText('Kết quả muộn')).not.toBeInTheDocument();
 });
@@ -422,4 +427,133 @@ test('exports only the requested server conversation and reports a failed downlo
     fireEvent.click(screen.getByRole('button', { name: 'Tải xuống Hỏi về hồ sơ' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được bản xuất');
     expect(createObjectURL).toHaveBeenCalledTimes(1);
+});
+
+test('shows quick replies under the latest answer and sends the chosen one', async () => {
+    streamSupportReply.mockImplementationOnce(async (history, options) => {
+        options.onText('Có 15 tin IT.'); options.onSuggestions(['Lọc theo Đà Nẵng', 'Mẹo CV IT']); return 'Có 15 tin IT.';
+    }).mockImplementationOnce(async (history, options) => { options.onText('Đã lọc'); return 'Đã lọc'; });
+    show(); await open(); askQuickQuestion();
+    fireEvent.click(await screen.findByRole('button', { name: 'Lọc theo Đà Nẵng' }));
+    await waitFor(() => expect(streamSupportReply).toHaveBeenCalledTimes(2));
+    expect(streamSupportReply.mock.calls[1][1].turn.text).toBe('Lọc theo Đà Nẵng');
+    expect(await screen.findByText('Đã lọc')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Lọc theo Đà Nẵng' })).not.toBeInTheDocument();
+});
+
+test('renders external job cards linking to the reviewed listing with only local logos', async () => {
+    streamSupportReply.mockImplementation(async (history, options) => {
+        options.onTool({ name: 'search_jobs', jobs: [
+            { id: 'external-a16a0d2c3e4e', name: 'Lập trình PL/SQL', company: 'VNPT IT', location: 'Hà Nội', deadline: '2026-10-05', logo: '/external-jobs/logos/vnpt.png' },
+            { id: 'external-bad', name: 'Sai mã' }, { id: 5, name: 'Kế toán', logo: 'https://evil.example/x.png' }] });
+        options.onText('Có 2 tin'); return 'Có 2 tin';
+    });
+    show(); await open(); askQuickQuestion();
+    const card = await screen.findByRole('link', { name: /Lập trình PL\/SQL/ });
+    expect(card).toHaveAttribute('href', '/external-job/external-a16a0d2c3e4e');
+    expect(card).toHaveTextContent('Tin nguồn chính thức');
+    expect(card).toHaveTextContent('Hạn nộp 05/10/2026');
+    expect(card.querySelector('img')).toHaveAttribute('src', '/external-jobs/logos/vnpt.png');
+    const internal = screen.getByRole('link', { name: /Kế toán/ });
+    expect(internal).toHaveAttribute('href', '/detail-job/5');
+    expect(internal.querySelector('img')).toBeNull();
+    expect(screen.queryByText('Sai mã')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Xem thêm việc làm ›' })).toHaveAttribute('href', '/job');
+});
+
+test('rates a saved answer, can undo the rating and restores it when saving fails', async () => {
+    const answerId = '33333333-3333-4333-8333-333333333333';
+    supportApi.get.mockResolvedValue(remoteThread({ messages: [
+        { id: '22222222-2222-4222-8222-222222222222', role: 'user', text: 'Tìm việc IT đang tuyển tại Hà Nội', status: 'complete' },
+        { id: answerId, role: 'assistant', text: 'Có tin phù hợp', status: 'complete' }] }));
+    supportApi.feedback.mockResolvedValue({ saved: true });
+    streamSupportReply.mockImplementation(async (history, options) => {
+        options.onState({ id: 'conversation-1', version: 2, userId: '22222222-2222-4222-8222-222222222222', answerId });
+        options.onText('Có tin phù hợp'); return 'Có tin phù hợp';
+    });
+    show(); await open(); askQuickQuestion();
+    fireEvent.click(await screen.findByRole('button', { name: 'Câu trả lời hữu ích' }));
+    await waitFor(() => expect(supportApi.feedback).toHaveBeenCalledWith('conversation-1', answerId, 'up'));
+    expect(screen.getByRole('button', { name: 'Câu trả lời hữu ích' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Câu trả lời hữu ích' }));
+    await waitFor(() => expect(supportApi.feedback).toHaveBeenLastCalledWith('conversation-1', answerId, null));
+    supportApi.feedback.mockRejectedValueOnce(new Error('Không lưu được đánh giá'));
+    fireEvent.click(screen.getByRole('button', { name: 'Câu trả lời chưa hữu ích' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không lưu được đánh giá');
+    expect(screen.getByRole('button', { name: 'Câu trả lời chưa hữu ích' })).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('offers questions about the job being viewed', async () => {
+    mockLocation = { pathname: '/external-job/external-a16a0d2c3e4e' };
+    streamSupportReply.mockResolvedValue('Tóm tắt');
+    show(); await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Tóm tắt tin này' }));
+    await waitFor(() => expect(streamSupportReply).toHaveBeenCalled());
+    expect(streamSupportReply.mock.calls[0][1].turn.text).toBe('Tóm tắt giúp mình tin tuyển dụng mã external-a16a0d2c3e4e');
+});
+
+test('the shortcut menu sends a prepared question and closes', async () => {
+    streamSupportReply.mockResolvedValue('Thống kê');
+    show(); await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Menu lối tắt' }));
+    expect(screen.getByRole('menu', { name: 'Lối tắt' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: /Thống kê tuyển dụng/ }));
+    await waitFor(() => expect(streamSupportReply).toHaveBeenCalled());
+    expect(streamSupportReply.mock.calls[0][1].turn.text).toBe('Tỉnh thành và công ty nào đang tuyển nhiều nhất?');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+});
+
+test('greets visitors once per browser session with a personal greeting and unread badge', () => {
+    jest.useFakeTimers();
+    try {
+        show({ id: 7, roleCode: 'CANDIDATE', firstName: 'Nguyễn Thu', lastName: 'Trang' });
+        expect(screen.queryByText(/Chào Trang/)).not.toBeInTheDocument();
+        act(() => { jest.advanceTimersByTime(6000); });
+        expect(screen.getByText(/Chào Trang 👋/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Mở chatbot hỗ trợ JobFind' })).toHaveTextContent('1 tin nhắn mới');
+        fireEvent.click(screen.getByRole('button', { name: 'Ẩn lời chào' }));
+        expect(screen.queryByText(/Chào Trang 👋/)).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Mở chatbot hỗ trợ JobFind' })).not.toHaveTextContent('tin nhắn mới');
+        expect(sessionStorage.getItem('jobfind-support-teaser')).toBe('1');
+        act(() => { jest.advanceTimersByTime(60000); });
+        expect(screen.queryByText(/Chào Trang 👋/)).not.toBeInTheDocument();
+    } finally { jest.useRealTimers(); }
+});
+
+test('does not greet on account pages', () => {
+    jest.useFakeTimers();
+    try {
+        mockLocation = { pathname: '/candidate/info' };
+        show();
+        act(() => { jest.advanceTimersByTime(60000); });
+        expect(screen.queryByText(/Chào bạn 👋/)).not.toBeInTheDocument();
+    } finally { jest.useRealTimers(); }
+});
+
+test('shows what the assistant is doing until the answer text arrives', async () => {
+    const reply = deferred();
+    let options;
+    streamSupportReply.mockImplementation(async (history, value) => { options = value; const text = await reply.promise; value.onText(text); return text; });
+    show(); await open(); askQuickQuestion();
+    expect(await screen.findByText('Trợ lý đang soạn tin…')).toBeInTheDocument();
+    act(() => options.onStatus({ stage: 'tool', name: 'search_jobs' }));
+    expect(screen.getByText('Đang tìm việc phù hợp…')).toBeInTheDocument();
+    act(() => options.onStatus({ stage: 'writing' }));
+    expect(screen.getByText('Đang viết câu trả lời…')).toBeInTheDocument();
+    await act(async () => { reply.resolve('Có 15 tin IT.'); });
+    expect(await screen.findByText('Có 15 tin IT.')).toBeInTheDocument();
+    expect(screen.queryByText('Đang viết câu trả lời…')).not.toBeInTheDocument();
+});
+
+test('an answer that arrives while the chat is closed shows a preview and unread badge', async () => {
+    const reply = deferred();
+    streamSupportReply.mockImplementation(async (history, options) => { const text = await reply.promise; options.onText(text); return text; });
+    show(); await open(); askQuickQuestion();
+    fireEvent.click(screen.getByRole('button', { name: 'Đóng chatbot' }));
+    await act(async () => { reply.resolve('Có 15 tin IT đang tuyển tại Hà Nội.'); });
+    expect(await screen.findByText(/Trợ lý vừa trả lời: Có 15 tin IT/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mở chatbot hỗ trợ JobFind' })).toHaveTextContent('1 tin nhắn mới');
+    fireEvent.click(screen.getByRole('button', { name: 'Mở chatbot hỗ trợ JobFind' }));
+    expect(await screen.findByText('Có 15 tin IT đang tuyển tại Hà Nội.')).toBeInTheDocument();
+    expect(screen.queryByText(/Trợ lý vừa trả lời/)).not.toBeInTheDocument();
 });

@@ -1,7 +1,9 @@
 // Whitelisted, read-only tools. Nothing here returns applicants, CVs, emails or private jobs.
-// Queries run against the same legacy MySQL models as the public JobFind pages.
+// Queries run against the same legacy MySQL models as the public JobFind pages, plus the
+// reviewed external catalogue that /job also lists (see supportExternalJobs.js).
 const getDatabase = () => require('../models');
 const getOperators = () => require('sequelize').Op;
+const external = require('./supportExternalJobs');
 
 const MAX_RESULTS = 5;
 const DECLARATIONS = [
@@ -63,6 +65,9 @@ const safeJob = (row, details = false) => {
         location: String(data.provincePostData?.value || '').slice(0, 80),
         salary: String(data.salaryTypePostData?.value || 'Chưa công bố').slice(0, 80),
         workType: String(data.workTypePostData?.value || '').slice(0, 80),
+        // timeEnd is the last open millisecond; show it as a Vietnamese calendar date.
+        deadline: new Date(Number(row.timeEnd) + 7 * 3600000).toISOString().slice(0, 10),
+        source: 'jobfind',
         url: `/detail-job/${row.id}`
     };
     if (details) {
@@ -74,25 +79,40 @@ const safeJob = (row, details = false) => {
     return result;
 };
 const isOpen = (row, now) => Number.isFinite(Number(row.timeEnd)) && Number(row.timeEnd) >= now;
+const externalSource = (context) => context.external || external;
 
 async function searchJobs(args = {}, context = {}) {
     const database = context.database || getDatabase();
     const Op = context.operators || getOperators();
     const now = context.now === undefined ? Date.now() : context.now;
+    const source = externalSource(context);
     const query = cleanKeyword(args.query);
     const location = cleanKeyword(args.location);
+    // "Sài Gòn"/"HCM" become the province name both catalogues store.
+    const province = location ? source.canonicalLocation(location) : '';
     const rows = await database.Post.findAll({
         where: { statusCode: 'PS1', timeEnd: { [Op.gte]: String(now) } },
-        attributes: ['id', 'timeEnd'], include: publicIncludes(query, location, database, Op),
+        attributes: ['id', 'timeEnd'], include: publicIncludes(query, province, database, Op),
         order: [['timePost', 'DESC']], limit: 20, raw: true, nest: true
     });
-    const jobs = rows.filter((row) => isOpen(row, now)).slice(0, MAX_RESULTS).map((row) => safeJob(row));
-    return { jobs, count: jobs.length, note: jobs.length ? 'Chỉ hiện tối đa 5 tin đang mở, có xác thực trạng thái công khai.' : 'Chưa tìm thấy tin đang mở phù hợp.' };
+    const internal = rows.filter((row) => isOpen(row, now)).map((row) => safeJob(row));
+    const outside = source.searchExternalJobs({ query, location: province }, { now });
+    const jobs = [...internal, ...outside.jobs].slice(0, MAX_RESULTS);
+    const total = internal.length + outside.total;
+    let note = jobs.length
+        ? `Có ${total} tin đang mở phù hợp; thẻ tin hiển thị ${jobs.length} tin đầu. Tin source=external được tổng hợp từ trang tuyển dụng chính thức của doanh nghiệp, ứng viên nộp hồ sơ tại trang gốc.`
+        : 'Chưa tìm thấy tin đang mở phù hợp.';
+    if (!jobs.length && outside.unknownLocation) note += ` Không nhận ra tỉnh/thành "${location}".`;
+    return { jobs, count: jobs.length, total, note };
 }
 async function getJobDetails(args = {}, context = {}) {
     const database = context.database || getDatabase();
     const Op = context.operators || getOperators();
     const now = context.now === undefined ? Date.now() : context.now;
+    if (typeof args.job_id === 'string' && args.job_id.startsWith('external-')) {
+        const job = externalSource(context).externalJobDetails(args.job_id, { now });
+        return job ? { job } : { error: 'Không tìm thấy tin tuyển dụng công khai đang mở.' };
+    }
     const id = positiveId(args.job_id);
     if (!id) return { error: 'ID tin tuyển dụng không hợp lệ.' };
     const row = await database.Post.findOne({
@@ -102,10 +122,44 @@ async function getJobDetails(args = {}, context = {}) {
     if (!row || !isOpen(row, now)) return { error: 'Không tìm thấy tin tuyển dụng công khai đang mở.' };
     return { job: safeJob(row, true) };
 }
+const ranking = (values, limit) => [...values.reduce((counts, value) => {
+    if (value) counts.set(value, (counts.get(value) || 0) + 1);
+    return counts;
+}, new Map())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'vi')).slice(0, limit)
+    .map(([name, count]) => ({ name: String(name).slice(0, 120), count }));
+// Aggregate counts only: no job, company or applicant record leaves this function.
+async function jobMarketOverview(args = {}, context = {}) {
+    const database = context.database || getDatabase();
+    const Op = context.operators || getOperators();
+    const now = context.now === undefined ? Date.now() : context.now;
+    const source = externalSource(context);
+    const location = cleanKeyword(args.location);
+    const province = location ? source.canonicalLocation(location) : '';
+    const rows = await database.Post.findAll({
+        where: { statusCode: 'PS1', timeEnd: { [Op.gte]: String(now) } },
+        attributes: ['id', 'timeEnd'], include: publicIncludes('', province, database, Op),
+        limit: 500, raw: true, nest: true
+    });
+    const internal = rows.filter((row) => isOpen(row, now)).map((row) => safeJob(row));
+    const outside = source.externalOverview({ location: province }, { now });
+    const total = internal.length + outside.jobs.length;
+    return {
+        ...(province ? { location: province } : {}),
+        total, jobfindPosts: internal.length, externalPosts: outside.jobs.length,
+        topLocations: province ? [] : ranking([...internal.map((job) => job.location), ...outside.jobs.flatMap((job) => job.provinces)], 8),
+        topEmployers: ranking([...internal.map((job) => job.company), ...outside.jobs.map((job) => job.employer)], 8),
+        topCategories: ranking(outside.jobs.map((job) => job.category), 8),
+        note: total
+            ? 'Số liệu đếm tin đang mở tại thời điểm tra cứu; một tin tuyển nhiều tỉnh được đếm ở mỗi tỉnh trong topLocations. Ngành nghề chỉ có ở tin nguồn ngoài.'
+            : `Chưa có tin đang mở${outside.unknownLocation ? ` hoặc không nhận ra tỉnh/thành "${location}"` : ''}.`
+    };
+}
 async function executeSupportTool(name, args, context = {}) {
     if (!args || Array.isArray(args) || typeof args !== 'object') return { error: 'Tham số công cụ không hợp lệ.' };
     if (name === 'search_jobs') return searchJobs(args, context);
     if (name === 'get_job_details') return getJobDetails(args, context);
+    if (name === 'job_market_overview') return jobMarketOverview(args, context);
     return { error: 'Công cụ không được cấp quyền.' };
 }
-module.exports = { DECLARATIONS, executeSupportTool, searchJobs, getJobDetails, cleanKeyword, positiveId };
+const PUBLIC_TOOL_NAMES = ['search_jobs', 'get_job_details', 'job_market_overview'];
+module.exports = { DECLARATIONS, PUBLIC_TOOL_NAMES, executeSupportTool, searchJobs, getJobDetails, jobMarketOverview, cleanKeyword, positiveId };

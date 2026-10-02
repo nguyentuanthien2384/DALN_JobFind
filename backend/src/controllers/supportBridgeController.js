@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import db from '../models';
 import chatService from '../services/chatService';
 import { emitNewMessage } from '../config/socket';
-const { executeSupportTool } = require('../services/supportJobTools');
+const { executeSupportTool, PUBLIC_TOOL_NAMES } = require('../services/supportJobTools');
 
 export const trustedSupport = (req, res, next) => {
     const actual = Buffer.from(String(req.headers['x-internal-secret'] || ''));
@@ -12,7 +12,7 @@ export const trustedSupport = (req, res, next) => {
 };
 export const publicTool = async (req, res) => {
     try {
-        if (!['search_jobs', 'get_job_details'].includes(req.body?.name)) return res.status(400).json({ errCode: 400 });
+        if (!PUBLIC_TOOL_NAMES.includes(req.body?.name)) return res.status(400).json({ errCode: 400 });
         const data = await executeSupportTool(req.body.name, req.body.args);
         return res.json({ errCode: 0, data });
     } catch { return res.status(503).json({ errCode: 503, errMessage: 'Chưa đọc được tin tuyển dụng.' }); }

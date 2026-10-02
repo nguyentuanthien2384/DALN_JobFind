@@ -5,7 +5,7 @@ import { articles } from './knowledge.js';
 import { privateIntent } from './tools.js';
 import { contractRoute } from '../../shared/requestContract.js';
 
-export function registerSupportRoutes(app, { store, respond, tools, env = process.env }) {
+export function registerSupportRoutes(app, { store, respond, tools, env = process.env, audit = () => {} }) {
     app.use('/support/legacy-turn', express.json({ limit: '48kb' }));
     app.use(express.json({ limit: '16kb' }));
     app.use(requireTrustedGateway);
@@ -27,6 +27,11 @@ export function registerSupportRoutes(app, { store, respond, tools, env = proces
     contractRoute(app, 'supportList', owner, async (req, res) => data(res, await store.list(req.supportOwner)));
     contractRoute(app, 'supportGet', owner, async (req, res) => data(res, await store.get(req.supportOwner, req.params.id)));
     contractRoute(app, 'supportDelete', owner, async (req, res) => { await store.remove(req.supportOwner, req.params.id); return data(res, { deleted: true }); });
+    contractRoute(app, 'supportFeedback', owner, async (req, res) => {
+        await store.feedback(req.supportOwner, req.params.id, req.params.messageId, req.body.value);
+        audit({ event: 'support.feedback', value: req.body.value });
+        return data(res, { saved: true });
+    });
     contractRoute(app, 'supportPrivate', use, async (req, res) => data(res, await tools.privateTool(req.params.name, req.user)));
     contractRoute(app, 'supportHandoff', use, owner, async (req, res) => {
         if (req.body.consent !== true) throw failure(400, 'Cần đồng ý chia sẻ hội thoại với nhân viên.');
@@ -96,7 +101,9 @@ export function registerSupportRoutes(app, { store, respond, tools, env = proces
                 if (existing?.status !== 'complete') throw failure(409, 'Lần trả lời trước bị gián đoạn. Hãy gửi lại câu hỏi.');
                 emit('sources', { sources: existing.sources || [] });
                 if (existing.cards?.length) emit('tool', { name: 'search_jobs', jobs: existing.cards });
-                emit('token', { text: existing.text }); emit('done', {}); return;
+                emit('token', { text: existing.text });
+                if (existing.suggestions?.length) emit('suggestions', { suggestions: existing.suggestions });
+                emit('done', {}); return;
             }
             const intent = privateIntent(input.text);
             if (intent) {
@@ -111,7 +118,8 @@ export function registerSupportRoutes(app, { store, respond, tools, env = proces
                 } catch (error) { text = error.status === 401 || error.status === 403 ? error.message : 'Chưa đọc được dữ liệu cá nhân hiện tại. Bạn hãy thử lại hoặc chuyển cho nhân viên hỗ trợ.'; }
                 emit('token', { text });
                 answer = { text, status: 'complete', private: true, mode: 'account', cards: [], sources: [] };
-            } else answer = await respond({ messages: state.messages, signal: controller.signal, emit });
+            // "Tạo lại" and edited questions ask for a fresh answer, never a replayed one.
+            } else answer = await respond({ messages: state.messages, signal: controller.signal, emit, cacheable: !input.replaceFrom });
             await store.finish(req.supportOwner, state, answer);
             if (answer.status !== 'complete') emit('error', { message: 'Câu trả lời bị gián đoạn. Bạn có thể tạo lại hoặc chuyển cho nhân viên.' });
             else emit('done', {});

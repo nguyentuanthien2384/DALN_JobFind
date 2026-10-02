@@ -24,6 +24,7 @@ const editRevision = 'jv1-' + 'a'.repeat(64);
 const bodyExamples = {
     SupportTurn: { requestId: '12345678-1234-4234-8234-123456789012', text: 'Tạo CV thế nào?' },
     SupportHandoff: { consent: true },
+    SupportFeedback: { value: 'up' },
     JobRepost: { timeEnd: '2000000000000' },
     JobCreate: { name: 'Lập trình viên', descriptionHTML: '<p>Phát triển ứng dụng</p>', categoryJobCode: 'IT', amount: '2' },
     JobUpdate: { name: 'Developer', amount: '2', genderPostCode: 'G1', timeEnd: '1700000000000' },
@@ -57,7 +58,7 @@ const listen = async (app) => {
     servers.push(server);
     return `http://127.0.0.1:${server.address().port}`;
 };
-const pathFor = (op) => op.path.replace(/:name\b/g, 'getMyProfileSummary').replace(/:cvId\b/g, cvId).replace(/:taskId\b/g, 'task-1').replace(/:type\b/g, 'job').replace(/:candidateId\b/g, '7').replace(/:id\b/g, op.service === 'support' ? '12345678-1234-4234-8234-123456789012' : op.id === 'masterDelete' ? cvId : '1');
+const pathFor = (op) => op.path.replace(/:name\b/g, 'getMyProfileSummary').replace(/:cvId\b/g, cvId).replace(/:taskId\b/g, 'task-1').replace(/:type\b/g, 'job').replace(/:candidateId\b/g, '7').replace(/:messageId\b/g, '12345678-1234-4234-8234-123456789013').replace(/:id\b/g, op.service === 'support' ? '12345678-1234-4234-8234-123456789012' : op.id === 'masterDelete' ? cvId : '1');
 const send = (id, { body, raw, query = '', path, headers = {}, omitIdentity = false, ...options } = {}) => {
     const op = operationById[id];
     const payload = raw ?? (body === undefined ? undefined : JSON.stringify(body));

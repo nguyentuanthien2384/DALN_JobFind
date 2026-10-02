@@ -1,10 +1,10 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import SessionContext from '../../auth/SessionContext';
 import { streamSupportReply, supportApi } from '../../service/supportChatService';
 import {
     addSupportThread, deleteSupportThread, createSupportStore,
-    updateSupportMessages, normalizeSupportCards
+    updateSupportMessages, normalizeSupportCards, normalizeSupportSuggestions, supportJobPath
 } from './supportChatStorage';
 import { AssistantRuntimeProvider, useExternalStoreRuntime, ThreadPrimitive, ComposerPrimitive, MessagePrimitive, ActionBarPrimitive } from '@assistant-ui/react';
 import SupportMarkdown from './SupportMarkdown';
@@ -19,10 +19,53 @@ const convertMessage = (item) => ({
 });
 
 const QUICK_QUESTIONS = [
-    'Tìm việc React đang tuyển tại Hà Nội',
+    'Tìm việc IT đang tuyển tại Hà Nội',
+    'Công ty nào đang tuyển nhiều nhất?',
     'Tôi muốn tạo CV và ứng tuyển',
     'Làm sao nhắn tin với nhà tuyển dụng?'
 ];
+// Persistent shortcuts, like the menu of a chatbot on a social network page.
+const MENU_ITEMS = [
+    { icon: '🔎', label: 'Việc làm mới nhất', text: 'Cho mình xem các việc làm mới nhất đang tuyển' },
+    { icon: '📊', label: 'Thống kê tuyển dụng', text: 'Tỉnh thành và công ty nào đang tuyển nhiều nhất?' },
+    { icon: '📄', label: 'Hướng dẫn tạo CV', text: 'Hướng dẫn mình tạo CV và ứng tuyển trên JobFind' },
+    { icon: '💡', label: 'Mẹo phỏng vấn', text: 'Cho mình vài mẹo chuẩn bị phỏng vấn xin việc' },
+    { icon: '🔑', label: 'Quên mật khẩu', text: 'Tôi quên mật khẩu JobFind thì phải làm gì?' },
+    { icon: '🙋', label: 'Gặp nhân viên hỗ trợ', text: 'Làm sao để gặp nhân viên hỗ trợ JobFind?' }
+];
+const TEASER_KEY = 'jobfind-support-teaser';
+const TEASER_DELAY_MS = 6000;
+const TIME_GAP_MS = 15 * 60000;
+const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+// The job a visitor is looking at, so the assistant can be asked about it directly.
+const pageJobId = (pathname = '') => /^\/detail-job\/([1-9]\d{0,9})\/?$/.exec(pathname)?.[1]
+    || /^\/external-job\/(external-[a-f0-9]{6,32})\/?$/.exec(pathname)?.[1] || null;
+const jobQuestions = (id) => [
+    { label: 'Tóm tắt tin này', text: `Tóm tắt giúp mình tin tuyển dụng mã ${id}` },
+    { label: 'Tin này yêu cầu gì?', text: `Tin tuyển dụng mã ${id} yêu cầu kinh nghiệm và kỹ năng gì?` },
+    { label: 'Tìm việc tương tự', text: `Tìm giúp mình các việc tương tự tin tuyển dụng mã ${id}` }
+];
+// The greeting appears only where people browse jobs, never on account or admin pages.
+const teaserPage = (pathname = '') => pathname === '/' || /^\/(job|company|detail-job|external-job|detail-company)(\/|$)/.test(pathname);
+const readTeaserDismissed = () => { try { return sessionStorage.getItem(TEASER_KEY) === '1'; } catch { return false; } };
+const timeLabel = (at, now = Date.now()) => {
+    const date = new Date(at);
+    const time = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    if (date.toDateString() === new Date(now).toDateString()) return time;
+    if (date.toDateString() === new Date(now - 86400000).toDateString()) return `Hôm qua ${time}`;
+    return `${date.toLocaleDateString('vi-VN')} ${time}`;
+};
+const deadlineLabel = (value) => value.split('-').reverse().join('/');
+// What the assistant is doing while the answer is not visible yet.
+const PROGRESS_LABELS = {
+    search_jobs: 'Đang tìm việc phù hợp…',
+    get_job_details: 'Đang đọc chi tiết tin tuyển dụng…',
+    job_market_overview: 'Đang thống kê tin tuyển dụng…',
+    writing: 'Đang viết câu trả lời…'
+};
+const progressLabel = (progress) => PROGRESS_LABELS[progress] || 'Trợ lý đang soạn tin…';
+const assetUrl = (path) => `${process.env.PUBLIC_URL || ''}${path}`;
 
 const Icon = ({ name, size = 20 }) => {
     const paths = {
@@ -36,13 +79,17 @@ const Icon = ({ name, size = 20 }) => {
         trash: <><path d="M4 7h16M10 4h4M6 7l1 13h10l1-13M10 11v5m4-5v5"/></>,
         sparkles: <><path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2ZM19 18l.7 2.3L22 21l-2.3.7L19 24l-.7-2.3L16 21l2.3-.7L19 18Z"/></>,
         retry: <><path d="M3 11a9 9 0 1 1 2.7 6.4M3 4v7h7"/></>,
-        mic: <><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></>
+        mic: <><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5m-4 0h8"/></>,
+        menu: <><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></>,
+        up: <path d="M7 10v10H4V10h3Zm0 0 4-7c1.7 0 2.6 1 2.3 2.6L12.7 9H19a2 2 0 0 1 2 2.3l-1.2 6.9A2 2 0 0 1 17.8 20H7"/>,
+        down: <path d="M17 14V4h3v10h-3Zm0 0-4 7c-1.7 0-2.6-1-2.3-2.6l.6-3.4H5a2 2 0 0 1-2-2.3l1.2-6.9A2 2 0 0 1 6.2 4H17"/>
     };
     return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 };
 
 const SupportChat = () => {
     const user = useContext(SessionContext);
+    const { pathname } = useLocation();
     const ownerKey = `jobfind-support-v1:${user?.id || 'guest'}`;
     const [store, setStore] = useState(() => createSupportStore(ownerKey));
     const [ready, setReady] = useState(false);
@@ -60,15 +107,24 @@ const SupportChat = () => {
     const [error, setError] = useState('');
     const [copiedId, setCopiedId] = useState(null);
     const [listening, setListening] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [teaser, setTeaser] = useState(null);
+    const [unread, setUnread] = useState(0);
     const speechRef = useRef(null);
     const activeRequest = useRef(null);
     const generation = useRef(0);
     const inputRef = useRef(null);
     const runtimeRef = useRef(null);
+    const openRef = useRef(false);
+    const teaserDismissed = useRef(false);
 
     const thread = store.threads.find((item) => item.id === store.activeId) || store.threads[0];
     const messages = thread?.messages || [];
+    const viewedJob = pageJobId(pathname);
+    const name = String(user?.lastName || user?.firstName || '').trim().slice(0, 40);
+    const greeting = `Chào ${name || 'bạn'} 👋 Mình là trợ lý AI của JobFind, có thể tìm việc, thống kê tuyển dụng, hướng dẫn tạo CV hoặc kết nối bạn với nhân viên hỗ trợ.`;
 
+    useEffect(() => { openRef.current = isOpen; }, [isOpen]);
     useEffect(() => {
         generation.current += 1;
         activeRequest.current?.abort();
@@ -81,8 +137,15 @@ const SupportChat = () => {
         setOpeningThread(false);
         setStore(createSupportStore(ownerKey));
         setReady(false); setPrivateResult(null); setHandoffConsent(false);
-        setError(''); setEditing(null); setView('chat');
+        setError(''); setEditing(null); setView('chat'); setMenuOpen(false);
     }, [ownerKey]);
+
+    // A proactive greeting, as on a social network page, once per browser session.
+    useEffect(() => {
+        if (isOpen || teaser || teaserDismissed.current || !teaserPage(pathname) || readTeaserDismissed()) return undefined;
+        const timer = setTimeout(() => { setTeaser({ text: greeting }); setUnread((count) => Math.max(count, 1)); }, TEASER_DELAY_MS);
+        return () => clearTimeout(timer);
+    }, [isOpen, teaser, pathname, greeting]);
 
     // Server history is authoritative. Do not cache private conversations in browser storage.
     useEffect(() => {
@@ -113,7 +176,14 @@ const SupportChat = () => {
         if (isOpen && view === 'chat') inputRef.current?.focus();
     }, [isOpen, view, thread?.id]);
     useEffect(() => () => { generation.current += 1; activeRequest.current?.abort(); speechRef.current?.abort(); }, []);
-    useEffect(() => { if (!isOpen) speechRef.current?.abort(); }, [isOpen]);
+    useEffect(() => { if (!isOpen) { speechRef.current?.abort(); setMenuOpen(false); } }, [isOpen]);
+
+    const dismissTeaser = () => {
+        teaserDismissed.current = true;
+        setTeaser(null);
+        try { sessionStorage.setItem(TEASER_KEY, '1'); } catch { /* The greeting may show again; nothing else depends on it. */ }
+    };
+    const openPanel = () => { dismissTeaser(); setUnread(0); setOpen(true); };
 
     const startSpeech = () => {
         const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -137,6 +207,7 @@ const SupportChat = () => {
         speechRef.current?.abort();
         setEditing(null);
         setCopiedId(null);
+        setMenuOpen(false);
         generation.current += 1;
         activeRequest.current?.abort();
         activeRequest.current = null;
@@ -213,12 +284,23 @@ const SupportChat = () => {
         } catch (cause) { if (requestGeneration === generation.current) setError(cause.message); }
         finally { if (requestGeneration === generation.current) setPrivateBusy(false); }
     };
+    // Ratings do not change the conversation, so they never block the next question.
+    const rate = async (item, value) => {
+        const messageId = uuidPattern.test(item.serverId || '') ? item.serverId : item.id;
+        if (!thread.remoteId || !uuidPattern.test(messageId || '') || busy) return;
+        const threadId = thread.id, previous = item.feedback, next = previous === value ? null : value;
+        const apply = (feedback) => setStore(current => updateSupportMessages(current, threadId,
+            items => items.map(entry => entry.id === item.id ? { ...entry, feedback: feedback || undefined } : entry)));
+        apply(next);
+        try { await supportApi.feedback(thread.remoteId, messageId, next); }
+        catch (cause) { apply(previous); setError(cause.message); }
+    };
 
     const sendMessage = async (raw, retry = false, history) => {
         if (activeRequest.current || !ready || openingThread || (thread.remoteId && !thread.loaded)) return;
         const question = String(raw || '').trim();
         if (!retry && (!question || question.length > 1400)) return;
-        const base = retry ? (history || messages) : [...(history || messages), { role: 'user', text: question, status: 'complete' }];
+        const base = retry ? (history || messages) : [...(history || messages), { role: 'user', text: question, status: 'complete', at: Date.now() }];
         const threadId = thread.id;
         const lastUser = [...base].reverse().find(item => item.role === 'user');
         const validId = value => /^[a-f0-9-]{36}$/i.test(value || '');
@@ -234,12 +316,15 @@ const SupportChat = () => {
         activeRequest.current = controller;
         setBusy(true);
         setPrivateBusy(false);
+        setMenuOpen(false);
         setError('');
         setView('chat');
         runtime.thread.composer.setText('');
         setEditing(null);
         setStore((current) => updateSupportMessages(current, threadId, () =>
-            [...base, { id: replyId, role: 'assistant', text: '', cards: [], status: 'pending' }]));
+            [...base, { id: replyId, role: 'assistant', text: '', cards: [], status: 'pending', at: Date.now() }]));
+        const updateReply = (change) => setStore((current) => updateSupportMessages(current, threadId,
+            (items) => items.map((item) => item.id === replyId ? { ...item, ...change(item) } : item)));
         try {
             const answer = await streamSupportReply(base, {
                 turn,
@@ -252,30 +337,38 @@ const SupportChat = () => {
                 onSources: sources => {
                     if (requestGeneration !== generation.current) return;
                     const safe = sources.filter(source => /^\/support\/help#[a-z-]+$/.test(source.href || ''));
-                    setStore(current => updateSupportMessages(current, threadId, items => items.map(item => item.id === replyId ? { ...item, sources: safe } : item)));
+                    updateReply(() => ({ sources: safe }));
                 },
                 onMode: mode => {
                     if (requestGeneration !== generation.current) return;
-                    setStore(current => updateSupportMessages(current, threadId, items => items.map(item => item.id === replyId ? { ...item, mode } : item)));
+                    updateReply(() => ({ mode }));
+                },
+                onSuggestions: values => {
+                    if (requestGeneration !== generation.current) return;
+                    updateReply(() => ({ suggestions: normalizeSupportSuggestions(values) }));
+                },
+                onStatus: ({ stage, name }) => {
+                    if (requestGeneration !== generation.current) return;
+                    updateReply(() => ({ progress: stage === 'tool' ? name : stage }));
                 },
                 onTool: (result) => {
                     if (requestGeneration !== generation.current) return;
                     const cards = normalizeSupportCards(result);
                     if (!cards.length) return;
-                    setStore((current) => updateSupportMessages(current, threadId,
-                        (items) => items.map((item) => item.id === replyId
-                            ? { ...item, cards: Array.from(new Map([...(item.cards || []), ...cards].map((job) => [job.id, job])).values()).slice(0, 5) } : item)));
+                    updateReply((item) => ({ cards: Array.from(new Map([...(item.cards || []), ...cards].map((job) => [job.id, job])).values()).slice(0, 5) }));
                 },
                 onText: (text) => {
                     if (requestGeneration !== generation.current) return;
-                    setStore((current) => updateSupportMessages(current, threadId,
-                        (items) => items.map((item) => item.id === replyId ? { ...item, text } : item)));
+                    updateReply(() => ({ text }));
                 }
             });
             if (requestGeneration !== generation.current) return;
-            setStore((current) => updateSupportMessages(current, threadId,
-                (items) => items.map((item) => item.id === replyId
-                    ? { ...item, text: answer, status: 'complete' } : item)));
+            updateReply(() => ({ text: answer, status: 'complete' }));
+            // The panel was closed while waiting: show the answer like a new message notification.
+            if (!openRef.current) {
+                setUnread((count) => count + 1);
+                setTeaser({ text: `Trợ lý vừa trả lời: ${answer.replace(/[*_#>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 110)}…` });
+            }
         } catch (cause) {
             if (requestGeneration !== generation.current) return;
             if (cause.name === 'AbortError') {
@@ -323,6 +416,7 @@ const SupportChat = () => {
         }
     });
     runtimeRef.current = runtime;
+    const canAsk = ready && !busy && !openingThread;
 
     return (
         <AssistantRuntimeProvider runtime={runtime}>
@@ -331,8 +425,8 @@ const SupportChat = () => {
                 <ThreadPrimitive.Root className="jf-support__panel" role="dialog" aria-label="Trợ lý hỗ trợ JobFind" aria-modal="false">
                     <div className="jf-support__topbar">
                         <div className="jf-support__brand">
-                            <span className="jf-support__logo"><Icon name="sparkles" size={19}/></span>
-                            <div><strong>Hỗ trợ JobFind</strong><small>Trợ lý AI · Trả lời tự động</small></div>
+                            <span className="jf-support__logo"><Icon name="sparkles" size={19}/><i className="jf-support__online" aria-hidden="true"/></span>
+                            <div><strong>Hỗ trợ JobFind</strong><small>Trợ lý AI · Đang hoạt động</small></div>
                         </div>
                         <div className="jf-support__tools">
                             <button type="button" onClick={() => setExpanded(!expanded)} aria-label={expanded ? 'Thu nhỏ chatbot' : 'Mở rộng chatbot'} title={expanded ? 'Thu nhỏ' : 'Mở rộng'}>{expanded ? '↙' : '↗'}</button>
@@ -378,33 +472,56 @@ const SupportChat = () => {
                                     <div className="jf-support__welcome">
                                         <div className="jf-support__welcome-icon"><Icon name="sparkles" size={30}/></div>
                                         <h2>Bạn cần hỗ trợ gì?</h2>
-                                        <p>Hỏi về tìm việc, tạo CV và cách sử dụng JobFind.</p>
+                                        <p>{greeting}</p>
+                                        {viewedJob && <div className="jf-support__context" aria-label="Hỏi về tin đang xem">
+                                            <small>Bạn đang xem một tin tuyển dụng</small>
+                                            <div className="jf-support__chips">{jobQuestions(viewedJob).map((item) => <button key={item.label} type="button" onClick={() => sendMessage(item.text)} disabled={!canAsk}>{item.label}</button>)}</div>
+                                        </div>}
                                         <div className="jf-support__suggestions">
-                                            {QUICK_QUESTIONS.map((question) => <button key={question} type="button" onClick={() => sendMessage(question)} disabled={busy || !ready || openingThread}>{question}<span aria-hidden="true">↗</span></button>)}
+                                            {QUICK_QUESTIONS.map((question) => <button key={question} type="button" onClick={() => sendMessage(question)} disabled={!canAsk}>{question}<span aria-hidden="true">↗</span></button>)}
                                         </div>
                                     </div>
-                                ) : <ThreadPrimitive.Messages>{({ message }) => { const item = message.metadata.custom; const index = messages.findIndex((entry) => entry.id === message.id); return (
+                                ) : <ThreadPrimitive.Messages>{({ message }) => { const item = message.metadata.custom; const index = messages.findIndex((entry) => entry.id === message.id); const previousAt = messages[index - 1]?.at; const isLast = index === messages.length - 1; return (<>
+                                    {item.at && (!previousAt || item.at - previousAt > TIME_GAP_MS) && <div className="jf-support__time" role="separator">{timeLabel(item.at)}</div>}
                                     <MessagePrimitive.Root className={`jf-support__message jf-support__message--${item.role}`}>
                                         {item.role === 'assistant' && <span className="jf-support__avatar" aria-hidden="true"><Icon name="sparkles" size={15}/></span>}
                                         <div className="jf-support__message-body">
-                                            <div className="jf-support__bubble">{item.text ? (item.role === 'assistant' ? <SupportMarkdown text={item.text}/> : item.text) : (item.cards?.length ? 'Đang tổng hợp kết quả...' : <span className="jf-support__dots" aria-label="Đang trả lời"><i/><i/><i/></span>)}</div>
+                                            <div className="jf-support__bubble">{item.text ? (item.role === 'assistant' ? <SupportMarkdown text={item.text}/> : item.text) : item.status === 'pending' ? <span className="jf-support__progress"><span className="jf-support__dots" aria-hidden="true"><i/><i/><i/></span>{progressLabel(item.progress)}</span> : 'Kết quả tìm được:'}</div>
                                             {item.role === 'assistant' && item.cards?.length > 0 && <div className="jf-support__results" aria-label="Tin tuyển dụng từ JobFind">
-                                                {item.cards.map((job) => <Link key={job.id} to={`/detail-job/${job.id}`} className="jf-support__result">
-                                                    <strong>{job.name}</strong><span>{job.company || 'Công ty tuyển dụng'}{job.location ? ` · ${job.location}` : ''}</span>
-                                                    <small>{job.salary || 'Chưa công bố lương'}{job.workType ? ` · ${job.workType}` : ''} · Xem tin #{job.id} ↗</small>
+                                                {item.cards.map((job) => <Link key={job.id} to={supportJobPath(job.id)} className="jf-support__result">
+                                                    <span className="jf-support__result-head">
+                                                        {job.logo ? <img src={assetUrl(job.logo)} alt="" loading="lazy"/> : <span className="jf-support__result-initial" aria-hidden="true">{(job.company || job.name || 'J').trim().charAt(0).toUpperCase()}</span>}
+                                                        {job.source === 'external' && <em>Tin nguồn chính thức</em>}
+                                                    </span>
+                                                    <strong>{job.name}</strong>
+                                                    <span>{job.company || 'Công ty tuyển dụng'}{job.location ? ` · ${job.location}` : ''}</span>
+                                                    <small>{job.salary || 'Chưa công bố lương'}{job.workType ? ` · ${job.workType}` : ''}</small>
+                                                    {job.deadline && <small>Hạn nộp {deadlineLabel(job.deadline)}</small>}
+                                                    <span className="jf-support__result-cta">Xem chi tiết ›</span>
                                                 </Link>)}
+                                                <Link to="/job" className="jf-support__result jf-support__result--more">Xem thêm việc làm ›</Link>
                                             </div>}
                                             {item.status === 'cancelled'  && <small className="jf-support__interrupted">Đã dừng · câu trả lời chưa hoàn chỉnh</small>}
                                             {item.sources?.length > 0 && <div className="jf-support__sources" aria-label="Nguồn hướng dẫn">{item.sources.filter(source => /^\/support\/help#[a-z-]+$/.test(source.href || '')).map(source => <Link key={source.id} to={source.href}>{source.title} ↗</Link>)}</div>}
                                             {item.mode === 'knowledge' && <small>Chế độ hướng dẫn dự phòng</small>}
                                             {item.mode === 'public_tool' && <small>Kết quả tra cứu trực tiếp · Claude tạm gián đoạn</small>}
                                             {item.status === 'failed' && <small className="jf-support__interrupted">Phản hồi bị gián đoạn · cần thử lại</small>}
-                                            {item.role === 'user' && !busy && <button className="jf-support__copy" type="button" onClick={() => setEditing({ id: item.id, serverId: item.serverId, text: item.text })}>Sửa câu hỏi</button>}
-                                            {item.role === 'assistant' && !busy && <ActionBarPrimitive.Reload className="jf-support__copy">Tạo lại</ActionBarPrimitive.Reload>}
-                                            {item.role === 'assistant' && item.text && item.status === 'complete' && <button className="jf-support__copy" type="button" onClick={() => copyAnswer(item.text, `${thread.id}-${index}`)}>{copiedId === `${thread.id}-${index}` ? 'Đã sao chép' : 'Sao chép'}</button>}
+                                            <div className="jf-support__actions">
+                                                {item.role === 'user' && !busy && <button className="jf-support__copy" type="button" onClick={() => setEditing({ id: item.id, serverId: item.serverId, text: item.text })}>Sửa câu hỏi</button>}
+                                                {item.role === 'assistant' && !busy && <ActionBarPrimitive.Reload className="jf-support__copy">Tạo lại</ActionBarPrimitive.Reload>}
+                                                {item.role === 'assistant' && item.text && item.status === 'complete' && <button className="jf-support__copy" type="button" onClick={() => copyAnswer(item.text, `${thread.id}-${index}`)}>{copiedId === `${thread.id}-${index}` ? 'Đã sao chép' : 'Sao chép'}</button>}
+                                                {item.role === 'assistant' && item.status === 'complete' && thread.remoteId && !busy && <>
+                                                    <button className={`jf-support__rate${item.feedback === 'up' ? ' jf-support__rate--active' : ''}`} type="button" aria-pressed={item.feedback === 'up'} aria-label="Câu trả lời hữu ích" title="Hữu ích" onClick={() => rate(item, 'up')}><Icon name="up" size={14}/></button>
+                                                    <button className={`jf-support__rate${item.feedback === 'down' ? ' jf-support__rate--active' : ''}`} type="button" aria-pressed={item.feedback === 'down'} aria-label="Câu trả lời chưa hữu ích" title="Chưa hữu ích" onClick={() => rate(item, 'down')}><Icon name="down" size={14}/></button>
+                                                </>}
+                                            </div>
+                                            {item.feedback === 'down' && <small className="jf-support__thanks">Cảm ơn góp ý của bạn! Bạn có thể bấm “Tạo lại” hoặc chuyển cho nhân viên hỗ trợ.</small>}
+                                            {item.role === 'assistant' && isLast && !busy && item.status === 'complete' && item.suggestions?.length > 0 && <div className="jf-support__chips jf-support__quick-replies" aria-label="Gợi ý câu hỏi tiếp theo">
+                                                {item.suggestions.map((text) => <button key={text} type="button" onClick={() => sendMessage(text)} disabled={!canAsk}>{text}</button>)}
+                                            </div>}
                                         </div>
                                     </MessagePrimitive.Root>
-                                ); }}</ThreadPrimitive.Messages>}
+                                </>); }}</ThreadPrimitive.Messages>}
                             </ThreadPrimitive.Viewport>
                             <ThreadPrimitive.ScrollToBottom className="jf-support__scroll" aria-label="Đến tin nhắn mới nhất">↓ Tin mới nhất</ThreadPrimitive.ScrollToBottom>
                             </div>
@@ -435,10 +552,21 @@ const SupportChat = () => {
                                     <button type="submit" disabled={!editing.text.trim() || busy}>Gửi lại</button>
                                     <button type="button" onClick={() => setEditing(null)}>Hủy</button>
                                 </form>}
+                                {menuOpen && <div id="jf-support-menu" className="jf-support__menu" role="menu" aria-label="Lối tắt"
+                                    onKeyDown={(event) => { if (event.key === 'Escape') { setMenuOpen(false); inputRef.current?.focus(); } }}>
+                                    {viewedJob && <button type="button" role="menuitem" disabled={!canAsk} onClick={() => sendMessage(jobQuestions(viewedJob)[0].text)}><span aria-hidden="true">📌</span>Hỏi về tin đang xem</button>}
+                                    {MENU_ITEMS.map((item) => <button key={item.label} type="button" role="menuitem" disabled={!canAsk} onClick={() => sendMessage(item.text)}><span aria-hidden="true">{item.icon}</span>{item.label}</button>)}
+                                    <Link role="menuitem" to="/job" onClick={() => setMenuOpen(false)}><span aria-hidden="true">🗂️</span>Trang Việc làm</Link>
+                                    <Link role="menuitem" to="/support/help" onClick={() => setMenuOpen(false)}><span aria-hidden="true">❓</span>Trung tâm trợ giúp</Link>
+                                </div>}
                                 <ComposerPrimitive.Root className="jf-support__composer">
+                                    <button type="button" className={`jf-support__menu-toggle${menuOpen ? ' jf-support__menu-toggle--active' : ''}`} onClick={() => setMenuOpen(!menuOpen)}
+                                        aria-label="Menu lối tắt" aria-haspopup="menu" aria-expanded={menuOpen} aria-controls="jf-support-menu" title="Lối tắt">
+                                        <Icon name="menu" size={17}/>
+                                    </button>
                                     <label htmlFor="jf-support-input" className="jf-support__sr-only">Nhập câu hỏi cho trợ lý</label>
                                     <ComposerPrimitive.Input id="jf-support-input" ref={inputRef} minRows={1} maxRows={4} maxLength={1400}
-                                        placeholder="Đặt câu hỏi hỗ trợ..." aria-label="Đặt câu hỏi hỗ trợ"/>
+                                        placeholder="Nhắn tin cho trợ lý JobFind..." aria-label="Đặt câu hỏi hỗ trợ"/>
                                     <button type="button" className={`jf-support__mic${listening ? ' jf-support__mic--active' : ''}`}
                                         onClick={startSpeech} disabled={busy || !(window.SpeechRecognition || window.webkitSpeechRecognition)}
                                         aria-label={listening ? 'Dừng nhập giọng nói' : 'Nhập bằng giọng nói'}
@@ -456,9 +584,19 @@ const SupportChat = () => {
                     )}
                 </ThreadPrimitive.Root>
             ) : (
-                <button type="button" className="jf-support__launcher" aria-label="Mở chatbot hỗ trợ JobFind" onClick={() => setOpen(true)}>
-                    <Icon name="chat" size={25}/><span>Hỗ trợ</span>
-                </button>
+                <div className="jf-support__launcher-wrap">
+                    {teaser && <div className="jf-support__teaser" role="status">
+                        <button type="button" className="jf-support__teaser-body" onClick={openPanel}>
+                            <span className="jf-support__avatar" aria-hidden="true"><Icon name="sparkles" size={15}/></span>
+                            <span><strong>Trợ lý JobFind</strong>{teaser.text}</span>
+                        </button>
+                        <button type="button" className="jf-support__teaser-close" onClick={() => { dismissTeaser(); setUnread(0); }} aria-label="Ẩn lời chào"><Icon name="close" size={14}/></button>
+                    </div>}
+                    <button type="button" className="jf-support__launcher" aria-label="Mở chatbot hỗ trợ JobFind" aria-describedby={unread ? 'jf-support-unread' : undefined} onClick={openPanel}>
+                        <Icon name="chat" size={25}/><span>Hỗ trợ</span>
+                        {unread > 0 && <span id="jf-support-unread" className="jf-support__badge">{unread > 9 ? '9+' : unread}<span className="jf-support__sr-only"> tin nhắn mới</span></span>}
+                    </button>
+                </div>
             )}
         </div>
         </AssistantRuntimeProvider>

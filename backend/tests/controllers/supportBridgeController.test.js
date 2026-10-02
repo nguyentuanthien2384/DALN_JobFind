@@ -1,7 +1,7 @@
 jest.mock('../../src/models', () => ({ Account: { findOne: jest.fn() }, sequelize: { query: jest.fn() } }));
 jest.mock('../../src/services/chatService', () => ({ handleSendMessage: jest.fn() }));
 jest.mock('../../src/config/socket', () => ({ emitNewMessage: jest.fn() }));
-jest.mock('../../src/services/supportJobTools', () => ({ executeSupportTool: jest.fn() }));
+jest.mock('../../src/services/supportJobTools', () => ({ executeSupportTool: jest.fn(), PUBLIC_TOOL_NAMES: ['search_jobs', 'get_job_details', 'job_market_overview'] }));
 const { trustedSupport, publicTool, deliverHandoff } = require('../../src/controllers/supportBridgeController');
 const { supportChatAccess } = require('../../src/middlewares/supportChatAccess');
 const db = require('../../src/models');

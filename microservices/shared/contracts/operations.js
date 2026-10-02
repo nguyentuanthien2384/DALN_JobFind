@@ -15,6 +15,7 @@ export const operations = [
     op('supportList', 'support', 'get', '/support/conversations', null, { list: true }),
     op('supportGet', 'support', 'get', '/support/conversations/:id', null, { params: object({ id: { type: 'string', format: 'uuid' } }, ['id']) }),
     op('supportDelete', 'support', 'delete', '/support/conversations/:id', null, { params: object({ id: { type: 'string', format: 'uuid' } }, ['id']), response: 'Ack' }),
+    op('supportFeedback', 'support', 'post', '/support/conversations/:id/messages/:messageId/feedback', null, { params: object({ id: { type: 'string', format: 'uuid' }, messageId: { type: 'string', format: 'uuid' } }, ['id', 'messageId']), body: 'SupportFeedback', response: 'Ack' }),
     op('supportHandoff', 'support', 'post', '/support/conversations/:id/handoff', P.SUPPORT_USE, { params: object({ id: { type: 'string', format: 'uuid' } }, ['id']), body: 'SupportHandoff' }),
     op('supportPrivate', 'support', 'get', '/support/private/:name', P.SUPPORT_USE, { params: object({ name: { type: 'string', enum: ['getMyProfileSummary', 'getMyApplications', 'getMySavedJobs', 'getMyCompanyJobs', 'getSubscriptionStatus'] } }, ['name']) }),
     op('supportQueue', 'support', 'get', '/support/handoffs', P.SUPPORT_MANAGE, { list: true }),
