@@ -120,3 +120,59 @@ describe('authorization helpers', () => {
     expect(mockFindCandidateView).not.toHaveBeenCalled();
   });
 });
+
+describe('authorization denies by default on missing or malformed ownership data', () => {
+  beforeEach(() => {
+    mockFindPost.mockReset();
+    mockFindCandidateView.mockReset();
+    mockFindUser.mockReset();
+  });
+
+  test('does not query the database for a missing post id', async () => {
+    for (const postId of [undefined, null, 0, '']) {
+      expect(await authorization.getCompanyIdOfPost(postId)).toBeNull();
+    }
+    expect(mockFindPost).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['the post does not exist', null],
+    ['the post has no author record', { id: 5, userId: 3, userPostData: null }],
+    ['the author left every company', { id: 5, userId: 3, userPostData: { id: 3, companyId: null } }],
+  ])('denies applicant access when %s', async (_case, post) => {
+    mockFindPost.mockResolvedValue(post);
+    expect(await authorization.getCompanyIdOfPost(5)).toBeNull();
+    expect(await authorization.canAccessPostApplicants(reqFor('EMPLOYER', 9), 5)).toBe(false);
+    expect(await authorization.canAccessPostApplicants(reqFor('COMPANY', 9), 5)).toBe(false);
+  });
+
+  test('returns the owning company as a number', async () => {
+    mockFindPost.mockResolvedValue({ id: 5, userPostData: { id: 3, companyId: '9' } });
+    expect(await authorization.getCompanyIdOfPost(5)).toBe(9);
+  });
+
+  test.each([0, -1, 1.5, 'abc', '', null, undefined])(
+    'rejects staff target id %p without looking it up, even for admins', async (targetId) => {
+      expect(await authorization.canManageCompanyUser(reqFor('COMPANY', 9), targetId)).toBe(false);
+      expect(await authorization.canManageCompanyUser(reqFor('ADMIN'), targetId)).toBe(false);
+      expect(await authorization.canAccessCandidateProfile(reqFor('ADMIN'), targetId)).toBe(false);
+      expect(mockFindUser).not.toHaveBeenCalled();
+      expect(mockFindCandidateView).not.toHaveBeenCalled();
+    });
+
+  test('accepts the smallest valid target id', async () => {
+    expect(await authorization.canManageCompanyUser(reqFor('ADMIN'), 1)).toBe(true);
+    expect(await authorization.canAccessCandidateProfile(reqFor('ADMIN'), '1')).toBe(true);
+  });
+
+  test('denies every check for an anonymous request', async () => {
+    expect(await authorization.canManageCompanyUser({}, 5)).toBe(false);
+    expect(await authorization.canAccessCandidateProfile({}, 5)).toBe(false);
+    expect(await authorization.canAccessPostApplicants({}, 5)).toBe(false);
+    expect(authorization.canAccessCompany({}, 5)).toBe(false);
+  });
+
+  test.each([null, undefined, 'null', 'abc'])('denies company access for company id %p', (companyId) => {
+    expect(authorization.canAccessCompany(reqFor('COMPANY', 9), companyId)).toBe(false);
+  });
+});

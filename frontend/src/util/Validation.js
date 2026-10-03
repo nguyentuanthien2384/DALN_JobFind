@@ -11,7 +11,20 @@ import { validatePassword } from '../auth/passwordPolicy';
 
 
 
-        const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/  // format abc@abc
+// Same structural rules as backend/src/utils/accountValidation.js. Every repetition is
+// anchored by a literal "." so matching stays linear (the old /^\w+([.-]?\w+)*@.../ pattern
+// backtracked exponentially: 31 characters froze the tab for ~14s) and long TLDs or "+" tags pass.
+const EMAIL_LOCAL = /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/i
+const EMAIL_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i
+const isEmail = (value) => {
+    const email = String(value).trim()
+    const parts = email.split('@')
+    if (email.length > 254 || parts.length !== 2) return false
+    const [local, domain] = parts
+    const labels = domain.split('.')
+    return local.length <= 64 && EMAIL_LOCAL.test(local)
+        && domain.length <= 253 && labels.length >= 2 && labels.every(label => EMAIL_LABEL.test(label))
+}
 const phoneRegex = /^\d{10}$/   // min 10 number
 const handleValidate = (data, type) => {
     var kq = ''
@@ -24,7 +37,7 @@ const handleValidate = (data, type) => {
         case "newpassword":
             return validatePassword(data) || true
         case "email":
-            if (emailRegex.test(data))
+            if (isEmail(data))
                 return true
             kq = 'Email sai định dạng'
             return kq

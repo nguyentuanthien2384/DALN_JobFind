@@ -48,11 +48,14 @@ export const createRateLimiter = ({ windowSeconds, max, name, countOnlyFailures 
 
         try {
             const count = await redis.incr(key);
-            if (count === 1) {
+            let ttl = await redis.ttl(key);
+            // INCR va EXPIRE la hai lenh rieng: neu EXPIRE chua tung chay (tien trinh
+            // chet, mat phan hoi) thi key khong bao gio het han va khach bi chan mai mai.
+            // Key khong co TTL (-1) duoc dat lai cua so thay vi giu bo dem vinh vien.
+            if (count === 1 || ttl < 0) {
                 await redis.expire(key, windowSeconds);
+                ttl = windowSeconds;
             }
-
-            const ttl = await redis.ttl(key);
             res.setHeader('X-RateLimit-Limit', max);
             res.setHeader('X-RateLimit-Remaining', Math.max(max - count, 0));
 

@@ -48,6 +48,10 @@ vi.mock('../api-gateway/src/libs/accountStore.js', () => ({
 vi.mock('opossum', () => ({ default: mocks.Breaker }));
 vi.mock('ioredis', () => ({ default: mocks.Redis }));
 
+// Read the clock once: two Date.now() calls can straddle a second and make a 901s token
+// that the 900s access-token policy rightly rejects, failing the test at random.
+const tokenTimes = () => { const iat = Math.floor(Date.now() / 1000); return { iat, exp: iat + 900 }; };
+
 afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
@@ -63,7 +67,7 @@ describe('gateway authentication', () => {
         ['wrong-role', { id: 9, statusCode: 'S1', roleCode: 'CANDIDATE' }, 403, 'forbidden']
     ])('the frontend understands the actual %s Gateway response', async (scenario, identity, status, type) => {
         const { optionalAuth, requireAuth, requireRole } = await import('../api-gateway/src/middlewares/auth.js');
-        mocks.verify.mockReturnValue({ sub: 9, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
+        mocks.verify.mockReturnValue({ sub: 9, ...tokenTimes() });
         if (scenario === 'unavailable') mocks.resolveCurrentIdentity.mockRejectedValueOnce(new Error('DB unavailable'));
         else mocks.resolveCurrentIdentity.mockResolvedValueOnce(identity);
         const req = makeReq({ headers: { authorization: 'Bearer synthetic' } });
@@ -84,7 +88,7 @@ describe('gateway authentication', () => {
     });
 
     it('optionally attaches a normalized JWT identity', async () => {
-        mocks.verify.mockReturnValue({ sub: 9, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900, roleCode: 'ADMIN', companyId: 4 });
+        mocks.verify.mockReturnValue({ sub: 9, ...tokenTimes(), roleCode: 'ADMIN', companyId: 4 });
         const { optionalAuth } = await import('../api-gateway/src/middlewares/auth.js');
         const req = makeReq({ headers: { authorization: 'Bearer token' } });
         const next = vi.fn();
@@ -115,7 +119,7 @@ describe('gateway authentication', () => {
         await requireAuth(makeReq(), denied, vi.fn());
         expect(denied.statusCode).toBe(401);
 
-        mocks.verify.mockReturnValue({ sub: 12, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
+        mocks.verify.mockReturnValue({ sub: 12, ...tokenTimes() });
         mocks.resolveCurrentIdentity.mockResolvedValue({
             id: 12, roleCode: 'CANDIDATE', companyId: null, statusCode: 'S1'
         });
@@ -131,7 +135,7 @@ describe('gateway authentication', () => {
 
     it('uses current DB role/company instead of stale JWT claims', async () => {
         mocks.verify.mockReturnValue({
-            sub: 9, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900, roleCode: 'ADMIN', companyId: 999
+            sub: 9, ...tokenTimes(), roleCode: 'ADMIN', companyId: 999
         });
         mocks.resolveCurrentIdentity.mockResolvedValue({
             id: 9, roleCode: 'EMPLOYER', companyId: 7, statusCode: 'S1',
@@ -148,7 +152,7 @@ describe('gateway authentication', () => {
     });
 
     it('rejects inactive/unknown accounts and fails closed when identity DB is unavailable', async () => {
-        mocks.verify.mockReturnValue({ sub: 9, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 900 });
+        mocks.verify.mockReturnValue({ sub: 9, ...tokenTimes() });
         const { requireAuth } = await import('../api-gateway/src/middlewares/auth.js');
 
         mocks.resolveCurrentIdentity.mockResolvedValueOnce({
@@ -218,6 +222,110 @@ describe('gateway authentication', () => {
             companyStatusCode: 'S1', companyCensorCode: 'CS3'
         } }), pending, vi.fn());
         expect(pending.statusCode).toBe(403);
+    });
+});
+
+// tests/setup-env.js turns legacy tokens ON for old fixtures; production leaves it OFF.
+// These cases pin the production behaviour so the switch cannot silently become the default.
+describe('gateway access-token policy with production defaults', () => {
+    const now = () => Math.floor(Date.now() / 1000);
+    const claims = (extra = {}) => { const t = now(); return { sub: 9, sid: 'family-1', iat: t, exp: t + 900, ...extra }; };
+    const authenticate = async (authorization) => {
+        const { optionalAuth } = await import('../api-gateway/src/middlewares/auth.js');
+        const req = makeReq({ headers: authorization === undefined ? {} : { authorization } });
+        const next = vi.fn();
+        await optionalAuth(req, makeRes(), next);
+        expect(next).toHaveBeenCalledOnce();
+        return req;
+    };
+
+    beforeEach(() => {
+        vi.stubEnv('AUTH_ALLOW_LEGACY_TOKENS', '');
+        mocks.verify.mockReset();
+        mocks.resolveCurrentIdentity.mockReset().mockResolvedValue({ id: 9, roleCode: 'CANDIDATE', companyId: null, statusCode: 'S1' });
+    });
+
+    it('rejects a session-less legacy token unless the migration switch is exactly "true"', async () => {
+        mocks.verify.mockReturnValue(claims({ sid: undefined }));
+        for (const flag of ['', 'false', 'TRUE', '1']) {
+            vi.stubEnv('AUTH_ALLOW_LEGACY_TOKENS', flag);
+            expect((await authenticate('Bearer legacy')).user).toBeNull();
+        }
+        expect(mocks.resolveCurrentIdentity).not.toHaveBeenCalled();
+        vi.stubEnv('AUTH_ALLOW_LEGACY_TOKENS', 'true');
+        expect((await authenticate('Bearer legacy')).user).toMatchObject({ id: 9 });
+        expect(mocks.resolveCurrentIdentity).toHaveBeenCalledWith(9, null);
+    });
+
+    it('accepts a session token and verifies that exact session family', async () => {
+        mocks.verify.mockReturnValue(claims());
+        expect((await authenticate('Bearer session')).user).toMatchObject({ id: 9, roleCode: 'CANDIDATE' });
+        expect(mocks.verify.mock.calls[0][0]).toBe('session');
+        expect(mocks.resolveCurrentIdentity).toHaveBeenCalledWith(9, 'family-1');
+    });
+
+    // Rows build their times from one `t` taken when the test runs, never at collection time.
+    it.each([
+        ['without exp', () => ({ exp: undefined })],
+        ['with a lifetime longer than the 15 minute policy', (t) => ({ iat: t, exp: t + 901 })],
+        ['issued in the future beyond clock tolerance', (t) => ({ iat: t + 60, exp: t + 120 })],
+        ['already expired relative to its issue time', (t) => ({ iat: t, exp: t - 1 })],
+        ['with subject 0', () => ({ sub: 0 })],
+        ['with a negative subject', () => ({ sub: -4 })],
+        ['with a fractional subject', () => ({ sub: 1.5 })],
+        ['with a non-numeric subject', () => ({ sub: 'admin' })],
+    ])('rejects a correctly signed token %s before touching the account store', async (_case, extra) => {
+        mocks.verify.mockReturnValue(claims(extra(now())));
+        expect((await authenticate('Bearer crafted')).user).toBeNull();
+        expect(mocks.resolveCurrentIdentity).not.toHaveBeenCalled();
+    });
+
+    it('verifies the exact token with or without the Bearer prefix', async () => {
+        mocks.verify.mockReturnValue(claims());
+        await authenticate('Bearer abc.def.ghi');
+        await authenticate('raw.token.value');
+        expect(mocks.verify.mock.calls.map(([token]) => token)).toEqual(['abc.def.ghi', 'raw.token.value']);
+    });
+
+    it('does not require a company unless the route asks for one', async () => {
+        const { requirePermission } = await import('../api-gateway/src/middlewares/auth.js');
+        const { PERMISSIONS } = await import('../shared/accessControl.js');
+        const next = vi.fn();
+        requirePermission(PERMISSIONS.PROFILE_SELF)(makeReq({ user: { id: 3, roleCode: 'CANDIDATE', companyId: null } }), makeRes(), next);
+        expect(next).toHaveBeenCalledOnce();
+    });
+
+    it('does not verify an empty bearer token', async () => {
+        expect((await authenticate('Bearer ')).user).toBeNull();
+        expect(mocks.verify).not.toHaveBeenCalled();
+    });
+
+    it('rejects an account whose stored role is unknown', async () => {
+        mocks.verify.mockReturnValue(claims());
+        mocks.resolveCurrentIdentity.mockResolvedValue({ id: 9, roleCode: 'SUPERUSER', companyId: null, statusCode: 'S1' });
+        const { requireAuth } = await import('../api-gateway/src/middlewares/auth.js');
+        const res = makeRes();
+        const next = vi.fn();
+        await requireAuth(makeReq({ headers: { authorization: 'Bearer token' } }), res, next);
+        expect(res.statusCode).toBe(401);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('denies a missing permission with the permission error, not the company error', async () => {
+        const { requirePermission } = await import('../api-gateway/src/middlewares/auth.js');
+        const { PERMISSIONS } = await import('../shared/accessControl.js');
+        const approvedCandidate = { id: 1, roleCode: 'CANDIDATE', companyId: 7, companyStatusCode: 'S1', companyCensorCode: 'CS1' };
+        for (const options of [{}, { companyRequired: true }]) {
+            const res = makeRes();
+            const next = vi.fn();
+            requirePermission(PERMISSIONS.JOB_MANAGE, options)(makeReq({ user: approvedCandidate }), res, next);
+            expect(res.statusCode).toBe(403);
+            expect(res.body.errMessage).toBe('Bạn không có quyền thực hiện thao tác này');
+            expect(next).not.toHaveBeenCalled();
+        }
+        const anonymous = makeRes();
+        requirePermission(PERMISSIONS.JOB_MANAGE)(makeReq(), anonymous, vi.fn());
+        expect(anonymous.statusCode).toBe(401);
     });
 });
 
@@ -385,6 +493,27 @@ describe('Redis rate limiter', () => {
         expect(redis.incr).toHaveBeenNthCalledWith(2, 'ratelimit:login:ip:203.0.113.11');
     });
 
+    it('re-applies the window to a counter that lost its expiry instead of blocking the client forever', async () => {
+        redis.handlers.ready();
+        redis.incr.mockResolvedValue(11);
+        redis.ttl.mockResolvedValue(-1);
+        const res = makeRes();
+        const next = vi.fn();
+        await createRateLimiter({ name: 'login', windowSeconds: 900, max: 10 })(makeReq({ ip: '9.9.9.9' }), res, next);
+        expect(redis.expire).toHaveBeenCalledWith('ratelimit:login:ip:9.9.9.9', 900);
+        expect(res.statusCode).toBe(429);
+        expect(res.headers['Retry-After']).toBe(900);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    it('does not reset the window of a counter that still expires', async () => {
+        redis.handlers.ready();
+        redis.incr.mockResolvedValue(2);
+        redis.ttl.mockResolvedValue(40);
+        await createRateLimiter({ name: 'public', windowSeconds: 60, max: 3 })(makeReq({ ip: '9.9.9.8' }), makeRes(), vi.fn());
+        expect(redis.expire).not.toHaveBeenCalled();
+    });
+
     it('returns 429 with a retry delay after the limit', async () => {
         redis.handlers.ready();
         redis.incr.mockResolvedValue(4);
@@ -447,6 +576,72 @@ describe('Redis rate limiter', () => {
         const next = vi.fn();
         await limiter(makeReq(), makeRes(), next);
         expect(next).toHaveBeenCalledOnce();
+    });
+
+    describe('failure-only counting for login', () => {
+        const run = async (options) => {
+            redis.handlers.ready();
+            redis.incr.mockResolvedValue(1);
+            const res = makeRes();
+            await createRateLimiter({ name: 'login', windowSeconds: 900, max: 10, ...options })(makeReq({ ip: '7.7.7.7' }), res, vi.fn());
+            return res;
+        };
+
+        it('never refunds a limiter that counts every request', async () => {
+            const res = await run({});
+            res.json({ errCode: 0 });
+            res.listeners.finish?.();
+            expect(redis.decr).not.toHaveBeenCalled();
+            expect(res.on).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['a JSON success', 200, { errCode: 0 }, 1],
+            ['a JSON success on a 399 status', 399, { errCode: 0 }, 1],
+            ['a wrong password reported as JSON', 200, { errCode: 1 }, 0],
+            ['errCode 0 on an HTTP 400 error', 400, { errCode: 0 }, 0],
+        ])('refunds %s only when the login really succeeded', async (_case, status, body, refunds) => {
+            const res = await run({ countOnlyFailures: true });
+            res.statusCode = status;
+            res.json(body);
+            expect(redis.decr).toHaveBeenCalledTimes(refunds);
+            if (refunds) expect(redis.decr).toHaveBeenCalledWith('ratelimit:login:ip:7.7.7.7');
+        });
+
+        it.each([[200, 1], [299, 1], [199, 0], [300, 0], [401, 0]])(
+            'refunds a streamed (proxied) response finishing with %i: %i time(s)', async (status, refunds) => {
+                const res = await run({ countOnlyFailures: true });
+                res.statusCode = status;
+                res.listeners.finish();
+                expect(redis.decr).toHaveBeenCalledTimes(refunds);
+            });
+
+        it('refunds a success at most once even when both json and finish fire', async () => {
+            const res = await run({ countOnlyFailures: true });
+            res.json({ errCode: 0 });
+            res.listeners.finish();
+            res.json({ errCode: 0 });
+            expect(redis.decr).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    it('never reports a negative remaining allowance', async () => {
+        redis.handlers.ready();
+        redis.incr.mockResolvedValue(50);
+        const res = makeRes();
+        await createRateLimiter({ name: 'public', windowSeconds: 60, max: 3 })(makeReq({ ip: '7.7.7.8' }), res, vi.fn());
+        expect(res.headers['X-RateLimit-Remaining']).toBe(0);
+        expect(res.headers['X-RateLimit-Limit']).toBe(3);
+    });
+
+    it('reports Redis health only when connected and answering PONG', async () => {
+        const { checkRedis } = await import('../api-gateway/src/middlewares/rateLimit.js');
+        redis.handlers.close();
+        expect(await checkRedis()).toBe(false);
+        redis.handlers.ready();
+        redis.ping = vi.fn().mockResolvedValueOnce('PONG').mockResolvedValueOnce('LOADING');
+        expect(await checkRedis()).toBe(true);
+        expect(await checkRedis()).toBe(false);
     });
 
     it('caps reconnect delay and closes Redis safely', async () => {

@@ -38,6 +38,8 @@ jest.mock("../../components/support/SupportInbox", () => () => <main>SUPPORT INB
 jest.mock("./Company/AddCompany", () => () => <main>ADD COMPANY</main>);
 jest.mock("./User/UserInfo", () => () => <main>USER INFO</main>);
 jest.mock("./Post/ManagePost", () => () => <main>MANAGE POST</main>);
+// Layout tests only check the shell; the real list page would call /api/get-all-user.
+jest.mock("./User/ManageUser", () => () => <main>MANAGE USER</main>);
 
 const ADMIN = { id: 1, roleCode: "ADMIN" };
 const COMPANY = {
@@ -84,6 +86,7 @@ describe("admin layout shell", () => {
         expect(within(trail).getByText("Người dùng").closest("li")).toHaveAttribute("aria-current", "page");
         expect(screen.getByRole("link", { name: "Thêm người dùng" })).toHaveAttribute("href", "/admin/add-user/");
         expect(document.title).toBe("Người dùng · Quản trị JobFind");
+        expect(screen.getByText("MANAGE USER")).toBeInTheDocument();
         list.unmount();
         expect(document.title).not.toContain("Người dùng");
 

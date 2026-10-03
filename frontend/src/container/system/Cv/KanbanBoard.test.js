@@ -13,6 +13,7 @@ import {
     sendInterviewInvitation,
 } from "../../../service/applicationService";
 import { getAllPostByAdminService, getDetailCompanyById } from "../../../service/userService";
+import { getJobScreenings } from "../../../service/aiSearchService";
 import KanbanBoard from "./KanbanBoard";
 
 const mockNavigate = jest.fn();
@@ -37,6 +38,13 @@ jest.mock("../../../service/userService", () => ({
 }));
 jest.mock("react-toastify", () => ({
     toast: { error: jest.fn(), success: jest.fn() },
+}));
+// The board loads AI screenings for the selected job; never let it reach a real API.
+jest.mock("../../../service/aiSearchService", () => ({
+    getJobScreenings: jest.fn(),
+    screenApplicationAi: jest.fn(),
+    candidateMessageAi: jest.fn(),
+    getAiTask: jest.fn(),
 }));
 
 const candidate = {
@@ -114,6 +122,7 @@ describe("KanbanBoard", () => {
             data: [{ id: 12, postDetailData: { name: "Frontend Developer" } }],
         });
         getApplicationBoard.mockImplementation(async () => boardResponse());
+        getJobScreenings.mockResolvedValue({ errCode: 0, data: [] });
         getFunnel.mockResolvedValue(funnelResponse);
         moveApplicationStage.mockResolvedValue({ errCode: 0 });
         getApplicationDetail.mockResolvedValue(detailResponse);
@@ -144,6 +153,7 @@ describe("KanbanBoard", () => {
         fireEvent.change(screen.getByRole("combobox"), { target: { value: "12" } });
         await waitFor(() => expect(getApplicationBoard).toHaveBeenLastCalledWith("12"));
         expect(getFunnel).toHaveBeenLastCalledWith("12");
+        await waitFor(() => expect(getJobScreenings).toHaveBeenCalledWith(12));
     });
 
     it("keeps the selected job's board when the initial all-jobs response arrives late", async () => {

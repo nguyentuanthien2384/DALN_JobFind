@@ -36,9 +36,11 @@ const reset = () => {
   mockSendMail.mockReset();
 };
 
+// Deadlines must stay in the future relative to the real clock; a fixed date (2030-01-01) expires.
+const FUTURE_TIME_END = String(Date.now() + 365 * 86400000);
 const validPost = (extra = {}) => ({
   id: 10, postId: 10, userId: 7, name: 'Node Engineer', categoryJobCode: 'IT', addressCode: 'HN',
-  salaryJobCode: 'SAL1', amount: 2, timeEnd: '1893456000000', categoryJoblevelCode: 'JL1',
+  salaryJobCode: 'SAL1', amount: 2, timeEnd: FUTURE_TIME_END, categoryJoblevelCode: 'JL1',
   categoryWorktypeCode: 'WT1', experienceJobCode: 'EXP1', genderPostCode: 'G1',
   descriptionHTML: '<p>job</p>', descriptionMarkdown: 'job', isHot: 0, note: 'note', statusCode: 'PS1',
   ...extra

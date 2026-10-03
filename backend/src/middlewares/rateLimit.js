@@ -11,12 +11,20 @@ const getClientKey = (req) => {
     return req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
 };
 
+// Dem theo route da khop, khong theo URL tho: Express bo qua hoa/thuong va dau "/"
+// cuoi, nen "/api/LOGIN/" van vao handler "/api/login" va phai dung chung han muc.
+// Dem theo req.path thi moi bien the co mot bo dem rieng va vuot duoc gioi han.
+const getRouteKey = (req) => {
+    if (req.route && typeof req.route.path === 'string') return `${req.baseUrl || ''}${req.route.path}`;
+    return String(req.path || '').toLowerCase().replace(/\/+$/, '') || '/';
+};
+
 // windowMs: khoang thoi gian tinh; max: so lan toi da trong khoang do.
 // countOnlyFailures: chi tinh cac lan that bai (dung cho dang nhap, de nhieu
 // nguoi dung chung mot dia chi IP van dang nhap binh thuong).
 const createRateLimiter = ({ windowMs, max, message, countOnlyFailures = false, clientKey = getClientKey }) => {
     return (req, res, next) => {
-        const key = `${req.path}|${clientKey(req)}`;
+        const key = `${getRouteKey(req)}|${clientKey(req)}`;
         const now = Date.now();
         const entry = buckets.get(key);
 

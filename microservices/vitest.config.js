@@ -9,6 +9,9 @@ export default defineConfig({
         restoreMocks: true,
         mockReset: true,
         include: ['tests/**/*.test.js'],
+        // Some tests compile every AJV event schema; with v8 coverage and all workers busy they
+        // exceed vitest's 5s default on CI runners although they take ~0.3s alone.
+        testTimeout: 20000,
         coverage: {
             provider: 'v8',
             reporter: ['text', 'json-summary', 'html'],

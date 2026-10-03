@@ -45,7 +45,8 @@ jest.mock("../../components/modal/SendCvModal", () => (props) =>
 const post = {
     id: 42,
     userId: 88,
-    timeEnd: new Date("2030-06-20T00:00:00Z").getTime(),
+    // Relative to the real clock: a fixed calendar date turns into an expired job one day.
+    timeEnd: Date.now() + 365 * 86400000,
     companyData: {
         id: 9,
         name: "Công ty Sao Việt",
@@ -369,7 +370,8 @@ describe("JobDetail", () => {
         getDetailPostByIdService.mockResolvedValueOnce({ errCode: 0, data: { ...post, timeEnd: Date.now() - 1 } });
         render(<JobDetail />);
         await screen.findByRole('heading', { name: post.postDetailData.name });
-        expect(screen.getByRole('status')).toHaveTextContent('Tin tuyển dụng đã hết hạn hoặc ngừng nhận hồ sơ.');
+        // The notice is set by a passive effect after the job renders, so wait for it.
+        expect(await screen.findByRole('status')).toHaveTextContent('Tin tuyển dụng đã hết hạn hoặc ngừng nhận hồ sơ.');
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
         expect(readApplicationIntent()).toBeNull();
     });

@@ -348,19 +348,17 @@ describe('paymentIntegrityService completes payments exactly once', () => {
     }));
   });
 
-  test('rejects invalid or missing transactional state without writing an order', async () => {
-    const cases = [
-      null,
-      makeIntent({ status: 'FAILED' }),
-      makeIntent({ expiresAt: past() }),
-      makeIntent({ packageType: 'BROKEN' }),
-      makeIntent({ entitlementType: 'BROKEN' })
-    ];
-    for (const locked of cases) {
-      mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(locked);
-      mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, approvedPayment()));
-      expect((await service.completePayment(callback())).errCode).toBe(2);
-    }
+  // An intent that expires during capture is honoured: see "never keeps money it does not deliver".
+  test.each([
+    ['a vanished intent', null, 'Giao dịch không tồn tại hoặc không thuộc tài khoản này'],
+    ['a failed intent', { status: 'FAILED' }, 'Giao dịch không còn hiệu lực'],
+    ['an unknown package type', { packageType: 'BROKEN' }, 'Dữ liệu quyền lợi của giao dịch không hợp lệ'],
+    ['an unknown entitlement', { entitlementType: 'BROKEN' }, 'Dữ liệu quyền lợi của giao dịch không hợp lệ']
+  ])('rejects %s inside the transaction without writing an order', async (_case, overrides, message) => {
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(overrides && makeIntent(overrides));
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, approvedPayment()));
+    mockDb.Company.findOne.mockResolvedValue({ id: 9, allowPost: 0, save: jest.fn() });
+    expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: message });
     expect(mockDb.OrderPackage.create).not.toHaveBeenCalled();
   });
 
@@ -407,5 +405,262 @@ describe('paymentIntegrityService provider verification', () => {
       payer: { payer_info: { payer_id: 'PAYER-1' } }
     }), intent, 'PAYER-1')).toBe(true);
     expect(service.providerPaymentMatches({ id: 'PAY-123' }, intent)).toBe(true);
+  });
+});
+
+// Once PayPal has captured the money for this exact intent, the local expiry can no longer
+// reject it: rejecting would charge the customer without granting the package (no refund exists).
+describe('paymentIntegrityService never keeps money it does not deliver', () => {
+  beforeEach(reset);
+
+  const company = () => ({ id: 9, allowPost: 1, save: jest.fn() });
+
+  test('grants the package when the intent expires while PayPal is capturing it', async () => {
+    const loaded = makeIntent({ expiresAt: new Date(Date.now() + 5) });
+    const locked = makeIntent({ expiresAt: past() });
+    const target = company();
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(loaded).mockResolvedValueOnce(locked);
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, approvedPayment()));
+    mockDb.Company.findOne.mockResolvedValueOnce(target);
+    mockDb.OrderPackage.create.mockResolvedValueOnce({ id: 501 });
+
+    expect(await service.completePayment(callback())).toEqual({ errCode: 0, errMessage: 'Hệ thống đã ghi nhận lịch sử mua của bạn' });
+    expect(mockDb.OrderPackage.create).toHaveBeenCalledWith(expect.objectContaining({ packagePostId: 3, amount: 2, paymentIntentId: 21 }), { transaction });
+    expect(target.allowPost).toBe(9);
+    expect(locked.status).toBe('COMPLETED');
+  });
+
+  test('grants the package when a concurrent callback marked the intent EXPIRED after capture started', async () => {
+    const locked = makeIntent({ status: 'EXPIRED', expiresAt: past() });
+    const target = company();
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(locked);
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, approvedPayment()));
+    mockDb.Company.findOne.mockResolvedValueOnce(target);
+    mockDb.OrderPackage.create.mockResolvedValueOnce({ id: 502 });
+
+    expect((await service.completePayment(callback())).errCode).toBe(0);
+    expect(target.allowPost).toBe(9);
+    expect(locked.status).toBe('COMPLETED');
+  });
+
+  test('still never executes an intent that was already expired before capture', async () => {
+    const expired = makeIntent({ expiresAt: past() });
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(expired);
+    expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: 'Giao dịch đã hết hạn' });
+    expect(mockPaypal.payment.execute).not.toHaveBeenCalled();
+    expect(mockDb.OrderPackage.create).not.toHaveBeenCalled();
+  });
+
+  test.each(['FAILED', 'CANCELLED'])('does not grant a %s intent even after a capture report', async (status) => {
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(makeIntent({ status }));
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, approvedPayment()));
+    expect((await service.completePayment(callback())).errCode).toBe(2);
+    expect(mockDb.OrderPackage.create).not.toHaveBeenCalled();
+  });
+});
+
+// `expiresAt: expect.any(Date)` also matches `new Date(NaN)`: assert the actual payment window.
+describe('paymentIntegrityService payment window and quantity limits', () => {
+  const NOW = Date.parse('2026-06-01T08:00:00Z');
+  const originalTtl = process.env.PAYMENT_INTENT_TTL_MINUTES;
+
+  beforeEach(() => {
+    reset();
+    jest.spyOn(Date, 'now').mockReturnValue(NOW);
+    mockDb.PackagePost.findOne.mockResolvedValue(makePackage());
+    mockDb.User.findOne.mockResolvedValue({ id: 8, companyId: 9 });
+    mockDb.Company.findOne.mockResolvedValue({ id: 9 });
+    mockPaypal.payment.create.mockImplementation((payload, done) => done(null, {
+      id: 'PAY-1', links: [{ rel: 'approval_url', href: 'https://paypal.test/approve?token=EC-1' }]
+    }));
+    mockDb.PaymentIntent.create.mockResolvedValue({ id: 21 });
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+    if (originalTtl === undefined) delete process.env.PAYMENT_INTENT_TTL_MINUTES;
+    else process.env.PAYMENT_INTENT_TTL_MINUTES = originalTtl;
+  });
+
+  const createdIntent = () => mockDb.PaymentIntent.create.mock.calls[0][0];
+
+  test.each([
+    [undefined, 30], ['10', 10], ['1.5', 1.5], ['0', 30], ['-5', 30], ['abc', 30], ['Infinity', 30],
+  ])('PAYMENT_INTENT_TTL_MINUTES=%p gives a %p minute window', async (configured, minutes) => {
+    if (configured === undefined) delete process.env.PAYMENT_INTENT_TTL_MINUTES;
+    else process.env.PAYMENT_INTENT_TTL_MINUTES = configured;
+    expect((await service.createPaymentLink({ type: 'POST', userId: 8, packageId: 3, amount: 1 })).errCode).toBe(0);
+    expect(createdIntent().expiresAt.getTime()).toBe(NOW + minutes * 60 * 1000);
+  });
+
+  test.each([[1, '10.00', 4], [1000, '10000.00', 4000]])('accepts the quantity boundary %i', async (amount, total, entitlementAmount) => {
+    expect((await service.createPaymentLink({ type: 'POST', userId: 8, packageId: 3, amount })).errCode).toBe(0);
+    expect(createdIntent()).toMatchObject({ quantity: amount, totalPrice: total, entitlementAmount });
+  });
+
+  test.each([0, -1, 1001, 2.5, '3abc', '', null])('rejects quantity %p before contacting PayPal', async (amount) => {
+    expect(await service.createPaymentLink({ type: 'POST', userId: 8, packageId: 3, amount })).toEqual({ errCode: 1, errMessage: 'Missing required parameters !' });
+    expect(mockPaypal.payment.create).not.toHaveBeenCalled();
+  });
+
+  test('rounds the unit price to cents before multiplying, so PayPal and our record agree', async () => {
+    mockDb.PackagePost.findOne.mockResolvedValue(makePackage({ price: 0.105 }));
+    expect((await service.createPaymentLink({ type: 'POST', userId: 8, packageId: 3, amount: 3 })).errCode).toBe(0);
+    const payload = mockPaypal.payment.create.mock.calls[0][0];
+    expect(payload.transactions[0].item_list.items[0].price).toBe(createdIntent().unitPrice);
+    expect(payload.transactions[0].amount.total).toBe(createdIntent().totalPrice);
+    expect(Number(createdIntent().totalPrice)).toBeCloseTo(Number(createdIntent().unitPrice) * 3, 2);
+  });
+
+  test('a replayed callback for a completed intent reports it as already recorded', async () => {
+    mockDb.PaymentIntent.findOne.mockResolvedValue(makeIntent({ status: 'COMPLETED' }));
+    expect(await service.completePayment(callback())).toEqual({
+      errCode: 0, errMessage: 'Giao dịch này đã được ghi nhận trước đó', alreadyProcessed: true
+    });
+  });
+});
+
+// providerPaymentMatches is unit-tested above; these pin that completePayment actually uses it.
+describe('paymentIntegrityService grants only what PayPal confirmed', () => {
+  beforeEach(reset);
+
+  const notConfirmed = { errCode: -1, errMessage: 'PayPal chưa xác nhận giao dịch' };
+  const expectNothingGranted = (target) => {
+    expect(mockDb.sequelize.transaction).not.toHaveBeenCalled();
+    expect(mockDb.OrderPackage.create).not.toHaveBeenCalled();
+    expect(target.save).not.toHaveBeenCalled();
+  };
+
+  test.each([
+    ['a lower total', approvedPayment({ transactions: [{ amount: { currency: 'USD', total: '2.00' } }] })],
+    ['another currency', approvedPayment({ transactions: [{ amount: { currency: 'VND', total: '20.00' } }] })],
+    ['another payer', approvedPayment({ payer: { payer_info: { payer_id: 'SOMEONE-ELSE' } } })],
+    ['another payment', approvedPayment({ id: 'PAY-OTHER' })],
+  ])('does not grant when a successful execute reports %s', async (_case, executed) => {
+    const target = { id: 9, allowPost: 1, save: jest.fn() };
+    mockDb.Company.findOne.mockResolvedValue(target);
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(makeIntent());
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, executed));
+    mockPaypal.payment.get.mockImplementationOnce((id, done) => done(null, executed));
+    expect(await service.completePayment(callback())).toEqual(notConfirmed);
+    expectNothingGranted(target);
+  });
+
+  test('does not grant when execute fails and the provider lookup shows a different amount', async () => {
+    const target = { id: 9, allowPost: 1, save: jest.fn() };
+    mockDb.Company.findOne.mockResolvedValue(target);
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(makeIntent());
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(new Error('already executed')));
+    mockPaypal.payment.get.mockImplementationOnce((id, done) => done(null, approvedPayment({ transactions: [{ amount: { currency: 'USD', total: '0.01' } }] })));
+    expect(await service.completePayment(callback())).toEqual(notConfirmed);
+    expectNothingGranted(target);
+  });
+
+  test('executes with the server-side amount, never a client-supplied one', async () => {
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(makeIntent());
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, approvedPayment()));
+    mockDb.Company.findOne.mockResolvedValue({ id: 9, allowPost: 0, save: jest.fn() });
+    mockDb.OrderPackage.create.mockResolvedValue({ id: 1 });
+    await service.completePayment({ ...callback(), amount: '0.01', total: '0.01' });
+    expect(mockPaypal.payment.execute).toHaveBeenCalledWith('PAY-123', {
+      payer_id: 'PAYER-1', transactions: [{ amount: { currency: 'USD', total: '20.00' } }]
+    }, expect.any(Function));
+  });
+
+  test('starts from zero when the company has no allowance recorded yet', async () => {
+    const target = { id: 9, allowPost: null, save: jest.fn() };
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(makeIntent());
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, approvedPayment()));
+    mockDb.Company.findOne.mockResolvedValue(target);
+    mockDb.OrderPackage.create.mockResolvedValue({ id: 1 });
+    expect((await service.completePayment(callback())).errCode).toBe(0);
+    expect(target.allowPost).toBe(8);
+    expect(target.save).toHaveBeenCalledWith({ transaction, silent: true });
+  });
+});
+
+describe('paymentIntegrityService rejects bad package data and provider replies precisely', () => {
+  beforeEach(() => {
+    reset();
+    mockDb.User.findOne.mockResolvedValue({ id: 8, companyId: 9 });
+    mockDb.Company.findOne.mockResolvedValue({ id: 9 });
+    mockDb.PaymentIntent.create.mockResolvedValue({ id: 21 });
+  });
+  afterEach(() => jest.restoreAllMocks());
+  const create = (amount = 1) => service.createPaymentLink({ type: 'POST', userId: 8, packageId: 3, amount });
+  const paypalReturns = (error, payment) => mockPaypal.payment.create.mockImplementation((payload, done) => done(error, payment));
+
+  test.each([
+    ['a zero price', { price: 0 }], ['a negative price', { price: -10 }], ['a non-numeric price', { price: 'free' }],
+    ['a zero package value', { value: 0 }], ['a negative package value', { value: -2 }],
+  ])('refuses %s as a package configuration error before PayPal', async (_case, overrides) => {
+    mockDb.PackagePost.findOne.mockResolvedValue(makePackage(overrides));
+    expect(await create()).toEqual({ errCode: 2, errMessage: 'Cấu hình gói thanh toán không hợp lệ' });
+    expect(mockPaypal.payment.create).not.toHaveBeenCalled();
+  });
+
+  test('accepts a total of exactly 9,999,999,999.99 USD and refuses anything above it', async () => {
+    paypalReturns(null, { id: 'PAY-1', links: [{ rel: 'approval_url', href: 'https://paypal.test/a?token=EC-1' }] });
+    mockDb.PackagePost.findOne.mockResolvedValueOnce(makePackage({ price: 9999999999.99 })).mockResolvedValueOnce(makePackage({ price: 5000000000.00 }));
+    expect((await create(1)).errCode).toBe(0);
+    expect(await create(2)).toEqual({ errCode: 2, errMessage: 'Tổng tiền của giao dịch không hợp lệ' });
+  });
+
+  test('reports a PayPal creation error without storing an intent', async () => {
+    mockDb.PackagePost.findOne.mockResolvedValue(makePackage());
+    paypalReturns(new Error('INSTRUMENT_DECLINED'), { id: 'PAY-1', links: [{ rel: 'approval_url', href: 'https://paypal.test/a?token=EC-1' }] });
+    expect(await create()).toEqual({ errCode: -1, errMessage: 'INSTRUMENT_DECLINED' });
+    paypalReturns({}, undefined);
+    expect(await create()).toEqual({ errCode: -1, errMessage: 'Không thể tạo giao dịch PayPal' });
+    expect(mockDb.PaymentIntent.create).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['no payment id', { links: [{ rel: 'approval_url', href: 'https://paypal.test/a?token=EC-1' }] }],
+    ['no approval link', { id: 'PAY-1', links: [{ rel: 'self', href: 'https://api.paypal.test/v1/payments/PAY-1' }] }],
+    ['an approval link without token', { id: 'PAY-1', links: [{ rel: 'approval_url', href: 'https://paypal.test/a' }] }],
+  ])('refuses an incomplete PayPal reply with %s', async (_case, payment) => {
+    mockDb.PackagePost.findOne.mockResolvedValue(makePackage());
+    paypalReturns(null, payment);
+    expect(await create()).toEqual({ errCode: -1, errMessage: 'PayPal trả về giao dịch không đầy đủ' });
+    expect(mockDb.PaymentIntent.create).not.toHaveBeenCalled();
+  });
+
+  test('picks the approval link among the other HATEOAS links', async () => {
+    mockDb.PackagePost.findOne.mockResolvedValue(makePackage());
+    paypalReturns(null, { id: 'PAY-1', links: [
+      { rel: 'self', href: 'https://api.paypal.test/v1/payments/PAY-1' },
+      { rel: 'approval_url', href: 'https://paypal.test/approve?token=EC-9' },
+      { rel: 'execute', href: 'https://api.paypal.test/v1/payments/PAY-1/execute' },
+    ] });
+    expect(await create()).toEqual({ errCode: 0, link: 'https://paypal.test/approve?token=EC-9' });
+    expect(mockDb.PaymentIntent.create).toHaveBeenCalledWith(expect.objectContaining({ providerToken: 'EC-9' }));
+  });
+
+  test('describes the PayPal item by package type', async () => {
+    paypalReturns(null, { id: 'PAY-1', links: [{ rel: 'approval_url', href: 'https://paypal.test/a?token=EC-1' }] });
+    mockDb.PackagePost.findOne.mockResolvedValue(makePackage());
+    mockDb.PackageCv.findOne.mockResolvedValue(makePackage());
+    await create();
+    await service.createPaymentLink({ type: 'CV', userId: 8, packageId: 3, amount: 1 });
+    expect(mockPaypal.payment.create.mock.calls.map(([payload]) => payload.transactions[0].description))
+      .toEqual(['JobFind post package', 'JobFind CV package']);
+  });
+
+  test('treats an intent expiring exactly now as expired and never executes it', async () => {
+    const now = Date.parse('2026-06-01T08:00:00Z');
+    jest.spyOn(Date, 'now').mockReturnValue(now);
+    const intent = makeIntent({ expiresAt: new Date(now) });
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(intent);
+    expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: 'Giao dịch đã hết hạn' });
+    expect(intent.status).toBe('EXPIRED');
+    expect(mockPaypal.payment.execute).not.toHaveBeenCalled();
+  });
+
+  test('reports a vanished company inside the transaction without granting', async () => {
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(makeIntent());
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, approvedPayment()));
+    mockDb.Company.findOne.mockResolvedValue(null);
+    expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: 'Không tìm thấy công ty nhận quyền lợi' });
+    expect(mockDb.OrderPackage.create).not.toHaveBeenCalled();
   });
 });

@@ -97,13 +97,19 @@ describe("NoteModal", () => {
 });
 
 describe("ReupPostModal", () => {
+    // A deadline one year from the real clock, as the date input value and the local-midnight timestamp it submits.
+    const futureDay = () => {
+        const day = new Date(); day.setHours(0, 0, 0, 0); day.setFullYear(day.getFullYear() + 1);
+        const pad = (n) => String(n).padStart(2, "0");
+        return { value: `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`, time: day.getTime() };
+    };
     it.each([['core', 'AI kiểm duyệt qua Job Core'], ['legacy', 'duyệt thủ công qua backend cũ']])('explains the selected %s moderation path before confirming', (reviewMode, message) => {
         render(<ReupPostModal isOpen reviewMode={reviewMode} handleFunc={jest.fn()} onHide={jest.fn()} />);
         expect(screen.getByText(new RegExp(message))).toBeInTheDocument();
         expect(screen.getByText(/không dùng phần đang sửa/)).toBeInTheDocument();
     });
     it('restores the submitted date after remount and keeps it on a rejection instead of resetting to tomorrow', async () => {
-        const deadline = new Date('2031-01-02T00:00:00').getTime(), onHide = jest.fn(), handleFunc = jest.fn().mockResolvedValue(false);
+        const deadline = futureDay().time, onHide = jest.fn(), handleFunc = jest.fn().mockResolvedValue(false);
         const first = render(<ReupPostModal isOpen initialTimeEnd={deadline} handleFunc={handleFunc} onHide={onHide} />);
         expect(screen.getByLabelText('Ngày kết thúc').value).toBe(new Date(deadline).toISOString().slice(0, 10));
         first.unmount(); render(<ReupPostModal isOpen initialTimeEnd={deadline} handleFunc={handleFunc} onHide={onHide} />);
@@ -120,7 +126,7 @@ describe("ReupPostModal", () => {
     it('awaits submission, blocks two clicks and retains the selected date on a definite failure', async () => {
         let finish; const handleFunc = jest.fn(() => new Promise(resolve => { finish = resolve; })); const onHide = jest.fn();
         render(<ReupPostModal isOpen handleFunc={handleFunc} onHide={onHide} />);
-        const date = screen.getByLabelText('Ngày kết thúc'); fireEvent.change(date, { target: { value: '2030-01-02' } });
+        const date = screen.getByLabelText('Ngày kết thúc'); fireEvent.change(date, { target: { value: futureDay().value } });
         const chosen = date.value;
         fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' })); fireEvent.click(screen.getByRole('button', { name: 'Hoàn thành' }));
         expect(handleFunc).toHaveBeenCalledTimes(1); expect(screen.getByRole('button', { name: 'Hủy' })).toBeDisabled();
@@ -151,9 +157,10 @@ describe("ReupPostModal", () => {
         const handleFunc = jest.fn().mockResolvedValue(true);
         const onHide = jest.fn();
         render(<ReupPostModal isOpen handleFunc={handleFunc} onHide={onHide} />);
-        fireEvent.change(screen.getByLabelText("Ngày kết thúc"), { target: { value: "2030-01-02" } });
+        const deadline = futureDay();
+        fireEvent.change(screen.getByLabelText("Ngày kết thúc"), { target: { value: deadline.value } });
         fireEvent.click(screen.getByRole("button", { name: "Hoàn thành" }));
-        expect(handleFunc).toHaveBeenCalledWith(new Date("2030-01-02T00:00:00").getTime());
+        expect(handleFunc).toHaveBeenCalledWith(deadline.time);
         await waitFor(() => expect(onHide).toHaveBeenCalledTimes(1));
     });
 

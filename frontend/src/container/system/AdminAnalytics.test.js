@@ -346,12 +346,23 @@ describe("admin report dashboard", () => {
 
     it("groups a twelve-month report by month", async () => {
         const dayjs = require("dayjs");
+        // The 365-day preset ends today, so the activity must be dated relative to the real clock.
+        const today = dayjs().format("YYYY-MM-DD");
+        getTimeseries.mockResolvedValue({ errCode: 0, data: {
+            hoSoUngTuyen: [{ ngay: today, soLuong: 5 }],
+            tinTuyenDung: [{ ngay: today, soLuong: 2 }, { ngay: dayjs().subtract(40, "day").format("YYYY-MM-DD"), soLuong: 1 }],
+            nguoiDungMoi: [], doanhThu: [], doanhThuXemCv: [],
+        } });
         render(<ReportDashboard />, "/admin/reports?period=365d");
         await screen.findByText("Báo cáo & Thống kê");
         const months = JSON.parse(screen.getAllByTestId("line-chart")[0].getAttribute("data-series"));
         expect(months[0].label).toBe(dayjs().subtract(364, "day").format("MM/YYYY"));
         expect(months[months.length - 1].label).toBe(dayjs().format("MM/YYYY"));
         expect(months.length).toBeLessThanOrEqual(13);
+        // Daily values are summed into their own month, never dropped or double counted.
+        expect(months[months.length - 1]).toMatchObject({ tin: 2, hoSo: 5 });
+        expect(months.find(m => m.label === dayjs().subtract(40, "day").format("MM/YYYY"))).toMatchObject({ tin: 1 });
+        expect(months.reduce((sum, m) => sum + m.tin, 0)).toBe(3);
         expect(screen.getByText("Hoạt động theo tháng")).toBeInTheDocument();
     });
 

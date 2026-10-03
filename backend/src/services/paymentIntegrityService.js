@@ -263,12 +263,10 @@ const persistCompletedPayment = (intentId, payerId) => db.sequelize.transaction(
     });
     if (!intent) return invalidPayment();
     if (intent.status === 'COMPLETED') return completedResponse(true);
-    if (intent.status !== 'PENDING') return invalidPayment('Giao dịch không còn hiệu lực');
-    if (new Date(intent.expiresAt).getTime() <= Date.now()) {
-        intent.status = 'EXPIRED';
-        await intent.save({ transaction });
-        return invalidPayment('Giao dịch đã hết hạn');
-    }
+    // Only called after PayPal confirmed it captured this intent's exact amount. Expiry is
+    // enforced before capture; rejecting now (expired meanwhile, or marked EXPIRED by a
+    // concurrent callback) would keep the customer's money without granting the package.
+    if (intent.status !== 'PENDING' && intent.status !== 'EXPIRED') return invalidPayment('Giao dịch không còn hiệu lực');
 
     const config = packageConfigs[intent.packageType];
     const allowanceField = allowanceFields[intent.entitlementType];
