@@ -1,22 +1,24 @@
 import useListLoading from './useListLoading';
 import { useCallback, useEffect, useState } from 'react';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
-import { PAGINATION } from '../../util/constant';
 import CommonUtils from '../../util/CommonUtils';
+import { DEFAULT_PAGE_SIZE, normalizePageSize, pageForSize } from './List/AdminList';
 
 // Catalogs and package lists share the same URL-backed paging behavior.
 export default function useCatalogList(fetchList, { type, withCategory = false } = {}) {
     const [query, setQuery] = useListQuery({
         page: 0,
         search: '',
+        size: DEFAULT_PAGE_SIZE,
         ...(withCategory ? { categoryJobCode: '' } : {}),
     });
     const { page, search, categoryJobCode } = query;
+    const pageSize = normalizePageSize(query.size);
     const [rows, setRows] = useState([]);
-    const [count, setCount] = useState(0);
+    const [total, setTotal] = useState(0);
     const [revision, setRevision] = useState(0);
     const [searchDraft, setSearchDraft] = useState(search);
-    const [loading, setLoading] = useListLoading(JSON.stringify([type, withCategory, categoryJobCode, page, search, revision]));
+    const [loading, setLoading] = useListLoading(JSON.stringify([type, withCategory, categoryJobCode, page, pageSize, search, revision]));
     useEffect(() => setSearchDraft(search), [search]);
 
     useEffect(() => {
@@ -27,14 +29,14 @@ export default function useCatalogList(fetchList, { type, withCategory = false }
                 const result = await fetchList({
                     ...(type ? { type } : {}),
                     ...(withCategory ? { categoryJobCode } : {}),
-                    limit: PAGINATION.pagerow,
-                    offset: page * PAGINATION.pagerow,
+                    limit: pageSize,
+                    offset: page * pageSize,
                     search: CommonUtils.removeSpace(search),
                 });
                 if (!active) return;
                 if (result?.errCode === 0) {
-                    const validPage = clampListPage(page, result.count, PAGINATION.pagerow);
-                    setCount(Math.ceil(Math.max(0, Number(result.count) || 0) / PAGINATION.pagerow));
+                    const validPage = clampListPage(page, result.count, pageSize);
+                    setTotal(Math.max(0, Number(result.count) || 0));
                     if (validPage !== page) {
                         setQuery({ page: validPage }, { replace: true });
                         return;
@@ -42,20 +44,21 @@ export default function useCatalogList(fetchList, { type, withCategory = false }
                     setRows(result.data || []);
                 } else {
                     setRows([]);
-                    setCount(0);
+                    setTotal(0);
                 }
             } catch (error) {
-                if (active) { setRows([]); setCount(0); }
+                if (active) { setRows([]); setTotal(0); }
             } finally {
                 if (active) setLoading(false);
             }
         };
         load();
         return () => { active = false; };
-    }, [fetchList, type, withCategory, categoryJobCode, page, search, revision, setQuery, setLoading]);
+    }, [fetchList, type, withCategory, categoryJobCode, page, pageSize, search, revision, setQuery, setLoading]);
 
     const refresh = useCallback(() => setRevision(value => value + 1), []);
-    const handleChangePage = ({ selected }) => setQuery({ page: selected });
+    const handleChangePage = selected => setQuery({ page: typeof selected === 'number' ? selected : selected.selected });
+    const handlePageSizeChange = size => setQuery({ size, page: pageForSize(page, pageSize, size) });
     const handleSearch = value => {
         const normalized = CommonUtils.removeSpace(value);
         setSearchDraft(normalized);
@@ -68,6 +71,13 @@ export default function useCatalogList(fetchList, { type, withCategory = false }
         categoryJobCode: value,
         page: previous.categoryJobCode === value ? previous.page : 0,
     }));
-    return { rows, count, loading, numberPage: page, categoryJobCode, search, searchDraft,
-        setSearchDraft, handleChangePage, handleSearch, handleCategoryChange, refresh };
+    const resetFilters = () => {
+        setSearchDraft('');
+        setQuery({ search: '', page: 0, ...(withCategory ? { categoryJobCode: '' } : {}) });
+    };
+    return {
+        rows, total, count: Math.ceil(total / pageSize), loading, numberPage: page, pageSize, categoryJobCode, search, searchDraft,
+        filtered: Boolean(search || categoryJobCode), setSearchDraft, handleChangePage, handlePageSizeChange, handleSearch,
+        handleCategoryChange, resetFilters, refresh,
+    };
 }

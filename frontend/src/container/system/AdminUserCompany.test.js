@@ -164,33 +164,70 @@ describe("ManageUser", () => {
         ] });
         BanUserService.mockResolvedValue({ errCode: 0, errMessage: "Đã chặn" });
         UnbanUserService.mockResolvedValue({ errCode: 0, errMessage: "Đã kích hoạt" });
+        AntModal.confirm.mockImplementation((options) => options.onOk());
     });
 
-    it("does not allow the current admin to block itself and blocks another user", async () => {
+    it("does not allow the current admin to block itself and blocks another user after confirmation", async () => {
         render(<ManageUser />);
-        expect(await screen.findByText("Số lượng người dùng: 2")).toBeInTheDocument();
+        expect(await screen.findByText("Tôi Nguyễn")).toBeInTheDocument();
+        expect(screen.getByTitle("Tổng số bản ghi khớp bộ lọc")).toHaveTextContent("2");
         const selfRow = screen.getByText("Tôi Nguyễn").closest("tr");
         const otherRow = screen.getByText("Lan Nguyễn").closest("tr");
         expect(within(selfRow).queryByText("Chặn")).not.toBeInTheDocument();
         fireEvent.click(within(otherRow).getByText("Chặn"));
+        expect(AntModal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Chặn tài khoản Lan Nguyễn?" }));
         await waitFor(() => expect(BanUserService).toHaveBeenCalledWith(102));
         expect(UnbanUserService).not.toHaveBeenCalled();
         expect(toast.success).toHaveBeenCalledWith("Đã chặn");
         await waitFor(() => expect(getAllUsers).toHaveBeenCalledTimes(2));
     });
 
-    it("normalizes searches, paginates and activates a blocked account", async () => {
-        getAllUsers.mockResolvedValue({ errCode: 0, count: 8, data: [account({ id: 2, statusCode: "S2" })] });
+    it("does not block anyone when the confirmation is cancelled", async () => {
+        AntModal.confirm.mockImplementation(() => {});
+        render(<ManageUser />);
+        fireEvent.click(within((await screen.findByText("Lan Nguyễn")).closest("tr")).getByText("Chặn"));
+        expect(BanUserService).not.toHaveBeenCalled();
+    });
+
+    it("normalizes searches, paginates and activates a blocked account without confirmation", async () => {
+        getAllUsers.mockResolvedValue({ errCode: 0, count: 45, data: [account({ id: 2, statusCode: "S2" })] });
         render(<ManageUser />);
         await screen.findByText("Kích hoạt");
-        const input = screen.getByLabelText("Nhập tên hoặc số điện thoại");
+        expect(getAllUsers).toHaveBeenCalledWith({ limit: 20, offset: 0, search: "", roleCode: "", statusCode: "" });
+        const input = screen.getByLabelText("Tìm theo họ tên, số điện thoại hoặc email");
         fireEvent.change(input, { target: { value: "  Lan   Nguyen " } });
         fireEvent.click(screen.getByRole("button", { name: "Tìm kiếm" }));
         await waitFor(() => expect(getAllUsers).toHaveBeenLastCalledWith(expect.objectContaining({ search: "Lan Nguyen", offset: 0 })));
         fireEvent.click(screen.getByTestId("page-2"));
-        await waitFor(() => expect(getAllUsers).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5 })));
+        await waitFor(() => expect(getAllUsers).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 20 })));
         fireEvent.click(screen.getByText("Kích hoạt"));
+        expect(AntModal.confirm).not.toHaveBeenCalled();
         await waitFor(() => expect(UnbanUserService).toHaveBeenCalledWith(102));
+    });
+
+    it("reads every stored date-of-birth format", () => {
+        const { formatBirthDate } = require("./User/ManageUser");
+        expect(formatBirthDate("2002-01-01")).toBe("01/01/2002");
+        expect(formatBirthDate("01/02/2000")).toBe("01/02/2000");
+        expect(formatBirthDate(String(Date.UTC(2000, 0, 14, 5)))).toBe("14/01/2000");
+        expect(formatBirthDate(null)).toBe("Không có thông tin");
+        expect(formatBirthDate("31/02/2000")).toBe("Không có thông tin");
+        expect(formatBirthDate("không rõ")).toBe("Không có thông tin");
+    });
+
+    it("filters by role and status, then clears every filter at once", async () => {
+        render(<ManageUser />);
+        await screen.findByText("Lan Nguyễn");
+        expect(screen.queryByRole("button", { name: /Xóa bộ lọc/ })).not.toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText("Vai trò"), { target: { value: "EMPLOYER" } });
+        await waitFor(() => expect(getAllUsers).toHaveBeenLastCalledWith(expect.objectContaining({ roleCode: "EMPLOYER", statusCode: "", offset: 0 })));
+        fireEvent.change(screen.getByLabelText("Trạng thái"), { target: { value: "S2" } });
+        await waitFor(() => expect(getAllUsers).toHaveBeenLastCalledWith(expect.objectContaining({ roleCode: "EMPLOYER", statusCode: "S2" })));
+        getAllUsers.mockResolvedValue({ errCode: 0, count: 0, data: [] });
+        fireEvent.click(screen.getByRole("button", { name: /Xóa bộ lọc/ }));
+        await waitFor(() => expect(getAllUsers).toHaveBeenLastCalledWith({ limit: 20, offset: 0, search: "", roleCode: "", statusCode: "" }));
+        expect(await screen.findByText("Không có dữ liệu")).toBeInTheDocument();
+        expect(screen.getByLabelText("Vai trò")).toHaveValue("");
     });
 });
 
@@ -333,11 +370,18 @@ describe("ManageCompany moderation", () => {
     it("filters, bans and accepts a pending company through confirmation", async () => {
         render(<ManageCompany />);
         expect(await screen.findByText("Công ty 5")).toBeInTheDocument();
-        fireEvent.change(screen.getByLabelText("Loại kiểm duyệt"), { target: { value: "CS3" } });
+        fireEvent.change(screen.getByLabelText("Kiểm duyệt"), { target: { value: "CS3" } });
         await waitFor(() => expect(getAllCompany).toHaveBeenLastCalledWith(expect.objectContaining({ censorCode: "CS3" })));
+        fireEvent.change(screen.getByLabelText("Hoạt động"), { target: { value: "S1" } });
+        await waitFor(() => expect(getAllCompany).toHaveBeenLastCalledWith({ limit: 20, offset: 0, search: "", censorCode: "CS3", statusCode: "S1" }));
+        fireEvent.click(screen.getByRole("button", { name: /Xóa bộ lọc/ }));
+        await waitFor(() => expect(getAllCompany).toHaveBeenLastCalledWith(expect.objectContaining({ censorCode: "", statusCode: "" })));
+        fireEvent.change(screen.getByLabelText("Kiểm duyệt"), { target: { value: "CS3" } });
+        await waitFor(() => expect(getAllCompany).toHaveBeenLastCalledWith(expect.objectContaining({ censorCode: "CS3", statusCode: "" })));
+        const loadsBeforeBan = getAllCompany.mock.calls.length;
         fireEvent.click(await screen.findByText("Dừng kích hoạt"));
         await waitFor(() => expect(banCompanyService).toHaveBeenCalledWith({ id: 5 }));
-        await waitFor(() => expect(getAllCompany).toHaveBeenCalledTimes(3));
+        await waitFor(() => expect(getAllCompany).toHaveBeenCalledTimes(loadsBeforeBan + 1));
         fireEvent.click(await screen.findByText("Duyệt"));
         await waitFor(() => expect(accecptCompanyService).toHaveBeenCalledWith({ companyId: 5, note: "null" }));
     });

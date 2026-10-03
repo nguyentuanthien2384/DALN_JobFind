@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { createLogger } from '../../../shared/logger.js';
+import { isRoutineAction } from '../../../shared/auditPolicy.js';
 
 const logger = createLogger('api-gateway');
 
@@ -38,6 +39,8 @@ export const auditMiddleware = (req, res, next) => {
             ip: req.ip,
             correlationId: req.correlationId
         };
+        // Lam moi phien thanh cong la viec ngam cua trinh duyet, khong ghi.
+        if (isRoutineAction(body)) return;
 
         const url = process.env.ADMIN_URL || 'http://admin-service:4006';
         const secret = process.env.INTERNAL_SECRET;

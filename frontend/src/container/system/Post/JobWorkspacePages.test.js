@@ -43,7 +43,7 @@ jest.mock('antd', () => {
 const user = { id: 7, companyId: 3, roleCode: 'EMPLOYER' };
 const row = (patch = {}) => ({ id: 55, name: 'Tin công ty', statusCode: 'PS3', timeEnd: '1700000000000', isHot: 1,
     updatedAt: '2026-09-08T00:00:00Z', userId: 8, companyId: 3, authorFirstName: 'Lan', authorLastName: null, ...patch });
-const listing = patch => ({ errCode: 0, data: [row(patch)], count: 7 });
+const listing = patch => ({ errCode: 0, data: [row(patch)], count: 47 });
 const review = (jobPatch = {}) => ({ errCode: 0, data: { job: { id: 55, name: 'Tin công ty', companyId: 3, statusCode: 'PS3', reviewState: 'ai_requested', ...jobPatch },
     notes: [{ id: 1, authorId: 88, authorFirstName: null, authorLastName: null, note: '<script>Ghi chú cũ</script>', createdAt: null }], count: 7 } });
 let originalMode;
@@ -60,7 +60,7 @@ const query = () => Object.fromEntries(new URL(axios.get.mock.calls.at(-1)[0], '
 const page2 = () => fireEvent.click(screen.getByRole('button', { name: 'Trang 2' }));
 test('recruiter list is private, displays actual status and links to detail/notes without moderation controls or receipt writes', async () => {
     sessionStorage.setItem('jobfind:core-create:v1:7:3', 'keep-evidence'); render(<ManagePost />);
-    await screen.findByText('Tin công ty'); expect(axios.get).toHaveBeenCalledWith('/api/jobs/manage?limit=5&offset=0&search=&statusCode=PS3', { timeout: 15000 });
+    await screen.findByText('Tin công ty'); expect(axios.get).toHaveBeenCalledWith('/api/jobs/manage?limit=20&offset=0&search=&statusCode=PS3', { timeout: 15000 });
     expect(screen.getByRole('cell', { name: 'Chờ kiểm duyệt' })).toBeInTheDocument(); expect(screen.getByText('Lan')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Sửa' })).toHaveAttribute('href', '/admin/edit-post/55/');
     expect(screen.getByRole('link', { name: 'Chú thích' })).toHaveAttribute('href', '/admin/note/55');
@@ -68,7 +68,7 @@ test('recruiter list is private, displays actual status and links to detail/note
     expect(sessionStorage.getItem('jobfind:core-create:v1:7:3')).toBe('keep-evidence');
 });
 test('search/status reset paging, mode stays pinned and manual reload does not write', async () => {
-    render(<ManagePost />); await screen.findByText('Tin công ty'); page2(); await waitFor(() => expect(query().offset).toBe('5'));
+    render(<ManagePost />); await screen.findByText('Tin công ty'); page2(); await waitFor(() => expect(query().offset).toBe('20'));
     fireEvent.change(screen.getByLabelText('Tìm tin'), { target: { value: '  Tin  & %_!  ' } }); fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     await waitFor(() => expect(query()).toMatchObject({ offset: '0', search: 'Tin & %_!' })); await screen.findByText('Tin công ty');
     axios.get.mockResolvedValueOnce(listing({ statusCode: 'PS1' })); fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'PS1' } });
@@ -82,7 +82,7 @@ test.each([{ errCode: 401 }, { errCode: 403 }, { errCode: 503 }, { errCode: 0, d
     render(<ManagePost />); await screen.findByText('Tin công ty'); axios.get.mockResolvedValueOnce(response);
     fireEvent.click(screen.getByRole('button', { name: 'Tải lại danh sách' })); await screen.findByRole('alert');
     expect(screen.queryByText('Tin công ty')).not.toBeInTheDocument(); expect(screen.queryByText('Không có dữ liệu')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Số lượng bài viết:/)).not.toBeInTheDocument(); expect(getAllPostByAdminService).not.toHaveBeenCalled();
+    expect(screen.queryByTitle('Tổng số bản ghi khớp bộ lọc')).not.toBeInTheDocument(); expect(getAllPostByAdminService).not.toHaveBeenCalled();
 });
 test('slow earlier filter result cannot replace newer results', async () => {
     let finish; axios.get.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })); render(<ManagePost />);

@@ -7,6 +7,10 @@ import {
     getNotificationByUserService,
     markReadNotificationService,
 } from "../../service/userService";
+import { supportRequest } from "../../service/supportChatService";
+import { getAllCompany, getAllPostByRoleAdminService } from "../../service/userService";
+import { resetAdminAttentionForTests } from "./adminAttention";
+import { notifyAdminAttentionChanged } from "./adminEvents";
 import Header from "./Header";
 import Menu from "./Menu";
 
@@ -31,10 +35,13 @@ jest.mock("../../socket", () => ({
     getSocket: jest.fn(),
 }));
 jest.mock("../../service/userService", () => ({
+    getAllCompany: jest.fn(),
+    getAllPostByRoleAdminService: jest.fn(),
     getListChatConversationService: jest.fn(),
     getNotificationByUserService: jest.fn(),
     markReadNotificationService: jest.fn(),
 }));
+jest.mock("../../service/supportChatService", () => ({ supportRequest: jest.fn() }));
 
 describe("system Menu", () => {
     it('reloads the chat badge on read and reconnect while suppressing hidden-tab work',async()=>{
@@ -55,19 +62,31 @@ describe("system Menu", () => {
         mockPathname = "/admin/";
         getSocket.mockReturnValue(socket);
         getListChatConversationService.mockResolvedValue({ errCode: 0, totalUnread: 3 });
+        resetAdminAttentionForTests();
+        getAllPostByRoleAdminService.mockResolvedValue({ errCode: 0, count: 10, data: [] });
+        getAllCompany.mockResolvedValue({ errCode: 0, count: 0, data: [] });
+        supportRequest.mockResolvedValue([{ status: "waiting" }, { status: "waiting" }, { status: "resolved" }]);
     });
 
-    it("shows platform groups and chat for ADMIN", async () => {
+    it("groups the ADMIN menu by business section and counts pending work", async () => {
         localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
         mockPathname = "/admin/list-user/";
         const { unmount } = render(<Menu />);
 
-        expect(screen.getByText("Quản lý người dùng").closest("a")).toHaveAttribute("aria-expanded", "true");
-        expect(screen.getByRole("link", { name: "Danh sách người dùng" })).toHaveClass("active");
-        expect(screen.getByText("Quản lý gói bài đăng")).toBeInTheDocument();
+        const sections = screen.getAllByRole("listitem").filter(item => item.classList.contains("jf-nav-section"));
+        expect(sections.map(item => item.textContent)).toEqual(["Kiểm duyệt & hỗ trợ", "Báo cáo", "Kinh doanh", "Hệ thống"]);
+        const users = screen.getByRole("link", { name: "Người dùng" });
+        expect(users).toHaveAttribute("aria-current", "page");
+        expect(users.closest("li")).toHaveClass("active");
+        expect(screen.getByRole("link", { name: "Gói đăng tin" })).toHaveAttribute("href", "/admin/list-package-post/");
+        expect(screen.queryByText("Thêm người dùng")).not.toBeInTheDocument();
         expect(screen.queryByText("Tạo mới công ty")).not.toBeInTheDocument();
         expect(screen.getByRole("link", { name: /Tin nhắn/ })).toHaveAttribute("href", "/admin/chat");
         expect(await screen.findByText("3")).toBeInTheDocument();
+        expect(await screen.findByTitle("10 tin chờ duyệt")).toHaveTextContent("10");
+        expect(screen.getByRole("link", { name: /Yêu cầu hỗ trợ/ })).toHaveTextContent("2");
+        // Nothing pending is not a badge.
+        expect(screen.getByRole("link", { name: "Công ty" })).not.toHaveTextContent("0");
         expect(getListChatConversationService).toHaveBeenCalledTimes(1);
         expect(socket.on).toHaveBeenCalledWith("chat:new-message", expect.any(Function));
 
@@ -77,13 +96,44 @@ describe("system Menu", () => {
         expect(socket.off).toHaveBeenCalledWith("chat:new-message", chatHandler);
     });
 
+    it("highlights the parent list and opens its group on a page that is not in the menu", () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
+        mockPathname = "/admin/edit-job-skill/IT-REACT/";
+        render(<Menu />);
+        expect(screen.getByText("Danh mục tuyển dụng").closest("a")).toHaveAttribute("aria-expanded", "true");
+        expect(screen.getByRole("link", { name: "Kỹ năng" })).toHaveClass("active");
+        expect(screen.getByRole("link", { name: "Ngành nghề" })).not.toHaveClass("active");
+    });
+
+    it("refreshes pending-work badges right after a moderation action", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
+        render(<Menu />);
+        expect(await screen.findByTitle("10 tin chờ duyệt")).toBeInTheDocument();
+        getAllPostByRoleAdminService.mockResolvedValue({ errCode: 0, count: 9, data: [] });
+        await act(async () => { notifyAdminAttentionChanged(); });
+        expect(await screen.findByTitle("9 tin chờ duyệt")).toBeInTheDocument();
+        expect(getAllPostByRoleAdminService).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not load administrator work counts for recruiters", async () => {
+        localStorage.setItem("userData", JSON.stringify({
+            id: 3, roleCode: "COMPANY", companyId: 5, companyStatusCode: "S1", companyCensorCode: "CS1",
+        }));
+        render(<Menu />);
+        await screen.findByText("3");
+        expect(getAllPostByRoleAdminService).not.toHaveBeenCalled();
+        expect(supportRequest).not.toHaveBeenCalled();
+        expect(screen.getAllByRole("listitem").filter(item => item.classList.contains("jf-nav-section"))
+            .map(item => item.textContent)).toEqual(["Tuyển dụng", "Doanh nghiệp"]);
+    });
+
     it("limits an unattached employer menu to company creation and skips chat/dashboard work", async () => {
         localStorage.setItem("userData", JSON.stringify({ id: 2, roleCode: "EMPLOYER" }));
         render(<Menu />);
 
         expect(screen.getByText("Tạo mới công ty")).toBeInTheDocument();
         expect(screen.queryByText("Tạo mới bài đăng")).not.toBeInTheDocument();
-        expect(screen.queryByRole("link", { name: "Trang chủ" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: "Tổng quan" })).not.toBeInTheDocument();
         expect(screen.queryByRole("link", { name: "Tin nhắn" })).not.toBeInTheDocument();
         expect(getListChatConversationService).not.toHaveBeenCalled();
         expect(socket.on).not.toHaveBeenCalledWith("chat:new-message", expect.any(Function));
@@ -98,7 +148,7 @@ describe("system Menu", () => {
 
         expect(screen.getByText("Tạo mới bài đăng")).toBeInTheDocument();
         expect(screen.getByText("Quy trình tuyển dụng")).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "Trang chủ" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Tổng quan" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: /Tin nhắn/ })).toBeInTheDocument();
         expect(screen.queryByText("Mua thêm lượt đăng bài")).not.toBeInTheDocument();
         expect(screen.queryByText("Danh sách nhân viên")).not.toBeInTheDocument();
@@ -156,7 +206,7 @@ describe("system Menu", () => {
         fireEvent.click(post);
         expect(company.closest("a")).toHaveAttribute("aria-expanded", "false");
         expect(post.closest("a")).toHaveAttribute("aria-expanded", "true");
-        fireEvent.click(screen.getByRole("link", { name: "Trang chủ" }));
+        fireEvent.click(screen.getByRole("link", { name: "Tổng quan" }));
         expect(post.closest("a")).toHaveAttribute("aria-expanded", "false");
     });
 });
@@ -274,6 +324,20 @@ describe("system Header", () => {
         screen.getAllByRole("link", { name: "logo" }).forEach((link) => {
             expect(link).toHaveAttribute("href", "/admin/");
         });
+    });
+
+    it("shows who is signed in and links to the public site in a new tab", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "ADMIN", image: "/avatar.png", firstName: "Nguyễn", lastName: "Thiền" }));
+        render(<Header />);
+        const profile = await screen.findByRole("button", { name: "Tài khoản" });
+        expect(profile).toHaveTextContent("Nguyễn Thiền");
+        expect(profile).toHaveTextContent("Quản trị viên");
+        const site = screen.getByRole("link", { name: /Xem trang tuyển dụng/ });
+        expect(site).toHaveAttribute("href", "/");
+        expect(site).toHaveAttribute("target", "_blank");
+        expect(site).toHaveAttribute("rel", "noopener noreferrer");
+        fireEvent.click(profile);
+        expect(within(document.getElementById("system-profile-menu")).getByText("Nguyễn Thiền")).toBeInTheDocument();
     });
 
     it("sends an employer without companyId from the logo to company creation", async () => {

@@ -154,6 +154,15 @@ describe('companyService', () => {
     expect(mockDb.Company.findAndCountAll).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 5, offset: 0, where: expect.any(Object) }));
     expect(await service.getAllCompanyByAdmin({ limit: '5', offset: '0', search: '4', censorCode: 'CS2' })).toEqual({ errCode: 0, data: ['c'], count: 1 });
     expect(mockDb.Company.findAndCountAll).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ censorCode: 'CS2' }) }));
+    // Active/stopped filter, bounded page size, and a literal search for "%".
+    await service.getAllCompanyByAdmin({ limit: '500', offset: '0', search: '%', statusCode: 'S2' });
+    const query = mockDb.Company.findAndCountAll.mock.calls.at(-1)[0];
+    expect(query).toMatchObject({ limit: 100, where: { statusCode: 'S2' } });
+    expect(query.where[require('sequelize').Op.or][0].name).toEqual({ [require('sequelize').Op.like]: '%\\%%' });
+    await service.getAllCompanyByAdmin({ limit: '20', offset: '0', statusCode: 'S9' });
+    expect(mockDb.Company.findAndCountAll.mock.calls.at(-1)[0].where).toBeUndefined();
+    // The list never ships the business-licence attachment or long descriptions.
+    expect(query.attributes.exclude).toEqual(expect.arrayContaining(['file', 'descriptionHTML', 'descriptionMarkdown']));
   });
 
   test('loads public company detail and never exposes its verification attachment', async () => {

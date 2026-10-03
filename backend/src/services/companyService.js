@@ -2,6 +2,7 @@ const { Op, and, where } = require("sequelize");
 import e from "express";
 import db from "../models/index";
 const cloudinary = require('../utils/cloudinary');
+const { allowed, likePattern, pageOf } = require('../utils/adminListQuery');
 require('dotenv').config();
 var nodemailer = require('nodemailer');
 const { getFrontendLink } = require('../utils/frontendUrl');
@@ -773,10 +774,11 @@ let getAllCompanyByAdmin = (data) => {
             } else {
                 let objectFilter = {
                     order: [['updatedAt', 'DESC']],
-                    limit: +data.limit,
-                    offset: +data.offset,
+                    ...pageOf(data),
+                    // Danh sach khong hien file giay phep (base64 ~1 MB/cong ty) hay
+                    // phan gioi thieu; trang chi tiet tu tai rieng khi can.
                     attributes: {
-                        exclude: ['detailPostId']
+                        exclude: ['detailPostId', 'file', 'descriptionHTML', 'descriptionMarkdown']
                     },
                     nest: true,
                     raw: true,
@@ -785,20 +787,25 @@ let getAllCompanyByAdmin = (data) => {
                         { model: db.Allcode, as: 'censorData', attributes: ['value', 'code'] }
                     ]
                 }
-                if (data.search) {
+                if (data.search && String(data.search).trim()) {
+                    const pattern = likePattern(data.search)
                     objectFilter.where = {
                         [Op.or]: [
                             {
-                                name: {[Op.like]: `%${data.search}%`}
+                                name: {[Op.like]: pattern}
                             },
                             {
-                                id: {[Op.like]: `%${data.search}%`}
+                                id: {[Op.like]: pattern}
                             }
                         ]
                     }
                 }
                 if (data.censorCode){
                     objectFilter.where = {...objectFilter.where, censorCode: data.censorCode}
+                }
+                const statusCode = allowed(data.statusCode, ['S1', 'S2'])
+                if (statusCode) {
+                    objectFilter.where = {...objectFilter.where, statusCode}
                 }
                 let company = await db.Company.findAndCountAll(objectFilter)
                 resolve({

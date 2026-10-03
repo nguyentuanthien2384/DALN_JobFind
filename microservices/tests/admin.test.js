@@ -76,6 +76,26 @@ describe('admin audit controller', () => {
         expect(mocks.AuditLog.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'action', name: 'POST /jobs', service: 'api-gateway', actorId: 1, status: 201 }));
     });
 
+    it('skips successful background session refreshes but keeps failed ones and real actions', async () => {
+        vi.stubEnv('INTERNAL_SECRET', 'secret');
+        const { ingestAction } = await import('../admin-service/src/controllers/auditController.js');
+        const send = async (body) => {
+            const res = makeRes();
+            await ingestAction(makeReq({ headers: { 'x-internal-secret': 'secret' }, body }), res);
+            return res;
+        };
+        expect((await send({ method: 'POST', route: '/api/auth/refresh', status: 200 })).body).toEqual({ errCode: 0 });
+        expect((await send({ method: 'post', route: '/api/auth/refresh/', status: 204 })).body).toEqual({ errCode: 0 });
+        expect(mocks.AuditLog.create).not.toHaveBeenCalled();
+        await send({ method: 'POST', route: '/api/auth/refresh', status: 401 });
+        await send({ method: 'POST', route: '/api/auth/logout', status: 200 });
+        await send({ method: 'POST', route: '/api/auth/refresh-token-audit', status: 200 });
+        expect(mocks.AuditLog.create.mock.calls.map(([record]) => [record.name, record.status])).toEqual([
+            ['POST /api/auth/refresh', 401], ['POST /api/auth/logout', 200], ['POST /api/auth/refresh-token-audit', 200],
+        ]);
+        vi.unstubAllEnvs();
+    });
+
     it('builds audit filters, limits pagination, and returns count', async () => {
         const q = chain([{ id: 1 }]);
         mocks.AuditLog.find.mockReturnValue(q);
@@ -232,6 +252,9 @@ describe('admin reporting controller', () => {
             hoSoUngTuyen: { tong: 7, daTuyen: 2 },
             doanhThu: { goiTin: 100.5, goiXemCv: 20, tong: 120.5 }
         });
+        // Orders store a unit price and a quantity; revenue must match the per-package report.
+        expect(mocks.mysqlPool.query.mock.calls[5][0]).toContain('SUM(currentPrice * amount)');
+        expect(mocks.mysqlPool.query.mock.calls[6][0]).toMatch(/SUM\(currentPrice \* amount\)[\s\S]*orderpackagecvs/);
         // Vietnam calendar days, inclusive of the whole end day (MySQL stores +07:00 local time).
         expect(mocks.mysqlPool.query.mock.calls[1][1]).toEqual(['2026-01-01 00:00:00', '2026-01-31 23:59:59']);
         expect(mocks.pgPool.query.mock.calls[0][1]).toEqual([
@@ -278,7 +301,7 @@ describe('admin reporting controller', () => {
         expect(res.body.data.hoSoUngTuyen[0].soLuong).toBe(3);
         expectResponseContract('reportTimeseries', res);
         // Calendar-day strings in Vietnam time from both databases.
-        expect(mocks.mysqlPool.query.mock.calls[3][0]).toMatch(/DATE_FORMAT\(createdAt, '%Y-%m-%d'\)[\s\S]*FROM orderpackagecvs/);
+        expect(mocks.mysqlPool.query.mock.calls[3][0]).toMatch(/DATE_FORMAT\(createdAt, '%Y-%m-%d'\) AS ngay, SUM\(currentPrice \* amount\) AS tien FROM orderpackagecvs/);
         expect(mocks.mysqlPool.query.mock.calls[3][1]).toEqual(['2026-01-01 00:00:00', '2026-01-31 23:59:59']);
         expect(mocks.pgPool.query.mock.calls[0][0]).toContain("(applied_at AT TIME ZONE 'UTC') + INTERVAL '7 hours'");
 

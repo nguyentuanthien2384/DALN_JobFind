@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getAllCompany, getAllPostByRoleAdminService } from '../../service/userService';
 import { supportRequest } from '../../service/supportChatService';
+import { ATTENTION_CHANGED_EVENT } from './adminEvents';
 
 /**
  * Viec dang cho quan tri vien xu ly: tin cho duyet, cong ty cho duyet, yeu cau
@@ -10,7 +11,6 @@ import { supportRequest } from '../../service/supportChatService';
  * co MOT vong tai lai du ca hai cung dang mo. Gia tri null nghia la chua biet
  * (lan tai dau that bai) - giao dien khong duoc hien thanh 0.
  */
-export const ATTENTION_CHANGED_EVENT = 'jobfind:admin-attention-changed';
 const POLL_MS = 60000;
 
 let snapshot = { pendingPosts: null, pendingCompanies: null, waitingSupport: null, loadedAt: null };
@@ -79,9 +79,6 @@ const stop = () => {
     window.removeEventListener('online', refreshWhenVisible);
     window.removeEventListener(ATTENTION_CHANGED_EVENT, refreshWhenVisible);
 };
-
-/** Bao cho menu/dashboard biet vua duyet tin, duyet cong ty hay xu ly ho tro. */
-export const notifyAdminAttentionChanged = () => window.dispatchEvent(new Event(ATTENTION_CHANGED_EVENT));
 
 export const useAdminAttention = (enabled = true) => {
     const [state, setState] = useState(snapshot);

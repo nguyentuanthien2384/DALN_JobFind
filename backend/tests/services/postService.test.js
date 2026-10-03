@@ -360,11 +360,18 @@ describe('postService', () => {
     expect(await service.getAllPostByAdmin({ limit: '5', offset: '0', search: 'Node', censorCode: 'PS1' })).toEqual({
       errCode: 0, data: [expected], count: 1
     });
+    // Hot/regular filter and a bounded page; unknown values are ignored.
+    await service.getAllPostByAdmin({ limit: '999', offset: '0', isHot: '1', censorCode: 'PS3' });
+    expect(mockDb.Post.findAndCountAll.mock.calls.at(-1)[0]).toMatchObject({ limit: 100, where: { statusCode: 'PS3', isHot: 1 } });
+    await service.getAllPostByAdmin({ limit: '20', offset: '0', isHot: 'yes' });
+    expect(mockDb.Post.findAndCountAll.mock.calls.at(-1)[0].where).toBeUndefined();
     for (const [query] of mockDb.Post.findAndCountAll.mock.calls) {
       const owner = query.include.find(item => item.as === 'userPostData');
       expect(owner).not.toHaveProperty('required', true);
       expect(owner.include.find(item => item.as === 'userAccountData')).toBeUndefined();
       expect(owner.include.find(item => item.as === 'userCompanyData')).not.toHaveProperty('where');
+      // Only the company name is shown; the full record carries the licence file.
+      expect(owner.include.find(item => item.as === 'userCompanyData').attributes).toEqual(['id', 'name']);
     }
   });
 

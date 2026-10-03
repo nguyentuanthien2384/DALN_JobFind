@@ -1,128 +1,85 @@
+// Trang bao cao dung chung bo khung .jf-dash/.jf-panel cua dashboard
+// (Dashboard.css); o day chi con phan rieng cua trang nay.
 .report-dashboard {
-    padding: 16px;
-
-    .rp-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 16px;
-        flex-wrap: wrap;
-        margin-bottom: 18px;
-
-        h3 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
-        .rp-sub { margin: 0; color: #6b7280; font-size: 13px; }
-
-        select {
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            background: #fff;
-            font-size: 14px;
-        }
-    }
-
-    .rp-loading, .rp-empty {
+    .rp-loading {
         text-align: center;
         color: #9ca3af;
         padding: 40px 0;
         font-size: 14px;
     }
 
-    // Dai so lieu lon: tu xuong dong theo be ngang man hinh.
-    .rp-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-        gap: 12px;
-        margin-bottom: 18px;
-    }
-
-    .rp-card {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        // Vach mau tren dinh de phan biet nhanh tung nhom so lieu.
-        border-top: 3px solid #2563eb;
-        border-radius: 8px;
-        padding: 14px 16px;
-
-        &.wide { grid-column: span 2; }
-
-        .rp-card-label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
-        .rp-card-value { font-size: 26px; font-weight: 700; line-height: 1.1; }
-        .rp-card-sub { font-size: 11px; color: #9ca3af; margin-top: 4px; }
-    }
-
-    .rp-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-        gap: 14px;
-    }
-
-    .rp-panel {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        padding: 16px;
-
-        // Bieu do duong va bang nhat ky can ca chieu ngang.
-        &.wide { grid-column: 1 / -1; }
-
-        h4 {
-            font-size: 15px;
-            font-weight: 600;
-            margin: 0 0 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-    }
+    // Hai bieu do theo thoi gian dat canh nhau tren man hinh rong.
+    .rp-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
     .rp-badge {
-        font-size: 11px;
-        font-weight: 500;
-        background: #ecfdf5;
-        color: #059669;
-        padding: 2px 8px;
-        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 700;
+        background: var(--jf-success-soft, #e7f6ec);
+        color: var(--jf-success, #15803d);
+        padding: 3px 10px;
+        border-radius: 999px;
+        white-space: nowrap;
     }
 
-    .rp-logs {
-        max-height: 340px;
-        overflow-y: auto;
+    .rp-compact td, .rp-compact th { padding: 8px 6px; }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12.5px;
-        }
+    .rp-logs {
+        max-height: 520px;
+        overflow: auto;
 
         th {
-            text-align: left;
-            padding: 8px;
-            color: #6b7280;
-            font-weight: 600;
-            border-bottom: 1px solid #e5e7eb;
             // Tieu de dinh lai khi cuon danh sach dai.
             position: sticky;
             top: 0;
-            background: #fff;
-        }
-
-        td {
-            padding: 8px;
-            border-bottom: 1px solid #f3f4f6;
-            color: #374151;
+            z-index: 1;
         }
 
         .nowrap { white-space: nowrap; }
     }
 
+    .rp-logs__name small {
+        display: block;
+        margin-top: 2px;
+        color: var(--jf-muted, #6b7084);
+        font-size: 11.5px;
+        font-family: SFMono-Regular, Consolas, monospace;
+    }
+
     .rp-tag {
         font-size: 11px;
-        padding: 2px 7px;
-        border-radius: 4px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 6px;
         white-space: nowrap;
 
-        &.action { background: #eff6ff; color: #2563eb; }
-        &.event  { background: #f5f3ff; color: #7c3aed; }
+        &.action { background: #eff6ff; color: #1d4ed8; }
+        &.event  { background: #f5f3ff; color: #6d28d9; }
+    }
+
+    .rp-status {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        font-weight: 700;
+
+        &.is-ok { background: var(--jf-success-soft, #e7f6ec); color: var(--jf-success, #15803d); }
+        &.is-error { background: var(--jf-danger-soft, #fdeaea); color: var(--jf-danger, #dc2626); }
+    }
+
+    .rp-duration {
+        display: block;
+        color: var(--jf-muted, #6b7084);
+        font-size: 11px;
+    }
+
+    .rp-more {
+        display: flex;
+        justify-content: center;
+        margin-top: 14px;
+    }
+
+    @media (max-width: 1199px) {
+        .rp-two { grid-template-columns: minmax(0, 1fr); }
     }
 }

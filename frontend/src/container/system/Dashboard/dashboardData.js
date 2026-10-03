@@ -12,6 +12,9 @@ export const PERIODS = [
     { key: '30d', label: '30 ngày', days: 30 },
     { key: '90d', label: '90 ngày', days: 90 },
 ];
+// Trang bao cao xem them duoc 12 thang; dashboard chi dung cac moc ngan.
+export const REPORT_PERIODS = [...PERIODS.slice(1), { key: '365d', label: '12 tháng', days: 365 }];
+const ALL_PERIODS = [...PERIODS, ...REPORT_PERIODS.filter(item => !PERIODS.some(known => known.key === item.key))];
 export const DEFAULT_PERIOD = '30d';
 const MAX_CUSTOM_DAYS = 366;
 
@@ -33,7 +36,7 @@ export const resolvePeriod = ({ period, from, to } = {}, now = dayjs()) => {
         start = dayjs(from);
         end = dayjs(to);
     } else {
-        const preset = PERIODS.find(item => item.key === period) || PERIODS.find(item => item.key === DEFAULT_PERIOD);
+        const preset = ALL_PERIODS.find(item => item.key === period) || ALL_PERIODS.find(item => item.key === DEFAULT_PERIOD);
         key = preset.key;
         start = today.subtract(preset.days - 1, 'day');
     }
@@ -103,6 +106,29 @@ export const buildTrend = (map, period) => {
         current: map.get(day) || 0,
         previous: map.get(previousDays[index]) || 0,
     }));
+};
+
+/**
+ * Gop nhieu chuoi theo ngay vao cac moc cua bieu do: theo ngay khi khoang
+ * ngan, theo thang khi dai hon 92 ngay (365 cot moi ngay thi khong doc duoc).
+ * `maps` la { tenChuoi: Map(ngay -> gia tri) }.
+ */
+export const bucketSeries = (maps, period) => {
+    const monthly = period.days > 92;
+    const buckets = new Map();
+    eachDay(period.from, period.to).forEach(day => {
+        const key = monthly ? day.slice(0, 7) : day;
+        if (!buckets.has(key)) {
+            buckets.set(key, {
+                key,
+                label: monthly ? dayjs(`${key}-01`).format('MM/YYYY') : dayjs(day).format('DD/MM'),
+                ...Object.fromEntries(Object.keys(maps).map(name => [name, 0])),
+            });
+        }
+        const bucket = buckets.get(key);
+        Object.entries(maps).forEach(([name, map]) => { bucket[name] += map.get(day) || 0; });
+    });
+    return { monthly, points: [...buckets.values()] };
 };
 
 /** "vừa xong", "5 phút trước", "3 giờ trước", "Hôm qua 14:05" hoặc "28/09 09:12". */
@@ -180,6 +206,27 @@ export const SERVICE_LABELS = {
     applications: 'Hồ sơ ứng tuyển',
     admin: 'Báo cáo & nhật ký',
     support: 'Chatbot hỗ trợ',
+};
+
+// Nguon ghi nhat ky: ten producer cua su kien hoac tien to routing key.
+const AUDIT_SOURCES = {
+    'api-gateway': 'API Gateway (thao tác người dùng)',
+    job: 'Tin tuyển dụng', 'job-core-service': 'Tin tuyển dụng',
+    ai: 'AI Worker', 'ai-worker': 'AI Worker',
+    application: 'Hồ sơ ứng tuyển', 'application-service': 'Hồ sơ ứng tuyển',
+    'legacy-backend': 'Backend nghiệp vụ',
+    notification: 'Thông báo', 'notification-service': 'Thông báo',
+    company: 'Doanh nghiệp',
+};
+
+/** Doi ten nguon nhat ky sang tieng Viet va cong don cac ten cung mot dich vu. */
+export const labelAuditSources = (rows) => {
+    const merged = new Map();
+    (rows || []).forEach(row => {
+        const name = AUDIT_SOURCES[row.ten] || row.ten || 'Không rõ';
+        merged.set(name, (merged.get(name) || 0) + (Number(row.soLuong) || 0));
+    });
+    return [...merged].map(([ten, soLuong]) => ({ ten, soLuong }));
 };
 
 /** Top N muc va gop phan con lai thanh "Khac". */

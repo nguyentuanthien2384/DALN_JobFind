@@ -1,5 +1,275 @@
 /* Keep the header, sidebar and flexible content on the same grid. */
 .jf-admin { --admin-sidebar-width: 281px; --admin-content-space: 24px; }
+/* Design tokens of the administration area (theme primary is #4B49AC). */
+.jf-admin {
+    --jf-primary: #4b49ac;
+    --jf-primary-strong: #3a3890;
+    --jf-primary-soft: #ecebfb;
+    --jf-text: #1f2333;
+    --jf-muted: #6b7084;
+    --jf-border: #e7e9f2;
+    --jf-border-soft: #f0f1f7;
+    --jf-surface: #ffffff;
+    --jf-subtle: #f4f5fb;
+    --jf-success: #15803d;
+    --jf-success-soft: #e7f6ec;
+    --jf-warning: #b45309;
+    --jf-warning-soft: #fdf2e2;
+    --jf-danger: #dc2626;
+    --jf-danger-soft: #fdeaea;
+    --jf-info: #0369a1;
+    --jf-info-soft: #e5f3fb;
+    --jf-radius: 12px;
+}
+
+/* ---------- Sidebar: business sections, aligned icons and counters ---------- */
+.jf-admin .sidebar .nav .nav-item .nav-link i.menu-icon { width: 18px; text-align: center; flex-shrink: 0; }
+.jf-admin .sidebar .nav .nav-item.jf-nav-section {
+    margin: 18px 0 4px;
+    padding: 0 1rem;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #9aa0b4;
+    pointer-events: none;
+}
+.jf-admin .sidebar .nav .nav-item.jf-nav-section:hover { background: transparent; }
+.jf-nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    margin-left: auto;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #e5484d;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+}
+.jf-admin .sidebar .nav .nav-item .nav-link .jf-nav-badge + .menu-arrow { margin-left: 8px; }
+@media (min-width: 992px) {
+    /* Compact menu: section titles become dividers, counters sit on the icon. */
+    .sidebar-icon-only .jf-admin .sidebar .nav .nav-item.jf-nav-section {
+        height: 1px;
+        margin: 10px 14px;
+        padding: 0;
+        overflow: hidden;
+        background: #e3e5ef;
+        color: transparent;
+    }
+    .sidebar-icon-only .jf-admin .jf-nav-badge {
+        position: absolute;
+        top: 4px;
+        right: 8px;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        font-size: 9.5px;
+        border: 2px solid #fff;
+    }
+}
+
+/* ---------- Page bar: breadcrumb and the page's primary action ---------- */
+.jf-page-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin-bottom: 16px;
+}
+.jf-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+    color: var(--jf-muted);
+}
+.jf-breadcrumb li { display: inline-flex; align-items: center; gap: 6px; }
+.jf-breadcrumb li + li::before { content: "/"; color: #c3c7d6; }
+.jf-breadcrumb a { color: var(--jf-muted); }
+.jf-breadcrumb a:hover { color: var(--jf-primary); }
+.jf-breadcrumb [aria-current="page"] { color: var(--jf-text); font-weight: 700; }
+.jf-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: none;
+}
+.jf-btn:hover { text-decoration: none; }
+.jf-btn:focus-visible { outline: 2px solid var(--jf-primary); outline-offset: 2px; }
+.jf-btn--primary { background: var(--jf-primary); color: #fff; }
+.jf-btn--primary:hover { background: var(--jf-primary-strong); color: #fff; }
+.jf-btn--ghost { border-color: var(--jf-border); background: var(--jf-surface); color: var(--jf-text); padding: 6px 12px; font-size: 13px; }
+.jf-btn--ghost:hover { border-color: var(--jf-primary); color: var(--jf-primary); }
+.jf-btn--ghost .fa-file-excel { color: #1d6f42; }
+
+/* ---------- Management pages (cards, tables, row actions) ---------- */
+/* Vietnamese copy is written in sentence case; the theme's capitalize turned
+   "Danh sách công ty" into "Danh Sách Công Ty". */
+.jf-admin .card .card-title { text-transform: none; font-weight: 700; color: var(--jf-text); }
+.jf-admin .card .table.table-bordered,
+.jf-admin .card .table.table-bordered th,
+.jf-admin .card .table.table-bordered td { border-color: var(--jf-border); }
+.jf-admin .card .table th,
+.jf-admin .card .table td { padding: .8rem 1rem; }
+/* The theme keeps every cell on one line, which pushed the action column of
+   wide lists (long job titles, emails) out of view. Text may wrap; headers,
+   badges and the row number stay on one line. */
+.jf-admin .card .table td { white-space: normal; line-height: 1.45; }
+.jf-admin .card .table th,
+.jf-admin .card .table td .badge,
+.jf-admin .card .table td:first-child { white-space: nowrap; }
+.jf-admin .card .table thead th {
+    /* The theme forces a white cell background with !important. */
+    background-color: #f8f9fc !important;
+    color: var(--jf-muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+.jf-admin .card .table tbody tr:hover td { background-color: #fafbff !important; }
+/* The public site's .btn (pink fill, 27px padding, wipe animation) also
+   matches row actions such as "Chặn"/"Kích hoạt" here, leaving primary text on
+   a pink fill. Link buttons in the admin area must look like links. */
+.jf-admin .btn.btn-link {
+    margin: 0;
+    border: 0;
+    background: transparent;
+    font-size: inherit;
+    font-weight: 600;
+    letter-spacing: normal;
+    line-height: inherit;
+    text-transform: none;
+    box-shadow: none;
+}
+.jf-admin .btn.btn-link::before { content: none; }
+.jf-admin .btn.btn-link:hover { text-decoration: underline; }
+
+/* ---------- List pages: title, filters, footer ---------- */
+.jf-list-head { margin-bottom: 18px; }
+.jf-admin .card .card-title.jf-list-title { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.jf-count {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--jf-primary-soft);
+    color: var(--jf-primary);
+    font-size: 12.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.jf-list-head__description { margin: 0; font-size: 13px; color: var(--jf-muted); }
+.jf-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.jf-list-toolbar > .ant-input-search,
+.jf-list-toolbar > .jf-list-toolbar__search { flex: 1 1 320px; min-width: 0; max-width: 520px; }
+.jf-list-toolbar__reset { align-self: flex-end; }
+.jf-filter { display: flex; flex-direction: column; gap: 4px; margin: 0; min-width: 170px; }
+.jf-filter__label { font-size: 12px; font-weight: 700; color: var(--jf-muted); }
+.jf-filter__control,
+.jf-list-footer__size select {
+    height: 34px;
+    padding: 0 30px 0 10px;
+    border: 1px solid var(--jf-border);
+    border-radius: 8px;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7084' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center;
+    color: var(--jf-text);
+    font-size: 13.5px;
+    appearance: none;
+    cursor: pointer;
+}
+.jf-filter__control:focus-visible,
+.jf-list-footer__size select:focus-visible { outline: 2px solid var(--jf-primary); outline-offset: 1px; }
+.jf-filter__control:disabled { background-color: var(--jf-subtle); cursor: not-allowed; }
+.jf-list-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    padding: 14px 0 0;
+    font-size: 13px;
+    color: var(--jf-muted);
+}
+.jf-list-footer__range strong { color: var(--jf-text); font-variant-numeric: tabular-nums; }
+.jf-list-footer__size { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.jf-list-footer__pages { margin: 0 0 0 auto; }
+.jf-list-footer__pages .page-link { padding: 5px 11px; font-size: 13px; }
+.jf-cell-sub { display: block; margin-top: 3px; font-size: 12px; color: var(--jf-muted); }
+.jf-admin .jf-table__empty { padding: 24px 12px; text-align: center; color: var(--jf-muted); font-size: 13px; }
+.jf-row-actions { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
+/* App.css sets `button.btn { white-space: normal }`; keep each action whole. */
+.jf-admin .jf-row-actions > * { white-space: nowrap; }
+/* The public stylesheet colours every `a, button` white; row actions carried
+   inline colours because of it. Give them the admin link colour here. */
+.jf-row-actions a,
+.jf-admin .jf-row-actions .btn.btn-link { color: var(--jf-primary); font-weight: 600; }
+.jf-row-actions a:hover,
+.jf-admin .jf-row-actions .btn.btn-link:hover:not(:disabled) { color: var(--jf-primary-strong); text-decoration: underline; }
+.jf-admin .jf-row-actions .btn.btn-link:disabled { color: #a3a7b7; text-decoration: none; }
+@media (max-width: 767px) {
+    .jf-filter { flex: 1 1 140px; min-width: 0; }
+    .jf-list-footer__pages { margin-left: 0; }
+}
+
+/* ---------- Header: identity of the signed-in account ---------- */
+.jf-admin__site-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 12px;
+    padding: 7px 12px;
+    border: 1px solid var(--jf-border);
+    border-radius: 9px;
+    color: var(--jf-muted);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.jf-admin__site-link:hover { border-color: var(--jf-primary); color: var(--jf-primary); text-decoration: none; }
+/* The theme's grouped `.d-flex, ... .navbar-nav .nav-item` rule forces every
+   navbar item to flex with !important, so .d-none cannot hide this one. */
+@media (max-width: 767px) {
+    .jf-admin .navbar .navbar-menu-wrapper .navbar-nav .nav-item.jf-admin__site-item { display: none !important; }
+}
+.jf-admin .navbar .nav-profile #profileDropdown { display: inline-flex; align-items: center; gap: 10px; }
+.jf-admin__identity { flex-direction: column; align-items: flex-end; line-height: 1.25; text-align: right; }
+.jf-admin__identity-name { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 700; color: var(--jf-text); }
+.jf-admin__identity-role { font-size: 12px; color: var(--jf-muted); }
+.jf-admin__profile-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 16px 10px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--jf-border-soft);
+    font-size: 13px;
+    color: var(--jf-muted);
+}
+.jf-admin__profile-summary strong { color: var(--jf-text); font-size: 14px; }
 .jf-admin .page-body-wrapper { min-height: 100dvh; }
 .jf-admin .sidebar { flex-shrink: 0; min-height: 0; }
 .jf-admin .sidebar > .nav { margin-top: 16px; margin-bottom: 16px; }

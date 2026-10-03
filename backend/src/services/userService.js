@@ -6,6 +6,7 @@ const { Op, fn, col, where: sqlWhere, Transaction } = require("sequelize");
 import { normalizeEmail, isValidRecipientEmail, validateNewPassword, validateRegistration } from '../utils/accountValidation';
 import CommonUtils from '../utils/CommonUtils';
 const cloudinary = require('../utils/cloudinary');
+const { allowed, likePattern, pageOf } = require('../utils/adminListQuery');
 const otpStore = require('../utils/otpStore');
 const { getFrontendLink } = require('../utils/frontendUrl');
 require('dotenv').config();
@@ -511,8 +512,9 @@ let getAllUser = (data) => {
                 })
             } else {
                 let objectFilter = {
-                    limit: +data.limit,
-                    offset: +data.offset,
+                    ...pageOf(data),
+                    // Tai khoan moi nhat len dau, nhu moi trang quan tri nguoi dung.
+                    order: [['createdAt', 'DESC'], ['id', 'DESC']],
                     attributes: {
                         exclude: ['password']
                     },
@@ -530,9 +532,24 @@ let getAllUser = (data) => {
                     raw: true,
                     nest: true,
                 }
-                if (data.search) {
-                    objectFilter.where = {phonenumber: {[Op.like]: `%${data.search}%`}}
+                const conditions = [];
+                const roleCode = allowed(data.roleCode, ['ADMIN', 'COMPANY', 'EMPLOYER', 'CANDIDATE']);
+                const statusCode = allowed(data.statusCode, ['S1', 'S2']);
+                if (roleCode) conditions.push({ roleCode });
+                if (statusCode) conditions.push({ statusCode });
+                if (data.search && String(data.search).trim()) {
+                    // O tim kiem ghi "ten hoac so dien thoai" nhung truoc day chi so
+                    // khop so dien thoai; nay tim ca ho ten day du va email.
+                    const pattern = likePattern(data.search);
+                    conditions.push({
+                        [Op.or]: [
+                            { phonenumber: { [Op.like]: pattern } },
+                            sqlWhere(fn('CONCAT', col('userAccountData.firstName'), ' ', col('userAccountData.lastName')), { [Op.like]: pattern }),
+                            sqlWhere(col('userAccountData.email'), { [Op.like]: pattern }),
+                        ]
+                    });
                 }
+                if (conditions.length) objectFilter.where = { [Op.and]: conditions }
                 let res = await db.Account.findAndCountAll(objectFilter)
                 resolve({
                     errCode: 0,

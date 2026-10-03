@@ -4,7 +4,7 @@ import { act, fireEvent, render as renderView, screen, waitFor } from "@testing-
 import { toast } from "react-toastify";
 import CommonUtils from "../../util/CommonUtils";
 import { getHistoryTradeCv, getHistoryTradePost, getSumByYearCv, getSumByYearPost } from "../../service/userService";
-import { getAuditLogs, getDistribution, getOverview, getSystemFunnel, getTimeseries } from "../../service/adminReportService";
+import { getActivity, getAuditLogs, getDistribution, getOverview, getSystemFunnel, getTimeseries } from "../../service/adminReportService";
 import ChartPost from "./Chart/ChartPost";
 import ChartCv from "./Chart/ChartCv";
 import HistoryTradePost from "./HistoryTrade/HistoryTradePost";
@@ -32,6 +32,7 @@ jest.mock("../../service/userService", () => ({
     getSumByYearPost: jest.fn(),
 }));
 jest.mock("../../service/adminReportService", () => ({
+    getActivity: jest.fn(),
     getAuditLogs: jest.fn(),
     getDistribution: jest.fn(),
     getOverview: jest.fn(),
@@ -270,22 +271,34 @@ const reportResponses = () => ({
     timeseries: {
         errCode: 0,
         data: {
+            // Unordered and sparse on purpose: the chart must still read left to right.
+            hoSoUngTuyen: [{ ngay: "2026-08-02", soLuong: 5 }],
             tinTuyenDung: [{ ngay: "2026-08-01", soLuong: 2 }],
             nguoiDungMoi: [{ ngay: "2026-08-01", soLuong: 4 }],
-            hoSoUngTuyen: [{ ngay: "2026-08-02", soLuong: 5 }],
+            doanhThu: [{ ngay: "2026-08-03", tien: 10 }],
+            doanhThuXemCv: [{ ngay: "2026-08-03", tien: 2.5 }],
         },
     },
     distribution: { errCode: 0, data: {
         theoNganhNghe: [{ ten: "IT", soLuong: 10 }],
         theoTinhThanh: [{ ten: "Hà Nội", soLuong: 8 }],
+        theoMucLuong: [{ ten: "10-15 triệu", soLuong: 4 }],
         theoVaiTro: [{ ten: "Ứng viên", soLuong: 50 }],
     } },
-    funnel: { errCode: 0, data: { tyLeTuyen: 12, pheu: [{ ten: "Nộp CV", soLuong: 80 }] } },
-    logs: { errCode: 0, data: [{
+    funnel: { errCode: 0, data: {
+        tyLeTuyen: 12, pheu: [{ stage: "moi_ung_tuyen", ten: "Nộp CV", soLuong: 80 }],
+        topCongTy: [{ congTyId: 28, tenCongTy: "Sao Khuê Digital", soHoSo: 20, daTuyen: 3 }, { congTyId: 5, tenCongTy: null, soHoSo: 4, daTuyen: 0 }],
+    } },
+    activity: { errCode: 0, data: {
+        theoLoai: [], theoNgay: [],
+        theoService: [{ ten: "api-gateway", soLuong: 30 }, { ten: "job", soLuong: 6 }, { ten: "job-core-service", soLuong: 4 }],
+    } },
+    logs: { errCode: 0, count: 1, data: [{
         _id: "log-1", createdAt: "2026-08-29T10:00:00Z", kind: "action",
-        name: "Duyệt công ty", actorId: 1, actorRole: "ADMIN", targetType: "company", targetId: 9,
+        name: "Duyệt công ty", actorId: 1, actorRole: "ADMIN", targetType: "company", targetId: 9, status: 200, durationMs: 31,
     }] },
 });
+const reportEntry = "/admin/reports?period=custom&from=2026-08-01&to=2026-08-03";
 
 describe("admin report dashboard", () => {
     beforeEach(() => {
@@ -295,27 +308,71 @@ describe("admin report dashboard", () => {
         getTimeseries.mockResolvedValue(response.timeseries);
         getDistribution.mockResolvedValue(response.distribution);
         getSystemFunnel.mockResolvedValue(response.funnel);
+        getActivity.mockResolvedValue(response.activity);
         getAuditLogs.mockResolvedValue(response.logs);
     });
 
-    it("loads every report source, merges daily activity and refreshes when the range changes", async () => {
-        render(<ReportDashboard />);
+    it("loads every report source, fills a sorted daily axis and reloads when the period changes", async () => {
+        render(<ReportDashboard />, reportEntry);
         expect(screen.getByText("Đang tải số liệu…")).toBeInTheDocument();
         expect(await screen.findByText("Báo cáo & Thống kê")).toBeInTheDocument();
+        expect(getOverview).toHaveBeenCalledWith({ fromDate: "2026-08-01", toDate: "2026-08-03" });
+        expect(getOverview).toHaveBeenCalledWith({ fromDate: "2026-07-29", toDate: "2026-07-31" });
+        expect(getActivity).toHaveBeenCalledWith({ fromDate: "2026-08-01", toDate: "2026-08-03" });
         expect(screen.getByText("120")).toBeInTheDocument();
         expect(screen.getByText(/3 chờ duyệt/)).toBeInTheDocument();
-        expect(screen.getByText("Duyệt công ty")).toBeInTheDocument();
+        expect(screen.getByText(/^3\.500,00\sUS\$$/)).toBeInTheDocument();
+        expect(await screen.findByText("Duyệt công ty")).toBeInTheDocument();
+        expect(screen.getByText("Duyệt công ty").closest("tr")).toHaveTextContent("#1 (Quản trị)");
+        expect(screen.getByText("31 ms")).toBeInTheDocument();
         expect(screen.getByText("Tỷ lệ tuyển 12%")).toBeInTheDocument();
-        const merged = JSON.parse(screen.getByTestId("line-chart").getAttribute("data-series"));
-        expect(merged).toEqual([
-            { ngay: "1/8", tin: 2, nguoiDung: 4 },
-            { ngay: "2/8", hoSo: 5 },
+        expect(screen.getByText("Sao Khuê Digital")).toBeInTheDocument();
+        expect(screen.getByText("Công ty #5")).toBeInTheDocument();
+        // Producers of one service are merged under one Vietnamese label.
+        expect(screen.getByText("Tin tuyển dụng", { selector: ".jf-rank__name" }).closest("li")).toHaveTextContent("10");
+        const [activity] = screen.getAllByTestId("line-chart").map(chart => JSON.parse(chart.getAttribute("data-series")));
+        expect(activity).toEqual([
+            { key: "2026-08-01", label: "01/08", tin: 2, nguoiDung: 4, hoSo: 0, goiTin: 0, goiXemCv: 0 },
+            { key: "2026-08-02", label: "02/08", tin: 0, nguoiDung: 0, hoSo: 5, goiTin: 0, goiXemCv: 0 },
+            { key: "2026-08-03", label: "03/08", tin: 0, nguoiDung: 0, hoSo: 0, goiTin: 10, goiXemCv: 2.5 },
         ]);
         expect(getAuditLogs).toHaveBeenCalledWith({ limit: 15 });
 
-        fireEvent.change(screen.getByRole("combobox"), { target: { value: "7" } });
-        await waitFor(() => expect(getOverview).toHaveBeenCalledTimes(2));
+        fireEvent.click(screen.getByRole("button", { name: "7 ngày" }));
+        await waitFor(() => expect(getOverview).toHaveBeenCalledTimes(4));
         expect(getTimeseries).toHaveBeenCalledTimes(2);
+        expect(screen.getByTestId("location").textContent).toContain("period=7d");
+    });
+
+    it("groups a twelve-month report by month", async () => {
+        const dayjs = require("dayjs");
+        render(<ReportDashboard />, "/admin/reports?period=365d");
+        await screen.findByText("Báo cáo & Thống kê");
+        const months = JSON.parse(screen.getAllByTestId("line-chart")[0].getAttribute("data-series"));
+        expect(months[0].label).toBe(dayjs().subtract(364, "day").format("MM/YYYY"));
+        expect(months[months.length - 1].label).toBe(dayjs().format("MM/YYYY"));
+        expect(months.length).toBeLessThanOrEqual(13);
+        expect(screen.getByText("Hoạt động theo tháng")).toBeInTheDocument();
+    });
+
+    it("filters the audit log and loads further pages on demand", async () => {
+        const rows = Array.from({ length: 15 }, (_, index) => ({ _id: `log-${index}`, createdAt: "2026-08-29T10:00:00Z", kind: "action", name: `GET /api/item/${index}` }));
+        getAuditLogs.mockResolvedValueOnce({ errCode: 0, count: 20, data: rows })
+            .mockResolvedValueOnce({ errCode: 0, count: 20, data: [{ _id: "log-15", createdAt: "2026-08-29T10:00:00Z", kind: "action", name: "GET /api/last", status: 500 }] })
+            .mockResolvedValueOnce({ errCode: 0, count: 1, data: [{ _id: "event-1", createdAt: "2026-08-29T10:00:00Z", kind: "event", name: "application.submitted", targetType: "job", targetId: "7" }] });
+        render(<ReportDashboard />, reportEntry);
+        fireEvent.click(await screen.findByRole("button", { name: "Xem thêm (5 bản ghi)" }));
+        expect(await screen.findByText("GET /api/last")).toBeInTheDocument();
+        expect(getAuditLogs).toHaveBeenLastCalledWith({ limit: 15, offset: 15 });
+        expect(screen.getByText("GET /api/item/0")).toBeInTheDocument();
+        expect(screen.getByText("500")).toHaveClass("is-error");
+
+        fireEvent.click(screen.getByRole("tab", { name: "Sự kiện hệ thống" }));
+        expect(await screen.findByText("Ứng viên nộp hồ sơ")).toBeInTheDocument();
+        expect(getAuditLogs).toHaveBeenLastCalledWith({ limit: 15, kind: "event" });
+        expect(screen.getByText("application.submitted")).toBeInTheDocument();
+        expect(screen.queryByText("GET /api/last")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Xem thêm/ })).not.toBeInTheDocument();
     });
 
     it("keeps the dashboard usable when optional datasets are empty and reports overview failure", async () => {
@@ -323,11 +380,15 @@ describe("admin report dashboard", () => {
         getTimeseries.mockResolvedValue({ errCode: 0, data: { tinTuyenDung: [], nguoiDungMoi: [], hoSoUngTuyen: [] } });
         getDistribution.mockResolvedValue({ errCode: 0, data: {} });
         getSystemFunnel.mockResolvedValue({ errCode: 0, data: {} });
+        getActivity.mockRejectedValue(new Error("offline"));
         getAuditLogs.mockResolvedValue({ errCode: 0, data: [] });
         render(<ReportDashboard />);
         expect(await screen.findByText("Báo cáo & Thống kê")).toBeInTheDocument();
         expect(toast.error).toHaveBeenCalledWith("Không tải được số liệu tổng quan");
+        expect(screen.getByRole("alert")).toHaveTextContent("Không tải được số liệu tổng quan");
         expect(screen.getByText("Chưa có dữ liệu trong khoảng thời gian này")).toBeInTheDocument();
-        expect(screen.getByText("Chưa có hoạt động nào được ghi")).toBeInTheDocument();
+        expect(screen.getByText("Chưa phát sinh doanh thu trong khoảng thời gian này")).toBeInTheDocument();
+        expect(await screen.findByText("Chưa có hoạt động nào được ghi")).toBeInTheDocument();
+        expect(screen.queryByText("Lưu lượng theo dịch vụ")).not.toBeInTheDocument();
     });
 });

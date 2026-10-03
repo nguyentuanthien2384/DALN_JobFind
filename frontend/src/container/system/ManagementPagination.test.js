@@ -52,7 +52,8 @@ function mount(Component, initialEntry, path = '/manage/:id?') {
         <Route path={path} element={<Component />} />
     </Routes></MemoryRouter>);
 }
-const listResult = (count = 30, data = []) => ({ errCode: 0, data, count });
+const listResult = (count = 60, data = []) => ({ errCode: 0, data, count });
+const totalPill = () => screen.findByTitle('Tổng số bản ghi khớp bộ lọc');
 beforeEach(() => {
     jest.resetAllMocks();
     localStorage.setItem('userData', JSON.stringify({ id: 1, companyId: 7, roleCode: 'ADMIN' }));
@@ -61,49 +62,66 @@ beforeEach(() => {
     getAllListCvByPostService.mockResolvedValue(listResult());
 });
 
+// Administration lists choose their page size (URL "size"); older recruiter
+// pages still show five rows.
 test.each([
-    ['users', ManageUser, services.getAllUsers, '/manage?page=3&search=Lan'],
-    ['companies', ManageCompany, services.getAllCompany, '/manage?page=3&search=Sao&censorCode=CS3'],
-    ['employees', ManageEmployer, services.getAllUserByCompanyIdService, '/manage?page=3'],
-    ['applications', ManageCv, getAllListCvByPostService, '/manage/55?page=3'],
-    ['jobs', ManagePost, services.getAllPostByRoleAdminService, '/manage/55?page=3&search=React&censorCode=PS1'],
-    ['notes', NotePost, services.getListNoteByPost, '/manage/55?page=3'],
-])('%s restores its URL page and selected paginator after remount', async (_name, Component, request, url) => {
+    ['users', ManageUser, services.getAllUsers, '/manage?page=3&search=Lan&size=10', 10],
+    ['companies', ManageCompany, services.getAllCompany, '/manage?page=3&search=Sao&censorCode=CS3&size=10', 10],
+    ['employees', ManageEmployer, services.getAllUserByCompanyIdService, '/manage?page=3', 5],
+    ['applications', ManageCv, getAllListCvByPostService, '/manage/55?page=3', 5],
+    ['jobs', ManagePost, services.getAllPostByRoleAdminService, '/manage/55?page=3&search=React&censorCode=PS1&size=10', 10],
+    ['notes', NotePost, services.getListNoteByPost, '/manage/55?page=3', 5],
+])('%s restores its URL page and selected paginator after remount', async (_name, Component, request, url, size) => {
     let view = mount(Component, url);
-    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({ offset: 10 })));
+    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({ offset: 2 * size })));
     await waitFor(() => expect(view.container.querySelector('.pagination .active')).toHaveTextContent('3'));
-    expect(request.mock.calls.every(([query]) => query.offset === 10)).toBe(true);
+    expect(request.mock.calls.every(([query]) => query.offset === 2 * size && query.limit === size)).toBe(true);
     expect(screen.getByTestId('url')).toHaveTextContent(url);
     fireEvent.click(screen.getByLabelText('Page 4'));
-    await waitFor(() => expect(request).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 15 })));
+    await waitFor(() => expect(request).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 3 * size })));
     const savedUrl = screen.getByTestId('url').textContent;
     expect(savedUrl).toContain('page=4');
     view.unmount(); request.mockClear(); view = mount(Component, savedUrl);
-    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({ offset: 15 })));
+    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({ offset: 3 * size })));
     await waitFor(() => expect(view.container.querySelector('.pagination .active')).toHaveTextContent('4'));
-    expect(request.mock.calls.every(([query]) => query.offset === 15)).toBe(true);
+    expect(request.mock.calls.every(([query]) => query.offset === 3 * size)).toBe(true);
+});
+
+test.each([
+    ['users', ManageUser, services.getAllUsers],
+    ['companies', ManageCompany, services.getAllCompany],
+    ['jobs', ManagePost, services.getAllPostByRoleAdminService],
+])('%s list shows 20 rows by default and keeps the first visible row when the page size changes', async (_name, Component, request) => {
+    mount(Component, '/manage?page=3');
+    await waitFor(() => expect(request).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 20, offset: 40 })));
+    expect(await screen.findByText('41–60')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Số dòng'), { target: { value: '50' } });
+    // Row 41 lives on the first page of 50.
+    await waitFor(() => expect(request).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 50, offset: 0 })));
+    expect(screen.getByTestId('url')).toHaveTextContent('size=50');
+    expect(screen.getByTestId('url')).not.toHaveTextContent('page=');
 });
 
 test('job filter changes reset page once; Back and Forward restore filters and page together', async () => {
-    mount(ManagePost, '/manage?page=3&search=React&censorCode=PS1&campaign=keep');
-    await screen.findByText('Số lượng bài viết: 30');
+    mount(ManagePost, '/manage?page=3&search=React&censorCode=PS1&size=10&campaign=keep');
+    expect(await totalPill()).toHaveTextContent('60');
     expect(screen.getByLabelText('Search')).toHaveValue('React');
-    expect(screen.getByLabelText('Status')).toHaveValue('PS1');
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'PS2' } });
+    expect(screen.getByLabelText('Trạng thái')).toHaveValue('PS1');
+    fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'PS2' } });
     await waitFor(() => expect(services.getAllPostByRoleAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0, search: 'React', censorCode: 'PS2' })));
     expect(screen.getByTestId('url')).toHaveTextContent('campaign=keep');
     fireEvent.click(screen.getByText('Browser Back'));
-    await waitFor(() => expect(services.getAllPostByRoleAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10, search: 'React', censorCode: 'PS1' })));
-    expect(screen.getByLabelText('Status')).toHaveValue('PS1');
+    await waitFor(() => expect(services.getAllPostByRoleAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 20, search: 'React', censorCode: 'PS1' })));
+    expect(screen.getByLabelText('Trạng thái')).toHaveValue('PS1');
     fireEvent.click(screen.getByText('Browser Forward'));
     await waitFor(() => expect(services.getAllPostByRoleAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0, censorCode: 'PS2' })));
 });
 
 test('an out-of-range URL clamps only after a successful count and reloads the last valid page', async () => {
-    services.getAllCompany.mockResolvedValue(listResult(8));
-    const view = mount(ManageCompany, '/manage?page=50&search=Sao&censorCode=CS3');
-    await waitFor(() => expect(services.getAllCompany).toHaveBeenLastCalledWith({ limit: 5, offset: 5, search: 'Sao', censorCode: 'CS3' }));
-    expect(services.getAllCompany.mock.calls[0][0].offset).toBe(245);
+    services.getAllCompany.mockResolvedValue(listResult(18));
+    const view = mount(ManageCompany, '/manage?page=50&search=Sao&censorCode=CS3&size=10');
+    await waitFor(() => expect(services.getAllCompany).toHaveBeenLastCalledWith({ limit: 10, offset: 10, search: 'Sao', censorCode: 'CS3', statusCode: '' }));
+    expect(services.getAllCompany.mock.calls[0][0].offset).toBe(490);
     expect(screen.getByTestId('url')).toHaveTextContent('page=2');
     expect(view.container.querySelector('.pagination .active')).toHaveTextContent('2');
 });
@@ -120,11 +138,11 @@ test('slow previous page cannot replace the company count after navigation', asy
     let finish;
     services.getAllCompany.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     services.getAllCompany.mockResolvedValue(listResult(20));
-    mount(ManageCompany, '/manage?page=3');
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'CS1' } });
-    await screen.findByText('Số lượng công ty: 20');
+    mount(ManageCompany, '/manage?page=3&size=10');
+    fireEvent.change(screen.getByLabelText('Kiểm duyệt'), { target: { value: 'CS1' } });
+    expect(await totalPill()).toHaveTextContent('20');
     await act(async () => finish(listResult(0)));
-    expect(screen.getByText('Số lượng công ty: 20')).toBeInTheDocument();
+    expect(await totalPill()).toHaveTextContent('20');
     expect(screen.getByTestId('url')).toHaveTextContent('censorCode=CS1');
 });
 

@@ -7,16 +7,18 @@ import { assertJobEditorIdentity } from '../../../service/jobEditSession';
 import { workspaceSelection, listManagedJobs, readManagedJobList } from '../../../service/jobWorkspaceService';
 import { banPostService, getAllPostByAdminService, activePostService, getAllPostByRoleAdminService, acceptPostService } from '../../../service/userService';
 import moment from 'moment';
-import { PAGINATION } from '../../../util/constant';
-import ReactPaginate from 'react-paginate';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import NoteModal from '../../../components/modal/NoteModal';
-import { Col, Modal, Row, Select } from 'antd';
+import { Modal } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import CommonUtils from '../../../util/CommonUtils';
 import {Input} from 'antd'
 import useListQuery, { clampListPage } from '../../../util/useListQuery';
+import { notifyAdminAttentionChanged } from '../adminEvents';
+import {
+    DEFAULT_PAGE_SIZE, FilterSelect, ListFooter, ListTitle, ListToolbar, normalizePageSize, pageForSize,
+} from '../List/AdminList';
 const {confirm} = Modal
 const ManagePost = () => {
     const { id } = useParams();
@@ -25,8 +27,12 @@ const ManagePost = () => {
     });
     const [dataPost, setdataPost] = useState([]);
     const [workspace] = useState(() => workspaceSelection(user));
-    const [count, setCount] = useState(0);
-    const [{ page: numberPage, search, censorCode }, setQuery] = useListQuery({ page: 0, search: id || '', censorCode: id ? '' : 'PS3' });
+    const defaults = { page: 0, search: id || '', censorCode: id ? '' : 'PS3', isHot: '', size: DEFAULT_PAGE_SIZE };
+    const [query, setQuery] = useListQuery(defaults);
+    const { page: numberPage, search, censorCode } = query;
+    // Loc theo loai tin chi co o danh sach toan he thong cua quan tri vien.
+    const isHot = user.roleCode === 'ADMIN' ? query.isHot : '';
+    const pageSize = normalizePageSize(query.size);
     const [total, setTotal] = useState(0);
     const [propsModal, setPropsModal] = useState({ isActive: false, postId: '', action: '', handlePost: () => {} });
     const [pending, setPending] = useState(false);
@@ -41,7 +47,8 @@ const ManagePost = () => {
         { value: 'PS2', label: 'Đã bị từ chối' }, { value: 'PS3', label: 'Chờ kiểm duyệt' },
         { value: 'PS4', label: 'Bài viết đã bị chặn' }
     ];
-    const [loading, setLoading] = useListLoading(JSON.stringify([search, censorCode, numberPage, id, refreshVersion]));
+    const hotOptions = [{ value: '', label: 'Tất cả' }, { value: '1', label: 'Tin nổi bật' }, { value: '0', label: 'Tin thường' }];
+    const [loading, setLoading] = useListLoading(JSON.stringify([search, censorCode, isHot, numberPage, pageSize, id, refreshVersion]));
     useEffect(() => {
         let active = true;
         viewEpoch.current += 1;
@@ -51,34 +58,38 @@ const ManagePost = () => {
             try {
                 if (workspace.error) throw new Error(workspace.error);
                 assertJobEditorIdentity(user);
-                const query = { limit: PAGINATION.pagerow, offset: numberPage * PAGINATION.pagerow,
+                const listQuery = { limit: pageSize, offset: numberPage * pageSize,
                     search: CommonUtils.removeSpace(search), censorCode };
-                const coreQuery = { limit: query.limit, offset: query.offset, search: query.search, statusCode: censorCode };
+                const coreQuery = { limit: listQuery.limit, offset: listQuery.offset, search: listQuery.search, statusCode: censorCode };
                 const result = workspace.mode === 'core' ? await listManagedJobs(coreQuery)
-                    : user.roleCode === 'ADMIN' ? await getAllPostByRoleAdminService(query)
-                    : await getAllPostByAdminService({ ...query, companyId: user.companyId });
+                    : user.roleCode === 'ADMIN' ? await getAllPostByRoleAdminService({ ...listQuery, ...(isHot ? { isHot } : {}) })
+                    : await getAllPostByAdminService({ ...listQuery, companyId: user.companyId });
                 if (!active) return;
                 assertJobEditorIdentity(user);
                 if (workspace.mode === 'core') {
                     const resultPage = readManagedJobList(result, user, coreQuery);
-                    const page = clampListPage(numberPage, resultPage.count, PAGINATION.pagerow);
+                    const page = clampListPage(numberPage, resultPage.count, pageSize);
                     if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
-                    setdataPost(resultPage.data); setTotal(resultPage.count); setCount(Math.ceil(resultPage.count / PAGINATION.pagerow)); return;
+                    setdataPost(resultPage.data); setTotal(resultPage.count); return;
                 }
                 if (!result || result.errCode !== 0 || !Array.isArray(result.data)) throw new Error(result?.errMessage || 'Không đọc được danh sách tin');
-                const page = clampListPage(numberPage, result.count, PAGINATION.pagerow);
+                const page = clampListPage(numberPage, result.count, pageSize);
                 if (page !== numberPage) { setQuery({ page }, { replace: true }); return; }
-                setdataPost(result.data); setTotal(result.count); setCount(Math.ceil(result.count / PAGINATION.pagerow));
-            } catch (error) { if (active) { setdataPost([]); setTotal(0); setCount(0); setLoadError(error.message || 'Không đọc được danh sách tin'); } }
+                setdataPost(result.data); setTotal(result.count);
+            } catch (error) { if (active) { setdataPost([]); setTotal(0); setLoadError(error.message || 'Không đọc được danh sách tin'); } }
             finally { if (active) setLoading(false); }
         };
         load();
         return () => { active = false; viewEpoch.current += 1; };
-    }, [search, censorCode, numberPage, id, refreshVersion, user, workspace, setQuery, setLoading]);
+    }, [search, censorCode, isHot, numberPage, pageSize, id, refreshVersion, user, workspace, setQuery, setLoading]);
 
-    const handleChangePage = number => { if (!busy.current && !propsModal.isActive) setQuery({ page: number.selected }); };
-    const handleOnChangeCensor = value => { if (busy.current || propsModal.isActive) return; setQuery({ censorCode: value, page: 0 }); };
-    const handleSearch = value => { if (busy.current || propsModal.isActive) return; setQuery({ search: value, page: 0 }); };
+    // Dang gui quyet dinh kiem duyet hoac dang mo hop ghi chu thi khong doi trang/bo loc.
+    const updateQuery = update => { if (!busy.current && !propsModal.isActive) setQuery(update); };
+    const handleChangePage = page => updateQuery({ page });
+    const handleOnChangeCensor = value => updateQuery({ censorCode: value, page: 0 });
+    const handleSearch = value => updateQuery({ search: CommonUtils.removeSpace(value), page: 0 });
+    const filtered = search !== defaults.search || censorCode !== defaults.censorCode || Boolean(isHot);
+    const resetFilters = () => updateQuery({ search: defaults.search, censorCode: defaults.censorCode, isHot: '', page: 0 });
     const disabled = loading || pending || !!loadError || !!actionWarning;
     const performModeration = async (row, action, note, epoch) => {
         if (busy.current || blocked.current || disabled || user.roleCode !== 'ADMIN' || epoch !== viewEpoch.current || !isJobRevision(row.editRevision)) return false;
@@ -93,6 +104,7 @@ const ManagePost = () => {
             if (result?.errCode === 0) {
                 toast.success(result.errMessage);
                 setRefreshVersion(value => value + 1);
+                notifyAdminAttentionChanged();
                 return true;
             }
             toast.error(result?.errMessage || 'Không thực hiện được kiểm duyệt');
@@ -133,28 +145,24 @@ const ManagePost = () => {
             <div className="col-12 grid-margin">
                 <div className="card">
                     <div className="card-body">
-                        <h4 className="card-title">Danh sách bài đăng</h4>
+                        <ListTitle title="Danh sách bài đăng" total={loadError || (loading && !total) ? null : total}
+                            description={user.roleCode === 'ADMIN' ? 'Tin của mọi doanh nghiệp; cập nhật gần nhất hiển thị trước.' : undefined} />
                         {workspace.mode === 'core' && <p>Danh sách riêng của công ty qua Job Core, gồm cả tin chưa công khai và hết hạn. Trạng thái là lúc tải; không phải xác nhận kết quả của lần đăng đang chờ đối chiếu.</p>}
                         {(loadError || actionWarning) && <p role="alert">{loadError || actionWarning}</p>}
                         {user.roleCode === 'ADMIN' && !loading && dataPost.some(row => !isJobRevision(row.editRevision)) &&
                             <p role="alert">Một số tin thiếu phiên bản. Cần cập nhật backend và tải lại trước khi kiểm duyệt.</p>}
                         {(workspace.mode === 'core' || loadError || actionWarning || dataPost.some(row => !isJobRevision(row.editRevision))) &&
                             <button type="button" disabled={pending || loading || propsModal.isActive} onClick={reload}>Tải lại danh sách</button>}
-                        <Row justify='space-around' className='mt-5 mb-5'>
-                            <Col xs={12} xxl={12}>
-                        <Input.Search key={search} defaultValue={search} onSearch={handleSearch} placeholder={user?.roleCode === "ADMIN" ? "Nhập tên hoặc mã bài đăng, tên công ty" :"Nhập tên hoặc mã bài đăng"} allowClear enterButton="Tìm kiếm">
-                        </Input.Search>
-                            </Col>
-                            <Col xs={8} xxl={8}>
-                                <label className='mr-2'>Loại trạng thái: </label>
-                                <Select disabled={pending || propsModal.isActive} onChange={handleOnChangeCensor} style={{width:'50%'}} size='default' value={censorCode} options={censorOptions}>
-                                    
-                                </Select>
-                            </Col>
-
-                        </Row>
-                        {!loadError && <div>Số lượng bài viết: {total}</div>}
-                        <StableList busy={loading} resetKey={JSON.stringify([search, censorCode, id])}><div className="table-responsive pt-2">
+                        <ListToolbar canReset={filtered} onReset={resetFilters} disabled={pending || propsModal.isActive}>
+                            <Input.Search key={search} defaultValue={search} onSearch={handleSearch} placeholder={user?.roleCode === "ADMIN" ? "Nhập tên hoặc mã bài đăng, tên công ty" :"Nhập tên hoặc mã bài đăng"} allowClear enterButton="Tìm kiếm" />
+                            <FilterSelect label="Trạng thái" name="censorCode" value={censorCode} options={censorOptions}
+                                disabled={pending || propsModal.isActive} onChange={handleOnChangeCensor} />
+                            {user.roleCode === 'ADMIN' && (
+                                <FilterSelect label="Loại tin" name="isHot" value={isHot} options={hotOptions}
+                                    disabled={pending || propsModal.isActive} onChange={value => updateQuery({ isHot: value, page: 0 })} />
+                            )}
+                        </ListToolbar>
+                        <StableList busy={loading} resetKey={JSON.stringify([search, censorCode, isHot, pageSize, id])}><div className="table-responsive">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -194,7 +202,7 @@ const ManagePost = () => {
                                             let date = deadline ? moment(deadline).format('DD/MM/YYYY') : 'Chưa rõ ngày hết hạn';
                                             return (
                                                 <tr key={item.id}>
-                                                    <td>{index + 1 + numberPage * PAGINATION.pagerow}</td>
+                                                    <td>{index + 1 + numberPage * pageSize}</td>
                                                     <td>{item.id}</td>
                                                     <td>{item.postDetailData?.name || 'Không có nội dung'}</td>
                                                     {
@@ -206,19 +214,15 @@ const ManagePost = () => {
                                                     <td><label className={item.statusCode === 'PS1' ? 'badge badge-success' : (item.statusCode === 'PS3' ? 'badge badge-warning'  : 'badge badge-danger')}>{item.statusPostData?.value || jobStatusLabel(item.statusCode)}</label></td>
 
                                                     <td>
-                                                        <Link style={{color:'#4B49AC'}} to={`/admin/note/${item.id}`}>Chú thích</Link>
-                                                        &nbsp; &nbsp;
+                                                        <span className="jf-row-actions">
+                                                        <Link to={`/admin/note/${item.id}`}>Chú thích</Link>
                                                         {(user.roleCode === 'COMPANY' || user.roleCode === 'EMPLOYER') &&
-                                                            <>
-                                                                <Link style={{ color: '#4B49AC' }} to={`/admin/list-cv/${item.id}/`}>Xem CV nộp</Link>
-                                                                &nbsp; &nbsp;
-                                                            </>
+                                                            <Link to={`/admin/list-cv/${item.id}/`}>Xem CV nộp</Link>
                                                         }
-                                                        { 
+                                                        {
                                                         ['PS1', 'PS2', 'PS3'].includes(item.statusCode) &&
-                                                        <Link style={{ color: '#4B49AC' }} to={`/admin/edit-post/${item.id}/`}>{user?.roleCode === "ADMIN" ? 'Xem chi tiết' : 'Sửa'}</Link>
+                                                        <Link to={`/admin/edit-post/${item.id}/`}>{user?.roleCode === "ADMIN" ? 'Xem chi tiết' : 'Sửa'}</Link>
                                                         }
-                                                        &nbsp; &nbsp;
                                                         {user.roleCode === 'ADMIN' && <>
                                                             {item.statusCode === 'PS1' &&
                                                                 <button type="button" className="btn btn-link p-0" disabled={disabled || !isJobRevision(item.editRevision)}
@@ -230,9 +234,10 @@ const ManagePost = () => {
                                                                 <button type="button" className="btn btn-link p-0" disabled={disabled || !isJobRevision(item.editRevision)}
                                                                     onClick={() => confirmPost(item)}>Duyệt</button>}
                                                             {item.statusCode === 'PS3' &&
-                                                                <button type="button" className="btn btn-link p-0 ml-2" disabled={disabled || !isJobRevision(item.editRevision)}
+                                                                <button type="button" className="btn btn-link p-0" disabled={disabled || !isJobRevision(item.editRevision)}
                                                                     onClick={() => openNote(item, 'reject')}>Từ chối</button>}
                                                         </>}
+                                                        </span>
                                                     </td>
                                                 </tr>
                                             )
@@ -243,36 +248,18 @@ const ManagePost = () => {
                             </table>
                             {
                                             !loading && !loadError && dataPost && dataPost.length === 0 && (
-                                                <div style={{ textAlign: 'center' }}>
-
-                                                    Không có dữ liệu
-                                                    {numberPage > 0 && <button type="button" onClick={() => setQuery({ page: 0 })}>Về trang đầu</button>}
-
+                                                <div className="jf-table__empty">
+                                                    {filtered ? 'Không có bài đăng khớp bộ lọc' : 'Không có dữ liệu'}
+                                                    {numberPage > 0 && <button type="button" className="btn btn-link p-0 ml-2" onClick={() => setQuery({ page: 0 })}>Về trang đầu</button>}
                                                 </div>
                                             )
                             }
                         </div></StableList>
+                        {!loadError && <ListFooter page={numberPage} pageSize={pageSize} total={total}
+                            disabled={pending || propsModal.isActive}
+                            onPageChange={handleChangePage}
+                            onPageSizeChange={size => updateQuery({ size, page: pageForSize(numberPage, pageSize, size) })} />}
                     </div>
-                    {!loadError && count > 0 && <ReactPaginate
-                                        forcePage={Math.min(numberPage, count - 1)}
-
-                        previousLabel={'Quay lại'}
-                        nextLabel={'Tiếp'}
-                        breakLabel={'...'}
-                        pageCount={count}
-                        marginPagesDisplayed={3}
-                        containerClassName={"pagination justify-content-center pb-3"}
-                        pageClassName={"page-item"}
-                        pageLinkClassName={"page-link"}
-                        previousLinkClassName={"page-link"}
-                        previousClassName={"page-item"}
-                        nextClassName={"page-item"}
-                        nextLinkClassName={"page-link"}
-                        breakLinkClassName={"page-link"}
-                        breakClassName={"page-item"}
-                        activeClassName={"active"}
-                        onPageChange={handleChangePage}
-                    />}
                 </div>
 
             </div>

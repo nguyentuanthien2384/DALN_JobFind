@@ -2,17 +2,16 @@ import StableList from '../../../components/common/StableList';
 import React from 'react'
 
 import { DeleteAllcodeService, getListAllCodeService } from '../../../service/userService';
-import { PAGINATION } from '../../../util/constant';
-import ReactPaginate from 'react-paginate';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import useCatalogList from '../useCatalogList';
+import { ListFooter, ListTitle, ListToolbar } from '../List/AdminList';
 import {Input, Modal} from 'antd'
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 const {confirm} = Modal
 
 const ManageWorkType = () => {
-    const { rows: dataWorkType, count, loading, numberPage, search, searchDraft, setSearchDraft,
+    const { rows: dataWorkType, total, pageSize, filtered, resetFilters, handlePageSizeChange, loading, numberPage, search, searchDraft, setSearchDraft,
         handleChangePage, handleSearch, refresh } = useCatalogList(getListAllCodeService, { type: 'WORKTYPE' });
     let handleDeleteWorkType = async (code) => {
         let res = await DeleteAllcodeService(code)
@@ -38,11 +37,11 @@ const ManageWorkType = () => {
             <div className="col-12 grid-margin">
                 <div className="card">
                     <div className="card-body">
-                        <h4 className="card-title">Danh sách hình thức làm việc</h4>
-                        <Input.Search value={searchDraft} onChange={event => setSearchDraft(event.target.value)} onSearch={handleSearch} className='mt-5 mb-5' placeholder="Nhập tên hình thức" allowClear enterButton="Tìm kiếm">
-                                    
-                                    </Input.Search>
-                        <StableList busy={loading} resetKey={search}><div className="table-responsive pt-2">
+                        <ListTitle title="Danh sách hình thức làm việc" total={loading && !total ? null : total} />
+                        <ListToolbar canReset={filtered} onReset={resetFilters}>
+                            <Input.Search value={searchDraft} onChange={event => setSearchDraft(event.target.value)} onSearch={handleSearch} placeholder="Nhập tên hình thức" allowClear enterButton="Tìm kiếm" />
+                        </ListToolbar>
+                        <StableList busy={loading} resetKey={JSON.stringify([search, pageSize])}><div className="table-responsive pt-2">
                             <table className="table table-bordered">
                                 <thead>
                                     <tr>
@@ -67,7 +66,7 @@ const ManageWorkType = () => {
 
                                             return (
                                                 <tr key={index}>
-                                                    <td>{index + 1 + numberPage * PAGINATION.pagerow}</td>
+                                                    <td>{index + 1 + numberPage * pageSize}</td>
                                                     <td>{item.value}</td>
                                                     <td>{item.code}</td>
                                                     <td>
@@ -86,33 +85,15 @@ const ManageWorkType = () => {
                                 dataWorkType && dataWorkType.length === 0 && (
                                                 <div style={{ textAlign: 'center' }}>
 
-                                                    {loading ? 'Đang tải dữ liệu…' : 'Không có dữ liệu'}
+                                                    {loading ? 'Đang tải dữ liệu…' : filtered ? 'Không có kết quả phù hợp' : 'Không có dữ liệu'}
 
                                                 </div>
                                             )
                                         }
                         </div></StableList>
+                        <ListFooter page={numberPage} pageSize={pageSize} total={total}
+                            onPageChange={handleChangePage} onPageSizeChange={handlePageSizeChange} />
                     </div>
-                    {count > 0 && <ReactPaginate
-                    forcePage={Math.min(numberPage, count - 1)}
-                        disableInitialCallback={true}
-                        previousLabel={'Quay lại'}
-                        nextLabel={'Tiếp'}
-                        breakLabel={'...'}
-                        pageCount={count}
-                        marginPagesDisplayed={3}
-                        containerClassName={"pagination justify-content-center pb-3"}
-                        pageClassName={"page-item"}
-                        pageLinkClassName={"page-link"}
-                        previousLinkClassName={"page-link"}
-                        previousClassName={"page-item"}
-                        nextClassName={"page-item"}
-                        nextLinkClassName={"page-link"}
-                        breakLinkClassName={"page-link"}
-                        breakClassName={"page-item"}
-                        activeClassName={"active"}
-                        onPageChange={handleChangePage}
-                    />}
                 </div>
 
             </div>

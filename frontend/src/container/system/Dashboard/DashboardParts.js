@@ -34,14 +34,14 @@ export const EmptyState = ({ icon = 'far fa-folder-open', children }) => (
 export const ErrorNote = ({ children }) => <p className="jf-inline-error" role="alert">{children}</p>;
 
 /** Chon ky bao cao: cac moc san co va mot khoang tuy chon. */
-export const PeriodPicker = ({ period, onChange, disabled }) => {
+export const PeriodPicker = ({ period, onChange, disabled, options = PERIODS }) => {
     const [customOpen, setCustomOpen] = useState(period.key === 'custom');
     const { RangePicker } = DatePicker;
     const showCustom = customOpen || period.key === 'custom';
     return (
         <div className="jf-period">
             <div className="jf-segmented" role="group" aria-label="Khoảng thời gian">
-                {PERIODS.map(item => (
+                {options.map(item => (
                     <button key={item.key} type="button" disabled={disabled}
                         className={'jf-segmented__item' + (period.key === item.key ? ' is-active' : '')}
                         aria-pressed={period.key === item.key}

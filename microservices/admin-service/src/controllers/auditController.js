@@ -1,5 +1,6 @@
 import { AuditLog } from '../models/AuditLog.js';
 import { createLogger } from '../../../shared/logger.js';
+import { isRoutineAction } from '../../../shared/auditPolicy.js';
 
 const logger = createLogger('admin-service');
 
@@ -185,6 +186,8 @@ export const ingestAction = async (req, res) => {
         return res.status(403).json({ errCode: 403, errMessage: 'Forbidden' });
     }
     try {
+        // Gateway da loc; kiem lai o day phong khi mot ban Gateway cu van gui.
+        if (isRoutineAction(req.body || {})) return res.json({ errCode: 0 });
         await recordAction(req.body || {});
         return res.json({ errCode: 0 });
     } catch (error) {

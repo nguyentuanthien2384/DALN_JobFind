@@ -27,8 +27,8 @@ const ADMIN_SECTIONS = [
             { key: 'report', to: '/admin/reports/', label: 'Báo cáo tổng hợp', icon: 'fas fa-chart-pie', permission: P.VIEW_PLATFORM_REPORTS },
             {
                 key: 'revenue', title: 'Doanh thu theo năm', icon: 'fas fa-chart-bar', permission: P.VIEW_PLATFORM_REPORTS, children: [
-                    { to: '/admin/sum-by-year-post/', label: 'Gói đăng tin' },
-                    { to: '/admin/sum-by-year-cv/', label: 'Gói xem ứng viên' },
+                    { to: '/admin/sum-by-year-post/', label: 'Doanh thu gói đăng tin' },
+                    { to: '/admin/sum-by-year-cv/', label: 'Doanh thu gói xem ứng viên' },
                 ],
             },
         ],

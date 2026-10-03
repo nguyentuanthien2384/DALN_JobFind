@@ -126,7 +126,7 @@ describe("package management", () => {
     });
 
     it.each(packageManagers)("manages the $label package list with normalized search, paging and activation", async (config) => {
-        config.getAll.mockResolvedValue({ errCode: 0, count: 13, data: [config.item] });
+        config.getAll.mockResolvedValue({ errCode: 0, count: 61, data: [config.item] });
         config.setActive.mockResolvedValue({ errCode: 0, errMessage: "Đã cập nhật" });
 
         render(<config.Component />);
@@ -135,10 +135,10 @@ describe("package management", () => {
 
         fireEvent.change(screen.getByLabelText(config.placeholder), { target: { value: "  Gói   tốt  " } });
         fireEvent.click(screen.getByRole("button", { name: "Tìm kiếm" }));
-        await waitFor(() => expect(config.getAll).toHaveBeenLastCalledWith({ limit: 5, offset: 0, search: "Gói tốt" }));
+        await waitFor(() => expect(config.getAll).toHaveBeenLastCalledWith({ limit: 20, offset: 0, search: "Gói tốt" }));
 
         fireEvent.click(screen.getByTestId("next-page"));
-        await waitFor(() => expect(config.getAll).toHaveBeenLastCalledWith({ limit: 5, offset: 10, search: "Gói tốt" }));
+        await waitFor(() => expect(config.getAll).toHaveBeenLastCalledWith({ limit: 20, offset: 40, search: "Gói tốt" }));
 
         fireEvent.click(screen.getByText("Dừng kinh doanh"));
         await waitFor(() => expect(config.setActive).toHaveBeenCalledWith({ id: config.item.id, isActive: 0 }));

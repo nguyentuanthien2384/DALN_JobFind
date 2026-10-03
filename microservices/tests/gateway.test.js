@@ -259,6 +259,25 @@ describe('gateway audit middleware', () => {
         );
     });
 
+    it('does not log successful background session refreshes but keeps failed ones', async () => {
+        vi.stubEnv('INTERNAL_SECRET', 'secret');
+        vi.stubEnv('ADMIN_URL', 'http://admin');
+        const { auditMiddleware } = await import('../api-gateway/src/middlewares/audit.js');
+        const finish = (status, originalUrl = '/api/auth/refresh') => {
+            const res = makeRes();
+            auditMiddleware(makeReq({ method: 'POST', originalUrl }), res, vi.fn());
+            res.statusCode = status;
+            res.listeners.finish();
+        };
+        finish(200);
+        finish(204, '/api/auth/refresh?reason=timer');
+        expect(mocks.axios.post).not.toHaveBeenCalled();
+        finish(401);
+        expect(mocks.axios.post).toHaveBeenCalledTimes(1);
+        expect(mocks.axios.post.mock.calls[0][1]).toMatchObject({ route: '/api/auth/refresh', status: 401 });
+        vi.unstubAllEnvs();
+    });
+
     it('does not send without the internal secret', async () => {
         const { auditMiddleware } = await import('../api-gateway/src/middlewares/audit.js');
         const res = makeRes();

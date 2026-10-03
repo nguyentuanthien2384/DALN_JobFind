@@ -42,7 +42,8 @@ jest.mock('antd', () => ({
 
 const item = { id: 1, code: 'DEV_1', value: 'Catalog item', name: 'Catalog item',
     jobTypeSkillData: { value: 'Development' }, isActive: 1, price: 5 };
-const response = (name = 'Catalog item', count = 16) => ({ errCode: 0, count, data: [{ ...item, name, value: name }] });
+// Catalogs default to 20 rows; most tests pin 10 rows per page via the URL.
+const response = (name = 'Catalog item', count = 32) => ({ errCode: 0, count, data: [{ ...item, name, value: name }] });
 const configs = [
     ['experience', ManageExpType, getListAllCodeService],
     ['level', ManageJobLevel, getListAllCodeService],
@@ -63,7 +64,7 @@ function Navigation() {
         <button onClick={() => navigate('/catalog?page=2&search=fast')}>Fast query</button>
     </>;
 }
-function show(Component, url = '/catalog?page=3&search=React&categoryJobCode=DEV&keep=yes') {
+function show(Component, url = '/catalog?page=3&search=React&categoryJobCode=DEV&size=10&keep=yes') {
     return render(<MemoryRouter initialEntries={[url]}><Navigation /><Component /></MemoryRouter>);
 }
 function params() { return new URL(screen.getByTestId('url').textContent, 'http://localhost').searchParams; }
@@ -77,7 +78,7 @@ it.each(configs)('%s retains the requested page and search after a reload', asyn
     const first = show(Component);
     await screen.findAllByText('Catalog item');
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10, search: 'React' }));
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 20, limit: 10, search: 'React' }));
     expect(screen.getByLabelText('Search catalog')).toHaveValue('React');
     expect(first.container.querySelector('.pagination .active')).toHaveTextContent('3');
     const url = screen.getByTestId('url').textContent;
@@ -85,14 +86,14 @@ it.each(configs)('%s retains the requested page and search after a reload', asyn
     const reloaded = show(Component, url);
     await screen.findAllByText('Catalog item');
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10, search: 'React' }));
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 20, limit: 10, search: 'React' }));
     expect(reloaded.container.querySelector('.pagination .active')).toHaveTextContent('3');
 });
 
 it('only resets on a changed search and restores page, search and category when navigating back', async () => {
     const view = show(ManageJobSkill);
     await screen.findAllByText('Catalog item');
-    expect(screen.getByLabelText('Category')).toHaveValue('DEV');
+    expect(screen.getByLabelText('Lĩnh vực')).toHaveValue('DEV');
     fireEvent.click(screen.getByText('Search'));
     expect(params().get('page')).toBe('3');
     fireEvent.change(screen.getByLabelText('Search catalog'), { target: { value: 'Node' } });
@@ -100,36 +101,36 @@ it('only resets on a changed search and restores page, search and category when 
     await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0, search: 'Node', categoryJobCode: 'DEV' })));
     expect(params().get('keep')).toBe('yes');
     fireEvent.click(screen.getByText('Back'));
-    await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10, search: 'React', categoryJobCode: 'DEV' })));
+    await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 20, search: 'React', categoryJobCode: 'DEV' })));
     expect(screen.getByLabelText('Search catalog')).toHaveValue('React');
     expect(view.container.querySelector('.pagination .active')).toHaveTextContent('3');
-    fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'OPS' } });
+    fireEvent.change(screen.getByLabelText('Lĩnh vực'), { target: { value: 'OPS' } });
     await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0, search: 'React', categoryJobCode: 'OPS' })));
 });
 
 it('writes a clicked page into the URL and keeps it after remounting', async () => {
-    const view = show(ManagePackagePost, '/catalog?search=React');
+    const view = show(ManagePackagePost, '/catalog?search=React&size=10');
     await screen.findAllByText('Catalog item');
     fireEvent.click(view.container.querySelector('a[aria-label="Page 3"]'));
-    await waitFor(() => expect(getAllPackage).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10, search: 'React' })));
+    await waitFor(() => expect(getAllPackage).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 20, search: 'React' })));
     expect(params().get('page')).toBe('3');
     const url = screen.getByTestId('url').textContent;
     view.unmount();
     show(ManagePackagePost, url);
     await screen.findAllByText('Catalog item');
-    expect(getAllPackage).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 10, search: 'React' }));
+    expect(getAllPackage).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 20, search: 'React' }));
 });
 
 it('refreshes deletion with the active category and clamps a removed last page', async () => {
-    let total = 16;
+    let total = 32;
     getListSkill.mockImplementation(async () => response('Catalog item', total));
-    DeleteSkillService.mockImplementation(async () => { total = 15; return { errCode: 0 }; });
-    const view = show(ManageJobSkill, '/catalog?page=4&search=React&categoryJobCode=DEV');
+    DeleteSkillService.mockImplementation(async () => { total = 30; return { errCode: 0 }; });
+    const view = show(ManageJobSkill, '/catalog?page=4&search=React&categoryJobCode=DEV&size=10');
     await screen.findAllByText('Catalog item');
     fireEvent.click(screen.getByText('Xóa'));
     await waitFor(() => expect(params().get('page')).toBe('3'));
-    await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith({ offset: 10, limit: 5, search: 'React', categoryJobCode: 'DEV' }));
-    expect(getListSkill.mock.calls.map(([query]) => query.offset)).toEqual([15, 15, 10]);
+    await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith({ offset: 20, limit: 10, search: 'React', categoryJobCode: 'DEV' }));
+    expect(getListSkill.mock.calls.map(([query]) => query.offset)).toEqual([30, 30, 20]);
     expect(view.container.querySelector('.pagination .active')).toHaveTextContent('3');
 });
 
@@ -166,7 +167,7 @@ it.each(configs)('%s keeps its table and pager stable while the next page loads'
         expect(screen.queryByRole('table')).not.toBeInTheDocument();
         expect(view.container.querySelector('.pagination')).toBe(pager);
         expect(tableArea).toHaveStyle({ minHeight: '450px' });
-        await act(async () => finish(response('Short last page', 6)));
+        await act(async () => finish(response('Short last page', 26)));
         expect(screen.getByRole('table')).toHaveTextContent('Short last page');
         expect(screen.queryByText('Catalog item')).not.toBeInTheDocument();
         expect(tableArea).toHaveAttribute('aria-busy', 'false');
@@ -184,4 +185,18 @@ it('removes retained catalog rows when the new page request fails', async () => 
     expect(screen.queryByText('Catalog item')).not.toBeInTheDocument();
     expect(view.container.querySelector('.stable-list')).toHaveAttribute('aria-busy', 'false');
     expect(params().get('page')).toBe('2');
+});
+
+it('changes the page size from the footer and clears search and category together', async () => {
+    show(ManageJobSkill, '/catalog?page=3&search=React&categoryJobCode=DEV&size=10');
+    await screen.findAllByText('Catalog item');
+    fireEvent.change(screen.getByLabelText('Số dòng'), { target: { value: '20' } });
+    // Row 21 (first of page 3 at 10 rows) is on page 2 at 20 rows.
+    await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 20, offset: 20 })));
+    expect(params().get('size')).toBeNull();
+    expect(params().get('page')).toBe('2');
+    fireEvent.click(screen.getByRole('button', { name: /Xóa bộ lọc/ }));
+    await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0, search: '', categoryJobCode: '' })));
+    expect(screen.getByLabelText('Search catalog')).toHaveValue('');
+    expect(screen.queryByRole('button', { name: /Xóa bộ lọc/ })).not.toBeInTheDocument();
 });

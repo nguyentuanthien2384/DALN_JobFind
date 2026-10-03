@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import HomeAdmin from "./HomeAdmin";
 
 let mockRoute = "/";
@@ -70,6 +70,37 @@ describe("admin layout shell", () => {
         expect(screen.queryByText("TO DO LIST")).not.toBeInTheDocument();
         expect(screen.queryByText("Feb 11 2018")).not.toBeInTheDocument();
         expect(document.querySelector('footer a[href="#"]')).toBeNull();
+    });
+
+    it("labels each page with a breadcrumb, its primary action and the browser tab title", () => {
+        const dashboard = renderAdmin("/");
+        expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).not.toBeInTheDocument();
+        expect(document.title).toBe("Tổng quan · Quản trị JobFind");
+        dashboard.unmount();
+
+        const list = renderAdmin("/list-user");
+        const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+        expect(trail).toHaveTextContent("Hệ thống");
+        expect(within(trail).getByText("Người dùng").closest("li")).toHaveAttribute("aria-current", "page");
+        expect(screen.getByRole("link", { name: "Thêm người dùng" })).toHaveAttribute("href", "/admin/add-user/");
+        expect(document.title).toBe("Người dùng · Quản trị JobFind");
+        list.unmount();
+        expect(document.title).not.toContain("Người dùng");
+
+        // A page outside the menu links back to the list it belongs to.
+        renderAdmin("/note/51");
+        const nested = screen.getByRole("navigation", { name: "Breadcrumb" });
+        expect(within(nested).getByRole("link", { name: "Tin tuyển dụng" })).toHaveAttribute("href", "/admin/list-post-admin/");
+        expect(within(nested).getByText("Lịch sử kiểm duyệt").closest("li")).toHaveAttribute("aria-current", "page");
+        expect(screen.queryByRole("link", { name: /^Thêm/ })).not.toBeInTheDocument();
+    });
+
+    it("resolves shared routes against the recruiter's own menu", () => {
+        renderAdmin("/edit-user/9", COMPANY);
+        const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+        expect(within(trail).getByRole("link", { name: "Danh sách nhân viên" })).toHaveAttribute("href", "/admin/list-employer/");
+        expect(trail).toHaveTextContent("Chỉnh sửa người dùng");
+        expect(within(trail).getAllByRole("link")[0]).toHaveAttribute("href", "/admin/");
     });
 
     it("selects the requested nested administration route", () => {

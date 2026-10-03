@@ -2,7 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "react-toastify";
 import { Modal as AntModal } from "antd";
-import { PAGINATION } from "../../util/constant";
+import { DEFAULT_PAGE_SIZE } from "./List/AdminList";
 import {
     createAllCodeService,
     createSkilleService,
@@ -138,7 +138,7 @@ describe("reusable all-code management pages", () => {
         mockParams = {};
         getListAllCodeService.mockImplementation(async ({ type }) => ({
             errCode: 0,
-            count: 21,
+            count: 61,
             data: [{ code: `${type}_1`, value: `${type} item`, image: "/type.png" }],
         }));
         DeleteAllcodeService.mockResolvedValue({ errCode: 0, errMessage: "Đã xóa" });
@@ -149,7 +149,7 @@ describe("reusable all-code management pages", () => {
         expect(await screen.findByText(`${type} item`)).toBeInTheDocument();
         expect(getListAllCodeService).toHaveBeenCalledWith({
             type,
-            limit: PAGINATION.pagerow,
+            limit: DEFAULT_PAGE_SIZE,
             offset: 0,
             search: "",
         });
@@ -166,7 +166,7 @@ describe("reusable all-code management pages", () => {
         fireEvent.click(screen.getByTestId("next-page"));
         await waitFor(() => expect(getListAllCodeService).toHaveBeenLastCalledWith(expect.objectContaining({
             type,
-            offset: 2 * PAGINATION.pagerow,
+            offset: 2 * DEFAULT_PAGE_SIZE,
             search: "senior engineer",
         })));
 
@@ -265,7 +265,7 @@ describe("job-skill management", () => {
         mockParams = {};
         getListSkill.mockResolvedValue({
             errCode: 0,
-            count: 12,
+            count: 61,
             data: [{ id: 4, name: "React", categoryJobCode: "DEV", jobTypeSkillData: { value: "Phát triển phần mềm" } }],
         });
         DeleteSkillService.mockResolvedValue({ errCode: 0, errMessage: "Đã xóa kỹ năng" });
@@ -280,10 +280,10 @@ describe("job-skill management", () => {
     it("filters skills by category, pages and refreshes after deletion", async () => {
         render(<ManageJobSkill />);
         expect(await screen.findByText("React")).toBeInTheDocument();
-        fireEvent.change(screen.getByLabelText("select-filter"), { target: { value: "DEV" } });
+        fireEvent.change(screen.getByLabelText("Lĩnh vực"), { target: { value: "DEV" } });
         await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith(expect.objectContaining({ categoryJobCode: "DEV" })));
         fireEvent.click(screen.getByTestId("next-page"));
-        await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 2 * PAGINATION.pagerow })));
+        await waitFor(() => expect(getListSkill).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 2 * DEFAULT_PAGE_SIZE })));
         fireEvent.click(screen.getByText("Xóa"));
         await waitFor(() => expect(DeleteSkillService).toHaveBeenCalledWith(4));
         expect(toast.success).toHaveBeenCalledWith("Đã xóa kỹ năng");

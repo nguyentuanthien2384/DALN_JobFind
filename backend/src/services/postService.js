@@ -8,6 +8,10 @@ import { repostLegacyPost } from '../utils/jobRepost';
 import { LegacyJobRequestError, runLegacyCreateRequest } from '../utils/legacyJobRequest';
 import { APPROVED_COMPANY_WHERE } from '../utils/publicResources';
 const { Op, where, cast, col } = require("sequelize");
+const { allowed, likePattern, pageOf } = require('../utils/adminListQuery');
+// Danh sach tin chi can ten cong ty. Ban ghi cong ty day du co ca file giay phep
+// kinh doanh (base64 ~1 MB), keo theo moi dong tin lam danh sach nang hang MB.
+const LIST_COMPANY_ATTRIBUTES = ['id', 'name'];
 const { normalizeProvinceCode, provinceFilterCodes } = require('../../../microservices/shared/recruitmentCatalog.cjs');
 require('dotenv').config();
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
@@ -186,7 +190,7 @@ let getListPostByAdmin = (data) => {
                                     exclude: ['userId']
                                 },
                                 include: [
-                                    {model : db.Company, as: 'userCompanyData'}
+                                    { model: db.Company, as: 'userCompanyData', attributes: LIST_COMPANY_ATTRIBUTES }
                                 ]
                             }
                         ]
@@ -236,8 +240,7 @@ let getAllPostByAdmin = (data) => {
             } else {
                 let objectFilter = {
                     order: [['updatedAt', 'DESC']],
-                    limit: +data.limit,
-                    offset: +data.offset,
+                    ...pageOf(data),
                     attributes: {
                         exclude: ['detailPostId']
                     },
@@ -262,31 +265,34 @@ let getAllPostByAdmin = (data) => {
                         {
                             model: db.User, as: 'userPostData', attributes: { exclude: ['userId'] },
                             include: [
-                                { model: db.Company, as: 'userCompanyData' }
+                                { model: db.Company, as: 'userCompanyData', attributes: LIST_COMPANY_ATTRIBUTES }
                             ]
                         }
                     ],
                     order: [['updatedAt', 'DESC']],
                 }
-                // if (data.search) {
-                //     objectFilter.include[0].where = {name: {[Op.like]: `%${data.search}%`}}
-                // }
                 if (data.censorCode) {
                     objectFilter.where = {statusCode : data.censorCode}
                 }
-                if (data.search) {
+                // Loc tin noi bat / tin thuong.
+                const isHot = allowed(String(data.isHot ?? ''), ['0', '1'])
+                if (isHot !== undefined) {
+                    objectFilter.where = { ...objectFilter.where, isHot: Number(isHot) }
+                }
+                if (data.search && String(data.search).trim()) {
+                    const pattern = likePattern(data.search)
                     objectFilter.where = { ...objectFilter.where,
                         [Op.or]: [
                             db.Sequelize.where(db.sequelize.col('postDetailData.name'),{
-                                [Op.like]: `%${data.search}%`
+                                [Op.like]: pattern
                             }),
                             {
                                 id : {
-                                    [Op.like]: `%${data.search}%`
+                                    [Op.like]: pattern
                                 }
                             },
                             db.Sequelize.where(db.sequelize.col('userPostData.userCompanyData.name'),{
-                                [Op.like]: `%${data.search}%`
+                                [Op.like]: pattern
                             }),
                         ]
                     }

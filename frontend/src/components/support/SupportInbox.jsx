@@ -2,6 +2,7 @@ import React, { useCallback, useContext, useEffect, useRef, useState } from 'rea
 import { Link } from 'react-router-dom';
 import SessionContext from '../../auth/SessionContext';
 import { supportRequest } from '../../service/supportChatService';
+import { notifyAdminAttentionChanged } from '../../container/system/adminEvents';
 import SupportMarkdown from './SupportMarkdown';
 import './SupportInbox.css';
 
@@ -71,6 +72,7 @@ export default function SupportInbox() {
             const result = await supportRequest(`/handoffs/${encodeURIComponent(ticket.id)}/${action}`, { method: 'POST', body: {}, signal: controller.signal });
             if (controller.signal.aborted) return;
             setSelected({ ...ticket, ...result });
+            notifyAdminAttentionChanged();
             setNotice(action === 'resolve' ? 'Đã đánh dấu yêu cầu hoàn tất.' : result.deliveryPending ? 'Đã tiếp nhận yêu cầu. Cần thử chuyển lại hội thoại.' : 'Đã tiếp nhận và chuyển hội thoại vào Tin nhắn.');
             await refresh();
         } catch (cause) {

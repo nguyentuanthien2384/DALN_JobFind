@@ -1,9 +1,20 @@
 import axios from "../axios";
 
 
+// Query string cho cac danh sach quan tri: bo truong rong va ma hoa gia tri,
+// de tu khoa co "&", "#" hay dau cach khong lam vo tham so khac.
+const listQuery = (data, keys) => {
+    const params = new URLSearchParams();
+    keys.forEach(key => {
+        const value = data?.[key];
+        if (key === 'limit' || key === 'offset' || (value !== undefined && value !== null && value !== '')) params.append(key, value ?? '');
+    });
+    return params.toString();
+};
+
 //==================USER==========================//
 const getAllUsers = (data) => {
-    return axios.get(`/api/get-all-user?limit=${data.limit}&offset=${data.offset}&search=${data.search}`)
+    return axios.get(`/api/get-all-user?${listQuery(data, ['limit', 'offset', 'search', 'roleCode', 'statusCode'])}`)
 
 }
 const createNewUser = (data) => {
@@ -164,7 +175,7 @@ const getListCompany = (data) => {
 }
 
 const getAllCompany = (data) => {
-    return axios.get(`/api/get-all-company?limit=${data.limit}&offset=${data.offset}&search=${data.search}&censorCode=${data.censorCode}`)
+    return axios.get(`/api/get-all-company?${listQuery(data, ['limit', 'offset', 'search', 'censorCode', 'statusCode'])}`)
 }
 
 const banCompanyService = (data) => {
@@ -222,7 +233,7 @@ const getAllPostByAdminService = (data) => {
 
 }
 const getAllPostByRoleAdminService = (data) => {
-    return axios.get(`/api/get-all-post-admin?limit=${data.limit}&offset=${data.offset}&search=${data.search}&censorCode=${data.censorCode}`)
+    return axios.get(`/api/get-all-post-admin?${listQuery(data, ['limit', 'offset', 'search', 'censorCode', 'isHot'])}`)
 
 }
 const getDetailPostByIdService = (id) => {

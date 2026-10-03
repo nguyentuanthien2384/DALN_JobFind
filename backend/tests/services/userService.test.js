@@ -30,6 +30,7 @@ jest.mock('../../src/utils/otpStore', () => ({
 jest.mock('nodemailer', () => ({ createTransport: jest.fn(() => ({ sendMail: mockSendMail })) }));
 
 const service = require('../../src/services/userService');
+const { Op } = require('sequelize');
 
 const reset = () => {
   for (const item of Object.values(mockDb)) {
@@ -332,6 +333,22 @@ describe('userService', () => {
     mockDb.Account.findAndCountAll.mockResolvedValue({ rows: ['u'], count: 1 });
     expect(await service.getAllUser({ limit: '5', offset: '0', search: '090' })).toEqual({ errCode: 0, data: ['u'], count: 1 });
     expect(mockDb.Account.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 5, offset: 0, where: expect.any(Object) }));
+
+    // Role/status filters accept known codes only, search covers name/email and
+    // treats LIKE wildcards literally, and a page can never exceed 100 rows.
+    mockDb.Account.findAndCountAll.mockClear();
+    await service.getAllUser({ limit: '5000', offset: '-3', search: ' 50%_off ', roleCode: 'EMPLOYER', statusCode: 'S2' });
+    const query = mockDb.Account.findAndCountAll.mock.calls[0][0];
+    expect(query).toMatchObject({ limit: 100, offset: 0, order: [['createdAt', 'DESC'], ['id', 'DESC']] });
+    const conditions = query.where[Op.and];
+    expect(conditions.slice(0, 2)).toEqual([{ roleCode: 'EMPLOYER' }, { statusCode: 'S2' }]);
+    const search = conditions[2][Op.or];
+    expect(search[0]).toEqual({ phonenumber: { [Op.like]: '%50\\%\\_off%' } });
+    expect(JSON.stringify(search[1])).toContain('userAccountData.firstName');
+    expect(JSON.stringify(search[2])).toContain('userAccountData.email');
+    mockDb.Account.findAndCountAll.mockClear();
+    await service.getAllUser({ limit: '20', offset: '0', roleCode: 'ROOT', statusCode: "S1' OR 1=1" });
+    expect(mockDb.Account.findAndCountAll.mock.calls[0][0].where).toBeUndefined();
 
     mockDb.Account.findOne.mockResolvedValueOnce(null);
     expect((await service.getDetailUserById(7)).errCode).toBe(2);

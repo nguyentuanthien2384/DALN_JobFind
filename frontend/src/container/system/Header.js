@@ -190,7 +190,7 @@ const Header = ({ user: suppliedUser }) => {
                 </button>
 
                 <ul className="navbar-nav navbar-nav-right" style={{ flexDirection: "row", alignItems: "center" }}>
-                    <li className="nav-item d-none d-md-flex">
+                    <li className="nav-item jf-admin__site-item">
                         <a
                             className="jf-admin__site-link"
                             href="/"

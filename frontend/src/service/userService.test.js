@@ -12,6 +12,14 @@ jest.mock("../axios", () => ({
 }));
 
 describe("userService", () => {
+    test('encodes administration list filters and omits empty ones', () => {
+        service.getAllUsers({ limit: 20, offset: 0, search: 'An & Bình #1', roleCode: 'EMPLOYER', statusCode: '' });
+        expect(axios.get).toHaveBeenLastCalledWith('/api/get-all-user?limit=20&offset=0&search=An+%26+B%C3%ACnh+%231&roleCode=EMPLOYER');
+        service.getAllCompany({ limit: 50, offset: 100, search: '', censorCode: 'CS3', statusCode: 'S2' });
+        expect(axios.get).toHaveBeenLastCalledWith('/api/get-all-company?limit=50&offset=100&censorCode=CS3&statusCode=S2');
+        service.getAllPostByRoleAdminService({ limit: 20, offset: 0, censorCode: 'PS3', isHot: '1' });
+        expect(axios.get).toHaveBeenLastCalledWith('/api/get-all-post-admin?limit=20&offset=0&censorCode=PS3&isHot=1');
+    });
     test('repost forwards the stable key with bounded transport and never retries a lost response', async () => {
         const signal = new AbortController().signal, payload = { postId: 55, timeEnd: 1924992000000 };
         axios.post.mockResolvedValueOnce({ errCode: -1, errorType: 'timeout' });

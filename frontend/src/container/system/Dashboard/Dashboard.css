@@ -1,0 +1,422 @@
+/* Dashboard khu quan tri. Mau va khoang cach lay tu token tren .jf-admin
+   (AdminLayout.css); gia tri du phong giu cho dashboard dung duoc khi kiem thu
+   rieng le ngoai khung quan tri. */
+.jf-dash {
+    --dash-gap: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--dash-gap);
+    min-width: 0;
+    color: var(--jf-text, #1f2333);
+}
+.jf-dash.is-busy .jf-kpi,
+.jf-dash.is-busy .jf-panel:not(.jf-stat-table) { opacity: .62; transition: opacity .2s ease; }
+
+/* ---------- Dau trang ---------- */
+.jf-dash__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+}
+.jf-dash__eyebrow {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--jf-primary, #4b49ac);
+}
+.jf-dash__title { margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2; color: var(--jf-text, #1f2333); }
+.jf-dash__subtitle { margin: 6px 0 0; font-size: 14px; color: var(--jf-muted, #6b7084); }
+.jf-dash__subtitle strong { color: var(--jf-text, #1f2333); font-weight: 600; }
+.jf-dash__toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; }
+.jf-dash__toolbar .tu-dong-cap-nhat { margin: 0; }
+
+/* ---------- Chon ky ---------- */
+.jf-period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.jf-segmented {
+    display: inline-flex;
+    padding: 3px;
+    border: 1px solid var(--jf-border, #e7e9f2);
+    border-radius: 10px;
+    background: var(--jf-surface, #fff);
+    overflow-x: auto;
+    max-width: 100%;
+}
+.jf-segmented__item {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--jf-muted, #6b7084);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.jf-segmented__item:hover { color: var(--jf-text, #1f2333); background: var(--jf-subtle, #f4f5fb); }
+.jf-segmented__item.is-active { background: var(--jf-primary, #4b49ac); color: #fff; }
+.jf-segmented__item:focus-visible,
+.jf-tabs__item:focus-visible,
+.jf-attention:focus-visible,
+.jf-kpi--link:focus-visible,
+.jf-shortcut:focus-visible { outline: 2px solid var(--jf-primary, #4b49ac); outline-offset: 2px; }
+.jf-segmented__item i { margin-right: 4px; }
+.jf-period__range { border-radius: 10px; }
+
+/* ---------- Can xu ly ---------- */
+.jf-attention-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.jf-attention {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 12px;
+    row-gap: 10px;
+    padding: 14px 16px;
+    border: 1px solid var(--jf-border, #e7e9f2);
+    border-left-width: 4px;
+    border-radius: var(--jf-radius, 12px);
+    background: var(--jf-surface, #fff);
+    color: inherit;
+    text-decoration: none;
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+.jf-attention:hover { color: inherit; text-decoration: none; box-shadow: 0 6px 18px rgba(31, 35, 51, .08); transform: translateY(-1px); }
+.jf-attention--warning { border-left-color: var(--jf-warning, #d97706); }
+.jf-attention--info { border-left-color: var(--jf-info, #0284c7); }
+.jf-attention--danger { border-left-color: var(--jf-danger, #dc2626); }
+.jf-attention--clear { border-left-color: var(--jf-success, #16a34a); }
+.jf-attention__icon {
+    grid-row: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    font-size: 16px;
+}
+.jf-attention__text { display: flex; flex-direction: column; min-width: 0; }
+.jf-attention__text strong { font-size: 22px; line-height: 1.1; font-weight: 700; color: var(--jf-text, #1f2333); }
+.jf-attention__text span { font-size: 13px; color: var(--jf-muted, #6b7084); }
+.jf-attention__action {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 1px dashed var(--jf-border, #e7e9f2);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--jf-primary, #4b49ac);
+}
+.jf-attention--clear .jf-attention__action { color: var(--jf-muted, #6b7084); font-weight: 500; }
+.jf-attention__action i { font-size: 11px; }
+
+/* Tong mau dung chung cho bieu tuong */
+.jf-tone--primary { background: var(--jf-primary-soft, #ecebfb); color: var(--jf-primary, #4b49ac); }
+.jf-tone--success { background: var(--jf-success-soft, #e7f6ec); color: var(--jf-success, #16a34a); }
+.jf-tone--warning { background: var(--jf-warning-soft, #fdf2e2); color: var(--jf-warning, #d97706); }
+.jf-tone--danger { background: var(--jf-danger-soft, #fdeaea); color: var(--jf-danger, #dc2626); }
+.jf-tone--info { background: var(--jf-info-soft, #e5f3fb); color: var(--jf-info, #0284c7); }
+.jf-tone--violet { background: #f1ebfd; color: #7c3aed; }
+.jf-tone--neutral { background: var(--jf-subtle, #f4f5fb); color: var(--jf-muted, #6b7084); }
+
+/* ---------- KPI ---------- */
+.jf-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.jf-kpi {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 16px 18px 12px;
+    border: 1px solid var(--jf-border, #e7e9f2);
+    border-radius: var(--jf-radius, 12px);
+    background: var(--jf-surface, #fff);
+    color: inherit;
+    overflow: hidden;
+}
+.jf-kpi--link { text-decoration: none; }
+.jf-kpi--link:hover { color: inherit; text-decoration: none; border-color: var(--jf-primary, #4b49ac); }
+.jf-kpi__top { display: flex; align-items: center; gap: 10px; }
+.jf-kpi__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+.jf-kpi__label { font-size: 13px; font-weight: 600; color: var(--jf-muted, #6b7084); }
+.jf-kpi__value-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.jf-kpi__value { font-size: 26px; font-weight: 700; line-height: 1.15; color: var(--jf-text, #1f2333); font-variant-numeric: tabular-nums; }
+.jf-kpi__hint { font-size: 12.5px; color: var(--jf-muted, #6b7084); min-height: 18px; }
+.jf-kpi__spark { margin: 2px -18px -12px; height: 44px; }
+
+.jf-change {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.jf-change i { font-size: 10px; }
+.jf-change--good { background: var(--jf-success-soft, #e7f6ec); color: var(--jf-success, #16a34a); }
+.jf-change--bad { background: var(--jf-danger-soft, #fdeaea); color: var(--jf-danger, #dc2626); }
+.jf-change--flat { background: var(--jf-subtle, #f4f5fb); color: var(--jf-muted, #6b7084); }
+.jf-change--new { background: var(--jf-info-soft, #e5f3fb); color: var(--jf-info, #0284c7); }
+
+/* ---------- Panel ---------- */
+.jf-dash__grid { display: grid; gap: var(--dash-gap); min-width: 0; }
+.jf-dash__grid--trend { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.jf-dash__grid--thirds { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.jf-dash__grid--activity { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); align-items: start; }
+.jf-dash__grid--company { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: start; }
+.jf-dash__stack { display: flex; flex-direction: column; gap: var(--dash-gap); min-width: 0; }
+
+.jf-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--jf-border, #e7e9f2);
+    border-radius: var(--jf-radius, 12px);
+    background: var(--jf-surface, #fff);
+}
+.jf-panel__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px 16px;
+    padding: 16px 18px 0;
+}
+.jf-panel__title { margin: 0; font-size: 15.5px; font-weight: 700; color: var(--jf-text, #1f2333); }
+.jf-panel__subtitle { margin: 3px 0 0; font-size: 12.5px; color: var(--jf-muted, #6b7084); }
+.jf-panel__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.jf-panel__body { flex: 1; min-width: 0; padding: 14px 18px 18px; }
+.jf-panel__foot { margin: 12px 0 0; font-size: 12.5px; color: var(--jf-muted, #6b7084); }
+
+.jf-link { font-size: 13px; font-weight: 600; color: var(--jf-primary, #4b49ac); }
+.jf-link:hover { color: var(--jf-primary-strong, #3a3890); }
+.jf-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.jf-pill--success { background: var(--jf-success-soft, #e7f6ec); color: var(--jf-success, #16a34a); }
+
+.jf-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 120px;
+    padding: 16px;
+    color: var(--jf-muted, #6b7084);
+    font-size: 13px;
+    text-align: center;
+}
+.jf-empty i { font-size: 22px; opacity: .55; }
+.jf-inline-error {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--jf-danger-soft, #fdeaea);
+    color: #b42318;
+    font-size: 13px;
+}
+
+/* ---------- Tab chi so ---------- */
+.jf-tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.jf-tabs__item {
+    padding: 5px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--jf-muted, #6b7084);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.jf-tabs__item:hover { background: var(--jf-subtle, #f4f5fb); color: var(--jf-text, #1f2333); }
+.jf-tabs__item.is-active { border-color: var(--jf-primary-soft, #ecebfb); background: var(--jf-primary-soft, #ecebfb); color: var(--jf-primary, #4b49ac); }
+
+/* ---------- Xu huong ---------- */
+.jf-trend__summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 8px; font-size: 13px; color: var(--jf-muted, #6b7084); }
+.jf-trend__summary strong { font-size: 20px; color: var(--jf-text, #1f2333); font-variant-numeric: tabular-nums; }
+.jf-trend { min-width: 0; }
+.jf-chart-tooltip {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--jf-border, #e7e9f2);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(31, 35, 51, .12);
+    font-size: 12.5px;
+}
+.jf-chart-tooltip strong { font-size: 13px; color: var(--jf-text, #1f2333); }
+.jf-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
+.jf-dot--current { background: var(--jf-primary, #4b49ac); }
+.jf-dot--previous { background: #a7abc3; }
+
+/* ---------- Giai doan ho so ---------- */
+.jf-stages { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.jf-stages li { display: grid; grid-template-columns: 118px minmax(0, 1fr) 44px; align-items: center; gap: 10px; font-size: 13px; }
+.jf-stages__name { color: var(--jf-text, #1f2333); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jf-stages__track { height: 10px; border-radius: 999px; background: var(--jf-subtle, #f4f5fb); overflow: hidden; }
+.jf-stages__bar { display: block; height: 100%; border-radius: inherit; background: var(--jf-primary, #4b49ac); }
+.jf-stages li.is-negative .jf-stages__bar { background: #f3797e; }
+.jf-stages__value { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---------- Xep hang ---------- */
+.jf-rank { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.jf-rank__line { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 13px; }
+.jf-rank__name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--jf-text, #1f2333); }
+.jf-rank__index {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: var(--jf-subtle, #f4f5fb);
+    color: var(--jf-muted, #6b7084);
+    font-size: 11px;
+    font-weight: 700;
+}
+.jf-rank li.is-other .jf-rank__name { padding-left: 28px; color: var(--jf-muted, #6b7084); }
+.jf-rank__value { flex-shrink: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.jf-rank__value small { margin-left: 6px; font-weight: 500; color: var(--jf-muted, #6b7084); }
+.jf-rank__track { height: 6px; border-radius: 999px; background: var(--jf-subtle, #f4f5fb); overflow: hidden; }
+.jf-rank__bar { display: block; height: 100%; border-radius: inherit; }
+.jf-bar--primary { background: var(--jf-primary, #4b49ac); }
+.jf-bar--violet { background: #7da0fa; }
+.jf-rank li.is-other .jf-rank__bar { background: #c9cce0; }
+
+/* ---------- Nhat ky ---------- */
+.jf-feed { margin: 0; padding: 0; list-style: none; }
+.jf-feed__item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--jf-border-soft, #f0f1f7); }
+.jf-feed__item:first-child { padding-top: 0; }
+.jf-feed__item:last-child { border-bottom: 0; padding-bottom: 0; }
+.jf-feed__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    font-size: 13px;
+}
+.jf-feed__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.jf-feed__title { font-size: 13.5px; font-weight: 600; color: var(--jf-text, #1f2333); }
+.jf-feed__meta { font-size: 12px; color: var(--jf-muted, #6b7084); }
+.jf-feed__meta a { color: var(--jf-primary, #4b49ac); font-weight: 600; }
+
+/* ---------- Tinh trang he thong ---------- */
+.jf-services { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.jf-services li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--jf-border-soft, #f0f1f7); }
+.jf-services li:last-child { border-bottom: 0; }
+.jf-status-dot { flex-shrink: 0; width: 9px; height: 9px; border-radius: 50%; }
+.jf-status-dot.is-up { background: var(--jf-success, #16a34a); box-shadow: 0 0 0 3px var(--jf-success-soft, #e7f6ec); }
+.jf-status-dot.is-down { background: var(--jf-danger, #dc2626); box-shadow: 0 0 0 3px var(--jf-danger-soft, #fdeaea); }
+.jf-services__name { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: 13px; color: var(--jf-text, #1f2333); }
+.jf-services__name small { color: var(--jf-muted, #6b7084); font-size: 11.5px; font-family: SFMono-Regular, Consolas, monospace; }
+.jf-services__state { display: flex; flex-direction: column; align-items: flex-end; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.jf-services__state.is-up { color: var(--jf-success, #16a34a); }
+.jf-services__state.is-down { color: var(--jf-danger, #dc2626); }
+.jf-services__state small { font-weight: 500; color: var(--jf-muted, #6b7084); }
+
+/* ---------- Bang thong ke ---------- */
+.jf-stat-table__toolbar { margin-bottom: 12px; }
+.jf-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.jf-table th {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--jf-border, #e7e9f2);
+    background: var(--jf-subtle, #f8f9fc);
+    color: var(--jf-muted, #6b7084);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
+.jf-table td { padding: 10px; border-bottom: 1px solid var(--jf-border-soft, #f0f1f7); color: var(--jf-text, #1f2333); vertical-align: middle; }
+.jf-table tbody tr:hover td { background: #fafbff; }
+.jf-table .is-numeric { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jf-table__empty { padding: 24px 12px; text-align: center; color: var(--jf-muted, #6b7084); font-size: 13px; }
+.jf-stat-table__total { margin-top: 12px; text-align: right; font-size: 13.5px; font-weight: 700; color: var(--jf-text, #1f2333); }
+.jf-pagination { justify-content: flex-end; margin: 0; padding: 0 18px 16px; }
+.jf-pagination .page-link { padding: 4px 10px; font-size: 13px; }
+
+/* ---------- Loi tat (nha tuyen dung) ---------- */
+.jf-shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.jf-shortcut {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--jf-border, #e7e9f2);
+    border-radius: var(--jf-radius, 12px);
+    background: var(--jf-surface, #fff);
+    color: inherit;
+    text-decoration: none;
+}
+.jf-shortcut:hover { color: inherit; text-decoration: none; border-color: var(--jf-primary, #4b49ac); }
+.jf-shortcut__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--jf-primary-soft, #ecebfb);
+    color: var(--jf-primary, #4b49ac);
+}
+.jf-shortcut strong { display: block; font-size: 14px; color: var(--jf-text, #1f2333); }
+.jf-shortcut small { display: block; font-size: 12px; color: var(--jf-muted, #6b7084); }
+
+/* ---------- Kich thuoc man hinh ---------- */
+@media (max-width: 1399px) {
+    .jf-dash__grid--activity { grid-template-columns: minmax(0, 1fr); }
+    .jf-dash__stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1199px) {
+    .jf-attention-grid,
+    .jf-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .jf-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .jf-dash__grid--trend,
+    .jf-dash__grid--company { grid-template-columns: minmax(0, 1fr); }
+    .jf-dash__grid--thirds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .jf-dash__grid--thirds > :last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 767px) {
+    .jf-dash { --dash-gap: 14px; }
+    .jf-dash__title { font-size: 22px; }
+    .jf-dash__toolbar { justify-content: flex-start; width: 100%; }
+    /* Five period choices must fit a 360px screen without hidden scrolling. */
+    .jf-period, .jf-segmented { width: 100%; }
+    .jf-segmented__item { flex: 1 1 auto; padding: 6px 7px; font-size: 12.5px; }
+    .jf-attention-grid,
+    .jf-kpi-grid,
+    .jf-shortcuts,
+    .jf-dash__stack,
+    .jf-dash__grid--thirds { grid-template-columns: minmax(0, 1fr); }
+    .jf-kpi__value { font-size: 22px; }
+    .jf-stages li { grid-template-columns: 100px minmax(0, 1fr) 40px; }
+    .jf-panel__head { padding: 14px 14px 0; }
+    .jf-panel__body { padding: 12px 14px 14px; }
+}

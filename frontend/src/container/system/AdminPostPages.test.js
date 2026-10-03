@@ -159,7 +159,7 @@ describe("post administration", () => {
         localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
         mockParams = {};
         AntModal.confirm.mockImplementation((options) => options.onOk());
-        getAllPostByRoleAdminService.mockResolvedValue({ errCode: 0, count: 7, data: [post()] });
+        getAllPostByRoleAdminService.mockResolvedValue({ errCode: 0, count: 47, data: [post()] });
         acceptPostService.mockResolvedValue({ errCode: 0, errMessage: "Đã kiểm duyệt" });
         banPostService.mockResolvedValue({ errCode: 0, errMessage: "Đã chặn" });
         activePostService.mockResolvedValue({ errCode: 0, errMessage: "Đã mở lại" });
@@ -173,12 +173,12 @@ describe("post administration", () => {
         fireEvent.change(input, { target: { value: "  backend   sao " } });
         fireEvent.click(screen.getByRole("button", { name: "Tìm kiếm" }));
         await waitFor(() => expect(getAllPostByRoleAdminService).toHaveBeenLastCalledWith({
-            limit: 5, offset: 0, search: "backend sao", censorCode: "PS3",
+            limit: 20, offset: 0, search: "backend sao", censorCode: "PS3",
         }));
-        fireEvent.change(screen.getByLabelText("Trạng thái bài"), { target: { value: "PS1" } });
+        fireEvent.change(screen.getByLabelText("Trạng thái"), { target: { value: "PS1" } });
         await waitFor(() => expect(getAllPostByRoleAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ censorCode: "PS1" })));
         fireEvent.click(screen.getByTestId("next-page"));
-        await waitFor(() => expect(getAllPostByRoleAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 5 })));
+        await waitFor(() => expect(getAllPostByRoleAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 20 })));
     });
 
     it.each([{ errCode: 4, conflict: true }, { errCode: -1, httpStatus: 409, errorType: 'conflict' },
@@ -232,9 +232,9 @@ describe("post administration", () => {
         const confirmation = AntModal.confirm.mock.calls[0][0];
         let finishOld;
         getAllPostByRoleAdminService.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
-        fireEvent.change(screen.getByLabelText('Trạng thái bài'), { target: { value: 'PS1' } });
+        fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'PS1' } });
         getAllPostByRoleAdminService.mockResolvedValueOnce({ errCode: 0, count: 1, data: [post('PS4')] });
-        fireEvent.change(screen.getByLabelText('Trạng thái bài'), { target: { value: 'PS4' } });
+        fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'PS4' } });
         await screen.findByText('Mở lại');
         await act(async () => finishOld({ errCode: 0, count: 1, data: [post('PS1')] }));
         await act(async () => confirmation.onOk());
@@ -257,7 +257,7 @@ describe("post administration", () => {
         render(<ManagePost />);
         expect(await screen.findByText("Kỹ sư Backend")).toBeInTheDocument();
         expect(getAllPostByRoleAdminService).toHaveBeenCalledWith({
-            limit: 5, offset: 0, search: "55", censorCode: "",
+            limit: 20, offset: 0, search: "55", censorCode: "",
         });
     });
 
@@ -299,14 +299,27 @@ describe("post administration", () => {
 
     it("uses the company-scoped list and exposes CV/edit actions to an employer", async () => {
         localStorage.setItem("userData", JSON.stringify({ id: 8, roleCode: "EMPLOYER", companyId: 9 }));
-        getAllPostByAdminService.mockResolvedValue({ errCode: 0, count: 1, data: [post("PS1")] });
+        getAllPostByAdminService.mockResolvedValue({ errCode: 0, count: 41, data: [post("PS1")] });
         render(<ManagePost />);
         expect(await screen.findByText("Xem CV nộp")).toHaveAttribute("href", "/admin/list-cv/55/");
         expect(screen.getByText("Sửa")).toHaveAttribute("href", "/admin/edit-post/55/");
         expect(getAllPostByAdminService).toHaveBeenCalledWith(expect.objectContaining({ companyId: 9 }));
         fireEvent.click(screen.getByTestId("next-page"));
-        await waitFor(() => expect(getAllPostByAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: 9, offset: 5 })));
+        await waitFor(() => expect(getAllPostByAdminService).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: 9, offset: 20 })));
         expect(screen.queryByText("Chặn")).not.toBeInTheDocument();
+        // The hot/regular filter belongs to the platform-wide moderation list only.
+        expect(screen.queryByLabelText("Loại tin")).not.toBeInTheDocument();
+        expect(getAllPostByAdminService.mock.calls.every(([query]) => !("isHot" in query))).toBe(true);
+    });
+
+    it("lets an administrator filter hot posts without sending an empty filter", async () => {
+        render(<ManagePost />);
+        await screen.findByText("Kỹ sư Backend");
+        expect(getAllPostByRoleAdminService).toHaveBeenLastCalledWith({ limit: 20, offset: 0, search: "", censorCode: "PS3" });
+        fireEvent.change(screen.getByLabelText("Loại tin"), { target: { value: "1" } });
+        await waitFor(() => expect(getAllPostByRoleAdminService).toHaveBeenLastCalledWith({ limit: 20, offset: 0, search: "", censorCode: "PS3", isHot: "1" }));
+        fireEvent.click(screen.getByRole("button", { name: /Xóa bộ lọc/ }));
+        await waitFor(() => expect(getAllPostByRoleAdminService).toHaveBeenLastCalledWith({ limit: 20, offset: 0, search: "", censorCode: "PS3" }));
     });
 });
 

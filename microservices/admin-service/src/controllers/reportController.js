@@ -23,6 +23,10 @@ const range = (req) => {
 
 // MySQL cua backend luu gio Viet Nam (Sequelize timezone +07:00), nen so sanh
 // bang chuoi gio Viet Nam chu khong phai chuoi UTC.
+// Moi don ghi don gia (currentPrice) va so goi da mua (amount); doanh thu la
+// tich hai cot, khop voi bang doanh thu theo goi cua backend nghiep vu.
+const REVENUE = 'SUM(currentPrice * amount) AS tien';
+
 const fmt = (d) => new Date(d.getTime() + VN_OFFSET_MS).toISOString().slice(0, 19).replace('T', ' ');
 
 // ===== TONG QUAN =====
@@ -44,11 +48,11 @@ export const overview = async (req, res) => {
             'SELECT COUNT(*) AS total FROM posts WHERE statusCode = "PS3"'
         );
         const [[revenue]] = await mysqlPool.query(
-            `SELECT COALESCE(SUM(currentPrice), 0) AS total FROM orderpackages
+            `SELECT COALESCE(SUM(currentPrice * amount), 0) AS total FROM orderpackages
              WHERE createdAt BETWEEN ? AND ?`, [fmt(from), fmt(to)]
         );
         const [[revenueCv]] = await mysqlPool.query(
-            `SELECT COALESCE(SUM(currentPrice), 0) AS total FROM orderpackagecvs
+            `SELECT COALESCE(SUM(currentPrice * amount), 0) AS total FROM orderpackagecvs
              WHERE createdAt BETWEEN ? AND ?`, [fmt(from), fmt(to)]
         );
 
@@ -104,8 +108,8 @@ export const timeseries = async (req, res) => {
         );
         const [jobs] = await daily('posts', 'COUNT(*) AS soLuong');
         const [users] = await daily('accounts', 'COUNT(*) AS soLuong');
-        const [revenue] = await daily('orderpackages', 'SUM(currentPrice) AS tien');
-        const [revenueCv] = await daily('orderpackagecvs', 'SUM(currentPrice) AS tien');
+        const [revenue] = await daily('orderpackages', REVENUE);
+        const [revenueCv] = await daily('orderpackagecvs', REVENUE);
 
         let applications = [];
         try {
