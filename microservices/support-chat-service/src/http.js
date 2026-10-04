@@ -40,14 +40,14 @@ export function registerSupportRoutes(app, { store, respond, tools, env = proces
     contractRoute(app, 'supportQueue', manage, async (_req, res) => data(res, await store.queue()));
     contractRoute(app, 'supportTicket', manage, async (req, res) => data(res, await store.ticket(req.params.id)));
     contractRoute(app, 'supportClaim', manage, async (req, res) => {
-        const ticket = await store.claim(req.params.id, req.user.id);
-        if (!ticket.delivered) {
+        const ticket = await store.claim(req.params.id, req.user.id, false, { roleCode: req.user.roleCode });
+        if (!ticket.delivered && ticket.userId !== req.user.id) {
             try { await tools.deliver(ticket, req.user); await store.delivered(ticket.id); ticket.delivered = true; }
             catch { ticket.deliveryPending = true; }
         }
         return data(res, ticket);
     });
-    contractRoute(app, 'supportResolve', manage, async (req, res) => data(res, await store.claim(req.params.id, req.user.id, true)));
+    contractRoute(app, 'supportResolve', manage, async (req, res) => data(res, await store.claim(req.params.id, req.user.id, true, { roleCode: req.user.roleCode })));
     let active = 0;
     // Compatibility for older stateless callers of /api/support-chat.
     // It uses the same configured Claude responder as saved conversations.

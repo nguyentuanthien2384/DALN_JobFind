@@ -19,6 +19,9 @@ const Icon = ({ name, size = 22 }) => <svg aria-hidden="true" width={size} heigh
 
 export default function SupportInbox() {
     const user = useContext(SessionContext);
+    const isAdmin = user?.roleCode === 'ADMIN';
+    const isOwnRequest = ticket => Number(ticket.userId) === Number(user?.id);
+    const handlesOwnRequest = ticket => isAdmin && isOwnRequest(ticket);
     const [tickets, setTickets] = useState([]), [selected, setSelected] = useState(null);
     const [loaded, setLoaded] = useState(false), [refreshing, setRefreshing] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false);
@@ -64,7 +67,7 @@ export default function SupportInbox() {
     };
     const act = async (ticket, action) => {
         if (actionRequest.current) return;
-        if (action === 'resolve' && !window.confirm('Xác nhận bạn đã hỗ trợ xong người dùng và muốn đóng yêu cầu này?')) return;
+        if (action === 'resolve' && !window.confirm('Xác nhận yêu cầu đã được xử lý xong và muốn đóng yêu cầu này?')) return;
         queueRequest.current?.abort(); detailRequest.current?.abort();
         const controller = new AbortController(); actionRequest.current = controller;
         setBusy(true); setRefreshing(false); setDetailLoading(false); setError(''); setNotice(''); selectedId.current = ticket.id;
@@ -73,19 +76,19 @@ export default function SupportInbox() {
             if (controller.signal.aborted) return;
             setSelected({ ...ticket, ...result });
             notifyAdminAttentionChanged();
-            setNotice(action === 'resolve' ? 'Đã đánh dấu yêu cầu hoàn tất.' : result.deliveryPending ? 'Đã tiếp nhận yêu cầu. Cần thử chuyển lại hội thoại.' : 'Đã tiếp nhận và chuyển hội thoại vào Tin nhắn.');
+            setNotice(action === 'resolve' ? 'Đã đánh dấu yêu cầu hoàn tất.' : handlesOwnRequest(ticket) ? 'Đã tiếp nhận yêu cầu. Bạn có thể xử lý ngay tại đây.' : result.deliveryPending ? 'Đã tiếp nhận yêu cầu. Cần thử chuyển lại hội thoại.' : 'Đã tiếp nhận và chuyển hội thoại vào Tin nhắn.');
             await refresh();
         } catch (cause) {
             if (!controller.signal.aborted) { await refresh(); setError(cause.message); }
         } finally { if (!controller.signal.aborted) { actionRequest.current = null; setBusy(false); } }
     };
     const mine = ticket => Number(ticket.agentId) === Number(user?.id);
-    const canClaim = ticket => ticket.status !== 'resolved' && Number(ticket.userId) !== Number(user?.id) && (!ticket.agentId || mine(ticket));
+    const canClaim = ticket => ticket.status !== 'resolved' && (!isOwnRequest(ticket) || isAdmin) && (!ticket.agentId || mine(ticket));
     const counts = { all: tickets.length, waiting: tickets.filter(t => t.status === 'waiting').length, assigned: tickets.filter(t => t.status === 'assigned').length, resolved: tickets.filter(t => t.status === 'resolved').length };
     const term = searchText(query.trim());
     const filtered = tickets.filter(ticket => (filter === 'all' || (filter === 'mine' ? mine(ticket) && ticket.status === 'assigned' : ticket.status === filter))
         && (!term || searchText(`${ticket.title} ${ticket.id} ${ticket.userId}`).includes(term)));
-    const deliveryPending = selected?.status === 'assigned' && !selected.delivered;
+    const deliveryPending = selected?.status === 'assigned' && !selected.delivered && !handlesOwnRequest(selected);
     return <main className="jf-support-inbox">
         <header className="jf-support-inbox__header">
             <div><span className="jf-support-inbox__eyebrow">TRUNG TÂM HỖ TRỢ</span><h1>Yêu cầu hỗ trợ chatbot</h1><p>Tiếp nhận hội thoại được chia sẻ và hỗ trợ người dùng đến khi hoàn tất.</p></div>
@@ -121,11 +124,11 @@ export default function SupportInbox() {
                     <div className="jf-support-inbox__detail-heading"><span className={`jf-support-inbox__badge jf-support-inbox__badge--${selected.status}`}>{labels[selected.status]}</span><h3>{selected.title}</h3><p>Người dùng #{selected.userId} · {date(selected.createdAt)}</p><small>Mã yêu cầu: {selected.id}</small></div>
                     {deliveryPending && <p className="jf-support-inbox__warning" role="alert">Yêu cầu đã được tiếp nhận nhưng chưa chuyển được hội thoại vào Tin nhắn. Nhân viên phụ trách có thể thử lại mà không tạo tin nhắn trùng.</p>}
                     {selected.agentId && !mine(selected) && <p className="jf-support-inbox__info">Nhân viên #{selected.agentId} phụ trách yêu cầu này. Bạn có thể xem nội dung đã được chia sẻ.</p>}
-                    {Number(selected.userId) === Number(user?.id) && <p className="jf-support-inbox__info">Yêu cầu do bạn gửi cần một nhân viên khác tiếp nhận.</p>}
+                    {isOwnRequest(selected) && <p className="jf-support-inbox__info">{isAdmin ? 'Với quyền quản trị viên, bạn có thể tiếp nhận và đánh dấu đã xử lý yêu cầu do mình gửi ngay tại đây.' : 'Yêu cầu do bạn gửi cần một nhân viên khác tiếp nhận.'}</p>}
                     <div className="jf-support-inbox__actions">
                         {canClaim(selected) && (selected.status === 'waiting' || deliveryPending) && <button className="jf-support-inbox__button jf-support-inbox__button--primary" disabled={busy || refreshing} onClick={() => act(selected, 'claim')}>{busy ? 'Đang xử lý...' : selected.status === 'waiting' ? 'Tiếp nhận yêu cầu' : 'Thử chuyển lại hội thoại'}</button>}
-                        {mine(selected) && selected.delivered && <Link className="jf-support-inbox__button jf-support-inbox__button--primary" to={`/admin/chat/${selected.userId}`}>Mở tin nhắn với người dùng ↗</Link>}
-                        {mine(selected) && selected.status === 'assigned' && selected.delivered && <button className="jf-support-inbox__button jf-support-inbox__button--secondary" disabled={busy || refreshing} onClick={() => act(selected, 'resolve')}>Đánh dấu đã xử lý</button>}
+                        {mine(selected) && selected.delivered && !isOwnRequest(selected) && <Link className="jf-support-inbox__button jf-support-inbox__button--primary" to={`/admin/chat/${selected.userId}`}>Mở tin nhắn với người dùng ↗</Link>}
+                        {mine(selected) && selected.status === 'assigned' && (selected.delivered || handlesOwnRequest(selected)) && <button className="jf-support-inbox__button jf-support-inbox__button--secondary" disabled={busy || refreshing} onClick={() => act(selected, 'resolve')}>Đánh dấu đã xử lý</button>}
                     </div>
                     <h4 className="jf-support-inbox__transcript-title">Hội thoại được chia sẻ</h4>
                     <div className="jf-support-inbox__transcript">{(selected.messages || []).map(message => <article key={message.id} className={`jf-support-inbox__message jf-support-inbox__message--${message.role}`}><strong>{message.role === 'user' ? 'Người dùng' : 'Trợ lý JobFind'}</strong><SupportMarkdown text={message.text}/></article>)}</div>

@@ -95,3 +95,58 @@ describe('support conversation history preservation', () => {
         expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE'))).toBe(false);
     });
 });
+
+function handoffFixture(overrides = {}) {
+    const row = { id: randomUUID(), user_id: 7, agent_id: null, status: 'waiting', delivered_at: null,
+        messages: JSON.stringify(history(1)), ...overrides };
+    const query = vi.fn(async (sql, values) => {
+        if (sql.startsWith('SELECT h.*')) return [[{ ...row }]];
+        if (sql.startsWith('UPDATE support_handoffs')) {
+            [row.agent_id, row.status] = values;
+            return [{ affectedRows: 1 }];
+        }
+        throw new Error(`Unexpected SQL: ${sql}`);
+    });
+    const connection = { query, beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn() };
+    return { store: createStore({ query, getConnection: async () => connection }), row, query, connection };
+}
+
+describe('support handoff administrative handling', () => {
+    it('allows an administrator to claim and resolve their own ticket without a self chat delivery', async () => {
+        const { store, row, query } = handoffFixture();
+        const claimed = await store.claim(row.id, 7, false, { roleCode: 'ADMIN' });
+        expect(claimed).toMatchObject({ userId: 7, agentId: 7, status: 'assigned', delivered: false });
+        expect(query.mock.calls[0][0]).toContain('FOR UPDATE');
+        const resolved = await store.claim(row.id, 7, true, { roleCode: 'ADMIN' });
+        expect(resolved).toMatchObject({ userId: 7, agentId: 7, status: 'resolved', delivered: false });
+        expect(row.delivered_at).toBeNull();
+    });
+
+    it.each([undefined, 'CANDIDATE', 'COMPANY', 'EMPLOYER'])('keeps self claims forbidden without verified administrator role: %s', async roleCode => {
+        const { store, row, query, connection } = handoffFixture();
+        await expect(store.claim(row.id, 7, false, { roleCode })).rejects.toMatchObject({ status: 409 });
+        expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE'))).toBe(false);
+        expect(connection.rollback).toHaveBeenCalledOnce();
+    });
+
+    it('requires claiming an own ticket before resolving it', async () => {
+        const { store, row } = handoffFixture();
+        await expect(store.claim(row.id, 7, true, { roleCode: 'ADMIN' })).rejects.toMatchObject({ status: 409,
+            message: expect.stringContaining('tiếp nhận') });
+    });
+
+    it('still requires successful chat delivery before resolving a ticket from another user', async () => {
+        const { store, row } = handoffFixture({ user_id: 8, agent_id: 7, status: 'assigned' });
+        await expect(store.claim(row.id, 7, true, { roleCode: 'ADMIN' })).rejects.toMatchObject({ status: 409,
+            message: expect.stringContaining('Tin nhắn') });
+    });
+
+    it.each([
+        { agent_id: 9, status: 'assigned' },
+        { agent_id: 7, status: 'resolved' }
+    ])('does not silently override another assignment or reopen a resolved ticket: %j', async assigned => {
+        const { store, row, query } = handoffFixture(assigned);
+        await expect(store.claim(row.id, 7, false, { roleCode: 'ADMIN' })).rejects.toMatchObject({ status: 409 });
+        expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE'))).toBe(false);
+    });
+});

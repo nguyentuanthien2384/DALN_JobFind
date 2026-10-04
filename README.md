@@ -40,8 +40,6 @@
 
 ## ✨ Có gì mới
 
-> [!NOTE]
-> **Bản cập nhật 01/10/2026 — AI trong toàn bộ quy trình tuyển dụng.** AI giờ hỗ trợ ở cả bốn điểm chạm: nộp CV, lọc CV, email kết quả và chat. Mọi kết quả chỉ là **bản nháp hoặc gợi ý**: người dùng xem, sửa rồi tự bấm gửi.
 
 | Mới | Ai dùng | Điểm nổi bật |
 | --- | --- | --- |

@@ -133,15 +133,18 @@ export function createStore(pool, retentionDays = 30) {
             // details never claims the ticket or sends a chat message.
             return { ...row, title: messages.find(m => m.role === 'user')?.text.slice(0, 140) || 'Yêu cầu hỗ trợ', messages, delivered: !!deliveredAt };
         },
-        async claim(id, agentId, resolve = false) {
+        async claim(id, agentId, resolve = false, { roleCode } = {}) {
             return transaction(async db => {
                 const [rows] = await db.query('SELECT h.*,h.transcript AS messages FROM support_handoffs h JOIN support_conversations c ON c.id=h.conversation_id WHERE h.id=? AND c.expires_at>? FOR UPDATE', [id, Date.now()]);
                 const row = rows[0];
                 if (!row) throw failure(404, 'Yêu cầu không tồn tại.');
-                if (row.user_id === agentId) throw failure(409, 'Bạn không thể tự tiếp nhận yêu cầu của mình.');
+                // Only the authenticated administrator may manage their own
+                // ticket. Such a ticket has no separate chat recipient.
+                const ownAdminTicket = roleCode === 'ADMIN' && row.user_id === agentId;
+                if (row.user_id === agentId && !ownAdminTicket) throw failure(409, 'Bạn không thể tự tiếp nhận yêu cầu của mình.');
                 if ((row.agent_id && row.agent_id !== agentId) || row.status === 'resolved') throw failure(409, 'Yêu cầu đã được nhân viên khác xử lý hoặc đã đóng.');
                 if (resolve && row.agent_id !== agentId) throw failure(409, 'Hãy tiếp nhận yêu cầu trước.');
-                if (resolve && !row.delivered_at) throw failure(409, 'Hãy chuyển hội thoại vào Tin nhắn trước khi đánh dấu đã xử lý.');
+                if (resolve && !row.delivered_at && !ownAdminTicket) throw failure(409, 'Hãy chuyển hội thoại vào Tin nhắn trước khi đánh dấu đã xử lý.');
                 await db.query('UPDATE support_handoffs SET agent_id=?,status=?,updated_at=? WHERE id=?', [agentId, resolve ? 'resolved' : 'assigned', Date.now(), id]);
                 return { id, userId: row.user_id, agentId, delivered: !!row.delivered_at, status: resolve ? 'resolved' : 'assigned', messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages };
             });

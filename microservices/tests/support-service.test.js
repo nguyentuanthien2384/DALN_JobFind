@@ -378,6 +378,65 @@ describe('private tools never take user selectors', () => {
     });
 });
 
+describe('administrator support handoff routes', () => {
+    async function supportApp(ticket, deliver = vi.fn(async () => {})) {
+        vi.stubEnv('INTERNAL_SECRET', secret);
+        const store = { claim: vi.fn(async (_id, _agentId, resolve) => ({ ...ticket, status: resolve ? 'resolved' : 'assigned' })),
+            delivered: vi.fn(async () => {}) };
+        const app = express();
+        registerSupportRoutes(app, { store, tools: { deliver }, respond: vi.fn(), env: { INTERNAL_SECRET: secret } });
+        return { store, deliver, base: await listen(app) };
+    }
+    const adminHeaders = { ...headers, 'x-user-id': '7', 'x-user-role': 'ADMIN' };
+
+    it('claims and resolves own administrator requests with no self message and no false delivery success', async () => {
+        const ticket = { id: randomUUID(), userId: 7, agentId: 7, delivered: false, messages: [] };
+        const { store, deliver, base } = await supportApp(ticket);
+        const claimed = await fetch(`${base}/support/handoffs/${ticket.id}/claim`, { method: 'POST', headers: adminHeaders, body: '{}' });
+        expect(claimed.status).toBe(200);
+        expect((await claimed.json()).data).toMatchObject({ userId: 7, status: 'assigned', delivered: false });
+        expect(store.claim).toHaveBeenCalledWith(ticket.id, 7, false, { roleCode: 'ADMIN' });
+        expect(deliver).not.toHaveBeenCalled();
+        expect(store.delivered).not.toHaveBeenCalled();
+        const resolved = await fetch(`${base}/support/handoffs/${ticket.id}/resolve`, { method: 'POST', headers: adminHeaders, body: '{}' });
+        expect(resolved.status).toBe(200);
+        expect((await resolved.json()).data).toMatchObject({ status: 'resolved', delivered: false });
+        expect(store.claim).toHaveBeenLastCalledWith(ticket.id, 7, true, { roleCode: 'ADMIN' });
+    });
+
+    it('transfers requests from another user after claiming them', async () => {
+        const ticket = { id: randomUUID(), userId: 8, agentId: 7, delivered: false };
+        const { store, deliver, base } = await supportApp(ticket);
+        const response = await fetch(`${base}/support/handoffs/${ticket.id}/claim`, { method: 'POST', headers: adminHeaders, body: '{}' });
+        expect(response.status).toBe(200);
+        expect((await response.json()).data).toMatchObject({ delivered: true });
+        expect(deliver).toHaveBeenCalledWith(expect.objectContaining({ userId: 8 }), expect.objectContaining({ id: 7, roleCode: 'ADMIN' }));
+        expect(store.delivered).toHaveBeenCalledWith(ticket.id);
+    });
+
+    it('keeps a failed transfer pending for retry', async () => {
+        const ticket = { id: randomUUID(), userId: 8, agentId: 7, delivered: false };
+        const deliver = vi.fn(async () => { throw new Error('bridge unavailable'); });
+        const { store, base } = await supportApp(ticket, deliver);
+        const response = await fetch(`${base}/support/handoffs/${ticket.id}/claim`, { method: 'POST', headers: adminHeaders, body: '{}' });
+        expect(response.status).toBe(200);
+        expect((await response.json()).data).toMatchObject({ delivered: false, deliveryPending: true });
+        expect(store.delivered).not.toHaveBeenCalled();
+    });
+
+    it.each(['CANDIDATE', 'COMPANY', 'EMPLOYER'])('rejects claim and resolve from a non-admin role: %s', async roleCode => {
+        const ticket = { id: randomUUID(), userId: 7, delivered: false };
+        const { store, deliver, base } = await supportApp(ticket);
+        for (const action of ['claim', 'resolve']) {
+            const response = await fetch(`${base}/support/handoffs/${ticket.id}/${action}`, { method: 'POST',
+                headers: { ...headers, 'x-user-id': '7', 'x-user-role': roleCode }, body: '{}' });
+            expect(response.status).toBe(403);
+        }
+        expect(store.claim).not.toHaveBeenCalled();
+        expect(deliver).not.toHaveBeenCalled();
+    });
+});
+
 describe('HTTP trust, ownership boundary and streaming proxy', () => {
     it('denies spoofed identity, cross-owner requests, private guests and non-admin queue', async () => {
         vi.stubEnv('INTERNAL_SECRET',secret);

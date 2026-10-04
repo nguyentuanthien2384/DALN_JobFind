@@ -76,6 +76,28 @@ try {
         await pool.query('UPDATE support_conversations SET expires_at=1 WHERE id=?',[expired.id]);
         await store.cleanup();await assert.rejects(store.get(owner,expired.id),e=>e.status===404);
     });
+    await check('real MySQL administrator can process own handoff without chat delivery',async()=>{
+        const selfOwner='user:21', own=await store.begin(selfOwner,{requestId:randomUUID(),text:'Yêu cầu tự xử lý của quản trị viên (MySQL)'});
+        await store.finish(selfOwner,own,{text:'Hướng dẫn thử nghiệm',status:'complete'});
+        const selfTicket=await store.handoff(selfOwner,own.id,21), admin={roleCode:'ADMIN'};
+        await assert.rejects(store.claim(selfTicket.id,21),error=>error.status===409);
+        await assert.rejects(store.claim(selfTicket.id,21,false,{roleCode:'CANDIDATE'}),error=>error.status===409);
+        await assert.rejects(store.claim(selfTicket.id,21,true,admin),error=>error.status===409);
+        const claimed=await store.claim(selfTicket.id,21,false,admin);
+        assert.equal(claimed.status,'assigned');assert.equal(claimed.agentId,21);assert.equal(claimed.delivered,false);
+        const resolved=await store.claim(selfTicket.id,21,true,admin);
+        assert.equal(resolved.status,'resolved');assert.equal(resolved.delivered,false);
+        const [[persisted]]=await pool.query('SELECT agent_id,status,delivered_at FROM support_handoffs WHERE id=?',[selfTicket.id]);
+        assert.equal(persisted.agent_id,21);assert.equal(persisted.status,'resolved');assert.equal(persisted.delivered_at,null);
+        await store.remove(selfOwner,own.id);
+        const other=await store.begin(selfOwner,{requestId:randomUUID(),text:'Yêu cầu đã có nhân viên khác phụ trách'});
+        await store.finish(selfOwner,other,{text:'Hướng dẫn thử nghiệm',status:'complete'});
+        const otherTicket=await store.handoff(selfOwner,other.id,21);
+        await store.claim(otherTicket.id,22,false,admin);
+        await assert.rejects(store.claim(otherTicket.id,21,false,admin),error=>error.status===409);
+        await assert.rejects(store.claim(otherTicket.id,21,true,admin),error=>error.status===409);
+        await store.remove(selfOwner,other.id);
+    });
     process.env.INTERNAL_SECRET=token;
     const delivered=[], requests=[];
     const tools={privateTool:async(name,user)=>({title:'Đơn ứng tuyển của tôi',lines:[`Đơn riêng của tài khoản ${user.id}`],href:'/candidate/cv-post'}),deliver:async ticket=>{delivered.push(ticket.id);}};
@@ -114,6 +136,27 @@ try {
         const claim=(await(await api(`/handoffs/${ticket.id}/claim`,{},'Bearer test-admin')).json()).data;
         assert.equal(claim.agentId,21);assert.equal(claim.delivered,true);
         await api(`/handoffs/${ticket.id}/claim`,{},'Bearer test-admin');assert.equal(delivered.length,1);
+    });
+    await check('trusted HTTP administrator handles own request without self messaging or pending delivery',async()=>{
+        const before=delivered.length, question={requestId:randomUUID(),text:'Yêu cầu tự xử lý của quản trị viên (API)'};
+        const response=await api('/turn',question,'Bearer test-admin');assert.equal(response.status,200);await response.text();
+        const shared=await api('/conversations/'+question.requestId+'/handoff',{consent:true},'Bearer test-admin');assert.equal(shared.status,200);
+        const selfTicket=(await shared.json()).data;
+        assert.equal((await api(`/handoffs/${selfTicket.id}/claim`,{})).status,403);
+        assert.equal((await api(`/handoffs/${selfTicket.id}/resolve`,{},'Bearer test-admin')).status,409);
+        const preview=(await(await api(`/handoffs/${selfTicket.id}`,undefined,'Bearer test-admin')).json()).data;
+        assert.equal(preview.status,'waiting');assert.equal(preview.userId,21);assert.equal(preview.delivered,false);
+        for(let n=0;n<2;n++) {
+            const claim=await api(`/handoffs/${selfTicket.id}/claim`,{},'Bearer test-admin');assert.equal(claim.status,200);
+            const claimed=(await claim.json()).data;
+            assert.equal(claimed.status,'assigned');assert.equal(claimed.agentId,21);assert.equal(claimed.delivered,false);assert.equal(claimed.deliveryPending,undefined);
+        }
+        const resolve=await api(`/handoffs/${selfTicket.id}/resolve`,{},'Bearer test-admin');assert.equal(resolve.status,200);
+        const resolved=(await resolve.json()).data;assert.equal(resolved.status,'resolved');assert.equal(resolved.delivered,false);
+        const [[persisted]]=await pool.query('SELECT agent_id,status,delivered_at FROM support_handoffs WHERE id=?',[selfTicket.id]);
+        assert.equal(persisted.agent_id,21);assert.equal(persisted.status,'resolved');assert.equal(persisted.delivered_at,null);
+        assert.equal(delivered.length,before);
+        assert.equal((await api(`/handoffs/${selfTicket.id}/claim`,{},'Bearer test-admin')).status,409);
     });
     if(process.argv.includes('--browser')) {
         const {build}=legacyRequire('esbuild'),{chromium}=legacyRequire('@playwright/test');
@@ -170,7 +213,7 @@ try {
                 await next.getByRole('button',{name:'Gửi tin nhắn',exact:true}).click();await next.getByText('Đã lưu hội thoại · Xem lại trong Lịch sử',{exact:true}).waitFor();
                 assert.equal(await next.locator('.jf-support__message--user').count(),2);
                 await next.reload();await next.getByRole('button',{name:'Mở chatbot hỗ trợ JobFind',exact:true}).click();await next.getByRole('button',{name:'Lịch sử trò chuyện',exact:true}).click();await next.getByRole('button',{name:/^Tạo CV và ứng tuyển /}).first().click();
-                await next.getByText('Làm sao nhắn tin với nhà tuyển dụng?',{exact:true}).waitFor();
+                await next.locator('.jf-support__message--user .jf-support__bubble').filter({hasText:'Làm sao nhắn tin với nhà tuyển dụng?'}).waitFor();
                 await next.screenshot({path:path.join(output,'reopened-history.png')});
             } finally {await nextContext.close();}
             await page.reload();await button('Mở chatbot hỗ trợ JobFind').click();await button('Lịch sử trò chuyện').click();await page.getByRole('button',{name:/^Tạo CV và ứng tuyển /}).first().click();
@@ -214,6 +257,36 @@ try {
             await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
             await page.screenshot({path:path.join(output,'inbox-mobile.png'),fullPage:true});
             await page.goto(origin+'/support/help#cv');await page.getByRole('heading',{name:'Tạo CV và ứng tuyển',exact:true}).waitFor();assert.deepEqual(errors,[]);
+        });
+        await check('browser administrator claims and resolves own waiting request without self chat',async()=>{
+            const before=delivered.length, title='Quản trị viên xử lý yêu cầu của mình', question={requestId:randomUUID(),text:title};
+            const response=await api('/turn',question,'Bearer test-admin');assert.equal(response.status,200);await response.text();
+            const shared=await api('/conversations/'+question.requestId+'/handoff',{consent:true},'Bearer test-admin');assert.equal(shared.status,200);
+            const selfTicket=(await shared.json()).data;
+            await page.setViewportSize({width:1440,height:1000});await page.goto(origin+'/admin/support');
+            await page.getByRole('button',{name:new RegExp(title)}).click();
+            const detail=page.locator('.jf-support-inbox__detail'), badge=detail.locator('.jf-support-inbox__badge');
+            const resolve=detail.getByRole('button',{name:'Đánh dấu đã xử lý',exact:true});
+            await detail.getByRole('button',{name:'Tiếp nhận yêu cầu',exact:true}).waitFor();
+            assert.equal(await badge.innerText(),'Chờ tiếp nhận');
+            assert.equal(await page.getByText('Yêu cầu do bạn gửi cần một nhân viên khác tiếp nhận.',{exact:true}).count(),0);
+            await page.screenshot({path:path.join(output,'inbox-admin-self-waiting.png'),fullPage:true});
+            await detail.getByRole('button',{name:'Tiếp nhận yêu cầu',exact:true}).click();await resolve.waitFor();
+            assert.equal(await badge.innerText(),'Đang xử lý');
+            assert.equal(await detail.getByRole('link',{name:'Mở tin nhắn với người dùng ↗'}).count(),0);
+            assert.equal(await detail.getByRole('button',{name:'Thử chuyển lại hội thoại',exact:true}).count(),0);
+            assert.equal(await detail.locator('.jf-support-inbox__warning').count(),0);
+            assert.equal(delivered.length,before);
+            await page.screenshot({path:path.join(output,'inbox-admin-self-assigned.png'),fullPage:true});
+            await page.reload();await page.getByRole('button',{name:new RegExp(title)}).click();await resolve.waitFor();
+            assert.equal(await detail.locator('.jf-support-inbox__warning').count(),0);
+            page.once('dialog',dialog=>dialog.accept());await resolve.click();await page.getByText('Đã đánh dấu yêu cầu hoàn tất.',{exact:true}).waitFor();
+            assert.equal(await badge.innerText(),'Đã xử lý');assert.equal(await resolve.count(),0);
+            assert.equal(await detail.getByRole('button',{name:'Tiếp nhận yêu cầu',exact:true}).count(),0);
+            assert.equal(delivered.length,before);
+            const [[persisted]]=await pool.query('SELECT agent_id,status,delivered_at FROM support_handoffs WHERE id=?',[selfTicket.id]);
+            assert.equal(persisted.agent_id,21);assert.equal(persisted.status,'resolved');assert.equal(persisted.delivered_at,null);
+            assert.deepEqual(errors,[]);
         });
     }
     await fs.mkdir(output,{recursive:true});await fs.writeFile(path.join(output,'validation.json'),JSON.stringify({passed,realMysql:true,realBrowser:!!browser,realProvider:false,externalMessagesSent:0,at:new Date().toISOString()},null,2));

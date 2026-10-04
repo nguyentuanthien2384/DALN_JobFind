@@ -8,7 +8,7 @@ jest.mock('react-router-dom', () => ({ MemoryRouter: ({ children }) => children,
 jest.mock('../../service/supportChatService', () => ({ supportRequest: jest.fn() }));
 const ticket = (extra = {}) => ({ id: 'ticket-1', userId: 7, agentId: null, title: 'Không tải được hồ sơ', status: 'waiting', createdAt: 1700000000000, delivered: false, ...extra });
 const messages = [{ id: 'message-1', role: 'user', text: 'Nội dung đã đồng ý chia sẻ' }];
-const show = () => render(<MemoryRouter><SessionContext.Provider value={{ id: 21, roleCode: 'ADMIN' }}><SupportInbox/></SessionContext.Provider></MemoryRouter>);
+const show = (user = { id: 21, roleCode: 'ADMIN' }) => render(<MemoryRouter><SessionContext.Provider value={user}><SupportInbox/></SessionContext.Provider></MemoryRouter>);
 const rowButton = name => screen.getByRole('button', { name: new RegExp(name) });
 beforeEach(() => { jest.resetAllMocks(); supportRequest.mockResolvedValue([]); });
 afterEach(() => { jest.restoreAllMocks(); jest.useRealTimers(); });
@@ -75,6 +75,54 @@ test('a ticket assigned elsewhere cannot be claimed or resolved by this operator
   const detail = within(screen.getByRole('region', { name: 'Chi tiết yêu cầu' }));
   expect(detail.queryByRole('button', { name: /Tiếp nhận|Đánh dấu|Thử chuyển/ })).toBeNull();
   expect(detail.queryByRole('link', { name: /Mở tin nhắn/ })).toBeNull();
+});
+
+test('ADMIN can claim and resolve their own waiting request without self messaging', async () => {
+  let current = ticket({ userId: 21 });
+  supportRequest.mockImplementation((path, options) => {
+    if (options?.method === 'POST') current = { ...current, agentId: 21, delivered: false, status: path.endsWith('/resolve') ? 'resolved' : 'assigned' };
+    return Promise.resolve(path === '/handoffs' ? [current] : { ...current, messages });
+  });
+  show();
+  expect(await screen.findByRole('button', { name: 'Tiếp nhận', exact: true })).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', { name: /Không tải được hồ sơ/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Tiếp nhận yêu cầu' }));
+  expect(await screen.findByText('Đã tiếp nhận yêu cầu. Bạn có thể xử lý ngay tại đây.')).toBeInTheDocument();
+  expect(screen.queryByText(/cần một nhân viên khác tiếp nhận/)).toBeNull();
+  expect(screen.queryByRole('link', { name: /Mở tin nhắn/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Thử chuyển lại hội thoại' })).toBeNull();
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByText('Đã tiếp nhận và chuyển hội thoại vào Tin nhắn.')).toBeNull();
+  const confirmation = jest.spyOn(window, 'confirm').mockReturnValue(false);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Đánh dấu đã xử lý' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Đánh dấu đã xử lý' }));
+  expect(current.status).toBe('assigned');
+  confirmation.mockReturnValue(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Đánh dấu đã xử lý' }));
+  expect(await screen.findByText('Đã đánh dấu yêu cầu hoàn tất.')).toBeInTheDocument();
+  expect(current.delivered).toBe(false);
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Đánh dấu đã xử lý' })).toBeNull());
+  expect(supportRequest.mock.calls.filter(([, options]) => options?.method === 'POST').map(([path]) => path)).toEqual(['/handoffs/ticket-1/claim', '/handoffs/ticket-1/resolve']);
+});
+
+test.each([false, true])('an already assigned own ADMIN request can be resolved with delivered=%s and has no self chat link', async delivered => {
+  const own = ticket({ userId: 21, agentId: 21, status: 'assigned', delivered });
+  supportRequest.mockImplementation(path => Promise.resolve(path === '/handoffs' ? [own] : { ...own, messages }));
+  show(); fireEvent.click(await screen.findByRole('button', { name: /Không tải được hồ sơ/ }));
+  expect(await screen.findByRole('button', { name: 'Đánh dấu đã xử lý' })).toBeEnabled();
+  expect(screen.queryByRole('button', { name: 'Thử chuyển lại hội thoại' })).toBeNull();
+  expect(screen.queryByRole('link', { name: /Mở tin nhắn/ })).toBeNull();
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+test('non-ADMIN receives no self-claim controls', async () => {
+  const own = ticket({ userId: 21 });
+  supportRequest.mockImplementation(path => Promise.resolve(path === '/handoffs' ? [own] : { ...own, messages }));
+  show({ id: 21, roleCode: 'CANDIDATE' });
+  fireEvent.click(await screen.findByRole('button', { name: /Không tải được hồ sơ/ }));
+  await screen.findByText(messages[0].text);
+  expect(screen.queryByRole('button', { name: /Tiếp nhận/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Đánh dấu đã xử lý' })).toBeNull();
 });
 test('failed delivery offers a retry and cannot appear ready to resolve', async () => {
   const pending = ticket({ status: 'assigned', agentId: 21, delivered: false });
