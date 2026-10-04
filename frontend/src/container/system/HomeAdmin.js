@@ -6,7 +6,6 @@ import AdminPageHeader from "./AdminPageHeader";
 import Home from "./Home";
 import Footer from "./Footer";
 import ManageUser from "./User/ManageUser";
-import KanbanBoard from "./Cv/KanbanBoard";
 import ReportDashboard from "./Report/ReportDashboard";
 import { Routes, Route, Navigate, Link } from "react-router-dom";
 import AddUser from "./User/AddUser";
@@ -28,6 +27,8 @@ import ManagePost from "./Post/ManagePost";
 import ManageCv from "./Cv/ManageCv";
 import FilterCv from "./Cv/FilterCv";
 import UserCv from "./Cv/UserCv";
+import KanbanBoard from "./Cv/KanbanBoard";
+import InterviewCalendar from "../../components/interviews/InterviewCalendar";
 import ChangePassword from "./User/ChangePassword";
 import UserInfo from "./User/UserInfo";
 import BuyPost from "./Post/BuyPost";
@@ -153,6 +154,7 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                             <Route path="/chat/:partnerId" element={guard(<ChatPage />, PERMISSIONS.USE_CHAT)} />
                             <Route path="/list-user" element={guard(<ManageUser />, PERMISSIONS.MANAGE_USERS)} />
                             <Route path="/pipeline" element={guard(<KanbanBoard />, PERMISSIONS.MANAGE_CANDIDATES)} />
+                            <Route path="/interviews" element={guard(<InterviewCalendar user={user} />, PERMISSIONS.MANAGE_CANDIDATES)} />
                             <Route path="/reports" element={guard(<ReportDashboard />, PERMISSIONS.VIEW_PLATFORM_REPORTS)} />
                             <Route
                                 path="/add-user"

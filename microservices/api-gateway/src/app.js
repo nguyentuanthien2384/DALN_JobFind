@@ -196,6 +196,11 @@ app.get('/api/jobs/:id', publicLimiter, createProxy('jobs', (req) => `/jobs/${re
 // Ung vien chi duoc xem lich su ung tuyen cua chinh minh.
 app.get('/api/my-applications', (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); }, requirePermission(PERMISSIONS.APPLICATION_SELF_READ),
     createProxy('applications', () => '/my-applications'));
+app.get('/api/my-interviews', (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); }, requirePermission(PERMISSIONS.APPLICATION_SELF_READ),
+    createProxy('applications', () => '/my-interviews'));
+app.get('/api/applications/interviews', (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); },
+    requirePermission(PERMISSIONS.APPLICATION_MANAGE, { companyRequired: true }),
+    createProxy('applications', () => '/applications/interviews'));
 // Danh sach cac buoc trong pipeline - giao dien can de ve cot Kanban.
 app.get('/api/applications/stages',
     requirePermission(PERMISSIONS.APPLICATION_MANAGE, { companyRequired: true }),

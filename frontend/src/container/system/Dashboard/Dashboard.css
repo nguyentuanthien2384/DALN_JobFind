@@ -362,7 +362,7 @@
 .jf-pagination .page-link { padding: 4px 10px; font-size: 13px; }
 
 /* ---------- Loi tat (nha tuyen dung) ---------- */
-.jf-shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.jf-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
 .jf-shortcut {
     display: flex;
     align-items: center;

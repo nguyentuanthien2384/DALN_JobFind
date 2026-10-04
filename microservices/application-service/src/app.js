@@ -13,6 +13,7 @@ import {
     sendDecisionNotification, sendInterviewInvitation, rateApplication, addNote, getFunnel, myApplications
 } from './controllers/applicationController.js';
 import { savedCandidates, saveCandidate, removeCandidate } from './controllers/talentPoolController.js';
+import { listInterviews, myInterviews } from './controllers/interviewCalendarController.js';
 import { syncFromLegacy, syncEndpoint, closeLegacySource } from './controllers/syncController.js';
 import { startSubmissionConsumer } from './consumers/submissionConsumer.js';
 import {
@@ -45,6 +46,7 @@ const canManageApplications = requireServicePermission(
     { companyRequired: true }
 );
 const canReadOwnApplications = requireServicePermission(PERMISSIONS.APPLICATION_SELF_READ);
+const privateCalendar = (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); };
 const canManageTalentPool = requireServicePermission(
     PERMISSIONS.TALENT_POOL_MANAGE,
     { companyRequired: true }
@@ -61,6 +63,7 @@ contractRoute(app, 'applicationStages', canManageApplications, (req, res) => {
 // --- Nha tuyen dung ---
 contractRoute(app, 'applicationBoard', canManageApplications, getBoard);
 contractRoute(app, 'applicationFunnel', canManageApplications, getFunnel);
+contractRoute(app, 'applicationInterviews', privateCalendar, canManageApplications, listInterviews);
 contractRoute(app, 'applicationList', canManageApplications, listApplications);
 contractRoute(app, 'applicationGet', canManageApplications, getApplication);
 contractRoute(app, 'applicationMove', canManageApplications, moveStage);
@@ -71,6 +74,7 @@ contractRoute(app, 'applicationNote', canManageApplications, addNote);
 
 // --- Ung vien ---
 contractRoute(app, 'myApplications', canReadOwnApplications, myApplications);
+contractRoute(app, 'myInterviews', privateCalendar, canReadOwnApplications, myInterviews);
 
 // --- Kho ung vien ---
 contractRoute(app, 'talentList', canManageTalentPool, savedCandidates);

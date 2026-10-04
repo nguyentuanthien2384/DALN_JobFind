@@ -9,6 +9,7 @@ const op = (id, service, method, path, permission, options = {}) => ({
 const jobParams = object({ id: idString }, ['id']);
 const cvParams = object({ cvId: mongoId }, ['cvId']);
 const company = { companyRequired: true };
+const calendarDates = { from: { type: 'string', format: 'date' }, to: { type: 'string', format: 'date' } };
 export const operations = [
     op('supportTurn', 'support', 'post', '/support/turn', null, { body: 'SupportTurn', stream: true }),
     op('supportKnowledge', 'support', 'get', '/support/knowledge', null, { list: true }),
@@ -57,6 +58,7 @@ export const operations = [
     op('applicationStages', 'applications', 'get', '/applications/stages', P.APPLICATION_MANAGE, { list: true, ...company }),
     op('applicationBoard', 'applications', 'get', '/applications/board', P.APPLICATION_MANAGE, { query: object({ jobId: idString }), ...company }),
     op('applicationFunnel', 'applications', 'get', '/applications/funnel', P.APPLICATION_MANAGE, { query: object({ jobId: idString }), ...company }),
+    op('applicationInterviews', 'applications', 'get', '/applications/interviews', P.APPLICATION_MANAGE, { query: object({ ...calendarDates, jobId: idString }), response: 'InterviewCalendarEntry', list: true, ...company }),
     op('applicationList', 'applications', 'get', '/applications', P.APPLICATION_MANAGE, { query: schemas.ApplicationQuery, response: 'Application', list: true, ...company }),
     op('applicationGet', 'applications', 'get', '/applications/:id', P.APPLICATION_MANAGE, { params: jobParams, response: 'Application', ...company }),
     op('applicationMove', 'applications', 'patch', '/applications/:id/stage', P.APPLICATION_MANAGE, { params: jobParams, body: 'MoveStage', response: 'Application', ...company }),
@@ -65,6 +67,7 @@ export const operations = [
     op('applicationRating', 'applications', 'patch', '/applications/:id/rating', P.APPLICATION_MANAGE, { params: jobParams, body: 'Rating', response: 'Application', ...company }),
     op('applicationNote', 'applications', 'post', '/applications/:id/notes', P.APPLICATION_MANAGE, { params: jobParams, body: 'Note', status: 201, ...company }),
     op('myApplications', 'applications', 'get', '/my-applications', P.APPLICATION_SELF_READ, { list: true }),
+    op('myInterviews', 'applications', 'get', '/my-interviews', P.APPLICATION_SELF_READ, { query: object(calendarDates), response: 'InterviewCalendarEntry', list: true }),
     op('talentList', 'applications', 'get', '/talent-pool', P.TALENT_POOL_MANAGE, { query: object({ q: text(500), tag: text(100) }), list: true, ...company }),
     op('talentSave', 'applications', 'post', '/talent-pool', P.TALENT_POOL_MANAGE, { body: 'TalentSave', status: 201, ...company }),
     op('talentDelete', 'applications', 'delete', '/talent-pool/:candidateId', P.TALENT_POOL_MANAGE, { params: object({ candidateId: idString }, ['candidateId']), response: 'Ack', ...company }),

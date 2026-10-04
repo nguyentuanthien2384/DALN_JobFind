@@ -38,6 +38,7 @@ jest.mock("../../components/support/SupportInbox", () => () => <main>SUPPORT INB
 jest.mock("./Company/AddCompany", () => () => <main>ADD COMPANY</main>);
 jest.mock("./User/UserInfo", () => () => <main>USER INFO</main>);
 jest.mock("./Post/ManagePost", () => () => <main>MANAGE POST</main>);
+jest.mock("../../components/interviews/InterviewCalendar", () => () => <main>INTERVIEW CALENDAR</main>);
 // Layout tests only check the shell; the real list page would call /api/get-all-user.
 jest.mock("./User/ManageUser", () => () => <main>MANAGE USER</main>);
 
@@ -143,6 +144,22 @@ describe("admin layout shell", () => {
 
         renderAdmin("/list-post", EMPLOYER);
         expect(screen.getByText("MANAGE POST")).toBeInTheDocument();
+    });
+
+    it.each([COMPANY, EMPLOYER])("opens the interview calendar for an approved recruiter", (user) => {
+        renderAdmin("/interviews", user);
+        expect(screen.getByText("INTERVIEW CALENDAR")).toBeInTheDocument();
+        expect(document.title).toBe("Lịch phỏng vấn · Quản trị JobFind");
+        expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Quản lý ứng viên");
+    });
+
+    it.each([
+        UNATTACHED_EMPLOYER,
+        { ...COMPANY, companyCensorCode: "CS2" },
+    ])("denies the calendar when the employer has no approved company", (user) => {
+        renderAdmin("/interviews", user);
+        expect(screen.getByTestId("redirect")).toHaveTextContent("/forbidden");
+        expect(screen.queryByText("INTERVIEW CALENDAR")).not.toBeInTheDocument();
     });
 
     it("redirects an unattached employer away from dashboard without rendering it", () => {

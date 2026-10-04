@@ -66,6 +66,7 @@ const RECRUITING_POSTS = {
 const RECRUITING_CANDIDATES = {
     key: 'company-candidate', title: 'Quản lý ứng viên', icon: 'fas fa-user-check', permission: P.MANAGE_CANDIDATES, children: [
         { to: '/admin/pipeline/', label: 'Quy trình tuyển dụng' },
+        { to: '/admin/interviews/', label: 'Lịch phỏng vấn' },
         { to: '/admin/list-candiate/', label: 'Tìm kiếm ứng viên' },
         { to: '/admin/buy-cv/', label: 'Mua thêm lượt xem ứng viên', permission: P.PURCHASE_PACKAGES },
     ],

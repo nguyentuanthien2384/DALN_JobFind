@@ -94,6 +94,20 @@ afterAll(async () => {
 });
 
 describe('real HTTP request contracts', () => {
+    it('restricts interview calendars to the correct audience with validated date filters', async () => {
+        const employer = { 'x-user-role': 'EMPLOYER', 'x-company-id': '3', 'x-company-status': 'S1', 'x-company-censor': 'CS1' };
+        expect((await send('applicationInterviews', { headers: employer, query: '?from=2030-10-01&to=2030-10-31&jobId=9' })).status).toBe(200);
+        expect((await send('myInterviews', { headers: { 'x-user-role': 'CANDIDATE' }, query: '?from=2030-10-01&to=2030-10-31' })).status).toBe(200);
+        expect((await send('applicationInterviews', { headers: { 'x-user-role': 'CANDIDATE', 'x-company-id': '3' } })).status).toBe(403);
+        expect((await send('applicationInterviews', { headers: { 'x-user-role': 'EMPLOYER' } })).status).toBe(403);
+        expect((await send('myInterviews', { headers: employer })).status).toBe(403);
+        for (const id of ['applicationInterviews', 'myInterviews']) {
+            for (const query of ['?from=2030-02-30', '?from=2030-11-01&to=2030-10-01', '?from=2030-10-01&from=2030-10-02', '?candidateId=8', '?companyId=9']) {
+                expect((await send(id, { query })).status).toBe(400);
+            }
+        }
+        expect((await send('myInterviews', { query: '?jobId=9' })).status).toBe(400);
+    });
     it.each(['COMPANY', 'EMPLOYER'])('allows %s matching/polling but rejects candidate-only AI operations', async (role) => {
         const headers = { 'x-user-role': role };
         expect((await send('aiMatchCv', { headers, body: { fileBase64: 'c3ludGhldGlj', jobId: 1 } })).status).toBe(202);

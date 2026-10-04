@@ -1,4 +1,5 @@
 import { schemas, object, text, nullable, integer, id, mongoId, date, stage, editRevision } from './schemas.js';
+import { interviewSchema } from './interviewSchema.js';
 
 const ref = (name) => ({ $ref: `#/$defs/${name}` });
 const list = (items) => ({ type: 'array', items });
@@ -49,6 +50,12 @@ export const responseDefinitions = {
     Board: record({ columns: list(record({ ...stageLabel.properties, items: list(ref('Application')), count: integer() })), total: integer() }),
     Funnel: record({ funnel: list(record({ ...stageLabel.properties, count: integer(), avgRating: nullable(numeric) })), total: integer(), hired: integer(), conversionRate: number }),
     ApplicationNote: record({ id, application_id: id, author_id: nullable(id), body: text(5000), created_at: date }),
+    InterviewCalendarEntry: object({ id, applicationId: id, legacyCvId: nullable(id), jobId: id, jobTitle: nullable(text()),
+        companyId: id, companyName: text(255), candidateId: id, candidateName: nullable(text()), candidateEmail: nullable(text(320)),
+        applicationStage: stage, scheduledAt: date, startAt: date, endAt: date,
+        status: { enum: ['scheduled', 'past', 'inactive'] }, interview: interviewSchema, message: nullable(text(3000)) },
+        ['id', 'applicationId', 'legacyCvId', 'jobId', 'jobTitle', 'companyId', 'companyName', 'candidateId', 'candidateName',
+            'candidateEmail', 'applicationStage', 'scheduledAt', 'startAt', 'endAt', 'status', 'interview', 'message']),
     MyApplication: record({ id, legacy_cv_id: nullable(id), job_id: id, job_title: nullable(text()), stage, stageLabel: text(), applied_at: date, stage_changed_at: date },
         ['id','job_id','job_title','stage','stageLabel','applied_at','stage_changed_at']),
     Talent: record({ id, candidate_id: id, company_id: nullable(id), candidate_name: nullable(text()), tags: list(text()), note: nullable(text()), saved_at: date }, ['id', 'candidate_id']),

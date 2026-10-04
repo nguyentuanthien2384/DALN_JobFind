@@ -17,6 +17,7 @@
     "seed:demo-data": "node backend/scripts/seed-project-demo.cjs",
     "test:demo-data": "node backend/scripts/test-demo-data.cjs",
     "test:runtime": "node --test scripts/*.test.mjs",
+    "test:interviews:browser": "node backend/scripts/test-interview-calendar-browser.cjs",
     "test:restore": "node scripts/restore-drill.mjs --source-project ai-job-portal",
     "release:prepare": "node scripts/prepare-release.mjs",
     "test:release": "node scripts/test-release.mjs",

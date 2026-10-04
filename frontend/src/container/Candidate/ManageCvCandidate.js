@@ -56,6 +56,7 @@ function History({ user, token }) {
     },[enabled,token,refresh]);
     return <div className="col-12 grid-margin application-history"><div className="card"><div className="card-body">
         <h4 className="card-title">Danh sách Công Việc Đã Nộp</h4>
+        <p><Link to="/candidate/interviews">Xem lịch phỏng vấn của tôi</Link></p>
         <button type="button" className="history-refresh" disabled={busy || progressLoading} onClick={()=>setRefresh(value=>value+1)}>Tải lại hồ sơ</button>
         {enabled && <p>Tiến trình do nhà tuyển dụng cập nhật và có thể hiển thị chậm. “Đã xem” là trạng thái đọc CV, không phải quyết định tuyển dụng.</p>}
         {enabled && progressError && <p role="alert">{progressError} Hồ sơ đã nộp vẫn được giữ nguyên; dùng Tải lại hồ sơ để kiểm tra lại.</p>}

@@ -57,6 +57,14 @@
 
 Chi tiết từng chức năng AI: [docs/ai-recruitment.md](docs/ai-recruitment.md) · [docs/ai-cv.md](docs/ai-cv.md)
 
+### 📅 Lịch phỏng vấn
+
+Nhà tuyển dụng mở **Quản lý ứng viên → Lịch phỏng vấn** (`/admin/interviews`); ứng viên mở **Lịch phỏng vấn** trong menu tài khoản (`/candidate/interviews`). Trang lịch sử dụng thư mời đã lưu, hỗ trợ xem theo tháng hoặc danh sách, tìm kiếm và lọc theo hình thức, trạng thái, xem chi tiết và tải tệp `.ics` để thêm vào ứng dụng lịch.
+
+Nhà tuyển dụng có thể chọn hồ sơ để tạo lịch, xem trước thư mời rồi gửi; đổi lịch sử dụng cùng luồng thư mời hiện có trong Kanban. Mỗi hồ sơ hiển thị thư mời gần nhất nên ngày hẹn cũ không xuất hiện lại sau khi đổi lịch. Ngày giờ được tính theo giờ Việt Nam (UTC+7). “Đã qua” chỉ cho biết giờ hẹn đã qua; “Không còn hiệu lực” cho biết hồ sơ đã rời bước phỏng vấn. Ứng viên xác nhận hoặc trao đổi qua email HR được ghi trong thư mời.
+
+API: `GET /api/applications/interviews` giới hạn theo công ty (quản trị viên có quyền xem toàn hệ thống); `GET /api/my-interviews` chỉ trả về lịch của tài khoản đang đăng nhập. Cả hai nhận bộ lọc ngày `from`, `to`; API nhà tuyển dụng còn nhận `jobId`. Dữ liệu lấy từ `application_events.decision_snapshot`, không cần thêm bảng hay chạy migration. Kiểm thử giao diện: `npm run test:interviews:browser`.
+
 ---
 
 ## 🌟 Tổng quan

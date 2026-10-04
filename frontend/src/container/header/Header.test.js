@@ -316,9 +316,11 @@ describe("public Header", () => {
         expect(screen.getByRole('link', { name: 'Xem tất cả thông báo' })).toHaveAttribute('href', '/candidate/notifications');
         fireEvent.click(screen.getByRole('button', { name: /An N/ }));
         expect(screen.getByRole('link', { name: 'Thông báo tài khoản' })).toHaveAttribute('href', '/candidate/notifications');
+        expect(screen.getByRole('link', { name: 'Lịch phỏng vấn' })).toHaveAttribute('href', '/candidate/interviews');
         fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
         const mobile = screen.getByRole('navigation', { name: 'Điều hướng di động' });
         expect(within(mobile).getByRole('link', { name: 'Thông báo tài khoản' })).toHaveAttribute('href', '/candidate/notifications');
+        expect(within(mobile).getByRole('link', { name: 'Lịch phỏng vấn' })).toHaveAttribute('href', '/candidate/interviews');
         fireEvent.click(within(mobile).getByRole('button', { name: 'Thông báo (2)' }));
         expect(within(mobile).getByRole('link', { name: 'Xem tất cả thông báo' })).toHaveAttribute('href', '/candidate/notifications');
     });

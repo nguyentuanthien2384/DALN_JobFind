@@ -42,6 +42,7 @@ export const validateRequest = (operationId) => {
         }
         const q = req.query || {};
         if (q.fromDate && q.toDate && new Date(q.fromDate) > new Date(q.toDate)) return invalid(res, req);
+        if (['applicationInterviews', 'myInterviews'].includes(operation.id) && q.from && q.to && q.from > q.to) return invalid(res, req);
         // Elasticsearch's default result window is shared by offset and page size.
         if (operation.searchWindow && (Number(q.offset) || 0) + (Number(q.limit) || 12) > 10000) return invalid(res, req);
         // Match existing default-on-zero behavior without changing the input object.
@@ -68,7 +69,7 @@ const publicRoutes = operations.filter((operation) => !operation.internal).map((
     method: operation.method.toUpperCase(),
     pattern: new RegExp(`^${publicPath(operation).split('/').map((part) => part.startsWith(':') ? '[^/]+' : escaped(part)).join('/')}\\/?$`, 'i')
 }));
-const modernNamespace = /^\/api\/(profile|search|jobs|applications|my-applications|talent-pool|admin|ai|support)(\/|$)/i;
+const modernNamespace = /^\/api\/(profile|search|jobs|applications|my-applications|my-interviews|talent-pool|admin|ai|support)(\/|$)/i;
 export const rejectUnknownModernRoute = (req, res, next) => {
     if (!modernNamespace.test(req.path)) return next();
     const method = req.method === 'HEAD' ? 'GET' : req.method;

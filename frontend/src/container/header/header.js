@@ -288,6 +288,10 @@ const Header = () => {
                                                                 <i className="far fa-file-word text-primary"></i>
                                                                 Công việc đã nộp
                                                             </Link>}
+                                                            {isCandidate && <Link to="/candidate/interviews" className="dropdown-item" onClick={closeHeaderMenus}>
+                                                                <i className="far fa-calendar-alt text-primary" aria-hidden="true" />
+                                                                Lịch phỏng vấn
+                                                            </Link>}
                                                             {canUseChat && <Link to="/chat" className="dropdown-item" onClick={closeHeaderMenus}>
                                                                 <i className="far fa-comment-dots text-primary"></i>
                                                                 Tin nhắn
@@ -367,6 +371,7 @@ const Header = () => {
                                                         {isCandidate && <li><Link to="/candidate/usersetting" onClick={closeHeaderMenus}>Cài đặt nâng cao</Link></li>}
                                                         {isCandidate && candidateAiEnabled() && <li><Link to="/candidate/ai-cv" onClick={closeHeaderMenus}>CV và trợ lý AI</Link></li>}
                                                         {isCandidate && <li><Link to="/candidate/cv-post/" onClick={closeHeaderMenus}>Công việc đã nộp</Link></li>}
+                                                        {isCandidate && <li><Link to="/candidate/interviews" onClick={closeHeaderMenus}>Lịch phỏng vấn</Link></li>}
                                                         {canUseChat && <li><Link to="/chat" onClick={closeHeaderMenus}>Tin nhắn{unreadChat > 0 ? ` (${unreadChat})` : ''}</Link></li>}
                                                         {isCandidate && <li><Link to="/candidate/saved-jobs/" onClick={closeHeaderMenus}>Việc làm đã lưu</Link></li>}
                                                         <li><Link to={passwordPath} onClick={closeHeaderMenus}>Đổi mật khẩu</Link></li>

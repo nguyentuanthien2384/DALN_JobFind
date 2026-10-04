@@ -344,6 +344,7 @@ const KanbanBoard = () => {
                     </p>
                 </div>
                 <div className="kb-head-actions">
+                <button type="button" className="kb-btn" onClick={() => navigate('/admin/interviews')}>Lịch phỏng vấn</button>
                 {recruiterAi && (
                     <div className="kb-ai-tools">
                         <button

@@ -18,6 +18,7 @@ import './Dashboard.css';
 const SHORTCUTS = [
     { to: '/admin/add-post/', icon: 'fas fa-plus', label: 'Đăng tin mới', hint: 'Tạo tin tuyển dụng', permission: PERMISSIONS.MANAGE_POSTS },
     { to: '/admin/pipeline/', icon: 'fas fa-columns', label: 'Quy trình tuyển dụng', hint: 'Kanban hồ sơ ứng viên', permission: PERMISSIONS.MANAGE_CANDIDATES },
+    { to: '/admin/interviews/', icon: 'far fa-calendar-alt', label: 'Lịch phỏng vấn', hint: 'Sắp xếp và theo dõi buổi hẹn', permission: PERMISSIONS.MANAGE_CANDIDATES },
     { to: '/admin/list-candiate/', icon: 'fas fa-search', label: 'Tìm ứng viên', hint: 'Lọc theo kỹ năng, ngành', permission: PERMISSIONS.MANAGE_CANDIDATES },
     { to: '/admin/chat', icon: 'far fa-comments', label: 'Tin nhắn', hint: 'Trao đổi với ứng viên', permission: PERMISSIONS.USE_CHAT },
 ];
