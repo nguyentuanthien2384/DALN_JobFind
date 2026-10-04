@@ -22,9 +22,12 @@ const getRouteKey = (req) => {
 // windowMs: khoang thoi gian tinh; max: so lan toi da trong khoang do.
 // countOnlyFailures: chi tinh cac lan that bai (dung cho dang nhap, de nhieu
 // nguoi dung chung mot dia chi IP van dang nhap binh thuong).
-const createRateLimiter = ({ windowMs, max, message, countOnlyFailures = false, clientKey = getClientKey }) => {
+// scope: ten han muc dung chung cho moi route gan limiter nay. Khong co scope thi
+// moi route dem rieng; co scope thi cac duong dan bi danh cua cung mot hanh dong
+// (vd /api/login va /api/auth/login) chia chung mot han muc, giong Gateway.
+const createRateLimiter = ({ windowMs, max, message, countOnlyFailures = false, clientKey = getClientKey, scope }) => {
     return (req, res, next) => {
-        const key = `${getRouteKey(req)}|${clientKey(req)}`;
+        const key = `${scope ? `scope:${scope}` : getRouteKey(req)}|${clientKey(req)}`;
         const now = Date.now();
         const entry = buckets.get(key);
 
@@ -66,7 +69,19 @@ setInterval(() => {
     }
 }, 5 * 60 * 1000).unref();
 
+// Hai duong dang nhap (/api/login va /api/auth/login) la cung mot hanh dong nen
+// chia chung 10 lan sai; neu dem rieng thi ke tan cong duoc 20 lan.
 const loginLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    countOnlyFailures: true,
+    scope: 'login',
+    message: 'Bạn đã đăng nhập sai quá nhiều lần, vui lòng thử lại sau ít phút'
+});
+
+// Lam moi phien dem rieng: nhieu tab het phien cung luc khong duoc an vao han muc
+// dang nhap sai cua nguoi dung.
+const refreshLimiter = createRateLimiter({
     windowMs: 15 * 60 * 1000,
     max: 10,
     countOnlyFailures: true,
@@ -104,6 +119,7 @@ module.exports = {
         message: 'Bạn đã gửi quá nhiều câu hỏi. Vui lòng thử lại sau một phút.' }),
     createRateLimiter,
     loginLimiter,
+    refreshLimiter,
     ssoLimiter,
     otpLimiter,
     registerLimiter,

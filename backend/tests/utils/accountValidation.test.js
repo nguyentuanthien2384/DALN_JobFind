@@ -6,7 +6,7 @@ test('normalizes email and accepts Unicode names and passphrases', () => {
     expect(normalizeEmail(valid().email)).toBe('an@candidate.vn');
     expect(isValidRecipientEmail(valid().email)).toBe(true);
     expect(validateRegistration(valid())).toEqual({});
-    expect(validateNewPassword('        ')).toBe('');
+    expect(validateNewPassword('  mật khẩu có khoảng trắng  ')).toBe('');
 });
 
 test.each([undefined, null, 12345678, {}, ['password'], '', '1234567', '🧑'.repeat(7)])('rejects missing, non-string or short password: %p', password => {
@@ -115,5 +115,30 @@ describe('validateRegistration field boundaries', () => {
     test('trims the phone number before checking its ten digits', () => {
         expect(validateRegistration({ ...valid(), phonenumber: ' 0901234567 ' })).toEqual({});
         expect(validateRegistration({ ...valid(), phonenumber: '09012345678' })).toHaveProperty('phonenumber');
+    });
+});
+
+describe('validateNewPassword rejects blank or invisible-only passwords', () => {
+    const BLANK = 'Mật khẩu không được chỉ gồm khoảng trắng hoặc ký tự vô hình';
+    const ch = (code) => String.fromCharCode(code);
+
+    test.each([
+        ['8 spaces', ' '.repeat(8)],
+        ['tabs and newlines', [9, 10, 13, 9, 10, 13, 9, 10].map(ch).join('')],
+        ['no-break spaces', ch(0xa0).repeat(8)],
+        ['ideographic spaces', ch(0x3000).repeat(8)],
+        ['zero-width spaces', ch(0x200b).repeat(8)],
+        ['a mix of blanks and invisible marks', `${ch(0x200b)} ${ch(0xfeff)}${ch(0xa0)}${ch(0x200d)}  ${ch(0x2060)}`],
+    ])('rejects %s', (_case, password) => {
+        expect(validateNewPassword(password)).toBe(BLANK);
+        expect(validateRegistration({ ...valid(), password })).toEqual({ password: BLANK });
+    });
+
+    test('checks the length before the blank rule', () => {
+        expect(validateNewPassword('   ')).toContain('8');
+    });
+
+    test.each(['a       ', '       1', 'mật khẩu', ` ${ch(0x200b)}x${ch(0x200b)}     `])('accepts %p because it has a visible character', (password) => {
+        expect(validateNewPassword(password)).toBe('');
     });
 });

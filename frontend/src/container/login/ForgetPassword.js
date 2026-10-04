@@ -269,7 +269,11 @@ const ForgetPassword = () => {
                                             <>
                                                 <div className="form-group">
                                                     <input
-                                                        type="number"
+                                                        // Not type="number": arrow keys or the mouse wheel
+                                                        // would turn 0909123456 into 909123457.
+                                                        type="tel"
+                                                        inputMode="numeric"
+                                                        autoComplete="tel"
                                                         value={
                                                             inputValues.phonenumber
                                                         }

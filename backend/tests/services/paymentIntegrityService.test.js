@@ -9,7 +9,7 @@ const mockDb = {
   PackageCv: model(),
   OrderPackage: model(),
   OrderPackageCV: model(),
-  PaymentIntent: model(),
+  PaymentIntent: { ...model(), update: jest.fn(), findAll: jest.fn() },
   User: model(),
   Company: model(),
   sequelize: {
@@ -61,9 +61,21 @@ const makeIntent = (overrides = {}) => ({
   save: jest.fn(),
   ...overrides
 });
+// Shape of a PayPal v1 execute/lookup reply for a captured sale.
 const approvedPayment = (overrides = {}) => ({
   id: 'PAY-123',
   state: 'approved',
+  payer: { payer_info: { payer_id: 'PAYER-1' } },
+  transactions: [{
+    amount: { currency: 'USD', total: '20.00' },
+    related_resources: [{ sale: { id: 'SALE-1', state: 'completed' } }]
+  }],
+  ...overrides
+});
+// Lookup reply for a payment the buyer created but that was never executed (nothing charged).
+const createdPayment = (overrides = {}) => ({
+  id: 'PAY-123',
+  state: 'created',
   transactions: [{ amount: { currency: 'USD', total: '20.00' } }],
   ...overrides
 });
@@ -246,16 +258,19 @@ describe('paymentIntegrityService completes payments exactly once', () => {
     expect(mockDb.OrderPackage.create).not.toHaveBeenCalled();
   });
 
-  test('rejects non-pending and expires stale intents before contacting PayPal', async () => {
+  test('rejects non-pending intents and expires stale ones without ever executing them', async () => {
     const expired = makeIntent({ expiresAt: past() });
     mockDb.PaymentIntent.findOne
       .mockResolvedValueOnce(makeIntent({ status: 'FAILED' }))
       .mockResolvedValueOnce(expired);
+    mockPaypal.payment.get.mockImplementation((id, done) => done(null, createdPayment()));
+    mockDb.PaymentIntent.update.mockResolvedValue([1]);
 
-    expect((await service.completePayment(callback())).errCode).toBe(2);
-    expect((await service.completePayment(callback())).errCode).toBe(2);
+    expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: 'Giao dịch không còn hiệu lực' });
+    expect(mockPaypal.payment.get).not.toHaveBeenCalled();
+    expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: 'Giao dịch đã hết hạn' });
+    expect(mockDb.PaymentIntent.update).toHaveBeenCalledWith({ status: 'EXPIRED' }, { where: { id: 21, status: 'PENDING' } });
     expect(expired.status).toBe('EXPIRED');
-    expect(expired.save).toHaveBeenCalled();
     expect(mockPaypal.payment.execute).not.toHaveBeenCalled();
   });
 
@@ -404,7 +419,8 @@ describe('paymentIntegrityService provider verification', () => {
     expect(service.providerPaymentMatches(approvedPayment({
       payer: { payer_info: { payer_id: 'PAYER-1' } }
     }), intent, 'PAYER-1')).toBe(true);
-    expect(service.providerPaymentMatches({ id: 'PAY-123' }, intent)).toBe(true);
+    // Fail closed: a reply missing the state, payer or amount proves nothing.
+    expect(service.providerPaymentMatches({ id: 'PAY-123' }, intent)).toBe(false);
   });
 });
 
@@ -446,6 +462,8 @@ describe('paymentIntegrityService never keeps money it does not deliver', () => 
   test('still never executes an intent that was already expired before capture', async () => {
     const expired = makeIntent({ expiresAt: past() });
     mockDb.PaymentIntent.findOne.mockResolvedValueOnce(expired);
+    mockPaypal.payment.get.mockImplementationOnce((id, done) => done(null, createdPayment()));
+    mockDb.PaymentIntent.update.mockResolvedValue([1]);
     expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: 'Giao dịch đã hết hạn' });
     expect(mockPaypal.payment.execute).not.toHaveBeenCalled();
     expect(mockDb.OrderPackage.create).not.toHaveBeenCalled();
@@ -651,6 +669,8 @@ describe('paymentIntegrityService rejects bad package data and provider replies 
     jest.spyOn(Date, 'now').mockReturnValue(now);
     const intent = makeIntent({ expiresAt: new Date(now) });
     mockDb.PaymentIntent.findOne.mockResolvedValueOnce(intent);
+    mockPaypal.payment.get.mockImplementationOnce((id, done) => done(null, createdPayment()));
+    mockDb.PaymentIntent.update.mockResolvedValue([1]);
     expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: 'Giao dịch đã hết hạn' });
     expect(intent.status).toBe('EXPIRED');
     expect(mockPaypal.payment.execute).not.toHaveBeenCalled();
@@ -662,5 +682,298 @@ describe('paymentIntegrityService rejects bad package data and provider replies 
     mockDb.Company.findOne.mockResolvedValue(null);
     expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: 'Không tìm thấy công ty nhận quyền lợi' });
     expect(mockDb.OrderPackage.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('paymentIntegrityService provider proof fails closed', () => {
+  const intent = makeIntent();
+  const firstTransaction = (changes) => [{ ...approvedPayment().transactions[0], ...changes }];
+
+  test.each([
+    ['no state', approvedPayment({ state: undefined })],
+    ['a created (never executed) payment', approvedPayment({ state: 'created' })],
+    ['no payer', approvedPayment({ payer: undefined })],
+    ['a payer without id', approvedPayment({ payer: { payer_info: {} } })],
+    ['no transactions', approvedPayment({ transactions: [] })],
+    ['a transaction without amount', approvedPayment({ transactions: firstTransaction({ amount: undefined }) })],
+    ['an amount without total', approvedPayment({ transactions: firstTransaction({ amount: { currency: 'USD' } }) })],
+    ['an amount without currency', approvedPayment({ transactions: firstTransaction({ amount: { total: '20.00' } }) })],
+    ['no payment id', approvedPayment({ id: undefined })],
+    ['a sale pending review', approvedPayment({ transactions: firstTransaction({ related_resources: [{ sale: { state: 'pending' } }] }) })],
+    ['a refunded sale', approvedPayment({ transactions: firstTransaction({ related_resources: [{ sale: { state: 'refunded' } }] }) })],
+    ['a denied sale', approvedPayment({ transactions: firstTransaction({ related_resources: [{ sale: { state: 'denied' } }] }) })],
+    ['a non-object reply', 'approved'],
+  ])('does not accept a reply with %s as proof of capture', (_case, payment) => {
+    expect(service.providerPaymentMatches(payment, intent)).toBe(false);
+  });
+
+  test('accepts an approved reply without sale details, and compares ids and amounts as values', () => {
+    expect(service.providerPaymentMatches(approvedPayment({ transactions: firstTransaction({ related_resources: undefined }) }), intent)).toBe(true);
+    expect(service.providerPaymentMatches(approvedPayment({ transactions: firstTransaction({ amount: { currency: 'usd', total: 20 } }) }), intent)).toBe(true);
+    expect(service.providerPaymentMatches(approvedPayment({ state: 'APPROVED' }), intent)).toBe(true);
+  });
+
+  test('checks the payer only when the callback named one', () => {
+    expect(service.providerPaymentMatches(approvedPayment(), intent, undefined)).toBe(true);
+    expect(service.providerPaymentMatches(approvedPayment(), intent, null)).toBe(true);
+    expect(service.providerPaymentMatches(approvedPayment(), intent, 'PAYER-1')).toBe(true);
+    expect(service.providerPaymentMatches(approvedPayment(), intent, 'PAYER-2')).toBe(false);
+  });
+});
+
+// Our execute call is never made for an expired intent, but a crash after PayPal captured the
+// money (or expiry during capture) must still end with the package granted exactly once.
+describe('paymentIntegrityService recovers captured money for expired intents', () => {
+  beforeEach(() => {
+    reset();
+    mockDb.PaymentIntent.update.mockResolvedValue([1]);
+  });
+  const lookupReturns = (error, payment) => mockPaypal.payment.get.mockImplementation((id, done) => done(error, payment));
+  const grantable = (overrides) => {
+    const target = { id: 9, allowPost: 1, save: jest.fn() };
+    mockDb.Company.findOne.mockResolvedValue(target);
+    mockDb.OrderPackage.create.mockResolvedValue({ id: 700 });
+    return { target, locked: makeIntent(overrides) };
+  };
+
+  test.each([
+    ['a PENDING intent past its window', { expiresAt: past() }],
+    ['an intent already marked EXPIRED', { status: 'EXPIRED', expiresAt: past() }],
+  ])('grants %s when PayPal shows the capture, without executing again', async (_case, overrides) => {
+    const { target, locked } = grantable(overrides);
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent(overrides)).mockResolvedValueOnce(locked);
+    lookupReturns(null, approvedPayment());
+    expect(await service.completePayment(callback())).toEqual({ errCode: 0, errMessage: 'Hệ thống đã ghi nhận lịch sử mua của bạn' });
+    expect(mockPaypal.payment.execute).not.toHaveBeenCalled();
+    expect(mockPaypal.payment.get).toHaveBeenCalledWith('PAY-123', expect.any(Function));
+    expect(mockDb.PaymentIntent.update).not.toHaveBeenCalled();
+    expect(target.allowPost).toBe(9);
+    expect(locked).toMatchObject({ status: 'COMPLETED', providerPayerId: 'PAYER-1' });
+  });
+
+  test('closes an already EXPIRED intent that PayPal never charged without writing again', async () => {
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent({ status: 'EXPIRED', expiresAt: past() }));
+    lookupReturns(null, createdPayment());
+    expect(await service.completePayment(callback())).toEqual({ errCode: 2, errMessage: 'Giao dịch đã hết hạn' });
+    expect(mockDb.PaymentIntent.update).not.toHaveBeenCalled();
+    expect(mockDb.sequelize.transaction).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['the lookup fails', new Error('PayPal down'), undefined],
+    ['PayPal returns nothing', null, undefined],
+    ['PayPal reports another amount', null, approvedPayment({ transactions: [{ amount: { currency: 'USD', total: '2.00' } }] })],
+    ['the sale is still pending', null, approvedPayment({ transactions: [{ amount: { currency: 'USD', total: '20.00' }, related_resources: [{ sale: { state: 'pending' } }] }] })],
+    ['PayPal reports another payment', null, createdPayment({ id: 'PAY-OTHER' })],
+  ])('keeps an expired intent open for review when %s', async (_case, error, payment) => {
+    const intent = makeIntent({ expiresAt: past() });
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(intent);
+    lookupReturns(error, payment);
+    expect(await service.completePayment(callback())).toEqual({ errCode: -1, errMessage: 'Chưa xác minh được giao dịch với PayPal. Vui lòng thử lại sau.' });
+    expect(mockDb.PaymentIntent.update).not.toHaveBeenCalled();
+    expect(intent.status).toBe('PENDING');
+    expect(mockDb.sequelize.transaction).not.toHaveBeenCalled();
+  });
+
+  test('does not grant when the callback names a different payer than PayPal recorded', async () => {
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent({ expiresAt: past() }));
+    lookupReturns(null, approvedPayment());
+    expect((await service.completePayment(callback({ PayerID: 'SOMEONE-ELSE' }))).errCode).toBe(-1);
+    expect(mockDb.sequelize.transaction).not.toHaveBeenCalled();
+  });
+
+  test('marks expiry with a compare-and-set, never over a completed intent', async () => {
+    const intent = makeIntent({ expiresAt: past() });
+    mockDb.PaymentIntent.findOne
+      .mockResolvedValueOnce(intent)
+      .mockResolvedValueOnce(makeIntent({ status: 'COMPLETED' }));
+    lookupReturns(null, createdPayment());
+    mockDb.PaymentIntent.update.mockResolvedValueOnce([0]);
+    expect(await service.completePayment(callback())).toEqual(expect.objectContaining({ errCode: 0, alreadyProcessed: true }));
+    expect(mockDb.PaymentIntent.update).toHaveBeenCalledWith({ status: 'EXPIRED' }, { where: { id: 21, status: 'PENDING' } });
+    expect(intent.status).toBe('PENDING');
+    expect(intent.save).not.toHaveBeenCalled();
+  });
+
+  test('a replay after recovery reports the purchase once and grants nothing more', async () => {
+    const { target, locked } = grantable({ status: 'EXPIRED', expiresAt: past() });
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent({ status: 'EXPIRED', expiresAt: past() })).mockResolvedValueOnce(locked);
+    lookupReturns(null, approvedPayment());
+    await service.completePayment(callback());
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(locked);
+    expect(await service.completePayment(callback())).toEqual(expect.objectContaining({ errCode: 0, alreadyProcessed: true }));
+    expect(mockDb.OrderPackage.create).toHaveBeenCalledTimes(1);
+    expect(target.allowPost).toBe(9);
+  });
+});
+
+describe('paymentIntegrityService.reconcileStalePayments', () => {
+  const NOW = Date.parse('2026-06-01T08:00:00Z');
+  let warn;
+  beforeEach(() => {
+    reset();
+    jest.spyOn(Date, 'now').mockReturnValue(NOW);
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockDb.PaymentIntent.update.mockResolvedValue([1]);
+    mockDb.Company.findOne.mockResolvedValue({ id: 9, allowPost: 0, save: jest.fn() });
+    mockDb.OrderPackage.create.mockResolvedValue({ id: 800 });
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  const stale = (id, overrides = {}) => makeIntent({ id, providerPaymentId: `PAY-${id}`, expiresAt: new Date(NOW - 60_000), ...overrides });
+  const lookup = (replies) => mockPaypal.payment.get.mockImplementation((paymentId, done) => {
+    const reply = replies[paymentId];
+    if (reply instanceof Error) done(reply);
+    else done(null, reply);
+  });
+
+  test('looks only at PayPal intents still PENDING whose window closed within the last 7 days', async () => {
+    mockDb.PaymentIntent.findAll.mockResolvedValue([]);
+    expect(await service.reconcileStalePayments()).toEqual({ checked: 0, completed: 0, expired: 0, unresolved: [] });
+    const query = mockDb.PaymentIntent.findAll.mock.calls[0][0];
+    expect(query).toMatchObject({ where: { provider: 'PAYPAL', status: 'PENDING' }, order: [['expiresAt', 'DESC']], limit: 50, raw: false });
+    const bounds = Object.getOwnPropertySymbols(query.where.expiresAt).map((op) => query.where.expiresAt[op].getTime()).sort();
+    expect(bounds).toEqual([NOW - 7 * 24 * 60 * 60 * 1000, NOW]);
+    await service.reconcileStalePayments({ limit: 5 });
+    expect(mockDb.PaymentIntent.findAll.mock.calls[1][0].limit).toBe(5);
+  });
+
+  test('grants captured payments, closes uncharged ones and leaves the rest for review', async () => {
+    const captured = stale(1);
+    const uncharged = stale(2);
+    const failedLookup = stale(3);
+    const mismatched = stale(4);
+    mockDb.PaymentIntent.findAll.mockResolvedValue([captured, uncharged, failedLookup, mismatched]);
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(captured);
+    lookup({
+      'PAY-1': approvedPayment({ id: 'PAY-1' }),
+      'PAY-2': createdPayment({ id: 'PAY-2' }),
+      'PAY-3': new Error('timeout'),
+      'PAY-4': approvedPayment({ id: 'PAY-4', transactions: [{ amount: { currency: 'USD', total: '1.00' } }] }),
+    });
+    expect(await service.reconcileStalePayments()).toEqual({ checked: 4, completed: 1, expired: 1, unresolved: [3, 4] });
+    expect(captured).toMatchObject({ status: 'COMPLETED', providerPayerId: 'PAYER-1' });
+    expect(mockDb.PaymentIntent.update).toHaveBeenCalledTimes(1);
+    expect(mockDb.PaymentIntent.update).toHaveBeenCalledWith({ status: 'EXPIRED' }, { where: { id: 2, status: 'PENDING' } });
+    expect(mockPaypal.payment.execute).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith('Payment reconciliation needs review for intents:', '3,4');
+  });
+
+  test('keeps going after one intent throws and does not count a lost compare-and-set', async () => {
+    mockDb.PaymentIntent.findAll.mockResolvedValue([stale(5), stale(6), stale(7)]);
+    mockDb.PaymentIntent.findOne.mockRejectedValueOnce(new Error('deadlock'));
+    mockDb.PaymentIntent.update.mockResolvedValueOnce([0]).mockResolvedValueOnce([1]);
+    lookup({ 'PAY-5': approvedPayment({ id: 'PAY-5' }), 'PAY-6': createdPayment({ id: 'PAY-6' }), 'PAY-7': createdPayment({ id: 'PAY-7' }) });
+    expect(await service.reconcileStalePayments()).toEqual({ checked: 3, completed: 0, expired: 1, unresolved: [5] });
+  });
+
+  test('reports a captured payment it could not record for review', async () => {
+    mockDb.PaymentIntent.findAll.mockResolvedValue([stale(8)]);
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(stale(8, { entitlementType: 'BROKEN' }));
+    lookup({ 'PAY-8': approvedPayment({ id: 'PAY-8' }) });
+    expect(await service.reconcileStalePayments()).toEqual({ checked: 1, completed: 0, expired: 0, unresolved: [8] });
+  });
+
+  test('does not log when everything was resolved', async () => {
+    mockDb.PaymentIntent.findAll.mockResolvedValue([stale(9)]);
+    lookup({ 'PAY-9': createdPayment({ id: 'PAY-9' }) });
+    await service.reconcileStalePayments();
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+// Mocked models accept any query, so the queries themselves are asserted: a lookup that loses its
+// `where` would bill or credit whichever company the database returns first.
+describe('paymentIntegrityService queries the exact rows it charges and credits', () => {
+  beforeEach(reset);
+
+  test('creates an intent from the requested package, buyer and buyer company', async () => {
+    mockDb.PackageCv.findOne.mockResolvedValue(makePackage());
+    mockDb.User.findOne.mockResolvedValue({ id: 8, companyId: 9 });
+    mockDb.Company.findOne.mockResolvedValue({ id: 9 });
+    mockPaypal.payment.create.mockImplementation((payload, done) => done(null, { id: 'PAY-1', links: [{ rel: 'approval_url', href: 'https://paypal.test/a?token=EC-1' }] }));
+    mockDb.PaymentIntent.create.mockResolvedValue({ id: 1 });
+    await service.createPaymentLink({ type: 'CV', userId: 8, packageId: 3, amount: 1 });
+    expect(mockDb.PackageCv.findOne).toHaveBeenCalledWith({ where: { id: 3 } });
+    expect(mockDb.User.findOne).toHaveBeenCalledWith({ where: { id: 8 }, attributes: { exclude: ['userId'] } });
+    expect(mockDb.Company.findOne).toHaveBeenCalledWith({ where: { id: 9 } });
+    expect(mockPaypal.payment.create.mock.calls[0][0].payer).toEqual({ payment_method: 'paypal' });
+  });
+
+  test.each([
+    ['POST', 'PackagePost', 'Gói bài đăng không tồn tại hoặc đã ngừng kinh doanh'],
+    ['CV', 'PackageCv', 'Gói xem ứng viên không tồn tại hoặc đã ngừng kinh doanh'],
+  ])('refuses a %s package that is no longer sold, before looking up the buyer', async (type, model, message) => {
+    for (const item of [null, makePackage({ isActive: 0 }), makePackage({ isActive: '0' })]) {
+      mockDb[model].findOne.mockResolvedValueOnce(item);
+      expect(await service.createPaymentLink({ type, userId: 8, packageId: 3, amount: 1 })).toEqual({ errCode: 2, errMessage: message });
+    }
+    expect(mockDb.User.findOne).not.toHaveBeenCalled();
+  });
+
+  test('locks and credits the intent company inside the transaction', async () => {
+    const target = { id: 9, allowPost: 0, save: jest.fn() };
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(makeIntent());
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(null, approvedPayment()));
+    mockDb.Company.findOne.mockResolvedValue(target);
+    mockDb.OrderPackage.create.mockResolvedValue({ id: 1 });
+    await service.completePayment(callback());
+    expect(mockDb.PaymentIntent.findOne).toHaveBeenNthCalledWith(2, { where: { id: 21 }, transaction, lock: 'UPDATE', raw: false });
+    expect(mockDb.Company.findOne).toHaveBeenCalledWith({ where: { id: 9 }, transaction, lock: 'UPDATE', raw: false });
+  });
+
+  test('re-reads the same intent when PayPal has not confirmed yet', async () => {
+    mockDb.PaymentIntent.findOne.mockResolvedValueOnce(makeIntent()).mockResolvedValueOnce(makeIntent({ status: 'COMPLETED' }));
+    mockPaypal.payment.execute.mockImplementationOnce((id, payload, done) => done(new Error('busy')));
+    mockPaypal.payment.get.mockImplementationOnce((id, done) => done(new Error('busy')));
+    expect((await service.completePayment(callback())).alreadyProcessed).toBe(true);
+    expect(mockDb.PaymentIntent.findOne).toHaveBeenLastCalledWith({ where: { id: 21 } });
+  });
+});
+
+describe('paymentIntegrityService PayPal configuration', () => {
+  const keys = ['PAYPAL_MODE', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'CLIENT_ID', 'CLIENT_SECRET', 'URL_REACT'];
+  const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  const load = (env) => {
+    for (const key of keys) delete process.env[key];
+    Object.assign(process.env, env);
+    mockPaypal.configure.mockClear();
+    let loaded;
+    jest.isolateModules(() => { loaded = require('../../src/services/paymentIntegrityService'); });
+    return loaded;
+  };
+  afterAll(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  test('uses the live mode and PayPal-specific credentials when configured', () => {
+    load({ PAYPAL_MODE: 'live', PAYPAL_CLIENT_ID: 'pp-id', PAYPAL_CLIENT_SECRET: 'pp-secret', CLIENT_ID: 'old-id', CLIENT_SECRET: 'old-secret' });
+    expect(mockPaypal.configure).toHaveBeenCalledWith({ mode: 'live', client_id: 'pp-id', client_secret: 'pp-secret' });
+  });
+
+  test('falls back to sandbox and the legacy credential names', () => {
+    load({ CLIENT_ID: 'old-id', CLIENT_SECRET: 'old-secret' });
+    expect(mockPaypal.configure).toHaveBeenCalledWith({ mode: 'sandbox', client_id: 'old-id', client_secret: 'old-secret' });
+  });
+
+  test.each([
+    [{}, 'http://localhost:3000'],
+    [{ URL_REACT: 'https://jobfind.vn/' }, 'https://jobfind.vn'],
+    [{ URL_REACT: ' https://jobfind.vn/ , https://admin.jobfind.vn' }, 'https://jobfind.vn'],
+  ])('returns buyers to the first configured frontend origin (%j)', async (env, origin) => {
+    const fresh = load(env);
+    reset();
+    mockDb.PackagePost.findOne.mockResolvedValue(makePackage());
+    mockDb.User.findOne.mockResolvedValue({ id: 8, companyId: 9 });
+    mockDb.Company.findOne.mockResolvedValue({ id: 9 });
+    mockPaypal.payment.create.mockImplementation((payload, done) => done(null, { id: 'PAY-1', links: [{ rel: 'approval_url', href: 'https://paypal.test/a?token=EC-1' }] }));
+    mockDb.PaymentIntent.create.mockResolvedValue({ id: 1 });
+    await fresh.createPaymentLink({ type: 'POST', userId: 8, packageId: 3, amount: 1 });
+    expect(mockPaypal.payment.create.mock.calls[0][0].redirect_urls).toEqual({
+      return_url: `${origin}/admin/payment/success`, cancel_url: `${origin}/admin/payment/cancel`
+    });
   });
 });

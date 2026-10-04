@@ -1,6 +1,7 @@
 jest.mock('../../auth/authClient', () => ({ ...jest.requireActual('../../auth/authClient'), getProviders: jest.fn(), getSocialSignup: jest.fn(), completeSocialSignup: jest.fn(), startSocialLogin: jest.fn() }));
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { toast } from 'react-toastify';
 import { createNewUser, handleLoginService } from '../../service/userService';
 import { getAccessTokenSync, getProviders, getSocialSignup, completeSocialSignup, startSocialLogin } from '../../auth/authClient';
@@ -17,29 +18,40 @@ jest.mock('react-router-dom', () => {
     return { Link: ({ to, children, reloadDocument, ...props }) => React.createElement('a', { href: to, ...props }, children) };
 });
 
-const change = (label, value) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
-const fillProfile = ({ role = 'CANDIDATE', email = '  Lan@Gmail.com  ' } = {}) => {
-    if (role === 'EMPLOYER') fireEvent.click(screen.getByRole('radio', { name: /Nhà tuyển dụng/ }));
-    change('Họ', '  Nguyen  ');
-    change('Tên', '  Lan  ');
-    change('Email', email);
+// user-event types key by key, moves focus and respects disabled/read-only fields, so the
+// steps below behave like a person filling the form rather than raw DOM events.
+let user;
+const change = async (label, value) => {
+    const input = screen.getByLabelText(label, { exact: true });
+    await user.clear(input);
+    if (value) await user.type(input, value);
 };
-const nextStep = () => fireEvent.click(screen.getByRole('button', { name: /Tiếp tục/ }));
-const fillAccount = ({ phone = '0912345678', password = 'secret12', confirmation = password } = {}) => {
-    change('Số điện thoại', phone);
-    change('Mật khẩu', password);
-    change('Nhập lại mật khẩu', confirmation);
+const fillProfile = async ({ role = 'CANDIDATE', email = '  Lan@Gmail.com  ' } = {}) => {
+    if (role === 'EMPLOYER') await user.click(screen.getByRole('radio', { name: /Nhà tuyển dụng/ }));
+    await change('Họ', '  Nguyen  ');
+    await change('Tên', '  Lan  ');
+    await change('Email', email);
 };
-const submit = () => fireEvent.submit(screen.getByRole('form', { name: 'Đăng ký JobFind' }));
-const completeForm = (options = {}) => {
-    fillProfile(options);
-    nextStep();
-    fillAccount(options);
+const nextStep = () => user.click(screen.getByRole('button', { name: /Tiếp tục/ }));
+const fillAccount = async ({ phone = '0912345678', password = 'secret12', confirmation = password } = {}) => {
+    await change('Số điện thoại', phone);
+    await change('Mật khẩu', password);
+    await change('Nhập lại mật khẩu', confirmation);
+};
+const submit = () => user.click(screen.getByRole('button', { name: /Tạo tài khoản/ }));
+// A second raw submit (Enter held down, a double tap) must be ignored by the handler itself,
+// which a person cannot reproduce once the button is disabled.
+const submitAgainRaw = () => fireEvent.submit(screen.getByRole('form', { name: 'Đăng ký JobFind' }));
+const completeForm = async (options = {}) => {
+    await fillProfile(options);
+    await nextStep();
+    await fillAccount(options);
 };
 
 describe('Register', () => {
     afterEach(async () => { await act(async () => {}); });
     beforeEach(() => {
+        user = userEvent.setup();
         localStorage.clear();
         sessionStorage.clear();
         jest.resetAllMocks();
@@ -63,17 +75,17 @@ describe('Register', () => {
     it('validates only the current step and focuses the first invalid field', async () => {
         render(<Register />);
         await act(async () => {});
-        nextStep();
+        await nextStep();
         expect(screen.getAllByText('Không được để trống.')).toHaveLength(3);
         expect(screen.getByLabelText('Họ', { exact: true })).toHaveFocus();
         expect(createNewUser).not.toHaveBeenCalled();
-        fillProfile({ email: 'not-an-email' });
-        nextStep();
+        await fillProfile({ email: 'not-an-email' });
+        await nextStep();
         expect(screen.getByText('Email chưa đúng định dạng.')).toBeInTheDocument();
         expect(screen.getByLabelText('Email', { exact: true })).toHaveAttribute('aria-invalid', 'true');
-        change('Email', 'lan@gmail.com');
-        nextStep();
-        submit();
+        await change('Email', 'lan@gmail.com');
+        await nextStep();
+        await submit();
         expect(screen.getAllByText('Không được để trống.')).toHaveLength(3);
         expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveFocus();
         expect(createNewUser).not.toHaveBeenCalled();
@@ -82,17 +94,17 @@ describe('Register', () => {
     it('preserves profile and credential values when returning and hides revealed passwords', async () => {
         render(<Register />);
         await act(async () => {});
-        completeForm({ role: 'EMPLOYER' });
+        await completeForm({ role: 'EMPLOYER' });
         expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveAttribute('type', 'tel');
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveAttribute('autocomplete', 'new-password');
-        fireEvent.click(screen.getByRole('button', { name: 'Hiện mật khẩu', exact: true }));
-        fireEvent.click(screen.getByRole('button', { name: 'Hiện mật khẩu nhập lại', exact: true }));
+        await user.click(screen.getByRole('button', { name: 'Hiện mật khẩu', exact: true }));
+        await user.click(screen.getByRole('button', { name: 'Hiện mật khẩu nhập lại', exact: true }));
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveAttribute('type', 'text');
-        fireEvent.click(screen.getByRole('button', { name: /Quay lại/ }));
+        await user.click(screen.getByRole('button', { name: /Quay lại/ }));
         await act(async () => {});
         expect(screen.getByRole('radio', { name: /Nhà tuyển dụng/ })).toBeChecked();
         expect(screen.getByLabelText('Họ', { exact: true })).toHaveValue('  Nguyen  ');
-        nextStep();
+        await nextStep();
         expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveValue('0912345678');
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveValue('secret12');
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveAttribute('type', 'password');
@@ -103,13 +115,13 @@ describe('Register', () => {
     it('rejects an invalid phone, the existing password policy, and confirmation mismatch', async () => {
         render(<Register />);
         await act(async () => {});
-        completeForm({ phone: '123', password: 'bad!', confirmation: 'other' });
-        submit();
+        await completeForm({ phone: '123', password: 'bad!', confirmation: 'other' });
+        await submit();
         expect(screen.getByText('Số điện thoại cần đủ 10 chữ số.')).toBeInTheDocument();
         expect(screen.getByText('Mật khẩu cần ít nhất 8 ký tự.')).toBeInTheDocument();
         expect(screen.getByText('Mật khẩu nhập lại chưa trùng khớp.')).toBeInTheDocument();
-        change('Mật khẩu', 'other123');
-        change('Nhập lại mật khẩu', 'other123');
+        await change('Mật khẩu', 'other123');
+        await change('Nhập lại mật khẩu', 'other123');
         expect(screen.queryByText('Mật khẩu nhập lại chưa trùng khớp.')).not.toBeInTheDocument();
         expect(createNewUser).not.toHaveBeenCalled();
     });
@@ -120,9 +132,9 @@ describe('Register', () => {
         createNewUser.mockResolvedValueOnce({ errCode: 2, errMessage: 'Chưa thể tạo tài khoản lúc này.' });
         render(<Register />);
         await act(async () => {});
-        completeForm();
-        submit();
-        submit();
+        await completeForm();
+        await submit();
+        submitAgainRaw();
         expect(createNewUser).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('button', { name: /Đang tạo tài khoản/ })).toBeDisabled();
         expect(screen.getByRole('button', { name: /Quay lại/ })).toBeDisabled();
@@ -131,7 +143,7 @@ describe('Register', () => {
         expect(screen.getByRole('alert')).toHaveTextContent('Chưa xác nhận được kết quả tạo tài khoản');
         expect(screen.getByRole('button', { name: /Tạo tài khoản/ })).toBeEnabled();
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveValue('secret12');
-        submit();
+        await submit();
         await screen.findByText('Chưa thể tạo tài khoản lúc này.');
         expect(createNewUser).toHaveBeenCalledTimes(2);
         expect(handleLoginService).not.toHaveBeenCalled();
@@ -141,15 +153,15 @@ describe('Register', () => {
         createNewUser.mockResolvedValue({ errCode: 1, errMessage: 'Số điện thoại đã tồn tại !' });
         render(<Register />);
         await act(async () => {});
-        completeForm();
-        submit();
+        await completeForm();
+        await submit();
         await waitFor(() => expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveAttribute('aria-invalid', 'true'));
         expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveAccessibleDescription('Số điện thoại đã tồn tại !');
         expect(screen.getByRole('button', { name: /Tạo tài khoản/ })).toBeEnabled();
-        change('Số điện thoại', '0987654321');
+        await change('Số điện thoại', '0987654321');
         expect(screen.queryByText('Số điện thoại đã tồn tại !')).not.toBeInTheDocument();
         expect(handleLoginService).not.toHaveBeenCalled();
-        fireEvent.click(screen.getByRole('button', { name: /Quay lại/ }));
+        await user.click(screen.getByRole('button', { name: /Quay lại/ }));
         await act(async () => {});
         expect(screen.getByLabelText('Tên', { exact: true })).toHaveValue('  Lan  ');
     });
@@ -158,29 +170,29 @@ describe('Register', () => {
         createNewUser.mockResolvedValue({ errCode: 4, errMessage: 'Email không hợp lệ hoặc không thể nhận thư' });
         render(<Register />);
         await act(async () => {});
-        completeForm();
-        submit();
+        await completeForm();
+        await submit();
         const email = await screen.findByLabelText('Email', { exact: true });
         expect(email).toHaveAttribute('aria-invalid', 'true');
         expect(email).toHaveAccessibleDescription('Email không hợp lệ hoặc không thể nhận thư');
         expect(screen.getByLabelText('Tên', { exact: true })).toHaveValue('  Lan  ');
-        change('Email', 'corrected@gmail.com');
-        nextStep();
+        await change('Email', 'corrected@gmail.com');
+        await nextStep();
         expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveValue('0912345678');
         expect(handleLoginService).not.toHaveBeenCalled();
     });
 
     it.each(['CANDIDATE', 'EMPLOYER'])('creates a %s account with normalized profile and establishes its session', async roleCode => {
-        const user = { id: 10, roleCode };
+        const account = { id: 10, roleCode };
         createNewUser.mockResolvedValue({ errCode: 0 });
-        handleLoginService.mockResolvedValue({ errCode: 0, user, token: 'new-token' });
+        handleLoginService.mockResolvedValue({ errCode: 0, user: account, token: 'new-token' });
         // jsdom cannot perform full-page navigation; live browser tests cover the landing page.
         const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
         try {
             render(<Register />);
         await act(async () => {});
-            completeForm({ role: roleCode });
-            submit();
+            await completeForm({ role: roleCode });
+            await submit();
             await waitFor(() => expect(localStorage.getItem('token_user')).toMatch(/^jf-session:/));
             expect(createNewUser).toHaveBeenCalledTimes(1);
             expect(createNewUser).toHaveBeenCalledWith({
@@ -189,7 +201,7 @@ describe('Register', () => {
             });
             expect(handleLoginService).toHaveBeenCalledWith({ identifier: '0912345678', password: 'secret12', rememberMe: false });
             expect(toast.success).toHaveBeenCalledWith('Tạo tài khoản thành công');
-            expect(JSON.parse(localStorage.getItem('userData'))).toEqual(user);
+            expect(JSON.parse(localStorage.getItem('userData'))).toEqual(account);
             expect(getAccessTokenSync()).toBe('new-token');
             expect(localStorage.getItem('token_user')).not.toBe('new-token');
         } finally { consoleError.mockRestore(); }
@@ -201,15 +213,16 @@ describe('Register', () => {
         else handleLoginService.mockRejectedValue(new Error('network unavailable'));
         render(<Register />);
         await act(async () => {});
-        completeForm();
+        await completeForm();
         const form = screen.getByRole('form', { name: 'Đăng ký JobFind' });
-        submit();
+        await submit();
         await screen.findByRole('link', { name: /Đến trang đăng nhập/ });
         expect(screen.getByRole('heading', { name: 'Tài khoản đã sẵn sàng' })).toBeInTheDocument();
         expect(screen.getByRole('alert')).toHaveTextContent('Tài khoản đã được tạo. Chưa đăng nhập tự động được');
         expect(screen.getByRole('link', { name: /Đến trang đăng nhập/ })).toHaveAttribute('href', '/login');
         expect(screen.queryByRole('form')).not.toBeInTheDocument();
         expect(screen.queryByLabelText('Mật khẩu', { exact: true })).not.toBeInTheDocument();
+        // The form is gone; a stale submit event from it must not create a second account.
         fireEvent.submit(form);
         expect(createNewUser).toHaveBeenCalledTimes(1);
         expect(localStorage.getItem('token_user')).toBeNull();
@@ -220,8 +233,8 @@ describe('Register', () => {
         createNewUser.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
         const { unmount } = render(<Register />);
         await act(async () => {});
-        completeForm();
-        submit();
+        await completeForm();
+        await submit();
         unmount();
         await act(async () => { finish({ errCode: 0 }); });
         expect(handleLoginService).not.toHaveBeenCalled();
@@ -233,7 +246,7 @@ describe('Register', () => {
         getProviders.mockResolvedValueOnce({ google: false, github: true, auth0: false });
         render(<Register />);
         await act(async () => {});
-        fireEvent.click(await screen.findByRole('button', { name: 'Đăng ký bằng GitHub' }));
+        await user.click(await screen.findByRole('button', { name: 'Đăng ký bằng GitHub' }));
         expect(startSocialLogin).toHaveBeenCalledWith('github', { rememberMe: false });
         expect(screen.queryByRole('button', { name: 'Đăng ký bằng Auth0' })).toBeNull();
     });
@@ -248,9 +261,9 @@ describe('Register', () => {
         await act(async () => {});
             const email = await screen.findByLabelText('Email', { exact: true });
             expect(email).toHaveAttribute('readonly');
-            fireEvent.change(email, { target: { value: 'attacker@gmail.com' } });
+            await user.type(email, 'attacker@gmail.com');
             expect(email).toHaveValue('lan@gmail.com');
-            nextStep(); fillAccount({ password: 'Mật khẩu 😀!' }); submit();
+            await nextStep(); await fillAccount({ password: 'Mật khẩu 😀!' }); await submit();
             await waitFor(() => expect(getAccessTokenSync()).toBe('social-token'));
             expect(completeSocialSignup).toHaveBeenCalledWith({ firstName: 'Nguyen', lastName: 'Lan', phonenumber: '0912345678', password: 'Mật khẩu 😀!', roleCode: 'CANDIDATE' });
             expect(createNewUser).not.toHaveBeenCalled();
@@ -266,9 +279,9 @@ describe('Register', () => {
         render(<Register />);
         await act(async () => {});
         await screen.findByLabelText('Email', { exact: true });
-        nextStep(); fillAccount(); submit();
+        await nextStep(); await fillAccount(); await submit();
         await waitFor(() => expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveAttribute('aria-invalid', 'true'));
-        change('Số điện thoại', '0987654321'); submit();
+        await change('Số điện thoại', '0987654321'); await submit();
         await screen.findByRole('link', { name: /Đến trang đăng nhập/ });
         expect(screen.queryByRole('form')).toBeNull();
         expect(completeSocialSignup).toHaveBeenCalledTimes(2);
@@ -290,6 +303,7 @@ describe('Register', () => {
 describe('Registration while preparing an application', () => {
     const originalLocation = Object.getOwnPropertyDescriptor(window, 'location');
     beforeEach(() => {
+        user = userEvent.setup();
         localStorage.clear(); sessionStorage.clear(); jest.resetAllMocks();
         getProviders.mockResolvedValue({ google: false, github: false, auth0: false });
         Object.defineProperty(window, 'location', {
@@ -312,7 +326,7 @@ describe('Registration while preparing an application', () => {
         await act(async () => {});
         expect(screen.getByRole('status')).toHaveTextContent('Tạo tài khoản ứng viên để tiếp tục ứng tuyển Kỹ sư phần mềm');
         expect(screen.getByRole('radio', { name: /Ứng viên/ })).toBeChecked();
-        completeForm({ role: roleCode }); submit();
+        await completeForm({ role: roleCode }); await submit();
         await waitFor(() => expect(window.location.href).toBe('/detail-job/7'));
         expect(readApplicationIntent()).toMatchObject({ jobId: '7' });
         expect(localStorage.getItem('lastUrl')).toBeNull();
@@ -324,7 +338,7 @@ describe('Registration while preparing an application', () => {
         completeSocialSignup.mockResolvedValueOnce({ errCode: 0, token: 'new-social-application-token', user: { id: 42, roleCode: 'CANDIDATE' } });
         render(<Register />);
         await screen.findByLabelText('Email', { exact: true });
-        nextStep(); fillAccount(); submit();
+        await nextStep(); await fillAccount(); await submit();
         await waitFor(() => expect(window.location.href).toBe('/detail-job/7'));
         expect(readApplicationIntent()).toMatchObject({ jobId: '7' });
         expect(createNewUser).not.toHaveBeenCalled();
@@ -335,7 +349,7 @@ describe('Registration while preparing an application', () => {
         handleLoginService.mockRejectedValueOnce(new Error('offline'));
         render(<Register />);
         await act(async () => {});
-        completeForm(); submit();
+        await completeForm(); await submit();
         expect(await screen.findByRole('link', { name: /Đến trang đăng nhập/ })).toHaveAttribute('href', '/login');
         expect(readApplicationIntent()).toMatchObject({ jobId: '7' });
     });
@@ -346,7 +360,7 @@ describe('Registration while preparing an application', () => {
         const link = screen.getByRole('link', { name: 'Quay lại xem công việc' });
         expect(link).toHaveAttribute('href', '/detail-job/7');
         link.addEventListener('click', event => event.preventDefault());
-        fireEvent.click(link);
+        await user.click(link);
         expect(readApplicationIntent()).toBeNull();
         expect(localStorage.getItem('lastUrl')).toBeNull();
         expect(screen.queryByText('Kỹ sư phần mềm')).not.toBeInTheDocument();

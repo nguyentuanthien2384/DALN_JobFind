@@ -4,7 +4,7 @@ import bodyParser from "body-parser";
 import viewEngine from "./config/viewEngine";
 import initwebRoutes from "./routes/web";
 import connectDB from "./config/connectDB";
-import {sendJobMail,updateFreeViewCv} from "./utils/schedule"
+import {sendJobMail,updateFreeViewCv,reconcilePayments} from "./utils/schedule"
 import { initSocket } from "./config/socket";
 import db from './models/index';
 import { connectSocketRedis, closeSocketRedis } from './config/socketRedis';
@@ -128,6 +128,7 @@ const startServer = async () => {
     if (String(process.env.SCHEDULED_JOBS_ENABLED).toLowerCase() !== 'false') {
         sendJobMail();
         updateFreeViewCv();
+        reconcilePayments();
     }
 
     process.once('SIGINT', handleShutdown);

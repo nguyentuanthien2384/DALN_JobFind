@@ -22,7 +22,7 @@ import middlewareControllers from '../middlewares/jwtVerify'
 import * as authController from '../controllers/authController'
 import { authResponseHeaders } from '../middlewares/authResponseHeaders'
 import { authorize, PERMISSIONS } from '../middlewares/authorize'
-import { loginLimiter, ssoLimiter, otpLimiter, registerLimiter, phoneCheckLimiter } from '../middlewares/rateLimit'
+import { loginLimiter, refreshLimiter, ssoLimiter, otpLimiter, registerLimiter, phoneCheckLimiter } from '../middlewares/rateLimit'
 import { emitNotification } from '../config/socket'
 let router = express.Router();
 
@@ -90,7 +90,7 @@ let initWebRoutes = (app) => {
     router.get('/api/auth/security/events', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.securityEvents)
     router.delete('/api/auth/sessions/:familyId', authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.revokeSession)
     router.post('/api/auth/identities/:identityId/unlink', ssoLimiter, authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.unlinkIdentity)
-    router.post('/api/auth/refresh', authController.cookieOrigin, loginLimiter, authController.refresh)
+    router.post('/api/auth/refresh', authController.cookieOrigin, refreshLimiter, authController.refresh)
     router.post('/api/auth/logout', authController.cookieOrigin, middlewareControllers.verifyTokenOptional, authController.logout)
     router.post('/api/auth/logout-all', authController.cookieOrigin, ...protectedBy(PERMISSIONS.ACCOUNT_SELF), authController.logoutAll)
     router.get('/api/auth/sso/:provider/start', ssoLimiter, authController.ssoStart)

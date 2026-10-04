@@ -1,5 +1,6 @@
 import db from '../models/index';
 import paypal from 'paypal-rest-sdk';
+const { Op } = require('sequelize');
 
 require('dotenv').config();
 
@@ -104,20 +105,28 @@ const getProviderToken = (approvalLink) => {
     }
 };
 
+// PayPal v1 Payments: `state` stays "created" until our execute call creates the sale and
+// only then becomes "approved". Every check fails closed: a reply that lacks the id, state,
+// payer or amount is not proof that this intent's money was captured.
 const providerPaymentMatches = (payment, intent, expectedPayerId) => {
-    if (!payment) return false;
-    if (payment.id && String(payment.id) !== String(intent.providerPaymentId)) return false;
-    if (payment.state && String(payment.state).toLowerCase() !== 'approved') return false;
+    if (!payment || typeof payment !== 'object') return false;
+    if (String(payment.id) !== String(intent.providerPaymentId)) return false;
+    if (String(payment.state || '').toLowerCase() !== 'approved') return false;
 
     const providerPayerId = payment.payer?.payer_info?.payer_id;
-    if (expectedPayerId && providerPayerId
+    if (!providerPayerId) return false;
+    if (expectedPayerId !== undefined && expectedPayerId !== null
         && String(providerPayerId) !== String(expectedPayerId)) return false;
 
-    const providerAmount = payment.transactions?.[0]?.amount;
-    if (providerAmount) {
-        if (String(providerAmount.currency || '').toUpperCase() !== String(intent.currency).toUpperCase()) return false;
-        if (money(providerAmount.total) !== money(intent.totalPrice)) return false;
-    }
+    const transaction = payment.transactions?.[0];
+    const providerAmount = transaction?.amount;
+    if (!providerAmount) return false;
+    if (String(providerAmount.currency || '').toUpperCase() !== String(intent.currency).toUpperCase()) return false;
+    if (money(providerAmount.total) !== money(intent.totalPrice)) return false;
+
+    // A sale that is pending review, denied or refunded is not money we may deliver against.
+    const sale = (transaction.related_resources || []).find((resource) => resource && resource.sale)?.sale;
+    if (sale && String(sale.state || '').toLowerCase() !== 'completed') return false;
     return true;
 };
 
@@ -218,9 +227,15 @@ const createPaymentLink = async ({ type, userId, packageId, amount }) => {
     return { errCode: 0, link: approvalLink.href };
 };
 
+// Compare-and-set: a stale in-memory intent must never overwrite COMPLETED with EXPIRED, or a
+// replayed callback could reconcile and grant the same purchase twice.
 const markExpired = async (intent) => {
-    intent.status = 'EXPIRED';
-    await intent.save();
+    const [updated] = await db.PaymentIntent.update(
+        { status: 'EXPIRED' },
+        { where: { id: intent.id, status: 'PENDING' } }
+    );
+    if (updated) intent.status = 'EXPIRED';
+    return updated > 0;
 };
 
 const loadBoundIntent = ({ type, userId, paymentId, token }) => db.PaymentIntent.findOne({
@@ -252,6 +267,24 @@ const settleProviderPayment = async (intent, payerId) => {
     // the provider makes that retry recoverable without granting twice.
     const fetched = await getPaypalPayment(intent.providerPaymentId);
     return !fetched.error && providerPaymentMatches(fetched.payment, intent, payerId);
+};
+
+// Only our execute call captures money, and it is never made for an expired intent. A capture
+// can still exist for one: the process stopped after PayPal executed but before our commit, or
+// the intent expired while PayPal was executing. Ask PayPal before giving up on the purchase.
+const NOT_CAPTURED_STATES = ['created', 'failed'];
+const reconcileExpiredIntent = async (intent, expectedPayerId) => {
+    const fetched = await getPaypalPayment(intent.providerPaymentId);
+    if (fetched.error || !fetched.payment) return { outcome: 'unknown' };
+    if (providerPaymentMatches(fetched.payment, intent, expectedPayerId)) {
+        return { outcome: 'captured', payerId: fetched.payment.payer.payer_info.payer_id };
+    }
+    if (String(fetched.payment.id) === String(intent.providerPaymentId)
+        && NOT_CAPTURED_STATES.includes(String(fetched.payment.state || '').toLowerCase())) {
+        return { outcome: 'not-captured' };
+    }
+    // Approved but with another amount or payer, or a pending/refunded sale: needs a human.
+    return { outcome: 'unknown' };
 };
 
 const persistCompletedPayment = (intentId, payerId) => db.sequelize.transaction(async (transaction) => {
@@ -308,10 +341,22 @@ const completePayment = async ({ type, userId, PayerID, paymentId, token }) => {
     const intent = await loadBoundIntent({ type, userId, paymentId, token });
     if (!intent) return invalidPayment();
     if (intent.status === 'COMPLETED') return completedResponse(true);
-    if (intent.status !== 'PENDING') return invalidPayment('Giao dịch không còn hiệu lực');
-    if (new Date(intent.expiresAt).getTime() <= Date.now()) {
-        await markExpired(intent);
-        return invalidPayment('Giao dịch đã hết hạn');
+    const expired = intent.status === 'EXPIRED'
+        || (intent.status === 'PENDING' && new Date(intent.expiresAt).getTime() <= Date.now());
+    if (intent.status !== 'PENDING' && !expired) return invalidPayment('Giao dịch không còn hiệu lực');
+    if (expired) {
+        // Never execute an expired intent, but deliver money PayPal already captured for it.
+        const reconciled = await reconcileExpiredIntent(intent, PayerID);
+        if (reconciled.outcome === 'captured') return persistCompletedPayment(intent.id, reconciled.payerId);
+        if (reconciled.outcome === 'not-captured') {
+            if (intent.status === 'PENDING' && !(await markExpired(intent))) {
+                // Lost the compare-and-set: a concurrent callback settled it after our lookup.
+                const latest = await db.PaymentIntent.findOne({ where: { id: intent.id } });
+                if (latest?.status === 'COMPLETED') return completedResponse(true);
+            }
+            return invalidPayment('Giao dịch đã hết hạn');
+        }
+        return { errCode: -1, errMessage: 'Chưa xác minh được giao dịch với PayPal. Vui lòng thử lại sau.' };
     }
 
     const providerSettled = await settleProviderPayment(intent, PayerID);
@@ -327,8 +372,49 @@ const completePayment = async ({ type, userId, PayerID, paymentId, token }) => {
     return persistCompletedPayment(intent.id, PayerID);
 };
 
+// Background safety net for customers who never come back after a crash between PayPal's
+// capture and our commit: settle or close PENDING intents whose payment window has passed.
+const RECONCILE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const reconcileStalePayments = async ({ limit = 50 } = {}) => {
+    const now = Date.now();
+    const intents = await db.PaymentIntent.findAll({
+        where: {
+            provider: 'PAYPAL',
+            status: 'PENDING',
+            expiresAt: { [Op.lte]: new Date(now), [Op.gte]: new Date(now - RECONCILE_LOOKBACK_MS) }
+        },
+        // Newest first: intents left for human review must not starve fresh ones of the batch.
+        order: [['expiresAt', 'DESC']],
+        limit,
+        raw: false
+    });
+    const summary = { checked: 0, completed: 0, expired: 0, unresolved: [] };
+    for (const intent of intents) {
+        summary.checked += 1;
+        try {
+            const reconciled = await reconcileExpiredIntent(intent);
+            if (reconciled.outcome === 'captured') {
+                const result = await persistCompletedPayment(intent.id, reconciled.payerId);
+                if (result.errCode === 0) summary.completed += 1;
+                else summary.unresolved.push(intent.id);
+            } else if (reconciled.outcome === 'not-captured') {
+                if (await markExpired(intent)) summary.expired += 1;
+            } else {
+                summary.unresolved.push(intent.id);
+            }
+        } catch (error) {
+            summary.unresolved.push(intent.id);
+        }
+    }
+    if (summary.unresolved.length) {
+        console.warn('Payment reconciliation needs review for intents:', summary.unresolved.join(','));
+    }
+    return summary;
+};
+
 module.exports = {
     createPaymentLink,
     completePayment,
-    providerPaymentMatches
+    providerPaymentMatches,
+    reconcileStalePayments
 };

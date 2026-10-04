@@ -5,7 +5,7 @@ const mockFindUser = jest.fn();
 const mockActiveFamily = jest.fn();
 
 jest.mock('jsonwebtoken', () => ({ verify: mockVerify }));
-jest.mock('../../src/models/index', () => ({ User: { findOne: mockFindUser }, Account: {}, Company: {} }));
+jest.mock('../../src/models/index', () => ({ User: { findOne: mockFindUser }, Account: { name: 'Account' }, Company: { name: 'Company' } }));
 jest.mock('../../src/services/authSessionService', () => ({ activeFamily: mockActiveFamily }));
 
 const middleware = require('../../src/middlewares/jwtVerify');
@@ -183,5 +183,43 @@ describe('JWT middleware failure bodies (frontend contract)', () => {
       expect(query.include[1]).toMatchObject({ as: 'userCompanyData', required: false });
     }
     expect(mockFindUser.mock.calls).toHaveLength(2);
+  });
+});
+
+describe('JWT middleware loads the identity named by the token', () => {
+  const models = require('../../src/models/index');
+  beforeEach(() => {
+    process.env.AUTH_ALLOW_LEGACY_TOKENS = 'true';
+    mockVerify.mockReset();
+    mockFindUser.mockReset();
+    mockActiveFamily.mockReset();
+  });
+
+  test('the admin check reads the token subject with its account and company state', async () => {
+    signedAs({ sub: 42, ...tokenTimes() });
+    mockFindUser.mockResolvedValue(activeUser('ADMIN'));
+    await run('verifyTokenAdmin');
+    expect(mockFindUser).toHaveBeenCalledWith({
+      where: { id: 42 },
+      attributes: { exclude: ['userId'] },
+      include: [
+        { model: models.Account, as: 'userAccountData', attributes: ['roleCode', 'statusCode'] },
+        { model: models.Company, as: 'userCompanyData', attributes: ['id', 'statusCode', 'censorCode'], required: false }
+      ],
+      raw: true,
+      nest: true
+    });
+  });
+
+  test.each([
+    ['a legacy token', { sub: 42 }, { sid: null, sub: 42 }],
+    ['a session token', { sub: '42', sid: 'family-9' }, { sid: 'family-9', sub: 42 }],
+  ])('optional authentication records %s on the request', async (_case, claims, auth) => {
+    signedAs({ ...claims, ...tokenTimes() });
+    mockActiveFamily.mockResolvedValue(true);
+    mockFindUser.mockResolvedValue(activeUser('CANDIDATE'));
+    const { req } = await run('verifyTokenOptional');
+    expect(req.auth).toEqual(auth);
+    expect(req.user).toEqual(activeUser('CANDIDATE'));
   });
 });

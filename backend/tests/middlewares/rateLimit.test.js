@@ -170,13 +170,14 @@ describe('configured limiter policies', () => {
   afterEach(() => now.mockRestore());
 
   test.each([
-    ['loginLimiter', 10, 15 * 60],
-    ['otpLimiter', 5, 15 * 60],
-    ['registerLimiter', 10, 60 * 60],
-    ['ssoLimiter', 30, 15 * 60],
-    ['phoneCheckLimiter', 30, 15 * 60],
-    ['supportChatLimiter', 8, 60],
-  ])('%s allows %i attempts per window of %i seconds', (name, max, windowSeconds) => {
+    ['loginLimiter', 10, 15 * 60, 'Bạn đã đăng nhập sai quá nhiều lần, vui lòng thử lại sau ít phút'],
+    ['refreshLimiter', 10, 15 * 60, 'Bạn đã đăng nhập sai quá nhiều lần, vui lòng thử lại sau ít phút'],
+    ['otpLimiter', 5, 15 * 60, 'Bạn đã yêu cầu mã xác thực quá nhiều lần, vui lòng thử lại sau ít phút'],
+    ['registerLimiter', 10, 60 * 60, 'Bạn đã tạo quá nhiều tài khoản, vui lòng thử lại sau'],
+    ['ssoLimiter', 30, 15 * 60, 'Bạn đã thử xác thực SSO quá nhiều lần. Vui lòng thử lại sau ít phút'],
+    ['phoneCheckLimiter', 30, 15 * 60, 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút'],
+    ['supportChatLimiter', 8, 60, 'Bạn đã gửi quá nhiều câu hỏi. Vui lòng thử lại sau một phút.'],
+  ])('%s allows %i attempts per window of %i seconds', (name, max, windowSeconds, message) => {
     const req = { path: `/policy/${name}`, ip: '10.2.2.2', headers: {} };
     for (let i = 0; i < max; i += 1) {
       const allowed = invokeRaw(limiters[name], req);
@@ -186,6 +187,7 @@ describe('configured limiter policies', () => {
     const blocked = invokeRaw(limiters[name], req);
     expect(blocked.res.status).toHaveBeenCalledWith(429);
     expect(blocked.res.setHeader).toHaveBeenCalledWith('Retry-After', windowSeconds);
+    expect(blocked.res.json).toHaveBeenCalledWith({ errCode: 429, errMessage: message });
     now.mockReturnValue(1_000_000 + windowSeconds * 1000 + 1);
     expect(invokeRaw(limiters[name], req).next).toHaveBeenCalled();
   });
@@ -201,6 +203,15 @@ describe('configured limiter policies', () => {
       }
       expect(blocked).not.toBeNull();
     });
+
+  test('a successful session refresh is not counted against the refresh budget', () => {
+    const req = { path: '/policy/refresh-success', ip: '10.2.2.5' };
+    for (let i = 0; i < 25; i += 1) {
+      const attempt = invokeRaw(limiters.refreshLimiter, req);
+      expect(attempt.next).toHaveBeenCalled();
+      attempt.res.json({ errCode: 0 });
+    }
+  });
 
   test('only failed logins count, so a shared office IP can keep signing in', () => {
     const req = { path: '/policy/login-success', ip: '10.2.2.3' };
@@ -218,3 +229,40 @@ function invokeRaw(limiter, req) {
   limiter({ ...req }, res, next);
   return { res, next };
 }
+
+describe('named scopes share one budget across alias routes', () => {
+  test('a scoped limiter counts every route it guards together', () => {
+    const { createRateLimiter: create } = require('../../src/middlewares/rateLimit');
+    const limiter = create({ windowMs: 60_000, max: 2, scope: 'alias-test' });
+    expect(invokeRaw(limiter, { path: '/api/a', route: { path: '/api/a' }, ip: '10.3.3.3' }).next).toHaveBeenCalled();
+    expect(invokeRaw(limiter, { path: '/api/b', route: { path: '/api/b' }, ip: '10.3.3.3' }).next).toHaveBeenCalled();
+    expect(invokeRaw(limiter, { path: '/api/a', route: { path: '/api/a' }, ip: '10.3.3.3' }).res.status).toHaveBeenCalledWith(429);
+    expect(invokeRaw(limiter, { path: '/api/a', route: { path: '/api/a' }, ip: '10.3.3.4' }).next).toHaveBeenCalled();
+  });
+
+  test('a real app gives /api/login and /api/auth/login one shared budget of 10 failures', async () => {
+    jest.resetModules();
+    const express = require('express');
+    const { loginLimiter, refreshLimiter } = require('../../src/middlewares/rateLimit');
+    const app = express();
+    const wrongPassword = (req, res) => res.json({ errCode: 1, errMessage: 'wrong password' });
+    app.post('/api/login', loginLimiter, wrongPassword);
+    app.post('/api/auth/login', loginLimiter, wrongPassword);
+    app.post('/api/auth/refresh', refreshLimiter, (req, res) => res.json({ errCode: 0 }));
+    const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+    try {
+      const base = `http://127.0.0.1:${server.address().port}`;
+      const statuses = [];
+      for (let i = 0; i < 6; i += 1) {
+        statuses.push((await fetch(`${base}/api/login`, { method: 'POST' })).status);
+        statuses.push((await fetch(`${base}/api/auth/login`, { method: 'POST' })).status);
+      }
+      expect(statuses.filter((status) => status === 200)).toHaveLength(10);
+      expect(statuses.slice(10)).toEqual([429, 429]);
+      // Exhausting the login budget does not block refreshing an existing session.
+      expect((await fetch(`${base}/api/auth/refresh`, { method: 'POST' })).status).toBe(200);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});

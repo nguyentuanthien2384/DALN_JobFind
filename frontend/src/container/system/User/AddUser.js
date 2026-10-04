@@ -256,7 +256,10 @@ const AddUser = () => {
                                         </label>
                                         <div className="col-sm-9">
                                             <input
-                                                type="number"
+                                                // Phone numbers are text: type="number" lets arrow keys
+                                                // and the wheel rewrite 0909123456 into 909123457.
+                                                type="tel"
+                                                inputMode="numeric"
                                                 value={inputValues.phonenumber}
                                                 disabled={
                                                     isActionADD === true

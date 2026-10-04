@@ -103,3 +103,70 @@ describe('centralized RBAC matrix', () => {
         expect(pendingDenied.statusCode).toBe(403);
     });
 });
+
+// Services trust x-user-* only after the gateway secret matched; malformed values must still
+// turn into "no identity" rather than an unexpected user id or company.
+describe('identity from trusted gateway headers', () => {
+    const headers = (extra = {}) => ({ 'x-user-id': '8', 'x-user-role': 'employer', ...extra });
+
+    it('normalises a well-formed identity', async () => {
+        const { identityFromTrustedHeaders } = await import('../shared/accessControl.js');
+        expect(identityFromTrustedHeaders({ headers: headers({ 'x-company-id': '3', 'x-company-status': 'S1', 'x-company-censor': 'CS1' }) }))
+            .toEqual({ id: 8, userId: 8, roleCode: 'EMPLOYER', companyId: 3, companyStatusCode: 'S1', companyCensorCode: 'CS1' });
+        expect(identityFromTrustedHeaders({ headers: headers() }))
+            .toEqual({ id: 8, userId: 8, roleCode: 'EMPLOYER', companyId: null, companyStatusCode: null, companyCensorCode: null });
+    });
+
+    it.each(['0', '-8', '8.5', 'abc', '', ' ', '1e3x', undefined])('rejects user id %p', async (userId) => {
+        const { identityFromTrustedHeaders } = await import('../shared/accessControl.js');
+        expect(identityFromTrustedHeaders({ headers: headers({ 'x-user-id': userId }) })).toBeNull();
+    });
+
+    it.each(['0', '-3', '3.5', 'abc', ''])('drops company id %p instead of trusting it', async (companyId) => {
+        const { identityFromTrustedHeaders } = await import('../shared/accessControl.js');
+        expect(identityFromTrustedHeaders({ headers: headers({ 'x-company-id': companyId }) }).companyId).toBeNull();
+    });
+
+    it.each(['', 'ROOT', 'guest'])('rejects an unknown role %p', async (role) => {
+        const { identityFromTrustedHeaders } = await import('../shared/accessControl.js');
+        expect(identityFromTrustedHeaders({ headers: headers({ 'x-user-role': role }) })).toBeNull();
+    });
+
+    it.each([
+        ['an approved company', { companyId: 3, companyStatusCode: 'S1', companyCensorCode: 'CS1' }, true],
+        ['no company', { companyId: null, companyStatusCode: 'S1', companyCensorCode: 'CS1' }, false],
+        ['a locked company', { companyId: 3, companyStatusCode: 'S2', companyCensorCode: 'CS1' }, false],
+        ['a company under review', { companyId: 3, companyStatusCode: 'S1', companyCensorCode: 'CS3' }, false],
+    ])('hasApprovedCompany is %s -> %s', async (_case, identity, expected) => {
+        const { hasApprovedCompany } = await import('../shared/accessControl.js');
+        expect(hasApprovedCompany(identity)).toBe(expected);
+        expect(hasApprovedCompany(undefined)).toBe(false);
+    });
+
+    it('answers with exact bodies the frontend can explain', async () => {
+        const { PERMISSIONS, requireServicePermission, requireTrustedGateway } = await import('../shared/accessControl.js');
+        const unconfigured = makeRes();
+        requireTrustedGateway(makeReq(), unconfigured, vi.fn());
+        expect(unconfigured.body).toEqual({ errCode: 503, errMessage: 'Dịch vụ chưa được cấu hình khóa nội bộ' });
+
+        vi.stubEnv('INTERNAL_SECRET', 'trusted-secret');
+        for (const secret of [undefined, '', 'trusted-secreT', 'trusted-secret ']) {
+            const forbidden = makeRes();
+            const next = vi.fn();
+            requireTrustedGateway(makeReq({ headers: { 'x-internal-secret': secret } }), forbidden, next);
+            expect(forbidden.body).toEqual({ errCode: 403, errMessage: 'Forbidden' });
+            expect(next).not.toHaveBeenCalled();
+        }
+
+        const guard = requireServicePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true });
+        const anonymous = makeRes();
+        guard(makeReq(), anonymous, vi.fn());
+        expect(anonymous.body).toEqual({ errCode: 401, errMessage: 'Bạn cần đăng nhập để dùng chức năng này' });
+        const candidate = makeRes();
+        guard(makeReq({ user: { id: 1, roleCode: 'CANDIDATE' } }), candidate, vi.fn());
+        expect(candidate.body).toEqual({ errCode: 403, errMessage: 'Bạn không có quyền thực hiện thao tác này' });
+        const pending = makeRes();
+        guard(makeReq({ user: { id: 2, roleCode: 'EMPLOYER', companyId: 3, companyStatusCode: 'S1', companyCensorCode: 'CS3' } }), pending, vi.fn());
+        expect(pending.body).toEqual({ errCode: 403, errMessage: 'Công ty chưa được duyệt, đã bị khóa hoặc không tồn tại' });
+    });
+});

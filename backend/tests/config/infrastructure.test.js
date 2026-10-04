@@ -83,6 +83,7 @@ describe('legacy backend bootstrap', () => {
     const createServer = jest.fn(() => server);
     const sendJobMail = jest.fn();
     const updateFreeViewCv = jest.fn();
+    const reconcilePayments = jest.fn();
     const configureViewEngine = jest.fn();
     const initWebRoutes = jest.fn();
     const connectDB = jest.fn(() => databaseReady);
@@ -95,7 +96,7 @@ describe('legacy backend bootstrap', () => {
     jest.doMock('http', () => ({ createServer }));
     jest.doMock('body-parser', () => bodyParser);
     jest.doMock('dotenv', () => ({ config: jest.fn() }));
-    jest.doMock('../../src/utils/schedule', () => ({ sendJobMail, updateFreeViewCv }));
+    jest.doMock('../../src/utils/schedule', () => ({ sendJobMail, updateFreeViewCv, reconcilePayments }));
     jest.doMock('../../src/config/viewEngine', () => configureViewEngine);
     jest.doMock('../../src/routes/web', () => initWebRoutes);
     jest.doMock('../../src/config/connectDB', () => connectDB);
@@ -109,7 +110,7 @@ describe('legacy backend bootstrap', () => {
 
     return {
       app, express, bodyParser, jsonMiddleware, urlencodedMiddleware, server,
-      createServer, sendJobMail, updateFreeViewCv, configureViewEngine, initWebRoutes,
+      createServer, sendJobMail, updateFreeViewCv, reconcilePayments, configureViewEngine, initWebRoutes,
       connectDB, initSocket, socketServer, closeDatabase, gracefulShutdown, log, error,
       once, exit
     };
@@ -119,7 +120,7 @@ describe('legacy backend bootstrap', () => {
     delete process.env.SCHEDULED_JOBS_ENABLED;
     const {
       app, express, bodyParser, jsonMiddleware, urlencodedMiddleware, server,
-      createServer, sendJobMail, updateFreeViewCv, configureViewEngine, initWebRoutes,
+      createServer, sendJobMail, updateFreeViewCv, reconcilePayments, configureViewEngine, initWebRoutes,
       connectDB, initSocket, log
     } = mockBootstrap();
 
@@ -134,6 +135,7 @@ describe('legacy backend bootstrap', () => {
     expect(app.use).toHaveBeenCalledWith(urlencodedMiddleware);
     expect(sendJobMail).toHaveBeenCalledTimes(1);
     expect(updateFreeViewCv).toHaveBeenCalledTimes(1);
+    expect(reconcilePayments).toHaveBeenCalledTimes(1);
     expect(configureViewEngine).toHaveBeenCalledWith(app);
     expect(initWebRoutes).toHaveBeenCalledWith(app);
     expect(connectDB).toHaveBeenCalledTimes(1);
@@ -183,6 +185,7 @@ describe('legacy backend bootstrap', () => {
     expect(mocks.createServer).not.toHaveBeenCalled();
     expect(mocks.sendJobMail).not.toHaveBeenCalled();
     expect(mocks.updateFreeViewCv).not.toHaveBeenCalled();
+    expect(mocks.reconcilePayments).not.toHaveBeenCalled();
 
     resolveDatabase();
     await expect(startup).resolves.toBe(mocks.server);
@@ -197,6 +200,7 @@ describe('legacy backend bootstrap', () => {
     expect(mocks.server.listen).toHaveBeenCalledTimes(1);
     expect(mocks.sendJobMail).not.toHaveBeenCalled();
     expect(mocks.updateFreeViewCv).not.toHaveBeenCalled();
+    expect(mocks.reconcilePayments).not.toHaveBeenCalled();
   });
 
   test('fails startup and closes the DB pool without listening when authentication fails', async () => {
@@ -208,6 +212,7 @@ describe('legacy backend bootstrap', () => {
     expect(mocks.createServer).not.toHaveBeenCalled();
     expect(mocks.sendJobMail).not.toHaveBeenCalled();
     expect(mocks.updateFreeViewCv).not.toHaveBeenCalled();
+    expect(mocks.reconcilePayments).not.toHaveBeenCalled();
     expect(mocks.closeDatabase).toHaveBeenCalledTimes(1);
   });
   test('refuses traffic when enabled push storage has not been migrated', async () => {
@@ -229,6 +234,7 @@ describe('legacy backend bootstrap', () => {
     expect(mocks.closeDatabase).toHaveBeenCalledTimes(1);
     expect(mocks.sendJobMail).not.toHaveBeenCalled();
     expect(mocks.updateFreeViewCv).not.toHaveBeenCalled();
+    expect(mocks.reconcilePayments).not.toHaveBeenCalled();
   });
 
   test('shutdown closes scheduler, socket clients, HTTP server and DB pool only once', async () => {

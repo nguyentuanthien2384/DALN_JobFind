@@ -1,6 +1,7 @@
 jest.mock('../../auth/authClient', () => ({ ...jest.requireActual('../../auth/authClient'), getProviders: jest.fn(), startSocialLogin: jest.fn(), refreshSession: jest.fn() }));
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { toast } from "react-toastify";
 import { handleLoginService } from "../../service/userService";
 import Login from "./Login";
@@ -22,12 +23,14 @@ jest.mock("react-router-dom", () => {
     };
 });
 
-const renderLogin = () => render(<Login />);
+// user-event types key by key, moves focus and refuses to click disabled controls,
+// so these tests exercise the form the way a person does rather than firing raw events.
+const renderLogin = () => ({ user: userEvent.setup(), ...render(<Login />) });
 
-const fillAndSubmit = (phone = "0912345678", password = "secret1") => {
-    fireEvent.change(screen.getByPlaceholderText("Email hoặc số điện thoại"), { target: { value: phone } });
-    fireEvent.change(screen.getByPlaceholderText("Mật khẩu"), { target: { value: password } });
-    fireEvent.click(screen.getByRole("button", { name: "Đăng nhập" }));
+const fillAndSubmit = async (user, phone = "0912345678", password = "secret1") => {
+    await user.type(screen.getByPlaceholderText("Email hoặc số điện thoại"), phone);
+    await user.type(screen.getByPlaceholderText("Mật khẩu"), password);
+    await user.click(screen.getByRole("button", { name: "Đăng nhập" }));
 };
 
 describe("Login", () => {
@@ -39,8 +42,8 @@ describe("Login", () => {
     });
     it('handles a rejected login request without leaving the submit button stuck', async () => {
         handleLoginService.mockRejectedValueOnce(new Error('network failure'));
-        renderLogin();
-        fillAndSubmit();
+        const { user } = renderLogin();
+        await fillAndSubmit(user);
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Không gửi được yêu cầu đăng nhập. Vui lòng thử lại.'));
         expect(screen.getByRole('button', { name: 'Đăng nhập' })).toBeEnabled();
     });
@@ -55,8 +58,8 @@ describe("Login", () => {
 
     it("submits the entered credentials and displays the backend error", async () => {
         handleLoginService.mockResolvedValue({ errCode: 1, errMessage: "Sai mật khẩu" });
-        renderLogin();
-        fillAndSubmit();
+        const { user } = renderLogin();
+        await fillAndSubmit(user);
 
         await waitFor(() => expect(handleLoginService).toHaveBeenCalledWith({
             identifier: "0912345678",
@@ -69,8 +72,8 @@ describe("Login", () => {
 
     it("uses a safe fallback when an empty error response is returned", async () => {
         handleLoginService.mockResolvedValue(null);
-        renderLogin();
-        fillAndSubmit();
+        const { user } = renderLogin();
+        await fillAndSubmit(user);
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Đăng nhập thất bại. Vui lòng thử lại."));
         expect(screen.getByRole('alert')).toHaveTextContent('Đăng nhập thất bại');
     });
@@ -78,11 +81,11 @@ describe("Login", () => {
     it("disables submit and prevents duplicate requests while logging in", async () => {
         let resolveLogin;
         handleLoginService.mockImplementation(() => new Promise((resolve) => { resolveLogin = resolve; }));
-        renderLogin();
-        fillAndSubmit();
+        const { user } = renderLogin();
+        await fillAndSubmit(user);
         const submit = screen.getByRole("button", { name: "Đang đăng nhập..." });
         await waitFor(() => expect(submit).toBeDisabled());
-        fireEvent.click(submit);
+        await user.click(submit);
         expect(handleLoginService).toHaveBeenCalledTimes(1);
 
         resolveLogin({ errCode: 1, errMessage: "No" });
@@ -90,25 +93,25 @@ describe("Login", () => {
     });
 
     it("stores an authenticated employer session", async () => {
-        const user = { id: 4, roleCode: "EMPLOYER" };
-        handleLoginService.mockResolvedValue({ errCode: 0, user, token: "token-4" });
+        const account = { id: 4, roleCode: "EMPLOYER" };
+        handleLoginService.mockResolvedValue({ errCode: 0, user: account, token: "token-4" });
         const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
-        renderLogin();
-        fillAndSubmit();
+        const { user } = renderLogin();
+        await fillAndSubmit(user);
 
         await waitFor(() => expect(localStorage.getItem("token_user")).toMatch(/^jf-session:/));
-        expect(JSON.parse(localStorage.getItem("userData"))).toEqual(user);
+        expect(JSON.parse(localStorage.getItem("userData"))).toEqual(account);
         expect(toast.error).not.toHaveBeenCalled();
         consoleError.mockRestore();
     });
 
     it("consumes the remembered URL for a candidate login", async () => {
         localStorage.setItem("lastUrl", "http://localhost/detail-job/7");
-        const user = { id: 5, roleCode: "CANDIDATE" };
-        handleLoginService.mockResolvedValue({ errCode: 0, user, token: "token-5" });
+        const account = { id: 5, roleCode: "CANDIDATE" };
+        handleLoginService.mockResolvedValue({ errCode: 0, user: account, token: "token-5" });
         const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
-        renderLogin();
-        fillAndSubmit();
+        const { user } = renderLogin();
+        await fillAndSubmit(user);
 
         await waitFor(() => expect(localStorage.getItem("lastUrl")).toBeNull());
         expect(localStorage.getItem("token_user")).toMatch(/^jf-session:/);
@@ -126,71 +129,71 @@ describe('Login methods and form feedback', () => {
     });
     it('submits an email with an explicit persistent-session choice', async () => {
         handleLoginService.mockResolvedValueOnce({ errCode: 1, errMessage: 'Thử lại' });
-        renderLogin();
+        const { user } = renderLogin();
         expect(screen.getByRole('checkbox', { name: /Ghi nhớ/ })).not.toBeChecked();
-        fireEvent.click(screen.getByRole('checkbox', { name: /Ghi nhớ/ }));
-        fillAndSubmit('  person@gmail.com  ', 'legacy1');
+        await user.click(screen.getByRole('checkbox', { name: /Ghi nhớ/ }));
+        await fillAndSubmit(user, '  person@gmail.com  ', 'legacy1');
         await waitFor(() => expect(handleLoginService).toHaveBeenCalledWith({ identifier: 'person@gmail.com', password: 'legacy1', rememberMe: true }));
     });
     it('only enables configured providers and carries remember-me into SSO', async () => {
         getProviders.mockResolvedValueOnce({ google: false, github: true, auth0: false });
-        renderLogin();
+        const { user } = renderLogin();
         const github = await screen.findByRole('button', { name: 'Đăng nhập bằng GitHub' });
         await waitFor(() => expect(github).toBeEnabled());
         expect(screen.getByRole('button', { name: 'Đăng nhập bằng Auth0' })).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeDisabled();
         expect(screen.getByText(/Google, Auth0 chưa được bật/)).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('checkbox', { name: /Ghi nhớ/ }));
-        fireEvent.click(github);
+        await user.click(screen.getByRole('checkbox', { name: /Ghi nhớ/ }));
+        await user.click(github);
         expect(startSocialLogin).toHaveBeenCalledWith('github', { rememberMe: true });
     });
     it('keeps all providers visible and explains why they cannot be used before configuration', async () => {
-        renderLogin();
+        const { user } = renderLogin();
         await screen.findByText(/Google, GitHub, Auth0 chưa được bật/);
         for (const provider of ['Google', 'GitHub', 'Auth0']) {
             const button = screen.getByRole('button', { name: `Đăng nhập bằng ${provider}` });
             expect(button).toBeVisible();
             expect(button).toBeDisabled();
             expect(button).toHaveAccessibleDescription(/Google, GitHub, Auth0 chưa được bật/);
-            fireEvent.click(button);
+            await user.click(button);
         }
         expect(startSocialLogin).not.toHaveBeenCalled();
         expect(screen.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled();
     });
     it('checks empty fields without sending credentials and focuses the missing input', async () => {
-        renderLogin();
-        fireEvent.submit(screen.getByRole('form', { name: 'Đăng nhập JobFind' }));
+        const { user } = renderLogin();
+        const submit = screen.getByRole('button', { name: 'Đăng nhập', exact: true });
+        await user.click(submit);
         expect(screen.getByText('Vui lòng nhập email hoặc số điện thoại.')).toBeInTheDocument();
         expect(screen.getByLabelText('Email hoặc số điện thoại')).toHaveFocus();
-        fireEvent.change(screen.getByLabelText('Email hoặc số điện thoại'), { target: { value: '0912345678' } });
-        fireEvent.submit(screen.getByRole('form'));
+        await user.keyboard('0912345678{Enter}');
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveFocus();
         expect(handleLoginService).not.toHaveBeenCalled();
         await screen.findByText(/Google, GitHub, Auth0 chưa được bật/);
     });
     it('supports phone/password autofill and toggles password visibility without submitting', async () => {
-        renderLogin();
+        const { user } = renderLogin();
         expect(screen.getByLabelText('Email hoặc số điện thoại')).toHaveAttribute('type', 'text');
         expect(screen.getByLabelText('Email hoặc số điện thoại')).toHaveAttribute('autocomplete', 'username');
         const password = screen.getByLabelText('Mật khẩu', { exact: true });
         expect(password).toHaveAttribute('autocomplete', 'current-password');
-        fireEvent.change(password, { target: { value: 'not-a-real-password' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Hiện mật khẩu' }));
+        await user.type(password, 'not-a-real-password');
+        await user.click(screen.getByRole('button', { name: 'Hiện mật khẩu' }));
         expect(password).toHaveAttribute('type', 'text');
         expect(password).toHaveValue('not-a-real-password');
-        fireEvent.click(screen.getByRole('button', { name: 'Ẩn mật khẩu' }));
+        await user.click(screen.getByRole('button', { name: 'Ẩn mật khẩu' }));
         expect(password).toHaveAttribute('type', 'password');
         expect(handleLoginService).not.toHaveBeenCalled();
         await screen.findByText(/Google, GitHub, Auth0 chưa được bật/);
     });
     it('recovers provider lookup after failure while keeping local login available', async () => {
         getProviders.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ google: true });
-        renderLogin();
+        const { user } = renderLogin();
         await screen.findByText(/Chưa kiểm tra được phương thức đăng nhập/);
         expect(screen.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled();
-        fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+        await user.click(screen.getByRole('button', { name: 'Thử lại' }));
         await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeEnabled());
-        fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập bằng Google' }));
+        await user.click(screen.getByRole('button', { name: 'Đăng nhập bằng Google' }));
         expect(startSocialLogin).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('button', { name: /Đang chuyển đến Google/ })).toBeDisabled();
     });
@@ -206,9 +209,9 @@ describe('Login methods and form feedback', () => {
     ])('remembers only safe protected routes before Google (%s)', async (from, expected) => {
         useLocation.mockReturnValue({ state: { from } });
         getProviders.mockResolvedValueOnce({ google: true });
-        renderLogin();
+        const { user } = renderLogin();
         await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeEnabled());
-        fireEvent.click(screen.getByRole('button', { name: 'Đăng nhập bằng Google' }));
+        await user.click(screen.getByRole('button', { name: 'Đăng nhập bằng Google' }));
         expect(localStorage.getItem('lastUrl')).toBe(expected);
     });
     it('disables local login during SSO completion and recovers on failure', async () => {
@@ -270,7 +273,7 @@ describe('Login while preparing an application', () => {
 
     it.each(['CANDIDATE', 'EMPLOYER'])('returns a password login as %s to the intended job before any other destination', async roleCode => {
         handleLoginService.mockResolvedValueOnce({ errCode: 0, user: { id: 5, roleCode }, token: 'application-token' });
-        renderLogin(); fillAndSubmit();
+        const { user } = renderLogin(); await fillAndSubmit(user);
         await waitFor(() => expect(window.location.href).toBe('/detail-job/7'));
         expect(localStorage.getItem('lastUrl')).toBeNull();
         expect(readApplicationIntent()).toMatchObject({ jobId: '7' });
@@ -287,21 +290,21 @@ describe('Login while preparing an application', () => {
 
     it('shows the job and retains the intent through a failed login and the registration link', async () => {
         handleLoginService.mockResolvedValueOnce({ errCode: 1, errMessage: 'Sai mật khẩu' });
-        renderLogin();
+        const { user } = renderLogin();
         expect(screen.getByRole('status')).toHaveTextContent('Đăng nhập bằng tài khoản ứng viên để tiếp tục ứng tuyển Kỹ sư phần mềm');
         expect(screen.getByRole('link', { name: /Tạo tài khoản ngay/ })).toHaveAttribute('href', '/register');
-        fillAndSubmit();
+        await fillAndSubmit(user);
         await screen.findByText('Sai mật khẩu');
         expect(readApplicationIntent()).toMatchObject({ jobId: '7' });
         expect(screen.getByText('Kỹ sư phần mềm')).toBeInTheDocument();
     });
 
     it('allows returning to public job details without resuming an application later', async () => {
-        renderLogin();
+        const { user } = renderLogin();
         const link = screen.getByRole('link', { name: 'Quay lại xem công việc' });
         expect(link).toHaveAttribute('href', '/detail-job/7');
         link.addEventListener('click', event => event.preventDefault());
-        fireEvent.click(link);
+        await user.click(link);
         expect(readApplicationIntent()).toBeNull();
         expect(localStorage.getItem('lastUrl')).toBeNull();
         expect(screen.queryByText('Kỹ sư phần mềm')).not.toBeInTheDocument();
@@ -310,10 +313,10 @@ describe('Login while preparing an application', () => {
 
     it('preserves the application while starting a social provider', async () => {
         getProviders.mockResolvedValueOnce({ google: true });
-        renderLogin();
+        const { user } = renderLogin();
         const google = await screen.findByRole('button', { name: 'Đăng nhập bằng Google' });
         await waitFor(() => expect(google).toBeEnabled());
-        fireEvent.click(google);
+        await user.click(google);
         expect(startSocialLogin).toHaveBeenCalledWith('google', { rememberMe: false });
         expect(readApplicationIntent()).toMatchObject({ jobId: '7' });
     });

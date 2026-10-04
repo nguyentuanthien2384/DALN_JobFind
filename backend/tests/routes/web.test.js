@@ -8,6 +8,7 @@ const mockVerifyUser = jest.fn();
 const mockVerifyAdmin = jest.fn();
 const mockVerifyOptional = jest.fn();
 const mockLoginLimiter = jest.fn();
+const mockRefreshLimiter = jest.fn();
 const mockOtpLimiter = jest.fn();
 const mockRegisterLimiter = jest.fn();
 const mockPhoneLimiter = jest.fn();
@@ -40,7 +41,7 @@ jest.mock('../../src/middlewares/authorize', () => ({
   PERMISSIONS: mockPermissions
 }));
 jest.mock('../../src/middlewares/rateLimit', () => ({
-  loginLimiter: mockLoginLimiter, otpLimiter: mockOtpLimiter,
+  loginLimiter: mockLoginLimiter, refreshLimiter: mockRefreshLimiter, otpLimiter: mockOtpLimiter,
   registerLimiter: mockRegisterLimiter, phoneCheckLimiter: mockPhoneLimiter, supportChatLimiter: jest.fn()
 }));
 jest.mock('../../src/controllers/supportChatController', () => ({ handleSupportChat: jest.fn() }));
@@ -96,6 +97,10 @@ describe('web routes', () => {
     const latest = (path) => [...mockRoutes].reverse().find((route) => route.path === path);
     expect(latest('/api/create-new-user').handlers.slice(0, 2)).toEqual([mockRegisterLimiter, mockVerifyOptional]);
     expect(latest('/api/login').handlers[0]).toBe(mockLoginLimiter);
+    // Both login paths share one failure budget; session refresh is counted separately.
+    expect(latest('/api/auth/login').handlers[0]).toBe(mockLoginLimiter);
+    expect(latest('/api/auth/refresh').handlers).toContain(mockRefreshLimiter);
+    expect(latest('/api/auth/refresh').handlers).not.toContain(mockLoginLimiter);
     expect(latest('/api/ban-user').handlers[0]).toBe(mockVerifyUser);
     expect(latest('/api/ban-user').handlers[1].permission).toBe('ADMINISTRATION');
     expect(latest('/api/create-new-post').handlers[0]).toBe(mockVerifyUser);

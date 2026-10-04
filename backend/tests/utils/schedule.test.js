@@ -17,6 +17,8 @@ jest.mock('node-schedule', () => ({
 jest.mock('../../src/models/index', () => mockDb);
 jest.mock('../../src/utils/mailTemplate', () => mockMailTemplate);
 jest.mock('nodemailer', () => ({ createTransport: jest.fn(() => ({ sendMail: mockSendMail })) }));
+const mockReconcileStalePayments = jest.fn();
+jest.mock('../../src/services/paymentIntegrityService', () => ({ reconcileStalePayments: mockReconcileStalePayments }));
 
 const scheduler = require('../../src/utils/schedule');
 
@@ -165,5 +167,60 @@ describe('scheduled jobs', () => {
     );
     mockDb.Company.update.mockRejectedValueOnce(new Error('db'));
     await expect(mockCallbacks[0]()).resolves.toBeUndefined();
+  });
+});
+
+describe('payment reconciliation job', () => {
+  const credentials = { PAYPAL_CLIENT_ID: process.env.PAYPAL_CLIENT_ID, CLIENT_ID: process.env.CLIENT_ID };
+  beforeEach(() => {
+    mockCallbacks.length = 0;
+    jest.clearAllMocks();
+    delete process.env.PAYPAL_CLIENT_ID;
+    delete process.env.CLIENT_ID;
+  });
+  afterAll(() => {
+    for (const [name, value] of Object.entries(credentials)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  test('is not scheduled while PayPal is not configured', () => {
+    expect(scheduler.reconcilePayments()).toBeNull();
+    expect(mockScheduleJob).not.toHaveBeenCalled();
+  });
+
+  test.each(['PAYPAL_CLIENT_ID', 'CLIENT_ID'])('runs every 10 minutes once %s is configured', (name) => {
+    process.env[name] = 'paypal-client';
+    scheduler.reconcilePayments();
+    expect(mockScheduleJob).toHaveBeenCalledWith('*/10 * * * *', scheduler.runPaymentReconciliation);
+  });
+
+  test('returns the reconciliation summary', async () => {
+    mockReconcileStalePayments.mockResolvedValueOnce({ checked: 2, completed: 1, expired: 1, unresolved: [] });
+    await expect(scheduler.runPaymentReconciliation()).resolves.toEqual({ checked: 2, completed: 1, expired: 1, unresolved: [] });
+  });
+
+  test('never overlaps a run that is still talking to PayPal', async () => {
+    let finish;
+    mockReconcileStalePayments.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const first = scheduler.runPaymentReconciliation();
+    await expect(scheduler.runPaymentReconciliation()).resolves.toBeNull();
+    expect(mockReconcileStalePayments).toHaveBeenCalledTimes(1);
+    finish({ checked: 0, completed: 0, expired: 0, unresolved: [] });
+    await first;
+    mockReconcileStalePayments.mockResolvedValueOnce({ checked: 0, completed: 0, expired: 0, unresolved: [] });
+    await scheduler.runPaymentReconciliation();
+    expect(mockReconcileStalePayments).toHaveBeenCalledTimes(2);
+  });
+
+  test('logs a failed run and lets the next one start', async () => {
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockReconcileStalePayments.mockRejectedValueOnce(new Error('db down'));
+    await expect(scheduler.runPaymentReconciliation()).resolves.toBeNull();
+    expect(error).toHaveBeenCalledWith('Payment reconciliation failed:', 'db down');
+    mockReconcileStalePayments.mockResolvedValueOnce({ checked: 1, completed: 0, expired: 1, unresolved: [] });
+    await expect(scheduler.runPaymentReconciliation()).resolves.toMatchObject({ expired: 1 });
+    error.mockRestore();
   });
 });

@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for security and payment code: line coverage cannot show whether a check is actually asserted. Run with npm run test:mutation.",
+  "packageManager": "npm",
+  "testRunner": "jest",
+  "jest": {
+    "projectType": "custom",
+    "configFile": "stryker.jest.config.cjs",
+    "enableFindRelatedTests": false
+  },
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/middlewares/rateLimit.js",
+    "src/middlewares/jwtVerify.js",
+    "src/middlewares/authorize.js",
+    "src/utils/accountValidation.js",
+    "src/utils/authorization.js",
+    "src/utils/otpStore.js",
+    "src/utils/postingQuota.js",
+    "src/services/paymentIntegrityService.js"
+  ],
+  "ignorePatterns": ["coverage", "reports", "scripts", "*.log", "api", "vendor"],
+  "reporters": ["clear-text", "progress", "html", "json"],
+  "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "thresholds": { "high": 92, "low": 85, "break": 85 },
+  "concurrency": 4,
+  "timeoutMS": 10000,
+  "tempDirName": ".stryker-tmp"
+}

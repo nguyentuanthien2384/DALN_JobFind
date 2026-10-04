@@ -3,3 +3,5 @@
 .idea/
 coverage/
 *.log
+.stryker-tmp/
+reports/

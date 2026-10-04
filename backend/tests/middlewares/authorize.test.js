@@ -160,3 +160,101 @@ describe('central backend authorization policy', () => {
     expect(isPermissionGranted(banned, PERMISSIONS.COMPANY_TEAM_EXIT)).toBe(true);
   });
 });
+
+// Decision table written independently of permissionMatrix: for every permission, which role may
+// act in which company state. `none` = no company, `pending` = company not yet approved,
+// `approved` = active approved company. ADMIN may do everything except apply for a job.
+describe('authorization decision table', () => {
+  const STATES = ['none', 'pending', 'approved'];
+  const ANY = STATES;
+  const WITH_COMPANY = ['pending', 'approved'];
+  const APPROVED = ['approved'];
+  const ADMIN_ALL = { ADMIN: ANY };
+  const spec = {
+    [PERMISSIONS.ACCOUNT_SELF]: { ...ADMIN_ALL, COMPANY: ANY, EMPLOYER: ANY, CANDIDATE: ANY },
+    [PERMISSIONS.ADMINISTRATION]: { ...ADMIN_ALL },
+    [PERMISSIONS.COMPANY_CREATE]: { ...ADMIN_ALL, EMPLOYER: ['none'] },
+    [PERMISSIONS.COMPANY_PRIVATE_READ]: { ...ADMIN_ALL, COMPANY: WITH_COMPANY },
+    [PERMISSIONS.COMPANY_MANAGE]: { ...ADMIN_ALL, COMPANY: WITH_COMPANY },
+    [PERMISSIONS.COMPANY_TEAM_MANAGE]: { ...ADMIN_ALL, COMPANY: APPROVED },
+    [PERMISSIONS.COMPANY_TEAM_EXIT]: { ...ADMIN_ALL, COMPANY: WITH_COMPANY, EMPLOYER: WITH_COMPANY },
+    [PERMISSIONS.JOB_MANAGE]: { ...ADMIN_ALL, COMPANY: APPROVED, EMPLOYER: APPROVED },
+    [PERMISSIONS.RECRUITMENT_READ]: { ...ADMIN_ALL, COMPANY: APPROVED, EMPLOYER: APPROVED },
+    [PERMISSIONS.RECRUITMENT_REPORT_READ]: { ...ADMIN_ALL, COMPANY: APPROVED, EMPLOYER: APPROVED },
+    [PERMISSIONS.CANDIDATE_APPLY]: { CANDIDATE: ANY },
+    [PERMISSIONS.CANDIDATE_PROFILE_READ]: { ...ADMIN_ALL, COMPANY: APPROVED, EMPLOYER: APPROVED, CANDIDATE: ANY },
+    [PERMISSIONS.CANDIDATE_SEARCH]: { ...ADMIN_ALL, COMPANY: APPROVED, EMPLOYER: APPROVED },
+    [PERMISSIONS.RECOMMENDATION_READ]: { ...ADMIN_ALL, CANDIDATE: ANY },
+    [PERMISSIONS.PACKAGE_CATALOG_READ]: { ...ADMIN_ALL, COMPANY: ANY },
+    [PERMISSIONS.PACKAGE_PURCHASE]: { ...ADMIN_ALL, COMPANY: APPROVED },
+    [PERMISSIONS.PACKAGE_HISTORY_READ]: { ...ADMIN_ALL, COMPANY: APPROVED },
+    [PERMISSIONS.SOCIAL_INTERACT]: { ...ADMIN_ALL, CANDIDATE: ANY },
+    [PERMISSIONS.NOTIFICATION_READ]: { ...ADMIN_ALL, COMPANY: ANY, EMPLOYER: ANY, CANDIDATE: ANY },
+    [PERMISSIONS.CHAT]: { ...ADMIN_ALL, COMPANY: APPROVED, EMPLOYER: APPROVED, CANDIDATE: ANY },
+  };
+  const requestIn = (roleCode, state) => ({
+    user: {
+      id: 7,
+      companyId: state === 'none' ? null : 8,
+      userAccountData: { roleCode },
+      userCompanyData: state === 'none' ? null
+        : { id: 8, statusCode: 'S1', censorCode: state === 'approved' ? 'CS1' : 'CS3' }
+    }
+  });
+  const cases = Object.entries(spec).flatMap(([permission, allowed]) => Object.values(ROLES).flatMap((role) =>
+    STATES.map((state) => [permission, role, state, Boolean(allowed[role]?.includes(state))])));
+
+  test('covers every permission of the matrix', () => {
+    expect(Object.keys(spec).sort()).toEqual(Object.keys(permissionMatrix).sort());
+  });
+
+  test.each(cases)('%s for %s with company %s -> allowed=%s', (permission, role, state, expected) => {
+    const req = requestIn(role, state);
+    expect(isPermissionGranted(req, permission)).toBe(expected);
+    const res = createResponse();
+    const next = jest.fn();
+    authorize(permission)(req, res, next);
+    if (expected) {
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(req.authorization).toEqual({ permission, roleCode: role, companyId: state === 'none' ? null : 8 });
+    } else {
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ errCode: 3, errMessage: 'Bạn không có quyền thực hiện thao tác này' });
+    }
+  });
+
+  test.each([
+    ['company data of another tenant', { id: 9, statusCode: 'S1', censorCode: 'CS1' }],
+    ['a locked company', { id: 8, statusCode: 'S2', censorCode: 'CS1' }],
+    ['no company data', undefined],
+  ])('treats %s as not approved', (_case, companyData) => {
+    const req = { user: { id: 7, companyId: 8, userAccountData: { roleCode: 'EMPLOYER' }, userCompanyData: companyData } };
+    expect(isPermissionGranted(req, PERMISSIONS.JOB_MANAGE)).toBe(false);
+    expect(isPermissionGranted(req, PERMISSIONS.COMPANY_TEAM_EXIT)).toBe(true);
+  });
+
+  test('an empty-string company id counts as no company', () => {
+    const req = { user: { id: 7, companyId: '', userAccountData: { roleCode: 'EMPLOYER' }, userCompanyData: null } };
+    expect(isPermissionGranted(req, PERMISSIONS.COMPANY_CREATE)).toBe(true);
+    expect(isPermissionGranted(req, PERMISSIONS.COMPANY_TEAM_EXIT)).toBe(false);
+  });
+
+  test('answers 401 with a refresh hint without a user and 500 for an unknown policy', () => {
+    const anonymous = createResponse();
+    authorize(PERMISSIONS.CHAT)({}, anonymous, jest.fn());
+    expect(anonymous.status).toHaveBeenCalledWith(401);
+    expect(anonymous.json).toHaveBeenCalledWith({ errCode: 401, errMessage: 'Authentication required', refresh: true });
+    const unknown = createResponse();
+    authorize('typo:permission')(requestIn('ADMIN', 'none'), unknown, jest.fn());
+    expect(unknown.status).toHaveBeenCalledWith(500);
+    expect(unknown.json).toHaveBeenCalledWith({ errCode: -1, errMessage: 'Authorization policy is not configured' });
+  });
+
+  test('keeps the permission identifiers stable for the frontend and gateway', () => {
+    expect(PERMISSIONS).toMatchObject({
+      ADMINISTRATION: 'administration:manage', COMPANY_TEAM_EXIT: 'company:team:exit',
+      JOB_MANAGE: 'job:manage', CANDIDATE_APPLY: 'candidate:apply', PACKAGE_PURCHASE: 'package:purchase', CHAT: 'chat:use'
+    });
+  });
+});

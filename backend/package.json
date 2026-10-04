@@ -6,6 +6,7 @@
   "scripts": {
     "test": "jest --runInBand",
     "test:coverage": "jest --runInBand --coverage",
+    "test:mutation": "stryker run",
     "start": "babel-node src/server.js",
     "dev": "nodemon --exec babel-node src/server.js",
     "test:smoke": "node scripts/smoke-test.js",
@@ -32,6 +33,13 @@
   "jest": {
     "testEnvironment": "node",
     "clearMocks": true,
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/.stryker-tmp/"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/.stryker-tmp/"
+    ],
     "setupFiles": [
       "<rootDir>/tests/setupEnv.js"
     ],
@@ -91,6 +99,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/jest-runner": "^9.6.1",
     "babel-jest": "^30.5.0",
     "esbuild": "^0.28.2",
     "jest": "^30.5.0",

@@ -1,0 +1,67 @@
+name: Mutation testing
+# Line coverage only shows that security and payment code ran; Stryker changes that code
+# (flips comparisons, removes checks) and fails the job when too many changes go unnoticed.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'
+  pull_request:
+    paths:
+      - 'backend/src/middlewares/rateLimit.js'
+      - 'backend/src/middlewares/jwtVerify.js'
+      - 'backend/src/middlewares/authorize.js'
+      - 'backend/src/utils/accountValidation.js'
+      - 'backend/src/utils/authorization.js'
+      - 'backend/src/utils/otpStore.js'
+      - 'backend/src/utils/postingQuota.js'
+      - 'backend/src/services/paymentIntegrityService.js'
+      - 'backend/stryker.config.json'
+      - 'backend/stryker.jest.config.cjs'
+      - 'microservices/shared/accessControl.js'
+      - 'microservices/shared/securityConfig.js'
+      - 'microservices/api-gateway/src/middlewares/auth.js'
+      - 'microservices/api-gateway/src/middlewares/rateLimit.js'
+      - 'microservices/job-core-service/src/libs/postingQuota.js'
+      - 'microservices/application-service/src/libs/offer.js'
+      - 'microservices/application-service/src/libs/interview.js'
+      - 'microservices/stryker.config.json'
+      - 'microservices/stryker.vitest.config.js'
+      - '.github/workflows/mutation.yml'
+permissions:
+  contents: read
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [backend, microservices]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            microservices/package-lock.json
+            frontend/package-lock.json
+      # Microservices tests import frontend service modules, which resolve their own packages.
+      - if: matrix.project == 'microservices'
+        run: npm ci --ignore-scripts
+        working-directory: frontend
+      - run: npm ci --ignore-scripts
+        working-directory: ${{ matrix.project }}
+      - run: npm run test:mutation
+        working-directory: ${{ matrix.project }}
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mutation-report-${{ matrix.project }}
+          path: ${{ matrix.project }}/reports/mutation/
+          if-no-files-found: ignore
+          retention-days: 14

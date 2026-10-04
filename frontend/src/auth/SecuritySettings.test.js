@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import SecuritySettings from './SecuritySettings';
 import api from '../axios';
 import { startSocialLink } from './authClient';
@@ -8,7 +9,9 @@ jest.mock('./authClient', () => ({ startSocialLink: jest.fn(), forgetAccess: jes
 jest.mock('../socket', () => ({ disconnectSocket: jest.fn() }));
 jest.mock('../push/webPush', () => ({ clearPushOnLogout: jest.fn() }));
 const data = { errCode: 0, google: false, identities: [], sessions: [{ familyId: 'current', current: true, method: 'password', expiresAt: '2026-10-01' }] };
-beforeEach(() => { api.get.mockResolvedValue(data); window.history.replaceState({}, '', '/account/security'); });
+// user-event refuses to click the disabled link buttons, so the password gate is exercised for real.
+let user;
+beforeEach(() => { user = userEvent.setup(); api.get.mockResolvedValue(data); window.history.replaceState({}, '', '/account/security'); });
 test('shows sessions and an honest disabled-provider state', async () => {
   render(<SecuritySettings />);
   expect(await screen.findByText(/Phiên hiện tại/)).toBeInTheDocument();
@@ -21,8 +24,10 @@ test('linking requires the current password and reports provider errors', async 
   render(<SecuritySettings />);
   const button = await screen.findByRole('button', { name: 'Liên kết tài khoản Google' });
   expect(button).toBeDisabled();
-  fireEvent.change(screen.getByLabelText('Mật khẩu JobFind hiện tại'), { target: { value: 'current-password' } });
-  fireEvent.click(button);
+  await user.click(button);
+  expect(startSocialLink).not.toHaveBeenCalled();
+  await user.type(screen.getByLabelText('Mật khẩu JobFind hiện tại'), 'current-password');
+  await user.click(button);
   expect(await screen.findByRole('alert')).toHaveTextContent('Mật khẩu hiện tại không chính xác');
   expect(startSocialLink).toHaveBeenCalledWith('google', 'current-password');
   await waitFor(() => expect(screen.getByLabelText('Mật khẩu JobFind hiện tại')).toHaveValue(''));
@@ -35,14 +40,14 @@ test('shows provider identities and links GitHub with the same password confirma
   expect(await screen.findByText('Auth0 · lan@gmail.com')).toBeInTheDocument();
   const github = screen.getByRole('button', { name: 'Liên kết tài khoản GitHub' });
   expect(github).toBeDisabled();
-  fireEvent.change(screen.getByLabelText('Mật khẩu JobFind hiện tại'), { target: { value: 'current-password' } });
-  fireEvent.click(github);
+  await user.type(screen.getByLabelText('Mật khẩu JobFind hiện tại'), 'current-password');
+  await user.click(github);
   await waitFor(() => expect(startSocialLink).toHaveBeenCalledWith('github', 'current-password'));
 });
 test('cancelling revocation never submits it', async () => {
   jest.spyOn(window, 'confirm').mockReturnValue(false);
   render(<SecuritySettings />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Đăng xuất phiên' }));
+  await user.click(await screen.findByRole('button', { name: 'Đăng xuất phiên' }));
   expect(api.delete).not.toHaveBeenCalled();
   window.confirm.mockRestore();
 });
@@ -50,7 +55,7 @@ test('a failed load can be retried without losing the page', async () => {
   api.get.mockResolvedValueOnce({ errCode: 503, errMessage: 'Tạm gián đoạn' });
   render(<SecuritySettings />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Tạm gián đoạn');
-  fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+  await user.click(screen.getByRole('button', { name: 'Thử lại' }));
   expect(await screen.findByText(/Phiên hiện tại/)).toBeInTheDocument();
 });
 
@@ -61,7 +66,7 @@ test('shows device metadata and loads earlier private history', async () => {
   render(<SecuritySettings />);
   expect(await screen.findByText('Firefox · Windows')).toBeInTheDocument();
   expect(screen.getByText('Đăng nhập thành công')).toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: 'Xem hoạt động trước đó' }));
+  await user.click(screen.getByRole('button', { name: 'Xem hoạt động trước đó' }));
   expect(await screen.findByText('Đã thu hồi phiên do phát hiện mã phiên bị sử dụng lại')).toBeInTheDocument();
   expect(api.get).toHaveBeenLastCalledWith('/api/auth/security/events', { params: { before: '22' } });
   expect(screen.queryByRole('button', { name: 'Xem hoạt động trước đó' })).toBeNull();

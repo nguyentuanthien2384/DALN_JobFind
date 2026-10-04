@@ -295,6 +295,44 @@ describe('gateway access-token policy with production defaults', () => {
         expect(next).toHaveBeenCalledOnce();
     });
 
+    it.each([
+        ['an unreadable token', () => mocks.verify.mockImplementation(() => { throw new Error('bad'); }), 'invalid', 401,
+            { errCode: 401, errMessage: 'Bạn cần đăng nhập để dùng chức năng này' }],
+        ['a deleted account', () => mocks.resolveCurrentIdentity.mockResolvedValue(null), 'invalid', 401,
+            { errCode: 401, errMessage: 'Bạn cần đăng nhập để dùng chức năng này' }],
+        ['a locked account', () => mocks.resolveCurrentIdentity.mockResolvedValue({ id: 9, roleCode: 'CANDIDATE', statusCode: 'S2' }), 'inactive', 403,
+            { errCode: 403, refresh: true, authReason: 'inactive', errMessage: 'Tài khoản đã bị khóa hoặc chưa kích hoạt' }],
+        ['an unknown stored role', () => mocks.resolveCurrentIdentity.mockResolvedValue({ id: 9, roleCode: 'ROOT', statusCode: 'S1' }), 'role', 401,
+            { errCode: 401, errMessage: 'Bạn cần đăng nhập để dùng chức năng này' }],
+        ['an unavailable account store', () => mocks.resolveCurrentIdentity.mockRejectedValue(new Error('db')), 'unavailable', 503,
+            { errCode: 503, errMessage: 'Không thể xác minh tài khoản lúc này' }],
+    ])('answers %s with the exact body the frontend maps', async (_case, arrange, failure, status, body) => {
+        mocks.verify.mockReturnValue(claims());
+        arrange();
+        const { requireAuth } = await import('../api-gateway/src/middlewares/auth.js');
+        const req = makeReq({ headers: { authorization: 'Bearer token' } });
+        const res = makeRes();
+        await requireAuth(req, res, vi.fn());
+        expect(req.authFailure).toBe(failure);
+        expect(res.statusCode).toBe(status);
+        expect(res.body).toEqual(body);
+    });
+
+    it('role and company guards answer with exact bodies', async () => {
+        const { requireRole, requirePermission } = await import('../api-gateway/src/middlewares/auth.js');
+        const { PERMISSIONS } = await import('../shared/accessControl.js');
+        const anonymous = makeRes();
+        requireRole('ADMIN')(makeReq(), anonymous, vi.fn());
+        expect(anonymous.body).toEqual({ errCode: 401, errMessage: 'Bạn cần đăng nhập để dùng chức năng này' });
+        const wrongRole = makeRes();
+        requireRole('ADMIN')(makeReq({ user: { roleCode: 'EMPLOYER' } }), wrongRole, vi.fn());
+        expect(wrongRole.body).toEqual({ errCode: 403, errMessage: 'Bạn không có quyền thực hiện thao tác này' });
+        const pending = makeRes();
+        requirePermission(PERMISSIONS.JOB_MANAGE, { companyRequired: true })(
+            makeReq({ user: { id: 2, roleCode: 'EMPLOYER', companyId: 7, companyStatusCode: 'S1', companyCensorCode: 'CS3' } }), pending, vi.fn());
+        expect(pending.body).toEqual({ errCode: 403, errMessage: 'Công ty chưa được duyệt, đã bị khóa hoặc không tồn tại' });
+    });
+
     it('does not verify an empty bearer token', async () => {
         expect((await authenticate('Bearer ')).user).toBeNull();
         expect(mocks.verify).not.toHaveBeenCalled();
@@ -504,6 +542,25 @@ describe('Redis rate limiter', () => {
         expect(res.statusCode).toBe(429);
         expect(res.headers['Retry-After']).toBe(900);
         expect(next).not.toHaveBeenCalled();
+    });
+
+    it('reports the full window, without resetting it, for a counter in its last second (ttl 0)', async () => {
+        redis.handlers.ready();
+        redis.incr.mockResolvedValue(11);
+        redis.ttl.mockResolvedValue(0);
+        const res = makeRes();
+        await createRateLimiter({ name: 'login', windowSeconds: 900, max: 10 })(makeReq({ ip: '9.9.9.7' }), res, vi.fn());
+        expect(redis.expire).not.toHaveBeenCalled();
+        expect(res.headers['Retry-After']).toBe(900);
+        expect(res.body).toEqual({ errCode: 429, errMessage: 'Bạn thao tác quá nhanh, vui lòng thử lại sau 900 giây' });
+    });
+
+    it('fails closed with an explicit retry message', async () => {
+        redis.handlers.close();
+        const res = makeRes();
+        await createRateLimiter({ name: 'ai', windowSeconds: 60, max: 2, failClosed: true })(makeReq(), res, vi.fn());
+        expect(res.statusCode).toBe(503);
+        expect(res.body).toEqual({ errCode: 503, errMessage: 'Rate limiter unavailable; retry later' });
     });
 
     it('does not reset the window of a counter that still expires', async () => {

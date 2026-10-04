@@ -17,8 +17,13 @@ export const isValidRecipientEmail = value => {
     return !['.example', '.invalid', '.test', '.local', '.localhost'].some(suffix => domain.endsWith(suffix));
 };
 
+// Spaces inside a passphrase are fine, but a password made only of blanks or invisible
+// characters (NBSP, ideographic space, zero-width space...) is trivially guessable.
+const BLANK_PASSWORD = /^[\s\p{Cf}]*$/u;
+
 export const validateNewPassword = value => {
     if (typeof value !== 'string' || Array.from(value).length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự';
+    if (BLANK_PASSWORD.test(value)) return 'Mật khẩu không được chỉ gồm khoảng trắng hoặc ký tự vô hình';
     // bcrypt only processes its first 72 bytes; reject longer input instead of silently truncating it.
     if (Buffer.byteLength(value, 'utf8') > 72) return 'Mật khẩu không được vượt quá 72 byte (ký tự có dấu có thể chiếm nhiều byte)';
     return '';

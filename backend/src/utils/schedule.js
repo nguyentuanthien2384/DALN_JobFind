@@ -196,7 +196,33 @@ const updateFreeViewCv = () => {
 }
 
 
+// Moi 10 phut doi soat cac giao dich PayPal da qua han nhung van PENDING (xem
+// paymentIntegrityService.reconcileStalePayments). Bo qua neu luot truoc chua xong,
+// va khong len lich khi chua cau hinh PayPal (moi lan tra cuu se that bai).
+const PAYMENT_RECONCILE_RULE = '*/10 * * * *'
+let paymentReconcileRunning = false
+
+const runPaymentReconciliation = async () => {
+    if (paymentReconcileRunning) return null
+    paymentReconcileRunning = true
+    try {
+        return await require('../services/paymentIntegrityService').reconcileStalePayments()
+    } catch (err) {
+        console.error('Payment reconciliation failed:', err.message)
+        return null
+    } finally {
+        paymentReconcileRunning = false
+    }
+}
+
+const reconcilePayments = () => {
+    if (!(process.env.PAYPAL_CLIENT_ID || process.env.CLIENT_ID)) return null
+    return schedule.scheduleJob(PAYMENT_RECONCILE_RULE, runPaymentReconciliation)
+}
+
 module.exports = {
     sendJobMail,
-    updateFreeViewCv
+    updateFreeViewCv,
+    reconcilePayments,
+    runPaymentReconciliation
 }

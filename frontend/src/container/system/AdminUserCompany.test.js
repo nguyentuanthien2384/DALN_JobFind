@@ -251,6 +251,8 @@ describe("AddUser and ChangePassword", () => {
         fireEvent.change(container.querySelector('input[name="email"]'), { target: { name: "email", value: "lan@example.com" } });
         fireEvent.change(container.querySelector('input[name="firstName"]'), { target: { name: "firstName", value: "Lan" } });
         fireEvent.change(container.querySelector('input[name="lastName"]'), { target: { name: "lastName", value: "Nguyễn" } });
+        // A phone number is text: a number input would let arrow keys rewrite it and drop the 0.
+        expect(container.querySelector('input[name="phonenumber"]')).toHaveAttribute("type", "tel");
         fireEvent.change(container.querySelector('input[name="phonenumber"]'), { target: { name: "phonenumber", value: "0912345678" } });
         fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
         await waitFor(() => expect(createNewUser).toHaveBeenCalledWith(expect.objectContaining({

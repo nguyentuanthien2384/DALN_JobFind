@@ -176,3 +176,48 @@ describe('authorization denies by default on missing or malformed ownership data
     expect(authorization.canAccessCompany(reqFor('COMPANY', 9), companyId)).toBe(false);
   });
 });
+
+// Every condition of an approved tenant must be decisive on its own; one weak link lets a
+// banned or foreign company through all of the checks built on top of it.
+describe('isApprovedCompany requires every tenant condition', () => {
+  const recruiter = (companyId, companyData) => ({
+    user: { id: 1, companyId, userAccountData: { roleCode: 'COMPANY' }, userCompanyData: companyData }
+  });
+  const approved = { id: 8, statusCode: 'S1', censorCode: 'CS1' };
+
+  test('accepts an active, approved company the user belongs to (ids compared as numbers)', () => {
+    expect(authorization.isApprovedCompany(recruiter(8, approved))).toBe(true);
+    expect(authorization.isApprovedCompany(recruiter('8', { ...approved, id: '8' }))).toBe(true);
+    expect(authorization.canAccessCompany(recruiter(8, approved), '8')).toBe(true);
+  });
+
+  test.each([
+    ['a locked company (statusCode S2)', recruiter(8, { ...approved, statusCode: 'S2' })],
+    ['a company still under review (CS3)', recruiter(8, { ...approved, censorCode: 'CS3' })],
+    ['company data of another tenant', recruiter(8, { ...approved, id: 9 })],
+    ['no company data', recruiter(8, undefined)],
+    ['company data without the user belonging to a company', recruiter(null, approved)],
+    ['no user at all', {}],
+  ])('rejects %s', (_case, req) => {
+    expect(authorization.isApprovedCompany(req)).toBe(false);
+    expect(authorization.canAccessCompany(req, 8)).toBe(false);
+  });
+
+  test('reads the role only from the account record', () => {
+    expect(authorization.getRole({ user: { roleCode: 'ADMIN' } })).toBeNull();
+    expect(authorization.getRole({ user: { userAccountData: {} } })).toBeNull();
+    expect(authorization.isAdmin({ user: { roleCode: 'ADMIN', userAccountData: { roleCode: 'EMPLOYER' } } })).toBe(false);
+  });
+
+  test('looks up a post owner with its author company only', async () => {
+    mockFindPost.mockResolvedValue({ id: 4, userPostData: { id: 3, companyId: 8 } });
+    expect(await authorization.getCompanyIdOfPost(4)).toBe(8);
+    expect(mockFindPost).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 4 },
+      attributes: ['id', 'userId'],
+      include: [expect.objectContaining({ as: 'userPostData', attributes: ['id', 'companyId'] })],
+      raw: true,
+      nest: true
+    }));
+  });
+});
