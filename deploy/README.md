@@ -162,7 +162,7 @@ Nên định kỳ chép thư mục `deploy/backups/` ra ngoài VPS (`scp` về m
 - **Tài khoản demo** trong dữ liệu (mật khẩu `123456`, `Demo@123456`) ai cũng đoán được. Đổi mật khẩu tài khoản admin trước khi công bố link.
 - **Email**: production bỏ qua địa chỉ mẫu (ví dụ `@example.com`) thay vì chuyển hướng như khi chạy local.
 - **`SCHEDULED_JOBS_ENABLED=false`** mặc định: tắt email gợi ý việc làm tự động, reset hạn mức xem CV hằng ngày và đối soát PayPal. Chỉ bật khi đã dùng dữ liệu thật.
-- **Đăng nhập Google/GitHub**: đăng ký redirect URI `https://<tên-miền>/api/auth/sso/google/callback` (hoặc `.../github/callback`) ở nhà cung cấp, rồi đặt `OIDC_GOOGLE_ENABLED=true`.
+- **Đăng nhập Google/GitHub/Auth0**: đăng ký redirect URI `https://<tên-miền>/api/auth/sso/google/callback` (hoặc `.../github/callback`, `.../auth0/callback`) ở nhà cung cấp, rồi đặt `OIDC_GOOGLE_ENABLED=true` (hoặc `OAUTH_GITHUB_ENABLED`, `OIDC_AUTH0_ENABLED`). Với Auth0, thêm URL callback HTTPS vào **Allowed Callback URLs** của application và điền `OIDC_AUTH0_ISSUER` (giữ dấu `/` cuối).
 - **Chưa có tên miền?** Chạy `npm run vps:env -- <IP-VPS>` để có cấu hình HTTP theo IP. Cách này chỉ để xem thử: không có HTTPS thì trình duyệt không lưu cookie phiên, nên đăng nhập không bền.
 - **Docker và ufw**: cổng do Docker publish đi vòng qua luật ufw. Ở đây chỉ Caddy publish cổng (80/443), mọi kho dữ liệu đều không publish nên không lộ ra ngoài.
 

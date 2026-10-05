@@ -85,6 +85,8 @@ GitHub: tạo OAuth App, đặt callback `http://localhost:4000/api/auth/sso/git
 
 Auth0: tạo application loại **Regular Web Application**, dùng token endpoint authentication `client_secret_post`; đặt Allowed Callback URLs là `http://localhost:4000/api/auth/sso/auth0/callback`. Điền `OIDC_AUTH0_ENABLED=true`, `OIDC_AUTH0_ISSUER=https://TENANT.REGION.auth0.com/` (giữ dấu `/` cuối), `OIDC_AUTH0_CLIENT_ID`, `OIDC_AUTH0_CLIENT_SECRET`, `OIDC_AUTH0_REDIRECT_URI` trong backend/.env. Có thể dùng custom domain HTTPS. Backend thực hiện Authorization Code + PKCE, kiểm tra discovery issuer, nonce và chữ ký ID token. Đăng ký mới yêu cầu `email_verified=true`; không đọc quyền ADMIN/company từ claim nhà cung cấp. Không cần Auth0 Management API hay secret ở React. [Luồng Auth0 với PKCE](https://auth0.com/docs/get-started/authentication-and-authorization-flow/authorization-code-flow-with-pkce/add-login-using-the-authorization-code-flow-with-pkce).
 
+Auth0 đã bật trên máy local (05/10/2026) với tenant `dev-msykn1wahhrmguz3.us.auth0.com`. Giao diện không có nút "Auth0": nút **Google, GitHub, Facebook** đi qua Auth0 bằng tham số `connection`, chuyển thẳng đến nhà cung cấp mà không qua trang chọn của Auth0. Danh sách connection do người vận hành đặt trong `OIDC_AUTH0_CONNECTIONS=google-oauth2,github,facebook` (tên ở Auth0 → Social Connections), không lấy từ trình duyệt. Nếu Google/GitHub trực tiếp (`OIDC_GOOGLE_*`, `OAUTH_GITHUB_*`) được bật thì nút dùng kết nối trực tiếp. Mỗi cách đăng nhập trong Auth0 có `sub` riêng (`google-oauth2|…`, `github|…`, `facebook|…`) nên là một liên kết riêng trong JobFind; danh tính lưu `provider` dạng `auth0:google`, phiên có `method='oidc:auth0:google'`. Đăng ký mới cần ID token có `email` và `email_verified=true`; nếu kết nối GitHub/Facebook của Auth0 không trả email, bật quyền email ở connection tương ứng hoặc liên kết với tài khoản đã có. Khi triển khai VPS, `npm run vps:env` chép `OIDC_AUTH0_*` từ backend/.env; thêm `https://<tên-miền>/api/auth/sso/auth0/callback` vào Allowed Callback URLs.
+
 Sau khi cấu hình, khởi động lại và thử đăng ký mới, đăng nhập lại, liên kết tài khoản cũ, hủy và lỗi callback với tài khoản thử của chính bạn. Địa chỉ callback production phải chuyển sang HTTPS và đăng ký chính xác ở nhà cung cấp.
 
 ## Kiểm thử
@@ -120,7 +122,7 @@ Remove-Item Env:AUTH_TEST_FRONTEND_BUILD
 
 Ảnh ở `.local/auth-oidc-browser/`. Kiểm thử trình duyệt gồm đăng ký Google giả lập với email xác minh không sửa được, nhập mật khẩu Unicode và cấp phiên, đăng nhập Google, cookie HttpOnly, không lưu JWT trong storage, reload, lịch sử, hai tab/logout-all, hủy consent, sai chữ ký và trang forbidden. Workflow `.github/workflows/authentication.yml` tự chuẩn bị MySQL/Chromium và chạy các bước này trong CI; không cần Google Client Secret. Workflow cần chạy trên GitHub để xác nhận môi trường CI thực tế.
 
-**Chưa kiểm thử Google/GitHub/Auth0 thật** vì chưa có Client ID/Secret do người dùng cung cấp. Kiểm thử dùng nhà cung cấp cục bộ/mocks; sau khi cấu hình vẫn cần thử consent/token exchange thật và HTTPS của nơi triển khai.
+**Chưa kiểm thử Google/GitHub trực tiếp** vì chưa có Client ID/Secret. Auth0 thật đã kiểm tra: discovery issuer, chuyển hướng đến Universal Login (client ID và callback URL được chấp nhận) và xác thực client `client_secret_post` tại token endpoint. Lượt consent/callback đầy đủ cần người dùng tự đăng nhập. Kiểm thử tự động dùng nhà cung cấp cục bộ/mocks; khi triển khai vẫn cần thử lại với HTTPS của nơi triển khai.
 
 ## Nhật ký và vận hành
 

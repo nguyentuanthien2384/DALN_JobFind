@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../axios';
 import { forgetAccess, startSocialLink } from './authClient';
-import { providerLabels } from './SocialButtons';
+import { providerLabel, providerLabels, socialProviders } from './SocialButtons';
 import { disconnectSocket } from '../socket';
 import { clearPushOnLogout } from '../push/webPush';
 import './SecuritySettings.css';
@@ -66,20 +66,20 @@ export default function SecuritySettings() {
         <p>Đăng nhập liên kết giữ nguyên vai trò và quyền của tài khoản JobFind hiện tại.</p>
         {data.identities.length === 0 && <p>Chưa có tài khoản nào được liên kết.</p>}
         {data.identities.map(identity => <div key={identity.id} className="border rounded p-3 mb-3">
-          <strong>{providerLabels[identity.provider] || 'Google'} · {identity.emailAtLink || 'Tài khoản đã liên kết'}</strong>
+          <strong>{providerLabel(identity.provider) || 'Tài khoản liên kết'} · {identity.emailAtLink || 'Tài khoản đã liên kết'}</strong>
           <p className="mb-2">Đăng nhập gần nhất: {date(identity.lastLoginAt)}</p>
           <button className="btn btn-outline-danger" disabled={busy || !password} onClick={() => {
             if (window.confirm('Hủy liên kết tài khoản này và đăng xuất tất cả phiên? Bạn vẫn có thể đăng nhập bằng số điện thoại và mật khẩu.'))
               perform(() => api.post(`/api/auth/identities/${identity.id}/unlink`, { password }), true);
           }}>Hủy liên kết</button>
         </div>)}
-        {(Object.keys(providerLabels).some(provider => data[provider]) || data.identities.length > 0) && <><label htmlFor="security-password">Mật khẩu JobFind hiện tại</label>
+        {(socialProviders.some(provider => data[provider]) || data.identities.length > 0) && <><label htmlFor="security-password">Mật khẩu JobFind hiện tại</label>
         <input id="security-password" className="form-control mb-3" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} />
         <small className="d-block mb-3">Nhập mật khẩu để xác nhận việc liên kết hoặc hủy liên kết tài khoản.</small></>}
-        <div className="d-flex flex-wrap" style={{ gap: 8 }}>{Object.entries(providerLabels).filter(([provider]) => data[provider]).map(([provider, label]) =>
-          <button key={provider} className="btn btn-primary" disabled={busy || !password} onClick={() => perform(() => startSocialLink(provider, password))}>Liên kết tài khoản {label}</button>
+        <div className="d-flex flex-wrap" style={{ gap: 8 }}>{socialProviders.filter(provider => data[provider]).map(provider =>
+          <button key={provider} className="btn btn-primary" disabled={busy || !password} onClick={() => perform(() => startSocialLink(provider, password))}>Liên kết tài khoản {providerLabels[provider]}</button>
         )}</div>
-        {!Object.keys(providerLabels).some(provider => data[provider]) && <p role="status">Đăng nhập liên kết chưa được quản trị viên cấu hình.</p>}
+        {!socialProviders.some(provider => data[provider]) && <p role="status">Đăng nhập liên kết chưa được quản trị viên cấu hình.</p>}
 
       </section>
       <section className="card" aria-labelledby="sessions-title">
@@ -87,7 +87,7 @@ export default function SecuritySettings() {
         <p>Mỗi lần đăng nhập tạo một phiên. Thu hồi phiên sẽ chặn truy cập từ phiên đó.</p>
         <ul className="list-unstyled">
           {data.sessions.map(session => <li key={session.familyId} className="border rounded p-3 mb-3 d-flex flex-wrap justify-content-between align-items-center">
-            <div><strong>{session.current ? 'Phiên hiện tại' : 'Phiên khác'} · {session.method === 'password' ? 'Mật khẩu' : providerLabels[(session.method || '').replace(/^oidc:/, '')] || 'Tài khoản liên kết'}</strong>
+            <div><strong>{session.current ? 'Phiên hiện tại' : 'Phiên khác'} · {session.method === 'password' ? 'Mật khẩu' : providerLabel((session.method || '').replace(/^oidc:/, '')) || 'Tài khoản liên kết'}</strong>
               <p className="mb-1">{session.deviceLabel || 'Chưa có thông tin thiết bị'}</p>
               <p className="mb-1">Đăng nhập: {date(session.startedAt || session.createdAt)}</p>
               {session.lastUsedAt && <p className="mb-1">Cập nhật phiên gần nhất: {date(session.lastUsedAt)}</p>}

@@ -25,7 +25,27 @@ export const providerSettings = name => {
   return { name, id, secret, redirect, issuer };
 };
 export const providerAvailable = name => { try { providerSettings(name); return true; } catch { return false; } };
-export const availableProviders = () => Object.fromEntries(['google', 'github', 'auth0'].map(name => [name, providerAvailable(name)]));
+
+// Auth0 social strategies the login buttons can route to. Auth0 subjects are "<strategy>|<id>".
+const AUTH0_STRATEGIES = { 'google-oauth2': 'google', github: 'github', facebook: 'facebook' };
+const auth0Connections = () => (process.env.OIDC_AUTH0_CONNECTIONS || '').split(',').map(value => value.trim())
+  .filter(value => Object.hasOwn(AUTH0_STRATEGIES, value));
+// A button uses its direct provider when configured, otherwise the operator-listed Auth0 connection.
+// The connection comes from server configuration only, never from the request.
+export const loginRoute = method => {
+  if (method !== 'facebook' && providerAvailable(method)) return { provider: method };
+  const connection = auth0Connections().find(value => AUTH0_STRATEGIES[value] === method);
+  if (connection && providerAvailable('auth0')) return { provider: 'auth0', connection };
+  throw new Error('OIDC_DISABLED');
+};
+const routeAvailable = method => { try { loginRoute(method); return true; } catch { return false; } };
+export const availableProviders = () => Object.fromEntries(['google', 'github', 'facebook', 'auth0'].map(name => [name, routeAvailable(name)]));
+// Stored identity/session label: "auth0:google" for Google via Auth0, plain "auth0" for its own database users.
+export const identityProvider = (name, subject) => {
+  if (name !== 'auth0') return name;
+  const strategy = String(subject).split('|')[0];
+  return Object.hasOwn(AUTH0_STRATEGIES, strategy) ? `auth0:${AUTH0_STRATEGIES[strategy]}` : 'auth0';
+};
 
 export const githubAuthorizationUrl = (settings, state, verifier) => {
   const url = new URL('https://github.com/login/oauth/authorize');

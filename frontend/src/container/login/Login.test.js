@@ -38,7 +38,7 @@ describe("Login", () => {
         window.history.replaceState({}, '', '/login?reason=expired');
         renderLogin();
         expect(screen.getByRole('status')).toHaveTextContent('Phiên đăng nhập đã hết hạn');
-        await screen.findByText(/Google, GitHub, Auth0 chưa được bật/);
+        await screen.findByText(/Google, GitHub, Facebook chưa được bật/);
     });
     it('handles a rejected login request without leaving the submit button stuck', async () => {
         handleLoginService.mockRejectedValueOnce(new Error('network failure'));
@@ -136,25 +136,26 @@ describe('Login methods and form feedback', () => {
         await waitFor(() => expect(handleLoginService).toHaveBeenCalledWith({ identifier: 'person@gmail.com', password: 'legacy1', rememberMe: true }));
     });
     it('only enables configured providers and carries remember-me into SSO', async () => {
-        getProviders.mockResolvedValueOnce({ google: false, github: true, auth0: false });
+        getProviders.mockResolvedValueOnce({ google: false, github: true, facebook: false, auth0: true });
         const { user } = renderLogin();
         const github = await screen.findByRole('button', { name: 'Đăng nhập bằng GitHub' });
         await waitFor(() => expect(github).toBeEnabled());
-        expect(screen.getByRole('button', { name: 'Đăng nhập bằng Auth0' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Đăng nhập bằng Facebook' })).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeDisabled();
-        expect(screen.getByText(/Google, Auth0 chưa được bật/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /Auth0/ })).toBeNull();
+        expect(screen.getByText(/Google, Facebook chưa được bật/)).toBeInTheDocument();
         await user.click(screen.getByRole('checkbox', { name: /Ghi nhớ/ }));
         await user.click(github);
         expect(startSocialLogin).toHaveBeenCalledWith('github', { rememberMe: true });
     });
     it('keeps all providers visible and explains why they cannot be used before configuration', async () => {
         const { user } = renderLogin();
-        await screen.findByText(/Google, GitHub, Auth0 chưa được bật/);
-        for (const provider of ['Google', 'GitHub', 'Auth0']) {
+        await screen.findByText(/Google, GitHub, Facebook chưa được bật/);
+        for (const provider of ['Google', 'GitHub', 'Facebook']) {
             const button = screen.getByRole('button', { name: `Đăng nhập bằng ${provider}` });
             expect(button).toBeVisible();
             expect(button).toBeDisabled();
-            expect(button).toHaveAccessibleDescription(/Google, GitHub, Auth0 chưa được bật/);
+            expect(button).toHaveAccessibleDescription(/Google, GitHub, Facebook chưa được bật/);
             await user.click(button);
         }
         expect(startSocialLogin).not.toHaveBeenCalled();
@@ -169,7 +170,7 @@ describe('Login methods and form feedback', () => {
         await user.keyboard('0912345678{Enter}');
         expect(screen.getByLabelText('Mật khẩu', { exact: true })).toHaveFocus();
         expect(handleLoginService).not.toHaveBeenCalled();
-        await screen.findByText(/Google, GitHub, Auth0 chưa được bật/);
+        await screen.findByText(/Google, GitHub, Facebook chưa được bật/);
     });
     it('supports phone/password autofill and toggles password visibility without submitting', async () => {
         const { user } = renderLogin();
@@ -184,7 +185,7 @@ describe('Login methods and form feedback', () => {
         await user.click(screen.getByRole('button', { name: 'Ẩn mật khẩu' }));
         expect(password).toHaveAttribute('type', 'password');
         expect(handleLoginService).not.toHaveBeenCalled();
-        await screen.findByText(/Google, GitHub, Auth0 chưa được bật/);
+        await screen.findByText(/Google, GitHub, Facebook chưa được bật/);
     });
     it('recovers provider lookup after failure while keeping local login available', async () => {
         getProviders.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ google: true });
@@ -248,7 +249,7 @@ describe('Login methods and form feedback', () => {
     ])('explains SSO result %s without starting a new session', async (status, message) => {
         window.history.replaceState({}, '', '/login?sso=' + status);
         renderLogin(); expect(screen.getByText(message)).toBeInTheDocument();
-        await screen.findByText(/Google, GitHub, Auth0 chưa được bật/);
+        await screen.findByText(/Google, GitHub, Facebook chưa được bật/);
         expect(refreshSession).not.toHaveBeenCalled();
     });
 });
@@ -308,7 +309,7 @@ describe('Login while preparing an application', () => {
         expect(readApplicationIntent()).toBeNull();
         expect(localStorage.getItem('lastUrl')).toBeNull();
         expect(screen.queryByText('Kỹ sư phần mềm')).not.toBeInTheDocument();
-        await screen.findByText(/Google, GitHub, Auth0 chưa được bật/);
+        await screen.findByText(/Google, GitHub, Facebook chưa được bật/);
     });
 
     it('preserves the application while starting a social provider', async () => {

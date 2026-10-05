@@ -110,6 +110,9 @@ const assertEmailAvailable = async (email, transaction, exceptUserId = null) => 
         limit: 1, transaction, lock: transaction.LOCK.UPDATE });
     if (matches.length) throw registrationError('email', 'Email này đã được sử dụng. Hãy đăng nhập hoặc dùng email khác.', 4);
 };
+// Unsplash portraits served by the frontend: frontend/public/demo/people/demo-candidate-001..072.jpg (see CREDITS.md).
+const DEFAULT_AVATAR_COUNT = 72;
+export const randomDefaultAvatar = () => `/demo/people/demo-candidate-${String(crypto.randomInt(1, DEFAULT_AVATAR_COUNT + 1)).padStart(3, '0')}.jpg`;
 export const createRegisteredAccount = async (data, { transaction, allowedRoles = ['CANDIDATE', 'EMPLOYER'], companyId = null, imageUrl = '' } = {}) => {
     const errors = validateRegistration(data);
     if (Object.keys(errors).length) throw Object.assign(new Error(Object.values(errors)[0]), { errCode: errors.email ? 4 : 2, fieldErrors: errors });
@@ -125,7 +128,7 @@ export const createRegisteredAccount = async (data, { transaction, allowedRoles 
         const user = await db.User.create({
             firstName: data.firstName.trim(), lastName: data.lastName.trim(), email,
             address: data.address, genderCode: data.genderCode, dob: data.dob,
-            image: imageUrl, companyId
+            image: imageUrl || randomDefaultAvatar(), companyId
         }, { transaction: tx });
         await db.Account.create({ phonenumber, password, roleCode: data.roleCode, statusCode: 'S1', userId: user.id }, { transaction: tx });
         return user;
@@ -696,6 +699,7 @@ let setDataUserSetting = (data) => {
 module.exports = {
     handleCreateNewUser: handleCreateNewUser,
     createRegisteredAccount,
+    randomDefaultAvatar,
     banUser: banUser,
     unbanUser: unbanUser,
     updateUserData: updateUserData,

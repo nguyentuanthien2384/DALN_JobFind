@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import db from '../models/index';
 import { hashOpaque, loadUser, activeFamily, readRefreshCookie, lockAccount } from './authSessionService';
 import { recordSecurityEvent } from './authAuditService';
-import { providerSettings, providerAvailable, availableProviders, githubAuthorizationUrl, githubClaims } from './socialProviders';
+import { providerSettings, providerAvailable, availableProviders, loginRoute, identityProvider, githubAuthorizationUrl, githubClaims } from './socialProviders';
 import { prepareSignup, clearSignupCookie } from './socialRegistrationService';
 // openid-client v6 verifies ID token signature, issuer, audience, expiry and nonce.
 // Install on the backend only: npm install openid-client@^6
@@ -20,8 +20,9 @@ const clientFor = async (settings) => {
   client.enableNonRepudiationChecks(config);
   return { client, config };
 };
-export const begin = async (name, res, linkUserId = null, linkSessionId = null, rememberMe = false) => {
+export const begin = async (method, res, linkUserId = null, linkSessionId = null, rememberMe = false) => {
   if (linkUserId && !await activeFamily(linkSessionId, linkUserId)) throw new Error('OIDC_LINK_DENIED');
+  const { provider: name, connection } = loginRoute(method);
   const settings = providerSettings(name);
   const { client, config } = name === 'github' ? {} : await clientFor(settings);
   const random = () => crypto.randomBytes(32).toString('base64url');
@@ -40,7 +41,7 @@ export const begin = async (name, res, linkUserId = null, linkSessionId = null, 
   return client.buildAuthorizationUrl(config, {
     redirect_uri: settings.redirect, response_type: 'code', scope: 'openid email profile',
     state, nonce, code_challenge: await client.calculatePKCECodeChallenge(verifier),
-    code_challenge_method: 'S256',
+    code_challenge_method: 'S256', ...(connection ? { connection } : {}),
   }).href;
 };
 const parseCookie = (req) => {
@@ -83,6 +84,7 @@ export const complete = async (name, req, res) => {
   if (!claims || claims.aud !== settings.id && !(Array.isArray(claims.aud) && claims.aud.includes(settings.id))) throw new Error('OIDC_ID_TOKEN');
   }
   if (!claims || claims.iss !== settings.issuer || typeof claims.sub !== 'string' || !claims.sub || claims.sub.length > 255) throw new Error('OIDC_ID_TOKEN');
+  const provider = identityProvider(name, claims.sub);
   // Never trust email alone to merge accounts, and never grant a role from IdP claims.
   let identity = await db.AuthIdentity.findOne({ raw: false, where: { issuer: claims.iss, subject: claims.sub } });
   if (tx.linkUserId) {
@@ -96,7 +98,7 @@ export const complete = async (name, req, res) => {
     if (!current || (linkedIdentity && linkedIdentity.userId !== current.id)) throw new Error('OIDC_LINK_DENIED');
     if (!linkedIdentity) {
     linkedIdentity = await db.AuthIdentity.create({
-      userId: current.id, provider: name, issuer: claims.iss, subject: claims.sub,
+      userId: current.id, provider, issuer: claims.iss, subject: claims.sub,
       emailAtLink: claims.email_verified === true ? String(claims.email || '').slice(0, 254) : null,
       emailVerifiedAtLink: claims.email_verified === true,
       displayNameAtLink: typeof claims.name === 'string' ? claims.name.slice(0, 120) : null,
@@ -106,9 +108,9 @@ export const complete = async (name, req, res) => {
     return linkedIdentity;
     });
   }
-  if (!identity) return prepareSignup(name, claims, tx.rememberMe !== false, res);
+  if (!identity) return prepareSignup(provider, claims, tx.rememberMe !== false, res);
   const user = await loadUser(identity.userId);
   if (!user) throw new Error('INACTIVE_ACCOUNT');
   await identity.update({ lastLoginAt: new Date() });
-  return { userId: user.id, method: `oidc:${name}`, identityId: identity.id, linked: Boolean(tx.linkUserId), rememberMe: tx.rememberMe !== false };
+  return { userId: user.id, method: `oidc:${provider}`, identityId: identity.id, linked: Boolean(tx.linkUserId), rememberMe: tx.rememberMe !== false };
 };

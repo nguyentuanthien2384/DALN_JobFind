@@ -66,6 +66,9 @@ const values = {
     OIDC_GOOGLE_CLIENT_ID: pick(backend.OIDC_GOOGLE_CLIENT_ID), OIDC_GOOGLE_CLIENT_SECRET: pick(backend.OIDC_GOOGLE_CLIENT_SECRET),
     OAUTH_GITHUB_ENABLED: pick(backend.OAUTH_GITHUB_ENABLED, 'false'),
     OAUTH_GITHUB_CLIENT_ID: pick(backend.OAUTH_GITHUB_CLIENT_ID), OAUTH_GITHUB_CLIENT_SECRET: pick(backend.OAUTH_GITHUB_CLIENT_SECRET),
+    OIDC_AUTH0_ENABLED: pick(backend.OIDC_AUTH0_ENABLED, 'false'), OIDC_AUTH0_ISSUER: pick(backend.OIDC_AUTH0_ISSUER),
+    OIDC_AUTH0_CLIENT_ID: pick(backend.OIDC_AUTH0_CLIENT_ID), OIDC_AUTH0_CLIENT_SECRET: pick(backend.OIDC_AUTH0_CLIENT_SECRET),
+    OIDC_AUTH0_CONNECTIONS: pick(backend.OIDC_AUTH0_CONNECTIONS),
     SCHEDULED_JOBS_ENABLED: 'false',
     REACT_APP_JOB_CREATE_MODE: pick(web.REACT_APP_JOB_CREATE_MODE, 'core'),
     REACT_APP_JOB_EDIT_MODE: pick(web.REACT_APP_JOB_EDIT_MODE, 'core'),
@@ -97,12 +100,12 @@ catch (error) {
     process.exit(1);
 }
 
-const copied = ['ANTHROPIC_API_KEY', 'EMAIL_APP', 'CLOUDINARY_CLOUD_NAME', 'PAYPAL_CLIENT_ID', 'WEB_PUSH_PUBLIC_KEY', 'GEMINI_API_KEY', 'OIDC_GOOGLE_CLIENT_ID'];
+const copied = ['ANTHROPIC_API_KEY', 'EMAIL_APP', 'CLOUDINARY_CLOUD_NAME', 'PAYPAL_CLIENT_ID', 'WEB_PUSH_PUBLIC_KEY', 'GEMINI_API_KEY', 'OIDC_GOOGLE_CLIENT_ID', 'OIDC_AUTH0_CLIENT_ID'];
 console.log(`Da tao ${path.relative(root, out)} cho ${values.PUBLIC_URL}`);
 console.log('  Mat khau CSDL, RabbitMQ, JWT_SECRET, INTERNAL_SECRET: sinh moi.');
 for (const name of copied) console.log(`  ${name}: ${values[name] ? 'chep tu .env local' : 'TRONG - dien neu can'}`);
 if (!values.ANTHROPIC_API_KEY) console.log('  Khong co ANTHROPIC_API_KEY: AI Worker se khong chay (COMPOSE_PROFILES trong).');
 if (values.SITE_ADDRESS === ':80') console.log('  Canh bao: chay HTTP khong co HTTPS, trinh duyet khong luu cookie phien; dung ten mien khi demo that.');
-if (values.OIDC_GOOGLE_ENABLED === 'true' || values.OAUTH_GITHUB_ENABLED === 'true') {
-    console.log(`  Nho dang ky redirect URI ${values.PUBLIC_URL}/api/auth/sso/<google|github>/callback o nha cung cap.`);
+if (['OIDC_GOOGLE_ENABLED', 'OAUTH_GITHUB_ENABLED', 'OIDC_AUTH0_ENABLED'].some(name => values[name] === 'true')) {
+    console.log(`  Nho dang ky redirect URI ${values.PUBLIC_URL}/api/auth/sso/<google|github|auth0>/callback o nha cung cap.`);
 }

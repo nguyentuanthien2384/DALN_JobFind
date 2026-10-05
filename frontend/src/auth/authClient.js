@@ -78,7 +78,7 @@ export const logoutServer = async () => {
   finally { loggingOut = false; forgetAccess(); }
 };
 const assertProvider = provider => {
-  if (!['google', 'github', 'auth0'].includes(provider)) throw new Error('Unsupported provider');
+  if (!['google', 'github', 'facebook', 'auth0'].includes(provider)) throw new Error('Unsupported provider');
   return provider;
 };
 export const startSocialLink = async (provider, password) => {

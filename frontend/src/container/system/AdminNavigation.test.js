@@ -340,6 +340,14 @@ describe("system Header", () => {
         expect(within(document.getElementById("system-profile-menu")).getByText("Nguyễn Thiền")).toBeInTheDocument();
     });
 
+    it("shows an initial instead of a broken image when the account has no avatar", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 7, roleCode: "ADMIN", image: "", firstName: "NT", lastName: "Thiền" }));
+        render(<Header />);
+        const profile = await screen.findByRole("button", { name: "Tài khoản" });
+        expect(screen.queryByAltText("profile")).toBeNull();
+        expect(within(profile).getByText("N")).toBeInTheDocument();
+    });
+
     it("sends an employer without companyId from the logo to company creation", async () => {
         localStorage.setItem("userData", JSON.stringify({
             id: 8,

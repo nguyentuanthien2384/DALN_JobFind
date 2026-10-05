@@ -32,7 +32,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     await page.goto(base + '/login');
     const login = page.locator('.jf-login');
     await login.waitFor({ state: 'visible' });
-    await page.getByText('Google, GitHub, Auth0 chưa được bật. Bạn có thể dùng tài khoản JobFind bên dưới.', { exact: true }).waitFor();
+    await page.getByText('Google, GitHub, Facebook chưa được bật. Bạn có thể dùng tài khoản JobFind bên dưới.', { exact: true }).waitFor();
     const googleLogin = page.getByRole('button', { name: 'Đăng nhập bằng Google', exact: true });
     assert.equal(await googleLogin.isVisible(), true);
     assert.equal(await googleLogin.isDisabled(), true);

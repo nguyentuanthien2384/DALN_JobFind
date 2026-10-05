@@ -26,11 +26,36 @@ afterEach(() => {
 });
 
 test('providers are disabled by default and unknown provider names cannot select configuration', () => {
-  expect(providers.availableProviders()).toEqual({ google: false, github: false, auth0: false });
+  expect(providers.availableProviders()).toEqual({ google: false, github: false, facebook: false, auth0: false });
   expect(() => providers.providerSettings('attacker')).toThrow('OIDC_DISABLED');
   configure('google');
   delete process.env.OIDC_GOOGLE_CLIENT_SECRET;
   expect(providers.providerAvailable('google')).toBe(false);
+});
+
+test('buttons route through operator-listed Auth0 connections only when no direct provider is configured', () => {
+  process.env.OIDC_AUTH0_CONNECTIONS = 'google-oauth2, facebook,attacker-connection';
+  expect(() => providers.loginRoute('google')).toThrow('OIDC_DISABLED');
+  configure('auth0');
+  expect(providers.loginRoute('google')).toEqual({ provider: 'auth0', connection: 'google-oauth2' });
+  expect(providers.loginRoute('facebook')).toEqual({ provider: 'auth0', connection: 'facebook' });
+  expect(() => providers.loginRoute('github')).toThrow('OIDC_DISABLED');
+  expect(() => providers.loginRoute('attacker-connection')).toThrow('OIDC_DISABLED');
+  expect(providers.loginRoute('auth0')).toEqual({ provider: 'auth0' });
+  expect(providers.availableProviders()).toEqual({ google: true, github: false, facebook: true, auth0: true });
+  configure('google');
+  expect(providers.loginRoute('google')).toEqual({ provider: 'google' });
+  delete process.env.OIDC_AUTH0_CLIENT_SECRET;
+  expect(providers.availableProviders()).toEqual({ google: true, github: false, facebook: false, auth0: false });
+});
+
+test('Auth0 identities are labelled by the social strategy in the subject', () => {
+  expect(providers.identityProvider('auth0', 'google-oauth2|115')).toBe('auth0:google');
+  expect(providers.identityProvider('auth0', 'github|186')).toBe('auth0:github');
+  expect(providers.identityProvider('auth0', 'facebook|42')).toBe('auth0:facebook');
+  expect(providers.identityProvider('auth0', 'auth0|db-user')).toBe('auth0');
+  expect(providers.identityProvider('auth0', 'toString|x')).toBe('auth0');
+  expect(providers.identityProvider('google', 'google-oauth2|115')).toBe('google');
 });
 
 test('availability exposes only booleans while Auth0 secrets remain in server configuration', () => {
@@ -38,7 +63,7 @@ test('availability exposes only booleans while Auth0 secrets remain in server co
   const settings = providers.providerSettings('auth0');
   expect(settings).toMatchObject({ issuer: 'https://tenant.eu.auth0.com/', secret: 'auth0-test-server-secret' });
   const publicSettings = providers.availableProviders();
-  expect(publicSettings).toEqual({ google: false, github: false, auth0: true });
+  expect(publicSettings).toEqual({ google: false, github: false, facebook: false, auth0: true });
   expect(JSON.stringify(publicSettings)).not.toContain(settings.secret);
   expect(JSON.stringify(publicSettings)).not.toContain(settings.id);
 });

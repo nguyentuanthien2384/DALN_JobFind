@@ -128,6 +128,26 @@ test.each([false, true])('Auth0 validates issuer and signed ID token and preserv
   expect(mockDb.AuthIdentity.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { issuer, subject: 'auth0|stable-id' } }));
 });
 
+test('Google button goes straight to the Auth0 google-oauth2 connection and labels the identity', async () => {
+  const issuer = 'https://unit-tenant.us.auth0.com/';
+  Object.assign(process.env, { OIDC_GOOGLE_ENABLED: 'false', OIDC_AUTH0_ENABLED: 'true', OIDC_AUTH0_ISSUER: issuer, OIDC_AUTH0_CLIENT_ID: 'auth0-client',
+    OIDC_AUTH0_CLIENT_SECRET: 'auth0-test-secret', OIDC_AUTH0_REDIRECT_URI: 'http://localhost:4000/api/auth/sso/auth0/callback', OIDC_AUTH0_CONNECTIONS: 'google-oauth2,github,facebook' });
+  mockConfig.serverMetadata.mockReturnValue({ issuer });
+  const res = response();
+  await oidc.begin('google', res);
+  expect(mockDb.OidcTransaction.create).toHaveBeenCalledWith(expect.objectContaining({ provider: 'auth0' }));
+  expect(mockClient.buildAuthorizationUrl).toHaveBeenCalledWith(mockConfig, expect.objectContaining({ connection: 'google-oauth2' }));
+  transaction.provider = 'auth0';
+  await expect(oidc.complete('google', request(), res)).rejects.toThrow('OIDC_STATE');
+  mockClient.authorizationCodeGrant.mockResolvedValue({ claims: () => ({ iss: issuer, sub: 'google-oauth2|115', aud: 'auth0-client', email_verified: true, email: 'user@gmail.com' }) });
+  expect(await oidc.complete('auth0', request(), res)).toMatchObject({ method: 'oidc:auth0:google', identityId: 9 });
+  mockDb.AuthIdentity.findOne.mockResolvedValue(null);
+  mockRegistration.prepareSignup.mockResolvedValue({ pendingSignup: true });
+  mockClient.authorizationCodeGrant.mockResolvedValue({ claims: () => ({ iss: issuer, sub: 'facebook|42', aud: 'auth0-client', email_verified: true, email: 'user@gmail.com' }) });
+  await oidc.complete('auth0', request(), res);
+  expect(mockRegistration.prepareSignup).toHaveBeenCalledWith('auth0:facebook', expect.objectContaining({ sub: 'facebook|42' }), false, res);
+});
+
 test('OIDC discovery rejects unexpected issuer metadata before exchanging any code', async () => {
   mockConfig.serverMetadata.mockReturnValue({ issuer: 'https://attacker.invalid/' });
   await expect(oidc.complete('google', request(), response())).rejects.toThrow('OIDC_ISSUER');

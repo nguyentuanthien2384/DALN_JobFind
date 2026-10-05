@@ -65,6 +65,7 @@
 .jf-login__provider-icon--google { color: #4285f4; }
 .jf-login__provider-icon--github { color: #24292f; font-size: 12px; }
 .jf-login__provider-icon--auth0 { color: #eb5424; }
+.jf-login__provider-icon--facebook { color: #1877f2; font-size: 17px; font-family: Helvetica, Arial, sans-serif; }
 .jf-login__remember { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; color: #66728a; font-size: 11px; cursor: pointer; }
 .jf-login__remember input { width: 15px; height: 15px; margin: 0; accent-color: #5549ac; }
 .jf-register__recover { display: flex; align-items: center; gap: 12px; font-size: 12px; margin: 12px 0; }

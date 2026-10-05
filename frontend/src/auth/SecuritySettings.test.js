@@ -34,10 +34,13 @@ test('linking requires the current password and reports provider errors', async 
 });
 
 test('shows provider identities and links GitHub with the same password confirmation', async () => {
-  api.get.mockResolvedValueOnce({ ...data, github: true, identities: [{ id: 15, provider: 'auth0', emailAtLink: 'lan@gmail.com' }] });
+  api.get.mockResolvedValueOnce({ ...data, github: true, auth0: true, identities: [{ id: 15, provider: 'auth0', emailAtLink: 'lan@gmail.com' },
+    { id: 16, provider: 'auth0:facebook', emailAtLink: 'lan@gmail.com' }] });
   startSocialLink.mockRejectedValueOnce(new Error('Thử lại'));
   render(<SecuritySettings />);
   expect(await screen.findByText('Auth0 · lan@gmail.com')).toBeInTheDocument();
+  expect(screen.getByText('Facebook · lan@gmail.com')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Liên kết tài khoản Auth0' })).toBeNull();
   const github = screen.getByRole('button', { name: 'Liên kết tài khoản GitHub' });
   expect(github).toBeDisabled();
   await user.type(screen.getByLabelText('Mật khẩu JobFind hiện tại'), 'current-password');

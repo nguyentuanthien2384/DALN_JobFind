@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { createNewUser, handleLoginService } from '../../service/userService';
 import { establishSession, getSocialSignup, completeSocialSignup, startSocialLogin } from '../../auth/authClient';
-import SocialButtons, { providerLabels } from '../../auth/SocialButtons';
+import SocialButtons, { providerLabel } from '../../auth/SocialButtons';
 import { validatePassword, PASSWORD_HINT } from '../../auth/passwordPolicy';
 import { safeReturnPath } from '../../auth/sessionExpiry';
 import { clearApplicationIntent, getApplicationReturnPath, readApplicationIntent } from '../../auth/applicationIntent';
@@ -45,7 +45,7 @@ export default function Register() {
         let active = true;
         setSocialLoading(true); setError('');
         getSocialSignup().then(result => {
-            if (result?.errCode !== 0 || !result.profile?.email || !providerLabels[result.profile.provider]) throw new Error('Invalid signup');
+            if (result?.errCode !== 0 || !result.profile?.email || !providerLabel(result.profile.provider)) throw new Error('Invalid signup');
             if (active) {
                 setSocialProfile(result.profile);
                 setValues(current => ({ ...current, firstName: result.profile.firstName || '', lastName: result.profile.lastName || '', email: result.profile.email }));
@@ -169,7 +169,7 @@ export default function Register() {
     return <main className="jf-login jf-register">
         <div className="jf-login__shell">
             <section className="jf-login__form-panel" aria-labelledby="register-title">
-                <div className="jf-login__heading"><h1 id="register-title" ref={headingRef} tabIndex={-1}>{created ? 'Tài khoản đã sẵn sàng' : 'Tạo tài khoản'}</h1><p>{created ? 'Chào mừng bạn đến với JobFind.' : socialProfile ? `Hoàn tất tài khoản qua ${providerLabels[socialProfile.provider]}.` : 'Bắt đầu chỉ với hai bước đơn giản.'}</p></div>
+                <div className="jf-login__heading"><h1 id="register-title" ref={headingRef} tabIndex={-1}>{created ? 'Tài khoản đã sẵn sàng' : 'Tạo tài khoản'}</h1><p>{created ? 'Chào mừng bạn đến với JobFind.' : socialProfile ? `Hoàn tất tài khoản qua ${providerLabel(socialProfile.provider)}.` : 'Bắt đầu chỉ với hai bước đơn giản.'}</p></div>
                 {applicationIntent && <div className="jf-login__notice" role="status">
                     <p>Tạo tài khoản ứng viên để tiếp tục ứng tuyển <strong>{applicationIntent.jobTitle || 'công việc này'}</strong>. Sau khi đăng ký, bạn sẽ quay lại công việc để chọn CV và xác nhận ứng tuyển.</p>
                     <Link to={'/detail-job/' + applicationIntent.jobId} onClick={cancelApplication}>Quay lại xem công việc</Link>

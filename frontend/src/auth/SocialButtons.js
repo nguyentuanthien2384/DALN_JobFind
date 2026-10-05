@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { getProviders } from './authClient';
 
-export const providerLabels = { google: 'Google', github: 'GitHub', auth0: 'Auth0' };
+export const providerLabels = { google: 'Google', github: 'GitHub', facebook: 'Facebook', auth0: 'Auth0' };
+// Buttons shown to users; Auth0 only brokers these logins and has no button of its own.
+export const socialProviders = ['google', 'github', 'facebook'];
+// Stored providers may name the broker, e.g. "auth0:google" for Google through Auth0.
+export const providerLabel = provider => providerLabels[String(provider || '').split(':').pop()];
+const providerIcons = { google: 'G', github: 'GH', facebook: 'f' };
 
 export default function SocialButtons({ busy, starting, onStart, registration = false }) {
   const [providers, setProviders] = useState({});
@@ -15,15 +20,15 @@ export default function SocialButtons({ busy, starting, onStart, registration = 
     }).catch(() => { if (active) setStatus('error'); });
     return () => { active = false; };
   }, [retry]);
-  const visible = Object.keys(providerLabels).filter(provider => !registration || providers[provider] === true);
-  const unavailable = Object.keys(providerLabels).filter(provider => providers[provider] !== true).map(provider => providerLabels[provider]);
+  const visible = socialProviders.filter(provider => !registration || providers[provider] === true);
+  const unavailable = socialProviders.filter(provider => providers[provider] !== true).map(provider => providerLabels[provider]);
   if (registration && !visible.length && status !== 'error') return null;
   return <div className="jf-login__social">
     <div className="jf-login__social-buttons">{visible.map(provider => <button key={provider} className="jf-login__google" type="button"
       disabled={busy || status !== 'ready' || providers[provider] !== true} onClick={() => onStart(provider)}
       aria-label={starting === provider ? `Đang chuyển đến ${providerLabels[provider]}...` : `${registration ? 'Đăng ký' : 'Đăng nhập'} bằng ${providerLabels[provider]}`}
       aria-describedby={!registration ? 'login-social-note' : undefined}>
-      <span className={'jf-login__provider-icon jf-login__provider-icon--' + provider} aria-hidden="true">{provider === 'google' ? 'G' : provider === 'github' ? 'GH' : 'A'}</span>
+      <span className={'jf-login__provider-icon jf-login__provider-icon--' + provider} aria-hidden="true">{providerIcons[provider]}</span>
       {starting === provider ? `Đang chuyển đến ${providerLabels[provider]}...` : visible.length > 1 ? providerLabels[provider] : `${registration ? 'Đăng ký' : 'Đăng nhập'} bằng ${providerLabels[provider]}`}
     </button>)}</div>
     {status === 'error' ? <p id={!registration ? 'login-social-note' : undefined} className="jf-login__provider-note jf-login__provider-note--error" aria-live="polite">Chưa kiểm tra được phương thức đăng nhập. <button type="button" disabled={busy} onClick={() => { setStatus('loading'); setRetry(value => value + 1); }}>Thử lại</button></p>

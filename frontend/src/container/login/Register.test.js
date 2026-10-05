@@ -243,12 +243,13 @@ describe('Register', () => {
     });
 
     it('starts registration only with a configured social provider', async () => {
-        getProviders.mockResolvedValueOnce({ google: false, github: true, auth0: false });
+        getProviders.mockResolvedValueOnce({ google: false, github: true, facebook: false, auth0: true });
         render(<Register />);
         await act(async () => {});
         await user.click(await screen.findByRole('button', { name: 'Đăng ký bằng GitHub' }));
         expect(startSocialLogin).toHaveBeenCalledWith('github', { rememberMe: false });
         expect(screen.queryByRole('button', { name: 'Đăng ký bằng Auth0' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Đăng ký bằng Facebook' })).toBeNull();
     });
 
     it('completes pending social signup with locked email, a public role and one server session', async () => {
@@ -273,12 +274,13 @@ describe('Register', () => {
 
     it('keeps social validation errors editable and does not retry an account already created', async () => {
         window.history.replaceState({}, '', '/register?sso=complete');
-        getSocialSignup.mockResolvedValue({ errCode: 0, profile: { provider: 'google', email: 'lan@gmail.com', firstName: 'Nguyen', lastName: 'Lan' } });
+        getSocialSignup.mockResolvedValue({ errCode: 0, profile: { provider: 'auth0:google', email: 'lan@gmail.com', firstName: 'Nguyen', lastName: 'Lan' } });
         completeSocialSignup.mockRejectedValueOnce({ response: { data: { errCode: 409, fieldErrors: { phonenumber: 'Số điện thoại đã tồn tại.' }, errMessage: 'Kiểm tra số điện thoại.' } } });
         completeSocialSignup.mockRejectedValueOnce({ response: { data: { errCode: 503, accountCreated: true } } });
         render(<Register />);
         await act(async () => {});
         await screen.findByLabelText('Email', { exact: true });
+        expect(screen.getByText(/Hoàn tất tài khoản qua Google/)).toBeInTheDocument();
         await nextStep(); await fillAccount(); await submit();
         await waitFor(() => expect(screen.getByLabelText('Số điện thoại', { exact: true })).toHaveAttribute('aria-invalid', 'true'));
         await change('Số điện thoại', '0987654321'); await submit();

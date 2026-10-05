@@ -91,6 +91,22 @@ describe('userService', () => {
     }), { transaction: mockTransaction });
   });
 
+  test('accounts created without an upload get a random bundled Unsplash portrait', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    mockDb.Account.findOne.mockResolvedValue(null);
+    mockDb.User.create.mockResolvedValue({ id: 8 });
+    expect((await service.handleCreateNewUser(validUser())).errCode).toBe(0);
+    expect(mockUpload).not.toHaveBeenCalled();
+    const { image } = mockDb.User.create.mock.calls[0][0];
+    expect(image).toMatch(/^\/demo\/people\/demo-candidate-\d{3}\.jpg$/);
+    const people = path.join(__dirname, '../../../frontend/public/demo/people');
+    const seen = new Set(Array.from({ length: 2000 }, () => service.randomDefaultAvatar()));
+    expect(seen.size).toBe(72);
+    for (const avatar of seen) expect(fs.existsSync(path.join(people, path.basename(avatar)))).toBe(true);
+    expect(fs.existsSync(path.join(people, 'demo-candidate-073.jpg'))).toBe(false);
+  });
+
   test('public registration cannot inject a company tenant id', async () => {
     mockDb.Account.findOne.mockResolvedValue(null);
     mockDb.User.create.mockResolvedValue({ id: 9 });

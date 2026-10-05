@@ -10,6 +10,7 @@ import {
 } from "../../service/userService";
 import { readJsonStorage } from "../../util/storage";
 import { getDefaultRouteForUser } from "../../auth/accessControl";
+import ChatAvatar from "../Chat/ChatAvatar";
 
 const ROLE_LABELS = {
     ADMIN: "Quản trị viên",
@@ -296,9 +297,10 @@ const Header = ({ user: suppliedUser }) => {
                                 <span className="jf-admin__identity-name">{displayName}</span>
                                 {roleLabel && <span className="jf-admin__identity-role">{roleLabel}</span>}
                             </span>
-                            <img
-                                style={{ objectFit: "cover" }}
+                            <ChatAvatar
+                                style={{ objectFit: "cover", width: 40, height: 40, borderRadius: "100%" }}
                                 src={user.image}
+                                name={displayName}
                                 alt="profile"
                             />
                         </button>
