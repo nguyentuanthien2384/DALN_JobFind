@@ -13,6 +13,8 @@ test('auth proxy preserves refresh cookies, redirects, body and status while str
   upstream.post('/api/auth/login', (req, res) => {
     expect(req.body).toEqual({ phonenumber: '0900000001', password: 'fixture' });
     for (const key of ['x-user-id', 'x-user-role', 'x-company-id', 'x-internal-secret']) expect(req.headers[key]).toBeUndefined();
+    // Backend limits count the client IP the Gateway resolved, never a client-sent X-Forwarded-For.
+    expect(req.headers['x-forwarded-for']).toMatch(/^(::ffff:)?127\.0\.0\.1$/);
     res.cookie('jobfind_rt', 'opaque-fixture', { httpOnly: true, sameSite: 'lax' }).json({ errCode: 0 });
   });
   upstream.get('/api/auth/sso/google/start', (_req, res) => res.redirect(302, 'https://accounts.google.com/example'));
@@ -21,7 +23,7 @@ test('auth proxy preserves refresh cookies, redirects, body and status while str
   const gateway = express(); gateway.use(express.json());
   gateway.use('/api/auth', authProxyPathGuard, createAuthProxy(target));
   const base = await listen(gateway);
-  const login = await fetch(base + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': '1', 'x-user-role': 'ADMIN', 'x-company-id': '5', 'x-internal-secret': 'forged' }, body: JSON.stringify({ phonenumber: '0900000001', password: 'fixture' }) });
+  const login = await fetch(base + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': '1', 'x-user-role': 'ADMIN', 'x-company-id': '5', 'x-internal-secret': 'forged', 'x-forwarded-for': '203.0.113.66' }, body: JSON.stringify({ phonenumber: '0900000001', password: 'fixture' }) });
   expect(login.status).toBe(200);
   expect(login.headers.get('set-cookie')).toContain('HttpOnly');
   expect(login.headers.get('cache-control')).toBe('no-store');

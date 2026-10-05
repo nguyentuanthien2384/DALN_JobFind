@@ -107,14 +107,22 @@ module.exports = async ({ db, app, base, user, headers, password }) => {
   const refresh = rawCookie => fetch(base + '/api/auth/refresh', { method: 'POST', headers: { ...localHeaders, Cookie: rawCookie }, body: '{}' });
   const access = token => ({ Authorization: 'Bearer ' + token });
   try {
-    // Existing local email never auto-merges or auto-provisions, verified or not.
-    for (const variant of ['valid', 'unverified']) {
-      mode = variant;
-      const rejected = await complete(await begin());
-      assert.equal(rejected.headers.get('location'), base + '/login?sso=' + (variant === 'valid' ? 'account-exists' : 'email-unverified'));
-      assert.equal(cookie(rejected), undefined);
-      assert.equal(await db.AuthIdentity.count({ where: { issuer, subject } }), 0);
-    }
+    // An unverified email of an existing account never merges; it only starts onboarding with an editable email.
+    mode = 'unverified'; subject = 'unverified-existing-subject';
+    const unverified = await complete(await begin());
+    assert.equal(unverified.headers.get('location'), base + '/register?sso=complete');
+    assert.equal(cookie(unverified), undefined);
+    const unverifiedCookie = unverified.headers.getSetCookie().find(c => c.startsWith('jobfind_signup='))?.split(';')[0];
+    assert.equal((await (await fetch(base + '/api/auth/sso/signup', { headers: { Cookie: unverifiedCookie } })).json()).profile.emailVerified, false);
+    assert.equal(await db.AuthIdentity.count({ where: { issuer, subject } }), 0);
+    // A provider-verified email signs in to the account that owns it by linking the identity once.
+    mode = 'valid'; subject = 'verified-existing-subject';
+    const autoLinked = await complete(await begin());
+    assert.equal(autoLinked.headers.get('location'), base + '/login?sso=success');
+    assert.ok(cookie(autoLinked));
+    const autoIdentity = await db.AuthIdentity.findOne({ where: { issuer, subject }, raw: true });
+    assert.equal(autoIdentity.userId, user.id); assert.equal(Boolean(autoIdentity.emailVerifiedAtLink), true);
+    await db.AuthIdentity.destroy({ where: { id: autoIdentity.id } });
     // A new verified identity must finish onboarding in the SAME browser. Claims
     // and posted role/tenant/email cannot create an elevated or different account.
     mode = 'signup'; subject = 'new-signup-subject';
@@ -228,7 +236,7 @@ module.exports = async ({ db, app, base, user, headers, password }) => {
     assert.equal(removed.status, 200);
     assert.equal(await sessions.activeFamily(jwt.decode(payload.token).sid, user.id), false);
     assert.equal((await refresh(cookie(refreshed))).status, 401);
-    console.log('PASS: real HTTP OIDC/PKCE/JWKS/signatures, negative claims, one-use state/code, safe link/unlink, no email merge/role elevation/open redirect, live RBAC for four roles and company/account changes, private security history.');
+    console.log('PASS: real HTTP OIDC/PKCE/JWKS/signatures, negative claims, one-use state/code, safe link/unlink, verified-email-only link, no role elevation/open redirect, live RBAC for four roles and company/account changes, private security history.');
   } finally {
     require.cache[modulePath].exports = originalLibrary;
     process.env = originalEnv;

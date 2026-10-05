@@ -2,16 +2,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { backupMysql } from './backup-local.mjs';
 
+// --from-env: inside the VPS backend container (DB_* from docker-compose, backups via deploy/scripts/backup.sh).
+const fromEnv = process.argv.includes('--from-env');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(path.join(root, 'backend/package.json'));
-const env = require('dotenv').parse(await fs.readFile(path.join(root, 'backend/.env')));
+const env = fromEnv ? process.env : require('dotenv').parse(await fs.readFile(path.join(root, 'backend/.env')));
 const { Sequelize, DataTypes } = require('sequelize');
 const db = new Sequelize(env.DB_NAME, env.DB_USER, env.DB_PASSWORD || '', {
   host: env.DB_HOST, port: Number(env.DB_PORT || 3306), dialect: 'mysql', logging: false,
 });
-const migrations = ['migrationzzzzzzz-auth-sessions-sso.js', 'migrationzzzzzzzz-auth-link-binding.js', 'migrationzzzzzzzzz-auth-audit-device.js', 'migrationzzzzzzzzzz-auth-registration-options.js'];
+const migrations = ['migrationzzzzzzz-auth-sessions-sso.js', 'migrationzzzzzzzz-auth-link-binding.js', 'migrationzzzzzzzzz-auth-audit-device.js', 'migrationzzzzzzzzzz-auth-registration-options.js', 'migrationzzzzzzzzzzz-social-signup-email.js'];
 try {
   await db.authenticate();
   const q = db.getQueryInterface();
@@ -19,11 +20,14 @@ try {
   const authTables = ['AuthSessions', 'AuthIdentities', 'OidcTransactions'];
   const existing = authTables.filter(t => tables.has(t.toLowerCase()));
   if (existing.length && existing.length !== 3) throw new Error('Partial auth schema detected; inspect before retrying. No tables were removed.');
-  const directory = path.join(root, '.local/backups', 'auth-' + new Date().toISOString().replace(/[:.]/g, '-'));
-  await fs.mkdir(directory, { recursive: true });
-  const evidence = await backupMysql(root, env, directory);
-  await fs.writeFile(path.join(directory, 'mysql-evidence.json'), JSON.stringify(evidence, null, 2));
-  console.log('Verified MySQL snapshot saved:', directory);
+  if (!fromEnv) {
+    const { backupMysql } = await import('./backup-local.mjs');
+    const directory = path.join(root, '.local/backups', 'auth-' + new Date().toISOString().replace(/[:.]/g, '-'));
+    await fs.mkdir(directory, { recursive: true });
+    const evidence = await backupMysql(root, env, directory);
+    await fs.writeFile(path.join(directory, 'mysql-evidence.json'), JSON.stringify(evidence, null, 2));
+    console.log('Verified MySQL snapshot saved:', directory);
+  }
   if (!tables.has('sequelizemeta')) await q.createTable('SequelizeMeta', { name: { type: DataTypes.STRING, primaryKey: true, allowNull: false } });
   for (const name of migrations) {
     const [recorded] = await db.query('SELECT name FROM SequelizeMeta WHERE name = ?', { replacements: [name] });

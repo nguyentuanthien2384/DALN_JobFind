@@ -107,5 +107,10 @@ for (const name of copied) console.log(`  ${name}: ${values[name] ? 'chep tu .en
 if (!values.ANTHROPIC_API_KEY) console.log('  Khong co ANTHROPIC_API_KEY: AI Worker se khong chay (COMPOSE_PROFILES trong).');
 if (values.SITE_ADDRESS === ':80') console.log('  Canh bao: chay HTTP khong co HTTPS, trinh duyet khong luu cookie phien; dung ten mien khi demo that.');
 if (['OIDC_GOOGLE_ENABLED', 'OAUTH_GITHUB_ENABLED', 'OIDC_AUTH0_ENABLED'].some(name => values[name] === 'true')) {
-    console.log(`  Nho dang ky redirect URI ${values.PUBLIC_URL}/api/auth/sso/<google|github|auth0>/callback o nha cung cap.`);
+    if (!values.PUBLIC_URL.startsWith('https://')) console.log('  Canh bao: dang nhap Google/GitHub/Facebook chi bat khi co HTTPS (ten mien); cau hinh HTTP theo IP se tat cac nut nay.');
+    if (values.OIDC_AUTH0_ENABLED === 'true') {
+        console.log(`  Auth0: them ${values.PUBLIC_URL}/api/auth/sso/auth0/callback vao Allowed Callback URLs (giu dia chi localhost de dev).`);
+        console.log(`  Nut qua Auth0: ${values.OIDC_AUTH0_CONNECTIONS || '(OIDC_AUTH0_CONNECTIONS trong - cac nut se tat)'}`);
+    } else console.log(`  Nho dang ky redirect URI ${values.PUBLIC_URL}/api/auth/sso/<google|github>/callback o nha cung cap.`);
+    console.log(`  Sau khi deploy: npm run vps:check-sso -- ${values.PUBLIC_URL}`);
 }

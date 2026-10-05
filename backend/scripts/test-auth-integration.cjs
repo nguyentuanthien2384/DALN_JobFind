@@ -27,6 +27,8 @@ const options = { host: process.env.DB_HOST, port: Number(process.env.DB_PORT ||
     await require('../src/migrations/migrationzzzzzzzzz-auth-audit-device').up(sequelize.getQueryInterface(), DataTypes);
     await require('../src/migrations/migrationzzzzzzzzzz-auth-registration-options').up(sequelize.getQueryInterface(), DataTypes);
     await require('../src/migrations/migrationzzzzzzzzzz-auth-registration-options').up(sequelize.getQueryInterface(), DataTypes);
+    await require('../src/migrations/migrationzzzzzzzzzzz-social-signup-email').up(sequelize.getQueryInterface(), DataTypes);
+    await require('../src/migrations/migrationzzzzzzzzzzz-social-signup-email').up(sequelize.getQueryInterface(), DataTypes);
     for (const [name, file] of [['AuthSession', 'authSession'], ['AuthIdentity', 'authIdentity'], ['OidcTransaction', 'oidcTransaction'], ['AuthSecurityEvent', 'authSecurityEvent'], ['AuthSignupRequest', 'authSignupRequest'], ['AuthRegistrationLock', 'authRegistrationLock']]) db[name] = require('../src/models/' + file)(sequelize, DataTypes);
     const modelsPath = require.resolve('../src/models/index');
     require.cache[modelsPath] = { id: modelsPath, filename: modelsPath, loaded: true, exports: db };

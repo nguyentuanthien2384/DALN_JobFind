@@ -123,17 +123,33 @@ module.exports = async ({ db, base, user, headers, password }) => {
     const badPkce = await begin();
     await db.OidcTransaction.update({ verifier: 'x'.repeat(43) }, { where: { stateHash: sessions.hashOpaque(badPkce.state) } });
     assert.equal((await complete(badPkce)).headers.get('location'), base + '/login?sso=failed');
-    // Provider failures and unverified emails never provision an account.
-    for (const variant of ['cancelled', 'invalid-token', 'invalid-id', 'unverified', 'existing-email']) {
+    // Provider failures never provision an account.
+    for (const variant of ['cancelled', 'invalid-token', 'invalid-id']) {
       mode = variant;
       const rejected = await complete(await begin());
-      const reason = variant === 'cancelled' ? 'cancelled' : variant === 'unverified' ? 'email-unverified' : variant === 'existing-email' ? 'account-exists' : 'failed';
-      assert.equal(rejected.headers.get('location'), base + '/login?sso=' + reason, variant);
+      assert.equal(rejected.headers.get('location'), base + '/login?sso=' + (variant === 'cancelled' ? 'cancelled' : 'failed'), variant);
       assert.equal(cookiePair(rejected, 'jobfind_rt'), undefined);
       assert.equal(cookiePair(rejected, 'jobfind_signup'), undefined);
       assert.equal(await countAccounts(), before);
       assert.equal(await db.AuthIdentity.count({ where: { issuer: 'https://github.com', subject: String(providerId) } }), 0);
     }
+    // Without a verified email onboarding still starts, and the user types an email.
+    mode = 'unverified';
+    const unverified = await complete(await begin());
+    assert.equal(unverified.headers.get('location'), base + '/register?sso=complete');
+    assert.equal(cookiePair(unverified, 'jobfind_rt'), undefined);
+    const unverifiedProfile = await (await fetch(base + '/api/auth/sso/signup', { headers: { Cookie: cookiePair(unverified, 'jobfind_signup') } })).json();
+    assert.deepEqual([unverifiedProfile.profile.email, unverifiedProfile.profile.emailVerified], ['', false]);
+    assert.equal(await countAccounts(), before);
+    // A verified email of an existing account signs in to it by linking the numeric GitHub ID.
+    mode = 'existing-email';
+    const existing = await complete(await begin());
+    assert.equal(existing.headers.get('location'), base + '/login?sso=success');
+    assert.ok(cookiePair(existing, 'jobfind_rt'));
+    assert.equal(await countAccounts(), before);
+    const autoLinked = { issuer: 'https://github.com', subject: String(providerId) };
+    assert.equal((await db.AuthIdentity.findOne({ where: autoLinked, raw: true })).userId, user.id);
+    await db.AuthIdentity.destroy({ where: autoLinked });
     mode = 'valid';
     const flow = await begin(true);
     const callbackAddress = new URL(flow.callbackUrl);

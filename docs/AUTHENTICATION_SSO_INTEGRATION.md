@@ -25,7 +25,8 @@ Các ZIP mới ngày 22/09/2026 được dùng làm tham khảo chức năng: Re
 - Phiên ghi nhận trình duyệt/hệ điều hành, thời điểm đăng nhập ban đầu và lần gia hạn gần nhất. Xoay vòng token giữ nguyên thời điểm bắt đầu và hạn tuyệt đối; cookie hết hạn theo thời gian còn lại của phiên.
 - Lịch sử bảo mật của chính người dùng, phân trang 20 sự kiện: đăng nhập, liên kết/hủy liên kết, thu hồi phiên, dùng lại refresh token, đổi mật khẩu/trạng thái tài khoản. API không nhận `userId` từ trình duyệt để lựa chọn chủ sở hữu.
 - Liên kết/hủy liên kết Google yêu cầu mật khẩu JobFind hiện tại. Callback liên kết ràng buộc với phiên và cookie trình duyệt đã bắt đầu; phiên đã đăng xuất/đổi tài khoản không thể hoàn tất liên kết.
-- Google dùng Authorization Code, PKCE S256, state và nonce; `openid-client` kiểm tra token. Liên kết bằng `(issuer, sub)`, không tự gộp tài khoản theo email và không cấp quyền từ Google.
+- Google dùng Authorization Code, PKCE S256, state và nonce; `openid-client` kiểm tra token. Liên kết bằng `(issuer, sub)` và không cấp quyền từ Google.
+- Mọi tài khoản Google/GitHub/Facebook đều đăng nhập được: email do nhà cung cấp xác minh (`email_verified=true`) trùng tài khoản JobFind thì tự liên kết một lần và đăng nhập vào tài khoản đó; email chưa xác minh không bao giờ gộp tài khoản. Không có email đã xác minh (ví dụ GitHub ẩn email) thì vẫn sang hoàn tất đăng ký, người dùng tự nhập email như đăng ký thường.
 - Trình duyệt chờ xác minh quyền trước khi hiển thị trang bảo vệ; lỗi mạng có nút thử lại. Yêu cầu ghi thất bại vì hết phiên không tự gửi lại để tránh dữ liệu trùng.
 - JWT sai/hết hạn hoặc người dùng đã bị xóa trả HTTP 401; thiếu quyền nghiệp vụ vẫn trả 403. API xác thực có no-store, no-referrer, nosniff, chống nhúng và CSP giới hạn nội dung API.
 - OTP dùng `crypto.randomInt`, chỉ giữ HMAC trong bộ nhớ, so sánh bằng `timingSafeEqual`, không in mã ra log. Bcrypt tạo salt riêng cho từng lần băm. Khi email chưa sẵn sàng/gửi thất bại, không báo đã gửi và hủy mã vừa tạo.
@@ -48,6 +49,8 @@ Các bảng thêm: `AuthSessions`, `AuthIdentities`, `OidcTransactions`, `AuthSe
 
 Migration thứ tư `migrationzzzzzzzzzz-auth-registration-options.js` bổ sung `rememberMe`, `AuthSignupRequests` và `AuthRegistrationLocks`; chạy lại an toàn, giữ nguyên dữ liệu cũ. Phải chạy migration trước khi khởi động backend mới. Các hàng khóa là SHA-256 của định danh chuẩn hóa, không chứa email/số điện thoại trực tiếp.
 
+Migration thứ năm `migrationzzzzzzzzzzz-social-signup-email.js` cho phép `AuthSignupRequests.email` để trống và thêm `emailVerified`, phục vụ đăng ký liên kết khi nhà cung cấp không gửi email đã xác minh; chạy lại an toàn.
+
 Backend và Gateway phải dùng cùng MySQL, `JWT_SECRET`, issuer và audience. `AUTH_ALLOW_LEGACY_TOKENS=false` mặc định ở mọi môi trường: người dùng JWT cũ cần đăng nhập lại. Chỉ bật `true` ở cả hai nơi nếu chủ động cần giai đoạn chuyển tiếp; JWT cũ không có khả năng thu hồi theo phiên.
 
 ## Cấu hình Google trên máy này
@@ -69,7 +72,7 @@ OIDC_GOOGLE_REDIRECT_URI=http://localhost:4000/api/auth/sso/google/callback
 
 4. Kiểm tra `frontend/.env`: `REACT_APP_BACKEND_URL=http://localhost:4000`. Gateway phải cho phép origin `http://localhost:3001` (trình khởi chạy sử dụng cấu hình local tương ứng).
 5. Khởi động lại bằng `npm run dev:stop`, `npm start`. Tài khoản đã tồn tại: đăng nhập local, vào **Bảo mật và đăng nhập**, nhập mật khẩu và chọn **Liên kết tài khoản Google**.
-6. Sau khi liên kết có thể đăng nhập bằng Google. Người mới có email được Google xác minh sẽ chuyển sang hoàn tất đăng ký. Hủy consent, email chưa xác minh hoặc callback hết hạn sẽ hiện thông báo tương ứng.
+6. Sau khi liên kết có thể đăng nhập bằng Google. Email Google đã xác minh trùng tài khoản JobFind sẽ tự liên kết và đăng nhập; người mới chuyển sang hoàn tất đăng ký (email chưa xác minh thì tự nhập email). Hủy consent hoặc callback hết hạn sẽ hiện thông báo tương ứng.
 
 `AUTH_FRONTEND_ORIGIN` phải nằm trong `URL_REACT`, giúp callback về đúng cổng 3001. Không đưa Client Secret vào biến `REACT_APP_*`.
 

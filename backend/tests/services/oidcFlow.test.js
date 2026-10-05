@@ -8,7 +8,7 @@ const mockDb = {
 jest.mock('../../src/services/authAuditService', () => ({ recordSecurityEvent: jest.fn() }));
 const mockSessions = { hashOpaque: x => x, loadUser: jest.fn(), activeFamily: jest.fn(), readRefreshCookie: jest.fn(), lockAccount: jest.fn() };
 const mockConfig = { serverMetadata: jest.fn() };
-const mockRegistration = { prepareSignup: jest.fn(), clearSignupCookie: jest.fn() };
+const mockRegistration = { prepareSignup: jest.fn(), clearSignupCookie: jest.fn(), linkVerifiedEmail: jest.fn() };
 const mockClient = {
   discovery: jest.fn(), randomState: () => 'state', randomNonce: () => 'nonce', randomPKCECodeVerifier: () => 'verifier',
   calculatePKCECodeChallenge: jest.fn(async () => 'challenge'), buildAuthorizationUrl: jest.fn(() => new URL('https://accounts.google.com/authorize')),
@@ -39,6 +39,7 @@ beforeEach(() => {
   mockSessions.readRefreshCookie.mockReturnValue('refresh-cookie');
   mockConfig.serverMetadata.mockReturnValue({ issuer: 'https://accounts.google.com' });
   mockRegistration.prepareSignup.mockResolvedValue({ pendingSignup: true });
+  mockRegistration.linkVerifiedEmail.mockResolvedValue(null);
   mockClient.discovery.mockResolvedValue(mockConfig);
   mockClient.authorizationCodeGrant.mockResolvedValue({ claims: () => ({ iss: 'https://accounts.google.com', sub: 'subject', aud: 'test-client', email_verified: true, email: 'person@example.com', role: 'ADMIN' }) });
 });
@@ -78,11 +79,13 @@ test('an unlinked identity only starts browser-bound onboarding without provisio
   expect(mockSessions.loadUser).not.toHaveBeenCalled();
 });
 
-test('an existing local email is rejected by onboarding and never implicitly linked', async () => {
+test('a provider-verified email of an existing account signs in to that account instead of onboarding', async () => {
   mockDb.AuthIdentity.findOne.mockResolvedValue(null);
-  mockRegistration.prepareSignup.mockRejectedValueOnce(new Error('OIDC_ACCOUNT_EXISTS'));
-  await expect(oidc.complete('google', request(), response())).rejects.toThrow('OIDC_ACCOUNT_EXISTS');
-  expect(mockDb.AuthIdentity.create).not.toHaveBeenCalled();
+  mockRegistration.linkVerifiedEmail.mockResolvedValueOnce(identity);
+  await expect(oidc.complete('google', request(), response())).resolves.toEqual({ userId: 7, identityId: 9, method: 'oidc:google', linked: false, rememberMe: false });
+  expect(mockRegistration.linkVerifiedEmail).toHaveBeenCalledWith('google', expect.objectContaining({ sub: 'subject', email: 'person@example.com' }));
+  expect(mockRegistration.prepareSignup).not.toHaveBeenCalled();
+  expect(identity.update).toHaveBeenCalledWith({ lastLoginAt: expect.any(Date) });
 });
 test('propagates provider signature/nonce validation failure without issuing an identity', async () => {
   mockClient.authorizationCodeGrant.mockRejectedValue(new Error('invalid signature or nonce'));

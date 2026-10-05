@@ -40,15 +40,17 @@ export default function Register() {
     const [socialProfile, setSocialProfile] = useState(null), [socialLoading, setSocialLoading] = useState(socialMode);
     const [socialRetry, setSocialRetry] = useState(0), [socialStarting, setSocialStarting] = useState('');
     const busy = submittingRequest || socialLoading || !!socialStarting;
+    // Only a provider-verified email is locked; otherwise the user enters their own email.
+    const emailLocked = socialMode && !!socialProfile?.email && socialProfile.emailVerified !== false;
     useEffect(() => {
         if (!socialMode) return;
         let active = true;
         setSocialLoading(true); setError('');
         getSocialSignup().then(result => {
-            if (result?.errCode !== 0 || !result.profile?.email || !providerLabel(result.profile.provider)) throw new Error('Invalid signup');
+            if (result?.errCode !== 0 || !result.profile || !providerLabel(result.profile.provider)) throw new Error('Invalid signup');
             if (active) {
                 setSocialProfile(result.profile);
-                setValues(current => ({ ...current, firstName: result.profile.firstName || '', lastName: result.profile.lastName || '', email: result.profile.email }));
+                setValues(current => ({ ...current, firstName: result.profile.firstName || '', lastName: result.profile.lastName || '', email: result.profile.email || '' }));
             }
         }).catch(() => { if (active) setError('Chưa tải được thông tin đăng ký liên kết. Phiên có thể đã hết hạn; hãy thử lại hoặc bắt đầu đăng ký mới.'); })
             .finally(() => { if (active) setSocialLoading(false); });
@@ -83,7 +85,7 @@ export default function Register() {
     useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
     const change = event => {
         const { name, value } = event.target;
-        if (socialMode && name === 'email') return;
+        if (emailLocked && name === 'email') return;
         const next = { ...values, [name]: value };
         setValues(next); setError('');
         setErrors(current => ({
@@ -123,7 +125,7 @@ export default function Register() {
                 roleCode: values.roleCode, password: values.password
             };
             const { email, ...socialPayload } = payload;
-            const result = await (socialMode ? completeSocialSignup(socialPayload) : createNewUser(payload));
+            const result = await (socialMode ? completeSocialSignup(emailLocked ? socialPayload : { ...socialPayload, email }) : createNewUser(payload));
             if (!mounted.current) return;
             if (result?.accountCreated) { accountCreated = true; setCreated(true); }
             if (result?.errCode !== 0) {
@@ -155,7 +157,7 @@ export default function Register() {
                 <input id={'register-' + name} name={name} type={secret ? visible[name] ? 'text' : 'password' : type}
                     inputMode={type === 'tel' ? 'tel' : undefined} autoComplete={autoComplete} value={values[name]}
                     onChange={change} onBlur={() => setErrors(current => ({ ...current, [name]: validate(name, values) }))}
-                    placeholder={label} maxLength={maxLength} required disabled={busy} readOnly={name === 'email' && socialMode}
+                    placeholder={label} maxLength={maxLength} required disabled={busy} readOnly={name === 'email' && emailLocked}
                     aria-invalid={!!errors[name]} aria-describedby={errors[name] ? 'register-error-' + name : hint ? 'register-hint-' + name : undefined}/>
                 {secret && <button className="jf-login__password-toggle" type="button" disabled={busy}
                     onClick={() => setVisible(current => ({ ...current, [name]: !current[name] }))}
@@ -187,7 +189,8 @@ export default function Register() {
                     {step === 1 ? <>
                         <fieldset className="jf-register__roles" disabled={busy}><legend>Bạn muốn sử dụng JobFind để</legend><div>{publicRoles.map(role => <label key={role.code} className={values.roleCode === role.code ? 'is-selected' : ''}><input type="radio" name="roleCode" value={role.code} checked={values.roleCode === role.code} onChange={change}/><span><strong>{role.title}</strong><small>{role.description}</small></span></label>)}</div></fieldset>
                         <div className="jf-register__names">{input('firstName', 'Họ', { autoComplete: 'family-name', maxLength: 100 })}{input('lastName', 'Tên', { autoComplete: 'given-name', maxLength: 100 })}</div>
-                        {input('email', 'Email', { type: 'email', autoComplete: 'email', maxLength: 254, hint: socialMode ? 'Email đã được xác minh bởi nhà cung cấp và không thể sửa ở bước này.' : undefined })}
+                        {input('email', 'Email', { type: 'email', autoComplete: 'email', maxLength: 254, hint: emailLocked ? 'Email đã được xác minh bởi nhà cung cấp và không thể sửa ở bước này.'
+                            : socialMode ? 'Nhà cung cấp chưa gửi email đã xác minh. Hãy nhập email bạn dùng để nhận thông báo.' : undefined })}
                     </> : <>
                         {input('phonenumber', 'Số điện thoại', { type: 'tel', autoComplete: 'username', maxLength: 10 })}
                         {input('password', 'Mật khẩu', { autoComplete: 'new-password', maxLength: 72, hint: PASSWORD_HINT })}

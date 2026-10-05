@@ -31,6 +31,7 @@
     "deploy:reactivate": "node scripts/manage-activation.mjs reactivate",
     "vps:env": "node deploy/scripts/make-env.mjs",
     "vps:export-data": "node deploy/scripts/export-local-data.mjs",
+    "vps:check-sso": "node deploy/scripts/check-sso.mjs",
     "test": "npm run test:unit",
     "lint": "npm --prefix frontend run lint",
     "build": "npm --prefix frontend run build",

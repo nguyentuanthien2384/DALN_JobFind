@@ -9,7 +9,7 @@ import { initSocket } from "./config/socket";
 import db from './models/index';
 import { connectSocketRedis, closeSocketRedis } from './config/socketRedis';
 import schedule from 'node-schedule';
-import { assertSecureJwtSecret, getJwtPolicy } from './utils/securityConfig';
+import { assertSecureJwtSecret, getJwtPolicy, parseTrustedProxies } from './utils/securityConfig';
 require('dotenv').config();
 
 // Fail at startup instead of silently accepting a public/default signing key.
@@ -17,6 +17,8 @@ assertSecureJwtSecret(process.env.JWT_SECRET);
 getJwtPolicy();
 
 let app = express();
+// Only the API Gateway address (TRUST_PROXY) may supply the client IP used by rate limits.
+app.set('trust proxy', parseTrustedProxies(process.env.TRUST_PROXY));
 
 app.use(function (req, res, next) {
     // URL_REACT co the chua nhieu origin, cach nhau boi dau phay. Dieu nay cho

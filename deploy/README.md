@@ -21,6 +21,7 @@ Nội bộ, không mở cổng: MariaDB · PostgreSQL · MongoDB · Elasticsearc
 | `scripts/export-local-data.mjs` | Chạy trên **Windows**: xuất MySQL (XAMPP), PostgreSQL, MongoDB đang dùng |
 | `scripts/import-data.sh` | Chạy trên **VPS**: kiểm tra checksum rồi nạp dữ liệu |
 | `scripts/backup.sh` | Chạy trên **VPS**: sao lưu định kỳ (cùng định dạng, khôi phục bằng `import-data.sh`) |
+| `scripts/check-sso.mjs` | Chạy trên **Windows** (`npm run vps:check-sso`): kiểm tra nút Google/GitHub/Facebook trên tên miền thật (mục 6) |
 
 ## 0. Cần chuẩn bị
 
@@ -130,11 +131,34 @@ docker compose logs --tail 50 api-gateway backend
 
 Đăng nhập bằng tài khoản admin trong dữ liệu đã nạp, rồi thử tìm việc, chat và chatbot.
 
+## 6. Cho mọi người đăng nhập bằng Google, GitHub, Facebook
+
+Ba nút này đi qua Auth0 (connection `google-oauth2`, `github`, `facebook`). Bất kỳ ai có tài khoản Google/GitHub/Facebook đều đăng nhập được từ máy của họ. Yêu cầu duy nhất là có tên miền HTTPS: backend production tắt các nút này khi chạy HTTP theo IP.
+
+1. **Cấu hình**: `npm run vps:env -- <tên-miền>` chép sẵn `OIDC_AUTH0_*` từ `backend/.env`. Lệnh này cũng in ra đúng URL callback cần thêm ở bước 2.
+2. **Auth0 Dashboard** → *Applications* → application của JobFind → *Settings* → **Allowed Callback URLs**: thêm `https://<tên-miền>/api/auth/sso/auth0/callback`. Các URL cách nhau bằng dấu phẩy; giữ lại URL `http://localhost:4000/...` để vẫn chạy được ở máy dev. Bấm *Save*.
+3. **Auth0 Dashboard** → *Authentication* → *Social*: mở từng connection Google, GitHub, Facebook → tab *Applications* → bật application của JobFind.
+4. Deploy (bước 4). Nếu VPS đã nạp dữ liệu từ trước ngày 05/10/2026, chạy thêm migration xác thực (lệnh *Cập nhật code mới* ở mục Vận hành) để có cột `AuthSignupRequests.emailVerified`. Sau đó kiểm tra từ máy Windows:
+
+   ```powershell
+   npm run vps:check-sso -- https://<tên-miền>
+   ```
+
+   Script đi từ JobFind → Auth0 → trang đăng nhập của từng nhà cung cấp, dừng trước callback nên không tạo tài khoản hay phiên nào. Khi có lỗi, script chỉ rõ cần sửa gì: URL callback chưa có trong Auth0, connection chưa bật cho application, hoặc nút đang tắt trong `deploy/.env`. Script cũng chạy được ở máy dev: `npm run vps:check-sso -- http://localhost:4000`.
+
+Người dùng sẽ thấy:
+
+- **Lần đầu**: hoàn tất đăng ký (vai trò, họ tên, email, số điện thoại, mật khẩu). Nếu nhà cung cấp không gửi email đã xác minh (GitHub qua developer key thường như vậy), người dùng tự nhập email.
+- **Email đã xác minh trùng tài khoản JobFind có sẵn**: tự liên kết và đăng nhập vào tài khoản đó. Email chưa xác minh không bao giờ được gộp; người đó liên kết trong *Bảo mật và đăng nhập* sau khi đăng nhập bằng mật khẩu.
+- **Từ lần sau**: bấm nút là vào thẳng.
+
+Đang dùng **developer keys** của Auth0 (không tự tạo app Google/GitHub/Meta). Ai cũng đăng nhập được, nhưng màn hình đồng ý của nhà cung cấp hiện tên Auth0 thay vì JobFind, GitHub thường không gửi email đã xác minh, và Auth0 khuyến nghị thay bằng khóa riêng khi chạy chính thức. Khi có khóa riêng, chỉ cần dán vào connection tương ứng trong Auth0; không phải đổi code hay `deploy/.env`.
+
 ## Vận hành hằng ngày
 
 | Việc | Lệnh (trong `deploy/`) |
 | --- | --- |
-| Cập nhật code mới | `git pull && docker compose up -d --build` |
+| Cập nhật code mới | `git pull && docker compose build && docker compose run --rm backend node /app/scripts/migrate-auth.mjs --from-env && docker compose up -d` (migration xác thực chỉ thêm cột/bảng còn thiếu, chạy lại an toàn; nên `sh scripts/backup.sh` trước) |
 | Đổi biến trong `.env` | `docker compose up -d` (chỉ tạo lại dịch vụ bị ảnh hưởng) |
 | Đổi cờ `REACT_APP_*` | `docker compose up -d --build web` |
 | Xem log | `docker compose logs -f <dịch-vụ>` |
@@ -162,7 +186,8 @@ Nên định kỳ chép thư mục `deploy/backups/` ra ngoài VPS (`scp` về m
 - **Tài khoản demo** trong dữ liệu (mật khẩu `123456`, `Demo@123456`) ai cũng đoán được. Đổi mật khẩu tài khoản admin trước khi công bố link.
 - **Email**: production bỏ qua địa chỉ mẫu (ví dụ `@example.com`) thay vì chuyển hướng như khi chạy local.
 - **`SCHEDULED_JOBS_ENABLED=false`** mặc định: tắt email gợi ý việc làm tự động, reset hạn mức xem CV hằng ngày và đối soát PayPal. Chỉ bật khi đã dùng dữ liệu thật.
-- **Đăng nhập Google/GitHub/Auth0**: đăng ký redirect URI `https://<tên-miền>/api/auth/sso/google/callback` (hoặc `.../github/callback`, `.../auth0/callback`) ở nhà cung cấp, rồi đặt `OIDC_GOOGLE_ENABLED=true` (hoặc `OAUTH_GITHUB_ENABLED`, `OIDC_AUTH0_ENABLED`). Với Auth0, thêm URL callback HTTPS vào **Allowed Callback URLs** của application và điền `OIDC_AUTH0_ISSUER` (giữ dấu `/` cuối).
+- **Đăng nhập Google/GitHub/Facebook**: xem mục 6. Nếu dùng Google/GitHub trực tiếp (không qua Auth0), đăng ký redirect URI `https://<tên-miền>/api/auth/sso/google/callback` hoặc `.../github/callback` ở nhà cung cấp, rồi đặt `OIDC_GOOGLE_ENABLED=true` hoặc `OAUTH_GITHUB_ENABLED=true`.
+- **Giới hạn tần suất theo từng người**: mọi request đi qua Caddy (`172.30.250.10`) rồi API Gateway (`172.30.250.11`). Gateway và backend chỉ tin IP người dùng do đúng hai địa chỉ này chuyển xuống (`TRUST_PROXY`). Nhờ vậy, giới hạn đăng nhập sai, SSO và đăng ký được tính riêng cho từng người, không tính chung cho cả hệ thống. Đừng đổi hai IP cố định này trong `docker-compose.yml`.
 - **Chưa có tên miền?** Chạy `npm run vps:env -- <IP-VPS>` để có cấu hình HTTP theo IP. Cách này chỉ để xem thử: không có HTTPS thì trình duyệt không lưu cookie phiên, nên đăng nhập không bền.
 - **Docker và ufw**: cổng do Docker publish đi vòng qua luật ufw. Ở đây chỉ Caddy publish cổng (80/443), mọi kho dữ liệu đều không publish nên không lộ ra ngoài.
 
@@ -175,4 +200,5 @@ Nên định kỳ chép thư mục `deploy/backups/` ra ngoài VPS (`scp` về m
 | Đăng nhập xong bị đăng xuất khi tải lại trang | Đang chạy HTTP, hoặc `PUBLIC_URL` khác địa chỉ đang mở |
 | `elasticsearch` thoát với mã 137 | Thiếu RAM: thêm swap hoặc nâng VPS. Kiểm tra lại `vm.max_map_count` |
 | Build `web` bị kill (137) | Thiếu RAM khi build React: bật swap hoặc build trên Windows (mục 4b) |
+| Nút Google/GitHub/Facebook bị mờ hoặc báo lỗi sau khi chọn tài khoản | Chạy `npm run vps:check-sso -- https://<tên-miền>` và làm theo dòng `LOI` (thường là thiếu URL callback trong Auth0) |
 | Chatbot/AI không trả lời | Kiểm tra `ANTHROPIC_API_KEY`, `COMPOSE_PROFILES=ai`, `docker compose logs ai-worker support-chat-service` |

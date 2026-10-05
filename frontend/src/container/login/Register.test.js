@@ -272,6 +272,27 @@ describe('Register', () => {
         } finally { consoleError.mockRestore(); }
     });
 
+    it('lets the user enter an email when the provider did not send a verified one', async () => {
+        window.history.replaceState({}, '', '/register?sso=complete');
+        getSocialSignup.mockResolvedValue({ errCode: 0, profile: { provider: 'auth0:github', email: '', emailVerified: false, firstName: 'Nguyen', lastName: 'Lan' } });
+        completeSocialSignup.mockResolvedValue({ errCode: 0, token: 'social-token', user: { id: 31, roleCode: 'CANDIDATE' } });
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            render(<Register />);
+            await act(async () => {});
+            const email = await screen.findByLabelText('Email', { exact: true });
+            expect(email).not.toHaveAttribute('readonly');
+            expect(email).toHaveAccessibleDescription(/Hãy nhập email bạn dùng để nhận thông báo/);
+            await nextStep();
+            expect(email).toHaveAttribute('aria-invalid', 'true');
+            await change('Email', '  Lan@Gmail.com ');
+            await nextStep(); await fillAccount(); await submit();
+            await waitFor(() => expect(getAccessTokenSync()).toBe('social-token'));
+            expect(completeSocialSignup).toHaveBeenCalledWith(expect.objectContaining({ email: 'lan@gmail.com', phonenumber: '0912345678', roleCode: 'CANDIDATE' }));
+            expect(createNewUser).not.toHaveBeenCalled();
+        } finally { consoleError.mockRestore(); }
+    });
+
     it('keeps social validation errors editable and does not retry an account already created', async () => {
         window.history.replaceState({}, '', '/register?sso=complete');
         getSocialSignup.mockResolvedValue({ errCode: 0, profile: { provider: 'auth0:google', email: 'lan@gmail.com', firstName: 'Nguyen', lastName: 'Lan' } });

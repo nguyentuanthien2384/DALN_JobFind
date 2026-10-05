@@ -13,6 +13,10 @@ export const createAuthProxy = (target = process.env.LEGACY_URL || 'http://host.
         // Never forward client-forged service identity headers or internal secrets.
         for (const header of ['x-user-id', 'x-user-role', 'x-company-id', 'x-company-status',
           'x-company-censor', 'x-internal-secret']) out.removeHeader(header);
+        // The client IP as resolved under the Gateway's TRUST_PROXY, so backend per-IP limits
+        // count each user instead of the Gateway; a client-sent X-Forwarded-For is replaced.
+        if (req.ip) out.setHeader('x-forwarded-for', req.ip);
+        else out.removeHeader('x-forwarded-for');
         fixRequestBody(out, req, res);
       },
       proxyRes: (upstream) => {

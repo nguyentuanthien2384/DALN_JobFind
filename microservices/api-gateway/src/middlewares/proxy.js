@@ -101,6 +101,9 @@ const buildForwardHeaders = (req, { includeInternalSecret = true } = {}) => {
     // Khong bao gio chuyen khoa do client tu gui. Gateway dat lai khoa cua
     // chinh no de service phan biet request noi bo voi request goi thang.
     delete headers['x-internal-secret'];
+    // IP that cua nguoi dung theo TRUST_PROXY cua Gateway, thay cho gia tri client tu gui.
+    delete headers['x-forwarded-for'];
+    if (req.ip) headers['x-forwarded-for'] = req.ip;
 
     if (req.user) {
         headers['x-user-id'] = String(req.user.id);

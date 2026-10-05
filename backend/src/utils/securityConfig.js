@@ -22,6 +22,19 @@ export const assertSecureJwtSecret = (value) => {
 
 export const getJwtSecret = () => assertSecureJwtSecret(process.env.JWT_SECRET);
 
+// Behind the API Gateway every request comes from the Gateway's address, so per-IP limits
+// would be shared by all users. Trust X-Forwarded-For only from the named proxy addresses
+// (same rules as microservices/api-gateway parseTrustedProxies); never "true" or wildcards.
+export const parseTrustedProxies = (raw = '') => {
+    const proxies = String(raw || '').split(',').map((value) => value.trim()).filter(Boolean);
+    if (proxies.length === 0) return false;
+    const unsafe = new Set(['true', '*', 'all', '0.0.0.0/0', '::/0']);
+    for (const proxy of proxies) {
+        if (unsafe.has(proxy.toLowerCase()) || /^\d+$/.test(proxy)) throw new Error(`TRUST_PROXY khong an toan: ${proxy}`);
+    }
+    return proxies;
+};
+
 // Keep this policy identical in microservices/shared/securityConfig.js.
 export const getJwtPolicy = () => {
     const issuer = process.env.JWT_ISSUER?.trim() || 'jobfind-auth';

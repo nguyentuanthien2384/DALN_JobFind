@@ -13,6 +13,8 @@ COPY --chown=node:node backend/.babelrc ./.babelrc
 COPY --chown=node:node microservices/shared/recruitmentCatalog.cjs /app/microservices/shared/recruitmentCatalog.cjs
 COPY --chown=node:node frontend/src/data /app/frontend/src/data
 COPY --chown=node:node scripts/run-backend.cjs /app/scripts/run-backend.cjs
+# Migration xac thuc cho CSDL da nap tu truoc: docker compose run --rm backend node /app/scripts/migrate-auth.mjs --from-env
+COPY --chown=node:node scripts/migrate-auth.mjs /app/scripts/migrate-auth.mjs
 ENV NODE_ENV=production BABEL_DISABLE_CACHE=1 PORT=5000
 USER node
 EXPOSE 5000

@@ -3,7 +3,7 @@ import db from '../models/index';
 import { hashOpaque, loadUser, activeFamily, readRefreshCookie, lockAccount } from './authSessionService';
 import { recordSecurityEvent } from './authAuditService';
 import { providerSettings, providerAvailable, availableProviders, loginRoute, identityProvider, githubAuthorizationUrl, githubClaims } from './socialProviders';
-import { prepareSignup, clearSignupCookie } from './socialRegistrationService';
+import { prepareSignup, clearSignupCookie, linkVerifiedEmail } from './socialRegistrationService';
 // openid-client v6 verifies ID token signature, issuer, audience, expiry and nonce.
 // Install on the backend only: npm install openid-client@^6
 const OIDC_COOKIE = 'jobfind_oidc_tx';
@@ -85,7 +85,7 @@ export const complete = async (name, req, res) => {
   }
   if (!claims || claims.iss !== settings.issuer || typeof claims.sub !== 'string' || !claims.sub || claims.sub.length > 255) throw new Error('OIDC_ID_TOKEN');
   const provider = identityProvider(name, claims.sub);
-  // Never trust email alone to merge accounts, and never grant a role from IdP claims.
+  // Only a provider-verified email links to an existing account, and never grant a role from IdP claims.
   let identity = await db.AuthIdentity.findOne({ raw: false, where: { issuer: claims.iss, subject: claims.sub } });
   if (tx.linkUserId) {
     identity = await db.sequelize.transaction(async transaction => {
@@ -108,6 +108,7 @@ export const complete = async (name, req, res) => {
     return linkedIdentity;
     });
   }
+  if (!identity) identity = await linkVerifiedEmail(provider, claims);
   if (!identity) return prepareSignup(provider, claims, tx.rememberMe !== false, res);
   const user = await loadUser(identity.userId);
   if (!user) throw new Error('INACTIVE_ACCOUNT');
