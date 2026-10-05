@@ -1,0 +1,3 @@
+# Script shell chay tren VPS Linux: giu LF ke ca khi checkout tren Windows
+# (core.autocrlf=true) de chep thang thu muc len server van chay duoc.
+*.sh text eol=lf

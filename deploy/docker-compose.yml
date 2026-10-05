@@ -1,0 +1,429 @@
+# JobFind tren mot VPS Linux: toan bo he thong chay trong Docker, chi Caddy (web)
+# mo cong 80/443 ra Internet. Cac kho du lieu, hang doi va dich vu noi bo khong
+# publish cong nao. Huong dan day du: deploy/README.md.
+#
+# Chay trong thu muc deploy/ (doc bien tu deploy/.env):
+#   docker compose up -d --build
+name: jobfind
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+# Mot image dung chung cho 9 microservice; moi service chi khac thu muc chay.
+x-node-app: &node-app
+  image: ${JOBFIND_IMAGE_PREFIX:-jobfind}/microservices:${JOBFIND_TAG:-latest}
+  build:
+    context: ../microservices
+    dockerfile: Dockerfile
+  command: ["node", "src/app.js"]
+  init: true
+  user: node
+  read_only: true
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  stop_grace_period: 40s
+  mem_limit: 512m
+  logging: *logging
+
+x-mysql-env: &mysql-env
+  MYSQL_HOST: mysql
+  MYSQL_PORT: "3306"
+  MYSQL_USER: ${MYSQL_USER:-jobfind}
+  MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Dat MYSQL_PASSWORD trong deploy/.env}
+  MYSQL_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
+
+# Mat khau nam trong URL: chi dung chu va so (scripts/make-env.mjs sinh dang hex).
+x-rabbitmq-url: &rabbitmq-url "amqp://${RABBITMQ_USER:-jobfind}:${RABBITMQ_PASSWORD:?Dat RABBITMQ_PASSWORD trong deploy/.env}@rabbitmq:5672"
+x-postgres-url: &postgres-url "postgres://${POSTGRES_USER:-jobfind}:${POSTGRES_PASSWORD:?Dat POSTGRES_PASSWORD trong deploy/.env}@postgres:5432/application_db"
+
+services:
+  # ================= KHO DU LIEU VA HANG DOI =================
+  # Cung ho MariaDB voi XAMPP tren may dev (10.4). Cac tuy chon duoi day giu dung
+  # hanh vi cua XAMPP tren Windows; thieu chung, Linux se phan biet hoa/thuong ten
+  # bang (Sequelize goi "AuthSessions" con bang that la "authsessions"), lech gio
+  # va dung sql_mode strict ma ma nguon chua tung chay qua.
+  mysql:
+    image: mariadb:10.11
+    restart: unless-stopped
+    command:
+      - --lower-case-table-names=1
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --default-time-zone=+07:00
+      - --sql-mode=IGNORE_SPACE,NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION
+      - --max-allowed-packet=512M
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Dat MYSQL_ROOT_PASSWORD trong deploy/.env}
+      MARIADB_DATABASE: ${MYSQL_DATABASE:-jobfindtest}
+      MARIADB_USER: ${MYSQL_USER:-jobfind}
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD:?Dat MYSQL_PASSWORD trong deploy/.env}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  # Identity (ho so, CV), Admin (nhat ky) va AI Worker.
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["--wiredTigerCacheSizeGB", "0.25"]
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  # Ben doc cua tim kiem viec lam. Chi la ban chieu: search-service tu dung lai
+  # chi muc tu MySQL khi khoi dong, nen khong can sao luu.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.ml.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    mem_limit: 1536m
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    logging: *logging
+
+  # Luong ung tuyen va bang Kanban.
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jobfind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Dat POSTGRES_PASSWORD trong deploy/.env}
+      POSTGRES_DB: application_db
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d application_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  # Gioi han tan suat o Gateway.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    # Ten node RabbitMQ lay tu hostname; co dinh de du lieu trong volume van
+    # dung duoc sau khi container duoc tao lai.
+    hostname: rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-jobfind}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Dat RABBITMQ_PASSWORD trong deploy/.env}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+    logging: *logging
+
+  # ================= BACKEND CU (Express + Socket.IO) =================
+  backend:
+    image: ${JOBFIND_IMAGE_PREFIX:-jobfind}/backend:${JOBFIND_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 768m
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Ho_Chi_Minh
+      PORT: "5000"
+      URL_REACT: ${PUBLIC_URL:?Dat PUBLIC_URL trong deploy/.env}
+      AUTH_FRONTEND_ORIGIN: ${PUBLIC_URL}
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${MYSQL_DATABASE:-jobfindtest}
+      DB_USER: ${MYSQL_USER:-jobfind}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Dat JWT_SECRET trong deploy/.env}
+      JWT_ISSUER: ${JWT_ISSUER:-jobfind-auth}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-jobfind-api}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      AUTH_ALLOW_LEGACY_TOKENS: "false"
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?Dat INTERNAL_SECRET trong deploy/.env}
+      RABBITMQ_URL: *rabbitmq-url
+      SCHEDULED_JOBS_ENABLED: ${SCHEDULED_JOBS_ENABLED:-false}
+      EMAIL_APP: ${EMAIL_APP:-}
+      EMAIL_APP_PASSWORD: ${EMAIL_APP_PASSWORD:-}
+      CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      API_KEY: ${CLOUDINARY_API_KEY:-}
+      API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      PAYPAL_MODE: ${PAYPAL_MODE:-sandbox}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
+      WEB_PUSH_ENABLED: ${WEB_PUSH_ENABLED:-false}
+      WEB_PUSH_SUBJECT: ${WEB_PUSH_SUBJECT:-}
+      WEB_PUSH_PUBLIC_KEY: ${WEB_PUSH_PUBLIC_KEY:-}
+      WEB_PUSH_PRIVATE_KEY: ${WEB_PUSH_PRIVATE_KEY:-}
+      SUPPORT_CHAT_GATEWAY_URL: http://api-gateway:4000/api/support-chat
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      SOCKET_REDIS_PREFIX: jobfind-production
+      OIDC_GOOGLE_ENABLED: ${OIDC_GOOGLE_ENABLED:-false}
+      OIDC_GOOGLE_ISSUER: https://accounts.google.com
+      OIDC_GOOGLE_CLIENT_ID: ${OIDC_GOOGLE_CLIENT_ID:-}
+      OIDC_GOOGLE_CLIENT_SECRET: ${OIDC_GOOGLE_CLIENT_SECRET:-}
+      OIDC_GOOGLE_REDIRECT_URI: ${PUBLIC_URL}/api/auth/sso/google/callback
+      OAUTH_GITHUB_ENABLED: ${OAUTH_GITHUB_ENABLED:-false}
+      OAUTH_GITHUB_CLIENT_ID: ${OAUTH_GITHUB_CLIENT_ID:-}
+      OAUTH_GITHUB_CLIENT_SECRET: ${OAUTH_GITHUB_CLIENT_SECRET:-}
+      OAUTH_GITHUB_REDIRECT_URI: ${PUBLIC_URL}/api/auth/sso/github/callback
+    depends_on:
+      mysql: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    logging: *logging
+
+  # ================= MICROSERVICES =================
+  api-gateway:
+    <<: *node-app
+    working_dir: /app/api-gateway
+    environment:
+      <<: *mysql-env
+      PORT: "4000"
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-jobfind-auth}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-jobfind-api}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      AUTH_ALLOW_LEGACY_TOKENS: "false"
+      IDENTITY_URL: http://identity-service:4001
+      JOB_CORE_URL: http://job-core-service:4002
+      SEARCH_URL: http://search-service:4003
+      APPLICATION_URL: http://application-service:4004
+      ADMIN_URL: http://admin-service:4006
+      SUPPORT_CHAT_URL: http://support-chat-service:4008
+      LEGACY_URL: http://backend:5000
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      CORS_ORIGIN: ${PUBLIC_URL}
+      RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
+      # Dia chi co dinh cua Caddy (xem networks): Gateway lay IP that cua nguoi
+      # dung tu X-Forwarded-For de gioi han tan suat theo tung nguoi.
+      TRUST_PROXY: 172.30.250.10
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  identity-service:
+    <<: *node-app
+    working_dir: /app/identity-service
+    environment:
+      PORT: "4001"
+      MONGO_URL: mongodb://mongo:27017/identity_db
+      RABBITMQ_URL: *rabbitmq-url
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+    depends_on:
+      mongo: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  job-core-service:
+    <<: *node-app
+    working_dir: /app/job-core-service
+    environment:
+      <<: *mysql-env
+      PORT: "4002"
+      RABBITMQ_URL: *rabbitmq-url
+      JWT_SECRET: ${JWT_SECRET}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+    depends_on:
+      mysql: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  search-service:
+    <<: *node-app
+    working_dir: /app/search-service
+    environment:
+      PORT: "4003"
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      RABBITMQ_URL: *rabbitmq-url
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      JOB_CORE_URL: http://job-core-service:4002
+      RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  application-service:
+    <<: *node-app
+    working_dir: /app/application-service
+    environment:
+      <<: *mysql-env
+      PORT: "4004"
+      POSTGRES_URL: *postgres-url
+      RABBITMQ_URL: *rabbitmq-url
+      RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+    depends_on:
+      mysql: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  # Production bo qua dia chi email mau (vd @example.com) thay vi chuyen huong.
+  notification-service:
+    <<: *node-app
+    working_dir: /app/notification-service
+    environment:
+      <<: *mysql-env
+      PORT: "4005"
+      NODE_ENV: production
+      RABBITMQ_URL: *rabbitmq-url
+      EMAIL_APP: ${EMAIL_APP:-}
+      EMAIL_APP_PASSWORD: ${EMAIL_APP_PASSWORD:-}
+      FRONTEND_URL: ${PUBLIC_URL}
+      LEGACY_URL: http://backend:5000
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+    depends_on:
+      mysql: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  admin-service:
+    <<: *node-app
+    working_dir: /app/admin-service
+    environment:
+      <<: *mysql-env
+      PORT: "4006"
+      MONGO_URL: mongodb://mongo:27017/admin_db
+      POSTGRES_URL: *postgres-url
+      RABBITMQ_URL: *rabbitmq-url
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+    depends_on:
+      mysql: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  # Chi chay khi COMPOSE_PROFILES=ai (can ANTHROPIC_API_KEY). Khong co khoa thi
+  # cac tac vu AI van duoc nhan va cho xu ly, khong mat.
+  ai-worker:
+    <<: *node-app
+    profiles: [ai]
+    working_dir: /app/ai-worker
+    stop_grace_period: 70s
+    mem_limit: 768m
+    environment:
+      PORT: "4007"
+      RABBITMQ_URL: *rabbitmq-url
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5}
+      AI_CONCURRENCY: ${AI_CONCURRENCY:-2}
+      AI_MONGO_URL: mongodb://mongo:27017/ai_worker_db
+    depends_on:
+      mongo: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  support-chat-service:
+    <<: *node-app
+    working_dir: /app/support-chat-service
+    environment:
+      <<: *mysql-env
+      PORT: "4008"
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      LEGACY_URL: http://backend:5000
+      IDENTITY_URL: http://identity-service:4001
+      APPLICATION_URL: http://application-service:4004
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SUPPORT_CLAUDE_MODEL: ${SUPPORT_CLAUDE_MODEL:-claude-sonnet-5}
+      SUPPORT_HEDGE_MS: ${SUPPORT_HEDGE_MS:-4000}
+      SUPPORT_ANSWER_CACHE_TTL_MS: ${SUPPORT_ANSWER_CACHE_TTL_MS:-600000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SUPPORT_OPENAI_MODEL: ${SUPPORT_OPENAI_MODEL:-gpt-4.1-mini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      SUPPORT_GEMINI_PAID: ${SUPPORT_GEMINI_PAID:-false}
+      SUPPORT_RETENTION_DAYS: ${SUPPORT_RETENTION_DAYS:-30}
+      # Chi tao bang neu chua co (CREATE TABLE IF NOT EXISTS).
+      SUPPORT_AUTO_MIGRATE: "true"
+    depends_on:
+      mysql: { condition: service_healthy }
+      elasticsearch: { condition: service_healthy }
+
+  # ================= CUA NGO RA INTERNET =================
+  web:
+    image: ${JOBFIND_IMAGE_PREFIX:-jobfind}/web:${JOBFIND_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      args:
+        REACT_APP_JOB_SEARCH_MODE: ${REACT_APP_JOB_SEARCH_MODE:-legacy}
+        REACT_APP_JOB_WORKSPACE_MODE: ${REACT_APP_JOB_WORKSPACE_MODE:-legacy}
+        REACT_APP_JOB_CREATE_MODE: ${REACT_APP_JOB_CREATE_MODE:-core}
+        REACT_APP_JOB_EDIT_MODE: ${REACT_APP_JOB_EDIT_MODE:-core}
+        REACT_APP_JOB_REPOST_MODE: ${REACT_APP_JOB_REPOST_MODE:-core}
+        REACT_APP_CANDIDATE_AI_ENABLED: ${REACT_APP_CANDIDATE_AI_ENABLED:-true}
+        REACT_APP_APPLICATION_PROGRESS_ENABLED: ${REACT_APP_APPLICATION_PROGRESS_ENABLED:-true}
+        REACT_APP_PREPARED_CV_APPLICATION_ENABLED: ${REACT_APP_PREPARED_CV_APPLICATION_ENABLED:-false}
+        REACT_APP_CONTACT_EMAIL: ${REACT_APP_CONTACT_EMAIL:-}
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Dat SITE_ADDRESS trong deploy/.env}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      # Chung chi HTTPS: mat volume nay thi Caddy phai xin lai (Let's Encrypt gioi han so lan).
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      default:
+        ipv4_address: 172.30.250.10
+    depends_on:
+      - api-gateway
+    logging: *logging
+
+networks:
+  default:
+    ipam:
+      config:
+        # Container khac nhan IP trong ip_range; .10 danh rieng cho Caddy (TRUST_PROXY).
+        - subnet: 172.30.250.0/24
+          ip_range: 172.30.250.128/25
+
+volumes:
+  mysql-data:
+  mongo-data:
+  es-data:
+  pg-data:
+  rabbitmq-data:
+  caddy-data:
+  caddy-config:

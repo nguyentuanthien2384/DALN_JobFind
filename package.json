@@ -29,6 +29,8 @@
     "deploy:accept-flags-off": "node scripts/accept-flags-off.mjs",
     "deploy:observe": "node scripts/manage-activation.mjs observe",
     "deploy:reactivate": "node scripts/manage-activation.mjs reactivate",
+    "vps:env": "node deploy/scripts/make-env.mjs",
+    "vps:export-data": "node deploy/scripts/export-local-data.mjs",
     "test": "npm run test:unit",
     "lint": "npm --prefix frontend run lint",
     "build": "npm --prefix frontend run build",

@@ -766,6 +766,8 @@ npm --prefix microservices run test:ai:live -- --live
 
 Chi tiết: [Bộ triển khai và quay lui](microservices/docs/release-preparation.md)
 
+**Triển khai lên VPS bằng Docker** (HTTPS tự động, chuyển dữ liệu từ máy dev, sao lưu định kỳ): [deploy/README.md](deploy/README.md)
+
 ---
 
 ## 👥 Tài khoản demo

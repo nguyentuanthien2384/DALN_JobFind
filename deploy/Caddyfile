@@ -1,0 +1,37 @@
+# Cua ngo duy nhat ra Internet: HTTPS tu dong (Let's Encrypt), giao dien React
+# va chuyen /api, /socket.io vao API Gateway.
+#   SITE_ADDRESS=jobfind.example.com -> tu xin va gia han chung chi HTTPS.
+#   SITE_ADDRESS=:80                 -> chi HTTP, de thu khi chua co ten mien.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# Gateway tu dinh tuyen API moi toi microservice, API cu va WebSocket ve backend.
+	# Chi mo /api va /socket.io: /metrics, /status, /readyz cua Gateway khong ra ngoai.
+	@gateway path /api/* /socket.io/*
+	handle @gateway {
+		request_body {
+			max_size 50MB
+		}
+		reverse_proxy api-gateway:4000
+	}
+
+	handle {
+		root * /srv
+		@hashed path /static/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@shell not path /static/*
+		header @shell Cache-Control "no-cache"
+		# Route cua SPA co the trung ten thu muc tinh (vd /external-jobs): chi phuc vu
+		# file that, con lai tra ve app shell; khong bao gio redirect sang thu muc.
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "SAMEORIGIN"
+		-Server
+	}
+}

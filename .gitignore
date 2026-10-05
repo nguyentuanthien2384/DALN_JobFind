@@ -76,6 +76,9 @@ playwright/.cache/
 !**/.env.*.template
 !frontend/.env.test
 .secrets/
+# Dữ liệu xuất/sao lưu cho VPS (chứa toàn bộ CSDL, kể cả thông tin người dùng).
+/deploy/data-export/
+/deploy/backups/
 
 # --------------------------------------------------
 # 6. Logs — file ghi log được sinh ra khi chạy/test

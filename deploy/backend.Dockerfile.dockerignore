@@ -1,0 +1,16 @@
+*
+!backend
+!backend/package.json
+!backend/package-lock.json
+!backend/.babelrc
+!backend/src
+!backend/src/**
+!scripts
+!scripts/run-backend.cjs
+!microservices
+!microservices/shared
+!microservices/shared/recruitmentCatalog.cjs
+!frontend
+!frontend/src
+!frontend/src/data
+!frontend/src/data/**

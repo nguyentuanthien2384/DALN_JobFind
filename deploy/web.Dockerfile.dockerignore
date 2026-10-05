@@ -1,0 +1,14 @@
+*
+!frontend
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/src
+!frontend/src/**
+!frontend/public
+!frontend/public/**
+!frontend/scripts
+!frontend/scripts/**
+!deploy
+!deploy/Caddyfile
+# Tao lai boi prebuild (scripts/copy-pdf-assets.cjs); khong mang ban tren may vao.
+frontend/public/pdfjs
