@@ -12,6 +12,7 @@ import moment from "moment";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import CommonUtils from "../../../util/CommonUtils";
+import { formatBirthDate } from "../../../util/birthDate";
 import { Input, Modal } from "antd";
 import {
     DEFAULT_PAGE_SIZE, FilterSelect, ListFooter, ListTitle, ListToolbar, normalizePageSize, pageForSize,
@@ -24,15 +25,6 @@ const ROLE_OPTIONS = [
     { value: "EMPLOYER", label: "Người tuyển dụng" },
     { value: "CANDIDATE", label: "Ứng viên" },
 ];
-// Ngay sinh trong CSDL co ba dang: mili-giay, "YYYY-MM-DD" va "DD/MM/YYYY".
-const BIRTH_FORMATS = [[/^\d+$/, value => moment(Number(value))], [/^\d{4}-\d{2}-\d{2}/, value => moment(value, "YYYY-MM-DD")],
-    [/^\d{2}\/\d{2}\/\d{4}$/, value => moment(value, "DD/MM/YYYY", true)]];
-export const formatBirthDate = (dob) => {
-    const text = String(dob ?? "").trim();
-    const parse = BIRTH_FORMATS.find(([pattern]) => pattern.test(text))?.[1];
-    const date = parse ? parse(text) : null;
-    return date && date.isValid() ? date.format("DD/MM/YYYY") : "Không có thông tin";
-};
 
 const STATUS_OPTIONS = [
     { value: "", label: "Tất cả trạng thái" },

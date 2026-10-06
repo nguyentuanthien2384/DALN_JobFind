@@ -11,6 +11,7 @@ import {
 import moment from "moment";
 
 import { useFetchAllcode } from "../../../util/fetch";
+import { formatBirthDate } from "../../../util/birthDate";
 import { toast } from "react-toastify";
 import "react-image-lightbox/style.css";
 import { Select } from "antd";
@@ -186,7 +187,7 @@ const DetailFilterUser = () => {
                                         </span>
                                         <span>
                                             <i className="far fa-calendar"></i>
-                                            {hoSo.userAccountData.dob || "Chưa có"}
+                                            {formatBirthDate(hoSo.userAccountData.dob, "Chưa có")}
                                         </span>
                                         {hoSo.userAccountData.genderData && (
                                             <span>

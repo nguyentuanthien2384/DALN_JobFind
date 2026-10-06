@@ -3,7 +3,7 @@ import StableList from '../../../components/common/StableList';
 import React from 'react'
 import { useEffect, useState } from 'react';
 import { getAllUserByCompanyIdService, QuitCompanyService } from '../../../service/userService';
-import moment from 'moment';
+import { formatBirthDate } from '../../../util/birthDate';
 import { PAGINATION } from '../../../util/constant';
 import ReactPaginate from 'react-paginate';
 
@@ -86,7 +86,7 @@ const ManageEmployer = () => {
                                 <tbody>
                                     {dataUser && dataUser.length > 0 &&
                                         dataUser.map((item, index) => {
-                                            let date = moment.unix(item.dob / 1000).format('DD/MM/YYYY')
+                                            let date = formatBirthDate(item.dob)
                                             return (
                                                 <tr key={index}>
                                                     <td>{index + 1 + numberPage * PAGINATION.pagerow}</td>

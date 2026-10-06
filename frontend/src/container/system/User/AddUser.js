@@ -9,7 +9,7 @@ import { useFetchAllcode } from "../../../util/fetch";
 import DatePicker from "react-datepicker";
 import { toast } from "react-toastify";
 import { useNavigate, useParams } from "react-router-dom";
-import moment from "moment";
+import { birthDateValue, parseBirthDate } from "../../../util/birthDate";
 import { Spinner, Modal } from "reactstrap";
 import "../../../components/modal/modal.css";
 const AddUser = () => {
@@ -47,14 +47,7 @@ const AddUser = () => {
         document.querySelector('[name="genderCode"]').value =
             data.userAccountData.genderCode;
         document.querySelector('[name="roleCode"]').value = data.roleData.code;
-        setbirthday(
-            data.userAccountData.dob
-                ? moment
-                      .unix(+data.userAccountData.dob / 1000)
-                      .locale("vi")
-                      .toDate()
-                : null
-        );
+        setbirthday(parseBirthDate(data.userAccountData.dob));
     };
     useEffect(() => {
         if (id) {
@@ -117,7 +110,7 @@ const AddUser = () => {
                 genderCode: inputValues.genderCode,
                 phonenumber: inputValues.phonenumber,
                 image: "https://res.cloudinary.com/bingo2706/image/upload/v1642521841/dev_setups/l60Hf_blyqhb.png",
-                dob: new Date(birthday).getTime(),
+                dob: birthDateValue(birthday),
             };
             if (user.roleCode === "COMPANY") {
                 params.companyId = user.companyId;
@@ -154,7 +147,7 @@ const AddUser = () => {
                 dob:
                     isChangeDate === false
                         ? inputValues.dob
-                        : new Date(birthday).getTime(),
+                        : birthDateValue(birthday),
             });
             setTimeout(() => {
                 setIsLoading(false);

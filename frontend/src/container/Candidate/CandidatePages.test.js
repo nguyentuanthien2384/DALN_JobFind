@@ -215,6 +215,15 @@ describe("CandidateInfo", () => {
         expect(getDetailUserById).toHaveBeenCalledWith(7);
     });
 
+    it.each([["1990-01-01", true], ["01/01/1990", true], [null, false], ["không rõ", false]])(
+        "opens a profile whose stored DOB is %p without crashing the date picker", async (dob, hasDate) => {
+            const detail = candidateDetail();
+            getDetailUserById.mockResolvedValue({ errCode: 0, data: { ...detail, userAccountData: { ...detail.userAccountData, dob } } });
+            render(<CandidateInfo />);
+            await screen.findByDisplayValue("Nguyễn");
+            expect(screen.getByLabelText("Ngày sinh").value !== "").toBe(hasDate);
+        });
+
     it("updates edited fields, changed birthday and a newly encoded avatar", async () => {
         jest.useFakeTimers();
         render(<CandidateInfo />);

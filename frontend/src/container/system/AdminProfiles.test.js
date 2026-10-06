@@ -45,7 +45,7 @@ jest.mock("react-datepicker", () => ({ selected, onChange }) => (
     <input
         aria-label="Ngày sinh"
         value={selected ? new Date(selected).toISOString().slice(0, 10) : ""}
-        onChange={(event) => onChange(new Date(`${event.target.value}T00:00:00Z`))}
+        onChange={(event) => onChange(event.target.value ? new Date(`${event.target.value}T00:00:00Z`) : null)}
     />
 ));
 jest.mock("react-image-lightbox", () => (props) => (
@@ -145,6 +145,28 @@ describe("personal profile", () => {
         });
         expect(JSON.parse(localStorage.getItem("userData"))).toEqual({ id: 90, firstName: "Mới" });
         expect(toast.success).toHaveBeenCalledWith("Cập nhật người dùng thành công");
+    });
+
+    it.each([["1990-01-01", true], ["01/01/1990", true], [null, false], ["", false], ["không rõ", false]])(
+        "opens a profile whose stored DOB is %p without crashing the date picker", async (dob, hasDate) => {
+            getDetailUserById.mockResolvedValue({ errCode: 0, data: { ...userDetail, userAccountData: { ...userDetail.userAccountData, dob } } });
+            const { container } = render(<UserInfo />);
+            await act(async () => Promise.resolve());
+            await waitFor(() => expect(container.querySelector('input[name="firstName"]')).toHaveValue("Mai"));
+            expect(screen.getByLabelText("Ngày sinh").value !== "").toBe(hasDate);
+            fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+            await act(async () => Promise.resolve());
+            expect(UpdateUserService).toHaveBeenCalledWith(expect.objectContaining({ dob }));
+        });
+
+    it("stores a cleared birthday as null instead of 01/01/1970", async () => {
+        const { container } = render(<UserInfo />);
+        await act(async () => Promise.resolve());
+        await waitFor(() => expect(container.querySelector('input[name="firstName"]')).toHaveValue("Mai"));
+        fireEvent.change(screen.getByLabelText("Ngày sinh"), { target: { value: "" } });
+        fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+        await act(async () => Promise.resolve());
+        expect(UpdateUserService).toHaveBeenCalledWith(expect.objectContaining({ dob: null }));
     });
 
     it("opens and closes the saved avatar preview", async () => {

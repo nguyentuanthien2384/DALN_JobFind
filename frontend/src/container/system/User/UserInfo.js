@@ -4,7 +4,7 @@ import { getDetailUserById, UpdateUserService } from "../../../service/userServi
 import { useFetchAllcode } from "../../../util/fetch";
 import DatePicker from "react-datepicker";
 import { toast } from "react-toastify";
-import moment from "moment";
+import { birthDateValue, parseBirthDate } from "../../../util/birthDate";
 import Lightbox from "react-image-lightbox";
 import "react-image-lightbox/style.css";
 import CommonUtils from "../../../util/CommonUtils";
@@ -45,12 +45,7 @@ const UserInfo = () => {
             "imageReview": data.userAccountData.image,
             "email": data.userAccountData.email,
         }));
-        setbirthday(
-            moment
-                .unix(+data.userAccountData.dob / 1000)
-                .locale("vi")
-                .toDate()
-        );
+        setbirthday(parseBirthDate(data.userAccountData.dob));
     }, []);
     useEffect(() => {
         const userData = JSON.parse(localStorage.getItem("userData"));
@@ -123,7 +118,7 @@ const UserInfo = () => {
             dob:
                 isChangeDate === false
                     ? inputValues.dob
-                    : new Date(birthday).getTime(),
+                    : birthDateValue(birthday),
             image: isChangeImg === true ? inputValues.image : null,
             email: inputValues.email,
         });

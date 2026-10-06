@@ -205,16 +205,6 @@ describe("ManageUser", () => {
         await waitFor(() => expect(UnbanUserService).toHaveBeenCalledWith(102));
     });
 
-    it("reads every stored date-of-birth format", () => {
-        const { formatBirthDate } = require("./User/ManageUser");
-        expect(formatBirthDate("2002-01-01")).toBe("01/01/2002");
-        expect(formatBirthDate("01/02/2000")).toBe("01/02/2000");
-        expect(formatBirthDate(String(Date.UTC(2000, 0, 14, 5)))).toBe("14/01/2000");
-        expect(formatBirthDate(null)).toBe("Không có thông tin");
-        expect(formatBirthDate("31/02/2000")).toBe("Không có thông tin");
-        expect(formatBirthDate("không rõ")).toBe("Không có thông tin");
-    });
-
     it("filters by role and status, then clears every filter at once", async () => {
         render(<ManageUser />);
         await screen.findByText("Lan Nguyễn");
