@@ -35,3 +35,8 @@
 		-Server
 	}
 }
+
+# Ung dung khac chay chung VPS (vd SCAP) dung chung cong 80/443 cua Caddy nay. Moi
+# file *.caddy trong volume vps-shared-sites la mot site rieng do ung dung do tu ghi
+# vao roi "caddy reload"; volume rong thi Caddy chi canh bao, JobFind khong doi.
+import sites/*.caddy

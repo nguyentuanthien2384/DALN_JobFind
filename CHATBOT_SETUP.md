@@ -1,6 +1,6 @@
 # Cấu hình và chạy thử chatbot JobFind
 
-Chatbot hiện chạy ở `support-chat-service`, đi qua Gateway `http://localhost:4000`; giao diện local do `npm start` mở tại `http://localhost:3001`. API key chỉ nằm ở máy chủ. Đợt kiểm thử với key thật ngày 24/09/2026 được ghi tại [biên bản demo](docs/api-key-demo-validation.md).
+Chatbot hiện chạy ở `support-chat-service`, đi qua Gateway `http://localhost:4000`; giao diện local do `npm start` mở tại `http://localhost:3000`. API key chỉ nằm ở máy chủ. Đợt kiểm thử với key thật ngày 24/09/2026 được ghi tại [biên bản demo](docs/api-key-demo-validation.md).
 
 ## Cấu hình
 

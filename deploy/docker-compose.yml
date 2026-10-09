@@ -417,9 +417,16 @@ services:
       # Chung chi HTTPS: mat volume nay thi Caddy phai xin lai (Let's Encrypt gioi han so lan).
       - caddy-data:/data
       - caddy-config:/config
+      # Caddyfile lay tu repo de sua cau hinh khong phai build lai giao dien React.
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Site cua ung dung khac chay chung VPS (vd SCAP), do chinh ung dung do ghi vao.
+      - shared-sites:/etc/caddy/sites:ro
     networks:
       default:
         ipv4_address: 172.30.250.10
+      # Mang rieng toi Caddy cua ung dung chung VPS; ung dung do khong thay CSDL cua JobFind.
+      shared-edge:
+        ipv4_address: 172.30.47.2
     depends_on:
       - api-gateway
     logging: *logging
@@ -431,6 +438,14 @@ networks:
         # Container khac nhan IP trong ip_range; .10 danh rieng cho Caddy, .11 cho API Gateway (TRUST_PROXY).
         - subnet: 172.30.250.0/24
           ip_range: 172.30.250.128/25
+  # Dung chung voi ung dung khac tren cung VPS (vd SCAP). Ten co dinh de compose cua
+  # ung dung kia tham chieu; ung dung kia chi tin dung dia chi .2 cua Caddy JobFind.
+  shared-edge:
+    name: vps-shared-edge
+    ipam:
+      config:
+        - subnet: 172.30.47.0/28
+          ip_range: 172.30.47.8/29
 
 volumes:
   mysql-data:
@@ -440,3 +455,5 @@ volumes:
   rabbitmq-data:
   caddy-data:
   caddy-config:
+  shared-sites:
+    name: vps-shared-sites

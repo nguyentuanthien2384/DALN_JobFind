@@ -33,7 +33,7 @@ Cache chi tiết được xóa khi token đăng nhập thay đổi để không 
 
 ## Kiểm tra
 
-`node backend/scripts/test-application-entry-browser.cjs` kiểm tra giao diện desktop/mobile, đăng nhập rồi tiếp tục ứng tuyển, quay lại từ đăng ký, hủy để tiếp tục xem, sai vai trò và tin hết hạn trong lúc đăng nhập. Script chạy các trang thật trên `JOB_TEST_WEB_URL` (mặc định `http://localhost:3001`), dùng API giả lập, không tạo tài khoản hay gửi CV thật. Ảnh kiểm tra lưu tại `.local/application-entry/`.
+`node backend/scripts/test-application-entry-browser.cjs` kiểm tra giao diện desktop/mobile, đăng nhập rồi tiếp tục ứng tuyển, quay lại từ đăng ký, hủy để tiếp tục xem, sai vai trò và tin hết hạn trong lúc đăng nhập. Script chạy các trang thật trên `JOB_TEST_WEB_URL` (mặc định `http://localhost:3000`), dùng API giả lập, không tạo tài khoản hay gửi CV thật. Ảnh kiểm tra lưu tại `.local/application-entry/`.
 
 Kiểm tra ngày 22/09/2026: các suite liên quan đạt 183 test frontend, 201 test backend và 88 test microservices; 4 kịch bản trình duyệt đạt. Đã xác nhận khách mở tin “Tuyển dụng nhân sự 2” và đi đến đăng nhập bằng dữ liệu backend thật. Luồng đăng nhập/đăng ký tiếp tục ứng tuyển được kiểm tra bằng fixture; không gửi hồ sơ thật và không thực hiện xác thực tại nhà cung cấp SSO trong kiểm thử này.
 

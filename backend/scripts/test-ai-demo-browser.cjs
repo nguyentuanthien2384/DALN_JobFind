@@ -16,7 +16,7 @@ const generate = process.env.AI_DEMO_MODE === 'generate';
 const taskType = generate ? 'generate_cv' : 'parse_resume';
 const endpoint = generate ? '/api/ai/generate-cv' : '/api/ai/parse-resume';
 const output = path.join(root, generate ? '.local/ai-generate-browser' : prefixedPdf ? '.local/ai-demo-browser-prefixed' : '.local/ai-demo-browser');
-const web = process.env.AI_DEMO_WEB_URL || 'http://localhost:3001';
+const web = process.env.AI_DEMO_WEB_URL || 'http://localhost:3000';
 const api = process.env.AI_DEMO_API_URL || 'http://localhost:4000';
 const mongoUrl = process.env.AI_DEMO_MONGO_URL || 'mongodb://127.0.0.1:27019';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));

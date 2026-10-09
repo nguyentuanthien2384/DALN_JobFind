@@ -22,13 +22,13 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     page = await context.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
-    await page.goto('http://localhost:3001/login');
+    await page.goto('http://localhost:3000/login');
     await page.getByPlaceholder('Số điện thoại').fill(phone);
     await page.getByPlaceholder('Mật khẩu', { exact: true }).fill(password);
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.waitForURL(/\/admin\/?$/, { timeout: 30000 });
     await page.getByText('Hỗ trợ chatbot', { exact: true }).waitFor();
-    await page.goto('http://localhost:3001/admin/support');
+    await page.goto('http://localhost:3000/admin/support');
     await page.getByRole('heading', { name: 'Danh sách yêu cầu' }).waitFor();
     const refresh = page.getByRole('button', { name: 'Làm mới', exact: true });
     await refresh.waitFor();

@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium, expect } from 'playwright/test';
 
-const web = process.env.SUPPORT_EVAL_WEB || 'http://localhost:3001';
+const web = process.env.SUPPORT_EVAL_WEB || 'http://localhost:3000';
 const output = fileURLToPath(new URL('../../.local/support-live-browser/', import.meta.url));
 await fs.mkdir(output, { recursive: true });
 const report = { at: new Date().toISOString(), realProvider: false, passed: false, turns: 0 };

@@ -31,7 +31,7 @@ const directory = path.join(root, evidenceFolder);
 const fixturePrefix = automatic ? 'offer-automatic-' : 'offer-live-';
 const fixtureFile = path.join(directory, 'application-fixture.json');
 const lockFile = path.join(directory, 'phase.lock');
-const origin = 'http://127.0.0.1:3001';
+const origin = 'http://127.0.0.1:3000';
 await mkdir(directory, { recursive: true, mode: 0o700 });
 const writePrivate = (file, data) => writeFile(path.join(directory, file), JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
 const save = fixture => writePrivate('application-fixture.json', fixture);

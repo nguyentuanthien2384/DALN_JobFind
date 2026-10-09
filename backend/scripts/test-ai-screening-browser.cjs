@@ -11,7 +11,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
 
 const root = path.resolve(__dirname, '../..');
 const output = path.join(root, '.local/ai-screening-browser');
-const web = process.env.AI_DEMO_WEB_URL || 'http://localhost:3001';
+const web = process.env.AI_DEMO_WEB_URL || 'http://localhost:3000';
 const api = process.env.AI_DEMO_API_URL || 'http://localhost:4000';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 

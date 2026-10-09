@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { chromium } = require('@playwright/test');
 
-const base = process.env.JOB_TEST_WEB_URL || 'http://localhost:3001';
+const base = process.env.JOB_TEST_WEB_URL || 'http://localhost:3000';
 const output = path.resolve(__dirname, '../../.local/public-spacing');
 const logo = `${base}/assetsAdmin/images/logo-mini.svg`;
 const jobs = Array.from({ length: 7 }, (_, index) => ({

@@ -22,7 +22,7 @@ app.set('trust proxy', parseTrustedProxies(process.env.TRUST_PROXY));
 
 app.use(function (req, res, next) {
     // URL_REACT co the chua nhieu origin, cach nhau boi dau phay. Dieu nay cho
-    // phep frontend chay o cong 3001 khi cong 3000 dang duoc API Gateway su dung.
+    // phep frontend chay o cong 3000 (npm start) hoac 3001 (khi doi JOBFIND_WEB_PORT).
     const allowedOrigins = (process.env.URL_REACT || 'http://localhost:3000,http://localhost:3001')
         .split(',')
         .map((origin) => origin.trim())

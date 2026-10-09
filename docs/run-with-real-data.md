@@ -10,18 +10,18 @@ npm start
 
 `npm start` in từng bước kèm thời gian và chỉ kết thúc khi ứng dụng sẵn sàng (mã thoát 0) hoặc khi khởi chạy thất bại (in lỗi, mã thoát 1). Lần đầu dựng image có thể mất vài phút. Khi xong:
 
-- Ứng dụng: http://localhost:3001
+- Ứng dụng: http://localhost:3000
 - Gateway: http://localhost:4000
 - Backend: http://localhost:5000
 
-Giao diện được bật đầu tiên, nên chỉ vài giây sau `npm start` địa chỉ http://localhost:3001 (kể cả `/admin/`) đã trả về trang tiến độ thay vì lỗi "từ chối kết nối"; trang tự tải lại vào ứng dụng khi mọi dịch vụ sẵn sàng và hiển thị lỗi nếu khởi chạy thất bại.
+Giao diện được bật đầu tiên, nên chỉ vài giây sau `npm start` địa chỉ http://localhost:3000 (kể cả `/admin/`) đã trả về trang tiến độ thay vì lỗi "từ chối kết nối"; trang tự tải lại vào ứng dụng khi mọi dịch vụ sẵn sàng và hiển thị lỗi nếu khởi chạy thất bại.
 
 - Docker chưa chạy: trình khởi chạy mở Docker Desktop (qua Explorer, như mở từ Start menu) và chờ tối đa 5 phút.
 - MySQL chưa bật: trình khởi chạy chờ tối đa 10 phút với thông báo `Đang chờ MySQL tại 127.0.0.1:3333`; bật MySQL trong XAMPP Control Panel là tiếp tục. MySQL không được tự bật để vẫn do XAMPP quản lý.
 
 Tiến trình ứng dụng chạy nền, không mở cửa sổ terminal mới; nhấn Ctrl+C trong lúc `npm start` đang theo dõi chỉ dừng việc theo dõi. Chạy lại `npm start` khi phiên đang khởi động sẽ tiếp tục theo dõi, khi đang chạy chỉ in địa chỉ. `npm run dev:status` vẫn trả về trạng thái JSON (có danh sách bước `phases`). `npm run dev:stop` dừng backend/frontend và các dịch vụ ứng dụng thuộc JobFind, chỉ kết thúc khi đã dừng hẳn nên có thể chạy `npm start` ngay sau đó; các kho dữ liệu và volume vẫn còn.
 
-Có thể chọn cổng frontend/backend trước khi chạy bằng `JOBFIND_WEB_PORT` và `JOBFIND_BACKEND_PORT`. Gateway vẫn dùng cổng 4000. Cấu hình CORS và địa chỉ API được truyền đồng bộ theo cổng đã chọn. Không thay đổi hay dừng project Docker `job-portal` đang dùng cổng 3000.
+Có thể chọn cổng frontend/backend trước khi chạy bằng `JOBFIND_WEB_PORT` và `JOBFIND_BACKEND_PORT`. Gateway vẫn dùng cổng 4000. Cấu hình CORS và địa chỉ API được truyền đồng bộ theo cổng đã chọn. Mặc định giao diện chạy cổng 3000.
 
 ## Điều kiện và cấu hình
 

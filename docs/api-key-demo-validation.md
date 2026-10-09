@@ -32,7 +32,7 @@ Phần trước đây bị thiếu bằng chứng vì chưa có key là chatbot 
 
 ## Lệnh chạy lại
 
-Chạy `npm start`, chờ `npm run dev:status` báo ứng dụng sẵn sàng tại `http://localhost:3001`. Các kiểm thử thường: `npm test`, `npm run test:runtime`, `npm run lint`, `npm run build`, `npm --prefix microservices run contracts:check`.
+Chạy `npm start`, chờ `npm run dev:status` báo ứng dụng sẵn sàng tại `http://localhost:3000`. Các kiểm thử thường: `npm test`, `npm run test:runtime`, `npm run lint`, `npm run build`, `npm --prefix microservices run contracts:check`.
 
 Các lệnh sau dùng hạn mức API:
 

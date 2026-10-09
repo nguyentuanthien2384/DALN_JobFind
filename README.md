@@ -264,7 +264,7 @@ Giao diện ưu tiên **thao tác nhanh**, **trạng thái rõ ràng**, **không
 ```mermaid
 flowchart LR
     subgraph Client["🖥 Client"]
-        UI["React 18 SPA<br/>:3001 / :3000"]
+        UI["React 18 SPA<br/>:3000"]
     end
 
     subgraph Edge["🚪 Gateway"]
@@ -489,7 +489,7 @@ job_find/
 npm start
 ```
 
-Mở **http://localhost:3001** — trong lúc khởi động, trang hiển thị tiến độ rồi tự vào ứng dụng khi sẵn sàng. Lệnh in `Ứng dụng sẵn sàng: http://localhost:3001` khi hoàn tất.
+Mở **http://localhost:3000** — trong lúc khởi động, trang hiển thị tiến độ rồi tự vào ứng dụng khi sẵn sàng. Lệnh in `Ứng dụng sẵn sàng: http://localhost:3000` khi hoàn tất.
 
 Trình khởi chạy sẽ:
 1. Đọc `backend/.env` và `microservices/.env`, kiểm tra `JWT_SECRET`/`INTERNAL_SECRET` khớp nhau.
@@ -649,7 +649,7 @@ Google SSO tắt cho đến khi có OAuth Client — xem [hướng dẫn SSO](do
 
 | Thành phần | Cổng | Ghi chú |
 | --- | ---: | --- |
-| 🖥 Frontend React | **3001** / 3000 | 3001 qua `npm start`, 3000 khi chạy thủ công |
+| 🖥 Frontend React | **3000** | `npm start` (đổi bằng `JOBFIND_WEB_PORT`) |
 | 🚪 API Gateway | **4000** | Cổng duy nhất frontend gọi |
 | 🧩 Backend legacy + Socket.IO | 5000 | API gốc + realtime hub |
 | ⚙ Identity · Job Core · Search · Application | 4001 · 4002 · 4003 · 4004 | Nội bộ Docker |

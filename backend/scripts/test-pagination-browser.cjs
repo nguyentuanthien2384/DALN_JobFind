@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { chromium, expect } = require('@playwright/test');
 
-const baseUrl = process.env.PAGINATION_TEST_URL || 'http://localhost:3001';
+const baseUrl = process.env.PAGINATION_TEST_URL || 'http://localhost:3000';
 const artifacts = path.resolve(__dirname, '../../.local/pagination-browser-checks');
 const thumbnail = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="85" height="85"><rect width="85" height="85" rx="10" fill="#e8eef7"/><text x="12" y="49" font-size="18" fill="#315077">TEST</text></svg>');
 const codes = {

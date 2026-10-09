@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { chromium } = require('../../microservices/node_modules/playwright/test');
 
-const origin = process.env.E2E_WEB_URL || 'http://localhost:3001';
+const origin = process.env.E2E_WEB_URL || 'http://localhost:3000';
 const routes = ['/admin/list-job-type', '/admin/add-job-type', '/admin/support', '/admin/chat'];
 const viewports = [{ width: 1440, height: 900 }, { width: 1280, height: 720 }, { width: 390, height: 844 }];
 

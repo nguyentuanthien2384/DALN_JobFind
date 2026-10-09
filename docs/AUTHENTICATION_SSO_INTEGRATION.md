@@ -61,7 +61,7 @@ Backend và Gateway phải dùng cùng MySQL, `JWT_SECRET`, issuer và audience.
 
 ```dotenv
 URL_REACT=http://localhost:3000,http://localhost:3001
-AUTH_FRONTEND_ORIGIN=http://localhost:3001
+AUTH_FRONTEND_ORIGIN=http://localhost:3000
 AUTH_ALLOW_LEGACY_TOKENS=false
 OIDC_GOOGLE_ENABLED=true
 OIDC_GOOGLE_ISSUER=https://accounts.google.com
@@ -70,11 +70,11 @@ OIDC_GOOGLE_CLIENT_SECRET=CLIENT_SECRET_TU_GOOGLE
 OIDC_GOOGLE_REDIRECT_URI=http://localhost:4000/api/auth/sso/google/callback
 ```
 
-4. Kiểm tra `frontend/.env`: `REACT_APP_BACKEND_URL=http://localhost:4000`. Gateway phải cho phép origin `http://localhost:3001` (trình khởi chạy sử dụng cấu hình local tương ứng).
+4. Kiểm tra `frontend/.env`: `REACT_APP_BACKEND_URL=http://localhost:4000`. Gateway phải cho phép origin `http://localhost:3000` (trình khởi chạy sử dụng cấu hình local tương ứng).
 5. Khởi động lại bằng `npm run dev:stop`, `npm start`. Tài khoản đã tồn tại: đăng nhập local, vào **Bảo mật và đăng nhập**, nhập mật khẩu và chọn **Liên kết tài khoản Google**.
 6. Sau khi liên kết có thể đăng nhập bằng Google. Email Google đã xác minh trùng tài khoản JobFind sẽ tự liên kết và đăng nhập; người mới chuyển sang hoàn tất đăng ký (email chưa xác minh thì tự nhập email). Hủy consent hoặc callback hết hạn sẽ hiện thông báo tương ứng.
 
-`AUTH_FRONTEND_ORIGIN` phải nằm trong `URL_REACT`, giúp callback về đúng cổng 3001. Không đưa Client Secret vào biến `REACT_APP_*`.
+`AUTH_FRONTEND_ORIGIN` phải nằm trong `URL_REACT`, giúp callback về đúng cổng 3000. Không đưa Client Secret vào biến `REACT_APP_*`.
 
 Production: frontend/API dùng HTTPS và tên miền cùng site; SameSite=Lax không phục vụ cookie bên thứ ba khác site. Đổi redirect URI sang địa chỉ HTTPS public của Gateway và đăng ký chính xác tại Google. Không dùng địa chỉ backend nội bộ. Google issuer cố định là `https://accounts.google.com`.
 

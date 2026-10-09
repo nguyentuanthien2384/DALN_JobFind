@@ -3,11 +3,11 @@
 services:
   api-gateway:
     environment:
-      CORS_ORIGIN: http://localhost:${JOBFIND_WEB_PORT:-3001},http://127.0.0.1:${JOBFIND_WEB_PORT:-3001}
+      CORS_ORIGIN: http://localhost:${JOBFIND_WEB_PORT:-3000},http://127.0.0.1:${JOBFIND_WEB_PORT:-3000}
       LEGACY_URL: http://host.docker.internal:${JOBFIND_BACKEND_PORT:-5000}
   notification-service:
     environment:
-      FRONTEND_URL: http://localhost:${JOBFIND_WEB_PORT:-3001}
+      FRONTEND_URL: http://localhost:${JOBFIND_WEB_PORT:-3000}
       LEGACY_URL: http://host.docker.internal:${JOBFIND_BACKEND_PORT:-5000}
       # Running the local project sends no external email unless
       # microservices/.env sets LOCAL_EMAIL_DELIVERY=true; the launcher then

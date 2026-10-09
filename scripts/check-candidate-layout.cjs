@@ -6,7 +6,7 @@ const { mkdtempSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { chromium } = createRequire(path.join(__dirname, '../microservices/package.json'))('playwright/test');
 const assert = require('node:assert/strict');
-const origin = new URL(process.env.LAYOUT_BASE_URL || 'http://localhost:3001').origin;
+const origin = new URL(process.env.LAYOUT_BASE_URL || 'http://localhost:3000').origin;
 const evidence = mkdtempSync(path.join(tmpdir(), 'jobfind-candidate-layout-'));
 const user = { id: 999999, roleCode: 'CANDIDATE', firstName: 'Kiểm thử', lastName: 'Bố cục', email: 'fixture@example.test' };
 const image = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240"><rect width="600" height="240" fill="#cee0fb"/></svg>');

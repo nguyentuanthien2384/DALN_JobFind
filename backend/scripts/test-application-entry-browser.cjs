@@ -1,11 +1,11 @@
 // Real frontend pages and navigation, with API fixtures. Never sends a real CV
-// or creates an account. Run against the development server on port 3001.
+// or creates an account. Run against the development server on port 3000.
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { chromium } = require('../../microservices/node_modules/playwright');
 
-const base = process.env.JOB_TEST_WEB_URL || 'http://localhost:3001';
+const base = process.env.JOB_TEST_WEB_URL || 'http://localhost:3000';
 const output = path.join(__dirname, '../../.local/application-entry');
 const title = 'Chuyên viên phát triển sản phẩm';
 const intentKey = 'jobfind:application-intent';

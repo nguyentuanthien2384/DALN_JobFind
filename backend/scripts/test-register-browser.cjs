@@ -11,7 +11,7 @@ const { chromium, expect } = require('@playwright/test');
 require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true });
 
 (async () => {
-  const base = process.env.AUTH_TEST_WEB_URL || 'http://localhost:3001';
+  const base = process.env.AUTH_TEST_WEB_URL || 'http://localhost:3000';
   const output = path.resolve(__dirname, '../../.local/register-browser');
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST, port: Number(process.env.DB_PORT || 3306),

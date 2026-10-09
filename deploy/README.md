@@ -61,10 +61,13 @@ sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
 sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
-# Tường lửa
-sudo ufw allow OpenSSH && sudo ufw allow 80/tcp && sudo ufw allow 443
+# Tường lửa. Mở ĐÚNG cổng SSH của VPS trước khi bật, nếu không sẽ bị khóa ngoài.
+# 123HOST dùng cổng 2018 (xem "SSH Command" trong trang quản lý VPS); cổng 22 thì dùng OpenSSH.
+sudo ufw allow 2018/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443
 sudo ufw enable
 ```
+
+Ảnh Ubuntu bản *minimal* có thể thiếu công cụ: chạy `sudo apt-get install -y curl git tmux netcat-openbsd ca-certificates` trước khi cài Docker. Nếu VPS dùng cổng SSH khác 22, thêm cổng đó khi chép file: `scp -P 2018 ...`.
 
 ## 3. Lấy mã nguồn và chép cấu hình, dữ liệu
 
@@ -178,6 +181,30 @@ Người dùng sẽ thấy:
 ```
 
 Nên định kỳ chép thư mục `deploy/backups/` ra ngoài VPS (`scp` về máy, Google Drive...).
+
+## Chạy chung VPS với ứng dụng khác (ví dụ SCAP)
+
+Caddy `web` của JobFind giữ cổng 80/443 và có thể phục vụ thêm tên miền của ứng dụng khác trên cùng VPS mà không phải đổi gì trong JobFind:
+
+```
+Internet ──► Caddy "web" :80/:443 ─┬─ SITE_ADDRESS ───────► JobFind (như trên)
+                                   └─ tên miền ứng dụng kia ─► mạng vps-shared-edge ─► Caddy của ứng dụng đó
+```
+
+- Mạng `vps-shared-edge` (`172.30.47.0/28`) chỉ có Caddy JobFind (`172.30.47.2`, cố định) và Caddy của ứng dụng kia. Ứng dụng kia **không** vào mạng nội bộ của JobFind nên không thấy MariaDB/MongoDB/Redis…
+- Volume `vps-shared-sites` được mount chỉ đọc vào `/etc/caddy/sites`; `Caddyfile` có `import sites/*.caddy`. Ứng dụng kia tự ghi file site của mình vào volume, kiểm tra cú pháp rồi `caddy reload` (SCAP: `deploy/remote-deploy.sh`). Volume rỗng thì Caddy chỉ ghi cảnh báo, JobFind không đổi.
+- `Caddyfile` được mount từ repo, nên sửa Caddyfile chỉ cần `docker compose up -d web`, không phải build lại giao diện React.
+
+Áp dụng trên VPS đang chạy (JobFind gián đoạn vài giây khi tạo lại container `web`):
+
+```bash
+cd ~/DALN_JobFind && git pull && cd deploy
+docker compose up -d web
+docker network inspect vps-shared-edge --format '{{range .Containers}}{{.Name}} {{.IPv4Address}}{{"
+"}}{{end}}'
+```
+
+Sau đó deploy ứng dụng kia. Gỡ một site: xóa file của nó trong volume rồi `docker compose exec web caddy reload --config /etc/caddy/Caddyfile`. Khi chạy `docker compose down`, Docker có thể báo không xóa được mạng `vps-shared-edge` vì ứng dụng kia vẫn đang dùng; dữ liệu JobFind không bị ảnh hưởng.
 
 ## Những điểm cần biết
 

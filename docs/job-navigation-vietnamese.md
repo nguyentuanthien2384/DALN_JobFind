@@ -26,4 +26,4 @@ npm --prefix frontend run test:unit -- --runTestsByPath src/container/JobPage/Jo
 npm --prefix frontend run build
 ```
 
-Kiểm tra trình duyệt cần ứng dụng đang chạy tại `http://localhost:3001` (có thể đổi bằng `JOB_TEST_WEB_URL`). Kiểm tra trang 3, bộ lọc kèm từ khóa, Back/Forward, giữ vị trí qua từng khung hình khi phản hồi bộ lọc bị làm chậm, và mô tả tiếng Việt trên cả màn hình máy tính lẫn điện thoại. Ảnh kiểm tra nằm trong `.local/job-navigation/`.
+Kiểm tra trình duyệt cần ứng dụng đang chạy tại `http://localhost:3000` (có thể đổi bằng `JOB_TEST_WEB_URL`). Kiểm tra trang 3, bộ lọc kèm từ khóa, Back/Forward, giữ vị trí qua từng khung hình khi phản hồi bộ lọc bị làm chậm, và mô tả tiếng Việt trên cả màn hình máy tính lẫn điện thoại. Ảnh kiểm tra nằm trong `.local/job-navigation/`.

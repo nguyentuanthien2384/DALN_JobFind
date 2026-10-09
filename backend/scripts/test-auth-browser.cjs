@@ -24,7 +24,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
     lastPage = page;
     const faults = [];
     page.on('pageerror', error => faults.push(error.message));
-    const base = process.env.AUTH_TEST_WEB_URL || 'http://localhost:3001';
+    const base = process.env.AUTH_TEST_WEB_URL || 'http://localhost:3000';
     const providersRoute = '**/api/auth/providers';
     // Exercise the deliberately unconfigured SSO state without contacting Google.
     const disabledGoogle = route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ google: false }) });

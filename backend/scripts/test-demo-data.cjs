@@ -9,7 +9,7 @@ const path = require('node:path');
 const { chromium, expect } = require('@playwright/test');
 const { PASSWORD } = require('./demo-data/mysql.cjs');
 const root = path.resolve(__dirname, '../..');
-const web = process.env.DEMO_WEB_URL || 'http://localhost:3001';
+const web = process.env.DEMO_WEB_URL || 'http://localhost:3000';
 const api = process.env.DEMO_API_URL || 'http://localhost:4000';
 
 async function main() {

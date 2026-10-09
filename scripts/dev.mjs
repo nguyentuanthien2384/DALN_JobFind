@@ -166,7 +166,7 @@ async function serve() {
         const micro = dotenv.parse(await fs.readFile(path.join(root, 'microservices/.env')));
         if (!backend.JWT_SECRET || backend.JWT_SECRET !== micro.JWT_SECRET || backend.JWT_SECRET.length < 32) throw new Error('JWT_SECRET cần ít nhất 32 ký tự và phải khớp ở hai file .env.');
         if (!backend.INTERNAL_SECRET || backend.INTERNAL_SECRET !== micro.INTERNAL_SECRET) throw new Error('INTERNAL_SECRET chưa khớp ở hai file .env.');
-        const webPort = Number(process.env.JOBFIND_WEB_PORT || 3001), backendPort = Number(process.env.JOBFIND_BACKEND_PORT || backend.PORT || 5000);
+        const webPort = Number(process.env.JOBFIND_WEB_PORT || 3000), backendPort = Number(process.env.JOBFIND_BACKEND_PORT || backend.PORT || 5000);
         if (![webPort, backendPort].every(port => Number.isInteger(port) && port >= 1024 && port <= 65535)) throw new Error('Cổng ứng dụng phải từ 1024 đến 65535.');
         await freePort(webPort); await freePort(backendPort);
         state.webUrl = `http://localhost:${webPort}`; state.apiUrl = 'http://localhost:4000';
