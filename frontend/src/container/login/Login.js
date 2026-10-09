@@ -6,6 +6,7 @@ import { safeReturnPath } from '../../auth/sessionExpiry';
 import { clearApplicationIntent, getApplicationReturnPath, readApplicationIntent } from '../../auth/applicationIntent';
 import { establishSession, refreshSession, startSocialLogin } from '../../auth/authClient';
 import SocialButtons from '../../auth/SocialButtons';
+import usePageRestore from '../../auth/usePageRestore';
 import './Login.css';
 
 const Icon = ({ name, size = 20 }) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -43,6 +44,7 @@ export default function Login() {
     const [completingSso, setCompletingSso] = useState(sso === 'success');
     const submittingRef = useRef(false), phoneRef = useRef(null), passwordRef = useRef(null);
     const busy = submitting || completingSso || !!socialStarting;
+    usePageRestore(() => setSocialStarting(''));
 
     useEffect(() => {
         if (sso !== 'success') return;

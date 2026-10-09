@@ -1,6 +1,6 @@
 jest.mock('../../auth/authClient', () => ({ ...jest.requireActual('../../auth/authClient'), getProviders: jest.fn(), startSocialLogin: jest.fn(), refreshSession: jest.fn() }));
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "react-toastify";
 import { handleLoginService } from "../../service/userService";
@@ -197,6 +197,20 @@ describe('Login methods and form feedback', () => {
         await user.click(screen.getByRole('button', { name: 'Đăng nhập bằng Google' }));
         expect(startSocialLogin).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('button', { name: /Đang chuyển đến Google/ })).toBeDisabled();
+    });
+    it('re-enables social and password login when Back restores the page from the back/forward cache', async () => {
+        getProviders.mockResolvedValueOnce({ google: true, github: true, facebook: true });
+        const { user } = renderLogin();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng nhập bằng GitHub' })).toBeEnabled());
+        await user.click(screen.getByRole('button', { name: 'Đăng nhập bằng GitHub' }));
+        expect(screen.getByRole('button', { name: /Đang chuyển đến GitHub/ })).toBeDisabled();
+        act(() => { window.dispatchEvent(new Event('pageshow')); });
+        expect(screen.getByRole('button', { name: /Đang chuyển đến GitHub/ })).toBeDisabled();
+        act(() => { window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true })); });
+        expect(screen.getByRole('button', { name: 'Đăng nhập bằng GitHub' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Đăng nhập bằng Google' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Đăng nhập', exact: true })).toBeEnabled();
+        expect(screen.getByPlaceholderText('Email hoặc số điện thoại')).toBeEnabled();
     });
     it('treats a malformed provider response as a load error', async () => {
         getProviders.mockResolvedValueOnce({ google: 'true' });

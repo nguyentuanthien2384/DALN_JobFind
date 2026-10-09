@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { createNewUser, handleLoginService } from '../../service/userService';
 import { establishSession, getSocialSignup, completeSocialSignup, startSocialLogin } from '../../auth/authClient';
 import SocialButtons, { providerLabel } from '../../auth/SocialButtons';
+import usePageRestore from '../../auth/usePageRestore';
 import { validatePassword, PASSWORD_HINT } from '../../auth/passwordPolicy';
 import { safeReturnPath } from '../../auth/sessionExpiry';
 import { clearApplicationIntent, getApplicationReturnPath, readApplicationIntent } from '../../auth/applicationIntent';
@@ -40,6 +41,7 @@ export default function Register() {
     const [socialProfile, setSocialProfile] = useState(null), [socialLoading, setSocialLoading] = useState(socialMode);
     const [socialRetry, setSocialRetry] = useState(0), [socialStarting, setSocialStarting] = useState('');
     const busy = submittingRequest || socialLoading || !!socialStarting;
+    usePageRestore(() => setSocialStarting(''));
     // Only a provider-verified email is locked; otherwise the user enters their own email.
     const emailLocked = socialMode && !!socialProfile?.email && socialProfile.emailVerified !== false;
     useEffect(() => {

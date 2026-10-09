@@ -252,6 +252,17 @@ describe('Register', () => {
         expect(screen.queryByRole('button', { name: 'Đăng ký bằng Facebook' })).toBeNull();
     });
 
+    it('re-enables social signup when Back restores the page from the back/forward cache', async () => {
+        getProviders.mockResolvedValueOnce({ google: true, github: true, facebook: false });
+        render(<Register />);
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Đăng ký bằng Google' })).toBeEnabled());
+        await user.click(screen.getByRole('button', { name: 'Đăng ký bằng Google' }));
+        expect(screen.getByRole('button', { name: /Đang chuyển đến Google/ })).toBeDisabled();
+        act(() => { window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true })); });
+        expect(screen.getByRole('button', { name: 'Đăng ký bằng Google' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Đăng ký bằng GitHub' })).toBeEnabled();
+    });
+
     it('completes pending social signup with locked email, a public role and one server session', async () => {
         window.history.replaceState({}, '', '/register?sso=complete');
         getSocialSignup.mockResolvedValue({ errCode: 0, profile: { provider: 'github', email: 'lan@gmail.com', firstName: 'Nguyen', lastName: 'Lan' } });
