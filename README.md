@@ -671,23 +671,27 @@ Google SSO tắt cho đến khi có OAuth Client — xem [hướng dẫn SSO](do
 npm run check
 ```
 
-`check` dừng ngay ở bước lỗi và lần lượt chạy: lint frontend → toàn bộ unit test → test công cụ vận hành → build → kiểm tra hợp đồng HTTP/sự kiện → `npm audit` mức high cho backend, frontend, microservices.
+`check` dừng ngay ở bước lỗi và lần lượt chạy: lint frontend → kiểm thử cả ba phần với ngưỡng coverage → test công cụ vận hành → kiểm tra hợp đồng HTTP/sự kiện → build → `npm audit` mức high cho backend, frontend, microservices. Xem [hướng dẫn kiểm thử](docs/testing.md) để chuẩn bị môi trường và chọn bộ tích hợp.
 
 | Lệnh | Phạm vi |
 | --- | --- |
-| `npm test` | Unit test backend + frontend + microservices |
+| `npm test` · `npm run test:all` | Unit test backend + frontend + microservices, sau đó test công cụ vận hành |
+| `npm run test:unit` | Chỉ unit test cả ba phần |
 | `npm run test:coverage` | Kèm ngưỡng coverage cho cả ba phần |
+| `npm run test:ci` | Coverage cả ba phần + runtime + hợp đồng HTTP/sự kiện; không cần Docker |
 | `npm run test:backend` · `test:frontend` · `test:microservices` | Chạy riêng từng phần |
 | `npm run lint` | ESLint `frontend/src`, không cho phép cảnh báo |
 | `npm --prefix microservices run contracts:check` | Hợp đồng đã sinh khớp với mã nguồn |
 
-**Lần chạy gần nhất (01/10/2026, máy phát triển):**
+**Lần chạy gần nhất (09/10/2026, máy phát triển):**
 
 | Phần | Kết quả |
 | --- | --- |
-| Backend (Jest) | ✅ 86 bộ · 1.927 test |
-| Frontend (Jest + RTL) | ✅ 112 bộ · 2.026 test |
-| Microservices (Vitest) | ✅ 72 tệp · 1.577 test |
+| Backend (Jest) | ✅ 90 bộ · 2.489 test |
+| Frontend (Jest + RTL) | ✅ 122 bộ · 2.225 test |
+| Microservices (Vitest) | ✅ 75 tệp · 1.818 test |
+
+Độ phủ statements lần lượt **96,83% / 90,76% / 95,90%**; tất cả đạt ngưỡng đã cấu hình. Runtime đạt 62 ca, bỏ qua 1 ca MySQL tùy chọn. Build và lint đạt. `npm audit` còn cảnh báo high/critical, nên chưa xác nhận `npm run check` hoặc CI đạt hoàn toàn; chi tiết và giới hạn trong [hướng dẫn kiểm thử](docs/testing.md).
 
 > [!NOTE]
 > Unit test **mock toàn bộ** dịch vụ ngoài (DB, RabbitMQ, Redis, Elasticsearch, SMTP, AI) nên không cần Docker/XAMPP. Thành phần AI có test chạy trong `React.StrictMode` để bắt lỗi chỉ xuất hiện ở chế độ dev.
@@ -725,7 +729,7 @@ npm --prefix microservices run test:ai:live -- --live
 <details>
 <summary><b>Đọc kết quả trong terminal</b></summary>
 
-- `npm test` chạy backend → frontend → microservices; xem đủ ba dòng tổng kết `Test Suites` / `Test Files` và `Tests`.
+- `npm test` chạy backend → frontend → microservices → runtime; xem đủ ba dòng tổng kết `Test Suites` / `Test Files`, `Tests` và tổng kết Node test runner.
 - Thành công khi mã thoát là `0` (PowerShell: `$LASTEXITCODE`).
 - Các bài test tình huống lỗi (mất kết nối, lỗi DB, gửi email thất bại) có thể chủ động in `stderr`/`level: error` — đối chiếu tổng kết thay vì chỉ nhìn màu đỏ.
 - `FAIL`, assertion lỗi, không đạt ngưỡng coverage hoặc mã thoát khác `0` cần xử lý. Cảnh báo `not wrapped in act(...)` cần sửa bước chờ của test.

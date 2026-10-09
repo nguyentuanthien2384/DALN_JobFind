@@ -42,7 +42,15 @@ window.XMLHttpRequest.prototype.send = function guardedSend() {
 if (typeof window.WebSocket === "function") {
     window.WebSocket = function GuardedWebSocket(url) { blockRequest("WebSocket", url); };
 }
-beforeEach(() => { blockedRequests.length = 0; });
+beforeEach(() => {
+    blockedRequests.length = 0;
+    // Install before each test so a test that deletes its own fetch mock cannot
+    // leave a later test with an unguarded transport. Service tests replace this
+    // function explicitly with a controlled response.
+    window.fetch = async function guardedFetch(input) {
+        blockRequest('fetch', typeof input === 'string' ? input : input?.url || String(input));
+    };
+});
 afterEach(() => {
     if (blockedRequests.length) {
         const requests = blockedRequests.splice(0);

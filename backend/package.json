@@ -51,6 +51,7 @@
       "src/utils/**/*.js",
       "src/config/connectDB.js",
       "src/config/socket.js",
+      "src/config/socketRedis.js",
       "src/config/viewEngine.js",
       "src/routes/web.js",
       "src/server.js",

@@ -49,6 +49,64 @@ describe('application PostgreSQL adapter', () => {
         expect(client.release).toHaveBeenCalledOnce();
     });
 
+    it('does not execute work or release an unacquired client when connection acquisition fails', async () => {
+        const offline = Object.assign(new Error('PostgreSQL unavailable'), { code: 'ECONNREFUSED' });
+        pool.connect.mockRejectedValueOnce(offline);
+        const work = vi.fn();
+        const { withTransaction } = await import('../application-service/src/libs/db.js');
+
+        await expect(withTransaction(work)).rejects.toBe(offline);
+        expect(work).not.toHaveBeenCalled();
+        expect(client.query).not.toHaveBeenCalled();
+        expect(client.release).not.toHaveBeenCalled();
+    });
+
+    it('never executes recruitment writes after BEGIN fails', async () => {
+        const beginError = new Error('BEGIN failed');
+        client.query.mockRejectedValueOnce(beginError);
+        const work = vi.fn();
+        const { withTransaction } = await import('../application-service/src/libs/db.js');
+
+        await expect(withTransaction(work)).rejects.toBe(beginError);
+        expect(work).not.toHaveBeenCalled();
+        expect(client.query).toHaveBeenLastCalledWith('ROLLBACK');
+        expect(client.query).not.toHaveBeenCalledWith('COMMIT');
+        expect(client.release).toHaveBeenCalledOnce();
+    });
+
+    it('rejects a failed COMMIT instead of acknowledging a successful recruitment command', async () => {
+        const commitError = new Error('COMMIT response lost');
+        client.query.mockImplementation(async (sql) => {
+            if (sql === 'COMMIT') throw commitError;
+            return {};
+        });
+        const work = vi.fn().mockResolvedValue({ emailQueued: true });
+        const { withTransaction } = await import('../application-service/src/libs/db.js');
+
+        await expect(withTransaction(work)).rejects.toBe(commitError);
+        expect(work).toHaveBeenCalledExactlyOnceWith(client);
+        expect(client.query).toHaveBeenLastCalledWith('ROLLBACK');
+        expect(client.release).toHaveBeenCalledOnce();
+    });
+
+    it.each(['work', 'COMMIT'])('preserves the %s failure and discards the client when rollback also fails', async (phase) => {
+        const original = Object.assign(new Error(`${phase} failed`), { code: '40001' });
+        const rollbackError = new Error('connection lost during ROLLBACK');
+        client.query.mockImplementation(async (sql) => {
+            if (sql === 'COMMIT' && phase === 'COMMIT') throw original;
+            if (sql === 'ROLLBACK') throw rollbackError;
+            return {};
+        });
+        const work = vi.fn(async () => {
+            if (phase === 'work') throw original;
+            return 'ok';
+        });
+        const { withTransaction } = await import('../application-service/src/libs/db.js');
+
+        await expect(withTransaction(work)).rejects.toBe(original);
+        expect(client.release).toHaveBeenCalledExactlyOnceWith(rollbackError);
+    });
+
     it('checks server version', async () => {
         pool.query.mockResolvedValue({ rows: [{ version: 'PostgreSQL 16.1, x64' }] });
         const { testConnection } = await import('../application-service/src/libs/db.js');

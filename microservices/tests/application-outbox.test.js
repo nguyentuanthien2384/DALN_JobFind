@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
 import { offerFixture } from './offerFixture.js';
+import { interviewFixture } from './interviewFixture.js';
 
 const mocks = vi.hoisted(() => {
     const client = { query: vi.fn(), release: vi.fn() };
@@ -32,7 +33,8 @@ const commandDatabase = ({ failOutbox = false, application = before } = {}) => {
     let event;
     mocks.client.query.mockImplementation(async (sql, args) => {
         if (sql.startsWith('SELECT * FROM applications')) return { rows: application ? [application] : [] };
-        if (sql.startsWith('UPDATE applications')) return { rows: [{ ...application, stage: args[0] }] };
+        if (sql.startsWith('UPDATE applications')) return { rows: [{ ...application,
+            stage: sql.includes("SET stage = 'phong_van'") ? 'phong_van' : args[0] }] };
         if (sql.startsWith('INSERT INTO outbox_events')) {
             if (failOutbox) throw new Error('outbox storage unavailable');
             event = { id: args[0], aggregate_id: args[1], event_type: args[2], payload: JSON.parse(args[3]), correlation_id: args[4], attempts: 0, created_at: new Date('2026-09-04T01:02:03Z') };
@@ -134,6 +136,23 @@ describe('Application outbox failure boundaries', () => {
         expect(eventOf().id).not.toBe(first.id);
         expect(eventOf().payload.fromStage).toBeNull();
         expect(mocks.client.query.mock.calls.some(([sql]) => sql.startsWith('UPDATE applications'))).toBe(false);
+    });
+
+    it.each(['moi_ung_tuyen', 'phong_van'])('rolls back a new or resent interview invitation from %s when its durable event cannot be stored', async (stage) => {
+        commandDatabase({ failOutbox: true, application: { ...before, stage } });
+        const { sendInterviewInvitation } = await import('../application-service/src/controllers/applicationController.js');
+        const res = makeRes();
+
+        await sendInterviewInvitation(request({ interview: interviewFixture }), res);
+
+        expect(res.statusCode).toBe(500);
+        expect(res.body.emailQueued).toBeUndefined();
+        expect(mocks.client.query.mock.calls.some(([sql]) => sql.startsWith('INSERT INTO application_events'))).toBe(true);
+        expect(mocks.client.query.mock.calls.some(([sql]) => sql.startsWith('UPDATE applications'))).toBe(stage !== 'phong_van');
+        expect(mocks.client.query).toHaveBeenLastCalledWith('ROLLBACK');
+        expect(mocks.client.query).not.toHaveBeenCalledWith('COMMIT');
+        expect(mocks.client.release).toHaveBeenCalledOnce();
+        expect(mocks.publish).not.toHaveBeenCalled();
     });
 
     it('holds published_at until confirmation and prevents overlapping local relay runs', async () => {

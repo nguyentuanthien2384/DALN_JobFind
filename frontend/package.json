@@ -57,6 +57,10 @@
         ]
     },
     "jest": {
+        "testMatch": [
+            "**/src/**/__tests__/**/*.{js,jsx,ts,tsx}",
+            "**/src/**/*.{spec,test}.{js,jsx,ts,tsx}"
+        ],
         "coverageThreshold": {
             "global": {
                 "statements": 85,

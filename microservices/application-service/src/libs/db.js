@@ -105,16 +105,25 @@ export const initSchema = async () => {
 
 export const withTransaction = async (work) => {
     const client = await pool.connect();
+    let releaseError;
     try {
         await client.query('BEGIN');
         const result = await work(client);
         await client.query('COMMIT');
         return result;
     } catch (error) {
-        await client.query('ROLLBACK');
+        try {
+            await client.query('ROLLBACK');
+        } catch (rollbackError) {
+            // Retain the command/commit error for retry policy and diagnostics.
+            // A client whose transaction could not be cleared must leave the pool.
+            releaseError = rollbackError;
+            logger.warn('rollback giao dich that bai', { error: rollbackError.message });
+        }
         throw error;
     } finally {
-        client.release();
+        if (releaseError) client.release(releaseError);
+        else client.release();
     }
 };
 

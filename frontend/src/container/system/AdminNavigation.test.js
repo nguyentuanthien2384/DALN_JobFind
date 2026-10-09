@@ -96,13 +96,15 @@ describe("system Menu", () => {
         expect(socket.off).toHaveBeenCalledWith("chat:new-message", chatHandler);
     });
 
-    it("highlights the parent list and opens its group on a page that is not in the menu", () => {
+    it("highlights the parent list and opens its group on a page that is not in the menu", async () => {
         localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: "ADMIN" }));
         mockPathname = "/admin/edit-job-skill/IT-REACT/";
         render(<Menu />);
         expect(screen.getByText("Danh mục tuyển dụng").closest("a")).toHaveAttribute("aria-expanded", "true");
         expect(screen.getByRole("link", { name: "Kỹ năng" })).toHaveClass("active");
         expect(screen.getByRole("link", { name: "Ngành nghề" })).not.toHaveClass("active");
+        expect(await screen.findByText("3")).toBeInTheDocument();
+        expect(await screen.findByTitle("10 tin chờ duyệt")).toBeInTheDocument();
     });
 
     it("refreshes pending-work badges right after a moderation action", async () => {

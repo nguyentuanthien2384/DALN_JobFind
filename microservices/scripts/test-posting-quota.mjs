@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
+import net from 'node:net';
 import mysql from 'mysql2/promise';
 import express from 'express';
 
@@ -13,7 +14,7 @@ import express from 'express';
 // Never imports either app/server, starts a relay, calls AI, SMTP or PayPal.
 const execute = promisify(execFile);
 assert.ok(process.argv.slice(2).every(arg => arg === '--browser'), 'Unknown test option');
-const docker = async (...args) => (await execute('docker', args, { timeout: 45000, maxBuffer: 1024 * 1024 })).stdout.trim();
+const docker = async (...args) => (await execute('docker', args, { windowsHide: true, timeout: 45000, maxBuffer: 1024 * 1024 })).stdout.trim();
 const token = randomUUID();
 const database = 'jobfind_posting_quota_test';
 const label = 'jobfind.posting-quota-test';
@@ -24,21 +25,53 @@ const check = async (name, run) => { await run(); passed += 1; console.log(`PASS
 
 try {
     await docker('image', 'inspect', 'mysql:8.0', '--format', '{{.Id}}');
-    container = await docker('run', '--detach', '--rm', '--pull=never', '--name', `jobfind-posting-quota-${token.slice(0, 8)}`,
-        '--label', `${label}=${token}`, '--publish', '127.0.0.1::3306',
+    // Use the same explicit loopback publication as application-sync. Keep an
+    // exited container until finally so startup failures retain their diagnosis.
+    const reservation = await new Promise((resolve, reject) => {
+        const listener = net.createServer();
+        listener.once('error', reject);
+        listener.listen(0, '127.0.0.1', () => resolve(listener));
+    });
+    const hostPort = reservation.address().port;
+    await new Promise((resolve, reject) => reservation.close(error => error ? reject(error) : resolve()));
+    container = await docker('run', '--detach', '--pull=never', '--name', `jobfind-posting-quota-${token.slice(0, 8)}`,
+        '--label', `${label}=${token}`, '--publish', `127.0.0.1:${hostPort}:3306`,
         '--env', `MYSQL_ROOT_PASSWORD=${token}`, '--env', 'MYSQL_ROOT_HOST=%', '--env', `MYSQL_DATABASE=${database}`,
         'mysql:8.0', '--lower-case-table-names=1');
     assert.match(container, /^[a-f0-9]{64}$/);
     const port = await docker('inspect', '--format', '{{(index (index .NetworkSettings.Ports "3306/tcp") 0).HostPort}}', container);
     assert.match(port, /^\d+$/);
-    for (let attempt = 0; ; attempt += 1) {
+    assert.equal(Number(port), hostPort, 'Docker must publish the reserved loopback port');
+    // Connection refusals can return immediately: a retry count alone gave a
+    // slow fresh MySQL initialization only 45 seconds. Bound elapsed time instead.
+    const readinessDeadline = Date.now() + 120000;
+    for (;;) {
         let probe;
         try {
             probe = await mysql.createConnection({ host: '127.0.0.1', port: Number(port), user: 'root', password: token, database, connectTimeout: 1000 });
             await probe.ping();
             break;
-        } catch (error) { if (attempt === 89) throw error; await delay(500); }
-        finally { await probe?.end(); }
+        } catch (error) {
+            if (Date.now() >= readinessDeadline) {
+                console.error(`Disposable MySQL did not become ready at 127.0.0.1:${port}: ${error.code || error.message}`);
+                const diagnostics = await Promise.allSettled([
+                    docker('inspect', '--format', '{{json .State}}', container),
+                    execute('docker', ['logs', '--tail', '40', container], {
+                        windowsHide: true, timeout: 45000, maxBuffer: 1024 * 1024
+                    }).then(({ stdout, stderr }) => `${stdout}${stderr}`.trim())
+                ]);
+                for (let index = 0; index < diagnostics.length; index += 1) {
+                    const result = diagnostics[index];
+                    console.error(index === 0 ? 'MySQL container state:' : 'MySQL startup log:');
+                    console.error(result.status === 'fulfilled' ? result.value : result.reason.message);
+                }
+                throw error;
+            }
+            await delay(500);
+        }
+        // MySQL can drop a probe while switching from its initialization server
+        // to the final server. Closing that failed probe must not abort retries.
+        finally { await probe?.end().catch(() => {}); }
     }
     // Override all DB/transport settings BEFORE importing either writer. This
     // script never reads project .env credentials, even on a developer machine.

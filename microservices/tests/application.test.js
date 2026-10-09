@@ -552,6 +552,22 @@ describe('legacy application synchronization', () => {
 });
 
 describe('submission event consumer', () => {
+    it('propagates a failed persistence so the broker can redeliver the same application instead of ACKing it', async () => {
+        const { startSubmissionConsumer } = await import('../application-service/src/consumers/submissionConsumer.js');
+        await startSubmissionConsumer();
+        const handler = mocks.consume.mock.calls[0][2];
+        const { payload, metadata } = decodeEventFixture('application.submitted');
+        const offline = Object.assign(new Error('PostgreSQL temporarily unavailable'), { code: 'ECONNRESET' });
+        mocks.pool.query.mockRejectedValueOnce(offline).mockResolvedValueOnce({ rowCount: 1 });
+
+        await expect(handler(payload, 'application.submitted', metadata)).rejects.toBe(offline);
+        await expect(handler(payload, 'application.submitted', metadata)).resolves.toBeUndefined();
+        const [first, retry] = mocks.pool.query.mock.calls;
+        expect(retry[0]).toBe(first[0]);
+        // Transport receive time may differ; the original candidate/job/tenant and application time must survive retry.
+        expect(retry[1].slice(0, 10)).toEqual(first[1].slice(0, 10));
+    });
+
     it('accepts the published legacy submission contract with intact identity and snapshot', async () => {
         const { startSubmissionConsumer } = await import('../application-service/src/consumers/submissionConsumer.js');
         await startSubmissionConsumer();

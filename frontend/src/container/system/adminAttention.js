@@ -21,7 +21,9 @@ let timer = null;
 const countOf = async (request) => {
     try {
         const response = await request();
-        return response?.errCode === 0 && Number.isFinite(Number(response.count)) ? Number(response.count) : null;
+        const raw = response?.count;
+        const count = typeof raw === 'number' || (typeof raw === 'string' && raw.trim()) ? Number(raw) : NaN;
+        return response?.errCode === 0 && Number.isSafeInteger(count) && count >= 0 ? count : null;
     } catch {
         return null;
     }
