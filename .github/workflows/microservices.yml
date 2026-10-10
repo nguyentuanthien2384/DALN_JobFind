@@ -1,9 +1,9 @@
 name: Microservices quality
 on:
   push:
-    paths: ['microservices/**', 'backend/**', 'frontend/**', 'scripts/**', 'package.json', '.github/workflows/microservices.yml']
+    paths: ['microservices/**', 'backend/**', 'frontend/**', 'scripts/**', 'vendor/**', 'package.json', '.github/workflows/microservices.yml']
   pull_request:
-    paths: ['microservices/**', 'backend/**', 'frontend/**', 'scripts/**', 'package.json', '.github/workflows/microservices.yml']
+    paths: ['microservices/**', 'backend/**', 'frontend/**', 'scripts/**', 'vendor/**', 'package.json', '.github/workflows/microservices.yml']
 permissions:
   contents: read
 concurrency:
@@ -76,6 +76,8 @@ jobs:
         working-directory: backend
       - run: npm audit --audit-level=high
         working-directory: frontend
+      # npm audit skips the vendored braces prerelease; check its upstream base instead.
+      - run: node scripts/check-vendored-deps.mjs
       - run: npm run build
         working-directory: frontend
       - name: Verify standalone backend release packaging without external services

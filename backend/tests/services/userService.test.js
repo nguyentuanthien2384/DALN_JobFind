@@ -100,7 +100,10 @@ describe('userService', () => {
     expect(mockUpload).not.toHaveBeenCalled();
     const { image } = mockDb.User.create.mock.calls[0][0];
     expect(image).toMatch(/^\/demo\/people\/demo-candidate-\d{3}\.jpg$/);
-    const people = path.join(__dirname, '../../../frontend/public/demo/people');
+    // Walk up rather than ../../../: Stryker runs this file from backend/.stryker-tmp/sandbox-*/.
+    const repoDir = dir => fs.existsSync(path.join(dir, 'frontend/public/demo/people')) ? dir
+      : dir === path.dirname(dir) ? (() => { throw new Error('frontend/public/demo/people not found'); })() : repoDir(path.dirname(dir));
+    const people = path.join(repoDir(__dirname), 'frontend/public/demo/people');
     const seen = new Set(Array.from({ length: 2000 }, () => service.randomDefaultAvatar()));
     expect(seen.size).toBe(72);
     for (const avatar of seen) expect(fs.existsSync(path.join(people, path.basename(avatar)))).toBe(true);

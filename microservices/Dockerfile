@@ -3,6 +3,8 @@ ARG NODE_IMAGE=node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f716
 FROM ${NODE_IMAGE} AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
+# Patched braces tarball installed through npm overrides (see vendor/README.md).
+COPY vendor/ vendor/
 COPY shared/package.json shared/package.json
 COPY api-gateway/package.json api-gateway/package.json
 COPY identity-service/package.json identity-service/package.json

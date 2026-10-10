@@ -1,6 +1,8 @@
 FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
+# Patched braces tarball installed through npm overrides (see vendor/README.md).
+COPY vendor ./vendor
 # Existing lockfile contains React 18 alongside older peer ranges (lightbox).
 # Preserve that locked graph instead of resolving a different dependency set.
 RUN npm ci --include=dev --legacy-peer-deps --ignore-scripts --no-audit --no-fund

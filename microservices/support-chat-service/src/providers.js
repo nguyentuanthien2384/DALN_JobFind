@@ -159,8 +159,9 @@ export function createResponder({ providers = configuredProviders(), executePubl
             const push = delta => {
                 raw += delta;
                 if (raw.length > 12000) throw localFailure('output_limit');
-                // Some gateway backends start an answer with blank lines.
-                const visible = visibleText(raw).trimStart();
+                // Some gateway backends start an answer with blank lines. Trailing whitespace waits
+                // for the next visible text: the stored answer is trimmed and must equal the stream.
+                const visible = visibleText(raw).trim();
                 if (visible.length > text.length && visible.startsWith(text)) {
                     emit('token', { text: visible.slice(text.length) });
                     text = visible;

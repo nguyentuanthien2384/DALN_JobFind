@@ -48,9 +48,19 @@ describe('responder with quick replies and external jobs', () => {
         const emit = vi.fn();
         const answer = await run(createResponder({ providers: [{ name: 'claude' }], generate: () => stream('Có 4 tin kế toán.\n', '[', '[GOI_Y]] Lọc theo Hà Nội | Mẹo CV kế toán'), retrieve: async () => [] }), emit);
         const shown = emit.mock.calls.filter(([event]) => event === 'token').map(([, payload]) => payload.text).join('');
-        expect(shown).toBe('Có 4 tin kế toán.\n');
+        // The newline before the marker is never streamed: the stored (trimmed) answer equals what was shown.
+        expect(shown).toBe('Có 4 tin kế toán.');
         expect(answer).toMatchObject({ text: 'Có 4 tin kế toán.', status: 'complete', suggestions: ['Lọc theo Hà Nội', 'Mẹo CV kế toán'] });
         expect(emit).toHaveBeenCalledWith('suggestions', { suggestions: ['Lọc theo Hà Nội', 'Mẹo CV kế toán'] });
+    });
+    it('streams whitespace between words only once the next word arrives', async () => {
+        const emit = vi.fn();
+        const answer = await run(createResponder({ providers: [{ name: 'claude' }], retrieve: async () => [],
+            generate: () => stream('Có ', '4 tin.\n\n', 'Bạn muốn lọc thêm?\n\n', '[[GOI_Y]] Lọc theo Hà Nội') }), emit);
+        const tokens = emit.mock.calls.filter(([event]) => event === 'token').map(([, payload]) => payload.text);
+        expect(tokens).toEqual(['Có', ' 4 tin.', '\n\nBạn muốn lọc thêm?']);
+        expect(tokens.join('')).toBe(answer.text);
+        expect(answer.text).toBe('Có 4 tin.\n\nBạn muốn lọc thêm?');
     });
     it('falls back to context suggestions when the model omits the line', async () => {
         const executePublicTool = vi.fn(async () => ({ jobs: [], total: 0 }));

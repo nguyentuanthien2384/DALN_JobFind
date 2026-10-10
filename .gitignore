@@ -149,6 +149,9 @@ $RECYCLE.BIN/
 *.tar
 *.gz
 *.tgz
+# Ban va braces cai qua npm overrides; lockfile khoa integrity (xem vendor/README.md).
+!frontend/vendor/*.tgz
+!microservices/vendor/*.tgz
 
 # --------------------------------------------------
 # 11. Docker — file tạm của Docker (giữ docker-compose.yml)

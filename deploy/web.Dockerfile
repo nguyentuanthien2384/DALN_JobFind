@@ -5,6 +5,8 @@ ARG NODE_IMAGE=node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f716
 FROM ${NODE_IMAGE} AS build
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
+# Ban va braces cai qua npm overrides (xem vendor/README.md o goc du an).
+COPY frontend/vendor ./vendor
 # Lockfile co React 18 cung thu vien lightbox khai bao peer React 16/17:
 # giu nguyen do thi phu thuoc da khoa thay vi de npm giai lai.
 RUN npm ci --include=dev --legacy-peer-deps --ignore-scripts --no-audit --no-fund

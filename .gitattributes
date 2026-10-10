@@ -1,3 +1,7 @@
 # Script shell chay tren VPS Linux: giu LF ke ca khi checkout tren Windows
 # (core.autocrlf=true) de chep thang thu muc len server van chay duoc.
 *.sh text eol=lf
+# Ban va braces: noi dung phai trung byte voi tarball trong frontend/ va
+# microservices/vendor (lockfile khoa integrity), nen khong doi xuong dong.
+vendor/** -text
+*.tgz binary

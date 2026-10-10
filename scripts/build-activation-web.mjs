@@ -13,7 +13,8 @@ await exec('git',['archive','--format=tar','-o',path.join(directory,'frontend-so
 await exec('tar',['-xf',path.join(directory,'frontend-source.tar'),'-C',context],{windowsHide:true});
 const frontend=path.join(context,'frontend');await mkdir(path.join(frontend,'.release'),{recursive:true});
 await copyFile(path.join(directory,'nginx-gated.conf'),path.join(frontend,'.release/nginx.conf'));
-await copyFile(path.join(root,'scripts/release/web.Dockerfile'),path.join(directory,'web.Dockerfile'));
+// The kit's own recipe matches the commit archived above; the current one may copy newer inputs.
+await copyFile(path.join(kit,'recipes/web.Dockerfile'),path.join(directory,'web.Dockerfile'));
 const flags={...manifest.variants.rollback.flags};
 const artifacts=[];
 for(const [stage,key,value] of [['search','REACT_APP_JOB_SEARCH_MODE','core'],['progress','REACT_APP_APPLICATION_PROGRESS_ENABLED','true'],['workspace','REACT_APP_JOB_WORKSPACE_MODE','core'],['prepared-cv','REACT_APP_PREPARED_CV_APPLICATION_ENABLED','true']]) {

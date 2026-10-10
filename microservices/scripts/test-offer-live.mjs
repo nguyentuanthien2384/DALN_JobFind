@@ -3,6 +3,8 @@
 // Add --automatic to EACH phase to use .local/offer-automatic and the real configured worker.
 // --prepare creates ONE synthetic application. --browser sends ONE queued offer.
 // No provider settings are changed. Isolated mode leaves SMTP separate; automatic mode only observes delivery.
+// The gateway accepts only session-bound tokens unless AUTH_ALLOW_LEGACY_TOKENS=true, so pass demo
+// sign-ins on EVERY phase: OFFER_LIVE_EMPLOYER and OFFER_LIVE_CANDIDATE as "phone:password".
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -31,7 +33,10 @@ const directory = path.join(root, evidenceFolder);
 const fixturePrefix = automatic ? 'offer-automatic-' : 'offer-live-';
 const fixtureFile = path.join(directory, 'application-fixture.json');
 const lockFile = path.join(directory, 'phase.lock');
-const origin = 'http://127.0.0.1:3000';
+// npm start serves the React app and the API Gateway on separate origins; a same-origin
+// deployment (UI proxying /api) can pass the same URL for both.
+const web = process.env.OFFER_LIVE_WEB || 'http://localhost:3000';
+const api = process.env.OFFER_LIVE_API || 'http://localhost:4000';
 await mkdir(directory, { recursive: true, mode: 0o700 });
 const writePrivate = (file, data) => writeFile(path.join(directory, file), JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
 const save = fixture => writePrivate('application-fixture.json', fixture);
@@ -72,10 +77,23 @@ const mysqlOptions = env => ({ host: '127.0.0.1', port: Number(env.MYSQL_PORT ||
     password: env.MYSQL_PASSWORD, database: env.MYSQL_DATABASE, dateStrings: true, connectTimeout: 8000 });
 const readDb = await mysql.createConnection(mysqlOptions(gatewayEnv));
 const notificationDb = await mysql.createConnection(mysqlOptions(notificationEnv));
-const token = id => jwt.sign({ sub: String(id) }, gatewayEnv.JWT_SECRET, { algorithm: 'HS256',
+const sessions = new Map();
+for (const variable of ['OFFER_LIVE_EMPLOYER', 'OFFER_LIVE_CANDIDATE']) {
+    const value = process.env[variable] || '';
+    if (!value) continue;
+    const separator = value.indexOf(':');
+    const response = await fetch(api + '/api/login', { method: 'POST', signal: AbortSignal.timeout(15000),
+        headers: { 'content-type': 'application/json', origin: web },
+        body: JSON.stringify({ identifier: value.slice(0, separator), password: value.slice(separator + 1) }) });
+    const body = await response.json().catch(() => ({}));
+    check(response.status === 200 && body.errCode === 0 && body.token && body.user?.id, `${variable} sign-in`);
+    sessions.set(variable, { id: body.user.id, token: body.token });
+}
+const signedIn = id => [...sessions.values()].find(session => String(session.id) === String(id));
+const token = id => signedIn(id)?.token ?? jwt.sign({ sub: String(id) }, gatewayEnv.JWT_SECRET, { algorithm: 'HS256',
     issuer: gatewayEnv.JWT_ISSUER || 'jobfind-auth', audience: gatewayEnv.JWT_AUDIENCE || 'jobfind-api', expiresIn: 600 });
 const request = async (id, route, { method = 'GET', body } = {}) => {
-    const response = await fetch(origin + route, { method, signal: AbortSignal.timeout(15000),
+    const response = await fetch(api + route, { method, signal: AbortSignal.timeout(15000),
         headers: { 'content-type': 'application/json', ...(id && { authorization: `Bearer ${token(id)}` }) },
         ...(body && { body: JSON.stringify(body) }) });
     return { status: response.status, body: await response.json() };
@@ -141,8 +159,10 @@ try {
     await phaseLock.writeFile(JSON.stringify({ pid: process.pid, phase: action, automatic, startedAt: new Date().toISOString() }));
     if (action === '--prepare') {
         check(!await exists(fixtureFile), 'A saved fixture already exists; inspect it before creating another');
-        const [[actor]] = await readDb.query("SELECT u.id,a.roleCode,u.companyId FROM users u JOIN accounts a ON a.userId=u.id JOIN companies c ON c.id=u.companyId WHERE a.statusCode='S1' AND a.roleCode IN ('COMPANY','EMPLOYER') AND c.statusCode='S1' AND c.censorCode='CS1' ORDER BY u.id LIMIT 1");
-        const [[candidate]] = await readDb.query("SELECT u.id FROM users u JOIN accounts a ON a.userId=u.id WHERE a.statusCode='S1' AND a.roleCode='CANDIDATE' AND (LOWER(u.email)='example@gmail.com' OR LOWER(u.email) REGEXP '@(.*[.])?example[.](com|net|org)$|[.](example|invalid|test|local|localhost)$') ORDER BY u.id LIMIT 1");
+        // Signed-in accounts must still pass the same employer/demo-candidate rules.
+        const employer = sessions.get('OFFER_LIVE_EMPLOYER'), demoCandidate = sessions.get('OFFER_LIVE_CANDIDATE');
+        const [[actor]] = await readDb.query(`SELECT u.id,a.roleCode,u.companyId FROM users u JOIN accounts a ON a.userId=u.id JOIN companies c ON c.id=u.companyId WHERE a.statusCode='S1' AND a.roleCode IN ('COMPANY','EMPLOYER') AND c.statusCode='S1' AND c.censorCode='CS1'${employer ? ' AND u.id=?' : ''} ORDER BY u.id LIMIT 1`, employer ? [employer.id] : []);
+        const [[candidate]] = await readDb.query(`SELECT u.id FROM users u JOIN accounts a ON a.userId=u.id WHERE a.statusCode='S1' AND a.roleCode='CANDIDATE' AND (LOWER(u.email)='example@gmail.com' OR LOWER(u.email) REGEXP '@(.*[.])?example[.](com|net|org)$|[.](example|invalid|test|local|localhost)$')${demoCandidate ? ' AND u.id=?' : ''} ORDER BY u.id LIMIT 1`, demoCandidate ? [demoCandidate.id] : []);
         check(actor && candidate, 'A current employer and a demo candidate account are required');
         const [[job]] = await readDb.query('SELECT p.id FROM posts p JOIN users u ON u.id=p.userId WHERE u.companyId=? ORDER BY p.id LIMIT 1', [actor.companyId]);
         check(job, 'Employer must have an existing job');
@@ -195,8 +215,8 @@ try {
                 // No mocked API response: only a safety boundary for unrelated writes and external requests.
                 await context.route('**/*', intercepted => {
                     const request = intercepted.request(), url = new URL(request.url());
-                    if (url.origin !== origin) return intercepted.abort();
-                    if (url.pathname.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
+                    if (url.origin !== web && url.origin !== api) return intercepted.abort();
+                    if (url.origin === api && url.pathname.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
                         if (url.pathname !== route || request.method() !== 'POST' || successfulWrites++) {
                             unexpectedWrites.push(url.pathname); return intercepted.abort();
                         }
@@ -204,7 +224,7 @@ try {
                     return intercepted.continue();
                 });
                 const page = await context.newPage(); page.on('pageerror', () => errors.push('Browser runtime error'));
-                await page.goto(origin + '/admin/pipeline/');
+                await page.goto(web + '/admin/pipeline/');
                 await page.getByRole('button', { name: `Hồ sơ ${fixture.candidateName}`, exact: true }).click();
                 const modal = page.getByRole('dialog');
                 await modal.getByPlaceholder('Lời nhắn thêm cho ứng viên (không bắt buộc)').fill(message);

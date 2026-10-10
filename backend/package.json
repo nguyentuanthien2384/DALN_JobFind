@@ -8,7 +8,7 @@
     "test:coverage": "jest --runInBand --coverage",
     "test:mutation": "stryker run",
     "start": "babel-node src/server.js",
-    "dev": "nodemon --exec babel-node src/server.js",
+    "dev": "node --watch --require @babel/register src/server.js",
     "test:smoke": "node scripts/smoke-test.js",
     "test:smoke:entitlement": "babel-node scripts/smoke-entitlement.js",
     "test:candidate-search": "node scripts/test-candidate-search.cjs",
@@ -106,7 +106,6 @@
     "babel-jest": "^30.5.0",
     "esbuild": "^0.28.2",
     "jest": "^30.5.0",
-    "nodemon": "^3.1.9",
     "sequelize-cli": "^6.6.2",
     "socket.io-client": "^4.8.3"
   },

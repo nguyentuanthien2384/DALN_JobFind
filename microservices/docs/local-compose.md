@@ -111,6 +111,7 @@ Chỉ dùng `npm run local:up` khi chủ động muốn Compose quản lý cả 
 - CI mới chạy test microservices/backend, kiểm tra dependency, build image theo commit SHA, kiểm thử image, event trên broker cách ly và kiểm tra rule Prometheus. Lockfile backend đã được bỏ khỏi danh sách ignore để CI có thể cài đúng phiên bản. Workflow chưa được chạy trên GitHub trong lần thay đổi này; chưa có push/deploy, registry signing hay quét hệ điều hành image.
 - CI đã bổ sung test/build frontend và tích hợp hạn mức trên MySQL dùng một lần cho cả writer Job Core lẫn legacy; không cần secret/dữ liệu dự án thật cho các bài này.
 - Root dependency `express`/`qs` và override `qs` được giữ có chủ đích để toàn bộ workspace dùng bản vá `qs` 6.16.0; kiểm tra bằng `npm ls qs` và `npm audit`, không chỉ nhìn phiên bản gốc trong manifest.
+- Root dependency `braces` trỏ tới `vendor/braces-3.0.4-jobfind.1.tgz` (bản vá GHSA-vfj7-8cjw-p6xm, override `$braces`); `Dockerfile` chép `vendor/` trước `npm ci`. npm audit không kiểm tra được bản prerelease này; xem [vendor/README.md](../../vendor/README.md).
 
 ## Khi có sự cố
 

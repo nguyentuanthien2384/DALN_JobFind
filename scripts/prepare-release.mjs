@@ -14,7 +14,7 @@ const run = (command, args, options = {}) => {
 const json = (command, args) => JSON.parse(run(command, args));
 const writeJson = (file, value) => writeFile(file, JSON.stringify(value, null, 2) + '\n');
 const commit = run('git', ['rev-parse', 'HEAD']);
-const inputs = ['backend/src', 'backend/package.json', 'backend/package-lock.json', 'backend/.babelrc', 'frontend/src', 'frontend/public', 'frontend/scripts', 'frontend/package.json', 'frontend/package-lock.json', 'microservices', 'scripts/run-backend.cjs'];
+const inputs = ['backend/src', 'backend/package.json', 'backend/package-lock.json', 'backend/.babelrc', 'frontend/src', 'frontend/public', 'frontend/scripts', 'frontend/package.json', 'frontend/package-lock.json', 'frontend/vendor', 'microservices', 'scripts/run-backend.cjs'];
 if (run('git', ['status', '--porcelain', '--', ...inputs])) throw new Error('Application inputs must match the fixed commit');
 const releaseId = `${commit.slice(0, 12)}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 const kit = path.join(root, '.local/releases', releaseId);

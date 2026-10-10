@@ -671,7 +671,7 @@ Google SSO tắt cho đến khi có OAuth Client — xem [hướng dẫn SSO](do
 npm run check
 ```
 
-`check` dừng ngay ở bước lỗi và lần lượt chạy: lint frontend → kiểm thử cả ba phần với ngưỡng coverage → test công cụ vận hành → kiểm tra hợp đồng HTTP/sự kiện → build → `npm audit` mức high cho backend, frontend, microservices. Xem [hướng dẫn kiểm thử](docs/testing.md) để chuẩn bị môi trường và chọn bộ tích hợp.
+`check` dừng ngay ở bước lỗi và lần lượt chạy: lint frontend → kiểm thử cả ba phần với ngưỡng coverage → test công cụ vận hành → kiểm tra hợp đồng HTTP/sự kiện → build → `npm audit` mức high cho backend, frontend, microservices → kiểm tra bản vá `braces` trong [vendor/](vendor/README.md) với advisory upstream. Xem [hướng dẫn kiểm thử](docs/testing.md) để chuẩn bị môi trường và chọn bộ tích hợp.
 
 | Lệnh | Phạm vi |
 | --- | --- |

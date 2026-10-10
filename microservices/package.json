@@ -64,12 +64,14 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
+    "braces": "file:vendor/braces-3.0.4-jobfind.1.tgz",
     "express": "4.22.2",
     "mongodb": "^6.20.0",
     "qs": "6.16.0"
   },
   "overrides": {
     "qs": "$qs",
-    "axios": "^1.20.0"
+    "axios": "^1.20.0",
+    "braces": "$braces"
   }
 }
