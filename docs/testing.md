@@ -134,3 +134,14 @@ Hai lỗi lộ ra khi chạy thật và đã sửa:
 
 - Chatbot stream dấu xuống dòng trước dòng `[[GOI_Y]]` nhưng lưu câu trả lời đã `trim()`, nên nội dung người dùng thấy khác nội dung lưu (đánh giá live báo `storedTextMatchesStream` lúc đạt lúc không). `support-chat-service/src/providers.js` giữ khoảng trắng cuối đến khi có chữ tiếp theo; test mới thất bại trên mã cũ.
 - `test-offer-live.mjs` giả định giao diện và `/api` cùng origin và tự ký JWT không có phiên; Gateway hiện từ chối token đó (`AUTH_ALLOW_LEGACY_TOKENS=false`). Script dùng hai origin và đăng nhập thật bằng tài khoản demo truyền qua biến môi trường, vẫn giữ quy tắc chỉ dùng ứng viên có email demo.
+
+### Kiểm tra sẵn sàng demo (10/10/2026)
+
+Trình duyệt thật (Playwright, `npm start`) đăng nhập qua form cho khách, ứng viên `0987650001`, nhà tuyển dụng demo `0918800001` và quản trị viên, mở 56 trang chính, ghi lỗi JavaScript/console, API 4xx/5xx, chuyển hướng ngoài ý muốn và chụp màn hình. Hai lượt liên tiếp sau khi sửa: 0/56 trang có lỗi. Đã sửa:
+
+- Không còn tin nội bộ nào để ứng tuyển: 33 tin cũ hết hạn từ 2022, 138 tin demo đang ẩn. `npm run demo:show-jobs` mở lại tin demo (hạn 26/11–21/12/2026; ẩn lại bằng `npm run demo:hide-jobs`).
+- Danh sách công khai hiện tin hết hạn: trang chủ (`/api/get-filter-post`) và Core search (`/api/search/jobs`, gợi ý, facet) nay chỉ trả tin có `timeEnd >= now`, giống công cụ tìm việc của chatbot; trang chi tiết vẫn đọc được tin hết hạn cho lịch sử ứng tuyển.
+- Trang Việc làm xếp 110 tin nguồn bên ngoài trước tin JobFind; nay tin JobFind đứng trước, tin bên ngoài nối sau trang cuối.
+- Gateway/dịch vụ trong Docker thỉnh thoảng trả 502/504 khi gọi backend/MySQL trên máy qua `host.docker.internal` (IPv4 chậm bị bỏ để thử IPv6 không tới được). `compose.local.yml` đặt `NODE_OPTIONS=--no-network-family-autoselection --dns-result-order=ipv4first`.
+- Một lần trục trặc tạm thời ở `/api/auth/me` khiến cả trang hiện "Không thể xác minh quyền truy cập"; `App.js` nay thử lại tối đa 3 lần với lỗi mạng/timeout/5xx (không thử lại 401/403).
+- `/candidate/info` đưa giá trị `null` (địa chỉ, họ) vào input, React cảnh báo controlled/uncontrolled.

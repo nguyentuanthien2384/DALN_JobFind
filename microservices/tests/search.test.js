@@ -212,9 +212,15 @@ describe('search controllers', () => {
             isHot: 'true', sort: 'relevance', limit: '500', offset: '5'
         } });
         const res = makeRes();
+        const before = Date.now();
         await searchJobs(req, res);
         expect(res.body).toEqual({ errCode: 0, data: [{ id: 1, _score: 2, _highlight: 'match' }], count: 1, took: 4 });
         const query = mocks.es.search.mock.calls[0][0];
+        // Past-deadline jobs are not listed (timeEnd is the last open millisecond).
+        const deadline = query.query.bool.filter.find(item => item.range?.timeEnd);
+        expect(Object.keys(deadline.range.timeEnd)).toEqual(['gte']);
+        expect(deadline.range.timeEnd.gte).toBeGreaterThanOrEqual(before);
+        expect(deadline.range.timeEnd.gte).toBeLessThanOrEqual(Date.now());
         expect(query).toMatchObject({ index: 'jobs', from: 5, size: 100, sort: ['_score', { isHot: 'desc' }] });
         expect(query.query.bool.filter).toContainEqual({ term: { isHot: true } });
         expect(query.query.bool.filter).toEqual(expect.arrayContaining([

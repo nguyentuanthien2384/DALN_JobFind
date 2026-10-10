@@ -26,7 +26,7 @@ test('missing/failed reference labels display original code',async()=>{
     expect(searchCard(job,labels).postDetailData.salaryTypePostData.value).toBe('S1');
 });
 
-test.each(['core', 'legacy'])('external prefix paginates without dropping or repeating native jobs (%s)', async mode => {
+test.each(['core', 'legacy'])('JobFind jobs lead and the external suffix paginates without dropping or repeating (%s)', async mode => {
     const external = Array.from({length:7}, (_, index) => ({id:`external-${index}`}));
     filterExternalJobs.mockReturnValue(external);
     const native = Array.from({length:8}, (_, index) => ({...job,id:index+1}));
@@ -35,8 +35,16 @@ test.each(['core', 'legacy'])('external prefix paginates without dropping or rep
     const pages = [];
     for (const offset of [0,5,10]) pages.push(await loadSearchPage({offset,limit:5}, mode, {}, {includeExternal:true}));
     expect(pages.map(page=>page.count)).toEqual([15,15,15]);
-    expect(pages.flatMap(page=>page.data.map(row=>row.id))).toEqual([...external,...native].map(row=>row.id));
-    expect(api.mock.calls.map(([params])=>[params.offset,params.limit])).toEqual([[0,1],[0,3],[3,5]]);
+    expect(pages.map(page=>page.data.length)).toEqual([5,5,5]);
+    expect(pages.flatMap(page=>page.data.map(row=>row.id))).toEqual([...native,...external].map(row=>row.id));
+    expect(api.mock.calls.map(([params])=>[params.offset,params.limit])).toEqual([[0,5],[5,5],[10,5]]);
+});
+
+test('external jobs alone fill pages when no JobFind job matches', async () => {
+    filterExternalJobs.mockReturnValue([{id:'external-0'},{id:'external-1'},{id:'external-2'}]);
+    searchJobs.mockResolvedValue({errCode:0,data:[],count:0});
+    const page = await loadSearchPage({offset:2,limit:5}, 'core', {}, {includeExternal:true});
+    expect(page).toEqual({count:3,data:[{id:'external-2',listingSource:'external'}]});
 });
 
 test('external matches do not conceal a failed native search', async () => {

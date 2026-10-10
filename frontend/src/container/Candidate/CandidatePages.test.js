@@ -215,6 +215,19 @@ describe("CandidateInfo", () => {
         expect(getDetailUserById).toHaveBeenCalledWith(7);
     });
 
+    it("keeps inputs controlled when stored profile fields are NULL", async () => {
+        const detail = candidateDetail();
+        getDetailUserById.mockResolvedValue({ errCode: 0, data: { ...detail,
+            userAccountData: { ...detail.userAccountData, address: null, lastName: null } } });
+        const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+        const { container } = render(<CandidateInfo />);
+        await screen.findByDisplayValue("Nguyễn");
+        expect(container.querySelector('input[name="address"]').value).toBe("");
+        expect(container.querySelector('input[name="lastName"]').value).toBe("");
+        expect(consoleError.mock.calls.flat().join(" ")).not.toMatch(/should not be null|changing a controlled input to be uncontrolled/);
+        consoleError.mockRestore();
+    });
+
     it.each([["1990-01-01", true], ["01/01/1990", true], [null, false], ["không rõ", false]])(
         "opens a profile whose stored DOB is %p without crashing the date picker", async (dob, hasDate) => {
             const detail = candidateDetail();

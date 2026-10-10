@@ -1,6 +1,10 @@
 # Overlay for the current PC. Requires Docker Compose >= 2.24.4.
 # docker compose -f docker-compose.yml -f compose.local.yml up -d --build
 # Preserves existing data volumes and loopback host ports. Not an Internet deployment.
+# NODE_OPTIONS: host.docker.internal resolves to IPv4 and an unreachable IPv6 address. With Node's
+# address autoselection a slow IPv4 connect to the backend/MySQL on the host was abandoned for the
+# IPv6 one ("connect ETIMEDOUT ...; connect ENETUNREACH ...", Gateway 502/504); a longer attempt
+# window only made it rarer. Connect over IPv4 alone with the normal TCP timeout instead.
 x-runtime: &runtime
   image: ${JOBFIND_IMAGE:-jobfind-microservices:local}
   build:
@@ -29,6 +33,7 @@ services:
     volumes: !reset []
     environment:
       METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      NODE_OPTIONS: --no-network-family-autoselection --dns-result-order=ipv4first
     depends_on: !override {}
   deps-installer:
     profiles: [dev-tools]
@@ -38,6 +43,7 @@ services:
     volumes: !reset []
     environment:
       METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      NODE_OPTIONS: --no-network-family-autoselection --dns-result-order=ipv4first
     depends_on: !override
       redis: { condition: service_healthy }
 
@@ -46,6 +52,7 @@ services:
     volumes: !reset []
     environment:
       METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      NODE_OPTIONS: --no-network-family-autoselection --dns-result-order=ipv4first
     depends_on: !override
       mongo: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -55,6 +62,7 @@ services:
     volumes: !reset []
     environment:
       METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      NODE_OPTIONS: --no-network-family-autoselection --dns-result-order=ipv4first
     depends_on: !override
       rabbitmq: { condition: service_healthy }
 
@@ -63,6 +71,7 @@ services:
     volumes: !reset []
     environment:
       METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      NODE_OPTIONS: --no-network-family-autoselection --dns-result-order=ipv4first
     depends_on: !override
       elasticsearch: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -72,6 +81,7 @@ services:
     volumes: !reset []
     environment:
       METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      NODE_OPTIONS: --no-network-family-autoselection --dns-result-order=ipv4first
     depends_on: !override
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -81,6 +91,7 @@ services:
     volumes: !reset []
     environment:
       METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      NODE_OPTIONS: --no-network-family-autoselection --dns-result-order=ipv4first
     depends_on: !override
       rabbitmq: { condition: service_healthy }
 
@@ -89,6 +100,7 @@ services:
     volumes: !reset []
     environment:
       METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      NODE_OPTIONS: --no-network-family-autoselection --dns-result-order=ipv4first
     depends_on: !override
       mongo: { condition: service_healthy }
       postgres: { condition: service_healthy }
@@ -102,6 +114,7 @@ services:
     environment:
       PORT: 4007
       METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      NODE_OPTIONS: --no-network-family-autoselection --dns-result-order=ipv4first
     depends_on: !override
       mongo: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }

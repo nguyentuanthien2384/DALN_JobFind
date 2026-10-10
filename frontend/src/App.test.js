@@ -235,6 +235,29 @@ describe("application routes", () => {
         expect(screen.queryByText("chat-page")).not.toBeInTheDocument();
     });
 
+    it("retries a transient authorization failure instead of locking the user out", async () => {
+        mockGetCurrentAuthorizationService.mockResolvedValueOnce({ errCode: 503, httpStatus: 503, errorType: "unavailable" });
+        renderAt("/candidate/info", { id: 2, roleCode: "CANDIDATE" });
+        expect(await screen.findByText("candidate-page", {}, { timeout: 3000 })).toBeInTheDocument();
+        expect(mockGetCurrentAuthorizationService).toHaveBeenCalledTimes(2);
+        expect(screen.queryByText(/Không thể xác minh quyền truy cập/)).not.toBeInTheDocument();
+    });
+
+    it("does not retry a rejected session and reports it at once", async () => {
+        mockGetCurrentAuthorizationService.mockResolvedValue({ errCode: 401, httpStatus: 401, errorType: "authentication" });
+        renderAt("/candidate/info", { id: 2, roleCode: "CANDIDATE" });
+        expect(await screen.findByText(/Không thể xác minh quyền truy cập/)).toBeInTheDocument();
+        expect(mockGetCurrentAuthorizationService).toHaveBeenCalledTimes(1);
+    });
+
+    it("gives up after three transient failures and offers a manual retry", async () => {
+        mockGetCurrentAuthorizationService.mockResolvedValue({ errCode: -1, errorType: "network" });
+        renderAt("/candidate/info", { id: 2, roleCode: "CANDIDATE" });
+        expect(await screen.findByText(/Không thể xác minh quyền truy cập/, {}, { timeout: 5000 })).toBeInTheDocument();
+        expect(mockGetCurrentAuthorizationService).toHaveBeenCalledTimes(3);
+        expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    });
+
     it("allows candidates into their protected area with the shared layout", async () => {
         renderAt("/candidate/info", { id: 2, roleCode: "CANDIDATE" });
         expect(await screen.findByText("candidate-page")).toBeInTheDocument();

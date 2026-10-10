@@ -9,11 +9,14 @@ const provinceBucketLimit = Math.max(100, new Set(PROVINCES.flatMap(province => 
 
 const logger = createLogger('search-service');
 
+// timeEnd is the last open millisecond (as in the support job tools); past-deadline jobs stay
+// readable by ID for application history but are not listed, suggested or counted.
 const publicJobFilter = () => [
     { bool: { must_not: [{ term: { searchDeleted: true } }] } },
     { term: { statusCode: 'PS1' } },
     { term: { companyStatusCode: 'S1' } },
-    { term: { companyCensorCode: 'CS1' } }
+    { term: { companyCensorCode: 'CS1' } },
+    { range: { timeEnd: { gte: Date.now() } } }
 ];
 
 // Tim kiem sieu toc: loc theo tag/luong bang term query, tim theo chu bang

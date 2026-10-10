@@ -31,19 +31,20 @@ const CandidateInfo = () => {
     });
 
     const setStateUser = useCallback((data) => {
+        // Inputs stay controlled: profile columns such as address may be NULL.
         setInputValues((currentValues) => ({
             ...currentValues,
-            "firstName": data.userAccountData.firstName,
-            "lastName": data.userAccountData.lastName,
-            "address": data.userAccountData.address,
-            "phonenumber": data.phonenumber,
-            "genderCode": data.userAccountData.genderCode,
+            "firstName": data.userAccountData.firstName ?? "",
+            "lastName": data.userAccountData.lastName ?? "",
+            "address": data.userAccountData.address ?? "",
+            "phonenumber": data.phonenumber ?? "",
+            "genderCode": data.userAccountData.genderCode ?? "",
             "roleCode": data.userAccountData.roleCode,
             "id": data.userAccountData.id,
             "dob": data.userAccountData.dob,
             "image": data.userAccountData.image,
             "imageReview": data.userAccountData.image,
-            "email": data.userAccountData.email,
+            "email": data.userAccountData.email ?? "",
         }));
         setbirthday(parseBirthDate(data.userAccountData.dob));
     }, []);

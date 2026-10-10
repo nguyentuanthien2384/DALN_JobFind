@@ -475,6 +475,9 @@ let getFilterPost = (data) => {
                 where: {
                     statusCode: 'PS1',
                     [Op.or]: listDetailPostId,
+                    // Public listing shows open jobs only (timeEnd is the last open millisecond);
+                    // getDetailPostById still serves expired posts for application history.
+                    [Op.and]: [where(cast(col('Post.timeEnd'), 'SIGNED'), { [Op.gte]: Date.now() })],
                 },
                 order: [['timePost', 'DESC']],
                 include: [

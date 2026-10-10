@@ -18,10 +18,12 @@ const deferred = () => {
     const promise = new Promise((r) => { resolve = r; });
     return { promise, resolve };
 };
+// One fixed open deadline: identical snapshots must hash identically across calls.
+const openUntil = String(Date.now() + 7 * 86400000);
 const job = (id, name = 'Node developer') => ({
     id, name, statusCode: 'PS1', companyId: 3, companyName: 'Test company',
     companyStatusCode: 'S1', companyCensorCode: 'CS1', categoryJobCode: 'IT',
-    descriptionHTML: '<p>Build reliable Node services</p>'
+    descriptionHTML: '<p>Build reliable Node services</p>', timeEnd: openUntil
 });
 let containerId;
 let es;
@@ -187,6 +189,17 @@ try {
         assert.ok(res.body.data.every((doc) => !('searchSync' in doc) && !('searchDeleted' in doc)));
     });
 
+    await check('a past-deadline job stays indexed but is not listed or counted publicly', async () => {
+        jobs.set('11', { ...job(11, 'Expired Node role'), timeEnd: String(Date.now() - 60000) });
+        await signal(11, 'expired-create');
+        assert.equal((await read(11)).statusCode, 'PS1');
+        await es.indices.refresh({ index: INDEX });
+        const res = response();
+        await searchJobs({ query: { q: 'Expired Node role' } }, res);
+        assert.equal(res.statusCode, 200);
+        assert.ok(!res.body.data.some((doc) => doc.id === 11));
+    });
+
     await check('HTTP source outages and an undeployed endpoint never turn existing jobs into tombstones', async () => {
         const before = await read(8);
         try {
@@ -218,7 +231,7 @@ try {
         jobs.clear();
         await rebuildIndex();
         const all = await es.count({ index: INDEX });
-        assert.equal(all.count, 6);
+        assert.equal(all.count, 7);
         assert.equal((await es.count({ index: INDEX, query: liveIndexQuery })).count, 0);
         for (const handler of [searchJobs, suggest, facets]) {
             const res = response();

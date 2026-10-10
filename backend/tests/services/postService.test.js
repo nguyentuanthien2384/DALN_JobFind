@@ -444,6 +444,20 @@ describe('postService', () => {
     expectPublicOwnerScope(mockDb.Post.findAndCountAll.mock.calls[0][0]);
   });
 
+  test('public listing hides posts past their deadline, keeping the last open millisecond', async () => {
+    const { Op } = require('sequelize');
+    mockDb.DetailPost.findAll.mockResolvedValue([{ id: 20 }]);
+    mockDb.Post.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });
+    const before = Date.now();
+    await service.getFilterPost({});
+    const [deadline] = mockDb.Post.findAndCountAll.mock.calls[0][0].where[Op.and];
+    expect(deadline.attribute.val.col).toBe('Post.timeEnd');
+    expect(deadline.attribute.type).toBe('SIGNED');
+    expect(Object.getOwnPropertySymbols(deadline.logic)).toEqual([Op.gte]);
+    expect(deadline.logic[Op.gte]).toBeGreaterThanOrEqual(before);
+    expect(deadline.logic[Op.gte]).toBeLessThanOrEqual(Date.now());
+  });
+
   test.each(['Bắc Ninh', 'Bắc Giang'])('legacy post filter %s includes both names of the merged province', async addressCode => {
     mockDb.DetailPost.findAll.mockResolvedValue([{ id: 20 }]);
     mockDb.Post.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });

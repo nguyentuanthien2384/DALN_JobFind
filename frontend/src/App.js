@@ -38,6 +38,10 @@ const HomeAdmin = lazy(() => import("./container/system/HomeAdmin"));
 const HomeCandidate = lazy(() => import("./container/Candidate/HomeCandidate"));
 const SecuritySettings = lazy(() => import('./auth/SecuritySettings'));
 
+const AUTHORIZATION_ATTEMPTS = 3;
+const AUTHORIZATION_RETRY_MS = 600;
+const TRANSIENT_ERRORS = ['network', 'timeout', 'unavailable'];
+
 const RoutePageLoader = () => (
     <main className="route-page-loader" role="status" aria-live="polite">
         Đang tải giao diện...
@@ -90,9 +94,23 @@ function App() {
 
         const refreshAuthorization = async () => {
             try {
-                await getAccessToken();
-                const response = await getCurrentAuthorizationService();
-                if (!active || localStorage.getItem('token_user') !== requestToken) return;
+                // A brief network or Gateway hiccup (or one slow upstream) must not lock a signed-in
+                // user out of every page; only transient failures are retried, never 401/403.
+                let response;
+                for (let attempt = 1; ; attempt += 1) {
+                    try {
+                        await getAccessToken();
+                        response = await getCurrentAuthorizationService();
+                    } catch (error) {
+                        if (attempt >= AUTHORIZATION_ATTEMPTS || [401, 403].includes(error?.response?.status)) throw error;
+                        response = { errorType: 'network' };
+                    }
+                    if (!active || localStorage.getItem('token_user') !== requestToken) return;
+                    if (attempt >= AUTHORIZATION_ATTEMPTS || !TRANSIENT_ERRORS.includes(response?.errorType)) break;
+                    const delay = AUTHORIZATION_RETRY_MS * attempt;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    if (!active || localStorage.getItem('token_user') !== requestToken) return;
+                }
 
                 if (response?.errCode === 0 && response.data) {
                     const refreshedUser = {

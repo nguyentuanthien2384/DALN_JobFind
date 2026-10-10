@@ -31,20 +31,17 @@ export const loadSearchPage = async (params, mode, labels, { includeExternal = f
     const external = includeExternal ? filterExternalJobs(params) : [];
     const offset = Number(params.offset) || 0;
     const limit = Number(params.limit) || 5;
-    const externalPage = external.slice(offset, offset + limit);
-    const remaining = limit - externalPage.length;
-    // External vacancies form one stable prefix. Only request the native page
-    // overlap; a one-row request still obtains the total on external-only pages.
-    const nativeParams = external.length ? { ...params, offset: Math.max(0, offset - external.length), limit: Math.max(1, remaining) } : params;
-    const { search, sortName, ...filters } = nativeParams;
+    const { search, sortName, ...filters } = params;
     const response = mode === 'core'
         ? await searchJobs({ ...filters, q: search, sort: 'relevance' })
-        : await getListPostService(nativeParams);
+        : await getListPostService(params);
     if (response?.errCode !== 0 || response.httpStatus >= 400 || !Array.isArray(response.data)
         || !Number.isSafeInteger(response.count) || response.count < 0) {
         throw new Error(response?.errMessage || 'Không tải được kết quả tìm kiếm. Vui lòng thử lại.');
     }
     const native = mode === 'core' ? response.data.map(job => searchCard(job, labels)) : response.data;
-    return { count: response.count + external.length,
-        data: [...externalPage.map(externalJobCard), ...(external.length ? native.slice(0, remaining) : native)] };
+    // JobFind vacancies (the ones candidates can apply to here) lead; external ones form one
+    // stable suffix after the last native result, so pages never repeat or skip a job.
+    const externalPage = external.slice(Math.max(0, offset - response.count), Math.max(0, offset + limit - response.count));
+    return { count: response.count + external.length, data: [...native, ...externalPage.map(externalJobCard)] };
 };
