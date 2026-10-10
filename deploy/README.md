@@ -164,6 +164,7 @@ Người dùng sẽ thấy:
 | Cập nhật code mới | `git pull && docker compose build && docker compose run --rm backend node /app/scripts/migrate-auth.mjs --from-env && docker compose up -d` (migration xác thực chỉ thêm cột/bảng còn thiếu, chạy lại an toàn; nên `sh scripts/backup.sh` trước) |
 | Đổi biến trong `.env` | `docker compose up -d` (chỉ tạo lại dịch vụ bị ảnh hưởng) |
 | Đổi cờ `REACT_APP_*` | `docker compose up -d --build web` |
+| Hiện/ẩn tin `[Demo]` | `sh scripts/show-demo-jobs.sh` (xem trước: `--dry-run`, ẩn lại: `--hide`) |
 | Xem log | `docker compose logs -f <dịch-vụ>` |
 | Khởi động lại một dịch vụ | `docker compose restart <dịch-vụ>` |
 | Dừng toàn bộ (giữ dữ liệu) | `docker compose down` |
