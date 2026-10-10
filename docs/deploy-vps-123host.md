@@ -161,7 +161,9 @@ Mở `https://61-14-233-122.sslip.io` (hoặc tên miền riêng sau khi đổi,
 | --- | --- |
 | Xem trạng thái | `docker compose ps` |
 | Xem log | `docker compose logs --tail 80 <dịch-vụ>` |
-| Cập nhật code | `git pull && docker compose build && docker compose run --rm backend node /app/scripts/migrate-auth.mjs --from-env && docker compose up -d` |
+| Cập nhật code (sau khi `git push` từ máy dev) | `sh scripts/update.sh`: sao lưu, pull, báo biến thiếu, build, chạy migration mới, khởi động lại |
+| Thêm/sửa biến môi trường | `sh scripts/set-env.sh TEN_BIEN 'gia-tri'` (biến `REACT_APP_*` tự build lại giao diện) |
+| Xem biến còn thiếu | `sh scripts/check-env.sh` |
 | Sao lưu | `sh scripts/backup.sh` |
 | Khôi phục | `sh scripts/import-data.sh backups/<thời-điểm> --force` |
 | Dừng (giữ dữ liệu) | `docker compose down`. **Không bao giờ** dùng `down -v` (xóa toàn bộ CSDL) |

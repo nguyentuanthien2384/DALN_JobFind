@@ -8,6 +8,7 @@
 !scripts
 !scripts/run-backend.cjs
 !scripts/migrate-auth.mjs
+!scripts/migrate-backend.mjs
 !microservices
 !microservices/shared
 !microservices/shared/recruitmentCatalog.cjs

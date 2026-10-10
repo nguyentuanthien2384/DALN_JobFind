@@ -21,6 +21,8 @@ Nội bộ, không mở cổng: MariaDB · PostgreSQL · MongoDB · Elasticsearc
 | `scripts/export-local-data.mjs` | Chạy trên **Windows**: xuất MySQL (XAMPP), PostgreSQL, MongoDB đang dùng |
 | `scripts/import-data.sh` | Chạy trên **VPS**: kiểm tra checksum rồi nạp dữ liệu |
 | `scripts/backup.sh` | Chạy trên **VPS**: sao lưu định kỳ (cùng định dạng, khôi phục bằng `import-data.sh`) |
+| `scripts/update.sh` | Chạy trên **VPS**: cập nhật lên code mới nhất bằng một lệnh |
+| `scripts/set-env.sh`, `scripts/check-env.sh` | Chạy trên **VPS**: thêm/sửa biến trong `.env`, liệt kê biến còn thiếu |
 | `scripts/check-sso.mjs` | Chạy trên **Windows** (`npm run vps:check-sso`): kiểm tra nút Google/GitHub/Facebook trên tên miền thật (mục 6) |
 
 ## 0. Cần chuẩn bị
@@ -161,9 +163,10 @@ Người dùng sẽ thấy:
 
 | Việc | Lệnh (trong `deploy/`) |
 | --- | --- |
-| Cập nhật code mới | `git pull && docker compose build && docker compose run --rm backend node /app/scripts/migrate-auth.mjs --from-env && docker compose up -d` (migration xác thực chỉ thêm cột/bảng còn thiếu, chạy lại an toàn; nên `sh scripts/backup.sh` trước) |
-| Đổi biến trong `.env` | `docker compose up -d` (chỉ tạo lại dịch vụ bị ảnh hưởng) |
-| Đổi cờ `REACT_APP_*` | `docker compose up -d --build web` |
+| Cập nhật code mới | `sh scripts/update.sh` (sao lưu → `git pull` → báo biến thiếu → build → migration mới → khởi động lại; xem mục bên dưới) |
+| Thêm/sửa biến trong `.env` | `sh scripts/set-env.sh TEN_BIEN 'gia-tri'` (tự áp dụng; biến `REACT_APP_*` tự build lại giao diện) |
+| Xem biến còn thiếu so với `.env.example` | `sh scripts/check-env.sh` |
+| Chỉ chạy migration CSDL mới | `docker compose run --rm backend node /app/scripts/migrate-backend.mjs --from-env` (thêm `--dry-run` để xem trước) |
 | Hiện/ẩn tin `[Demo]` | `sh scripts/show-demo-jobs.sh` (xem trước: `--dry-run`, ẩn lại: `--hide`) |
 | Xem log | `docker compose logs -f <dịch-vụ>` |
 | Khởi động lại một dịch vụ | `docker compose restart <dịch-vụ>` |
@@ -182,6 +185,21 @@ Người dùng sẽ thấy:
 ```
 
 Nên định kỳ chép thư mục `deploy/backups/` ra ngoài VPS (`scp` về máy, Google Drive...).
+
+## Thêm tính năng mới và đưa lên VPS
+
+Server **không tự đồng bộ**. Mỗi lần thay đổi: trên máy dev chạy thử, `git push`; trên VPS chạy `sh scripts/update.sh`. Dữ liệu, tên miền (`deploy/.env` không nằm trong Git) và chứng chỉ HTTPS (volume `caddy-data`) giữ nguyên. Bản cũ vẫn phục vụ trong lúc build; website chỉ gián đoạn 30–60 giây lúc khởi động lại.
+
+Khi tính năng có thêm một trong các thay đổi sau:
+
+| Thay đổi trong code | Trên máy dev | Trên VPS |
+| --- | --- | --- |
+| **Biến môi trường mới** (khóa API, cấu hình…) | Thêm biến vào mục `environment:` của dịch vụ dùng nó trong `docker-compose.yml`, **và** thêm dòng mô tả vào `.env.example` | `update.sh` liệt kê biến còn thiếu. Đặt bằng `sh scripts/set-env.sh TEN_BIEN 'gia-tri'` (có thể trước hoặc sau khi cập nhật) |
+| **Cờ giao diện `REACT_APP_*`** | Thêm `ARG` trong `web.Dockerfile`, `args:` của dịch vụ `web` trong `docker-compose.yml`, và dòng trong `.env.example` | `sh scripts/set-env.sh REACT_APP_... gia-tri` (tự build lại `web`) |
+| **Bảng/cột CSDL của backend** | Tạo file trong `backend/src/migrations`, đặt tên **sắp xếp sau** các file đang có (hiện là `migrationzzzzzzzzzzz-…` với 11 chữ `z`, nên file mới dùng 12 chữ `z`). Áp dụng cho CSDL dev bằng `npm run backend:migrate` (tự sao lưu trước) | `update.sh` tự chạy các migration chưa có trong `SequelizeMeta`, theo thứ tự tên file. Migration lỗi thì dừng ngay, không ghi nhận, các file sau không chạy; khôi phục bằng bản sao lưu `update.sh` vừa tạo |
+| Bảng mới của microservice (`CREATE TABLE IF NOT EXISTS` lúc khởi động) | Không cần gì thêm | Không cần gì thêm |
+
+`set-env.sh` từ chối đổi `MYSQL_*`, `POSTGRES_*`, `RABBITMQ_*` (CSDL vẫn giữ mật khẩu cũ nên dịch vụ sẽ mất kết nối), không in giá trị ra màn hình, và lưu bản trước khi sửa ở `deploy/.env.bak`. Muốn đặt nhiều biến rồi áp dụng một lần: thêm `--no-apply` cho từng biến, cuối cùng chạy `docker compose up -d`.
 
 ## Chạy chung VPS với ứng dụng khác (ví dụ SCAP)
 
