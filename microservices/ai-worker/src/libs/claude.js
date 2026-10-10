@@ -4,6 +4,24 @@ import { createLogger } from "../../../shared/logger.js";
 
 const logger = createLogger("ai-worker");
 
+// ===== TICH HOP ANTHROPIC CLAUDE (thu vien @anthropic-ai/sdk) =====
+// Moi tac vu AI (doc CV, cham diem, viet thu, kiem duyet tin...) goi askForJson():
+// gui system prompt + du lieu + JSON Schema, nhan ve MOT doi tuong JSON dung schema.
+// Cac quyet dinh thiet ke (hay bi hoi):
+// - Structured outputs (output_config.format = json_schema): API rang buoc model tra
+//   ve dung cau truc, thay vi "xin" JSON trong prompt roi tu doan.
+// - Kiem tra lai bang Ajv (validators) du API da hua dung schema: phong gateway/model
+//   tra sai; khong qua schema thi coi la loi, khong dua ket qua sai cho nguoi dung.
+// - maxRetries: 0: SDK khong tu goi lai. Mot lan timeout khong chung minh model chua
+//   chay (van co the da tinh tien); viec chong goi trung do ledger MongoDB lo
+//   (taskStore.js), khong do vong thu lai an.
+// - Khoa API chi nam o bien moi truong cua AI Worker (khong o frontend); AI Worker
+//   khong mo cong HTTP, chi nhan viec qua RabbitMQ.
+// - Thong diep loi tu nha cung cap khong dua thang cho nguoi dung (publicAiError trong
+//   taskProcessor.js) vi co the chua du lieu yeu cau hoac thong tin ha tang.
+// Model mac dinh: CLAUDE_MODEL; ANTHROPIC_BASE_URL cho phep tro toi gateway tuong
+// thich Anthropic khac ma khong doi code.
+
 const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5";
 
 // A timeout/connection error does not prove the paid request was not processed.

@@ -4,6 +4,12 @@ import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../util
 import { validAccessSession } from '../utils/authAccess';
 require('dotenv').config();
 
+// Xac thuc request toi backend cu (khi Gateway chuyen tiep /api/* xuong day): cung quy
+// tac voi Gateway (microservices/api-gateway/src/middlewares/auth.js) - JWT HS256 kiem
+// tra issuer/audience/han dung, claim sid phai thuoc phien con hieu luc (validAccessSession),
+// va vai tro/cong ty doc lai tu CSDL thay vi tin claim trong token.
+// Mat khau nguoi dung luu bang bcrypt (bcryptjs, cost 10, co salt ngau nhien) - ham bam
+// cham co chu y de do mat khau tu bang bam ton rat nhieu thoi gian.
 const isActiveAccount = (user) => (
     user && user.userAccountData && user.userAccountData.statusCode === 'S1'
 )

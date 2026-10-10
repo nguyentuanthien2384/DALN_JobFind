@@ -1,3 +1,16 @@
+// ===== QUAN LY PHIEN O TRINH DUYET =====
+// - Access token (JWT 15 phut) chi nam trong BIEN JavaScript (accessToken), khong luu
+//   localStorage: tai lai trang thi mat va lay lai bang refreshSession(). Script doc
+//   len localStorage (XSS) khong lay duoc token.
+// - Refresh token nam trong cookie HttpOnly do may chu dat; JS khong doc duoc, trinh
+//   duyet tu gui kem khi goi /api/auth/refresh (withCredentials: true).
+// - localStorage 'token_user' chi la "dau hieu da dang nhap" cong khai (jf-session:<uuid>)
+//   de route guard va cac tab khac biet trang thai, KHONG phai token.
+// - getAccessToken() tu lam moi khi token con < 45s; pendingRefresh gop cac request
+//   dong thoi thanh MOT lan refresh.
+// - Web Locks API (navigator.locks): nhieu tab cung luc refresh se xep hang qua khoa
+//   'jobfind-refresh', tranh hai tab dung cung mot refresh token (may chu se coi la bi
+//   danh cap va thu hoi ca ho phien - xem backend authSessionService.js).
 import axios from 'axios';
 const baseURL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000';
 const api = axios.create({ baseURL, withCredentials: true, timeout: 15000 });

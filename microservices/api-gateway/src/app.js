@@ -28,6 +28,18 @@ import {
     rejectUnsafeProxyPath
 } from './libs/security.js';
 
+// ===== API GATEWAY PATTERN =====
+// Frontend chi goi MOT dia chi (:4000); cac service nam trong mang noi bo Docker,
+// khong mo cong ra ngoai. Moi request di qua cac lop theo thu tu ben duoi:
+//   CORS -> chan path traversal -> proxy Socket.IO (http-proxy-middleware, WebSocket)
+//   -> gioi han body -> correlation id + audit -> xac thuc JWT (middlewares/auth.js)
+//   -> phan quyen RBAC theo vai tro/cong ty -> rate limit (Redis) -> kiem tra hop dong
+//   OpenAPI -> proxy toi service voi circuit breaker (middlewares/proxy.js).
+// Loi ich: xac thuc, phan quyen, gioi han tan suat va log nam MOT cho; service ben duoi
+// chi tin header danh tinh do Gateway dat (kem x-internal-secret).
+// Phan bien "Gateway la diem loi duy nhat?": Gateway khong giu trang thai trong bo nho
+// (bo dem rate limit o Redis, phien o MySQL) nen chay duoc nhieu ban sao sau load
+// balancer; service hong thi circuit breaker cat rieng service do.
 const logger = createLogger('api-gateway');
 assertSecureJwtSecret(process.env.JWT_SECRET);
 getJwtPolicy();

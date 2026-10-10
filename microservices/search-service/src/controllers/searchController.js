@@ -21,6 +21,15 @@ const publicJobFilter = () => [
 
 // Tim kiem sieu toc: loc theo tag/luong bang term query, tim theo chu bang
 // multi_match. Tat ca chay tren Elasticsearch nen khong dung toi MySQL.
+//
+// Cau truc Query DSL (bool query):
+// - must: multi_match tinh DIEM lien quan (BM25) tren name^3, companyName^2,
+//   description (^ la he so: khop o ten tin quan trong gap 3 lan mo ta);
+//   fuzziness AUTO cho phep sai 1-2 ky tu tuy do dai tu; operator 'or': khop mot
+//   phan tu khoa van ra ket qua, khop nhieu tu hon thi diem cao hon.
+// - filter: term/terms/range (ma nganh, tinh, luong, han nop...) CHI loc co/khong,
+//   khong tinh diem nen nhanh va duoc Elasticsearch cache lai.
+// - Phan trang from/size (gioi han 100); track_total_hits de dem chinh xac tong so.
 export const searchJobs = async (req, res) => {
     const {
         q, categoryJobCode, addressCode, salaryJobCode,

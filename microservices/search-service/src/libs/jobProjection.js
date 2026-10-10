@@ -5,6 +5,18 @@ import { jobIdString, loadCurrentJob } from './jobSource.js';
 const missingDocument = (error) => error?.meta?.statusCode === 404 && error.meta.body?.found === false;
 const versionConflict = (error) => error?.meta?.statusCode === 409 && error.meta.body?.error?.type === 'version_conflict_engine_exception';
 
+// ===== CQRS PROJECTION + OPTIMISTIC CONCURRENCY CONTROL =====
+// CQRS: ghi (Job Core, MySQL) tach khoi doc (Search, Elasticsearch). Su kien RabbitMQ
+// chi la TIN HIEU "tin X vua doi"; noi dung luon doc lai ban hien tai tu Job Core
+// (loadCurrentJob -> GET /internal/jobs/:id). Nho vay su kien den tre, trung lap hay
+// sai thu tu cung khong ghi du lieu cu vao index (eventual consistency).
+// Hai luong cung cap nhat mot tin (2 replica, hoac su kien cu den tre) duoc xu ly
+// bang CAS cua Elasticsearch: doc _seq_no/_primary_term truoc, ghi kem if_seq_no/
+// if_primary_term; neu luong khac da ghi truoc thi ES tra 409 version_conflict va
+// vong lap doc lai nguon roi thu lai (toi da 5 lan). Tai lieu moi dung op_type: create.
+// Xoa/an tin dung "tombstone" searchDeleted: true thay vi xoa that, de su kien den
+// tre khong "hoi sinh" tin da an. hash cua projection giup biet noi dung co doi khong.
+//
 // Read the ES generation BEFORE reading the primary source. If a concurrent
 // projection wins, discard this source snapshot and fetch again, not just retry
 // the old document against a new generation. Works across service replicas.

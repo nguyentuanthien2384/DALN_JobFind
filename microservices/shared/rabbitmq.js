@@ -7,6 +7,31 @@ import { createDeliveryHandler, validateRetryPolicy } from './consumeDelivery.js
 // Lop bao quanh amqplib de moi service khong phai lap lai phan ket noi, khai bao
 // exchange va logic ket noi lai. Dung topic exchange: ben gui chi quan tam
 // routing key, ben nhan tu chon pattern minh muon nghe.
+//
+// ===== TICH HOP RABBITMQ (thu vien amqplib, giao thuc AMQP 0-9-1) =====
+// Vai tro: "xuong song" su kien giua cac service. Service ghi du lieu xong thi phat
+// su kien (vd application.submitted, ai.match_cv); service khac nghe va xu ly bat
+// dong bo, nen mot service cham hoac tam tat khong lam nghen service phat.
+//
+// Cac khai niem dung trong file nay (hay bi hoi khi bao ve):
+// - Topic exchange: ben gui gan routing key dang "nhom.hanh_dong"; moi hang doi tu
+//   bind pattern can nghe ("job.*", "application.#"). Them service nghe moi chi can
+//   them binding, khong sua ben gui (giam phu thuoc giua cac service).
+// - durable (exchange/queue) + persistent (message): broker ghi xuong dia, RabbitMQ
+//   khoi dong lai khong mat hang doi va tin chua xu ly.
+// - prefetch (QoS): so tin toi da mot consumer dang giu ma chua ACK. AI worker dat
+//   bang AI_CONCURRENCY (mac dinh 2) vi moi tin ton mot lan goi model.
+// - ACK thu cong (consumeDelivery.js): chi ACK sau khi xu ly xong. Service chet giua
+//   chung thi tin chua ACK duoc broker giao lai => bao dam "at-least-once". Doi lai,
+//   mot tin co the den hai lan nen moi consumer phai idempotent (khu trung theo eventId).
+// - Dead-letter: tin khong xu ly duoc (sai schema, het luot thu lai) chuyen sang
+//   "<queue>.dead-letter" de xem lai, khong lam ket ca hang doi ("poison message").
+//
+// Vi sao RabbitMQ ma khong phai Kafka? He thong can dinh tuyen theo loai su kien,
+// ACK/thu lai tung tin va hang doi tac vu (AI) - dung the manh cua message broker.
+// Kafka hop luong log rat lon can doc lai theo offset; quy mo do an khong can.
+// Su kien quan trong KHONG gui bang publish() ben duoi ma qua transactional outbox +
+// publisher confirms (outboxPublisher.js, confirmedPublisher.js).
 
 let connection = null;
 let channel = null;

@@ -3,6 +3,14 @@ import { expireSession } from './auth/sessionExpiry';
 import { isLoginRequest, normalizeApiError, sentSessionToken } from './service/apiError';
 import { getAccessToken, isManagedSession, refreshSession } from './auth/authClient';
 const url = process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000';
+// Axios interceptors cho moi API:
+// - request: gan "Authorization: Bearer <access token>" (lay/lam moi qua authClient).
+// - response: tra thang response.data; gap 401 (hoac 403 kem refresh:true) thi lam moi
+//   phien MOT lan roi tu gui lai neu la GET. Thao tac ghi (POST/PUT/DELETE) KHONG tu gui
+//   lai de tranh lam hai lan (vd nop CV hai lan) - chi bao nguoi dung thu lai.
+// - Loi mang/5xx tam thoi khong bi coi la dang xuat; moi loi duoc chuan hoa
+//   (normalizeApiError) thanh { errCode, errorType, errMessage } de giao dien hien thong
+//   bao tieng Viet thong nhat.
 const instance = axios.create({ baseURL: url, withCredentials: true });
 instance.interceptors.request.use(async config => {
     const marker = localStorage.getItem('token_user');

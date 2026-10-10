@@ -1,5 +1,16 @@
 // Every caller must use the SAME open transaction for quota, post and outbox.
 // Lock order matches the legacy writer: user -> company -> (existing post).
+//
+// ===== CHONG "RACE CONDITION" KHI TRU LUOT DANG TIN (khoa bi quan, InnoDB) =====
+// Hai nhan vien cung cong ty bam "Dang tin" cung luc khi chi con 1 luot: neu chi doc so
+// luot roi tru, ca hai deu thay "con 1" va cung dang => am luot (lost update).
+// Giai phap: SELECT ... FOR UPDATE khoa dong user va company trong giao dich; request
+// thu hai phai cho request thu nhat commit, roi doc so luot DA tru. Tru luot, tao tin va
+// ghi outbox nam trong CUNG mot giao dich nen hoac cung xong, hoac cung huy.
+// - Thu tu khoa co dinh user -> company -> post (giong backend cu) de tranh deadlock
+//   khi hai luong khoa cheo nhau.
+// - assertTransactionalPostingTables: bang phai la InnoDB (MyISAM khong co giao dich,
+//   rollback khong hoan lai luot).
 export class PostingQuotaError extends Error {
     constructor(message, statusCode = 409) {
         super(message);

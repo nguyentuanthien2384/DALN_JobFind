@@ -8,6 +8,16 @@ const logger = createLogger('api-gateway');
 // Dem trong bo nho khong dung duoc o day: Gateway co the chay nhieu ban sao de
 // chiu tai, va moi ban sao se giu mot bo dem rieng - ke tan cong chi can rai
 // request deu ra cac ban sao la vuot han muc. Redis cho tat ca cung dem mot cho.
+//
+// ===== THUAT TOAN: FIXED WINDOW COUNTER (Redis INCR + EXPIRE, thu vien ioredis) =====
+// Moi khoa "ratelimit:<ten>:<user|ip>" la mot bo dem; lan dem dau dat TTL = cua so.
+// INCR la lenh nguyen tu cua Redis nen nhieu Gateway dem dong thoi van dung.
+// Danh doi: o ranh gioi hai cua so co the lot toi 2x max trong thoi gian ngan. Sliding
+// window (sorted set) hay token bucket chinh xac hon nhung ton bo nho/lenh hon; voi
+// muc dich chong spam/brute-force o day, fixed window la du va re nhat.
+// Header X-RateLimit-* va Retry-After theo quy uoc chung de client biet khi nao thu lai.
+// failClosed: route AI (ton tien goi model) chan khi mat Redis; route thuong cho qua
+// (fail-open) de mot su co Redis khong lam sap ca he thong.
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379', {
     lazyConnect: true,

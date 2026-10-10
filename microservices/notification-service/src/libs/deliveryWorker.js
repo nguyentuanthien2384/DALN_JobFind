@@ -5,6 +5,19 @@ import { claimDelivery, finishDelivery } from './deliveryStore.js';
 const logger = createLogger('notification-delivery');
 const MAX_ATTEMPTS = 10;
 
+// ===== GUI THONG BAO BEN VUNG THEO TUNG KENH =====
+// Consumer khong gui email ngay khi nhan su kien; no ghi "y dinh gui" vao bang
+// notification_deliveries (moi kenh email/realtime mot dong) trong cung giao dich luu
+// thong bao. Worker nay lay tung dong (khoa dong trong DB nen nhieu replica khong gui
+// trung) va gui doc lap: email loi khong chan thong bao realtime va nguoc lai.
+// Chinh sach thu lai cho email (deliveryOutcome) dua tren MA LOI SMTP:
+// - SMTP tu choi 4xx (tam thoi) hoac loi truoc khi gui (DNS, xac thuc) => pending, thu lai.
+// - SMTP tu choi 5xx (vinh vien, vd dia chi khong ton tai) => failed.
+// - Mat ket noi/qua han SAU khi da bat dau gui => unknown, KHONG tu gui lai: khong biet
+//   thu da den chua, gui lai co the thanh 2 email. Chap nhan can nguoi kiem tra con hon
+//   lam phien ung vien.
+// - Chua cau hinh SMTP => giu pending, khong tinh luot, cau hinh xong se tu gui.
+
 export const deliveryOutcome = (channel, result = {}) => {
     if (result.sent) return { status: 'sent' };
     if (result.skipped) {

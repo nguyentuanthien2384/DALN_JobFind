@@ -6,6 +6,22 @@ import { providerSettings, providerAvailable, availableProviders, loginRoute, id
 import { prepareSignup, clearSignupCookie, linkVerifiedEmail } from './socialRegistrationService';
 // openid-client v6 verifies ID token signature, issuer, audience, expiry and nonce.
 // Install on the backend only: npm install openid-client@^6
+//
+// ===== DANG NHAP MANG XA HOI: OAuth 2.0 / OpenID Connect (openid-client, Auth0) =====
+// Nut Google/GitHub/Facebook deu di qua Auth0 (mot "identity broker"): JobFind chi tich
+// hop MOT nha cung cap OIDC, Auth0 lo phan rieng cua tung mang xa hoi (tham so
+// `connection` chon nut nao). Luong Authorization Code + PKCE:
+// 1. begin(): sinh state, nonce, code_verifier (PKCE) va mot "browser binding" cookie;
+//    luu ban bam vao OidcTransaction (het han 5 phut) roi chuyen nguoi dung sang Auth0.
+// 2. Nguoi dung dang nhap o Auth0/Google... -> quay ve callback kem `code` + `state`.
+// 3. complete(): kiem tra state khop VA cookie cung trinh duyet (chong CSRF dang nhap
+//    gia), xoa giao dich ngay trong mot transaction (dung mot lan, chong replay), roi doi
+//    `code` lay token kem code_verifier (PKCE: ke chan duoc `code` cung khong doi duoc).
+// 4. openid-client kiem tra ID token: chu ky theo JWKS cua nha cung cap, issuer,
+//    audience, han dung, nonce. Issuer va redirect_uri lay tu cau hinh, khong tu request.
+// Lien ket tai khoan: tim theo (issuer, subject); chua co thi chi tu dong noi vao tai
+// khoan san co khi email DA DUOC nha cung cap xac minh, nguoc lai chuyen sang dang ky
+// (prepareSignup). Vai tro KHONG BAO GIO lay tu claim cua nha cung cap.
 const OIDC_COOKIE = 'jobfind_oidc_tx';
 const cookieOpts = () => ({ httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/api/auth/sso', maxAge: 5 * 60 * 1000 });
 export const googleAvailable = () => providerAvailable('google');

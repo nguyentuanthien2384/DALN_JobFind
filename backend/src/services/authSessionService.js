@@ -5,6 +5,25 @@ import { getJwtSecret, getJwtSignOptions } from '../utils/securityConfig';
 import { Op } from 'sequelize';
 import bcrypt from 'bcryptjs';
 import { recordSecurityEvent } from './authAuditService';
+
+// ===== PHIEN DANG NHAP: ACCESS TOKEN + REFRESH TOKEN XOAY VONG =====
+// Hai loai token (hay bi hoi "JWT luu o dau, bi trom thi sao?"):
+// - Access token: JWT song NGAN (mac dinh 15 phut), frontend giu trong BO NHO (khong
+//   localStorage) va gui qua header Authorization. Bi XSS doc duoc cung chi dung toi het han.
+// - Refresh token: chuoi ngau nhien 48 byte (khong phai JWT), nam trong cookie HttpOnly
+//   (JavaScript khong doc duoc), Secure o production, SameSite=Lax (chan phan lon CSRF),
+//   ten "__Host-" o production (bat buoc Secure, path=/, khong gan domain). CSDL chi
+//   luu SHA-256 cua token (tokenHash): lo bang AuthSessions cung khong dung duoc token.
+// Xoay vong (rotateSession): moi lan /api/auth/refresh, token cu bi danh dau rotatedAt
+// va cap token moi cung "familyId". Neu mot token DA xoay bi dung lai => co the bi danh
+// cap => thu hoi CA HO token (refresh_reuse_detected), ca ke trom lan chu tai khoan
+// phai dang nhap lai. Day la khuyen nghi "refresh token rotation + reuse detection" cua OAuth.
+// - familyId nam trong claim sid cua access token: Gateway/backend kiem tra phien con
+//   hieu luc nen dang xuat/doi mat khau/khoa tai khoan co tac dung ngay.
+// - Moi thao tac tao/xoay/thu hoi deu khoa dong Account (SELECT ... FOR UPDATE) de hai
+//   request refresh song song tren nhieu replica khong cung xoay mot token.
+// - "Ghi nho dang nhap": 14 ngay; khong ghi nho: cookie theo phien trinh duyet, het han
+//   tren may chu sau 8 gio.
 const REFRESH_TTL = 14 * 24 * 60 * 60;
 const BROWSER_SESSION_TTL = 8 * 60 * 60;
 const uuid = () => crypto.randomUUID();

@@ -110,6 +110,17 @@ export const resolveEmailRecipient = (value) => {
     return { to: demoRecipient, demo: true, originalTo: recipient };
 };
 
+// ===== NODEMAILER + GMAIL SMTP =====
+// Gui qua may chu SMTP cua Gmail (service: 'gmail' = smtp.gmail.com, TLS). Mat khau la
+// "App Password" 16 ky tu (tai khoan Google bat xac minh 2 buoc), khong phai mat khau
+// dang nhap, va chi nam o bien moi truong may chu.
+// - Transporter tao mot lan va dung lai; timeout ket noi/chao/socket de mot SMTP treo
+//   khong giu worker mai.
+// - messageId co dinh theo (eventId, nguoi nhan) - <sha256@jobfind.local>: cung mot su
+//   kien luon cung Message-ID nen tra cuu/doi chieu duoc trong hop thu.
+// - Reply-To la email HR trong thu moi: ung vien bam "Tra loi" la toi thang nha tuyen dung.
+// - Dia chi mau (example.com, .test...) bi chan o production; o dev chuyen ve hop thu
+//   demo (EMAIL_DEMO_RECIPIENT) de khong gui nham cho nguoi that.
 let transporter = null;
 const getTransporter = () => {
     if (transporter) return transporter;

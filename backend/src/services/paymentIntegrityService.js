@@ -4,6 +4,22 @@ const { Op } = require('sequelize');
 
 require('dotenv').config();
 
+// ===== THANH TOAN PAYPAL (paypal-rest-sdk, REST API v1, mac dinh sandbox) =====
+// Luong 3 buoc: (1) createPaymentLink: server tinh gia tu bang goi (KHONG tin gia do
+// client gui), goi PayPal tao payment, luu PaymentIntent PENDING co han, tra link duyet;
+// (2) nguoi mua dang nhap PayPal va bam duyet, PayPal chuyen ve return_url kem
+// paymentId + token + PayerID; (3) completePayment: goi PayPal "execute" de THU TIEN roi
+// moi cong luot dang tin/xem CV trong mot giao dich DB.
+// Cac bao ve chinh (hay bi hoi "lam sao chong gian lan / cong 2 lan?"):
+// - Intent gan voi userId + token PayPal (loadBoundIntent): khong dung callback cua giao
+//   dich nguoi khac duoc.
+// - Chi cong quyen loi sau khi PayPal xac nhan dung so tien, dung nguoi tra
+//   (providerPaymentMatches). Goi lai lan 2 thay COMPLETED => tra "da ghi nhan", khong cong lai.
+// - persistCompletedPayment khoa dong intent va company (FOR UPDATE): hai callback song
+//   song khong cong trung; cong luot, tao don hang, doi trang thai trong CUNG giao dich.
+// - Tien tru o PayPal nhung tien trinh chet truoc khi commit: lan sau hoi lai PayPal
+//   (getPaypalPayment / reconcileExpiredIntent) de ghi nhan dung, khong mat tien khach.
+// PAYPAL_MODE=live moi dung tien that; do an chay sandbox.
 paypal.configure({
     mode: process.env.PAYPAL_MODE || 'sandbox',
     client_id: process.env.PAYPAL_CLIENT_ID || process.env.CLIENT_ID,

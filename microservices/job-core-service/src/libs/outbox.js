@@ -58,6 +58,12 @@ export const enqueueOutboxEvent = async (
     return eventId;
 };
 
+// Cung mau transactional outbox voi application-service/src/libs/outbox.js, nhung
+// nhan viec bang "lease": giao dich ngan chi khoa (FOR UPDATE) va gan lockedAt +
+// lockToken roi commit ngay; publish dien ra NGOAI giao dich. Nho vay khong giu khoa
+// MySQL trong luc cho broker confirm. Relay chet giua chung thi lease het han sau
+// LOCK_TIMEOUT_MS va relay khac nhan lai. markPublished/releaseForRetry kiem tra
+// lockToken nen relay cu (lease da het) khong ghi de ket qua cua relay moi.
 const claimPendingEvents = async (limit = MAX_BATCH_SIZE) => {
     const safeLimit = Math.min(Math.max(Number(limit) || 1, 1), MAX_BATCH_SIZE);
     const now = new Date();

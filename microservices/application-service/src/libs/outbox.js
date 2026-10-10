@@ -8,6 +8,21 @@ import { serializeEventPayload } from '../../../shared/eventContract.js';
 const logger = createLogger('application-service.outbox');
 const schema = new URL('../../migrations/001_create_outbox_events.sql', import.meta.url);
 
+// ===== TRANSACTIONAL OUTBOX PATTERN =====
+// Van de "dual write": vua ghi PostgreSQL vua publish RabbitMQ thi co the DB commit
+// nhung publish loi (mat su kien) hoac publish roi ma DB rollback (su kien "ma").
+// Khong co giao dich chung giua PostgreSQL va RabbitMQ.
+// Cach giai: ghi su kien vao bang outbox_events TRONG CUNG giao dich voi du lieu
+// nghiep vu (enqueueOutboxEvent nhan dung client cua transaction do) => ca hai cung
+// commit hoac cung rollback. Relay (runOutboxOnce, moi giay) doc dong chua gui,
+// publish co publisher confirm roi moi ghi published_at.
+// - FOR UPDATE OF e SKIP LOCKED: nhieu replica relay chay song song khong lay trung
+//   mot dong; dong dang bi khoa duoc bo qua thay vi phai cho.
+// - NOT EXISTS (earlier ...): giu dung thu tu su kien cua tung ho so (aggregate).
+// - Loi publish => exponential backoff 2^attempts giay (toi da 60s), ghi last_error.
+// - Bao dam at-least-once: DB loi sau khi broker confirm thi su kien duoc gui lai
+//   voi CUNG messageId; consumer khu trung theo eventId.
+
 // Bootstrap cho Compose hien tai; migration SQL cung la nguon schema duy nhat.
 export const ensureOutboxTable = async () => {
     await pool.query(await readFile(schema, 'utf8'));

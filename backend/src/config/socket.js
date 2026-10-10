@@ -37,6 +37,18 @@ const endSession = (socket, code) => {
     socket.emit('auth:expired', { v: 1, code });
     socket.disconnect(true);
 };
+// ===== SOCKET.IO (realtime: chat, dang go, da doc, thong bao, cap nhat dashboard) =====
+// Socket.IO chay tren WebSocket (tu lui ve HTTP long-polling neu mang chan WebSocket),
+// co heartbeat (pingInterval/pingTimeout) de phat hien ket noi chet va tu ket noi lai.
+// Lop bao ve ket noi (hay bi hoi):
+// - allowRequest: chi nhan Origin trong URL_REACT (chong trang la mo ket noi bang
+//   cookie nguoi dung) va gioi han so lan bat tay moi IP moi phut.
+// - Middleware runtime.use: xac thuc JWT trong handshake.auth.token + phien con hieu
+//   luc + tai khoan con hoat dong; sai thi tu choi ket noi.
+// - Moi nguoi dung vao phong rieng "user:<id>"; server emit vao phong, khong gui
+//   broadcast, nen tin nhan chi toi dung nguoi.
+// - maxHttpBufferSize 64KB chong goi tin qua lon; connectionStateRecovery cho phep nhan
+//   bu tin khi mat mang ngan (can Redis Streams adapter, xem socketRedis.js).
 const initSocket = (server, adapter) => {
     tracing.init();
     const handshakeLimit = Number(process.env.SOCKET_HANDSHAKE_LIMIT_PER_MINUTE || 120);

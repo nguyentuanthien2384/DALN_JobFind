@@ -9,6 +9,12 @@ const { createSkillMatcher, prepareSkillText } = require('./skillMatch');
 // tin ngau nhien roi so khop ky nang lai bang cung quy tac voi cham diem CV.
 const SUGGESTION_LIMIT = 5
 const SUGGESTION_POOL = 50
+// node-schedule: lap lich tac vu dinh ky trong tien trinh Node (tuong tu cron).
+// RecurrenceRule duoi day chay 08:00 moi ngay theo mui gio UTC+7 ('Asia/Vientiane'
+// cung lech gio voi Viet Nam): gui email goi y viec lam (sendJobMail) va cap lai 5 luot
+// xem CV mien phi cho moi cong ty (updateFreeViewCv). Cu 10 phut doi soat giao dich
+// PayPal dang cho (PAYMENT_RECONCILE_RULE, cu phap cron). Launcher local tat cac lich
+// nay (SCHEDULED_JOBS_ENABLED=false) de khong gui email that khi phat trien.
 let rule = new schedule.RecurrenceRule();
 rule.dayOfWeek = [0, 1, 2, 3, 4, 5, 6]
 rule.hour = 8

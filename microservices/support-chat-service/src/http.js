@@ -61,6 +61,12 @@ export function registerSupportRoutes(app, { store, respond, tools, env = proces
         const timer = setTimeout(() => controller.abort(), 60000);
         const close = () => { if (!res.writableEnded) controller.abort(); };
         res.once('close', close);
+        // Server-Sent Events (SSE): mot response HTTP de mo, may chu ghi tung khoi
+        // "event: <ten>\ndata: <json>\n\n" (token, tool, suggestions, done, error). Don
+        // gian hon WebSocket vi chi can mot chieu server -> trinh duyet va di qua proxy
+        // HTTP binh thuong. X-Accel-Buffering: no + flushHeaders de proxy khong gom
+        // response lai (neu gom, nguoi dung phai cho het cau tra loi moi thay chu).
+        // Nguoi dung dong tab => 'close' => AbortController huy luon request toi LLM.
         const emit = (event, payload) => { if (!res.destroyed) res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`); };
         try {
             res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');

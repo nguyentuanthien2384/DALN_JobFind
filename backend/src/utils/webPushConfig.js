@@ -1,5 +1,19 @@
 const webPush = require("web-push");
 const { createHash, ECDH } = require("crypto");
+
+// ===== WEB PUSH (chuan W3C Push API, thu vien web-push, xac thuc VAPID) =====
+// Bao "co tin nhan moi" ca khi tab JobFind da dong. Cach hoat dong:
+// 1. Trinh duyet dang ky service worker (frontend/public/push-sw.js) va xin quyen thong
+//    bao; trinh duyet tao "subscription" gom endpoint cua push service (FCM cua Chrome,
+//    Mozilla, Apple) va khoa ma hoa p256dh/auth rieng cho thiet bi do.
+// 2. Backend luu subscription (webPushService.subscribe) theo tai khoan.
+// 3. Khi co tin moi, backend goi web-push: payload duoc MA HOA dau-cuoi bang khoa cua
+//    thiet bi (push service khong doc duoc), ky JWT VAPID bang khoa rieng cua JobFind de
+//    push service biet ai gui; service worker nhan va hien thong bao.
+// - hosts: chi chap nhan endpoint cua cac push service that, chong SSRF (ke xau dang ky
+//   endpoint tro vao mang noi bo de may chu tu goi).
+// - Payload chi la "Ban co tin nhan moi" (khong noi dung, khong ten nguoi gui).
+// Khoa VAPID tao bang: npm --prefix backend run push:keys.
 const hosts = new Set([
   "fcm.googleapis.com",
   "updates.push.services.mozilla.com",

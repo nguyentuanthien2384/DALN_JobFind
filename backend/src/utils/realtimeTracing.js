@@ -1,3 +1,10 @@
+// ===== DISTRIBUTED TRACING (OpenTelemetry, tuy chon) =====
+// Bat bang SOCKET_TRACING_ENABLED=true. Moi thao tac realtime (gui tin, danh dau da
+// doc...) duoc boc trong mot "span" co thoi gian bat dau/ket thuc va trang thai loi;
+// span gom thanh "trace" va gui theo chuan OTLP/HTTP toi Jaeger, Grafana Tempo... de
+// xem buoc nao cham. BatchSpanProcessor gom span gui theo lo (khong cham request).
+// Chuan OpenTelemetry trung lap nha cung cap: doi he thong xem trace khong phai sua code.
+// Khong ghi noi dung tin nhan, token hay ID nguoi dung vao span.
 const { trace, isSpanContextValid, SpanStatusCode } = require('@opentelemetry/api');
 const { randomUUID } = require('crypto');
 let provider;

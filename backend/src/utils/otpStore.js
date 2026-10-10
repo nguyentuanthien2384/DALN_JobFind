@@ -5,6 +5,10 @@
 // Neu sau nay chay nhieu tien trinh (pm2 cluster) thi doi cho luu nay sang Redis,
 // vi moi tien trinh dang giu mot Map rieng.
 
+// Ma 6 so sinh bang crypto.randomInt (bo sinh ngau nhien an toan mat ma - CSPRNG),
+// khong dung Math.random vi Math.random co the doan duoc. Kho chi giu HMAC-SHA256 cua
+// ma voi khoa ngau nhien theo tien trinh, khong giu ma ro. Ket hop het han 5 phut,
+// toi da 5 lan nhap sai va rate limit route OTP => do 1.000.000 kha nang la khong kha thi.
 const crypto = require('crypto');
 const memoryKey = crypto.randomBytes(32);
 const hashCode = code => crypto.createHmac('sha256', memoryKey).update(String(code)).digest();

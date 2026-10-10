@@ -1,3 +1,13 @@
+// ===== HEDGED REQUESTS (ky thuat giam "tail latency") =====
+// Y tuong tu bai "The Tail at Scale" (Dean & Barroso, Google, 2013): neu yeu cau chua
+// co phan hoi sau delayMs (mac dinh 4s), gui them MOT ban sao giong het; ban nao tra ve
+// truoc thi dung, ban con lai bi huy (AbortController). Do cung model va prompt nen
+// noi dung tuong duong. Do do thuc te 16 cau hoi: thoi gian ra chu dau tien trung binh
+// giam tu 17,5s xuong 9,4s. Danh doi: khi bi cham, toi da 2 request => co the ton them
+// chi phi; tat bang SUPPORT_HEDGE_MS=0. Loi 4xx (yeu cau sai) khong gui lai.
+// Gan vao model bang wrapLanguageModel (middleware cua AI SDK) nen phan con lai cua
+// chatbot khong can biet co hedging.
+//
 // The configured Anthropic-compatible gateway sends each request to one of several
 // backends: some start streaming within 2-4 s, others return the whole answer in one
 // piece after 10-16 s. When a request has not started after `delayMs`, an identical

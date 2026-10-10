@@ -2,6 +2,17 @@ import { randomUUID } from 'node:crypto';
 
 // Mot bo listener cho moi channel, ke ca khi nhieu message dang cho confirm.
 // ACK cua broker va drain cua bo dem la hai dieu kien khac nhau.
+//
+// ===== PUBLISHER CONFIRMS (RabbitMQ) =====
+// channel.publish() thuong chi ghi vao bo dem TCP, khong biet broker da nhan hay chua.
+// Tren "confirm channel", broker tra ACK cho tung tin sau khi da luu (tin persistent:
+// da ghi dia). Ham tra ve Promise chi resolve khi du 3 dieu kien: da ghi vao channel,
+// bo dem da "drain" (backpressure - khong ghi tiep khi socket dang day), va broker
+// da confirm. Them hai lop an toan:
+// - mandatory: true: neu khong hang doi nao nhan routing key, broker tra tin ve (su
+//   kien 'return') => bao loi thay vi am tham bo tin.
+// - timeoutMs: qua han chua confirm thi dong channel va bao loi de outbox gui lai.
+// Ket hop voi outbox: dong outbox chi duoc danh dau published_at sau confirm nay.
 export const createConfirmedPublisher = (channel, { timeoutMs = 10_000 } = {}) => {
     const pending = new Map();
     let closed = false;

@@ -6,6 +6,13 @@ import { PostingQuotaError } from './postingQuota';
 // Shared-DB transition only: the existing Job Core relay drains these rows.
 // Never create/repair schema here, fall back to direct publishing, or use a
 // connection outside the transaction that changes the job.
+//
+// Strangler Fig (chuyen dan tu monolith sang microservices): backend cu van ghi tin
+// tuyen dung vao MySQL nhu truoc, nhung ghi THEM dong outbox_events trong CUNG giao
+// dich Sequelize. Relay cua Job Core doc chung bang nay va phat su kien len RabbitMQ,
+// nen Search, Notification... nhan duoc thay doi tu ca code cu lan code moi ma khong
+// phai viet lai backend cu mot lan. Xem giai thich transactional outbox tai
+// microservices/application-service/src/libs/outbox.js.
 export const assertTransactionalLegacyOutbox = async transaction => {
     if (!transaction) throw new Error('Legacy outbox requires the posting transaction');
     const [tables] = await db.sequelize.query(`SELECT ENGINE AS engine FROM information_schema.TABLES

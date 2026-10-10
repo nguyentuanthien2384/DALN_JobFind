@@ -1,5 +1,15 @@
 const { createClient } = require('redis');
 const { createAdapter } = require('@socket.io/redis-streams-adapter');
+
+// ===== SOCKET.IO REDIS STREAMS ADAPTER (scale realtime ra nhieu tien trinh) =====
+// Mot server Socket.IO chi biet cac ket noi CUA NO. Chay 2 ban backend sau load
+// balancer thi nguoi gui o ban A, nguoi nhan o ban B => io.to(room).emit() o A khong
+// toi duoc B. Adapter dang ky moi lenh emit vao mot Redis Stream chung; moi ban backend
+// doc stream do (XREAD) va phat lai cho socket cua minh => cac ban dong bo voi nhau.
+// Vi sao Streams adapter ma khong phai Pub/Sub adapter? Stream luu lai tin (maxLen
+// 10000) va ho tro connectionStateRecovery: client mat mang ngan (<2 phut) ket noi
+// lai van nhan bu tin da lo; Pub/Sub mat tin trong luc mat ket noi.
+// Khong co SOCKET_REDIS_URL thi chay mot tien trinh, khong can Redis.
 const limiter = require('../utils/realtimeLimiter');
 const metrics = require('../utils/realtimeMetrics');
 let client;

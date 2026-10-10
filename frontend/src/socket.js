@@ -10,6 +10,15 @@ import { getAccessTokenSync, isManagedSession, refreshSession } from "./auth/aut
  *
  * Token duoc gui trong handshake de backend xac thuc; backend lay userId tu
  * token chu khong tin userId do client gui len.
+ *
+ * Tuy chon ket noi (socket.io-client):
+ * - transports ["websocket", "polling"]: thu WebSocket truoc, mang chan WebSocket thi
+ *   lui ve HTTP long-polling.
+ * - Tu ket noi lai vo han voi "exponential backoff" 1s -> toi da 30s, cong ngau nhien
+ *   50% (randomizationFactor) de hang nghin client khong ket noi lai cung mot giay sau
+ *   su co (tranh "thundering herd").
+ * - Server bao AUTH_EXPIRED thi lam moi token (refreshSession) roi ket noi lai voi token
+ *   moi, nguoi dung khong bi dang xuat.
  */
 const URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:4000";
 

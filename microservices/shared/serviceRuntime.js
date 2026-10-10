@@ -32,6 +32,18 @@ const sameSecret = (actual, expected) => {
 };
 
 // Each service owns its registry. Route templates, never IDs or query strings, are labels.
+//
+// ===== VAN HANH CHUNG CHO MOI SERVICE (Prometheus, health check, graceful shutdown) =====
+// - Prometheus (@prometheus-io/client): Counter so request, Histogram thoi gian xu ly
+//   (tinh duoc p95/p99), Gauge request dang chay; Prometheus "scrape" /metrics dinh ky.
+//   /metrics can Bearer token (so sanh timingSafeEqual chong do token theo thoi gian).
+//   Nhan (label) chi la mau route nhu /jobs/:id - khong dung ID that de khong lo du lieu
+//   va khong lam bung so chuoi thoi gian (high cardinality).
+// - Liveness (/healthz): tien trinh con song. Readiness (/readyz): cac phu thuoc (DB,
+//   Redis, RabbitMQ...) dang tra loi - load balancer/Compose chi gui request khi ready.
+// - Graceful shutdown khi nhan SIGTERM (docker stop, deploy): ngung nhan request moi
+//   (draining -> 503), dung consumer, cho viec dang lam xong, roi moi dong ket noi DB;
+//   qua shutdownMs (30s) thi cat han. Tin RabbitMQ chua ACK se duoc giao lai.
 export const createServiceRuntime = (app, {
     service, checks = {}, logger = console, probeTimeoutMs = 1500,
     shutdownMs = 30000, metricsToken = process.env.METRICS_TOKEN || (

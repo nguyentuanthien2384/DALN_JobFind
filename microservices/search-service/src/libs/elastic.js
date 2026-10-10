@@ -6,6 +6,16 @@ const { normalizeProvinceCode } = recruitmentCatalog;
 
 const logger = createLogger('search-service');
 
+// ===== ELASTICSEARCH (client @elastic/elasticsearch, Elasticsearch 8.15) =====
+// Vi sao khong tim bang MySQL "LIKE '%tu khoa%'"? LIKE co ky tu dai dien o dau khong
+// dung duoc index (phai quet ca bang), khong xep hang muc do lien quan, khong chiu
+// go sai. Elasticsearch luu "inverted index" (tu -> danh sach tai lieu chua tu do):
+// - xep hang ket qua bang BM25 (tu hiem va xuat hien o tieu de duoc diem cao hon);
+// - fuzziness: go sai mot ky tu van tim ra; highlight doan van khop tu khoa;
+// - aggregation dem so tin theo nganh/tinh/muc luong (facet cho bo loc) trong 1 truy van.
+// MySQL van la nguon du lieu goc (source of truth); index "jobs" chi la ban sao de
+// doc nhanh (read model trong CQRS), duoc dong bo qua su kien RabbitMQ
+// (consumers/jobIndexer.js + libs/jobProjection.js). Mat index thi dung lai tu MySQL.
 export const INDEX = 'jobs';
 
 export const es = new Client({

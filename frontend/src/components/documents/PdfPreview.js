@@ -5,6 +5,15 @@ import 'react-pdf/dist/Page/TextLayer.css';
 import { boundedPdfPageSize } from './pdfPageSize';
 import './PdfPreview.css';
 
+// Xem truoc PDF bang react-pdf (boc PDF.js cua Mozilla):
+// - PDF.js phan tich file trong Web Worker (pdf.worker.min.mjs) nen file nang khong lam
+//   dung giao dien. Worker, cmaps va font chuan duoc chep vao public/pdfjs/<phien ban>
+//   (scripts/copy-pdf-assets.cjs) va tai tu chinh may chu - khong phu thuoc CDN ngoai,
+//   phien ban luon khop thu vien.
+// - isEvalSupported: false chan chay ma tu font trong PDF doc hai (CVE-2024-4367);
+//   tat lop annotation (link/form trong PDF) de tranh link la.
+// - boundedPdfPageSize gioi han kich thuoc canvas: trang PDF khong lo khong lam tran bo
+//   nho trinh duyet (nhat la tren dien thoai).
 const assetBase = `${process.env.PUBLIC_URL || ''}/pdfjs/${pdfjs.version}/`;
 pdfjs.GlobalWorkerOptions.workerSrc = `${assetBase}pdf.worker.min.mjs`;
 const options = { isEvalSupported: false, cMapUrl: `${assetBase}cmaps/`, cMapPacked: true,

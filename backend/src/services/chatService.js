@@ -66,6 +66,13 @@ const canParticipantsChat = async (senderId, receiverId) => {
 };
 
 // Gửi tin nhắn
+//
+// Gui tin "tin cay" (idempotent): moi tin co clientMessageId do trinh duyet sinh truoc
+// khi gui. Mat mang luc cho phan hoi, trinh duyet gui lai CUNG ma; may chu thay ma da
+// ton tai (hoac gap UNIQUE (senderId, clientMessageId) khi hai lan gui chay song song)
+// thi tra lai tin cu (duplicate: true) thay vi luu tin thu hai. Cung ma ma noi dung khac
+// => IDEMPOTENCY_CONFLICT. Them: gioi han 30 tin/phut moi nguoi, chi ung vien <-> nha
+// tuyen dung cua cong ty da duyet moi duoc nhan tin, toi da 2.000 ky tu.
 let handleSendMessage = async (data) => {
     const content = typeof data.content === 'string' ? data.content.trim() : '';
     const senderId = Number(data.senderId), receiverId = Number(data.receiverId);

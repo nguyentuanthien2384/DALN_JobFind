@@ -9,6 +9,26 @@ import { fallbackSuggestions, parseSuggestions, visibleText } from './suggestion
 import { hedgeMiddleware } from './hedge.js';
 import { answerKey } from './answerCache.js';
 
+// ===== CHATBOT LLM (Vercel AI SDK: ai + @ai-sdk/anthropic|openai|google, zod) =====
+// AI SDK cho MOT giao dien chung (streamText) voi nhieu nha cung cap, nen chatbot thu
+// lan luot Claude -> OpenAI -> Gemini -> Ollama (tuy bien moi truong co khoa nao).
+// Nha cung cap loi 3 lan lien tiep bi bo qua 60 giay (circuits - circuit breaker nho).
+// Cac ky thuat chinh (hay bi hoi):
+// - RAG don gian (retrieveKnowledge trong knowledge.js): lay toi da 3 bai huong dan DA
+//   DUYET lien quan cau hoi, dua vao prompt lam "tai lieu tham khao". Tai lieu va cau
+//   hoi duoc ghi ro la DU LIEU, khong phai chi dan (chong prompt injection).
+// - Tool calling: model tu quyet dinh goi search_jobs / get_job_details /
+//   job_market_overview; tham so kiem tra bang schema zod; server thuc thi cong cu chi
+//   doc du lieu CONG KHAI roi tra ket qua cho model viet cau tra loi => khong bia tin.
+//   isStepCount(3) + prepareStep (tu buoc 2 cam goi them cong cu) chan vong lap vo han;
+//   toi da 4 lan goi cong cu moi luot.
+// - Streaming: fullStream tra tung doan chu; http.js day ra trinh duyet bang SSE
+//   (text/event-stream) de nguoi dung thay chu xuat hien dan.
+// - Prompt caching cua Anthropic (cacheControl ephemeral) cho phan luat co dinh: lan
+//   goi sau doc tu cache, giam chi phi va do tre.
+// - Hedged requests (hedge.js) cat do tre duoi; answerCache luu cau tra loi cho cau
+//   hoi mo dau giong nhau; het thoi gian thi tra loi du phong tu bai huong dan.
+//
 // A job-search answer can require a provider round trip, a public tool call,
 // and another provider round trip. Leave time for the 60-second turn deadline
 // to save a reviewed fallback if the provider does not finish.

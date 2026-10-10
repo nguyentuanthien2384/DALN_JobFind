@@ -1,3 +1,6 @@
+// Cloudinary: dich vu luu tru va phan phoi anh/tai lieu qua CDN (avatar, logo cong ty,
+// giay phep kinh doanh). May chu chi upload bang API key/secret o bien moi truong; file
+// khong nam tren o dia backend nen chay nhieu ban backend van thay cung mot anh.
 const cloudinary = require("cloudinary").v2;
 require('dotenv').config();
 cloudinary.config({

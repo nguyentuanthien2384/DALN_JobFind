@@ -30,6 +30,18 @@ const deliveryRouting = (msg, queueName) => {
     return { routingKey, count };
 };
 
+// Xu ly MOT tin nhan RabbitMQ (dung chung cho moi consumer):
+// 1. Doc envelope (eventId, eventType, payloadVersion) va kiem tra JSON Schema. Tin sai
+//    cau truc chuyen thang sang dead-letter, khong goi handler nghiep vu.
+// 2. Goi handler. Thanh cong => ACK, broker xoa tin.
+// 3. Handler loi:
+//    - Loi tam thoi (retry.shouldRetry tra true, vd DB/SMTP tam ngung) va con luot:
+//      cho delaysMs[count] roi gui mot BAN SAO vao lai chinh hang doi nay (default
+//      exchange, header x-retry-count), sau do moi ACK ban goc.
+//    - Het luot hoac loi vinh vien: chuyen sang dead-letter roi ACK ban goc.
+// 4. Neu khong gui duoc ban sao (broker chua confirm) => NACK + requeue ban goc.
+// Thu tu "gui ban sao truoc, ACK ban goc sau" bao dam khong luc nao tin bi mat; cai
+// gia la co the trung lap, nen handler phai idempotent.
 export const createDeliveryHandler = ({ channel, queueName, handler, retry, isActive }) => {
     // ACK failures are not handler failures. Do not send an already-processed
     // event to the DLQ; close its source channel so RabbitMQ can redeliver it.

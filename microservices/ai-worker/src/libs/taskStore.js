@@ -5,6 +5,19 @@ import { taskStateError } from './taskIdentity.js';
 
 // A single document is both the paid-call claim and the saved result. Never
 // expire/reclaim a started claim: a timeout cannot prove the model did not run.
+//
+// ===== LEDGER CHONG GOI AI TRUNG (MongoDB, idempotency) =====
+// RabbitMQ giao tin "it nhat mot lan", nen cung mot tac vu co the den 2 lan. Moi lan
+// goi model ton tien, vi vay truoc khi goi phai "chiem" tac vu:
+// - claim(): insertOne voi _id = khoa tac vu. _id la duy nhat nen chi MOT replica
+//   insert thanh cong (acquired). Ban giao lai gap loi trung khoa 11000 => khong goi
+//   model nua: neu ket qua da luu (ready) thi chi phat lai ket qua; da phat
+//   (published) thi bo qua.
+// - fingerprint: cung khoa ma noi dung khac => tu choi (chong dung lai ID cho yeu cau khac).
+// - Trang thai: started -> ready (complete, luu ket qua) -> published (markPublished,
+//   xoa output). Moi buoc cap nhat co dieu kien (state/owner) - mot dang compare-and-set.
+// - writeConcern majority + journal (j: true): ghi chi duoc coi la xong khi da ghi
+//   nhat ky tren da so node, tranh mat "claim" khi MongoDB sap ngay sau do.
 export const createTaskStore = (collection) => ({
     async ensureIndexes() {
         await collection.createIndex({ state: 1, startedAt: 1 }, { name: 'ai_task_state_started' });

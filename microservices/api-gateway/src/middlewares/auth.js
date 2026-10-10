@@ -14,6 +14,20 @@ import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../../.
 // x-user-id / x-user-role do Gateway dat (xem proxy.js, noi cac header nay bi xoa
 // khoi request cua client truoc khi Gateway tu dat lai). Nho vay logic xac thuc
 // chi nam mot cho, va service ben duoi khong can biet ve JWT.
+//
+// ===== JWT (thu vien jsonwebtoken) =====
+// Access token la JWT ky HMAC-SHA256 (HS256) bang JWT_SECRET dung chung voi backend.
+// jwt.verify kiem tra: chu ky, algorithms chi cho HS256 (chong tan cong "alg: none" /
+// doi thuat toan), issuer + audience (token cua he thong khac khong dung duoc),
+// maxAge = TTL (mac dinh 900s = 15 phut) va clockTolerance 5s cho lech dong ho.
+// Hai lop bao ve them:
+// - sid (session id): token phai gan voi mot phien con hieu luc trong bang AuthSessions
+//   (resolveCurrentIdentity). Dang xuat/doi mat khau thu hoi phien => token cu het
+//   tac dung ngay, khong phai doi het 15 phut - khac phuc nhuoc diem "JWT khong thu
+//   hoi duoc" cua JWT thuan stateless.
+// - Role/companyId doc lai tu DB moi request, khong tin claim trong token.
+// Vi sao HS256 ma khong RS256? Chi backend va Gateway (cung ha tang) ky/kiem tra token,
+// nen khoa doi xung du dung va don gian; RS256 can khi nhieu ben ngoai can tu kiem tra.
 
 const decodeIdentity = (req) => {
     const header = req.headers.authorization;

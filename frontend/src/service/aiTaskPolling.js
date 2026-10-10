@@ -10,6 +10,14 @@ const pause = (ms, signal) => new Promise((resolve, reject) => {
 
 // Only GET is retried. Stopping or timing out does not cancel a server-side task,
 // discard its ID, or create a replacement paid task.
+//
+// Mo hinh "202 Accepted + polling" cho tac vu AI (vi sao khong cho mot request dai?):
+// goi model mat 5-30 giay, giu ket noi HTTP lau de bi proxy/timeout cat va khong
+// phuc hoi duoc. Server nhan yeu cau, tra ngay taskId (202), AI Worker xu ly qua
+// RabbitMQ; trinh duyet hoi GET /api/ai/tasks/:taskId moi 2 giay toi khi done/failed.
+// Mat mang giua chung chi can hoi tiep bang taskId cu, khong tao tac vu moi (khong
+// ton tien them). AbortController de nguoi dung bam "Dung cho" ma khong huy tac vu tren
+// may chu. Loi tam thoi lien tiep thi gian cach lan hoi (backoff).
 export const pollAiTask = async (getTask, taskId, { intervalMs = 2000, timeoutMs = 120000, signal } = {}) => {
     if (!Number.isFinite(intervalMs) || intervalMs < 0 || intervalMs > 60000
         || !Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 3600000) {

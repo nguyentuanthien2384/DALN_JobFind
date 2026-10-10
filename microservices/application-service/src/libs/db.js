@@ -4,6 +4,17 @@ import { requireEnvironment } from '../../../shared/securityConfig.js';
 
 const logger = createLogger('application-service');
 
+// ===== DATABASE PER SERVICE / POLYGLOT PERSISTENCE (PostgreSQL, thu vien pg) =====
+// Moi service so huu kho du lieu rieng, service khac chi doc qua API hoac su kien,
+// khong truy van thang bang cua nhau => doi schema mot service khong lam vo service khac.
+// Moi kho chon theo dang du lieu: MySQL (he thong goc), PostgreSQL (ho so ung tuyen),
+// MongoDB (CV dang tai lieu, audit), Elasticsearch (tim kiem), Redis (bo dem tam).
+// Vi sao ho so ung tuyen dung PostgreSQL?
+// - Giao dich ACID chat cho chuyen buoc Kanban + lich su + outbox (withTransaction).
+// - JSONB luu snapshot CV/thu moi ma van truy van/danh index duoc; TEXT[] cho tags.
+// - FOR UPDATE SKIP LOCKED cho relay outbox nhieu replica (xem libs/outbox.js).
+// Pool (max 10 ket noi): dung lai ket noi thay vi mo moi cho tung request; ket noi ranh
+// 30s thi dong. withTransaction muon MOT ket noi cho ca giao dich (BEGIN..COMMIT).
 export const pool = new pg.Pool({
     connectionString: requireEnvironment('POSTGRES_URL'),
     max: 10,

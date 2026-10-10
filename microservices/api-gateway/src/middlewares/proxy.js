@@ -13,6 +13,14 @@ const logger = createLogger('api-gateway');
 // hong keo sap ca he thong. Circuit breaker dem so lan that bai; vuot nguong thi
 // "ngat cau dao" va tra loi that bai ngay lap tuc, khong con gui request nao xuong
 // nua. Sau resetTimeout no cho mot request thu di qua de do xem service da song lai chua.
+//
+// Ba trang thai (hay bi hoi): CLOSED - binh thuong, moi request di qua va duoc dem;
+// OPEN - ty le loi vuot errorThresholdPercentage, request bi tu choi ngay (503,
+// error.code EOPENBREAKER) ma khong goi service; HALF-OPEN - het resetTimeout, cho mot
+// request thu: thanh cong thi ve CLOSED, that bai thi quay lai OPEN.
+// Moi service co mot breaker rieng (Map breakers) nen Search hong khong lam ngat
+// duong toi Identity. Chi 5xx/timeout tinh la loi (validateStatus) - 4xx la cau tra
+// loi hop le cua nghiep vu.
 
 const breakers = new Map();
 

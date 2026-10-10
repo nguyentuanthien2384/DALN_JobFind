@@ -1,4 +1,12 @@
 # syntax=docker/dockerfile:1
+# Mot image dung chung cho ca 9 service (Compose chon thu muc/lenh chay cho tung service).
+# - Image goc ghim theo digest sha256: build lai luon ra cung mot Node/Alpine, khong bi
+#   doi am tham khi tag node:22-alpine cap nhat.
+# - Multi-stage: stage "dependencies" chi chep package.json + lockfile roi npm ci
+#   --omit=dev (bo thu vien test). Docker cache layer nay: sua code khong phai cai lai
+#   thu vien. Stage "runtime" chi chep ket qua, image gon hon.
+# - USER node: tien trinh khong chay bang root, han che thiet hai neu bi chiem quyen.
+# - HEALTHCHECK goi scripts/healthcheck.mjs de Docker/Compose biet container da san sang.
 ARG NODE_IMAGE=node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
 FROM ${NODE_IMAGE} AS dependencies
 WORKDIR /app
