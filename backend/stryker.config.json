@@ -1,13 +1,15 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation testing for security and payment code: line coverage cannot show whether a check is actually asserted. Run with npm run test:mutation.",
+  "_comment": "Mutation testing for security and payment code: line coverage cannot show whether a check is actually asserted. Run with npm run test:mutation (incremental) or test:mutation:full. findRelatedTests: static mutants (module-level constants) run only the suites importing the mutated file instead of all 18; same per-mutant results, about 2x faster.",
   "packageManager": "npm",
   "testRunner": "jest",
   "jest": {
     "projectType": "custom",
     "configFile": "stryker.jest.config.cjs",
-    "enableFindRelatedTests": false
+    "enableFindRelatedTests": true
   },
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json",
   "coverageAnalysis": "perTest",
   "mutate": [
     "src/middlewares/rateLimit.js",

@@ -66,11 +66,14 @@ Coverage xác nhận mã được thực thi, không chứng minh mọi lỗi đ
 Mock DB/HTTP/SDK ở ranh giới; giữ logic nghiệp vụ đang kiểm tra thật. Assertion cần kiểm tra kết quả và tác dụng phụ quan trọng (ví dụ không ghi outbox khi giao dịch thất bại), tránh chỉ kiểm tra một hàm mock đã được gọi.
 
 ```powershell
-npm --prefix backend run test:mutation
+npm --prefix backend run test:mutation        # incremental: chỉ thử lại mutant có mã/test thay đổi
 npm --prefix microservices run test:mutation
+npm --prefix backend run test:mutation:full   # thử lại toàn bộ (--force), làm mới mốc incremental
 ```
 
 Mutation testing thay đổi các điều kiện trong nhóm mã bảo mật/thanh toán/hạn mức/tuyển dụng để kiểm tra sức phát hiện lỗi; CI yêu cầu điểm tối thiểu 85. Workflow chạy định kỳ và cho phép `workflow_dispatch`. Không suy ra mutation đạt chỉ từ coverage đạt.
+
+Kết quả incremental lưu ở `reports/stryker-incremental.json` (Git bỏ qua). Stryker dùng lại kết quả của mutant khi đoạn mã đó và các test phủ nó không đổi; thay đổi ở module phụ thuộc ngoài danh sách `mutate` có thể không được nhận ra, nên workflow định kỳ/chạy tay luôn dùng `test:mutation:full`, còn pull request khôi phục mốc từ cache rồi chạy incremental. Backend bật `enableFindRelatedTests`: mutant tĩnh (hằng số cấp module như giới hạn đăng nhập, TTL OTP, bảng phân quyền) chỉ chạy các bộ test import file bị đổi thay vì cả 18 bộ. Thử trên `rateLimit.js` + `otpStore.js` cho kết quả trùng từng mutant (181/181) với cấu hình cũ, thời gian 160 s → 71 s; Vitest runner của microservices vốn đã chạy test liên quan theo mặc định.
 
 CI thu thập kiểm thử của cả ba phần trước bước audit và lưu coverage artifact cả khi kiểm tra ngưỡng thất bại. Kết quả local, kết quả GitHub Actions và xác nhận với AI/email/SSO/thanh toán thật cần được báo cáo riêng. Không có bộ test hữu hạn nào chứng minh dự án hoàn chỉnh 100%; mỗi thay đổi cần giữ các ca hồi quy đã bắt được lỗi và thêm ca cho hành vi mới.
 
@@ -105,6 +108,15 @@ Các log root lưu trong `.local/qa-*.log` (Git bỏ qua); báo cáo coverage n�
 - `braces`: vá tại chỗ, chi tiết và cách gỡ trong [vendor/README.md](../vendor/README.md). Image gateway build từ `microservices/Dockerfile` chạy `braces` 3.0.4-jobfind.1 và `proxy-addr` 2.0.8.
 - Backend bỏ `nodemon`; `npm --prefix backend run dev` dùng `node --watch --require @babel/register` (đã kiểm tra tự khởi động lại khi sửa file).
 - Còn lại mức moderate: frontend 45 (`postcss-selector-parser` 6.x qua CRA/Tailwind, `sprintf-js` chưa có bản vá), backend 19 (`sprintf-js`).
+
+### Mutation
+
+| Phần | Điểm | Mutant | Thời gian |
+| --- | --- | --- | --- |
+| Backend | 93,25% (04/10: 93,3%) | 1.457 killed, 63 timeout, 94 survived, 16 no coverage, 1 error / 1.631 | 15 phút 48 giây chạy đầy đủ; 17 giây khi chạy lại incremental không có thay đổi |
+| Microservices | 91,47% (04/10: 91,5%) | 922 killed, 76 survived, 10 no coverage / 1.008 | khoảng 4 phút |
+
+Mutation backend đã hỏng ở bước chạy thử từ 05/10: test avatar trong `userService.test.js` đọc `../../../frontend` theo đường dẫn cố định, sai khi Stryker chạy trong `backend/.stryker-tmp/sandbox-*`; test nay tìm thư mục gốc bằng cách đi ngược lên. Trước khi tối ưu, Stryker ước tính hơn 2 giờ cho backend vì 205 mutant tĩnh (13%) chiếm khoảng 85% thời gian. Điểm thấp nhất theo file: `rateLimit.js` của Gateway 76,64%, `rateLimit.js` của backend 85,71%.
 
 ### Nhà cung cấp thật
 

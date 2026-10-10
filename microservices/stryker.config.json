@@ -1,9 +1,11 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation testing for gateway auth/limits, access control and offer/interview validation. Run with npm run test:mutation.",
+  "_comment": "Mutation testing for gateway auth/limits, access control and offer/interview validation. Run with npm run test:mutation (incremental) or test:mutation:full.",
   "packageManager": "npm",
   "testRunner": "vitest",
   "vitest": { "configFile": "stryker.vitest.config.js" },
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json",
   "coverageAnalysis": "perTest",
   "mutate": [
     "shared/accessControl.js",

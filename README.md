@@ -683,15 +683,15 @@ npm run check
 | `npm run lint` | ESLint `frontend/src`, không cho phép cảnh báo |
 | `npm --prefix microservices run contracts:check` | Hợp đồng đã sinh khớp với mã nguồn |
 
-**Lần chạy gần nhất (09/10/2026, máy phát triển):**
+**Lần chạy gần nhất (10/10/2026, máy phát triển): `npm run check` đạt**
 
 | Phần | Kết quả |
 | --- | --- |
-| Backend (Jest) | ✅ 90 bộ · 2.489 test |
+| Backend (Jest) | ✅ 90 bộ · 2.489 test · mutation 93,25% |
 | Frontend (Jest + RTL) | ✅ 122 bộ · 2.225 test |
-| Microservices (Vitest) | ✅ 75 tệp · 1.818 test |
+| Microservices (Vitest) | ✅ 76 tệp · 1.825 test · mutation 91,47% |
 
-Độ phủ statements lần lượt **96,83% / 90,76% / 95,90%**; tất cả đạt ngưỡng đã cấu hình. Runtime đạt 62 ca, bỏ qua 1 ca MySQL tùy chọn. Build và lint đạt. `npm audit` còn cảnh báo high/critical, nên chưa xác nhận `npm run check` hoặc CI đạt hoàn toàn; chi tiết và giới hạn trong [hướng dẫn kiểm thử](docs/testing.md).
+Độ phủ statements lần lượt **96,83% / 90,73% / 95,90%**; tất cả đạt ngưỡng đã cấu hình. Runtime đạt 66 ca, bỏ qua 1 ca MySQL tùy chọn. Lint, build, `npm audit` mức high (cả ba phần) và kiểm tra bản vá `braces` đạt. AI, chatbot, Gmail, PayPal sandbox và Auth0 đã được kiểm tra với nhà cung cấp thật; GitHub Actions chưa chạy lại cho lượt này. Chi tiết và giới hạn trong [hướng dẫn kiểm thử](docs/testing.md).
 
 > [!NOTE]
 > Unit test **mock toàn bộ** dịch vụ ngoài (DB, RabbitMQ, Redis, Elasticsearch, SMTP, AI) nên không cần Docker/XAMPP. Thành phần AI có test chạy trong `React.StrictMode` để bắt lỗi chỉ xuất hiện ở chế độ dev.
