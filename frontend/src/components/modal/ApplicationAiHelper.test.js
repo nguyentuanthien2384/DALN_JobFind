@@ -38,5 +38,5 @@ test('shows a fit score for the selected CV', async () => {
 test('stays disabled until a CV is selected', () => {
     render(<ApplicationAiHelper source="" postId={7} onUseIntro={jest.fn()} />);
     expect(screen.getByRole('button', { name: 'Viết lời giới thiệu bằng AI' })).toBeDisabled();
-    expect(screen.getByText('Chọn CV ở bên dưới để dùng trợ lý AI.')).toBeInTheDocument();
+    expect(screen.getByText('Chọn CV ở phía trên để dùng trợ lý AI.')).toBeInTheDocument();
 });

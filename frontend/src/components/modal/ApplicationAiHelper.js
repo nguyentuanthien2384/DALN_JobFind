@@ -46,7 +46,7 @@ export default function ApplicationAiHelper({ source, postId, disabled, onUseInt
             <strong>Trợ lý AI ứng tuyển</strong>
             <p>Khi bạn bấm, CV đang chọn được gửi tới dịch vụ AI để gợi ý. Bạn tự kiểm tra và quyết định nội dung gửi nhà tuyển dụng.</p>
         </div></div>
-        {!fileBase64 && <p className="apply-ai-hint">Chọn CV ở bên dưới để dùng trợ lý AI.</p>}
+        {!fileBase64 && <p className="apply-ai-hint">Chọn CV ở phía trên để dùng trợ lý AI.</p>}
         <div className="apply-ai-actions">
             <button type="button" onClick={writeIntro} disabled={disabled || !fileBase64 || Boolean(busy)}>
                 {busy === 'intro' ? 'AI đang viết…' : 'Viết lời giới thiệu bằng AI'}</button>

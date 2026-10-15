@@ -243,6 +243,7 @@ Sau đó deploy ứng dụng kia. Gỡ một site: xóa file của nó trong vol
 | --- | --- |
 | Không vào được HTTPS, log `web` báo lỗi ACME | DNS chưa trỏ đúng IP hoặc cổng 80/443 bị chặn. Kiểm tra `dig +short <tên-miền>` và tường lửa của nhà cung cấp |
 | `/api` trả 502 | API Gateway chưa sẵn sàng: `docker compose ps`, `docker compose logs api-gateway` |
+| Sau khi VPS khởi động lại: HTTPS bị từ chối, HTTP hiện trang mặc định của nginx/Apache | Web server của hệ điều hành (thường do control panel cài sẵn) tự bật trước Docker và chiếm cổng 80, nên `web` không chạy. Khóa **từng dịch vụ một** (một tên không tồn tại sẽ làm cả lệnh thất bại): `sudo systemctl mask --now nginx`, `sudo systemctl mask --now apache2`, `sudo systemctl mask --now caddy`, rồi `docker compose up -d` |
 | Đăng nhập xong bị đăng xuất khi tải lại trang | Đang chạy HTTP, hoặc `PUBLIC_URL` khác địa chỉ đang mở |
 | `elasticsearch` thoát với mã 137 | Thiếu RAM: thêm swap hoặc nâng VPS. Kiểm tra lại `vm.max_map_count` |
 | Build `web` bị kill (137) | Thiếu RAM khi build React: bật swap hoặc build trên Windows (mục 4b) |

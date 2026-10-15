@@ -91,7 +91,11 @@ apt-get -y upgrade
 grep -i '^Port' /etc/ssh/sshd_config   # phải là Port 2018
 
 # Giải phóng cổng 80/443 (Caddy của addon FlashVPS)
-systemctl disable --now caddy nginx apache2 2>/dev/null
+# Từng lệnh riêng: một dịch vụ không tồn tại sẽ làm systemctl bỏ qua cả các dịch vụ khác cùng lệnh.
+# mask chặn cả việc FlashVPS hay lần khởi động lại bật chúng lên.
+systemctl mask --now nginx
+systemctl mask --now apache2
+systemctl mask --now caddy
 ss -tlnp | grep -E ':(80|443) ' || echo "OK: cong 80/443 dang trong"
 
 # Docker
@@ -136,7 +140,8 @@ Mở `https://61-14-233-122.sslip.io` (hoặc tên miền riêng sau khi đổi,
 | `Permission denied (publickey,password)` | Sai mật khẩu root | Nhập đúng mật khẩu đang dùng cho Termius, hoặc "Đặt lại mật khẩu" trên trang quản lý VPS |
 | Kéo thả file vào Termius chỉ ra đường dẫn dạng chữ | Thả vào cửa sổ terminal, không phải màn hình SFTP | Dùng `scp` trong PowerShell, hoặc màn hình SFTP của Termius |
 | `What do you want to do about modified configuration file sshd_config?` | `apt-get upgrade` hỏi về file SSH mà 123HOST đã sửa (cổng 2018); các lệnh dán sau đó bị nuốt làm câu trả lời | Gõ `2` (giữ bản hiện tại). Không chọn 1, sẽ mất quyền SSH |
-| Cổng 80 bị chiếm bởi `caddy` | Caddy cài sẵn theo addon FlashVPS | `systemctl disable --now caddy` |
+| Cổng 80 bị chiếm bởi `caddy` | Caddy cài sẵn theo addon FlashVPS | `systemctl mask --now caddy` |
+| (14/10) Website không vào được: HTTPS bị từ chối, HTTP hiện "Apache2 Ubuntu Default Page" (`Server: nginx`) | Sau khi VPS khởi động lại, nginx của FlashVPS tự bật trước Docker và chiếm cổng 80, nên container `web` không chạy. Lệnh cũ `systemctl disable --now nginx apache2` đã thất bại ngầm vì không có `apache2` | `systemctl mask --now nginx` (chạy riêng từng dịch vụ), rồi `docker compose up -d` |
 | `fallocate failed: Text file busy` | Swap đã được tạo từ trước | Bỏ qua. Kiểm tra `/etc/fstab` không có dòng swap lặp |
 | `ufw: command not found` | Ubuntu bản minimal | `apt-get install -y ufw` |
 

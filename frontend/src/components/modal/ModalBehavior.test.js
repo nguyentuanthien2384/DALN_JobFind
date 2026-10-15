@@ -12,7 +12,7 @@ const samplePdf = 'data:application/pdf;base64,JVBERi0xLjcKZml4dHVyZQ==';
 const fillApplication = async () => {
     fireEvent.change(screen.getByLabelText('Lời giới thiệu'), { target: { value: 'Tôi muốn ứng tuyển' } });
     fireEvent.change(screen.getByLabelText('Chọn tệp CV'), { target: { files: [new File(['pdf'], 'cv.pdf', { type: 'application/pdf' })] } });
-    await screen.findByRole('button', { name: /xem lại CV/i });
+    await screen.findByRole('button', { name: 'Xem trước CV' });
 };
 
 jest.mock("reactstrap", () => {
@@ -218,7 +218,9 @@ describe("SendCvModal", () => {
         await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());
         const file = new File([new Uint8Array(2097153)], "large.pdf", { type: "application/pdf" });
         fireEvent.change(screen.getByLabelText("Chọn tệp CV"), { target: { files: [file] } });
-        expect(toast.error).toHaveBeenCalledWith("File của bạn quá lớn. Chỉ gửi file dưới 2MB");
+        expect(toast.error).toHaveBeenCalledWith("Tệp CV vượt quá 2 MiB. Vui lòng chọn tệp nhỏ hơn.");
+        expect(screen.getByRole('alert')).toHaveTextContent('vượt quá 2 MiB');
+        expect(screen.getByRole('button', { name: 'Gửi hồ sơ' })).toBeDisabled();
         expect(CommonUtils.getBase64).not.toHaveBeenCalled();
     });
 
@@ -241,7 +243,8 @@ describe("SendCvModal", () => {
             resolveBase64(samplePdf);
         });
         await waitFor(() => expect(CommonUtils.getBase64).toHaveBeenCalledWith(file));
-        expect(await screen.findByRole("button", { name: /xem lại CV/i })).toBeEnabled();
+        expect(await screen.findByRole("button", { name: 'Xem trước CV' })).toBeEnabled();
+        expect(screen.getByRole('region', { name: 'CV sẽ gửi' })).toHaveTextContent('cv.pdf');
         expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: samplePdf, fileName: 'cv.pdf' }), expect.anything());
 
         await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" })); });
@@ -260,6 +263,44 @@ describe("SendCvModal", () => {
         jest.useRealTimers();
     });
 
+    it('accepts a PDF with a BOM and generic MIME, then previews and sends the same bytes', async () => {
+        const binary = '\xef\xbb\xbf \r\n%PDF-1.7\nExported CV';
+        const normalized = `data:application/pdf;base64,${btoa(binary)}`;
+        CommonUtils.getBase64.mockResolvedValueOnce(`data:application/octet-stream;base64,${btoa(binary)}`);
+        render(<SendCvModal isOpen postId={22} onHide={jest.fn()} />);
+        await fillApplication();
+        expect(await screen.findByRole('button', { name: 'Xem trước CV' })).toBeEnabled();
+        expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: normalized }), expect.anything());
+        fireEvent.click(screen.getByRole('button', { name: 'Gửi hồ sơ' }));
+        await waitFor(() => expect(createNewCv).toHaveBeenCalledWith(expect.objectContaining({ file: normalized })));
+    });
+
+    it('clears a previous CV on invalid replacement and explains the error next to the input', async () => {
+        render(<SendCvModal isOpen postId={22} onHide={jest.fn()} />);
+        await fillApplication();
+        await screen.findByRole('button', { name: 'Xem trước CV' });
+        CommonUtils.getBase64.mockResolvedValueOnce(`data:application/pdf;base64,${btoa('not a PDF')}`);
+        fireEvent.change(screen.getByLabelText('Chọn tệp CV'), { target: { files: [new File(['not a PDF'], 'wrong.pdf')] } });
+        expect(await screen.findByRole('alert')).toHaveTextContent('Tệp không phải PDF hợp lệ');
+        expect(screen.queryByRole('button', { name: 'Xem trước CV' })).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Chọn tệp CV')).toHaveValue('');
+        expect(screen.getByRole('button', { name: 'Gửi hồ sơ' })).toBeDisabled();
+        expect(createNewCv).not.toHaveBeenCalled();
+    });
+
+    it('ignores an older file read after a newer CV is selected', async () => {
+        let resolveOld;
+        CommonUtils.getBase64.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+        render(<SendCvModal isOpen postId={22} onHide={jest.fn()} />);
+        const input = screen.getByLabelText('Chọn tệp CV');
+        fireEvent.change(input, { target: { files: [new File(['old'], 'old.pdf')] } });
+        fireEvent.change(input, { target: { files: [new File(['new'], 'new.pdf')] } });
+        await screen.findByRole('button', { name: 'Xem trước CV' });
+        await act(async () => resolveOld('data:application/pdf;base64,' + btoa('%PDF-1.7\nold')));
+        expect(screen.getByRole('region', { name: 'CV sẽ gửi' })).toHaveTextContent('new.pdf');
+        expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: samplePdf, fileName: 'new.pdf' }), expect.anything());
+    });
+
     it("can submit the saved online CV", async () => {
         jest.useFakeTimers();
         getDetailUserById.mockResolvedValue({
@@ -270,7 +311,7 @@ describe("SendCvModal", () => {
         await act(async () => { await Promise.resolve(); });
         fireEvent.click(screen.getByLabelText("CV online"));
         fireEvent.change(screen.getByLabelText('Lời giới thiệu'), { target: { value: 'Tôi muốn ứng tuyển' } });
-        expect(screen.getByRole("button", { name: /xem lại CV/i })).toBeEnabled();
+        expect(screen.getByRole("button", { name: 'Xem trước CV' })).toBeEnabled();
         expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: samplePdf, fileName: 'CV-online.pdf' }), expect.anything());
         await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" })); });
         await waitFor(() => expect(createNewCv).toHaveBeenCalledWith(expect.objectContaining({

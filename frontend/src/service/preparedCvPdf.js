@@ -1,8 +1,9 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { cvPayload } from './candidateWorkspace';
+import { MAX_APPLICATION_PDF_BYTES } from './applicationPdf';
 
-export const MAX_APPLICATION_PDF_BYTES = 2 * 1024 * 1024;
+export { MAX_APPLICATION_PDF_BYTES } from './applicationPdf';
 const MAX_PAGES = 20, MAX_TEXT = 60000;
 const normalize = value => value.normalize('NFC').replace(/\r\n?/g, '\n').replace(/\t/g, '    ').trim();
 

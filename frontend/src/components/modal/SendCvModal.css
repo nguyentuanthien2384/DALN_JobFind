@@ -8,6 +8,15 @@
 .send-cv-modal a { color: #235d9f; text-decoration: underline; }
 .cv-source-options { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 18px 0; }
 .cv-source-options label, .cv-review-check { display: flex; align-items: baseline; gap: 8px; cursor: pointer; }
+.cv-file-picker > label { display: block; font-weight: 600; margin-bottom: 8px; }
+.cv-file-picker input { max-width: 100%; }
+.cv-file-picker p { margin: 8px 0 0; font-size: 14px; color: #52667e; }
+.cv-file-picker .cv-file-error { color: #b42318; }
+.cv-selected-file { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 16px; padding: 16px; border: 1px solid #cbdced; background: #f5f9fd; border-radius: 8px; }
+.cv-selected-file > div { min-width: 0; flex: 1 1 240px; }
+.cv-selected-file strong { display: block; overflow-wrap: anywhere; color: #172b46; }
+.cv-selected-file p { margin: 4px 0 0; color: #52667e; font-size: 14px; }
+.cv-selected-file .cv-selected-file-label { margin: 0 0 4px; }
 .prepared-cv-picker { padding: 16px; background: #f5f8fb; border: 1px solid #dbe3ed; border-radius: 8px; }
 .prepared-cv-picker > label { display: block; margin: 16px 0; }
 .prepared-cv-picker button { background: #246b53; color: #fff; border: 0; border-radius: 6px; padding: 10px 14px; white-space: normal; line-height: 1.5; }
