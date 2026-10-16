@@ -7,7 +7,7 @@ import { pollAiTask } from '../../service/aiTaskPolling';
 import { loadSearchPage, searchMode } from '../../service/searchWorkspace';
 import PdfPreviewButton from '../../components/documents/PdfPreviewButton';
 import DocumentPreviewModal from '../../components/documents/DocumentPreviewModal';
-import { candidateAiEnabled, preparedCvEnabled, readIntent, saveIntent, clearIntent, prepareIntent, acceptTask, validateTaskResponse,
+import { candidateAiEnabled, readIntent, saveIntent, clearIntent, prepareIntent, acceptTask, validateTaskResponse,
     readPdf, emptyCv, hasCvContent, cvPayload, validateCvList, validateAiResult, cvText, mutationStorageKey } from '../../service/candidateWorkspace';
 import './CandidateAi.css';
 
@@ -290,10 +290,7 @@ function Workspace({ userId, token }) {
         </section>
         <section className="candidate-ai-panel" aria-labelledby="cv-title">
             <h2 id="cv-title">CV của tôi</h2>
-            <p>Lưu CV sau khi kiểm tra nội dung hoặc xem trước và tải bản PDF. {preparedCvEnabled() && 'Khi ứng tuyển, chọn CV đã chuẩn bị, tạo và xem lại bản PDF rồi bấm Gửi hồ sơ. '}Hồ sơ đã nộp và tệp đính kèm được quản lý ở mục Công việc đã nộp.</p>
-            {preparedCvEnabled() && /^[1-9][0-9]*$/.test(jobId) && Number.isSafeInteger(Number(jobId)) && <p>
-                <a href={`/detail-job/${jobId}/`}>Trở lại công việc #{jobId} để ứng tuyển</a>. Chỉ CV đã lưu mới xuất hiện trong danh sách chọn; bản nháp chưa lưu không được chuyển theo.
-            </p>}
+            <p>Lưu CV sau khi kiểm tra nội dung hoặc xem trước và tải bản PDF. Hồ sơ đã nộp và tệp đính kèm được quản lý ở mục Công việc đã nộp.</p>
             <button type="button" disabled={cvLoading || cvBusy} onClick={loadCvs}>{cvLoading ? 'Đang tải…' : 'Tải danh sách CV'}</button>
             {cvLoaded && cvs.length === 0 && <p>Bạn chưa có CV trong danh sách này.</p>}
             {uncertain && <div role="alert"><p>Có thay đổi CV chưa xác nhận. Tải danh sách và kiểm tra nội dung trước khi tiếp tục. Việc tải lại không chứng minh lần lưu trước đã thành công.</p>

@@ -103,14 +103,13 @@ jobs:
         env:
           REACT_APP_CANDIDATE_AI_ENABLED: 'true'
           REACT_APP_APPLICATION_PROGRESS_ENABLED: 'true'
-          REACT_APP_PREPARED_CV_APPLICATION_ENABLED: 'true'
           REACT_APP_JOB_SEARCH_MODE: core
           REACT_APP_BACKEND_URL: /
         run: npm run build
       - name: Verify candidate CV and Core search browser journeys with synthetic API data
         working-directory: microservices
         env:
-          JOBFIND_VERIFY_PREPARED_CV_DELIVERY: '1'
+          JOBFIND_VERIFY_APPLICATION_DELIVERY: '1'
         run: npm run test:candidate-browser:integration
       - name: Validate local Compose without production credentials
         working-directory: microservices

@@ -83,19 +83,13 @@ export async function checkBrowser(directory, stage) {
                 await p.goto(origin + '/detail-job/' + openJobs[0].id + '/');
                 await p.getByRole('button', { name: /Nộp CV ngay/ }).first().click();
                 const modal = p.getByRole('dialog'); await expect(modal).toBeVisible();
-                const saved = responseFor(p, '/api/profile/cvs');
-                await modal.getByLabel('CV đã chuẩn bị', { exact: true }).check();
-                const cvs = await valid(await saved); report.savedCvChoices = cvs.data.length;
+                // The prepared-CV choice was removed: the form only accepts an uploaded PDF.
+                assert.equal(await modal.getByRole('radio').count(), 0, 'Application form offers CV source choices');
+                await expect(modal.getByLabel('Chọn tệp CV', { exact: true })).toBeVisible();
                 await expect(modal.getByRole('button', { name: 'Gửi hồ sơ', exact: true })).toBeDisabled();
-                if (cvs.data.length) {
-                    await modal.getByLabel('CV đã lưu', { exact: true }).selectOption(cvs.data[0]._id);
-                    await modal.getByRole('button', { name: 'Tạo bản PDF để xem lại' }).click();
-                    await expect(modal.getByRole('link', { name: 'Mở bản PDF sẽ gửi' })).toBeVisible({ timeout: 20000 });
-                    report.checks.push('saved CV produces PDF preview without submission');
-                } else await expect(modal.getByText(/Bạn chưa có CV đã lưu/)).toBeVisible();
-                report.checks.push('prepared CV selector reads actual saved CVs; submit requires review');
+                report.checks.push('application form offers only the CV file picker; submit requires a file');
             } else {
-                report.limitation = 'All applicable existing jobs expired; live application modal not exercised. Prepared PDF/submission was verified in isolated release tests.';
+                report.limitation = 'All applicable existing jobs expired; live application modal not exercised. PDF upload/submission was verified in isolated release tests.';
             }
             await p.goto(origin + '/candidate/ai-cv');
             await expect(p.getByText(/Tính năng mới chưa mở/)).toBeVisible();

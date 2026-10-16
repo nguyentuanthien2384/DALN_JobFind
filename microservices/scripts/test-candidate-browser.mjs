@@ -7,10 +7,10 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import express from 'express';
 import { chromium, expect } from 'playwright/test';
+import { fixturePdfBytes } from './compose-acceptance/pdf.mjs';
 
 // Tests a production build with REACT_APP_JOB_SEARCH_MODE=core,
-// REACT_APP_CANDIDATE_AI_ENABLED=true, REACT_APP_APPLICATION_PROGRESS_ENABLED=true
-// and REACT_APP_PREPARED_CV_APPLICATION_ENABLED=true.
+// REACT_APP_CANDIDATE_AI_ENABLED=true and REACT_APP_APPLICATION_PROGRESS_ENABLED=true.
 // All API requests are fulfilled in the browser; no backend/provider is contacted.
 const build = process.env.JOBFIND_TEST_FRONTEND_BUILD
     ? path.resolve(process.env.JOBFIND_TEST_FRONTEND_BUILD)
@@ -157,14 +157,17 @@ try {
     });
     await page.getByRole('button',{name:/Nộp CV ngay/}).first().click();
     const modal=page.getByRole('dialog'); await expect(modal).toBeVisible();
-    await modal.getByLabel('CV đã chuẩn bị',{exact:true}).check();
-    await modal.getByLabel('CV đã lưu',{exact:true}).selectOption('507f1f77bcf86cd799439011');
+    // The application form only accepts an uploaded PDF: no CV source choices.
+    assert.equal(await modal.getByRole('radio').count(),0,'application form must not offer CV source choices');
     await modal.getByLabel('Lời giới thiệu',{exact:true}).fill('Tôi muốn ứng tuyển vị trí kỹ sư phần mềm.');
     await expect(modal.getByRole('button',{name:'Gửi hồ sơ',exact:true})).toBeDisabled();
-    await modal.getByRole('button',{name:'Tạo bản PDF để xem lại'}).click();
-    const pdfPreview=modal.getByRole('button',{name:'Xem bản PDF sẽ gửi'}); await expect(pdfPreview).toBeVisible({timeout:15000}).catch(async failure=>{
+    const pdfBytes=fixturePdfBytes();
+    await writeFile(path.join(directory,'application.pdf'),pdfBytes);
+    await modal.getByLabel('Chọn tệp CV',{exact:true}).setInputFiles({name:'synthetic-cv.pdf',mimeType:'application/pdf',buffer:pdfBytes});
+    await expect(modal.getByRole('region',{name:'CV sẽ gửi'})).toContainText('synthetic-cv.pdf');
+    const pdfPreview=modal.getByRole('button',{name:'Xem trước CV'}); await expect(pdfPreview).toBeEnabled({timeout:15000}).catch(async failure=>{
         console.log('PDF preview errors: '+JSON.stringify(errors));console.log('Modal text: '+await page.locator('.send-cv-modal').allTextContents());
-        await page.screenshot({path:path.join(directory,'prepared-application-failure.png'),fullPage:true});
+        await page.screenshot({path:path.join(directory,'application-failure.png'),fullPage:true});
         console.log('Failed preview screenshot: '+directory);throw failure;
     });
     await pdfPreview.click();
@@ -172,38 +175,34 @@ try {
     const pdfLink=pdfModal.getByRole('link',{name:'Tải PDF'}); await expect(pdfLink).toBeVisible();
     await expect(pdfModal.getByRole('button',{name:'Phóng to PDF'})).toBeVisible();
     const pdfUrl=await pdfLink.getAttribute('href');
-    const pdfBytes=Buffer.from(await page.evaluate(async url=>Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())),pdfUrl));
-    assert.ok(pdfBytes.subarray(0,5).toString()==='%PDF-');assert.ok(pdfBytes.length<=2*1024*1024);
-    await writeFile(path.join(directory,'prepared-application.pdf'),pdfBytes);
+    const previewBytes=Buffer.from(await page.evaluate(async url=>Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())),pdfUrl));
+    assert.ok(previewBytes.equals(pdfBytes),'preview must show the selected file');
     await page.locator('.chat-pdf-modal .ant-modal-close').click();
     await expect(pdfModal).not.toBeVisible();
     await pdfPreview.scrollIntoViewIfNeeded();
     await expect(modal.getByRole('button',{name:'Gửi hồ sơ',exact:true})).toBeInViewport({ratio:1});
     await expect(modal.getByRole('button',{name:'Hủy',exact:true})).toBeInViewport({ratio:1});
-    await page.screenshot({path:path.join(directory,'prepared-application-desktop.png')});
+    await page.screenshot({path:path.join(directory,'application-desktop.png')});
     await page.setViewportSize({width:390,height:844});
     assert.ok(await modal.evaluate(element=>element.scrollWidth<=element.clientWidth+1),'application modal mobile must not overflow');
     await pdfPreview.scrollIntoViewIfNeeded();
     await expect(modal.getByRole('button',{name:'Gửi hồ sơ',exact:true})).toBeInViewport({ratio:1});
     await expect(modal.getByRole('button',{name:'Hủy',exact:true})).toBeInViewport({ratio:1});
-    await page.screenshot({path:path.join(directory,'prepared-application-mobile.png')});
+    await page.screenshot({path:path.join(directory,'application-mobile.png')});
     assert.equal(submissions.length,0,'Preview must not submit an application');
-    // Editing the source after preview cannot change the reviewed attachment.
-    cvs[0]={...cvs[0],fullName:'A later edit must not replace the reviewed PDF'};
-    await modal.getByLabel('Tôi đã xem và chọn bản PDF này để ứng tuyển').check();
     await modal.getByRole('button',{name:'Gửi hồ sơ',exact:true}).click();await expect(modal).not.toBeVisible();
     assert.equal(submissions.length,1);assert.equal(String(submissions[0].postId),'7');assert.equal(submissions[0].userId,8);
     assert.equal(submissions[0].file,'data:application/pdf;base64,'+pdfBytes.toString('base64'));
-    assert.deepEqual(Object.keys(submissions[0]).sort(),['description','file','postId','userId']);assert.equal(creates,2,'Preparing or submitting a saved CV does not call AI');
+    assert.deepEqual(Object.keys(submissions[0]).sort(),['description','file','postId','userId']);assert.equal(creates,2,'Submitting a CV file does not call AI');
     assert.deepEqual(errors,[]);
-    if (process.env.JOBFIND_VERIFY_PREPARED_CV_DELIVERY === '1') {
+    if (process.env.JOBFIND_VERIFY_APPLICATION_DELIVERY === '1') {
         const delivery = await promisify(execFile)(process.execPath, [fileURLToPath(new URL('./test-application-sync.mjs', import.meta.url))], {
             cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true, timeout: 180000, maxBuffer: 2 * 1024 * 1024,
-            env: { ...process.env, JOBFIND_APPLICATION_TEST_PDF: path.join(directory, 'prepared-application.pdf') }
+            env: { ...process.env, JOBFIND_APPLICATION_TEST_PDF: path.join(directory, 'application.pdf') }
         });
         console.log(delivery.stdout);
     }
-    console.log('PASS: production browser AI/CV, cover letter, Core search, native keyboard autocomplete, sourced vacancy click/source/expiry, application stages/history, progress outage and recovery, reviewed prepared CV PDF -> exact submitted bytes, mobile layout');
+    console.log('PASS: production browser AI/CV, cover letter, Core search, native keyboard autocomplete, sourced vacancy click/source/expiry, application stages/history, progress outage and recovery, uploaded CV PDF preview -> exact submitted bytes, mobile layout');
     if (process.env.JOBFIND_KEEP_UI_SCREENSHOT === '1') console.log('Screenshot: '+path.join(directory,'candidate-desktop.png'));
 } finally {
     await browser?.close();await new Promise(resolve=>server.close(resolve));

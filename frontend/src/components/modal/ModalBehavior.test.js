@@ -177,25 +177,19 @@ describe("SendCvModal", () => {
         localStorage.clear();
         localStorage.setItem("userData", JSON.stringify({ id: 8, roleCode: "CANDIDATE" }));
         localStorage.setItem('token_user', 'candidate-token');
-        process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'false';
         jest.clearAllMocks();
         PdfPreviewButton.mockImplementation(({ label, disabled }) => <button type="button" disabled={disabled}>{label}</button>);
-        getDetailUserById.mockResolvedValue({
-            errCode: 0,
-            data: { userAccountData: { userSettingData: { file: "" } } },
-        });
         createNewCv.mockResolvedValue({ errCode: 0 });
         CommonUtils.getBase64.mockResolvedValue(samplePdf);
     });
 
-    it("loads the candidate profile and warns when no online CV exists", async () => {
+    it("offers only the CV file picker, without CV source choices", () => {
         render(<SendCvModal isOpen postId={22} onHide={jest.fn()} />);
-        await waitFor(() => expect(getDetailUserById).toHaveBeenCalledWith(8));
-        await waitFor(() => expect(screen.queryByText('Đang tải CV online…')).not.toBeInTheDocument());
-        fireEvent.click(screen.getByLabelText("CV online"));
-        expect(toast.error).toHaveBeenCalledWith("Hiện chưa đăng CV online cho chúng tôi");
-        expect(screen.getByLabelText("Tự chọn CV")).toBeChecked();
-        expect(screen.getByLabelText("Tự chọn CV")).toBeChecked();
+        expect(screen.getByLabelText("Chọn tệp CV")).toBeInTheDocument();
+        expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+        expect(screen.queryByText("CV online")).not.toBeInTheDocument();
+        expect(getDetailUserById).not.toHaveBeenCalled();
+        expect(screen.getByRole("button", { name: "Gửi hồ sơ" })).toBeDisabled();
     });
 
     it("does not expose the application modal to a non-candidate account", () => {
@@ -215,7 +209,6 @@ describe("SendCvModal", () => {
 
     it("rejects files larger than 2 MB", async () => {
         render(<SendCvModal isOpen postId={22} onHide={jest.fn()} />);
-        await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());
         const file = new File([new Uint8Array(2097153)], "large.pdf", { type: "application/pdf" });
         fireEvent.change(screen.getByLabelText("Chọn tệp CV"), { target: { files: [file] } });
         expect(toast.error).toHaveBeenCalledWith("Tệp CV vượt quá 2 MiB. Vui lòng chọn tệp nhỏ hơn.");
@@ -301,33 +294,10 @@ describe("SendCvModal", () => {
         expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: samplePdf, fileName: 'new.pdf' }), expect.anything());
     });
 
-    it("can submit the saved online CV", async () => {
-        jest.useFakeTimers();
-        getDetailUserById.mockResolvedValue({
-            errCode: 0,
-            data: { userAccountData: { userSettingData: { file: samplePdf } } },
-        });
-        render(<SendCvModal isOpen postId={23} onHide={jest.fn()} />);
-        await act(async () => { await Promise.resolve(); });
-        fireEvent.click(screen.getByLabelText("CV online"));
-        fireEvent.change(screen.getByLabelText('Lời giới thiệu'), { target: { value: 'Tôi muốn ứng tuyển' } });
-        expect(screen.getByRole("button", { name: 'Xem trước CV' })).toBeEnabled();
-        expect(PdfPreviewButton).toHaveBeenLastCalledWith(expect.objectContaining({ source: samplePdf, fileName: 'CV-online.pdf' }), expect.anything());
-        await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Gửi hồ sơ" })); });
-        await waitFor(() => expect(createNewCv).toHaveBeenCalledWith(expect.objectContaining({
-            userId: 8,
-            postId: 23,
-            file: samplePdf,
-        })));
-        act(() => jest.advanceTimersByTime(1000));
-        jest.useRealTimers();
-    });
-
     it("does not submit twice on rapid clicks and explains an existing application", async () => {
         let finish;
         createNewCv.mockReturnValue(new Promise(resolve => { finish = resolve; }));
         render(<SendCvModal isOpen postId={23} onHide={jest.fn()} />);
-        await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());
         await fillApplication();
         fireEvent.click(screen.getByRole('button', {name:'Gửi hồ sơ'}));
         fireEvent.click(screen.getByRole('button', {name:'Gửi hồ sơ'}));
@@ -340,7 +310,6 @@ describe("SendCvModal", () => {
         const onHide = jest.fn();let finish;
         createNewCv.mockReturnValue(new Promise(resolve => {finish=resolve;}));
         const view=render(<SendCvModal isOpen postId={23} onHide={onHide} />);
-        await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());
         await fillApplication();
         fireEvent.click(screen.getByRole('button', {name:'Gửi hồ sơ'}));
         view.rerender(<SendCvModal isOpen postId={24} onHide={onHide} />);
@@ -366,7 +335,6 @@ describe("SendCvModal", () => {
     it("clears local selection and closes on cancel", async () => {
         const onHide = jest.fn();
         render(<SendCvModal isOpen postId={22} onHide={onHide} />);
-        await waitFor(() => expect(getDetailUserById).toHaveBeenCalled());
         fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
         expect(onHide).toHaveBeenCalledTimes(1);
         expect(createNewCv).not.toHaveBeenCalled();

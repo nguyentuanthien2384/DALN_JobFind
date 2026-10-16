@@ -1,5 +1,6 @@
 import React from 'react'
 import { formatJobTime, jobLabel } from '../../util/jobLocale';
+import './JobCard.css';
 const Job = (props) => {
     return (
         <>

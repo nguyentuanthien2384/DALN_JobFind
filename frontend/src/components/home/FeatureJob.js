@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { formatJobTime, jobLabel } from '../../util/jobLocale';
+import '../Job/JobCard.css';
 const FeatureJob = (props) => {
     return (
         <>

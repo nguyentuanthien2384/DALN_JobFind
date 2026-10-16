@@ -95,7 +95,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         await candidate.getByRole('button', { name: 'Lưu CV', exact: true }).click();
         const cv = (await (await createdResponse).json()).data; assert.match(cv._id, /^[a-f0-9]{24}$/);
         await expect(candidate.getByRole('button', { name: 'Xóa CV', exact: true })).toBeEnabled();
-        await screenshot(candidate, '01-prepared-cv');
+        await screenshot(candidate, '01-saved-cv');
         pass('real login -> asynchronous AI worker result -> edited CV persisted by Identity');
 
         await candidate.goto(origin + '/job?search=Compose');
@@ -142,21 +142,22 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         await expect(letter).toHaveValue('Thư ứng tuyển đã được ứng viên kiểm tra và chỉnh sửa.');
         await screenshot(candidate, '08-ai-letter');
         pass('AI task resumes without resubmission; saved CV matching and editable cover letter use actual worker results');
-        await candidate.getByRole('link', { name: `Trở lại công việc #${jobId} để ứng tuyển`, exact: true }).click();
+        await candidate.goto(origin + `/detail-job/${jobId}/`);
         await candidate.getByRole('button', { name: 'Nộp CV ngay' }).first().click();
         const modal = candidate.getByRole('dialog'); await expect(modal).toBeVisible();
-        await modal.getByLabel('CV đã chuẩn bị', { exact: true }).check();
-        await modal.getByLabel('CV đã lưu', { exact: true }).selectOption(cv._id);
+        // The application form only accepts an uploaded PDF: no CV source choices.
+        assert.equal(await modal.getByRole('radio').count(), 0);
         await modal.getByLabel('Lời giới thiệu', { exact: true }).fill('Tôi muốn ứng tuyển bằng bản CV đã xem.');
         await expect(modal.getByRole('button', { name: 'Gửi hồ sơ', exact: true })).toBeDisabled();
-        await modal.getByRole('button', { name: 'Tạo bản PDF để xem lại' }).click();
-        const pdfPreview = modal.getByRole('button', { name: 'Xem bản PDF sẽ gửi' });
-        await expect(pdfPreview).toBeVisible({ timeout: 20000 });
+        const pdfBytes = fixturePdfBytes();
+        await modal.getByLabel('Chọn tệp CV', { exact: true }).setInputFiles({ name: 'compose-cv.pdf', mimeType: 'application/pdf', buffer: pdfBytes });
+        const pdfPreview = modal.getByRole('button', { name: 'Xem trước CV' });
+        await expect(pdfPreview).toBeEnabled({ timeout: 20000 });
         await pdfPreview.click();
         const pdfDownload = candidate.getByRole('link', { name: 'Tải PDF' });
         await expect(pdfDownload).toBeVisible({ timeout: 20000 });
-        const pdfBytes = Buffer.from(await candidate.evaluate(async url => Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())), await pdfDownload.getAttribute('href')));
-        assert.equal(pdfBytes.subarray(0, 5).toString(), '%PDF-');
+        const previewBytes = Buffer.from(await candidate.evaluate(async url => Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())), await pdfDownload.getAttribute('href')));
+        assert.deepEqual(previewBytes, pdfBytes);
         await writeFile(path.join(artifacts, 'reviewed-cv.pdf'), pdfBytes);
         await candidate.locator('.chat-pdf-modal .ant-modal-close').click();
         await expect(pdfDownload).toHaveCount(0);
@@ -167,7 +168,6 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         await expect(modal.getByRole('button', { name: 'Gửi hồ sơ', exact: true })).toBeInViewport({ ratio: 1 });
         await screenshot(candidate, '03-review-mobile');
         assert.equal(calls.filter(row => row.path === '/api/create-new-cv').length, 0);
-        await modal.getByLabel('Tôi đã xem và chọn bản PDF này để ứng tuyển').check();
         const submitted = candidate.waitForResponse(response => new URL(response.url()).pathname === '/api/create-new-cv' && response.request().method() === 'POST');
         await modal.getByRole('button', { name: 'Gửi hồ sơ', exact: true }).click();
         const submission = await submitted, receipt = await submission.json();
@@ -175,7 +175,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         assert.equal(submission.request().postDataJSON().file, 'data:application/pdf;base64,' + pdfBytes.toString('base64'));
         assert.equal(Number(submission.request().postDataJSON().postId), jobId);
         await expect(modal).not.toBeVisible();
-        pass('Core search -> legacy job detail -> reviewed Vietnamese PDF -> explicit mobile submission of exact bytes');
+        pass('Core search -> legacy job detail -> uploaded PDF preview -> explicit mobile submission of exact bytes');
 
         await candidate.goto(origin + '/candidate/cv-post');
         const historyRow = candidate.getByRole('row').filter({ hasText: 'Compose accepted' });
@@ -275,7 +275,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         const restartPdfResponse = candidate.waitForResponse(response => new URL(response.url()).pathname === '/api/get-detail-cv-by-id');
         await historyRow.getByRole('link', { name: 'Xem CV đã nộp' }).click();
         assert.equal((await (await restartPdfResponse).json()).data.file, storedPdf.file);
-        pass('editing/deleting prepared source and restarting services preserves submitted PDF and candidate progress');
+        pass('editing/deleting the saved CV and restarting services preserves submitted PDF and candidate progress');
 
         const outsider = await session(11);
         // Observe the first board request before entering the workspace. Reloading
@@ -306,7 +306,7 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         assert.equal(calls.filter(row => row.path === '/api/create-new-cv' && row.method === 'POST').length, 1);
         assert.deepEqual(errors, [], 'browser runtime errors'); assert.deepEqual(failures, [], 'unexpected server errors');
         await writeFile(path.join(artifacts, 'evidence.json'), JSON.stringify({ checkpoints, calls,
-            jobId, legacyCvId: receipt.cvId, preparedCvId: cv._id, pdfBytes: pdfBytes.length,
+            jobId, legacyCvId: receipt.cvId, savedCvId: cv._id, pdfBytes: pdfBytes.length,
             pdfSha256: createHash('sha256').update(pdfBytes).digest('hex'), browserErrors: errors, serverErrors: failures, restartFailures }, null, 2));
         console.log('Browser artifacts: ' + artifacts);
     } catch (error) {

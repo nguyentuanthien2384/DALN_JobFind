@@ -91,7 +91,7 @@ try {
             cwd: path.resolve(root, '../frontend'), windowsHide: true, timeout: 240000, maxBuffer: 4 * 1024 * 1024,
             env: { ...process.env, BUILD_PATH: path.join(directory, 'frontend'), REACT_APP_BACKEND_URL: '/',
                 REACT_APP_CANDIDATE_AI_ENABLED: 'true', REACT_APP_APPLICATION_PROGRESS_ENABLED: 'true',
-                REACT_APP_PREPARED_CV_APPLICATION_ENABLED: 'true', REACT_APP_JOB_SEARCH_MODE: 'core' }
+                REACT_APP_JOB_SEARCH_MODE: 'core' }
         });
     }
     await docker('build', '-t', image, root);

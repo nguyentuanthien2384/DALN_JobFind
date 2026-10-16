@@ -1,0 +1,84 @@
+/* The kiem viec (trang Viec lam + trang chu).
+   Theme dat .single-job-items la flex + flex-wrap: wrap va de .job-tittle rong theo
+   noi dung, nen tieu de dai (vd "[Demo] ... — CONG TY CO PHAN TAP DOAN ITP") day cot
+   "Toan thoi gian / mot thang truoc" roi xuong dong, nam lech duoi logo.
+   Khoa bo cuc 3 cot: logo | tieu de (tu xuong dong) | hinh thuc + thoi gian.
+   Duoi 768px App.css da co layout rieng cho the nay. */
+.single-job-items .job-items .job-tittle :is(h4, h5) {
+    margin-bottom: 10px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) {
+    .single-job-items {
+        flex-wrap: nowrap;
+        align-items: flex-start;
+        gap: 24px;
+    }
+
+    .single-job-items .job-items {
+        flex: 1 1 auto;
+        flex-wrap: nowrap;
+        min-width: 0;
+    }
+
+    .single-job-items .job-items .company-img {
+        flex: 0 0 auto;
+    }
+
+    .single-job-items .job-items .job-tittle {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding-top: 0;
+    }
+
+    /* min-width giu cot phai thang hang giua cac the du nhan ngan/dai khac nhau
+       (nhan dang nut o trang chu: "Ban thoi gian" hep hon "Toan thoi gian"). */
+    .single-job-items .items-link2 {
+        flex: 0 0 auto;
+        min-width: 140px;
+        padding-top: 0;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .single-job-items .items-link2 a {
+        min-width: 180px;
+    }
+}
+
+/* App.css thu .my-font con 10px o man <= 1279px; trong cot phai dieu do lam
+   "Toan thoi gian" nho han han dong thoi gian ngay ben duoi. Giu 2 dong cung co. */
+@media (max-width: 1279.98px) {
+    .single-job-items .items-link2 span {
+        font-size: 14px;
+    }
+}
+
+/* Cot ket qua (col-md-8) o 768-991px qua hep cho 3 cot: dua hinh thuc + thoi gian
+   xuong mot hang rieng, thang hang voi tieu de (logo 85px + margin 32px). */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .single-job-items {
+        flex-wrap: wrap;
+        row-gap: 12px;
+    }
+
+    .single-job-items .job-items {
+        flex-basis: 100%;
+    }
+
+    .single-job-items .items-link2 {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 16px;
+        width: 100%;
+        padding-left: 117px;
+    }
+
+    .single-job-items .items-link2 a {
+        min-width: 0;
+        margin-bottom: 0;
+    }
+}

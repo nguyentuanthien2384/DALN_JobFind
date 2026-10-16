@@ -31,12 +31,11 @@ beforeEach(()=>{
     api.generateCvAi.mockResolvedValue({errCode:0,taskId:'task-1'});
     loadSearchPage.mockResolvedValue({ count: 1, data: [{ id: 7, postDetailData: { name: 'Frontend Developer' }, userPostData: { userCompanyData: { name: 'Example' } } }] });
     api.listMyCvs.mockResolvedValue({errCode:0,data:[]});window.confirm=jest.fn(()=>true);
-    process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'true';
     renderPreparedCv.mockResolvedValue({ blob: new Blob(['%PDF-1.7'], { type: 'application/pdf' }), pages: 1 });
     PdfPreviewButton.mockImplementation(({ label }) => <button type="button">{label}</button>);
     DocumentPreviewModal.mockImplementation(({ fileName, onClose }) => <div role="dialog" aria-label={fileName}><button type="button" onClick={onClose}>Đóng xem trước</button></div>);
 });
-afterEach(()=>{ delete process.env.REACT_APP_CANDIDATE_AI_ENABLED; delete process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED; });
+afterEach(()=>{ delete process.env.REACT_APP_CANDIDATE_AI_ENABLED; });
 const fillMatch=()=>{
     fireEvent.change(screen.getByLabelText('Chức năng'),{target:{value:'match_cv'}});
     fireEvent.change(screen.getByLabelText('Nội dung CV'),{target:{value:'Synthetic Node experience'}});
@@ -178,8 +177,7 @@ test('PDF generation errors keep the draft available for correction and retry', 
     expect(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' })).toBeEnabled();
 });
 
-test('draft PDF export works without prepared-application integration and remains blocked by unresolved CV writes', async () => {
-    process.env.REACT_APP_PREPARED_CV_APPLICATION_ENABLED = 'false';
+test('draft PDF export works and remains blocked by unresolved CV writes', async () => {
     const view = render(<CandidateAi />);
     fireEvent.click(screen.getByRole('button', { name: 'Xem trước / tải PDF bản nháp' }));
     expect(await screen.findByRole('dialog', { name: 'CV.pdf' })).toBeInTheDocument();
