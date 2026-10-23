@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import NotificationJobs, { clearNotificationJobsCache } from './NotificationJobs';
+import NotificationJobs from './NotificationJobs';
 import { getNotificationJobs } from '../../service/notificationJobsService';
 import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
 
@@ -19,7 +19,7 @@ const mount = () => render(<BrowserRouter><Routes>
     <Route path="/detail-job/:id" element={<h1>Chi tiết công việc</h1>} />
 </Routes></BrowserRouter>);
 beforeEach(() => {
-    jest.resetAllMocks(); localStorage.clear(); clearNotificationJobsCache();
+    jest.resetAllMocks(); localStorage.clear();
     localStorage.setItem('token_user', 'fixture-token');
     localStorage.setItem('userData', JSON.stringify({ id: 5, roleCode: 'CANDIDATE' }));
     window.history.replaceState({}, '', '/candidate/followed-jobs');

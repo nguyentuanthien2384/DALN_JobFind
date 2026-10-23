@@ -192,6 +192,39 @@ describe("ListCompany", () => {
     });
 });
 
+describe("ListCompany loading", () => {
+    beforeEach(() => {
+        localStorage.clear();
+        jest.clearAllMocks();
+        CommonUtils.removeSpace.mockImplementation((value) => value.trim().replace(/\s+/g, " "));
+    });
+
+    it("holds six card-sized placeholders and no pager while the first page loads", async () => {
+        let finish;
+        getListCompany.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+        const { container } = render(<ListCompany />);
+        expect(container.querySelectorAll(".box-item-company.is-placeholder")).toHaveLength(6);
+        expect(screen.queryByTestId("company-pages")).not.toBeInTheDocument();
+        await act(async () => finish({ errCode: 0, data: [company], count: 7 }));
+        expect(container.querySelector(".is-placeholder")).toBeNull();
+        expect(screen.getByText("Công ty Sao Việt")).toBeInTheDocument();
+        expect(screen.getByTestId("company-pages")).toHaveTextContent("2");
+    });
+
+    it("paints the remembered list at once when the page is opened again", async () => {
+        getListCompany.mockResolvedValue({ errCode: 0, data: [company], count: 7 });
+        const first = render(<ListCompany />);
+        await screen.findByText("Công ty Sao Việt");
+        first.unmount();
+        render(<ListCompany />);
+        expect(screen.getByText("Công ty Sao Việt")).toBeInTheDocument();
+        expect(screen.getByText("7 công ty được tìm thấy")).toBeInTheDocument();
+        await act(async () => {});
+        // Fetched a moment ago: not requested again.
+        expect(getListCompany).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe("CompanyReview", () => {
     beforeEach(() => {
         localStorage.clear();

@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom";
+import { clearListCaches } from "./util/listCache";
 
 // jsdom does not implement these browser APIs, while a few UI dependencies
 // expect them to exist as soon as a component is mounted.
@@ -44,6 +45,8 @@ if (typeof window.WebSocket === "function") {
 }
 beforeEach(() => {
     blockedRequests.length = 0;
+    // Remembered lists live for the browser tab; each test starts like a fresh page load.
+    clearListCaches();
     // Install before each test so a test that deletes its own fetch mock cannot
     // leave a later test with an unguarded transport. Service tests replace this
     // function explicitly with a controlled response.

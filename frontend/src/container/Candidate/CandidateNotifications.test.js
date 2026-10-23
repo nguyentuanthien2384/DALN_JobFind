@@ -174,3 +174,51 @@ test('shows non-link notifications safely and supports marking them read', async
     fireEvent.click(screen.getByRole('button', { name: 'Đánh dấu đã đọc' }));
     await waitFor(() => expect(screen.getByText('Đã đọc')).toBeInTheDocument());
 });
+
+test('shows card placeholders on the first load instead of an empty, collapsed list', async () => {
+    let finish;
+    getNotificationByUserService.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const { container } = mount();
+    expect(container.querySelectorAll('.candidate-notifications__item--placeholder')).toHaveLength(4);
+    expect(screen.getByRole('status')).toHaveTextContent('Đang tải thông báo…');
+    await act(async () => finish(response));
+    expect(screen.getByRole('link', { name: notification.content })).toBeInTheDocument();
+    expect(container.querySelector('.candidate-notifications__item--placeholder')).toBeNull();
+});
+
+test('coming Back to the page shows the last notifications at once and refreshes them quietly', async () => {
+    const first = mount();
+    await screen.findByRole('link', { name: notification.content });
+    first.unmount();
+    let finish;
+    getNotificationByUserService.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    mount();
+    expect(screen.getByRole('link', { name: notification.content })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByText('1 thông báo · 1 chưa đọc')).toBeInTheDocument();
+    expect(getNotificationByUserService).toHaveBeenCalledTimes(2);
+    await act(async () => finish({ ...response, data: [{ ...notification, isChecked: 1 }], unreadCount: 0 }));
+    expect(screen.getByText('1 thông báo · 0 chưa đọc')).toBeInTheDocument();
+});
+
+test('a failed quiet refresh keeps the remembered notifications', async () => {
+    const first = mount();
+    await screen.findByRole('link', { name: notification.content });
+    first.unmount();
+    getNotificationByUserService.mockRejectedValueOnce(new Error('offline'));
+    mount();
+    await act(async () => {});
+    expect(screen.getByRole('link', { name: notification.content })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+test('never shows the previous account its remembered notifications', async () => {
+    const first = mount();
+    await screen.findByRole('link', { name: notification.content });
+    first.unmount();
+    localStorage.setItem('token_user', 'other-token');
+    getNotificationByUserService.mockImplementationOnce(() => new Promise(() => {}));
+    mount();
+    expect(screen.queryByText(notification.content)).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Đang tải thông báo…');
+});

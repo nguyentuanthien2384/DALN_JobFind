@@ -13,6 +13,8 @@
 .candidate-notifications__details > a:hover { color: #b92055; text-decoration: underline; }
 .candidate-notifications__details > button { padding: 6px 0 0; border: 0; background: transparent; color: #b92055; font-size: 12px; cursor: pointer; }
 .candidate-notifications__arrow { flex-shrink: 0; color: #b92055; }
+.candidate-notifications__item--placeholder .candidate-notifications__details > span { display: block; width: 22%; height: 12px; margin-bottom: 10px; border-radius: 6px; background: #f1f4f8; }
+.candidate-notifications__item--placeholder .candidate-notifications__details > span:last-child { width: 68%; height: 16px; margin-bottom: 4px; }
 .candidate-notifications__error { border-radius: 8px; padding: 12px 16px; color: #9b173d; background: #fff0f4; font-size: 14px; }
 @media (max-width: 650px) {
     .candidate-notifications__item { align-items: flex-start; gap: 12px; padding: 16px; }

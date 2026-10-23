@@ -1,5 +1,7 @@
 .container-company{
     max-width: 1200px;
+    // Never shorter than the window (like .job-detail-page): the scrollbar stays put while loading.
+    min-height: calc(100vh - 89px);
     margin: 0 auto;
     padding: 24px 16px;
 
@@ -36,6 +38,7 @@
 
                     .cover-wrapper{
                         height: 150px;
+                        background: #f1f4f8;
 
                         img{
                             height: 100%;
@@ -59,6 +62,14 @@
                         max-width: 100%;
                     }
                 }
+            }
+            // Same box as a loaded card, so the list keeps its height on the first load.
+            &.is-placeholder{
+                .cover-wrapper{ height: 150px; background: #f1f4f8; }
+                .company-logo{ background: #e8ecf2; }
+                .company-info > span{ display: block; width: 85%; height: 12px; margin-top: 12px; border-radius: 6px; background: #f1f4f8; }
+                .company-info > span:first-child{ width: 65%; height: 16px; margin: 4px 0 36px; }
+                .company-info > span:last-child{ width: 55%; }
             }
             .company-info{
                 padding: 0 16px 16px;

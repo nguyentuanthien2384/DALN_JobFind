@@ -6,6 +6,7 @@ import SavedJobs from './SavedJobs';
 import ManageCvCandidate from './ManageCvCandidate';
 import { getListCompany, getFavoritePostByUserService, toggleFavoritePostService } from '../../service/userService';
 import { getAllListCvByUserIdService } from '../../service/cvService';
+import { clearListCaches } from '../../util/listCache';
 
 jest.mock('react-router-dom', () => {
     global.TextEncoder = require('util').TextEncoder;
@@ -64,15 +65,23 @@ test('company page and search survive a reload, page changes and browser Back', 
     const url = screen.getByTestId('url').textContent;
     expect(url).toContain('source=keep');
     first.unmount();
+    clearListCaches(); // a real reload starts without remembered lists
     show(ListCompany, url);
     await waitFor(() => expect(getListCompany).toHaveBeenCalledTimes(3));
     expect(getListCompany).toHaveBeenLastCalledWith({ limit: 6, offset: 6, search: 'Sao Viet' });
+    getListCompany.mockResolvedValue({ errCode: 0, count: 1, data: [{ ...company, id: 13, descriptionHTML: '<p>Other result</p>' }] });
     fireEvent.change(screen.getByPlaceholderText('Nhập tên công ty'), { target: { value: 'Other company' } });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
     await waitFor(() => expect(getListCompany).toHaveBeenLastCalledWith({ limit: 6, offset: 0, search: 'Other company' }));
+    await screen.findByText('Other result');
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
-    await waitFor(() => expect(getListCompany).toHaveBeenLastCalledWith({ limit: 6, offset: 6, search: 'Sao Viet' }));
+    // Back paints the page just seen at once; it was fetched moments ago, so it is not requested again.
+    expect(screen.getByTestId('url')).toHaveTextContent('/company?page=2&search=Sao+Viet&source=keep');
+    expect(screen.getByText('Company description')).toBeInTheDocument();
+    expect(screen.queryByText('Đang tìm công ty…')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Nhập tên công ty')).toHaveValue('Sao Viet');
+    await act(async () => {});
+    expect(getListCompany).toHaveBeenCalledTimes(4);
 });
 
 test.each([

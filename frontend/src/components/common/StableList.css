@@ -5,4 +5,7 @@
 .stable-list__status { position: sticky; top: 45vh; display: table; max-width: calc(100% - 24px); margin: 12px auto; padding: 10px 16px; color: #26395e; background: #fff; border: 1px solid #e0e6ef; border-radius: 22px; box-shadow: 0 3px 14px #14234414; font-size: 14px; line-height: 22px; }
 .stable-list__spinner { display: inline-block; width: 14px; height: 14px; margin-right: 9px; vertical-align: -2px; border: 2px solid #dce4f1; border-top-color: #4b49ac; border-radius: 50%; animation: stable-list-spin .8s linear infinite; }
 @keyframes stable-list-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .stable-list__content { transition: none; } .stable-list__spinner { animation: none; } }
+/* Card-sized placeholders a page shows on its first load, so the page never collapses. */
+.stable-list__placeholder { animation: stable-list-pulse 1.4s ease-in-out infinite; }
+@keyframes stable-list-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .stable-list__content { transition: none; } .stable-list__spinner, .stable-list__placeholder { animation: none; } }

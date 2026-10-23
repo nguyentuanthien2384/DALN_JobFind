@@ -12,6 +12,8 @@
 .candidate-shell .content-wrapper {
     width: 100%;
     min-width: 0;
+    /* Never shorter than the window while a page loads, so the scrollbar and the page stay put. */
+    min-height: calc(100vh - 89px);
     padding: 24px;
 }
 .candidate-shell .content-wrapper > * {

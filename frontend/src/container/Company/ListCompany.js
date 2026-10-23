@@ -8,33 +8,55 @@ import { Link } from 'react-router-dom';
 import CommonUtils from '../../util/CommonUtils';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
 import StableList from '../../components/common/StableList';
+import createListCache from '../../util/listCache';
+
+const PAGE_SIZE = 6;
+// Coming Back from a company (or opening the page again) paints the remembered list at
+// once, so the page keeps its height and scroll position, then refreshes it quietly.
+const companyCache = createListCache();
+const REUSE_FOR = 15 * 1000;
+const loadCompanies = (page, search) => companyCache.load(JSON.stringify([page, search]), async () => {
+    const result = await getListCompany({ limit: PAGE_SIZE, offset: page * PAGE_SIZE, search: CommonUtils.removeSpace(search) });
+    if (result?.errCode !== 0) throw Error();
+    return { rows: result.data, count: result.count };
+}, { reuseFor: REUSE_FOR });
+
+// Card-sized blocks for the first load: the list keeps its height instead of collapsing,
+// which also stopped the scrollbar (and the whole page) from jumping sideways.
+const CompanyPlaceholders = () => Array.from({ length: PAGE_SIZE }, (_, index) =>
+    <div key={index} className='col-md-4 col-sm-6 stable-list__placeholder' aria-hidden='true'>
+        <div className='box-item-company is-placeholder'>
+            <div className='company-banner'><div className='cover-wrapper' /><div className='company-logo' /></div>
+            <div className='company-info'><span /><span /><span /><span /></div>
+        </div>
+    </div>);
+
 const ListCompany = () => {
-    const [dataCompany, setdataCompany] = useState([])
-    const [count, setCount] = useState(0)
-    const [countData,setCountData] = useState(0)
     const [{ page: numberPage, search }, setQuery] = useListQuery({ page: 0, search: '' });
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [settledRequest, setSettledRequest] = useState('');
-    const requestKey = JSON.stringify([numberPage, search]);
-    const busy = loading || settledRequest !== requestKey;
+    const [result, setResult] = useState(null);
+    const listKey = JSON.stringify([numberPage, search]);
+    const fresh = result?.listKey === listKey;
+    const cached = fresh ? null : companyCache.read(listKey)?.value;
+    const view = fresh ? result : cached || result || { rows: [], count: 0, error: '' };
+    const { rows: dataCompany, count: countData, error = '' } = view;
+    const count = Math.ceil(countData / PAGE_SIZE);
+    const busy = !fresh && !cached;
     const handleSearch = value => setQuery({ search: value, page: 0 });
     useEffect(() => {
         let active = true;
-        setError(''); setLoading(true);
-        (async () => {
-            try {
-                const result = await getListCompany({ limit: 6, offset: numberPage * 6, search: CommonUtils.removeSpace(search) });
-                if (!active) return;
-                if (result?.errCode !== 0) throw Error();
-                const validPage = clampListPage(numberPage, result.count, 6);
-                if (validPage !== numberPage) { setQuery({ page: validPage }, { replace: true }); return; }
-                setdataCompany(result.data); setCount(Math.ceil(result.count / 6)); setCountData(result.count);
-            } catch { if (active) { setdataCompany([]); setError('Không tải được danh sách công ty. Vui lòng tải lại.'); } }
-            finally { if (active) { setLoading(false); setSettledRequest(requestKey); } }
-        })();
+        loadCompanies(numberPage, search).then(response => {
+            if (!active) return;
+            const validPage = clampListPage(numberPage, response.count, PAGE_SIZE);
+            if (validPage !== numberPage) { companyCache.forget(listKey); setQuery({ page: validPage }, { replace: true }); return; }
+            setResult({ listKey, rows: response.rows, count: response.count, error: '' });
+        }, () => {
+            if (!active) return;
+            const stale = companyCache.read(listKey)?.value;
+            setResult(stale ? { listKey, ...stale, error: '' }
+                : { listKey, rows: [], count: 0, error: 'Không tải được danh sách công ty. Vui lòng tải lại.' });
+        });
         return () => { active = false; };
-    }, [numberPage, search, requestKey, setQuery]);
+    }, [numberPage, search, listKey, setQuery]);
     const handleChangePage = number => setQuery({ page: number.selected });
     return (
         <div className='container-company'>
@@ -49,6 +71,7 @@ const ListCompany = () => {
             <StableList busy={busy} resetKey={search} label="Đang tải danh sách công ty…">
             <div className='row list-company'>
                 {error && <p role="alert">{error}</p>}
+                {busy && !dataCompany.length && !error && <CompanyPlaceholders />}
                 {dataCompany && dataCompany.length > 0 &&
                     dataCompany.map((item, index) => {
                         return (
@@ -81,7 +104,7 @@ const ListCompany = () => {
 
             </div>
             </StableList>
-            <ReactPaginate
+            {(count > 0 || numberPage > 0) && <ReactPaginate
                 forcePage={numberPage}
                 previousLabel={'Quay lại'}
                 nextLabel={'Tiếp'}
@@ -99,7 +122,7 @@ const ListCompany = () => {
                 breakClassName={"page-item"}
                 activeClassName={"active"}
                 onPageChange={handleChangePage}
-            />
+            />}
         </div>
 
     )

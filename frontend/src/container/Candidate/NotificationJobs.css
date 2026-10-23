@@ -25,6 +25,11 @@
 .notification-jobs__meta .notification-jobs__salary { color: #a62451; background: #fff0f5; font-weight: 600; }
 .notification-jobs__deadline { margin: 10px 0 0; color: #6c7789; font-size: 12px; line-height: 1.5; }
 .notification-jobs__detail-link { flex-shrink: 0; color: #b92055; font-size: 13px; font-weight: 600; }
+.notification-jobs__card--placeholder .notification-jobs__logo { background: #f1f4f8; border-color: #f1f4f8; }
+.notification-jobs__card--placeholder .notification-jobs__details > span { display: block; width: 45%; height: 14px; margin-bottom: 16px; border-radius: 6px; background: #f1f4f8; }
+.notification-jobs__card--placeholder .notification-jobs__details > span:first-child { width: 60%; height: 20px; margin: 4px 0 14px; }
+.notification-jobs__card--placeholder .notification-jobs__details > span:nth-child(3) { width: 38%; height: 28px; margin-bottom: 14px; }
+.notification-jobs__card--placeholder .notification-jobs__details > span:last-child { width: 25%; height: 12px; margin-bottom: 0; }
 .notification-jobs__empty { padding: 40px 24px; text-align: center; background: #fff; border: 1px solid #e4e8f0; border-radius: 12px; }
 .notification-jobs__empty-icon { display: inline-grid; place-items: center; width: 50px; height: 50px; margin-bottom: 14px; border-radius: 50%; color: #b92055; background: #fff0f5; font-size: 20px; }
 .notification-jobs__empty h2 { color: #172c4a; font-size: 20px; line-height: 1.5; margin: 0 0 10px; }

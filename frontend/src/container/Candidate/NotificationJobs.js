@@ -6,6 +6,7 @@ import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
 import { readJsonStorage } from '../../util/storage';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
 import { jobLabel } from '../../util/jobLocale';
+import createListCache from '../../util/listCache';
 import StableList from '../../components/common/StableList';
 import { getNotificationJobs } from '../../service/notificationJobsService';
 import './NotificationJobs.css';
@@ -36,57 +37,33 @@ function closingDate(value) {
     return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('vi-VN');
 }
 
-// Last result per collection/page of this browser session's account: switching tabs
-// paints the remembered list at once and refreshes it quietly instead of blanking it.
-const CACHE_TTL = 5 * 60 * 1000;
+// Revisiting a tab, or coming Back to it, paints its remembered list at once and refreshes it quietly.
+const jobsCache = createListCache();
 // A list fetched this recently (e.g. just prefetched, or the tab was left a moment ago) is not re-requested.
 const REUSE_FOR = 15 * 1000;
-const CACHE_LIMIT = 20;
-const listCache = new Map();
-const pendingLists = new Map();
-let cacheToken;
-export const clearNotificationJobsCache = () => { listCache.clear(); pendingLists.clear(); };
 
-function cacheFor(token) {
-    if (token !== cacheToken) {
-        clearNotificationJobsCache();
-        cacheToken = token;
-    }
-    return listCache;
-}
-
-function readCachedList(token, key) {
-    const entry = cacheFor(token).get(key);
-    return entry && Date.now() - entry.savedAt < CACHE_TTL ? entry : null;
-}
-
-function loadJobs(token, source, page) {
-    const key = JSON.stringify([source, page]);
-    const cached = readCachedList(token, key);
-    if (cached && Date.now() - cached.savedAt < REUSE_FOR) return Promise.resolve(cached);
-    if (!pendingLists.has(key)) {
-        const request = getNotificationJobs({ source, limit: PAGE_SIZE, offset: page * PAGE_SIZE }).then(response => {
-            if (response?.errCode !== 0 || response.httpStatus >= 400 || !Array.isArray(response.data)
-                || !Number.isSafeInteger(response.count) || response.count < 0
-                || response.data.some(row => !row || !Number.isSafeInteger(Number(row.id)) || Number(row.id) <= 0)) {
-                throw new Error('Invalid job list');
-            }
-            const result = { rows: response.data, count: response.count, savedAt: Date.now() };
-            if (localStorage.getItem('token_user') === token) {
-                const cache = cacheFor(token);
-                cache.delete(key);
-                cache.set(key, result);
-                if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value);
-            }
-            return result;
-        }).finally(() => { if (pendingLists.get(key) === request) pendingLists.delete(key); });
-        pendingLists.set(key, request);
-    }
-    return pendingLists.get(key);
+function loadJobs(source, page) {
+    return jobsCache.load(JSON.stringify([source, page]), async () => {
+        const response = await getNotificationJobs({ source, limit: PAGE_SIZE, offset: page * PAGE_SIZE });
+        if (response?.errCode !== 0 || response.httpStatus >= 400 || !Array.isArray(response.data)
+            || !Number.isSafeInteger(response.count) || response.count < 0
+            || response.data.some(row => !row || !Number.isSafeInteger(Number(row.id)) || Number(row.id) <= 0)) {
+            throw new Error('Invalid job list');
+        }
+        return { rows: response.data, count: response.count };
+    }, { reuseFor: REUSE_FOR });
 }
 
 // Hovering or focusing the other tab starts its first page early, so the click usually finds it ready.
-const prefetchJobs = (token, source) => { loadJobs(token, source, 0).catch(() => {}); };
+const prefetchJobs = source => { loadJobs(source, 0).catch(() => {}); };
+
+// Card-sized blocks for the first load: the page keeps its height instead of collapsing.
+const JobCardPlaceholders = () => <div className="stable-list__placeholder" aria-hidden="true">
+    {[0, 1, 2].map(index => <div key={index} className="notification-jobs__card notification-jobs__card--placeholder">
+        <div className="notification-jobs__logo" />
+        <div className="notification-jobs__details"><span /><span /><span /><span /></div>
+    </div>)}
+</div>;
 
 function JobsList({ source, userId, token }) {
     const copy = CONTENT[source];
@@ -96,9 +73,9 @@ function JobsList({ source, userId, token }) {
     const listKey = JSON.stringify([source, page]);
     const requestKey = JSON.stringify([listKey, refresh]);
     const fresh = result?.requestKey === requestKey;
-    const cached = fresh ? null : readCachedList(token, listKey);
+    const cached = fresh ? null : jobsCache.read(listKey)?.value;
     // A tab seen before shows its remembered list; a first visit keeps the previous cards
-    // (dimmed by StableList) until its own response arrives, so the page never collapses.
+    // (dimmed by StableList), or placeholders on the very first load, until its response arrives.
     const view = fresh ? result : cached || result || { rows: [], count: 0, error: '' };
     const { rows, count, error = '' } = view;
     const busy = !fresh && !cached;
@@ -106,18 +83,18 @@ function JobsList({ source, userId, token }) {
     useEffect(() => {
         let active = true;
         const current = () => active && localStorage.getItem('token_user') === token;
-        loadJobs(token, source, page).then(response => {
+        loadJobs(source, page).then(response => {
             if (!current()) return;
             const validPage = clampListPage(page, response.count, PAGE_SIZE);
             if (validPage !== page) {
-                listCache.delete(listKey);
+                jobsCache.forget(listKey);
                 setQuery({ page: validPage }, { replace: true });
                 return;
             }
             setResult({ requestKey, rows: response.rows, count: response.count, error: '' });
         }, () => {
             if (!current()) return;
-            const stale = readCachedList(token, listKey);
+            const stale = jobsCache.read(listKey)?.value;
             setResult(stale ? { requestKey, rows: stale.rows, count: stale.count, error: '' }
                 : { requestKey, rows: [], count: 0, error: 'Không tải được danh sách việc làm. Vui lòng thử lại.' });
         });
@@ -136,7 +113,7 @@ function JobsList({ source, userId, token }) {
             <nav className="notification-jobs__tabs" aria-label="Nhóm việc làm cá nhân">
                 {[['followed', '/candidate/followed-jobs', 'Công ty đang theo dõi'], ['recommended', '/candidate/recommended-jobs', 'Phù hợp với bạn']]
                     .map(([key, path, label]) => {
-                        const warm = key === source ? undefined : () => prefetchJobs(token, key);
+                        const warm = key === source ? undefined : () => prefetchJobs(key);
                         return <Link key={key} to={path} aria-current={key === source ? 'page' : undefined}
                             onMouseEnter={warm} onFocus={warm} onTouchStart={warm}>{label}</Link>;
                     })}
@@ -175,7 +152,7 @@ function JobsList({ source, userId, token }) {
                 <h2>{copy.emptyTitle}</h2>
                 <p>{copy.emptyDescription}</p>
                 <Link className="notification-jobs__action" to={copy.actionPath}>{copy.action}</Link>
-            </div> : null}
+            </div> : <JobCardPlaceholders />}
         </StableList>
         {!error && count > PAGE_SIZE && <nav className="notification-jobs__pagination" aria-label="Phân trang việc làm" aria-busy={busy}>
             <ReactPaginate forcePage={page} pageCount={Math.max(page + 1, Math.ceil(count / PAGE_SIZE))}

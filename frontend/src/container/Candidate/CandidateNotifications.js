@@ -9,10 +9,21 @@ import { readJsonStorage } from '../../util/storage';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
 import { NOTIFICATIONS_UPDATED_EVENT, notifyNotificationsUpdated } from '../../util/notificationEvents';
 import StableList from '../../components/common/StableList';
+import createListCache from '../../util/listCache';
 import './NotificationJobs.css';
 import './CandidateNotifications.css';
 
 const PAGE_SIZE = 10;
+// Coming Back to the notifications (e.g. from a job list) shows the last result at once
+// and refreshes it quietly, instead of collapsing the page while it reloads.
+const notificationsCache = createListCache();
+
+const NotificationPlaceholders = () => <ul className="candidate-notifications__list stable-list__placeholder" aria-hidden="true">
+    {[0, 1, 2, 3].map(index => <li key={index} className="candidate-notifications__item candidate-notifications__item--placeholder">
+        <span className="candidate-notifications__icon" />
+        <div className="candidate-notifications__details"><span /><span /></div>
+    </li>)}
+</ul>;
 
 function notificationDate(value) {
     if (!value) return '';
@@ -23,12 +34,13 @@ function notificationDate(value) {
 function NotificationsList({ userId, token }) {
     const navigate = useNavigate();
     const [{ page }, setQuery] = useListQuery({ page: 0 });
-    const [rows, setRows] = useState([]);
-    const [count, setCount] = useState(0);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const [remembered] = useState(() => notificationsCache.read(String(page))?.value);
+    const [rows, setRows] = useState(remembered?.rows || []);
+    const [count, setCount] = useState(remembered?.count || 0);
+    const [unreadCount, setUnreadCount] = useState(remembered?.unreadCount || 0);
     const [refresh, setRefresh] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [settledPage, setSettledPage] = useState(null);
+    const [loading, setLoading] = useState(!remembered);
+    const [settledPage, setSettledPage] = useState(remembered ? page : null);
     const [loadError, setLoadError] = useState('');
     const [readError, setReadError] = useState('');
     const [saving, setSaving] = useState(false);
@@ -77,7 +89,17 @@ function NotificationsList({ userId, token }) {
                 }
             }
         };
-        load();
+        // A remembered page is already on screen: refresh it without the loading state.
+        const cached = notificationsCache.read(String(page))?.value;
+        if (cached) {
+            setRows(cached.rows);
+            setCount(cached.count);
+            setUnreadCount(cached.unreadCount);
+            setLoadError('');
+            setLoading(false);
+            setSettledPage(page);
+        }
+        load(Boolean(cached));
         const refreshList = () => load(true);
         const refreshFromOtherView = event => {
             if (event.detail?.source !== 'account') refreshList();
@@ -98,6 +120,10 @@ function NotificationsList({ userId, token }) {
             window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, refreshFromOtherView);
         };
     }, [userId, token, page, refresh, setQuery]);
+
+    useEffect(() => {
+        if (!busy && !loadError) notificationsCache.save(String(page), { rows, count, unreadCount });
+    }, [busy, loadError, page, rows, count, unreadCount]);
 
     const markRead = async (notification) => {
         if (notification && +notification.isChecked !== 0) return true;
@@ -173,7 +199,7 @@ function NotificationsList({ userId, token }) {
                 <h2>Chưa có thông báo nào</h2>
                 <p>Theo dõi công ty bạn quan tâm để nhận thông báo khi tin tuyển dụng mới của công ty được duyệt.</p>
                 <Link className="notification-jobs__action" to="/company">Khám phá công ty</Link>
-            </div> : null}
+            </div> : <NotificationPlaceholders />}
         </StableList>
         {!loadError && count > PAGE_SIZE && <nav className="notification-jobs__pagination" aria-label="Phân trang thông báo" aria-busy={busy}>
             <ReactPaginate forcePage={page} pageCount={Math.max(page + 1, Math.ceil(count / PAGE_SIZE))}
