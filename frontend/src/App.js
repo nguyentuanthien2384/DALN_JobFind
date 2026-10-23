@@ -29,6 +29,7 @@ import { PERMISSIONS } from "./auth/accessControl";
 import { getCurrentAuthorizationService } from "./service/userService";
 import SessionContext from "./auth/SessionContext";
 import { SESSION_ENDED_EVENT } from "./auth/sessionExpiry";
+import { SESSION_USER_UPDATED_EVENT } from "./auth/sessionUser";
 const SupportChat = lazy(() => import('./components/support/SupportChat'));
 const SupportHelp = lazy(() => import('./components/support/SupportHelp'));
 
@@ -74,10 +75,13 @@ function App() {
             if (!event.newValue) ended();
             else window.location.reload(); // a different tab signed into another account
         };
+        const profileSaved = event => { if (event.detail) setUserData(event.detail); };
         window.addEventListener(SESSION_ENDED_EVENT, ended);
+        window.addEventListener(SESSION_USER_UPDATED_EVENT, profileSaved);
         window.addEventListener('storage', onStorage);
         return () => {
             window.removeEventListener(SESSION_ENDED_EVENT, ended);
+            window.removeEventListener(SESSION_USER_UPDATED_EVENT, profileSaved);
             window.removeEventListener('storage', onStorage);
         };
     }, []);

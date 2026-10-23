@@ -36,63 +36,110 @@ function closingDate(value) {
     return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('vi-VN');
 }
 
+// Last result per collection/page of this browser session's account: switching tabs
+// paints the remembered list at once and refreshes it quietly instead of blanking it.
+const CACHE_TTL = 5 * 60 * 1000;
+// A list fetched this recently (e.g. just prefetched, or the tab was left a moment ago) is not re-requested.
+const REUSE_FOR = 15 * 1000;
+const CACHE_LIMIT = 20;
+const listCache = new Map();
+const pendingLists = new Map();
+let cacheToken;
+export const clearNotificationJobsCache = () => { listCache.clear(); pendingLists.clear(); };
+
+function cacheFor(token) {
+    if (token !== cacheToken) {
+        clearNotificationJobsCache();
+        cacheToken = token;
+    }
+    return listCache;
+}
+
+function readCachedList(token, key) {
+    const entry = cacheFor(token).get(key);
+    return entry && Date.now() - entry.savedAt < CACHE_TTL ? entry : null;
+}
+
+function loadJobs(token, source, page) {
+    const key = JSON.stringify([source, page]);
+    const cached = readCachedList(token, key);
+    if (cached && Date.now() - cached.savedAt < REUSE_FOR) return Promise.resolve(cached);
+    if (!pendingLists.has(key)) {
+        const request = getNotificationJobs({ source, limit: PAGE_SIZE, offset: page * PAGE_SIZE }).then(response => {
+            if (response?.errCode !== 0 || response.httpStatus >= 400 || !Array.isArray(response.data)
+                || !Number.isSafeInteger(response.count) || response.count < 0
+                || response.data.some(row => !row || !Number.isSafeInteger(Number(row.id)) || Number(row.id) <= 0)) {
+                throw new Error('Invalid job list');
+            }
+            const result = { rows: response.data, count: response.count, savedAt: Date.now() };
+            if (localStorage.getItem('token_user') === token) {
+                const cache = cacheFor(token);
+                cache.delete(key);
+                cache.set(key, result);
+                if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value);
+            }
+            return result;
+        }).finally(() => { if (pendingLists.get(key) === request) pendingLists.delete(key); });
+        pendingLists.set(key, request);
+    }
+    return pendingLists.get(key);
+}
+
+// Hovering or focusing the other tab starts its first page early, so the click usually finds it ready.
+const prefetchJobs = (token, source) => { loadJobs(token, source, 0).catch(() => {}); };
+
 function JobsList({ source, userId, token }) {
     const copy = CONTENT[source];
     const [{ page }, setQuery] = useListQuery({ page: 0 });
-    const [rows, setRows] = useState([]);
-    const [count, setCount] = useState(0);
     const [refresh, setRefresh] = useState(0);
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [settledRequest, setSettledRequest] = useState('');
-    const requestKey = JSON.stringify([source, userId, token, page, refresh]);
-    const busy = loading || settledRequest !== requestKey;
+    const [result, setResult] = useState(null);
+    const listKey = JSON.stringify([source, page]);
+    const requestKey = JSON.stringify([listKey, refresh]);
+    const fresh = result?.requestKey === requestKey;
+    const cached = fresh ? null : readCachedList(token, listKey);
+    // A tab seen before shows its remembered list; a first visit keeps the previous cards
+    // (dimmed by StableList) until its own response arrives, so the page never collapses.
+    const view = fresh ? result : cached || result || { rows: [], count: 0, error: '' };
+    const { rows, count, error = '' } = view;
+    const busy = !fresh && !cached;
 
     useEffect(() => {
         let active = true;
         const current = () => active && localStorage.getItem('token_user') === token;
-        setLoading(true);
-        setError('');
-        (async () => {
-            try {
-                const response = await getNotificationJobs({ source, limit: PAGE_SIZE, offset: page * PAGE_SIZE });
-                if (!current()) return;
-                if (response?.errCode !== 0 || response.httpStatus >= 400 || !Array.isArray(response.data)
-                    || !Number.isSafeInteger(response.count) || response.count < 0
-                    || response.data.some(row => !row || !Number.isSafeInteger(Number(row.id)) || Number(row.id) <= 0)) {
-                    throw new Error('Invalid job list');
-                }
-                const validPage = clampListPage(page, response.count, PAGE_SIZE);
-                if (validPage !== page) {
-                    setQuery({ page: validPage }, { replace: true });
-                    return;
-                }
-                setRows(response.data);
-                setCount(response.count);
-            } catch {
-                if (current()) {
-                    setRows([]);
-                    setCount(0);
-                    setError('Không tải được danh sách việc làm. Vui lòng thử lại.');
-                }
-            } finally {
-                if (current()) {
-                    setLoading(false);
-                    setSettledRequest(requestKey);
-                }
+        loadJobs(token, source, page).then(response => {
+            if (!current()) return;
+            const validPage = clampListPage(page, response.count, PAGE_SIZE);
+            if (validPage !== page) {
+                listCache.delete(listKey);
+                setQuery({ page: validPage }, { replace: true });
+                return;
             }
-        })();
+            setResult({ requestKey, rows: response.rows, count: response.count, error: '' });
+        }, () => {
+            if (!current()) return;
+            const stale = readCachedList(token, listKey);
+            setResult(stale ? { requestKey, rows: stale.rows, count: stale.count, error: '' }
+                : { requestKey, rows: [], count: 0, error: 'Không tải được danh sách việc làm. Vui lòng thử lại.' });
+        });
         return () => { active = false; };
-    }, [source, userId, token, page, refresh, requestKey, setQuery]);
+    }, [source, token, page, listKey, requestKey, setQuery]);
 
     return <main className="notification-jobs" aria-labelledby="notification-jobs-title">
         <header className="notification-jobs__header">
             <span className="notification-jobs__eyebrow">CƠ HỘI DÀNH CHO BẠN</span>
-            <h1 id="notification-jobs-title">{copy.title}</h1>
-            <p>{copy.description}</p>
+            {/* Both tabs' copy share one grid cell, so the taller one sets the height and the tabs never move. */}
+            <div className="notification-jobs__intro">
+                {Object.entries(CONTENT).map(([key, text]) => key === source
+                    ? <div key={key}><h1 id="notification-jobs-title">{text.title}</h1><p>{text.description}</p></div>
+                    : <div key={key} aria-hidden="true"><h1>{text.title}</h1><p>{text.description}</p></div>)}
+            </div>
             <nav className="notification-jobs__tabs" aria-label="Nhóm việc làm cá nhân">
-                <Link to="/candidate/followed-jobs" aria-current={source === 'followed' ? 'page' : undefined}>Công ty đang theo dõi</Link>
-                <Link to="/candidate/recommended-jobs" aria-current={source === 'recommended' ? 'page' : undefined}>Phù hợp với bạn</Link>
+                {[['followed', '/candidate/followed-jobs', 'Công ty đang theo dõi'], ['recommended', '/candidate/recommended-jobs', 'Phù hợp với bạn']]
+                    .map(([key, path, label]) => {
+                        const warm = key === source ? undefined : () => prefetchJobs(token, key);
+                        return <Link key={key} to={path} aria-current={key === source ? 'page' : undefined}
+                            onMouseEnter={warm} onFocus={warm} onTouchStart={warm}>{label}</Link>;
+                    })}
             </nav>
         </header>
         <div className="notification-jobs__toolbar">
@@ -163,5 +210,6 @@ export default function NotificationJobs({ source = 'recommended' }) {
     if (ended || !token || !user?.id || user.roleCode !== 'CANDIDATE') {
         return <p role="alert" className="notification-jobs">Đăng nhập bằng tài khoản ứng viên để xem việc làm dành cho bạn.</p>;
     }
-    return <JobsList key={`${source}:${user.id}:${token}`} source={source} userId={user.id} token={token} />;
+    // Not keyed by source: switching tabs keeps the list mounted so its old cards hold the space.
+    return <JobsList key={`${user.id}:${token}`} source={source} userId={user.id} token={token} />;
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import NotificationJobs from './NotificationJobs';
+import NotificationJobs, { clearNotificationJobsCache } from './NotificationJobs';
 import { getNotificationJobs } from '../../service/notificationJobsService';
 import { SESSION_ENDED_EVENT } from '../../auth/sessionExpiry';
 
@@ -19,7 +19,7 @@ const mount = () => render(<BrowserRouter><Routes>
     <Route path="/detail-job/:id" element={<h1>Chi tiết công việc</h1>} />
 </Routes></BrowserRouter>);
 beforeEach(() => {
-    jest.resetAllMocks(); localStorage.clear();
+    jest.resetAllMocks(); localStorage.clear(); clearNotificationJobsCache();
     localStorage.setItem('token_user', 'fixture-token');
     localStorage.setItem('userData', JSON.stringify({ id: 5, roleCode: 'CANDIDATE' }));
     window.history.replaceState({}, '', '/candidate/followed-jobs');
@@ -78,6 +78,59 @@ test('does not show an old collection when its delayed response arrives after sw
     expect(await screen.findByRole('link', { name: /Công việc phù hợp/ })).toHaveAttribute('href', '/detail-job/43');
     await act(async () => { resolveOld({ errCode: 0, data: [job], count: 1, source: 'followed' }); });
     expect(screen.queryByRole('link', { name: /Kỹ sư Node.js/ })).not.toBeInTheDocument();
+});
+
+test('keeps the old cards in place while a new tab loads, and shows a revisited tab at once', async () => {
+    let finishRecommended;
+    getNotificationJobs.mockImplementation(({ source }) => source === 'recommended'
+        ? new Promise(resolve => { finishRecommended = resolve; })
+        : Promise.resolve({ errCode: 0, data: [job], count: 1, source }));
+    mount(); await screen.findByRole('link', { name: /Kỹ sư Node.js/ });
+    fireEvent.click(screen.getByRole('link', { name: 'Phù hợp với bạn' }));
+    // The list does not collapse to nothing: the previous cards stay (inert) under the loading status.
+    expect(screen.getByText('Kỹ sư Node.js')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Kỹ sư Node.js/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Đang tải việc làm…');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Việc làm phù hợp với bạn');
+    await act(async () => finishRecommended({ errCode: 0, data: [{ ...job, id: 43, postDetailData: { name: 'Công việc phù hợp' } }], count: 1, source: 'recommended' }));
+    expect(screen.getByRole('link', { name: /Công việc phù hợp/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Công ty đang theo dõi' }));
+    expect(screen.getByRole('link', { name: /Kỹ sư Node.js/ })).toHaveAttribute('href', '/detail-job/42');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByText('1 việc làm đang tuyển')).toBeInTheDocument();
+    await act(async () => {});
+    expect(getNotificationJobs).toHaveBeenCalledTimes(2);
+});
+
+test('refreshes a remembered tab quietly once it is older than 15 seconds', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    mount(); await screen.findByRole('link', { name: /Kỹ sư Node.js/ });
+    fireEvent.click(screen.getByRole('link', { name: 'Phù hợp với bạn' }));
+    await screen.findByText('1 việc làm đang tuyển');
+    now.mockReturnValue(1_000_000 + 15_001);
+    getNotificationJobs.mockResolvedValue({ errCode: 0, data: [], count: 0, source: 'followed' });
+    fireEvent.click(screen.getByRole('link', { name: 'Công ty đang theo dõi' }));
+    expect(screen.getByRole('link', { name: /Kỹ sư Node.js/ })).toBeInTheDocument();
+    expect(await screen.findByText('0 việc làm đang tuyển')).toBeInTheDocument();
+    expect(getNotificationJobs).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole('link', { name: /Kỹ sư Node.js/ })).not.toBeInTheDocument();
+    now.mockRestore();
+});
+
+test('starts loading the other tab on hover so the click finds it ready', async () => {
+    mount(); await screen.findByRole('link', { name: /Kỹ sư Node.js/ });
+    getNotificationJobs.mockResolvedValue({ errCode: 0, data: [{ ...job, id: 43, postDetailData: { name: 'Công việc phù hợp' } }], count: 1, source: 'recommended' });
+    fireEvent.mouseEnter(screen.getByRole('link', { name: 'Công ty đang theo dõi' }));
+    expect(getNotificationJobs).toHaveBeenCalledTimes(1);
+    fireEvent.mouseEnter(screen.getByRole('link', { name: 'Phù hợp với bạn' }));
+    expect(getNotificationJobs).toHaveBeenLastCalledWith({ source: 'recommended', limit: 10, offset: 0 });
+    await act(async () => {});
+    fireEvent.click(screen.getByRole('link', { name: 'Phù hợp với bạn' }));
+    expect(screen.getByRole('link', { name: /Công việc phù hợp/ })).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    await act(async () => {});
+    expect(getNotificationJobs).toHaveBeenCalledTimes(2);
 });
 
 test('retains results during a same-account refresh in another tab, and hides them when the session ends', async () => {

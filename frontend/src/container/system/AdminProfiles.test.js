@@ -143,7 +143,8 @@ describe("personal profile", () => {
             image: "data:image/png;base64,AVATAR",
             email: "new@example.com",
         });
-        expect(JSON.parse(localStorage.getItem("userData"))).toEqual({ id: 90, firstName: "Mới" });
+        // Profile fields refresh in place; the role confirmed by /api/auth/me stays.
+        expect(JSON.parse(localStorage.getItem("userData"))).toEqual({ id: 90, roleCode: "EMPLOYER", firstName: "Mới" });
         expect(toast.success).toHaveBeenCalledWith("Cập nhật người dùng thành công");
     });
 

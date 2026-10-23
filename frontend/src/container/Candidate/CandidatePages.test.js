@@ -12,6 +12,7 @@ import {
 } from "../../service/userService";
 import { useFetchAllcode } from "../../util/fetch";
 import CommonUtils from "../../util/CommonUtils";
+import { SESSION_USER_UPDATED_EVENT } from "../../auth/sessionUser";
 import CandidateInfo from "./CandidateInfo";
 import ManageCvCandidate from "./ManageCvCandidate";
 import SavedJobs from "./SavedJobs";
@@ -279,6 +280,53 @@ describe("CandidateInfo", () => {
         );
         jest.clearAllTimers();
         jest.useRealTimers();
+    });
+
+    it("shows the saved avatar in the header at once, without reloading, and ignores a second click while saving", async () => {
+        let finishSave;
+        UpdateUserService.mockImplementation(() => new Promise((resolve) => { finishSave = resolve; }));
+        const updates = [];
+        const listener = (event) => updates.push(event.detail);
+        window.addEventListener(SESSION_USER_UPDATED_EVENT, listener);
+        render(<CandidateInfo />);
+        await screen.findByDisplayValue("Nguyễn");
+        await act(async () => {
+            fireEvent.change(screen.getByLabelText("Tải hình ảnh"), {
+                target: { files: [new File(["avatar"], "avatar.png", { type: "image/png" })] },
+            });
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+        const saving = screen.getByRole("button", { name: "Đang lưu..." });
+        expect(saving).toBeDisabled();
+        fireEvent.click(saving);
+        expect(UpdateUserService).toHaveBeenCalledTimes(1);
+
+        await act(async () => finishSave({
+            errCode: 0,
+            user: { id: 7, firstName: "Nguyễn", image: "https://cdn.test/avatar.webp", roleCode: "CANDIDATE" },
+        }));
+        expect(updates).toEqual([expect.objectContaining({ id: 7, image: "https://cdn.test/avatar.webp" })]);
+        expect(JSON.parse(localStorage.getItem("userData")).image).toBe("https://cdn.test/avatar.webp");
+        expect(toast.success).toHaveBeenCalledWith("Cập nhật người dùng thành công");
+
+        // The avatar is already uploaded: saving again must not send the photo a second time.
+        UpdateUserService.mockResolvedValue({ errCode: 0, user: { id: 7 } });
+        await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+        });
+        expect(UpdateUserService).toHaveBeenLastCalledWith(expect.objectContaining({ image: null }));
+        window.removeEventListener(SESSION_USER_UPDATED_EVENT, listener);
+    });
+
+    it("reports a network failure and lets the user save again", async () => {
+        UpdateUserService.mockRejectedValueOnce(new Error("offline"));
+        render(<CandidateInfo />);
+        await screen.findByDisplayValue("Nguyễn");
+        await act(async () => {
+            fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+        });
+        expect(toast.error).toHaveBeenCalledWith("Không thể cập nhật thông tin. Vui lòng thử lại.");
+        expect(screen.getByRole("button", { name: "Lưu" })).toBeEnabled();
     });
 
     it("sends null image and reports an update failure when the avatar is unchanged", async () => {

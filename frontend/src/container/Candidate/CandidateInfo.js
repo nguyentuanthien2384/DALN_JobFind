@@ -7,13 +7,15 @@ import { toast } from "react-toastify";
 import { birthDateValue, parseBirthDate } from "../../util/birthDate";
 import Lightbox from "react-image-lightbox";
 import "react-image-lightbox/style.css";
-import CommonUtils from "../../util/CommonUtils";
+import { readAvatarImage } from "../../util/avatarImage";
+import { updateSessionProfile } from "../../auth/sessionUser";
 
 const CandidateInfo = () => {
     const [birthday, setbirthday] = useState(new Date());
     const [isChangeDate, setisChangeDate] = useState(false);
     const [isChangeImg, setisChangeImg] = useState(false);
     const [isActionADD, setisActionADD] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
     const [inputValues, setInputValues] = useState({
         password: "",
         firstName: "",
@@ -93,14 +95,14 @@ const CandidateInfo = () => {
         let data = event.target.files;
         let file = data[0];
         if (file) {
-            let base64 = await CommonUtils.getBase64(file);
+            let base64 = await readAvatarImage(file);
             let objectUrl = URL.createObjectURL(file);
             setisChangeImg(true);
-            setInputValues({
-                ...inputValues,
+            setInputValues((currentValues) => ({
+                ...currentValues,
                 "image": base64,
                 "imageReview": objectUrl,
-            });
+            }));
         }
     };
     let openPreviewImage = () => {
@@ -109,28 +111,39 @@ const CandidateInfo = () => {
         setInputValues({ ...inputValues, "isOpen": true });
     };
     let handleSaveUser = async () => {
-        let res = await UpdateUserService({
-            id: inputValues.id,
-            firstName: inputValues.firstName,
-            lastName: inputValues.lastName,
-            address: inputValues.address,
-            roleCode: inputValues.roleCode,
-            genderCode: inputValues.genderCode,
-            dob:
-                isChangeDate === false
-                    ? inputValues.dob
-                    : birthDateValue(birthday),
-            image: isChangeImg ? inputValues.image : null,
-            email: inputValues.email,
-        });
-        if (res && res.errCode === 0) {
-            localStorage.setItem("userData", JSON.stringify(res.user));
-            toast.success("Cập nhật người dùng thành công");
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        } else {
-            toast.error(res.errMessage);
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            let res = await UpdateUserService({
+                id: inputValues.id,
+                firstName: inputValues.firstName,
+                lastName: inputValues.lastName,
+                address: inputValues.address,
+                roleCode: inputValues.roleCode,
+                genderCode: inputValues.genderCode,
+                dob:
+                    isChangeDate === false
+                        ? inputValues.dob
+                        : birthDateValue(birthday),
+                image: isChangeImg ? inputValues.image : null,
+                email: inputValues.email,
+            });
+            if (res && res.errCode === 0) {
+                // Update the header in place: a full reload re-verified the whole session
+                // and made a saved avatar take seconds to appear.
+                updateSessionProfile(res.user);
+                if (isChangeImg && res.user?.image) {
+                    setisChangeImg(false);
+                    setInputValues((currentValues) => ({ ...currentValues, "image": res.user.image }));
+                }
+                toast.success("Cập nhật người dùng thành công");
+            } else {
+                toast.error(res?.errMessage || "Không thể cập nhật thông tin. Vui lòng thử lại.");
+            }
+        } catch {
+            toast.error("Không thể cập nhật thông tin. Vui lòng thử lại.");
+        } finally {
+            setIsSaving(false);
         }
     };
     return (
@@ -291,6 +304,7 @@ const CandidateInfo = () => {
                                                     handleOnChangeImage(event)
                                                 }
                                                 type="file"
+                                                disabled={isSaving}
                                                 className="form-control form-file"
                                             />
                                         </div>
@@ -341,10 +355,12 @@ const CandidateInfo = () => {
                             <button
                                 type="button"
                                 onClick={() => handleSaveUser()}
+                                disabled={isSaving}
+                                aria-busy={isSaving}
                                 className="btn1 btn1-primary1 btn1-icon-text"
                             >
                                 <i className="ti-file btn1-icon-prepend"></i>
-                                Lưu
+                                {isSaving ? "Đang lưu..." : "Lưu"}
                             </button>
                         </form>
                     </div>
