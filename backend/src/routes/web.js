@@ -22,7 +22,7 @@ import middlewareControllers from '../middlewares/jwtVerify'
 import * as authController from '../controllers/authController'
 import { authResponseHeaders } from '../middlewares/authResponseHeaders'
 import { authorize, PERMISSIONS } from '../middlewares/authorize'
-import { loginLimiter, refreshLimiter, ssoLimiter, otpLimiter, registerLimiter, phoneCheckLimiter } from '../middlewares/rateLimit'
+import { loginLimiter, refreshLimiter, ssoLimiter, otpLimiter, registerLimiter, registrationLimiter, phoneCheckLimiter } from '../middlewares/rateLimit'
 import { emitNotification } from '../config/socket'
 let router = express.Router();
 
@@ -76,7 +76,8 @@ let initWebRoutes = (app) => {
     // Tao tai khoan: co the goi khi chua dang nhap (tu dang ky) hoac boi admin.
     // verifyTokenOptional gan req.user neu co token hop le de controller biet
     // nguoi goi co phai admin khong (chi admin moi duoc chon quyen ADMIN).
-    router.post('/api/create-new-user', registerLimiter, middlewareControllers.verifyTokenOptional, userController.handleCreateNewUser)
+    // ?dryRun=true: cung cac buoc kiem tra nhung khong tao tai khoan (xem userService).
+    router.post('/api/create-new-user', registrationLimiter, middlewareControllers.verifyTokenOptional, userController.handleCreateNewUser)
     router.get('/api/auth/me', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), userController.getCurrentAuthorization)
     router.put('/api/update-user', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), userController.handleUpdateUser)
     router.post('/api/ban-user', ...protectedBy(PERMISSIONS.ADMINISTRATION), userController.handleBanUser)

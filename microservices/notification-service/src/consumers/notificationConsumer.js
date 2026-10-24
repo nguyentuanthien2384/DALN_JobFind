@@ -9,7 +9,7 @@ import {
     saveNotification, getUserEmail, getCompanyFollowers, sendEmail, pushRealtime
 } from '../libs/channels.js';
 import {
-    applicationStageTemplate, applicationDecisionTemplate, applicationInterviewTemplate, jobModeratedTemplate,
+    applicationEventTemplate, jobModeratedTemplate,
     newJobFromFollowedCompanyTemplate, newApplicationTemplate, manualModerationTemplate, manualApprovalFollowerTemplate, approvedJobFollowerTemplate
 } from '../templates.js';
 
@@ -94,13 +94,7 @@ export const handlers = {
         await deliver({ userId: payload.recipientId, template, eventId: metadata.eventId });
     },
     [EVENTS.APPLICATION_STAGE_CHANGED]: async (payload, metadata = {}) => {
-        const template = applicationStageTemplate({
-            toStage: payload.toStage,
-            jobTitle: payload.jobTitle,
-            candidateName: payload.candidateName,
-            companyName: payload.companyName,
-            interviewed: payload.interviewed
-        });
+        const template = applicationEventTemplate(EVENTS.APPLICATION_STAGE_CHANGED, payload);
         if (!template) return;
         await deliver({
             eventId: metadata.eventId,
@@ -114,16 +108,7 @@ export const handlers = {
     },
 
     [EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED]: async (payload, metadata = {}) => {
-        const template = applicationDecisionTemplate({
-            decision: payload.decision,
-            jobTitle: payload.jobTitle,
-            candidateName: payload.candidateName,
-            companyName: payload.companyName,
-            message: payload.message,
-            offer: payload.offer,
-            interviewed: payload.interviewed,
-            interview: payload.interview
-        });
+        const template = applicationEventTemplate(EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED, payload);
         await deliver({
             eventId: metadata.eventId,
             userId: payload.candidateId,
@@ -145,7 +130,7 @@ export const handlers = {
             eventId: metadata.eventId,
             userId: payload.candidateId,
             recipientEmail: payload.candidateEmail,
-            template: applicationInterviewTemplate(payload)
+            template: applicationEventTemplate(EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED, payload)
         });
         logger.info('da xu ly yeu cau gui thu moi phong van', {
             applicationId: payload.applicationId,

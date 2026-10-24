@@ -32,7 +32,9 @@ let handleCreateNewUser = async (req, res) => {
         let data = await userService.handleCreateNewUser({
             ...req.body,
             creatorRoleCode,
-            creatorCompanyId: req.user?.companyId || null
+            creatorCompanyId: req.user?.companyId || null,
+            // Chi lay tu query string: body khong duoc tu bat/tat che do kiem tra truoc.
+            dryRun: req.query?.dryRun === 'true'
         });
         return res.status(200).json(data);
     } catch (error) {

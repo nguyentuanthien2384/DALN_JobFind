@@ -10,6 +10,8 @@ import {
 import {
     stats, startNotificationConsumer
 } from './consumers/notificationConsumer.js';
+import { previewApplicationEmail, PreviewError } from './emailPreview.js';
+import { requireTrustedGateway } from '../../shared/accessControl.js';
 
 const logger = createLogger('notification-service');
 const app = express();
@@ -21,6 +23,18 @@ runtime.onClose(() => closeConnection());
 runtime.onClose(() => mysqlPool.end());
 
 app.use(express.json());
+
+// Noi bo: Application Service goi khi nha tuyen dung kiem tra truoc (dryRun) mot thu moi
+// hay ket qua. Chi nhan request co khoa noi bo; Gateway khong bao gio mo /internal ra ngoai.
+app.post('/internal/email-preview', requireTrustedGateway, (req, res) => {
+    try {
+        return res.json({ errCode: 0, data: previewApplicationEmail(req.body?.eventType, req.body?.payload) });
+    } catch (error) {
+        if (error instanceof PreviewError) return res.status(400).json({ errCode: 1, errMessage: error.message });
+        logger.error('dung ban xem truoc email that bai', { error: error.message });
+        return res.status(500).json({ errCode: -1, errMessage: 'Không dựng được bản xem trước email' });
+    }
+});
 
 const start = async () => {
     await testMysql();

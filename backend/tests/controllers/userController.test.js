@@ -62,8 +62,24 @@ describe('userController', () => {
     mockService.handleCreateNewUser.mockResolvedValueOnce({ errCode: 0 });
     await controller.handleCreateNewUser(guest, createResponse());
     expect(mockService.handleCreateNewUser).toHaveBeenLastCalledWith(expect.objectContaining({
-      creatorRoleCode: null, creatorCompanyId: null
+      creatorRoleCode: null, creatorCompanyId: null, dryRun: false
     }));
+  });
+
+  test('only the query string switches registration to a dry run', async () => {
+    const fromBody = request();
+    fromBody.body.dryRun = true;
+    mockService.handleCreateNewUser.mockResolvedValueOnce({ errCode: 0 });
+    await controller.handleCreateNewUser(fromBody, createResponse());
+    expect(mockService.handleCreateNewUser).toHaveBeenLastCalledWith(expect.objectContaining({ dryRun: false }));
+
+    const fromQuery = request();
+    fromQuery.query.dryRun = 'true';
+    mockService.handleCreateNewUser.mockResolvedValueOnce({ errCode: 0, dryRun: true });
+    const res = createResponse();
+    await controller.handleCreateNewUser(fromQuery, res);
+    expect(mockService.handleCreateNewUser).toHaveBeenLastCalledWith(expect.objectContaining({ dryRun: true }));
+    expect(res.json).toHaveBeenCalledWith({ errCode: 0, dryRun: true });
   });
 
   test('pending or inactive companies cannot create team accounts through public registration', async () => {

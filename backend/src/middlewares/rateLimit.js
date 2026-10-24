@@ -113,6 +113,17 @@ const registerLimiter = createRateLimiter({
     message: 'Bạn đã tạo quá nhiều tài khoản, vui lòng thử lại sau'
 });
 
+// Kiem tra truoc (?dryRun=true) khong tao tai khoan nen khong an vao han muc dang ky,
+// nhung van cho biet so dien thoai/email da dung chua: gioi han rieng nhu kiem tra SDT.
+const registerCheckLimiter = createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    // Cung route voi registerLimiter: can scope rieng, neu khong hai han muc dung chung bo dem.
+    scope: 'register-check',
+    message: 'Bạn kiểm tra đăng ký quá nhiều lần, vui lòng thử lại sau ít phút'
+});
+const registrationLimiter = (req, res, next) => (req.query?.dryRun === 'true' ? registerCheckLimiter : registerLimiter)(req, res, next);
+
 module.exports = {
     supportChatLimiter: createRateLimiter({ windowMs: 60 * 1000, max: 8,
         clientKey: require('../utils/supportClientKey').supportClientKey,
@@ -123,5 +134,7 @@ module.exports = {
     ssoLimiter,
     otpLimiter,
     registerLimiter,
+    registerCheckLimiter,
+    registrationLimiter,
     phoneCheckLimiter
 };

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
     const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const expressApp = { use: vi.fn(), get: vi.fn(), listen: vi.fn((port, callback) => callback?.()) };
+    const expressApp = { use: vi.fn(), get: vi.fn(), post: vi.fn(), listen: vi.fn((port, callback) => callback?.()) };
     const express = vi.fn(() => expressApp);
     express.json = vi.fn(() => 'json-middleware');
     return {
@@ -88,6 +88,9 @@ describe('service bootstrap wiring', () => {
         await vi.waitFor(() => expect(mocks.expressApp.listen).toHaveBeenCalledOnce());
         expect(mocks.expressApp.use).toHaveBeenCalledWith('json-middleware');
         expect(mocks.expressApp.get).toHaveBeenCalledWith('/health', expect.any(Function));
+        // Email preview for dry runs is internal only: the trusted-gateway guard runs first.
+        const { requireTrustedGateway } = await import('../shared/accessControl.js');
+        expect(mocks.expressApp.post).toHaveBeenCalledWith('/internal/email-preview', requireTrustedGateway, expect.any(Function));
         expect(mocks.testMysql).toHaveBeenCalledOnce();
         expect(mocks.ensureDeliveryTables).toHaveBeenCalledOnce();
         expect(mocks.ensureDeliveryTables.mock.invocationCallOrder[0]).toBeLessThan(mocks.startNotificationConsumer.mock.invocationCallOrder[0]);

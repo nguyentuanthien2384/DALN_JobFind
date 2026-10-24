@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeReq, makeRes } from './helpers.js';
 import { offerFixture } from './offerFixture.js';
 import { interviewFixture } from './interviewFixture.js';
@@ -375,6 +375,112 @@ describe('application pipeline controller', () => {
         mocks.withTransaction.mockRejectedValueOnce(new Error('db'));
         expect((await send()).statusCode).toBe(500);
         expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
+    });
+
+    describe('dry run (?dryRun=true)', () => {
+        const app = { id: 1, stage: 'dang_xem_xet', company_id: 9, candidate_id: 2, candidate_email: 'a@b.com', candidate_name: 'Lan', job_id: 3, job_title: 'Dev' };
+        const preview = { inApp: { typeCode: 'APPLICATION_INTERVIEW' }, email: { willSend: true, to: 'a@b.com', subject: 'Thư mời phỏng vấn — Dev' } };
+        const dryReq = (body) => companyReq({ params: { id: '1' }, query: { dryRun: 'true' }, body });
+        let fetchMock;
+        beforeEach(() => {
+            fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ errCode: 0, data: preview }) });
+            vi.stubGlobal('fetch', fetchMock);
+            vi.stubEnv('INTERNAL_SECRET', 'internal-test-secret');
+        });
+        afterEach(() => {
+            vi.unstubAllGlobals();
+            vi.unstubAllEnvs();
+        });
+
+        it('checks an interview invitation and previews its email without locking, writing or queuing', async () => {
+            mocks.pool.query.mockResolvedValueOnce({ rows: [app] });
+            const { sendInterviewInvitation } = await import('../application-service/src/controllers/applicationController.js');
+            const res = makeRes();
+            await sendInterviewInvitation(dryReq({ interview: interviewFixture, message: ' Hẹn gặp ' }), res);
+            expect(mocks.withTransaction).not.toHaveBeenCalled();
+            expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
+            expect(mocks.pool.query).toHaveBeenCalledTimes(1);
+            expect(mocks.pool.query.mock.calls[0][0]).not.toContain('FOR UPDATE');
+            expect(res.body).toMatchObject({ errCode: 0, dryRun: true, emailQueued: false, data: app,
+                preview: { fromStage: 'dang_xem_xet', toStage: 'phong_van', eventType: 'application.interview_invitation_requested', ...preview } });
+            expect(() => decodeEventFixture('application.interview_invitation_requested', res.body.preview.event)).not.toThrow();
+            const [url, init] = fetchMock.mock.calls[0];
+            expect(url).toBe('http://notification-service:4005/internal/email-preview');
+            expect(init.headers['x-internal-secret']).toBe('internal-test-secret');
+            expect(JSON.parse(init.body)).toEqual({ eventType: 'application.interview_invitation_requested', payload: res.body.preview.event });
+            expectResponseContract('applicationInterview', res);
+        });
+
+        it('previews exactly the event payload that the real request queues', async () => {
+            const { sendInterviewInvitation } = await import('../application-service/src/controllers/applicationController.js');
+            const body = { interview: interviewFixture, message: 'Hẹn gặp' };
+            mocks.pool.query.mockResolvedValueOnce({ rows: [app] });
+            const dry = makeRes();
+            await sendInterviewInvitation(dryReq(body), dry);
+            const client = { query: vi.fn().mockResolvedValueOnce({ rows: [app] }).mockResolvedValueOnce({ rows: [{ ...app, stage: 'phong_van' }] }).mockResolvedValueOnce({}) };
+            mocks.withTransaction.mockImplementation((work) => work(client));
+            await sendInterviewInvitation(companyReq({ params: { id: '1' }, body }), makeRes());
+            expect(dry.body.preview.event).toEqual(mocks.enqueueOutboxEvent.mock.calls[0][1].payload);
+        });
+
+        it('applies the same not-found, tenant and hired rules as the real invitation', async () => {
+            const { sendInterviewInvitation } = await import('../application-service/src/controllers/applicationController.js');
+            for (const [rows, status] of [[[], 404], [[{ ...app, company_id: 19 }], 403], [[{ ...app, stage: 'nhan_viec' }], 409]]) {
+                mocks.pool.query.mockResolvedValueOnce({ rows });
+                const res = makeRes();
+                await sendInterviewInvitation(dryReq({ interview: interviewFixture }), res);
+                expect(res.statusCode).toBe(status);
+            }
+            const invalid = makeRes();
+            await sendInterviewInvitation(dryReq({ interview: { ...interviewFixture, interviewDate: '2020-01-01' } }), invalid);
+            expect(invalid.statusCode).toBe(400);
+            expect(fetchMock).not.toHaveBeenCalled();
+            expect(mocks.withTransaction).not.toHaveBeenCalled();
+        });
+
+        it('checks offers and interviewed rejections like the real decision', async () => {
+            const { sendDecisionNotification } = await import('../application-service/src/controllers/applicationController.js');
+            mocks.pool.query.mockResolvedValueOnce({ rows: [app] });
+            const accepted = makeRes();
+            await sendDecisionNotification(dryReq({ decision: 'accepted', offer: offerFixture }), accepted);
+            expect(accepted.body.preview).toMatchObject({ toStage: 'de_nghi', event: { decision: 'accepted', offer: offerFixture, fromStage: 'dang_xem_xet', toStage: 'de_nghi' } });
+            expect(() => decodeEventFixture('application.decision_email_requested', accepted.body.preview.event)).not.toThrow();
+
+            const invitation = { decision_snapshot: { decision: 'interview', interview: interviewFixture } };
+            mocks.pool.query.mockResolvedValueOnce({ rows: [{ ...app, stage: 'phong_van' }] }).mockResolvedValueOnce({ rows: [invitation] });
+            const rejected = makeRes();
+            await sendDecisionNotification(dryReq({ decision: 'rejected' }), rejected);
+            expect(rejected.body.preview.event).toMatchObject({ decision: 'rejected', interviewed: true, companyName: interviewFixture.companyName, toStage: 'tu_choi' });
+
+            mocks.pool.query.mockResolvedValueOnce({ rows: [{ ...app, stage: 'nhan_viec' }] });
+            const rehire = makeRes();
+            await sendDecisionNotification(dryReq({ decision: 'accepted', offer: offerFixture }), rehire);
+            expect(rehire.body.preview).toMatchObject({ toStage: 'nhan_viec', event: { fromStage: null, toStage: 'nhan_viec' } });
+            expect(mocks.withTransaction).not.toHaveBeenCalled();
+            expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
+        });
+
+        it('previews stage moves, explains unchanged stages and survives a missing preview service', async () => {
+            const { moveStage } = await import('../application-service/src/controllers/applicationController.js');
+            mocks.pool.query.mockResolvedValueOnce({ rows: [app] });
+            const unchanged = makeRes();
+            await moveStage(dryReq({ stage: 'dang_xem_xet' }), unchanged);
+            expect(unchanged.body).toMatchObject({ dryRun: true, preview: { eventType: null, email: null } });
+            expect(unchanged.body.errMessage).toContain('không thay đổi');
+            expect(fetchMock).not.toHaveBeenCalled();
+
+            fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+            mocks.pool.query.mockResolvedValueOnce({ rows: [app] });
+            const moved = makeRes();
+            await moveStage(dryReq({ stage: 'nhan_viec', reason: 'Đã ký' }), moved);
+            expect(moved.statusCode).toBe(200);
+            expect(moved.body.preview).toMatchObject({ fromStage: 'dang_xem_xet', toStage: 'nhan_viec',
+                event: { fromStage: 'dang_xem_xet', toStage: 'nhan_viec', reason: 'Đã ký' } });
+            expect(moved.body.preview.previewError).toContain('Notification Service');
+            expect(mocks.withTransaction).not.toHaveBeenCalled();
+            expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled();
+            expectResponseContract('applicationMove', moved);
+        });
     });
 
     it('validates and updates ratings with ownership checks', async () => {

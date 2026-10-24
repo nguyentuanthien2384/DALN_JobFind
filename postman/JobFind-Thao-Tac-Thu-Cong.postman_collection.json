@@ -1,0 +1,1393 @@
+{
+  "info": {
+    "_postman_id": "0b9d3c74-5e1a-4f6b-8a2d-93c7e5f1a6d8",
+    "name": "JobFind - Thao tác thủ công (kiểm tra trước rồi mới làm thật)",
+    "description": "Tự đăng ký tài khoản, mời phỏng vấn, gửi thư trúng tuyển/từ chối, chuyển giai đoạn hồ sơ bằng dữ liệu của bạn.\nMỗi việc có 2 bước: \"Bước 1 - Kiểm tra trước\" gọi API thật với ?dryRun=true (server kiểm tra như làm thật, trả bản xem\ntrước email ở tab Visualize, KHÔNG lưu và KHÔNG gửi gì); \"Bước 2 - Gửi thật\" chỉ gửi đúng dữ liệu vừa kiểm tra đạt\n(trong 15 phút, mỗi lần kiểm tra chỉ gửi được một lần). Dùng chung environment với bộ test API.\nKhông bấm Run cả collection: hãy Send từng bước. Xem postman/README.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Chay truoc MOI request trong collection.",
+          "// 1) Nhac chon environment.",
+          "// 2) Gia han access token giong trinh duyet. Request dung tab Authorization = Bearer",
+          "//    {{<tai khoan>AccessToken}}; neu token do trong hoac con duoi 1 phut thi goi",
+          "//    POST /api/auth/refresh bang <tai khoan>RefreshToken. Refresh token het han/bi thu hoi",
+          "//    (hoac tra ve sai tai khoan) thi moi dang nhap lai bang mat khau trong environment.",
+          "if (!pm.environment.get('baseUrl')) {",
+          "    throw new Error('Chưa chọn environment \"JobFind API Tests - Local\" hoặc \"JobFind API Tests - Production\" (góc trên bên phải Postman).');",
+          "}",
+          "const cryptoJs = require('crypto-js');",
+          "const accounts = {",
+          "    admin: ['adminPhone', 'adminPassword'],",
+          "    employer: ['employerPhone', 'employerPassword'],",
+          "    employer2: ['employer2Phone', 'employer2Password'],",
+          "    candidate: ['candidatePhone', 'candidatePassword'],",
+          "    testCandidate: ['testCandidatePhone', 'testCandidatePassword'],",
+          "    pm: ['pmPhone', 'pmPassword'],",
+          "    recruiter: ['recruiterPhone', 'recruiterPassword']",
+          "};",
+          "const auth = pm.request.auth;",
+          "const bearer = auth && auth.type === 'bearer' ? String(auth.parameters().get('token') || '') : '';",
+          "const account = (/^\\{\\{(\\w+)AccessToken\\}\\}$/.exec(bearer) || [])[1];",
+          "// Cho script Tests biet request nay dung token cua tai khoan nao.",
+          "pm.environment.set('lastAccount', accounts[account] ? account : '');",
+          "const expiresAt = (jwt) => {",
+          "    try {",
+          "        let part = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+          "        while (part.length % 4) part += '=';",
+          "        return JSON.parse(cryptoJs.enc.Base64.parse(part).toString(cryptoJs.enc.Utf8)).exp * 1000;",
+          "    } catch (e) {",
+          "        return 0;",
+          "    }",
+          "};",
+          "const accessVar = account + 'AccessToken';",
+          "const refreshVar = account + 'RefreshToken';",
+          "const current = pm.environment.get(accessVar);",
+          "if (accounts[account] && (!current || expiresAt(current) - Date.now() < 60 * 1000)) {",
+          "    const base = pm.environment.get('baseUrl');",
+          "    const origin = pm.environment.get('origin');",
+          "    const saveRefresh = (res) => {",
+          "        const setCookie = res.headers.all().filter((h) => h.key.toLowerCase() === 'set-cookie')",
+          "            .map((h) => h.value).find((v) => /jobfind_rt=/.test(v)) || '';",
+          "        const match = /^([^=;\\s]*jobfind_rt)=([^;]*)/.exec(setCookie);",
+          "        if (match && match[2]) {",
+          "            pm.environment.set('refreshCookieName', match[1]);",
+          "            pm.environment.set(refreshVar, match[2]);",
+          "        }",
+          "    };",
+          "    const login = () => pm.sendRequest({",
+          "        url: base + '/api/login',",
+          "        method: 'POST',",
+          "        header: { 'Content-Type': 'application/json', Origin: origin },",
+          "        body: { mode: 'raw', raw: JSON.stringify({ identifier: pm.environment.get(accounts[account][0]), password: pm.environment.get(accounts[account][1]) }) }",
+          "    }, (err, res) => {",
+          "        if (err || res.code !== 200) {",
+          "            console.warn('Đăng nhập lại ' + account + ' thất bại', err || res.code);",
+          "            return;",
+          "        }",
+          "        pm.environment.set(accessVar, res.json().token);",
+          "        pm.environment.set(account + 'UserId', res.json().user.id);",
+          "        saveRefresh(res);",
+          "        console.log('Đã đăng nhập lại: ' + accessVar + ', ' + refreshVar);",
+          "    });",
+          "    const refreshToken = pm.environment.get(refreshVar);",
+          "    if (!refreshToken) {",
+          "        login();",
+          "    } else {",
+          "        pm.sendRequest({",
+          "            url: base + '/api/auth/refresh',",
+          "            method: 'POST',",
+          "            header: { Origin: origin, Cookie: (pm.environment.get('refreshCookieName') || 'jobfind_rt') + '=' + refreshToken }",
+          "        }, (err, res) => {",
+          "            const body = !err && res.code === 200 ? res.json() : null;",
+          "            const expected = pm.environment.get(account + 'UserId');",
+          "            if (body && body.token && (!expected || String(body.user && body.user.id) === String(expected))) {",
+          "                pm.environment.set(accessVar, body.token);",
+          "                saveRefresh(res);",
+          "                console.log('Đã làm mới ' + accessVar + ' bằng ' + refreshVar);",
+          "            } else {",
+          "                console.log(refreshVar + ' hết hạn hoặc đã bị thu hồi: đăng nhập lại.');",
+          "                pm.environment.set(refreshVar, '');",
+          "                login();",
+          "            }",
+          "        });",
+          "    }",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Kiem tra chung cho moi response di qua API Gateway. Tren production chi /api va",
+          "// /socket.io di qua Gateway; duong dan khac la giao dien React do Caddy phuc vu.",
+          "const viaGateway = pm.environment.get('opsEndpoints') === 'true' || /^\\/(api|socket\\.io)\\//.test(pm.request.url.getPath());",
+          "if (viaGateway) {",
+          "    pm.test('[chung] Gateway gắn X-Correlation-Id', () => {",
+          "        pm.expect(pm.response.headers.get('X-Correlation-Id')).to.match(/^[A-Za-z0-9._:-]{1,128}$/);",
+          "    });",
+          "}",
+          "// Access token con han nhung da bi thu hoi (dang xuat moi thiet bi, doi mat khau, khoa",
+          "// tai khoan, doi JWT_SECRET...): xoa di de request ke tiep tu lam moi/dang nhap lai.",
+          "const account = pm.environment.get('lastAccount');",
+          "if (account && pm.response.code === 401) {",
+          "    pm.environment.set(account + 'AccessToken', '');",
+          "    console.log(account + 'AccessToken bị từ chối (401): đã xoá, request kế tiếp sẽ tự lấy token mới.');",
+          "}",
+          "const maxMs = Number(pm.environment.get('maxResponseMs') || 5000);",
+          "pm.test('[chung] Thời gian phản hồi < ' + maxMs + ' ms', () => {",
+          "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1 - Đăng ký tài khoản",
+      "description": "Bước 1 kiểm tra dữ liệu với server mà không tạo gì; Bước 2 tạo thật đúng dữ liệu đó; Bước 3 đăng nhập thử.\nMỗi lần kiểm tra đạt chỉ cho tạo thật một lần, trong 15 phút.",
+      "item": [
+        {
+          "name": "Bước 1 - Kiểm tra trước (không tạo tài khoản)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const body = pm.response.json();",
+                  "const passed = pm.response.code === 200 && body.errCode === 0 && body.dryRun === true;",
+                  "pm.test('Kiểm tra đạt: có thể tạo tài khoản', () => pm.expect(passed, body.errMessage).to.be.true);",
+                  "if (passed) {",
+                  "    pm.environment.set('manualRegisterBody', pm.variables.replaceIn(pm.request.body.raw));",
+                  "    pm.environment.set('manualRegisterAt', Date.now());",
+                  "    const p = body.preview;",
+                  "    show(true, 'Dữ liệu hợp lệ - CHƯA tạo tài khoản', 'Bấm Bước 2 để tạo thật với đúng dữ liệu này (trong 15 phút).', [",
+                  "        { label: 'Vai trò', value: p.roleCode }, { label: 'Họ tên', value: p.firstName + ' ' + p.lastName },",
+                  "        { label: 'Số điện thoại (đăng nhập)', value: p.phonenumber }, { label: 'Email', value: p.email },",
+                  "        { label: 'Email mật khẩu tạm', value: p.passwordEmail || 'Không (người dùng tự đặt mật khẩu)' }",
+                  "    ]);",
+                  "} else {",
+                  "    pm.environment.unset('manualRegisterBody');",
+                  "    const errors = body.fieldErrors || {};",
+                  "    show(false, 'Chưa đạt - sửa rồi Send lại', body.errMessage || 'Lỗi không xác định',",
+                  "        Object.keys(errors).map((field) => ({ label: field, value: errors[field] })));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/create-new-user?dryRun=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "create-new-user"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleCode\": \"CANDIDATE\",\n  \"firstName\": \"Nguyễn\",\n  \"lastName\": \"Văn A\",\n  \"phonenumber\": \"Nhập 10 chữ số\",\n  \"email\": \"Nhập email thật\",\n  \"password\": \"Ít nhất 8 ký tự\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sửa body rồi Send. roleCode: CANDIDATE (ứng viên) hoặc EMPLOYER (nhà tuyển dụng, tạo công ty sau khi đăng nhập).\nServer chạy đúng các bước kiểm tra như khi đăng ký thật (dữ liệu, trùng số điện thoại, trùng email) nhưng KHÔNG tạo tài khoản.\nXem kết quả ở tab Visualize. Đạt thì sang Bước 2."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 2 - Tạo tài khoản thật (đúng dữ liệu đã kiểm tra)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const checked = pm.environment.get('manualRegisterBody');",
+                  "const at = Number(pm.environment.get('manualRegisterAt') || 0);",
+                  "if (!checked) {",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": chưa có dữ liệu kiểm tra đạt. Chạy \"Bước 1 - Kiểm tra trước\" và sửa đến khi đạt.');",
+                  "    pm.execution.skipRequest();",
+                  "} else if (Date.now() - at > 15 * 60000) {",
+                  "    pm.environment.unset('manualRegisterBody');",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": kết quả kiểm tra đã quá 15 phút. Chạy lại \"Bước 1 - Kiểm tra trước\".');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                  "pm.test('Đã tạo tài khoản', () => pm.expect(pm.response.json().message).to.eql('Tạo tài khoản thành công'));",
+                  "pm.environment.set('manualLoginPhone', sent.phonenumber);",
+                  "pm.environment.set('manualLoginPassword', sent.password || '');",
+                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
+                  "pm.environment.unset('manualRegisterBody');",
+                  "pm.environment.unset('manualRegisterAt');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/create-new-user",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "create-new-user"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{manualRegisterBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Gửi đúng body đã kiểm tra đạt ở Bước 1 (biến manualRegisterBody). Không sửa body ở đây."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 3 - Đăng nhập thử tài khoản vừa tạo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const user = pm.response.json().user;",
+                  "// Khong de mat khau tai khoan that nam lai trong environment.",
+                  "pm.environment.unset('manualLoginPassword');",
+                  "show(true, 'Đăng nhập được', 'Tài khoản đã hoạt động (mật khẩu đã được xoá khỏi environment).', [",
+                  "    { label: 'Mã người dùng', value: user.id }, { label: 'Vai trò', value: user.roleCode },",
+                  "    { label: 'Họ tên', value: [user.firstName, user.lastName].join(' ') }, { label: 'Email', value: user.email }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Origin",
+                "value": "{{origin}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{manualLoginPhone}}\",\n  \"password\": \"{{manualLoginPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 - Chọn hồ sơ ứng tuyển để thao tác",
+      "description": "Dùng tài khoản nhà tuyển dụng recruiterPhone/recruiterPassword (mặc định: nhà tuyển dụng công ty B).\nTìm hồ sơ, đặt mã hồ sơ vào biến manualApplicationId, xem lại đúng ứng viên trước khi gửi thư.",
+      "item": [
+        {
+          "name": "Tài khoản nhà tuyển dụng đang dùng",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const me = pm.response.json().data;",
+                  "pm.test('Là nhà tuyển dụng có công ty đã duyệt', () => {",
+                  "    pm.expect(me.roleCode).to.be.oneOf(['COMPANY', 'EMPLOYER', 'ADMIN']);",
+                  "    if (me.roleCode !== 'ADMIN') pm.expect(me.companyCensorCode).to.eql('CS1');",
+                  "});",
+                  "show(true, 'Thao tác bằng tài khoản này', 'Đổi recruiterPhone/recruiterPassword trong environment để dùng tài khoản khác.', [",
+                  "    { label: 'Mã người dùng', value: me.userId }, { label: 'Vai trò', value: me.roleCode }, { label: 'Công ty', value: me.companyId }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Danh sách hồ sơ của công ty (tìm theo tên hoặc email)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const rows = pm.response.json().data.map((a) => ({",
+                  "    label: 'Mã hồ sơ ' + a.id,",
+                  "    value: (a.candidate_name || '') + ' <' + (a.candidate_email || '') + '> · ' + (a.job_title || '') + ' · ' + a.stage",
+                  "}));",
+                  "show(true, pm.response.json().count + ' hồ sơ', 'Chọn một mã hồ sơ rồi đặt vào biến manualApplicationId.', rows);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications?q={{manualSearch}}&limit=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{manualSearch}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Đặt biến manualSearch để lọc (để trống = tất cả). Chép số ở cột \"Mã hồ sơ\" vào biến manualApplicationId."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Hồ sơ đang chọn (manualApplicationId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const app = pm.response.json().data;",
+                  "const last = app.latestDecision;",
+                  "show(true, 'Hồ sơ #' + app.id, 'Kiểm tra đúng người trước khi gửi thư.', [",
+                  "    { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "    { label: 'Tin tuyển dụng', value: app.job_title },",
+                  "    { label: 'Giai đoạn hiện tại', value: app.stage },",
+                  "    { label: 'Thư gần nhất', value: last ? last.decision + ' lúc ' + last.requestedAt : 'Chưa gửi thư nào' }",
+                  "].concat(app.timeline.slice(0, 5).map((e) => ({ label: 'Lịch sử ' + e.created_at, value: (e.from_stage || '') + ' → ' + e.to_stage + ' · ' + (e.reason || '') }))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{manualApplicationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{manualApplicationId}}"
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 - Mời phỏng vấn (hẹn lịch)",
+      "description": "interviewMode: onsite (cần location), online (cần meetingUrl), phone (cần contactPhone). Ngày giờ theo giờ Việt Nam.\nNgày gợi ý {{suggestedInterviewDate}} là 7 ngày tới; có thể ghi ngày cụ thể dạng YYYY-MM-DD. confirmBy phải trước giờ phỏng vấn.\nGửi thật: hồ sơ chuyển sang \"phỏng vấn\", ứng viên nhận email + thông báo, lịch hiện trong lịch phỏng vấn.",
+      "item": [
+        {
+          "name": "Bước 1 - Kiểm tra trước (không lưu, không gửi email)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.environment.get('manualApplicationId') || ''))) {",
+                  "    console.log('Chưa chọn hồ sơ: đặt biến manualApplicationId (xem thư mục 2 - Chọn hồ sơ ứng tuyển).');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const reasons = {",
+                  "    email_not_configured: 'Server chưa cấu hình hộp thư gửi đi (EMAIL_APP): thư nằm trong hàng đợi, chưa gửi được',",
+                  "    invalid_recipient: 'Email ứng viên không hợp lệ: sẽ không gửi',",
+                  "    invalid_reply_to: 'Email HR (Reply-To) không hợp lệ: sẽ không gửi',",
+                  "    placeholder_recipient_in_production: 'Địa chỉ mẫu (example..., .test): production bỏ qua, không gửi',",
+                  "    no_safe_demo_recipient: 'Địa chỉ mẫu nhưng chưa có hộp thư demo để chuyển tới: không gửi'",
+                  "};",
+                  "const body = pm.response.json();",
+                  "const passed = pm.response.code === 200 && body.errCode === 0 && body.dryRun === true;",
+                  "pm.test('Kiểm tra đạt: chưa lưu, chưa gửi', () => pm.expect(passed, body.errMessage).to.be.true);",
+                  "if (!passed) {",
+                  "    pm.environment.unset('manualInterviewBody');",
+                  "    show(false, 'Chưa đạt - sửa rồi Send lại', (body.errMessage || 'Lỗi không xác định') + ' (HTTP ' + pm.response.code + ')');",
+                  "} else {",
+                  "    const app = body.data;",
+                  "    const preview = body.preview;",
+                  "    const email = preview.email;",
+                  "    pm.environment.set('manualInterviewBody', pm.variables.replaceIn(pm.request.body.raw));",
+                  "    pm.environment.set('manualInterviewAt', Date.now());",
+                  "    pm.environment.set('manualInterviewAppId', app.id);",
+                  "    const rows = [",
+                  "        { label: 'Hồ sơ', value: '#' + app.id + ' - ' + (app.job_title || '') },",
+                  "        { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "        { label: 'Giai đoạn', value: preview.fromStage + ' → ' + preview.toStage },",
+                  "        { label: 'Thông báo trong ứng dụng', value: preview.inApp ? preview.inApp.content : 'Không có' }",
+                  "    ];",
+                  "    if (email) {",
+                  "        rows.push({ label: 'Email gửi tới', value: email.to ? email.to + (email.demo ? ' (địa chỉ mẫu ' + email.originalTo + ' được chuyển về hộp thư demo)' : '') : '(không có)' });",
+                  "        rows.push({ label: 'Gửi được không', value: email.willSend ? 'Có' : 'Không: ' + (reasons[email.reason] || email.reason) });",
+                  "        rows.push({ label: 'Tiêu đề', value: email.subject });",
+                  "        if (email.replyTo) rows.push({ label: 'Ứng viên trả lời tới (Reply-To)', value: email.replyTo });",
+                  "    } else {",
+                  "        rows.push({ label: 'Email', value: preview.previewError || 'Bước này không gửi email' });",
+                  "    }",
+                  "    show(true, 'Đạt - CHƯA lưu và CHƯA gửi email', body.errMessage + '. Kiểm tra kỹ người nhận và nội dung, rồi chạy bước gửi thật trong 15 phút.',",
+                  "        rows, email ? email.html : '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{manualApplicationId}}/interview-invitation?dryRun=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{manualApplicationId}}",
+                "interview-invitation"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Lời nhắn thêm cho ứng viên (không bắt buộc)\",\n  \"interview\": {\n    \"companyName\": \"Tên công ty\",\n    \"interviewDate\": \"{{suggestedInterviewDate}}\",\n    \"interviewTime\": \"09:30\",\n    \"durationMinutes\": \"60\",\n    \"timeZone\": \"Asia/Ho_Chi_Minh\",\n    \"interviewMode\": \"onsite\",\n    \"location\": \"Địa chỉ phỏng vấn cụ thể\",\n    \"round\": \"Vòng 1 - Chuyên môn\",\n    \"interviewers\": \"Người phỏng vấn\",\n    \"preparation\": \"Ứng viên cần chuẩn bị gì\",\n    \"contactName\": \"Người liên hệ HR\",\n    \"contactEmail\": \"{{hrContactEmail}}\",\n    \"contactPhone\": \"0900000000\",\n    \"confirmBy\": \"{{suggestedConfirmBy}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sửa body rồi Send. Server kiểm tra như khi gửi thật nhưng không lưu gì, không gửi gì; tab Visualize hiện người nhận và bản xem trước email."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 2 - Gửi thật (đúng dữ liệu đã kiểm tra)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const checked = pm.environment.get('manualInterviewBody');",
+                  "const at = Number(pm.environment.get('manualInterviewAt') || 0);",
+                  "if (!checked) {",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": chưa có dữ liệu kiểm tra đạt. Chạy \"Bước 1 - Kiểm tra trước\" và sửa đến khi đạt.');",
+                  "    pm.execution.skipRequest();",
+                  "} else if (Date.now() - at > 15 * 60000) {",
+                  "    pm.environment.unset('manualInterviewBody');",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": kết quả kiểm tra đã quá 15 phút. Chạy lại \"Bước 1 - Kiểm tra trước\".');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const body = pm.response.json();",
+                  "if (body.emailQueued !== undefined) pm.test('Đã lưu và xếp email vào hàng đợi gửi', () => pm.expect(body.emailQueued).to.be.true);",
+                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + body.data.stage, () => pm.expect(body.data.stage).to.be.a('string'));",
+                  "pm.test('Lưu thư mời phỏng vấn, hồ sơ ở bước phong_van', () => pm.expect(pm.response.json().data.stage).to.eql('phong_van'));",
+                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
+                  "pm.environment.unset('manualInterviewBody');",
+                  "pm.environment.unset('manualInterviewAt');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{manualInterviewAppId}}/interview-invitation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{manualInterviewAppId}}",
+                "interview-invitation"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{manualInterviewBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualInterviewBody, manualInterviewAppId). Không sửa body ở đây."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Goi y ngay theo gio Viet Nam; co the thay bang ngay cu the trong body (YYYY-MM-DD).",
+              "const vnDate = (days) => new Date(Date.now() + days * 86400000 + 7 * 3600000).toISOString().slice(0, 10);",
+              "pm.environment.set('suggestedInterviewDate', vnDate(7));",
+              "pm.environment.set('suggestedConfirmBy', vnDate(5) + 'T17:00');",
+              "pm.environment.set('suggestedStartDate', vnDate(21));",
+              "pm.environment.set('suggestedResponseDeadline', vnDate(14) + 'T17:00');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 - Gửi thư mời nhận việc (trúng tuyển)",
+      "description": "workMode: onsite hoặc hybrid (cần location), remote (cần meetingUrl). responseDeadline phải trước ngày nhận việc.\nGửi thật: hồ sơ chuyển sang \"đề nghị\" (giữ \"nhận việc\" nếu đã xác nhận), ứng viên nhận thư mời nhận việc.",
+      "item": [
+        {
+          "name": "Bước 1 - Kiểm tra trước (không lưu, không gửi email)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.environment.get('manualApplicationId') || ''))) {",
+                  "    console.log('Chưa chọn hồ sơ: đặt biến manualApplicationId (xem thư mục 2 - Chọn hồ sơ ứng tuyển).');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const reasons = {",
+                  "    email_not_configured: 'Server chưa cấu hình hộp thư gửi đi (EMAIL_APP): thư nằm trong hàng đợi, chưa gửi được',",
+                  "    invalid_recipient: 'Email ứng viên không hợp lệ: sẽ không gửi',",
+                  "    invalid_reply_to: 'Email HR (Reply-To) không hợp lệ: sẽ không gửi',",
+                  "    placeholder_recipient_in_production: 'Địa chỉ mẫu (example..., .test): production bỏ qua, không gửi',",
+                  "    no_safe_demo_recipient: 'Địa chỉ mẫu nhưng chưa có hộp thư demo để chuyển tới: không gửi'",
+                  "};",
+                  "const body = pm.response.json();",
+                  "const passed = pm.response.code === 200 && body.errCode === 0 && body.dryRun === true;",
+                  "pm.test('Kiểm tra đạt: chưa lưu, chưa gửi', () => pm.expect(passed, body.errMessage).to.be.true);",
+                  "if (!passed) {",
+                  "    pm.environment.unset('manualOfferBody');",
+                  "    show(false, 'Chưa đạt - sửa rồi Send lại', (body.errMessage || 'Lỗi không xác định') + ' (HTTP ' + pm.response.code + ')');",
+                  "} else {",
+                  "    const app = body.data;",
+                  "    const preview = body.preview;",
+                  "    const email = preview.email;",
+                  "    pm.environment.set('manualOfferBody', pm.variables.replaceIn(pm.request.body.raw));",
+                  "    pm.environment.set('manualOfferAt', Date.now());",
+                  "    pm.environment.set('manualOfferAppId', app.id);",
+                  "    const rows = [",
+                  "        { label: 'Hồ sơ', value: '#' + app.id + ' - ' + (app.job_title || '') },",
+                  "        { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "        { label: 'Giai đoạn', value: preview.fromStage + ' → ' + preview.toStage },",
+                  "        { label: 'Thông báo trong ứng dụng', value: preview.inApp ? preview.inApp.content : 'Không có' }",
+                  "    ];",
+                  "    if (email) {",
+                  "        rows.push({ label: 'Email gửi tới', value: email.to ? email.to + (email.demo ? ' (địa chỉ mẫu ' + email.originalTo + ' được chuyển về hộp thư demo)' : '') : '(không có)' });",
+                  "        rows.push({ label: 'Gửi được không', value: email.willSend ? 'Có' : 'Không: ' + (reasons[email.reason] || email.reason) });",
+                  "        rows.push({ label: 'Tiêu đề', value: email.subject });",
+                  "        if (email.replyTo) rows.push({ label: 'Ứng viên trả lời tới (Reply-To)', value: email.replyTo });",
+                  "    } else {",
+                  "        rows.push({ label: 'Email', value: preview.previewError || 'Bước này không gửi email' });",
+                  "    }",
+                  "    show(true, 'Đạt - CHƯA lưu và CHƯA gửi email', body.errMessage + '. Kiểm tra kỹ người nhận và nội dung, rồi chạy bước gửi thật trong 15 phút.',",
+                  "        rows, email ? email.html : '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{manualApplicationId}}/decision-notification?dryRun=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{manualApplicationId}}",
+                "decision-notification"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"accepted\",\n  \"message\": \"Lời nhắn thêm cho ứng viên (không bắt buộc)\",\n  \"offer\": {\n    \"companyName\": \"Tên công ty\",\n    \"startDate\": \"{{suggestedStartDate}}\",\n    \"startTime\": \"08:30\",\n    \"timeZone\": \"Asia/Ho_Chi_Minh\",\n    \"responseDeadline\": \"{{suggestedResponseDeadline}}\",\n    \"workMode\": \"onsite\",\n    \"location\": \"Địa điểm nhận việc cụ thể\",\n    \"contactName\": \"Người liên hệ HR\",\n    \"contactEmail\": \"{{hrContactEmail}}\",\n    \"contactPhone\": \"0900000000\",\n    \"workSchedule\": \"Thứ Hai - Thứ Sáu, 08:30 - 17:30\",\n    \"salary\": \"Mức lương (ghi rõ gross/net)\",\n    \"probation\": \"Thời gian thử việc\",\n    \"benefits\": \"Phúc lợi\",\n    \"requiredDocuments\": \"Giấy tờ cần mang\",\n    \"onboardingInstructions\": \"Hướng dẫn ngày đầu đi làm\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sửa body rồi Send. Server kiểm tra như khi gửi thật nhưng không lưu gì, không gửi gì; tab Visualize hiện người nhận và bản xem trước email."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 2 - Gửi thật (đúng dữ liệu đã kiểm tra)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const checked = pm.environment.get('manualOfferBody');",
+                  "const at = Number(pm.environment.get('manualOfferAt') || 0);",
+                  "if (!checked) {",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": chưa có dữ liệu kiểm tra đạt. Chạy \"Bước 1 - Kiểm tra trước\" và sửa đến khi đạt.');",
+                  "    pm.execution.skipRequest();",
+                  "} else if (Date.now() - at > 15 * 60000) {",
+                  "    pm.environment.unset('manualOfferBody');",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": kết quả kiểm tra đã quá 15 phút. Chạy lại \"Bước 1 - Kiểm tra trước\".');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const body = pm.response.json();",
+                  "if (body.emailQueued !== undefined) pm.test('Đã lưu và xếp email vào hàng đợi gửi', () => pm.expect(body.emailQueued).to.be.true);",
+                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + body.data.stage, () => pm.expect(body.data.stage).to.be.a('string'));",
+                  "pm.test('Hồ sơ ở bước de_nghi hoặc nhan_viec', () => pm.expect(pm.response.json().data.stage).to.be.oneOf(['de_nghi', 'nhan_viec']));",
+                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
+                  "pm.environment.unset('manualOfferBody');",
+                  "pm.environment.unset('manualOfferAt');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{manualOfferAppId}}/decision-notification",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{manualOfferAppId}}",
+                "decision-notification"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{manualOfferBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualOfferBody, manualOfferAppId). Không sửa body ở đây."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Goi y ngay theo gio Viet Nam; co the thay bang ngay cu the trong body (YYYY-MM-DD).",
+              "const vnDate = (days) => new Date(Date.now() + days * 86400000 + 7 * 3600000).toISOString().slice(0, 10);",
+              "pm.environment.set('suggestedInterviewDate', vnDate(7));",
+              "pm.environment.set('suggestedConfirmBy', vnDate(5) + 'T17:00');",
+              "pm.environment.set('suggestedStartDate', vnDate(21));",
+              "pm.environment.set('suggestedResponseDeadline', vnDate(14) + 'T17:00');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 - Gửi email từ chối",
+      "description": "Hệ thống tự cảm ơn ứng viên đã tham gia phỏng vấn nếu hồ sơ từng có lịch phỏng vấn.\nThêm \"interviewed\": false nếu ứng viên được mời nhưng không tham gia.",
+      "item": [
+        {
+          "name": "Bước 1 - Kiểm tra trước (không lưu, không gửi email)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.environment.get('manualApplicationId') || ''))) {",
+                  "    console.log('Chưa chọn hồ sơ: đặt biến manualApplicationId (xem thư mục 2 - Chọn hồ sơ ứng tuyển).');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const reasons = {",
+                  "    email_not_configured: 'Server chưa cấu hình hộp thư gửi đi (EMAIL_APP): thư nằm trong hàng đợi, chưa gửi được',",
+                  "    invalid_recipient: 'Email ứng viên không hợp lệ: sẽ không gửi',",
+                  "    invalid_reply_to: 'Email HR (Reply-To) không hợp lệ: sẽ không gửi',",
+                  "    placeholder_recipient_in_production: 'Địa chỉ mẫu (example..., .test): production bỏ qua, không gửi',",
+                  "    no_safe_demo_recipient: 'Địa chỉ mẫu nhưng chưa có hộp thư demo để chuyển tới: không gửi'",
+                  "};",
+                  "const body = pm.response.json();",
+                  "const passed = pm.response.code === 200 && body.errCode === 0 && body.dryRun === true;",
+                  "pm.test('Kiểm tra đạt: chưa lưu, chưa gửi', () => pm.expect(passed, body.errMessage).to.be.true);",
+                  "if (!passed) {",
+                  "    pm.environment.unset('manualRejectBody');",
+                  "    show(false, 'Chưa đạt - sửa rồi Send lại', (body.errMessage || 'Lỗi không xác định') + ' (HTTP ' + pm.response.code + ')');",
+                  "} else {",
+                  "    const app = body.data;",
+                  "    const preview = body.preview;",
+                  "    const email = preview.email;",
+                  "    pm.environment.set('manualRejectBody', pm.variables.replaceIn(pm.request.body.raw));",
+                  "    pm.environment.set('manualRejectAt', Date.now());",
+                  "    pm.environment.set('manualRejectAppId', app.id);",
+                  "    const rows = [",
+                  "        { label: 'Hồ sơ', value: '#' + app.id + ' - ' + (app.job_title || '') },",
+                  "        { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "        { label: 'Giai đoạn', value: preview.fromStage + ' → ' + preview.toStage },",
+                  "        { label: 'Thông báo trong ứng dụng', value: preview.inApp ? preview.inApp.content : 'Không có' }",
+                  "    ];",
+                  "    if (email) {",
+                  "        rows.push({ label: 'Email gửi tới', value: email.to ? email.to + (email.demo ? ' (địa chỉ mẫu ' + email.originalTo + ' được chuyển về hộp thư demo)' : '') : '(không có)' });",
+                  "        rows.push({ label: 'Gửi được không', value: email.willSend ? 'Có' : 'Không: ' + (reasons[email.reason] || email.reason) });",
+                  "        rows.push({ label: 'Tiêu đề', value: email.subject });",
+                  "        if (email.replyTo) rows.push({ label: 'Ứng viên trả lời tới (Reply-To)', value: email.replyTo });",
+                  "    } else {",
+                  "        rows.push({ label: 'Email', value: preview.previewError || 'Bước này không gửi email' });",
+                  "    }",
+                  "    show(true, 'Đạt - CHƯA lưu và CHƯA gửi email', body.errMessage + '. Kiểm tra kỹ người nhận và nội dung, rồi chạy bước gửi thật trong 15 phút.',",
+                  "        rows, email ? email.html : '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{manualApplicationId}}/decision-notification?dryRun=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{manualApplicationId}}",
+                "decision-notification"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"rejected\",\n  \"message\": \"Lời nhắn thêm cho ứng viên (không bắt buộc)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sửa body rồi Send. Server kiểm tra như khi gửi thật nhưng không lưu gì, không gửi gì; tab Visualize hiện người nhận và bản xem trước email."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 2 - Gửi thật (đúng dữ liệu đã kiểm tra)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const checked = pm.environment.get('manualRejectBody');",
+                  "const at = Number(pm.environment.get('manualRejectAt') || 0);",
+                  "if (!checked) {",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": chưa có dữ liệu kiểm tra đạt. Chạy \"Bước 1 - Kiểm tra trước\" và sửa đến khi đạt.');",
+                  "    pm.execution.skipRequest();",
+                  "} else if (Date.now() - at > 15 * 60000) {",
+                  "    pm.environment.unset('manualRejectBody');",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": kết quả kiểm tra đã quá 15 phút. Chạy lại \"Bước 1 - Kiểm tra trước\".');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const body = pm.response.json();",
+                  "if (body.emailQueued !== undefined) pm.test('Đã lưu và xếp email vào hàng đợi gửi', () => pm.expect(body.emailQueued).to.be.true);",
+                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + body.data.stage, () => pm.expect(body.data.stage).to.be.a('string'));",
+                  "pm.test('Hồ sơ ở bước tu_choi', () => pm.expect(pm.response.json().data.stage).to.eql('tu_choi'));",
+                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
+                  "pm.environment.unset('manualRejectBody');",
+                  "pm.environment.unset('manualRejectAt');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{manualRejectAppId}}/decision-notification",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{manualRejectAppId}}",
+                "decision-notification"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{manualRejectBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualRejectBody, manualRejectAppId). Không sửa body ở đây."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Goi y ngay theo gio Viet Nam; co the thay bang ngay cu the trong body (YYYY-MM-DD).",
+              "const vnDate = (days) => new Date(Date.now() + days * 86400000 + 7 * 3600000).toISOString().slice(0, 10);",
+              "pm.environment.set('suggestedInterviewDate', vnDate(7));",
+              "pm.environment.set('suggestedConfirmBy', vnDate(5) + 'T17:00');",
+              "pm.environment.set('suggestedStartDate', vnDate(21));",
+              "pm.environment.set('suggestedResponseDeadline', vnDate(14) + 'T17:00');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6 - Chuyển giai đoạn hồ sơ (như kéo thả trên Kanban)",
+      "description": "stage: moi_ung_tuyen, dang_xem_xet, phong_van, de_nghi, nhan_viec, tu_choi.\nBước 1 cho biết bước mới có gửi email/thông báo cho ứng viên không (ví dụ \"mới ứng tuyển\" thì không).",
+      "item": [
+        {
+          "name": "Bước 1 - Kiểm tra trước (không lưu, không gửi email)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.environment.get('manualApplicationId') || ''))) {",
+                  "    console.log('Chưa chọn hồ sơ: đặt biến manualApplicationId (xem thư mục 2 - Chọn hồ sơ ứng tuyển).');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const reasons = {",
+                  "    email_not_configured: 'Server chưa cấu hình hộp thư gửi đi (EMAIL_APP): thư nằm trong hàng đợi, chưa gửi được',",
+                  "    invalid_recipient: 'Email ứng viên không hợp lệ: sẽ không gửi',",
+                  "    invalid_reply_to: 'Email HR (Reply-To) không hợp lệ: sẽ không gửi',",
+                  "    placeholder_recipient_in_production: 'Địa chỉ mẫu (example..., .test): production bỏ qua, không gửi',",
+                  "    no_safe_demo_recipient: 'Địa chỉ mẫu nhưng chưa có hộp thư demo để chuyển tới: không gửi'",
+                  "};",
+                  "const body = pm.response.json();",
+                  "const passed = pm.response.code === 200 && body.errCode === 0 && body.dryRun === true;",
+                  "pm.test('Kiểm tra đạt: chưa lưu, chưa gửi', () => pm.expect(passed, body.errMessage).to.be.true);",
+                  "if (!passed) {",
+                  "    pm.environment.unset('manualStageBody');",
+                  "    show(false, 'Chưa đạt - sửa rồi Send lại', (body.errMessage || 'Lỗi không xác định') + ' (HTTP ' + pm.response.code + ')');",
+                  "} else {",
+                  "    const app = body.data;",
+                  "    const preview = body.preview;",
+                  "    const email = preview.email;",
+                  "    pm.environment.set('manualStageBody', pm.variables.replaceIn(pm.request.body.raw));",
+                  "    pm.environment.set('manualStageAt', Date.now());",
+                  "    pm.environment.set('manualStageAppId', app.id);",
+                  "    const rows = [",
+                  "        { label: 'Hồ sơ', value: '#' + app.id + ' - ' + (app.job_title || '') },",
+                  "        { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "        { label: 'Giai đoạn', value: preview.fromStage + ' → ' + preview.toStage },",
+                  "        { label: 'Thông báo trong ứng dụng', value: preview.inApp ? preview.inApp.content : 'Không có' }",
+                  "    ];",
+                  "    if (email) {",
+                  "        rows.push({ label: 'Email gửi tới', value: email.to ? email.to + (email.demo ? ' (địa chỉ mẫu ' + email.originalTo + ' được chuyển về hộp thư demo)' : '') : '(không có)' });",
+                  "        rows.push({ label: 'Gửi được không', value: email.willSend ? 'Có' : 'Không: ' + (reasons[email.reason] || email.reason) });",
+                  "        rows.push({ label: 'Tiêu đề', value: email.subject });",
+                  "        if (email.replyTo) rows.push({ label: 'Ứng viên trả lời tới (Reply-To)', value: email.replyTo });",
+                  "    } else {",
+                  "        rows.push({ label: 'Email', value: preview.previewError || 'Bước này không gửi email' });",
+                  "    }",
+                  "    show(true, 'Đạt - CHƯA lưu và CHƯA gửi email', body.errMessage + '. Kiểm tra kỹ người nhận và nội dung, rồi chạy bước gửi thật trong 15 phút.',",
+                  "        rows, email ? email.html : '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{manualApplicationId}}/stage?dryRun=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{manualApplicationId}}",
+                "stage"
+              ],
+              "query": [
+                {
+                  "key": "dryRun",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stage\": \"dang_xem_xet\",\n  \"reason\": \"Ghi chú lý do (không bắt buộc)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sửa body rồi Send. Server kiểm tra như khi gửi thật nhưng không lưu gì, không gửi gì; tab Visualize hiện người nhận và bản xem trước email."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 2 - Gửi thật (đúng dữ liệu đã kiểm tra)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const checked = pm.environment.get('manualStageBody');",
+                  "const at = Number(pm.environment.get('manualStageAt') || 0);",
+                  "if (!checked) {",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": chưa có dữ liệu kiểm tra đạt. Chạy \"Bước 1 - Kiểm tra trước\" và sửa đến khi đạt.');",
+                  "    pm.execution.skipRequest();",
+                  "} else if (Date.now() - at > 15 * 60000) {",
+                  "    pm.environment.unset('manualStageBody');",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": kết quả kiểm tra đã quá 15 phút. Chạy lại \"Bước 1 - Kiểm tra trước\".');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const body = pm.response.json();",
+                  "if (body.emailQueued !== undefined) pm.test('Đã lưu và xếp email vào hàng đợi gửi', () => pm.expect(body.emailQueued).to.be.true);",
+                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + body.data.stage, () => pm.expect(body.data.stage).to.be.a('string'));",
+                  "pm.test('Hồ sơ đã ở giai đoạn yêu cầu', () => pm.expect(pm.response.json().data.stage).to.eql(JSON.parse(pm.variables.replaceIn(pm.request.body.raw)).stage));",
+                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
+                  "pm.environment.unset('manualStageBody');",
+                  "pm.environment.unset('manualStageAt');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications/{{manualStageAppId}}/stage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{manualStageAppId}}",
+                "stage"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{manualStageBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualStageBody, manualStageAppId). Không sửa body ở đây."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Goi y ngay theo gio Viet Nam; co the thay bang ngay cu the trong body (YYYY-MM-DD).",
+              "const vnDate = (days) => new Date(Date.now() + days * 86400000 + 7 * 3600000).toISOString().slice(0, 10);",
+              "pm.environment.set('suggestedInterviewDate', vnDate(7));",
+              "pm.environment.set('suggestedConfirmBy', vnDate(5) + 'T17:00');",
+              "pm.environment.set('suggestedStartDate', vnDate(21));",
+              "pm.environment.set('suggestedResponseDeadline', vnDate(14) + 'T17:00');"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -33,6 +33,111 @@ const interviewHistory = async (client, app) => {
     };
 };
 
+// Payload su kien dung chung cho lam that va kiem tra truoc (dryRun): email xem truoc duoc
+// dung tu dung du lieu ma outbox se gui.
+const applicantFields = (app) => ({
+    applicationId: app.id,
+    candidateId: app.candidate_id,
+    candidateEmail: app.candidate_email,
+    candidateName: app.candidate_name,
+    jobId: app.job_id,
+    jobTitle: app.job_title
+});
+const stageChangedPayload = (app, { fromStage, toStage, reason, history }) => ({
+    ...applicantFields(app),
+    fromStage,
+    toStage,
+    reason: reason || null,
+    ...(history ? { interviewed: history.interviewed } : {}),
+    ...(history?.interview ? { companyName: history.interview.companyName } : {})
+});
+const decisionPayload = (app, { decision, message, offer, history, interviewed, fromStage, toStage }) => ({
+    ...applicantFields(app),
+    companyId: app.company_id,
+    ...(offer ? { companyName: offer.companyName } : {}),
+    ...(history?.interview ? { companyName: history.interview.companyName, interview: history.interview } : {}),
+    decision,
+    message: message || null,
+    ...(offer ? { offer } : {}),
+    ...(history ? { interviewed } : {}),
+    fromStage,
+    toStage
+});
+const interviewPayload = (app, { interview, message, fromStage }) => ({
+    ...applicantFields(app),
+    companyId: app.company_id,
+    companyName: interview.companyName,
+    message: message || null,
+    interview,
+    fromStage,
+    toStage: 'phong_van'
+});
+
+// Ket qua tuyen dung: buoc dich va lich su phong van (de cam on ung vien da tham gia).
+const planDecision = async (client, app, { decision, interviewedInput }) => {
+    const history = decision === 'rejected' ? await interviewHistory(client, app) : null;
+    const interviewed = history && (typeof interviewedInput === 'boolean' ? interviewedInput : history.interviewed);
+    // An invitation awaits a reply; sending again must not undo a confirmed hire.
+    const stage = decision === 'accepted' && app.stage === 'nhan_viec' ? 'nhan_viec' : { accepted: 'de_nghi', rejected: 'tu_choi' }[decision];
+    return { history, interviewed, stage, changed: app.stage !== stage };
+};
+
+// ===== KIEM TRA TRUOC (?dryRun=true) =====
+// Chay dung cac buoc kiem tra du lieu, quyen va trang thai ho so nhu khi lam that, nhung
+// khong khoa/ghi CSDL, khong tao outbox. Notification Service dung ban xem truoc email
+// bang dung mau va quy tac nguoi nhan cua luong gui that.
+const isDryRun = (req) => req.query?.dryRun === 'true';
+
+const previewNotification = async (req, eventType, payload) => {
+    try {
+        const response = await fetch(`${process.env.NOTIFICATION_URL || 'http://notification-service:4005'}/internal/email-preview`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-internal-secret': process.env.INTERNAL_SECRET || '',
+                ...(req.correlationId ? { 'x-correlation-id': req.correlationId } : {})
+            },
+            body: JSON.stringify({ eventType, payload }),
+            signal: AbortSignal.timeout(3000)
+        });
+        const body = await response.json();
+        if (!response.ok || body.errCode !== 0) return { previewError: body.errMessage || 'Không lấy được bản xem trước email' };
+        return body.data;
+    } catch {
+        return { previewError: 'Không kết nối được Notification Service để xem trước email' };
+    }
+};
+
+const dryRunResult = async (req, res, { app, eventType, payload, fromStage, toStage, note }) => res.json({
+    errCode: 0,
+    dryRun: true,
+    emailQueued: false,
+    errMessage: note || 'Kiểm tra đạt: chưa lưu thay đổi và chưa gửi email',
+    data: app,
+    preview: {
+        fromStage,
+        toStage,
+        eventType: eventType || null,
+        event: payload || null,
+        ...(eventType ? await previewNotification(req, eventType, payload) : { inApp: null, email: null })
+    }
+});
+
+// Doc ho so de kiem tra truoc: khong khoa, cung thong bao loi voi lam that.
+const loadForDryRun = async (req, res, { notFound, denied }) => {
+    const { roleCode, companyId } = identity(req);
+    const { rows } = await pool.query('SELECT * FROM applications WHERE id = $1', [req.params.id]);
+    if (!rows.length) {
+        res.status(404).json({ errCode: 2, errMessage: notFound });
+        return null;
+    }
+    if (roleCode !== 'ADMIN' && rows[0].company_id !== companyId) {
+        forbidden(res, denied);
+        return null;
+    }
+    return rows[0];
+};
+
 // Nha tuyen dung chi thay ho so ung tuyen vao tin cua chinh cong ty minh. Dieu kien
 // nay duoc gan vao MOI truy van thay vi kiem tra rieng le - quen mot cho la lo ca kho
 // ho so sang cong ty khac.
@@ -169,6 +274,23 @@ export const moveStage = async (req, res) => {
         });
     }
 
+    if (isDryRun(req)) {
+        try {
+            const app = await loadForDryRun(req, res, { notFound: 'Không tìm thấy hồ sơ', denied: 'Bạn không có quyền chuyển trạng thái hồ sơ này' });
+            if (!app) return res;
+            if (app.stage === stage) {
+                return dryRunResult(req, res, { app, fromStage: app.stage, toStage: stage,
+                    note: 'Hồ sơ đã ở giai đoạn này: lưu thật cũng không thay đổi gì và không gửi thông báo' });
+            }
+            const history = stage === 'tu_choi' ? await interviewHistory(pool, app) : null;
+            const payload = stageChangedPayload(app, { fromStage: app.stage, toStage: stage, reason, history });
+            return dryRunResult(req, res, { app, eventType: EVENTS.APPLICATION_STAGE_CHANGED, payload, fromStage: app.stage, toStage: stage });
+        } catch (error) {
+            logger.error('kiem tra truoc chuyen trang thai that bai', { error: error.message });
+            return res.status(500).json({ errCode: -1, errMessage: 'Không kiểm tra được thao tác chuyển trạng thái' });
+        }
+    }
+
     try {
         const result = await withTransaction(async (client) => {
             const { rows } = await client.query('SELECT * FROM applications WHERE id = $1 FOR UPDATE', [req.params.id]);
@@ -200,19 +322,7 @@ export const moveStage = async (req, res) => {
                 aggregateId: app.id,
                 eventType: EVENTS.APPLICATION_STAGE_CHANGED,
                 correlationId: req.headers['x-correlation-id'] || req.correlationId || null,
-                payload: {
-                    applicationId: changedApp.id,
-                    candidateId: changedApp.candidate_id,
-                    candidateEmail: changedApp.candidate_email,
-                    candidateName: changedApp.candidate_name,
-                    jobId: changedApp.job_id,
-                    jobTitle: changedApp.job_title,
-                    fromStage: app.stage,
-                    toStage: stage,
-                    reason: reason || null,
-                    ...(history ? { interviewed: history.interviewed } : {}),
-                    ...(history?.interview ? { companyName: history.interview.companyName } : {})
-                }
+                payload: stageChangedPayload(changedApp, { fromStage: app.stage, toStage: stage, reason, history })
             });
             return { app: changedApp, from: app.stage };
         });
@@ -237,11 +347,9 @@ export const moveStage = async (req, res) => {
 export const sendDecisionNotification = async (req, res) => {
     const { userId, roleCode, companyId } = identity(req);
     const { decision, message, offer: offerInput, interviewed: interviewedInput } = req.body || {};
-    const stageByDecision = { accepted: 'de_nghi', rejected: 'tu_choi' };
-    const requestedStage = stageByDecision[decision];
     const candidateMessage = String(message || '').trim().slice(0, 3000);
 
-    if (!Object.hasOwn(stageByDecision, decision)) {
+    if (!['accepted', 'rejected'].includes(decision)) {
         return res.status(400).json({
             errCode: 1,
             errMessage: 'Kết quả không hợp lệ. Chỉ nhận accepted hoặc rejected'
@@ -251,6 +359,20 @@ export const sendDecisionNotification = async (req, res) => {
     const validated = decision === 'accepted' ? validateOffer(offerInput) : {};
     if (validated.error) return res.status(400).json({ errCode: 1, errMessage: validated.error });
     const snapshot = { decision, message: candidateMessage || null, ...(validated.offer ? { offer: validated.offer } : {}) };
+
+    if (isDryRun(req)) {
+        try {
+            const app = await loadForDryRun(req, res, { notFound: 'Không tìm thấy hồ sơ ứng tuyển', denied: 'Bạn không có quyền gửi kết quả cho hồ sơ này' });
+            if (!app) return res;
+            const { history, interviewed, stage, changed } = await planDecision(pool, app, { decision, interviewedInput });
+            const payload = decisionPayload(app, { decision, message: candidateMessage, offer: validated.offer, history, interviewed,
+                fromStage: changed ? app.stage : null, toStage: stage });
+            return dryRunResult(req, res, { app, eventType: EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED, payload, fromStage: app.stage, toStage: stage });
+        } catch (error) {
+            logger.error('kiem tra truoc ket qua tuyen dung that bai', { error: error.message });
+            return res.status(500).json({ errCode: -1, errMessage: 'Không kiểm tra được email kết quả' });
+        }
+    }
 
     try {
         const result = await withTransaction(async (client) => {
@@ -264,12 +386,7 @@ export const sendDecisionNotification = async (req, res) => {
 
             // Nha tuyen dung co the xac nhan ung vien chua den phong van (khong cam on
             // "da tham gia"); mac dinh theo lich su ho so.
-            const history = decision === 'rejected' ? await interviewHistory(client, app) : null;
-            const interviewed = history && (typeof interviewedInput === 'boolean' ? interviewedInput : history.interviewed);
-
-            // An invitation awaits a reply; sending again must not undo a confirmed hire.
-            const stage = decision === 'accepted' && app.stage === 'nhan_viec' ? 'nhan_viec' : requestedStage;
-            const changed = app.stage !== stage;
+            const { history, interviewed, stage, changed } = await planDecision(client, app, { decision, interviewedInput });
             let updated = app;
             if (changed) {
                 const { rows: changedRows } = await client.query(
@@ -305,23 +422,8 @@ export const sendDecisionNotification = async (req, res) => {
                 aggregateId: app.id,
                 eventType: EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED,
                 correlationId: req.headers['x-correlation-id'] || req.correlationId || null,
-                payload: {
-                    applicationId: updated.id,
-                    candidateId: updated.candidate_id,
-                    candidateEmail: updated.candidate_email,
-                    candidateName: updated.candidate_name,
-                    jobId: updated.job_id,
-                    jobTitle: updated.job_title,
-                    companyId: updated.company_id,
-                    ...(validated.offer ? { companyName: validated.offer.companyName } : {}),
-                    ...(history?.interview ? { companyName: history.interview.companyName, interview: history.interview } : {}),
-                    decision,
-                    message: candidateMessage || null,
-                    ...(validated.offer ? { offer: validated.offer } : {}),
-                    ...(history ? { interviewed } : {}),
-                    fromStage: from,
-                    toStage: stage
-                }
+                payload: decisionPayload(updated, { decision, message: candidateMessage, offer: validated.offer, history, interviewed,
+                    fromStage: from, toStage: stage })
             });
             return { app: updated, from, changed };
         });
@@ -350,6 +452,21 @@ export const sendInterviewInvitation = async (req, res) => {
     if (validated.error) return res.status(400).json({ errCode: 1, errMessage: validated.error });
     const { interview } = validated;
     const snapshot = { decision: 'interview', message: candidateMessage || null, interview };
+
+    if (isDryRun(req)) {
+        try {
+            const app = await loadForDryRun(req, res, { notFound: 'Không tìm thấy hồ sơ ứng tuyển', denied: 'Bạn không có quyền gửi thư mời cho hồ sơ này' });
+            if (!app) return res;
+            if (app.stage === 'nhan_viec') {
+                return res.status(409).json({ errCode: 4, errMessage: 'Ứng viên đã nhận việc; không gửi thư mời phỏng vấn cho hồ sơ này' });
+            }
+            const payload = interviewPayload(app, { interview, message: candidateMessage, fromStage: app.stage !== 'phong_van' ? app.stage : null });
+            return dryRunResult(req, res, { app, eventType: EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED, payload, fromStage: app.stage, toStage: 'phong_van' });
+        } catch (error) {
+            logger.error('kiem tra truoc thu moi phong van that bai', { error: error.message });
+            return res.status(500).json({ errCode: -1, errMessage: 'Không kiểm tra được thư mời phỏng vấn' });
+        }
+    }
 
     try {
         const result = await withTransaction(async (client) => {
@@ -395,20 +512,7 @@ export const sendInterviewInvitation = async (req, res) => {
                 aggregateId: app.id,
                 eventType: EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED,
                 correlationId: req.headers['x-correlation-id'] || req.correlationId || null,
-                payload: {
-                    applicationId: updated.id,
-                    candidateId: updated.candidate_id,
-                    candidateEmail: updated.candidate_email,
-                    candidateName: updated.candidate_name,
-                    jobId: updated.job_id,
-                    jobTitle: updated.job_title,
-                    companyId: updated.company_id,
-                    companyName: interview.companyName,
-                    message: candidateMessage || null,
-                    interview,
-                    fromStage: from,
-                    toStage: 'phong_van'
-                }
+                payload: interviewPayload(updated, { interview, message: candidateMessage, fromStage: from })
             });
             return { app: updated, changed };
         });

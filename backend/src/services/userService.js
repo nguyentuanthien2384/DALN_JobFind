@@ -134,6 +134,36 @@ export const createRegisteredAccount = async (data, { transaction, allowedRoles 
         return user;
     }, transaction);
 };
+// Kiem tra truoc (?dryRun=true): cung quy tac vai tro, du lieu va trung SDT/email nhu khi tao
+// that, nhung khong tai anh len, khong ghi CSDL, khong gui email mat khau. Doc khong khoa: tai
+// khoan co the bi nguoi khac tao giua luc kiem tra va luc tao that (khi do tao that van bao trung).
+const checkRegistration = async (data, { companyId, generatedPassword }) => {
+    const email = normalizeEmail(data.email);
+    const phonenumber = data.phonenumber.trim();
+    if (await db.Account.findOne({ where: { phonenumber }, attributes: ['id'], raw: true })) {
+        return { errCode: 1, errMessage: 'Số điện thoại đã tồn tại !', fieldErrors: { phonenumber: 'Số điện thoại đã tồn tại !' } };
+    }
+    const sameEmail = await db.User.findAll({ where: emailCondition(email), attributes: ['id'], limit: 1, raw: true });
+    if (sameEmail.length) {
+        const message = 'Email này đã được sử dụng. Hãy đăng nhập hoặc dùng email khác.';
+        return { errCode: 4, errMessage: message, fieldErrors: { email: message } };
+    }
+    return {
+        errCode: 0,
+        dryRun: true,
+        message: 'Dữ liệu hợp lệ: có thể tạo tài khoản này (chưa tạo)',
+        preview: {
+            roleCode: data.roleCode,
+            phonenumber,
+            email,
+            firstName: data.firstName.trim(),
+            lastName: data.lastName.trim(),
+            companyId,
+            passwordEmail: generatedPassword ? `Hệ thống sẽ gửi mật khẩu tạm tới ${email}` : null
+        }
+    };
+};
+
 let handleCreateNewUser = async (input = {}) => {
     const data = { ...input };
     let allowedRoles = [];
@@ -151,6 +181,7 @@ let handleCreateNewUser = async (input = {}) => {
     try {
         const errors = validateRegistration(data);
         if (Object.keys(errors).length) return { errCode: errors.email ? 4 : 2, errMessage: Object.values(errors)[0], fieldErrors: errors };
+        if (data.dryRun) return checkRegistration(data, { companyId, generatedPassword });
         let imageUrl = '';
         if (data.image) {
             const uploaded = await cloudinary.uploader.upload(data.image, { upload_preset: 'dev_setups' });
@@ -643,13 +674,13 @@ let setDataUserSetting = (data) => {
                         raw: false,
                     })
                     if (userSetting) {
-                        userSetting.salaryJobCode = data.data.salaryJobCode
-                        userSetting.categoryJobCode = data.data.categoryJobCode
-                        userSetting.addressCode = data.data.addressCode
-                        userSetting.experienceJobCode = data.data.experienceJobCode
-                        userSetting.isTakeMail = data.data.isTakeMail
-                        userSetting.isFindJob = data.data.isFindJob 
-                        userSetting.file = data.data.file
+                        // Truong khong gui len thi giu gia tri cu. Gan undefined lam Sequelize
+                        // danh dau "da doi" nhung bo khoi cau UPDATE: neu do la thay doi duy
+                        // nhat, MySQL nhan cau lenh rong ("Query was empty") va API bao loi.
+                        for (const field of ['salaryJobCode', 'categoryJobCode', 'addressCode',
+                            'experienceJobCode', 'isTakeMail', 'isFindJob', 'file']) {
+                            if (data.data[field] !== undefined) userSetting[field] = data.data[field]
+                        }
                         await userSetting.save()
                     }
                     else {

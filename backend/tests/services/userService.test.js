@@ -110,6 +110,36 @@ describe('userService', () => {
     expect(fs.existsSync(path.join(people, 'demo-candidate-073.jpg'))).toBe(false);
   });
 
+  test('dry-run registration applies every check without uploading, writing or emailing', async () => {
+    mockDb.Account.findOne.mockResolvedValue(null);
+    const result = await service.handleCreateNewUser(validUser({ dryRun: true, image: 'data', email: '  An@Candidate.VN ' }));
+    expect(result).toEqual({
+      errCode: 0, dryRun: true, message: 'Dữ liệu hợp lệ: có thể tạo tài khoản này (chưa tạo)',
+      preview: { roleCode: 'CANDIDATE', phonenumber: '0901234567', email: 'an@candidate.vn', firstName: 'An', lastName: 'Nguyen', companyId: null, passwordEmail: null }
+    });
+    expect(mockDb.Account.findOne).toHaveBeenCalledWith(expect.objectContaining({ where: { phonenumber: '0901234567' } }));
+    for (const fn of [mockUpload, mockDb.User.create, mockDb.Account.create, mockDb.sequelize.transaction, mockSendMail]) expect(fn).not.toHaveBeenCalled();
+  });
+
+  test('dry-run registration reports the same field errors, duplicates and role rules as a real one', async () => {
+    expect((await service.handleCreateNewUser(validUser({ dryRun: true, roleCode: 'ADMIN' }))).errCode).toBe(3);
+    const invalid = await service.handleCreateNewUser(validUser({ dryRun: true, phonenumber: '12', password: '1' }));
+    expect(invalid).toMatchObject({ errCode: 2, fieldErrors: { phonenumber: 'Số điện thoại phải gồm 10 chữ số', password: 'Mật khẩu phải có ít nhất 8 ký tự' } });
+    mockDb.Account.findOne.mockResolvedValueOnce({ id: 1 });
+    expect(await service.handleCreateNewUser(validUser({ dryRun: true })))
+      .toMatchObject({ errCode: 1, fieldErrors: { phonenumber: 'Số điện thoại đã tồn tại !' } });
+    mockDb.Account.findOne.mockResolvedValueOnce(null);
+    mockDb.User.findAll.mockResolvedValueOnce([{ id: 4 }]);
+    expect(await service.handleCreateNewUser(validUser({ dryRun: true })))
+      .toMatchObject({ errCode: 4, fieldErrors: { email: 'Email này đã được sử dụng. Hãy đăng nhập hoặc dùng email khác.' } });
+    // A company owner adding staff learns that a temporary password will be emailed.
+    mockDb.Account.findOne.mockResolvedValueOnce(null);
+    expect((await service.handleCreateNewUser(validUser({ dryRun: true, creatorRoleCode: 'COMPANY', creatorCompanyId: 12, roleCode: 'EMPLOYER', password: undefined }))).preview)
+      .toMatchObject({ companyId: 12, passwordEmail: 'Hệ thống sẽ gửi mật khẩu tạm tới an@candidate.vn' });
+    expect(mockDb.User.create).not.toHaveBeenCalled();
+    expect(mockSendMail).not.toHaveBeenCalled();
+  });
+
   test('public registration cannot inject a company tenant id', async () => {
     mockDb.Account.findOne.mockResolvedValue(null);
     mockDb.User.create.mockResolvedValue({ id: 9 });
@@ -396,6 +426,18 @@ describe('userService', () => {
     mockDb.UserSetting.findOne.mockResolvedValueOnce(null);
     await service.setDataUserSetting({ id: 7, data: { salaryJobCode: 'S', isTakeMail: 1 } });
     expect(mockDb.UserSetting.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, isTakeMail: 1 }));
+  });
+
+  test('updating settings keeps omitted fields instead of assigning undefined', async () => {
+    // Assigning undefined marks a Sequelize field as changed but drops it from the
+    // UPDATE; when nothing else changed MySQL rejected the empty statement.
+    const setting = { salaryJobCode: 'old', file: 'cv', isFindJob: 1, save: jest.fn() };
+    mockDb.User.findOne.mockResolvedValueOnce({ id: 7 });
+    mockDb.UserSetting.findOne.mockResolvedValueOnce(setting);
+    expect((await service.setDataUserSetting({ id: 7, data: { categoryJobCode: 'it', isFindJob: 0 } })).errCode).toBe(0);
+    expect(setting).toEqual(expect.objectContaining({ salaryJobCode: 'old', file: 'cv', categoryJobCode: 'it', isFindJob: 0 }));
+    expect(Object.keys(setting)).not.toContain('addressCode');
+    expect(setting.save).toHaveBeenCalledTimes(1);
   });
 
   test('unexpected persistence failures reject each major workflow', async () => {

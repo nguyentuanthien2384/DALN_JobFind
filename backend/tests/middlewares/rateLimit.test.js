@@ -174,6 +174,7 @@ describe('configured limiter policies', () => {
     ['refreshLimiter', 10, 15 * 60, 'Bạn đã đăng nhập sai quá nhiều lần, vui lòng thử lại sau ít phút'],
     ['otpLimiter', 5, 15 * 60, 'Bạn đã yêu cầu mã xác thực quá nhiều lần, vui lòng thử lại sau ít phút'],
     ['registerLimiter', 10, 60 * 60, 'Bạn đã tạo quá nhiều tài khoản, vui lòng thử lại sau'],
+    ['registerCheckLimiter', 30, 15 * 60, 'Bạn kiểm tra đăng ký quá nhiều lần, vui lòng thử lại sau ít phút'],
     ['ssoLimiter', 30, 15 * 60, 'Bạn đã thử xác thực SSO quá nhiều lần. Vui lòng thử lại sau ít phút'],
     ['phoneCheckLimiter', 30, 15 * 60, 'Bạn thao tác quá nhanh, vui lòng thử lại sau ít phút'],
     ['supportChatLimiter', 8, 60, 'Bạn đã gửi quá nhiều câu hỏi. Vui lòng thử lại sau một phút.'],
@@ -203,6 +204,14 @@ describe('configured limiter policies', () => {
       }
       expect(blocked).not.toBeNull();
     });
+
+  test('registration dry runs use their own budget and never spend the account-creation one', () => {
+    const req = (dryRun) => ({ path: '/api/create-new-user', ip: '10.2.2.6', headers: {}, query: dryRun ? { dryRun: 'true' } : {} });
+    for (let i = 0; i < 10; i += 1) invokeRaw(limiters.registrationLimiter, req(false)).res.json({ errCode: 0 });
+    expect(invokeRaw(limiters.registrationLimiter, req(false)).res.status).toHaveBeenCalledWith(429);
+    for (let i = 0; i < 30; i += 1) expect(invokeRaw(limiters.registrationLimiter, req(true)).next).toHaveBeenCalled();
+    expect(invokeRaw(limiters.registrationLimiter, req(true)).res.status).toHaveBeenCalledWith(429);
+  });
 
   test('a successful session refresh is not counted against the refresh budget', () => {
     const req = { path: '/policy/refresh-success', ip: '10.2.2.5' };

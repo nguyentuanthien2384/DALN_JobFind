@@ -10071,6 +10071,18 @@
             }
           },
           {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
             "name": "X-Correlation-ID",
             "in": "header",
             "required": false,
@@ -10292,6 +10304,18 @@
             }
           },
           {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
             "name": "X-Correlation-ID",
             "in": "header",
             "required": false,
@@ -10510,6 +10534,18 @@
               "type": "string",
               "pattern": "^[1-9][0-9]{0,15}$",
               "format": "jobfind-id"
+            }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
             }
           },
           {

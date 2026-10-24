@@ -24,7 +24,8 @@ export default defineConfig({
                 '*/src/libs/*.js',
                 '*/src/middlewares/*.js',
                 '*/src/models/*.js',
-                'notification-service/src/templates.js'
+                'notification-service/src/templates.js',
+                'notification-service/src/emailPreview.js'
             ],
             exclude: ['**/node_modules/**'],
             thresholds: {

@@ -10,6 +10,8 @@ const jobParams = object({ id: idString }, ['id']);
 const cvParams = object({ cvId: mongoId }, ['cvId']);
 const company = { companyRequired: true };
 const calendarDates = { from: { type: 'string', format: 'date' }, to: { type: 'string', format: 'date' } };
+// ?dryRun=true: same checks and email preview, nothing is saved or queued.
+const dryRun = object({ dryRun: { type: 'string', enum: ['true', 'false'] } });
 export const operations = [
     op('supportTurn', 'support', 'post', '/support/turn', null, { body: 'SupportTurn', stream: true }),
     op('supportKnowledge', 'support', 'get', '/support/knowledge', null, { list: true }),
@@ -61,9 +63,9 @@ export const operations = [
     op('applicationInterviews', 'applications', 'get', '/applications/interviews', P.APPLICATION_MANAGE, { query: object({ ...calendarDates, jobId: idString }), response: 'InterviewCalendarEntry', list: true, ...company }),
     op('applicationList', 'applications', 'get', '/applications', P.APPLICATION_MANAGE, { query: schemas.ApplicationQuery, response: 'Application', list: true, ...company }),
     op('applicationGet', 'applications', 'get', '/applications/:id', P.APPLICATION_MANAGE, { params: jobParams, response: 'Application', ...company }),
-    op('applicationMove', 'applications', 'patch', '/applications/:id/stage', P.APPLICATION_MANAGE, { params: jobParams, body: 'MoveStage', response: 'Application', ...company }),
-    op('applicationDecision', 'applications', 'post', '/applications/:id/decision-notification', P.APPLICATION_MANAGE, { params: jobParams, body: 'Decision', response: 'Application', ...company }),
-    op('applicationInterview', 'applications', 'post', '/applications/:id/interview-invitation', P.APPLICATION_MANAGE, { params: jobParams, body: 'InterviewInvitation', response: 'Application', ...company }),
+    op('applicationMove', 'applications', 'patch', '/applications/:id/stage', P.APPLICATION_MANAGE, { params: jobParams, query: dryRun, body: 'MoveStage', response: 'Application', ...company }),
+    op('applicationDecision', 'applications', 'post', '/applications/:id/decision-notification', P.APPLICATION_MANAGE, { params: jobParams, query: dryRun, body: 'Decision', response: 'Application', ...company }),
+    op('applicationInterview', 'applications', 'post', '/applications/:id/interview-invitation', P.APPLICATION_MANAGE, { params: jobParams, query: dryRun, body: 'InterviewInvitation', response: 'Application', ...company }),
     op('applicationRating', 'applications', 'patch', '/applications/:id/rating', P.APPLICATION_MANAGE, { params: jobParams, body: 'Rating', response: 'Application', ...company }),
     op('applicationNote', 'applications', 'post', '/applications/:id/notes', P.APPLICATION_MANAGE, { params: jobParams, body: 'Note', status: 201, ...company }),
     op('myApplications', 'applications', 'get', '/my-applications', P.APPLICATION_SELF_READ, { list: true }),

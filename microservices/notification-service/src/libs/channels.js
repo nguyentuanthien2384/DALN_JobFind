@@ -134,29 +134,45 @@ const getTransporter = () => {
     return transporter;
 };
 
-export const sendEmail = async ({ to, subject, html, text, messageId, replyTo }) => {
+// Quyet dinh ai nhan, tieu de thuc te va ly do bo qua (neu co) cua mot email. Dung chung
+// cho gui that va xem truoc, nen ban xem truoc noi dung cua dung dia chi se nhan thu.
+export const planEmail = ({ to, subject, replyTo }) => {
     const recipient = resolveEmailRecipient(to);
     const safeSubject = String(subject ?? '')
         .replace(/[\u0000-\u001f\u007f]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 200);
-    if (recipient.skipped) {
-        logger.warn('bo qua gui email vi dia chi nhan khong an toan', {
-            to: normalizeEmailRecipient(to), subject: safeSubject, reason: recipient.reason
-        });
-        return recipient;
-    }
+    if (recipient.skipped) return { ...recipient, subject: safeSubject };
     // Reject mailbox lists, control characters and display-name/header injection.
     if (replyTo != null && !isValidEmailRecipient(replyTo)) {
-        return { skipped: true, reason: EMAIL_SKIP_REASONS.INVALID_REPLY_TO };
+        return { skipped: true, reason: EMAIL_SKIP_REASONS.INVALID_REPLY_TO, subject: safeSubject };
     }
-    if (!emailConfigured()) {
-        logger.debug('bo qua gui email vi chua cau hinh EMAIL_APP', { to: recipient.to, subject: safeSubject });
-        return { skipped: true, reason: EMAIL_SKIP_REASONS.NOT_CONFIGURED };
-    }
+    const plan = {
+        to: recipient.to,
+        demo: recipient.demo,
+        ...(recipient.originalTo ? { originalTo: recipient.originalTo } : {}),
+        subject: recipient.demo ? `[DEMO] ${safeSubject}` : safeSubject,
+        ...(replyTo ? { replyTo: normalizeEmailRecipient(replyTo) } : {})
+    };
+    if (!emailConfigured()) return { ...plan, skipped: true, reason: EMAIL_SKIP_REASONS.NOT_CONFIGURED };
+    return plan;
+};
 
-    const outgoingSubject = recipient.demo ? `[DEMO] ${safeSubject}` : safeSubject;
+export const sendEmail = async ({ to, subject, html, text, messageId, replyTo }) => {
+    const plan = planEmail({ to, subject, replyTo });
+    if (plan.skipped) {
+        if (plan.reason === EMAIL_SKIP_REASONS.NOT_CONFIGURED) {
+            logger.debug('bo qua gui email vi chua cau hinh EMAIL_APP', { to: plan.to, subject: plan.subject });
+        } else if (plan.reason !== EMAIL_SKIP_REASONS.INVALID_REPLY_TO) {
+            logger.warn('bo qua gui email vi dia chi nhan khong an toan', {
+                to: normalizeEmailRecipient(to), subject: plan.subject, reason: plan.reason
+            });
+        }
+        return { skipped: true, reason: plan.reason };
+    }
+    const recipient = plan;
+    const outgoingSubject = plan.subject;
 
     try {
         const mail = {

@@ -11,6 +11,7 @@ const mockLoginLimiter = jest.fn();
 const mockRefreshLimiter = jest.fn();
 const mockOtpLimiter = jest.fn();
 const mockRegisterLimiter = jest.fn();
+const mockRegistrationLimiter = jest.fn();
 const mockPhoneLimiter = jest.fn();
 const mockAuthorize = jest.fn((permission) => {
   const middleware = jest.fn();
@@ -42,7 +43,7 @@ jest.mock('../../src/middlewares/authorize', () => ({
 }));
 jest.mock('../../src/middlewares/rateLimit', () => ({
   loginLimiter: mockLoginLimiter, refreshLimiter: mockRefreshLimiter, otpLimiter: mockOtpLimiter,
-  registerLimiter: mockRegisterLimiter, phoneCheckLimiter: mockPhoneLimiter, supportChatLimiter: jest.fn()
+  registerLimiter: mockRegisterLimiter, registrationLimiter: mockRegistrationLimiter, phoneCheckLimiter: mockPhoneLimiter, supportChatLimiter: jest.fn()
 }));
 jest.mock('../../src/controllers/supportChatController', () => ({ handleSupportChat: jest.fn() }));
 jest.mock('../../src/controllers/supportBridgeController', () => ({ trustedSupport: jest.fn(), publicTool: jest.fn(), deliverHandoff: jest.fn() }));
@@ -95,7 +96,7 @@ describe('web routes', () => {
 
   test('security-sensitive endpoints have their expected middleware', () => {
     const latest = (path) => [...mockRoutes].reverse().find((route) => route.path === path);
-    expect(latest('/api/create-new-user').handlers.slice(0, 2)).toEqual([mockRegisterLimiter, mockVerifyOptional]);
+    expect(latest('/api/create-new-user').handlers.slice(0, 2)).toEqual([mockRegistrationLimiter, mockVerifyOptional]);
     expect(latest('/api/login').handlers[0]).toBe(mockLoginLimiter);
     // Both login paths share one failure budget; session refresh is counted separately.
     expect(latest('/api/auth/login').handlers[0]).toBe(mockLoginLimiter);

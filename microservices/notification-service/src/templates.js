@@ -1,4 +1,5 @@
 import { isValidEmailRecipient } from './libs/emailAddress.js';
+import { EVENTS } from '../../shared/events.js';
 // Design system chung cho email transactional cua Job Finder.
 // Khong dung anh ngoai; bo cuc table va CSS inline giup email hien thi on dinh
 // tren Gmail, Outlook va ung dung mail di dong.
@@ -476,6 +477,40 @@ export const newJobFromFollowedCompanyTemplate = ({ jobTitle, companyName, jobId
         link: jobPath,
         email
     };
+};
+
+// Mot noi chon mau cho su kien ho so ung tuyen. Consumer (gui that) va API xem truoc
+// (che do dryRun cua Application Service) dung chung, nen email xem truoc trung email that.
+export const APPLICATION_EMAIL_EVENTS = Object.freeze([
+    EVENTS.APPLICATION_STAGE_CHANGED,
+    EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED,
+    EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED
+]);
+
+export const applicationEventTemplate = (eventType, payload) => {
+    if (eventType === EVENTS.APPLICATION_STAGE_CHANGED) {
+        return applicationStageTemplate({
+            toStage: payload.toStage,
+            jobTitle: payload.jobTitle,
+            candidateName: payload.candidateName,
+            companyName: payload.companyName,
+            interviewed: payload.interviewed
+        });
+    }
+    if (eventType === EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED) {
+        return applicationDecisionTemplate({
+            decision: payload.decision,
+            jobTitle: payload.jobTitle,
+            candidateName: payload.candidateName,
+            companyName: payload.companyName,
+            message: payload.message,
+            offer: payload.offer,
+            interviewed: payload.interviewed,
+            interview: payload.interview
+        });
+    }
+    if (eventType === EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED) return applicationInterviewTemplate(payload);
+    throw new Error(`Unsupported application event: ${eventType}`);
 };
 
 function renderNotificationEmail({

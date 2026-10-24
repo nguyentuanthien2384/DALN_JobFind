@@ -9,13 +9,8 @@
       "name": "00 - System health",
       "item": [
         {
-          "name": "Gateway status - 6 services",
-          "request": { "method": "GET", "url": "{{baseUrl}}/status" },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Gateway and services are healthy', () => {", "  const body = pm.response.json();", "  pm.expect(body.gateway).to.eql('ok');", "  pm.expect(body.services.every((service) => service.healthy)).to.eql(true);", "});"] } }]
-        },
-        {
           "name": "Socket.IO handshake",
-          "request": { "method": "GET", "url": "{{baseUrl}}/socket.io/?EIO=4&transport=polling" },
+          "request": { "method": "GET", "header": [{"key":"Origin","value":"{{origin}}"}], "url": "{{baseUrl}}/socket.io/?EIO=4&transport=polling" },
           "event": [{ "listen": "test", "script": { "exec": ["pm.test('Socket.IO handshake succeeds', () => {", "  pm.expect(pm.response.code).to.eql(200);", "  pm.expect(pm.response.text()).to.include('sid');", "});"] } }]
         }
       ]
@@ -25,17 +20,17 @@
       "item": [
         {
           "name": "Login - Admin",
-          "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\n  \"phonenumber\": \"{{adminPhone}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{baseUrl}}/api/login" },
+          "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Origin","value":"{{origin}}"}], "body": { "mode": "raw", "raw": "{\n  \"phonenumber\": \"{{adminPhone}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{baseUrl}}/api/login" },
           "event": [{ "listen": "test", "script": { "exec": ["const body = pm.response.json();", "pm.test('Admin login succeeds', () => pm.expect(body.errCode).to.eql(0));", "pm.environment.set('adminToken', body.token);"] } }]
         },
         {
           "name": "Login - Employer",
-          "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\n  \"phonenumber\": \"{{employerPhone}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{baseUrl}}/api/login" },
+          "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Origin","value":"{{origin}}"}], "body": { "mode": "raw", "raw": "{\n  \"phonenumber\": \"{{employerPhone}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{baseUrl}}/api/login" },
           "event": [{ "listen": "test", "script": { "exec": ["const body = pm.response.json();", "pm.test('Employer login succeeds', () => pm.expect(body.errCode).to.eql(0));", "pm.environment.set('employerToken', body.token);"] } }]
         },
         {
           "name": "Login - Candidate",
-          "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"}], "body": { "mode": "raw", "raw": "{\n  \"phonenumber\": \"{{candidatePhone}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{baseUrl}}/api/login" },
+          "request": { "method": "POST", "header": [{"key":"Content-Type","value":"application/json"},{"key":"Origin","value":"{{origin}}"}], "body": { "mode": "raw", "raw": "{\n  \"phonenumber\": \"{{candidatePhone}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{baseUrl}}/api/login" },
           "event": [{ "listen": "test", "script": { "exec": ["const body = pm.response.json();", "pm.test('Candidate login succeeds', () => pm.expect(body.errCode).to.eql(0));", "pm.environment.set('candidateToken', body.token);"] } }]
         }
       ]
@@ -104,6 +99,11 @@
     {
       "name": "05 - Admin data",
       "item": [
+        {
+          "name": "Gateway status - 7 services (ADMIN)",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}], "url": "{{baseUrl}}/status" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Gateway and services are healthy', () => {", "  const body = pm.response.json();", "  pm.expect(body.gateway).to.eql('ok');", "  pm.expect(body.services.every((service) => service.healthy)).to.eql(true);", "});"] } }]
+        },
         {
           "name": "List companies",
           "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{adminToken}}"}], "url": "{{baseUrl}}/api/get-all-company?limit=10&offset=0" }
