@@ -102,6 +102,25 @@
 
     <script src="%PUBLIC_URL%/assetsAdmin/js/Chart.roundedBarCharts.js"></script>
     <!-- End custom js for this page-->
+
+    <!-- Dịch website -->
+    <div class="gtranslate_wrapper"></div>
+    <script>
+        // Dịch website
+        window.gtranslateSettings = {"default_language":"vi","wrapper_selector":".gtranslate_wrapper"}
+        // Hết Dịch website
+        document.querySelectorAll('.gtranslate_wrapper').forEach(function (el) {
+            var origAdd = el.addEventListener;
+            el.addEventListener = function (type, listener, options) {
+                if ((type === 'pointerenter' || type === 'focusin') && typeof listener === 'function') {
+                    return origAdd.call(this, type, function () { return listener.call(this); }, options);
+                }
+                return origAdd.call(this, type, listener, options);
+            };
+        });
+    </script>
+    <script src="https://cdn.gtranslate.net/widgets/latest/float.js" defer></script>
+    <!-- Hết Dịch website -->
 </body>
 
 </html>
