@@ -1,5 +1,7 @@
 # Tiến độ bổ sung theo báo cáo PDF
 
+> Ngày 28/10/2026 đã hoàn thiện cơ chế JWT bất đối xứng ES256 + JWKS tự động (`/.well-known/jwks.json`, `JWT_JWKS_URL`, xoay khóa qua `JWT_PREVIOUS_PUBLIC_KEYS`) bên cạnh refresh token rotation/revocation theo phiên (`AuthSessions` + claim `sid`), bổ sung công cụ chuyển đổi chỉ mục TTL cho `auditlogs.createdAt_1` có cổng kiểm tra hết hạn (`microservices/admin-service/scripts/migrate-audit-retention.mjs`), và hoàn tất kiểm thử trình duyệt thật cho `gtranslate-guard.js` trên trang Chat realtime & Đăng tin (`backend/scripts/test-gtranslate-browser.cjs`).
+>
 > Ngày 24/09/2026 đã bổ sung kiểm thử API key thật cho bốn loại tác vụ AI, chatbot và browser ứng viên; sửa chênh lệch kiểm tra header PDF giữa HTTP/Worker. Xem [biên bản API key/demo](../../docs/api-key-demo-validation.md) để phân biệt provider thật, dữ liệu fixture và những phần chưa nghiệm thu.
 
 Nguồn đối chiếu: “Báo cáo đánh giá chuyên sâu kiến trúc Microservices của dự án JobFind”, đặc biệt roadmap trang 33–35 và checklist trang 50–53. Đây là nhật ký phạm vi triển khai để tiếp tục công việc, không phải chứng nhận đạt production. Môi trường người dùng chọn: máy hiện tại với Docker Compose.
@@ -89,7 +91,7 @@ Nguồn đối chiếu: “Báo cáo đánh giá chuyên sâu kiến trúc Micro
 3. **Migration và lưu giữ dữ liệu:** tách DDL khỏi startup, version/lock migration, bộ test nâng cấp từ schema cũ; volume RabbitMQ có chiến lược phục hồi; backup/restore drill trên bản sao, retention inbox/outbox/AI/PII. Chưa thay đổi dữ liệu/schema/volume thật để đánh dấu những mục này hoàn tất.
 4. **Database-per-service và quyền truy cập:** Gateway còn đọc MySQL legacy; Application còn đối chiếu legacy; Notification còn dùng MySQL chung; Admin còn đọc DB nghiệp vụ. Cần kế hoạch chuyển quyền sở hữu dữ liệu/projection và DB user riêng/read-only, không chỉ sửa sơ đồ hoặc xóa fallback.
 5. **Các publisher legacy/direct còn lại:** Identity, luồng đồng bộ và một số sự kiện legacy chưa có transactional outbox đầy đủ. Gateway audit HTTP còn best-effort. Không thể khẳng định “mọi event đều không mất” từ các luồng đã kiểm thử.
-6. **CV file và bảo mật triển khai:** chuyển dữ liệu file lớn khỏi RabbitMQ sang kho file với quyền/TTL, kiểm tra định dạng và nội dung file; secret không fallback ở môi trường có dữ liệu thật, tài khoản DB/broker riêng tối thiểu quyền. Đăng nhập chưa có refresh/revocation/JWKS; chưa có TLS/mTLS hạ tầng, registry signing/SBOM/container OS scan hoàn chỉnh.
+6. **CV file và bảo mật triển khai:** chuyển dữ liệu file lớn khỏi RabbitMQ sang kho file với quyền/TTL, kiểm tra định dạng và nội dung file; secret không fallback ở môi trường có dữ liệu thật, tài khoản DB/broker riêng tối thiểu quyền. Đã có refresh token rotation/reuse detection, thu hồi phiên tức thời qua `sid`/`AuthSessions` và ký ES256 + JWKS tự động (`/.well-known/jwks.json`, `JWT_JWKS_URL`, xoay khóa không gián đoạn); chưa có TLS/mTLS nội bộ hạ tầng, registry signing/SBOM/container OS scan hoàn chỉnh.
 7. **Nghiệm thu toàn hệ thống:** E2E các vai trò trên stack mới, kiểm thử dependency restart/drain dưới tải, p95/p99, kế hoạch capacity, RPO/RTO phục hồi đo được, service owner và SLO/error budget được người vận hành chấp thuận. Unit/integration pass không tương đương đạt những mục này.
 
 ## Không áp dụng cho mục tiêu local hiện tại

@@ -20,6 +20,8 @@ test('renders message text verbatim including line breaks and without interpreti
     const { container } = render(<ChatMessageContent message={{ content }} onPreview={jest.fn()} />);
     expect(container.querySelector('.chat-message-text').textContent).toBe(content);
     expect(container.querySelector('.chat-message-text')).toHaveClass('chat-message-text');
+    // GTranslate must neither rewrite nor hide what the other person wrote.
+    expect(container.querySelector('.chat-message-text')).toHaveAttribute('translate', 'no');
     expect(container.querySelector('img')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Xem PDF' })).not.toBeInTheDocument();
 });

@@ -42,7 +42,8 @@ export const ChatFileCard = ({ attachment, onPreview }) => <div className="chat-
 </div>;
 
 const ChatMessageContent = ({ message, onPreview }) => <div className="chat-message-content">
-    {message.content && <div className="chat-message-text">{message.content}</div>}
+    {/* User-written text: page translation must not rewrite or hide it. */}
+    {message.content && <div className="chat-message-text" translate="no">{message.content}</div>}
     {message.attachment && <ChatFileCard attachment={message.attachment} onPreview={onPreview} />}
     {message.jobSnapshot && <ChatJobCard job={message.jobSnapshot} />}
 </div>;

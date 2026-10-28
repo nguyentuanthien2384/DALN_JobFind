@@ -1,15 +1,28 @@
 const jwt = require('jsonwebtoken')
 import db from "../models/index";
-import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../utils/securityConfig';
+import { getJwtVerificationKey, getTokenVerifyOptions, hasAccessTokenClaims } from '../utils/securityConfig';
 import { validAccessSession } from '../utils/authAccess';
 require('dotenv').config();
 
 // Xac thuc request toi backend cu (khi Gateway chuyen tiep /api/* xuong day): cung quy
-// tac voi Gateway (microservices/api-gateway/src/middlewares/auth.js) - JWT HS256 kiem
+// tac voi Gateway (microservices/api-gateway/src/middlewares/auth.js) - JWT HS256/ES256 kiem
 // tra issuer/audience/han dung, claim sid phai thuoc phien con hieu luc (validAccessSession),
 // va vai tro/cong ty doc lai tu CSDL thay vi tin claim trong token.
 // Mat khau nguoi dung luu bang bcrypt (bcryptjs, cost 10, co salt ngau nhien) - ham bam
 // cham co chu y de do mat khau tu bang bam ton rat nhieu thoi gian.
+// Moi token chi kiem tra bang mot thuat toan theo header: ES256 -> khoa cong khai theo kid,
+// con lai -> HS256 voi JWT_SECRET. Khong tim duoc khoa thi coi nhu token khong hop le.
+const verifyAccessToken = (token, callback) => {
+    let key
+    let options
+    try {
+        key = getJwtVerificationKey(token)
+        options = getTokenVerifyOptions(token)
+    } catch (error) {
+        return callback(error)
+    }
+    return jwt.verify(token, key, options, callback)
+}
 const isActiveAccount = (user) => (
     user && user.userAccountData && user.userAccountData.statusCode === 'S1'
 )
@@ -41,7 +54,7 @@ const middlewareControllers = {
         const token = req.headers.authorization
         if (token) {
             const accessToken = token.split(' ')[1]
-            jwt.verify(accessToken, getJwtSecret(), getJwtVerifyOptions(), async (err, payload) => {
+            verifyAccessToken(accessToken, async (err, payload) => {
                 if (err || !hasAccessTokenClaims(payload)) {
                     return res.status(401).json({
                         status: false,
@@ -94,7 +107,7 @@ const middlewareControllers = {
         const accessToken = token.split(' ')[1]
         if (!accessToken) return next()
 
-        jwt.verify(accessToken, getJwtSecret(), getJwtVerifyOptions(), async (err, payload) => {
+        verifyAccessToken(accessToken, async (err, payload) => {
             if (err || !hasAccessTokenClaims(payload)) return next()
             try {
                 if (!await validAccessSession(payload)) return next();
@@ -117,7 +130,7 @@ const middlewareControllers = {
         const token = req.headers.authorization
         if (token) {
             const accessToken = token.split(' ')[1]
-            jwt.verify(accessToken, getJwtSecret(), getJwtVerifyOptions(), async (err, payload) => {
+            verifyAccessToken(accessToken, async (err, payload) => {
                 if (err || !hasAccessTokenClaims(payload)) {
                     return res.status(401).json({
                         status: false,

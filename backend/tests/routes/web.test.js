@@ -67,7 +67,7 @@ describe('web routes', () => {
     const uniquePaths = new Set(mockRoutes.map((route) => `${route.method}:${route.path}`));
     expect(uniquePaths.size).toBeGreaterThanOrEqual(80);
     for (const endpoint of [
-      'get:/', 'get:/health',
+      'get:/', 'get:/health', 'get:/.well-known/jwks.json',
       'post:/api/create-new-user', 'post:/api/login', 'put:/api/ban-company',
       'post:/api/create-new-cv', 'put:/api/accept-post', 'post:/api/payment-success',
       'post:/api/toggle-favorite-post', 'post:/api/send-chat-message',
@@ -92,6 +92,11 @@ describe('web routes', () => {
       status: 'ok', service: 'legacy-monolith', time: expect.any(String)
     }));
     expect(Number.isNaN(Date.parse(healthResponse.json.mock.calls[0][0].time))).toBe(false);
+
+    const jwksResponse = createResponse();
+    latest('/.well-known/jwks.json').handlers[0]({}, jwksResponse);
+    expect(jwksResponse.setHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=300');
+    expect(jwksResponse.json).toHaveBeenCalledWith({ keys: [] });
   });
 
   test('security-sensitive endpoints have their expected middleware', () => {

@@ -24,6 +24,7 @@ import { authResponseHeaders } from '../middlewares/authResponseHeaders'
 import { authorize, PERMISSIONS } from '../middlewares/authorize'
 import { loginLimiter, refreshLimiter, ssoLimiter, otpLimiter, registerLimiter, registrationLimiter, phoneCheckLimiter } from '../middlewares/rateLimit'
 import { emitNotification } from '../config/socket'
+import { getJwks } from '../utils/securityConfig'
 let router = express.Router();
 
 // Keep authentication and authorization visibly paired on every private route.
@@ -61,6 +62,13 @@ let initWebRoutes = (app) => {
         service: 'legacy-monolith',
         time: new Date().toISOString()
     }))
+
+    // Public half of the ES256 access-token keys for the API Gateway (JWT_JWKS_URL).
+    // Empty key set while tokens are still HS256.
+    router.get('/.well-known/jwks.json', (req, res) => {
+        res.setHeader('Cache-Control', 'public, max-age=300');
+        return res.json(getJwks());
+    });
 
     router.get('/internal/socket-metrics', (req, res) => {
         const secret = process.env.INTERNAL_SECRET;

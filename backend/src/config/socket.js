@@ -1,7 +1,7 @@
 import { Server } from "socket.io";
 import chatService from "../services/chatService";
 import db from "../models/index";
-import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../utils/securityConfig';
+import { getJwtVerificationKey, getTokenVerifyOptions, hasAccessTokenClaims } from '../utils/securityConfig';
 import { validAccessSession } from '../utils/authAccess';
 const jwt = require('jsonwebtoken');
 const { randomUUID } = require('crypto');
@@ -18,7 +18,8 @@ const getIdentity = (socket) => {
     const raw = socket.handshake.auth?.token;
     if (typeof raw !== 'string' || raw.length > 8192) throw authError('AUTH_INVALID');
     try {
-        const claims = jwt.verify(raw.startsWith('Bearer ') ? raw.slice(7) : raw, getJwtSecret(), getJwtVerifyOptions());
+        const token = raw.startsWith('Bearer ') ? raw.slice(7) : raw;
+        const claims = jwt.verify(token, getJwtVerificationKey(token), getTokenVerifyOptions(token));
         if (!hasAccessTokenClaims(claims)) throw authError('AUTH_INVALID');
         if (claims.exp * 1000 <= Date.now()) throw authError('AUTH_EXPIRED');
         return { userId: Number(claims.sub), authExp: claims.exp, sid: claims.sid || null, claims };

@@ -1,5 +1,5 @@
 import JWT from 'jsonwebtoken'
-import { getJwtSecret, getJwtSignOptions } from './securityConfig';
+import { getJwtSigningKey, getJwtSignOptions } from './securityConfig';
 require('dotenv').config();
 const PDFExtract = require('pdf.js-extract').PDFExtract;
 const pdfExtract = new PDFExtract();
@@ -10,7 +10,7 @@ let encodeToken = (userId, roleCode = null, companyId = null) =>{
         sub: userId,
         roleCode: roleCode,
         companyId: companyId
-    }, getJwtSecret(), getJwtSignOptions())
+    }, getJwtSigningKey(), getJwtSignOptions())
 }
 
 let pdfToString = async(file) => {

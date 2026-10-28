@@ -9,12 +9,12 @@ import { initSocket } from "./config/socket";
 import db from './models/index';
 import { connectSocketRedis, closeSocketRedis } from './config/socketRedis';
 import schedule from 'node-schedule';
-import { assertSecureJwtSecret, getJwtPolicy, parseTrustedProxies } from './utils/securityConfig';
+import { assertJwtConfiguration, parseTrustedProxies } from './utils/securityConfig';
 require('dotenv').config();
 
-// Fail at startup instead of silently accepting a public/default signing key.
-assertSecureJwtSecret(process.env.JWT_SECRET);
-getJwtPolicy();
+// Fail at startup instead of silently accepting a public/default signing key
+// (HS256: strong JWT_SECRET; ES256: valid P-256 JWT_PRIVATE_KEY).
+assertJwtConfiguration();
 
 let app = express();
 // Only the API Gateway address (TRUST_PROXY) may supply the client IP used by rate limits.

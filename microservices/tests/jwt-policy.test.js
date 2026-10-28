@@ -48,4 +48,15 @@ describe('strict access token policy (real cryptography)', () => {
             .split('export const requireEnvironment')[0].trim();
         expect(extract('../shared/securityConfig.js')).toBe(extract('../../backend/src/utils/securityConfig.js'));
     });
+    it('keeps the ES256 key handling identical in backend and gateway', () => {
+        const block = (path) => {
+            const source = readFileSync(new URL(path, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+            const start = source.indexOf('// ===== Khoa ky access token');
+            const end = source.indexOf('export const getTokenVerifyOptions');
+            expect(start).toBeGreaterThan(0);
+            expect(end).toBeGreaterThan(start);
+            return source.slice(start, end);
+        };
+        expect(block('../shared/securityConfig.js')).toBe(block('../../backend/src/utils/securityConfig.js'));
+    });
 });

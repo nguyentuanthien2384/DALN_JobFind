@@ -6,7 +6,8 @@ import {
     isKnownRole,
     ROLES
 } from '../../../shared/accessControl.js';
-import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../../../shared/securityConfig.js';
+import { getTokenVerifyOptions, hasAccessTokenClaims } from '../../../shared/securityConfig.js';
+import { resolveVerificationKey } from '../libs/jwks.js';
 
 // Xac thuc tap trung tai Gateway.
 //
@@ -16,8 +17,9 @@ import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../../.
 // chi nam mot cho, va service ben duoi khong can biet ve JWT.
 //
 // ===== JWT (thu vien jsonwebtoken) =====
-// Access token la JWT ky HMAC-SHA256 (HS256) bang JWT_SECRET dung chung voi backend.
-// jwt.verify kiem tra: chu ky, algorithms chi cho HS256 (chong tan cong "alg: none" /
+// Access token la JWT ky HMAC-SHA256 (HS256) bang JWT_SECRET dung chung voi backend, hoac
+// ECDSA P-256 (ES256) khi backend bat khoa bat doi xung.
+// jwt.verify kiem tra: chu ky, algorithms chi mot thuat toan (chong tan cong "alg: none" /
 // doi thuat toan), issuer + audience (token cua he thong khac khong dung duoc),
 // maxAge = TTL (mac dinh 900s = 15 phut) va clockTolerance 5s cho lech dong ho.
 // Hai lop bao ve them:
@@ -26,16 +28,19 @@ import { getJwtSecret, getJwtVerifyOptions, hasAccessTokenClaims } from '../../.
 //   tac dung ngay, khong phai doi het 15 phut - khac phuc nhuoc diem "JWT khong thu
 //   hoi duoc" cua JWT thuan stateless.
 // - Role/companyId doc lai tu DB moi request, khong tin claim trong token.
-// Vi sao HS256 ma khong RS256? Chi backend va Gateway (cung ha tang) ky/kiem tra token,
-// nen khoa doi xung du dung va don gian; RS256 can khi nhieu ben ngoai can tu kiem tra.
+// HS256 hay ES256? Mac dinh HS256 (JWT_SECRET dung chung). Khi backend dat JWT_PRIVATE_KEY,
+// token duoc ky ES256 va Gateway chi can khoa CONG KHAI (tai tu JWKS cua backend qua
+// JWT_JWKS_URL, xem libs/jwks.js) - lo Gateway cung khong tao duoc token. Moi token chi duoc
+// kiem tra bang dung mot thuat toan theo header (ES256 -> khoa theo kid, con lai -> HS256).
 
-const decodeIdentity = (req) => {
+const decodeIdentity = async (req) => {
     const header = req.headers.authorization;
     if (!header) return null;
     const token = header.startsWith('Bearer ') ? header.slice(7) : header;
     if (!token) return null;
     try {
-        const payload = jwt.verify(token, getJwtSecret(), getJwtVerifyOptions());
+        const key = await resolveVerificationKey(token);
+        const payload = jwt.verify(token, key, getTokenVerifyOptions(token));
         if (!hasAccessTokenClaims(payload)) return null;
         const id = Number(payload.sub ?? payload.id);
         if (!Number.isInteger(id) || id <= 0) return null;
@@ -52,7 +57,7 @@ const authenticate = async (req) => {
     req.user = null;
     req.authFailure = null;
 
-    const identity = decodeIdentity(req);
+    const identity = await decodeIdentity(req);
     if (!identity) {
         req.authFailure = 'invalid';
         return null;

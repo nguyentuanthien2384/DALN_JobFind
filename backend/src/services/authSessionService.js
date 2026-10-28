@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import db from '../models/index';
-import { getJwtSecret, getJwtSignOptions } from '../utils/securityConfig';
+import { getJwtSigningKey, getJwtSignOptions } from '../utils/securityConfig';
 import { Op } from 'sequelize';
 import bcrypt from 'bcryptjs';
 import { recordSecurityEvent } from './authAuditService';
@@ -50,7 +50,7 @@ export const readRefreshCookie = (req) => {
 const validToken = (value) => typeof value === 'string' && /^[A-Za-z0-9_-]{60,128}$/.test(value);
 const signAccess = (user, familyId) => jwt.sign({
   sub: user.id, sid: familyId, roleCode: user.userAccountData.roleCode, companyId: user.companyId || null,
-}, getJwtSecret(), getJwtSignOptions());
+}, getJwtSigningKey(), getJwtSignOptions());
 const accountIncludes = [
   { model: db.Account, as: 'userAccountData', attributes: ['roleCode', 'statusCode'], required: true },
   { model: db.Company, as: 'userCompanyData', attributes: ['id', 'statusCode', 'censorCode'], required: false },

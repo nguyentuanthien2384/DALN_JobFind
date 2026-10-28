@@ -176,6 +176,9 @@ services:
       DB_USER: ${MYSQL_USER:-jobfind}
       DB_PASSWORD: ${MYSQL_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?Dat JWT_SECRET trong deploy/.env}
+      # Tuy chon ES256 (node scripts/generate-jwt-key.cjs). Chi backend giu khoa rieng.
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
+      JWT_PREVIOUS_PUBLIC_KEYS: ${JWT_PREVIOUS_PUBLIC_KEYS:-}
       JWT_ISSUER: ${JWT_ISSUER:-jobfind-auth}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-jobfind-api}
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
@@ -232,6 +235,8 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE:-jobfind-api}
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
       AUTH_ALLOW_LEGACY_TOKENS: "false"
+      # ES256: Gateway kiem tra token bang khoa cong khai backend cong bo (rong khi con HS256).
+      JWT_JWKS_URL: ${JWT_JWKS_URL:-http://backend:5000/.well-known/jwks.json}
       IDENTITY_URL: http://identity-service:4001
       JOB_CORE_URL: http://job-core-service:4002
       SEARCH_URL: http://search-service:4003

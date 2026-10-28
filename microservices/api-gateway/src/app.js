@@ -15,7 +15,7 @@ import { createAuthProxy, authProxyPathGuard } from './middlewares/authProxy.js'
 import { optionalAuth, requireAuth, requireRole, requirePermission } from './middlewares/auth.js';
 import { PERMISSIONS } from '../../shared/accessControl.js';
 import { operations, publicPath } from '../../shared/contracts/operations.js';
-import { assertSecureJwtSecret, getJwtPolicy } from '../../shared/securityConfig.js';
+import { assertGatewayJwtConfiguration, refreshJwks } from './libs/jwks.js';
 import { createRateLimiter, createAiRateLimiter, checkRedis, closeRedis } from './middlewares/rateLimit.js';
 import { auditMiddleware } from './middlewares/audit.js';
 import {
@@ -41,8 +41,10 @@ import {
 // (bo dem rate limit o Redis, phien o MySQL) nen chay duoc nhieu ban sao sau load
 // balancer; service hong thi circuit breaker cat rieng service do.
 const logger = createLogger('api-gateway');
-assertSecureJwtSecret(process.env.JWT_SECRET);
-getJwtPolicy();
+// HS256 can JWT_SECRET manh; ES256 can JWT_JWKS_URL hop le (hoac khoa cong khai tai cho).
+assertGatewayJwtConfiguration();
+// Tai JWKS truoc de request dau tien khong phai cho; that bai thi lan sau tu tai lai.
+refreshJwks();
 const app = express();
 const PORT = Number(process.env.PORT || 4000);
 const allowedOrigins = parseAllowedOrigins(process.env.CORS_ORIGIN);

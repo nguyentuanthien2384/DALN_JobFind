@@ -67,7 +67,8 @@ auditLogSchema.index({ targetType: 1, targetId: 1, createdAt: -1 });
 
 // Nhat ky phinh rat nhanh. Tu xoa ban ghi qua 180 ngay de khong phai don tay -
 // MongoDB co san co che het han theo thoi gian.
-auditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 180 * 24 * 3600 });
+export const AUDIT_RETENTION_SECONDS = 180 * 24 * 3600;
+auditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: AUDIT_RETENTION_SECONDS });
 
 export const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 
@@ -84,8 +85,9 @@ export const ensureAuditIndexes = async () => {
 
     // Older installs created a plain createdAt_1 index. Converting it to TTL
     // during startup would both conflict and begin deleting historical logs.
-    // Preserve it until retention is migrated explicitly; all identity/search
-    // indexes are still required, and their creation errors remain fatal.
+    // Preserve it until retention is migrated explicitly
+    // (scripts/migrate-audit-retention.mjs); all identity/search indexes are
+    // still required, and their creation errors remain fatal.
     const keepsLegacyRetention = existing.some(({ key, expireAfterSeconds }) => (
         key?.createdAt === 1 && Object.keys(key).length === 1 && expireAfterSeconds == null
     ));

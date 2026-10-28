@@ -423,10 +423,11 @@ const ChatPage = () => {
                                         }}
                                     />
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                        <b style={{ fontSize: "14px" }}>
+                                        <b translate="no" style={{ fontSize: "14px" }}>
                                             {getPartnerName(item.partnerData)}
                                         </b>
                                         <div
+                                            translate="no"
                                             style={{
                                                 fontSize: "12px",
                                                 color: "#888",
@@ -501,8 +502,8 @@ const ChatPage = () => {
                                         }}
                                     />
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                        <b>{getPartnerName(partnerData)}</b>
-                                        <div style={{ fontSize: "11px", color: "#999" }}>
+                                        <b translate="no">{getPartnerName(partnerData)}</b>
+                                        <div role="status" style={{ fontSize: "11px", color: "#999" }}>
                                             {partnerTyping ? (
                                                 <span style={{ color: "#fb246a" }}>
                                                     đang soạn tin nhắn...
