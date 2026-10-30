@@ -9,10 +9,11 @@
  *     khi đang chọn ngôn ngữ khác tiếng Việt, và hiện lại ngay khi bản dịch được gắn vào.
  *     Dùng CSS Custom Highlight API nên KHÔNG sửa DOM của trang (sửa DOM sẽ khiến
  *     GTranslate phải dịch lại từ đầu, làm chậm thêm).
- *  2. Khi đổi từ một ngôn ngữ đã dịch sang ngôn ngữ khác (VD: DE -> EN, DE -> VI),
- *     tải lại trang với ngôn ngữ mới thay vì để GTranslate "khôi phục" DOM cũ. Việc
- *     khôi phục có thể đưa lại những đoạn chữ cũ mà React đã cập nhật trong lúc dịch.
- *  3. Tải trước thư viện dịch khi trình duyệt rảnh để lần đổi ngôn ngữ đầu tiên nhanh hơn.
+ *  2. Khi đổi giữa các ngôn ngữ (VD: VI -> SQ, SQ -> AZ, AZ -> VI), chuyển đổi trực tiếp
+ *     ngay tại chỗ mà KHÔNG tải lại trang, giữ nguyên trạng thái ứng dụng và các đoạn chữ
+ *     mà React đã cập nhật.
+ *  3. Tải trước thư viện dịch ngay khi trang sẵn sàng và giữ hàng đợi an toàn nếu người dùng
+ *     bấm đổi ngôn ngữ trước khi thư viện kịp tải xong.
  *  4. Giữ React và bản dịch đồng bộ khi Google Translate thay chữ bằng <font>: không lỗi
  *     removeChild/insertBefore, không giữ chữ dịch cũ khi React cập nhật, không để lại chữ "ma".
  *
@@ -64,6 +65,8 @@
     var pending = new Map(); // Text node -> { since: thời điểm bắt đầu hiển thị trong viewport }
     var givenUp = new WeakMap(); // Text node -> nội dung lúc bỏ cuộc chờ dịch
     var updated = new WeakSet(); // Text node được đặt lại vì React đổi chữ sau khi đã dịch
+    var lateFixes = new WeakMap(); // Text node -> số lần đã bỏ bản dịch về trễ (chặn vòng lặp)
+    var reactValues = new WeakMap(); // Text node -> chữ mới nhất do React cập nhật khi đang dịch
     var dirty = false;
     var tickTimer = null;
 
@@ -259,9 +262,31 @@
     });
 
     function setActive(lang) {
-        currentLang = lang || DEFAULT_LANG;
+        var nextLang = lang || DEFAULT_LANG;
+        var langChanged = nextLang !== currentLang;
+        currentLang = nextLang;
         var on = currentLang !== DEFAULT_LANG;
+        if (langChanged) {
+            givenUp = new WeakMap();
+            updated = new WeakSet();
+            lateFixes = new WeakMap();
+            pending.forEach(function (info) {
+                info.since = null;
+            });
+        }
         if (on === active) {
+            if (on && langChanged) {
+                scan(root);
+                render();
+                scheduleTick();
+                Promise.resolve().then(function () {
+                    if (active) {
+                        scan(root);
+                        render();
+                        scheduleTick();
+                    }
+                });
+            }
             return;
         }
         active = on;
@@ -294,16 +319,9 @@
         if (!lang || lang === currentLang) {
             return;
         }
-        if (currentLang !== DEFAULT_LANG) {
-            // Đang ở bản dịch -> tải lại trang để dịch từ nội dung gốc, sạch sẽ, không lẫn chữ cũ.
-            evt.preventDefault();
-            evt.stopImmediatePropagation();
-            writeStoredLang(lang);
-            setActive(lang);
-            window.location.reload();
-            return;
-        }
-        // Tiếng Việt -> ngôn ngữ khác: dịch tại chỗ, ẩn ngay chữ tiếng Việt trong lúc chờ.
+        // Chuyển đổi trực tiếp tại chỗ (không reload trang) cho mọi chiều ngôn ngữ.
+        preloadTranslator();
+        writeStoredLang(lang);
         setActive(lang);
     }, true);
 
@@ -327,6 +345,12 @@
             // float.js chỉ tải lib.min.js khi người dùng rê chuột/focus vào widget.
             wrapper.dispatchEvent(new Event('focusin'));
         }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', preloadTranslator);
+    } else {
+        preloadTranslator();
     }
 
     window.addEventListener('load', function () {
@@ -361,7 +385,6 @@
     var setNodeValue = Object.getOwnPropertyDescriptor(Node.prototype, 'nodeValue').set;
     var replaced = new WeakMap(); // Text node gốc -> { clones: bản sao chứa bản dịch, parent: nơi bị gỡ }
     var clonedElements = new WeakSet(); // Thẻ engine nhân bản để bọc bản dịch (VD: <b> trong câu)
-    var lateFixes = new WeakMap(); // Text node -> số lần đã bỏ bản dịch về trễ (chặn vòng lặp)
     // Engine nhân bản rồi gỡ node gốc trong cùng một lượt chạy đồng bộ. Lần gỡ ở lượt khác (của
     // React) là gỡ thật, kéo theo bản dịch.
     var engineBatch = false;
@@ -471,6 +494,18 @@
         return childOf(parent, node);
     }
 
+    function clearTranslatorMark(node) {
+        for (var key in node) {
+            if (key.indexOf('_gt_') === 0) {
+                try {
+                    delete node[key];
+                } catch (e) {
+                    node[key] = '';
+                }
+            }
+        }
+    }
+
     // Đặt node gốc (đang mang chữ React mới nhất) trở lại chỗ bản dịch của nó.
     function restoreOriginal(node, info) {
         var parent = info.parent;
@@ -488,6 +523,8 @@
             if (text !== node.nodeValue) {
                 setNodeValue.call(node, text);
             }
+            clearTranslatorMark(node);
+            reactValues.set(node, node.nodeValue);
             originalInsertBefore.call(parent, node, anchorFor(parent, node));
             updated.add(node);
         }
@@ -514,7 +551,7 @@
         if (active) {
             if (this.nodeType === 3) {
                 var info = replaced.get(this);
-                if (!info) {
+                if (!info || info.parent) {
                     info = { clones: [], parent: null };
                     replaced.set(this, info);
                 }
@@ -553,6 +590,13 @@
     };
 
     Node.prototype.insertBefore = function (newNode, referenceNode) {
+        if (newNode && newNode.nodeType === 3 && this.tagName !== 'FONT') {
+            var restored = replaced.get(newNode);
+            if (restored && restored.parent === this) {
+                replaced.delete(newNode);
+            }
+            reactValues.delete(newNode);
+        }
         if (referenceNode && referenceNode.parentNode !== this) {
             return originalInsertBefore.call(this, newNode, anchorFor(this, referenceNode));
         }
@@ -570,11 +614,18 @@
             enumerable: descriptor.enumerable,
             get: descriptor.get,
             set: function (value) {
+                if (this.nodeType === 3 && this.parentNode && this.parentNode.tagName === 'FONT' && reactValues.has(this)) {
+                    value = reactValues.get(this);
+                }
                 descriptor.set.call(this, value);
-                if (this.nodeType === 3 && !this.parentNode) {
-                    var info = replaced.get(this);
-                    if (info && info.parent) {
-                        restoreOriginal(this, info);
+                if (this.nodeType === 3) {
+                    if (!this.parentNode) {
+                        var info = replaced.get(this);
+                        if (info && info.parent) {
+                            restoreOriginal(this, info);
+                        }
+                    } else if (this.parentNode.tagName !== 'FONT' && reactValues.has(this)) {
+                        reactValues.set(this, this.nodeValue);
                     }
                 }
             }
@@ -584,6 +635,18 @@
     traceTextWrites(CharacterData.prototype, 'data');
 
     /* ------------------------------------------------------------------- init */
+
+    // Giữ chỗ an toàn nếu người dùng bấm chọn ngôn ngữ trong lúc lib.min.js vẫn đang tải.
+    // Khi lib.min.js tải xong, nó sẽ tự ghi đè __GT.translator và đọc STORAGE_KEY để dịch ngay.
+    if (!window.__GT) {
+        window.__GT = {
+            translator: {
+                translate: function (_src, tgt) {
+                    writeStoredLang(tgt);
+                }
+            }
+        };
+    }
 
     injectStyles();
     setActive(currentLang);

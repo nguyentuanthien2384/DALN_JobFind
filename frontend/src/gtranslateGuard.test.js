@@ -220,6 +220,73 @@ describe('hiding text that waits for a translation', () => {
     });
 });
 
+describe('in-place language switching without page reload', () => {
+    const engineRestore = (original, outerFont, savedOriginalText) => {
+        if (!outerFont.parentNode) return;
+        const parent = outerFont.parentNode;
+        while (outerFont.firstChild) outerFont.removeChild(outerFont.firstChild);
+        outerFont.appendChild(original);
+        original.nodeValue = savedOriginalText;
+        while (outerFont.firstChild) parent.insertBefore(outerFont.firstChild, outerFont);
+        parent.removeChild(outerFont);
+    };
+
+    const clickLang = lang => {
+        const wrapper = element('div');
+        wrapper.className = 'gtranslate_wrapper';
+        const link = element('a');
+        link.setAttribute('data-gt-lang', lang);
+        wrapper.appendChild(link);
+        document.body.appendChild(wrapper);
+        link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    };
+
+    test('switches between languages (en -> az -> vi -> en) in place without reloading', async () => {
+        reload.mockClear();
+        const heading = text('Kết nối việc làm phù hợp');
+        const box = element('h1', heading);
+        document.body.append(box);
+
+        // Initial translation (en)
+        sendForTranslation('Kết nối việc làm phù hợp', 'Tìm việc làm mới');
+        heading._gt_mark = 1;
+        const cloneEn = engineReplace(heading, 'Connecting suitable jobs');
+        const outerEn = cloneEn.parentNode.parentNode;
+        await flush();
+        expect(box.textContent).toBe('Connecting suitable jobs');
+
+        // Switch en -> az without reload
+        clickLang('az');
+        expect(reload).not.toHaveBeenCalled();
+        expect(JSON.parse(localStorage.getItem('__GT_TRANSLATE_LANGS'))).toEqual({ srcLang: 'vi', tgtLang: 'az' });
+        engineRestore(heading, outerEn, 'Kết nối việc làm phù hợp');
+        const cloneAz = engineReplace(heading, 'Uyğun işlərin əlaqələndirilməsi');
+        const outerAz = cloneAz.parentNode.parentNode;
+        await flush();
+        expect(box.textContent).toBe('Uyğun işlərin əlaqələndirilməsi');
+
+        // React updates heading while in az; translator expando mark is cleared so it can retranslate
+        heading.nodeValue = 'Tìm việc làm mới';
+        expect(heading._gt_mark).toBeUndefined();
+        expect(box.textContent).toBe('Tìm việc làm mới');
+
+        // Switch az -> vi without reload; stale savedOriginalText does not overwrite React's update
+        const cloneAzUpdated = engineReplace(heading, 'Yeni iş tapın');
+        const outerAzUpdated = cloneAzUpdated.parentNode.parentNode;
+        await flush();
+        heading.nodeValue = 'Đã cập nhật việc làm';
+        clickLang('vi');
+        expect(reload).not.toHaveBeenCalled();
+        expect(localStorage.getItem('__GT_TRANSLATE_LANGS')).toBeNull();
+        engineRestore(heading, outerAzUpdated, 'Tìm việc làm mới');
+        expect(box.textContent).toBe('Đã cập nhật việc làm');
+
+        // Switch back vi -> en so subsequent tests start with active = true
+        clickLang('en');
+        expect(reload).not.toHaveBeenCalled();
+    });
+});
+
 describe('back/forward cache', () => {
     test('reloads a translated page restored from bfcache (the translator restored the Vietnamese text)', () => {
         const event = new Event('pageshow');
