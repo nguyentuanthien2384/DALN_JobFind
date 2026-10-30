@@ -17,6 +17,12 @@ main() {
     git pull --ff-only
 
     echo "== 3/6 Kiem tra bien moi truong"
+    for mode_var in REACT_APP_JOB_CREATE_MODE REACT_APP_JOB_EDIT_MODE REACT_APP_JOB_REPOST_MODE REACT_APP_JOB_WORKSPACE_MODE REACT_APP_JOB_SEARCH_MODE; do
+        if grep -q "^${mode_var}=legacy$" .env 2>/dev/null; then
+            sed -i "s|^${mode_var}=legacy$|${mode_var}=core|" .env
+            echo "   Da nang cap ${mode_var}=core trong deploy/.env"
+        fi
+    done
     if ! sh scripts/check-env.sh; then
         echo "   Canh bao: tinh nang dung cac bien tren se chua hoat dong cho den khi them bang"
         echo "   sh scripts/set-env.sh TEN_BIEN 'gia-tri'. Van tiep tuc cap nhat."

@@ -106,8 +106,9 @@ const openPage = async (browser, lang, apiHandler) => {
     const page = await context.newPage();
     const faults = [];
     page.on('pageerror', error => faults.push(error.message));
-    // Only localhost API calls are fixtures; translator requests go to Google.
-    await page.route(url => url.hostname === 'localhost' && url.pathname.startsWith('/api/'), async route => {
+    // Only app API calls are fixtures; translator requests go to Google.
+    const baseHost = new URL(base).hostname;
+    await page.route(url => (url.hostname === 'localhost' || url.hostname === baseHost) && url.pathname.startsWith('/api/'), async route => {
         const url = new URL(route.request().url());
         const data = await apiHandler(url, route.request());
         return json(route, data?.body ?? data, data?.delay || 0);
