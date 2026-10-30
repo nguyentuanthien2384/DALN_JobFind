@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise';
 import nodemailer from 'nodemailer';
 import axios from 'axios';
 import { createLogger } from '../../../shared/logger.js';
+import { resolveMysqlServiceCredentials } from '../../../shared/dbProvisioning.js';
 import { normalizeEmailRecipient, isValidEmailRecipient } from './emailAddress.js';
 export { normalizeEmailRecipient, isValidEmailRecipient } from './emailAddress.js';
 
@@ -14,11 +15,7 @@ const logger = createLogger('notification-service');
 // Ghi thang vao bang `notifications` dang co cua he thong cu. Nho vay chuong
 // thong bao tren giao dien hoat dong ngay, khong phai sua mot dong frontend nao.
 export const mysqlPool = mysql.createPool({
-    host: process.env.MYSQL_HOST || 'host.docker.internal',
-    port: Number(process.env.MYSQL_PORT || 3333),
-    user: process.env.MYSQL_USER || 'root',
-    password: process.env.MYSQL_PASSWORD || '',
-    database: process.env.MYSQL_DATABASE || 'jobfindtest',
+    ...resolveMysqlServiceCredentials(process.env, 'notification'),
     waitForConnections: true,
     connectionLimit: 5,
     charset: 'utf8mb4_general_ci',

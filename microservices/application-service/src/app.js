@@ -14,7 +14,7 @@ import {
 } from './controllers/applicationController.js';
 import { savedCandidates, saveCandidate, removeCandidate } from './controllers/talentPoolController.js';
 import { listInterviews, myInterviews } from './controllers/interviewCalendarController.js';
-import { syncFromLegacy, syncEndpoint, closeLegacySource } from './controllers/syncController.js';
+import { syncFromLegacy, syncEndpoint, closeLegacySource, isLegacyMysqlSyncEnabled } from './controllers/syncController.js';
 import { startSubmissionConsumer } from './consumers/submissionConsumer.js';
 import {
     PERMISSIONS, requireServicePermission, requireTrustedGateway
@@ -96,7 +96,7 @@ const start = async () => {
     await startSubmissionConsumer();
 
     // Keo ho so cu sang de bang Kanban khong trong tron ngay tu dau.
-    await syncFromLegacy();
+    if (isLegacyMysqlSyncEnabled()) await syncFromLegacy();
     startOutboxRelay();
 
     // Doi chieu lai dinh ky - cung ly do nhu ben Search Service: neu RabbitMQ chet
@@ -105,7 +105,7 @@ const start = async () => {
     // ung vien. Dong bo dung rang buoc UNIQUE tren legacy_cv_id nen chay lai bao
     // nhieu lan cung khong nhan ban.
     const intervalMinutes = Number(process.env.RECONCILE_MINUTES || 10);
-    runtime.onStop(periodicTask(syncFromLegacy, intervalMinutes * 60 * 1000,
+    if (isLegacyMysqlSyncEnabled()) runtime.onStop(periodicTask(syncFromLegacy, intervalMinutes * 60 * 1000,
         (error) => logger.warn('doi chieu dinh ky that bai', { error: error.message })));
     logger.info(`se doi chieu lai ho so moi ${intervalMinutes} phut`);
 

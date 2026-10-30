@@ -38,6 +38,24 @@ export function mysqlChecks(snapshot) {
     return checks;
 }
 
+export function mongoChecks(snapshot) {
+    if (!snapshot || snapshot.unavailable || !snapshot.admin_db) {
+        return [{ id: 'mongo.audit-ttl-index', status: 'unknown' }];
+    }
+    if (!snapshot.admin_db.exists) {
+        return [{ id: 'mongo.audit-ttl-index', status: 'pass', detail: 'collection-not-yet-created' }];
+    }
+    const createdAtIndex = (snapshot.admin_db.indexes || []).find(
+        index => index.name === 'createdAt_1' || (index.key && Object.keys(index.key).length === 1 && index.key.createdAt === 1)
+    );
+    const validTtl = Boolean(createdAtIndex && Number(createdAtIndex.expireAfterSeconds) === 15552000);
+    return [{
+        id: 'mongo.audit-ttl-index',
+        status: validTtl ? 'pass' : 'blocked',
+        detail: validTtl ? 'expireAfterSeconds=15552000' : 'missing-or-non-ttl-createdAt_1'
+    }];
+}
+
 // These must be verified on the target, not inferred from acceptance fixtures.
 export const manualGates = ['verified-backup-restore', 'compatible-immutable-release-pair', 'served-frontend-flags',
     'running-legacy-version-and-jwt', 'database-privileges-and-full-schema', 'pending-event-compatibility',

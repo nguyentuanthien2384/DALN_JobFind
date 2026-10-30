@@ -9,7 +9,7 @@ import { createServiceRuntime, periodicTask } from '../../shared/serviceRuntime.
 import { createLogger } from '../../shared/logger.js';
 
 dotenv.config({ path: new URL('../../.env', import.meta.url) });
-const { pool } = await import('../../job-core-service/src/libs/db.js');
+const { pool } = await import('./libs/db.js');
 
 const app = express(), logger = createLogger('support-chat-service');
 const store = createStore(pool, process.env.SUPPORT_RETENTION_DAYS);

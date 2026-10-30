@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise';
 import pg from 'pg';
 import { createLogger } from '../../../shared/logger.js';
 import { requireEnvironment } from '../../../shared/securityConfig.js';
+import { resolveMysqlServiceCredentials, resolvePostgresServiceUrl } from '../../../shared/dbProvisioning.js';
 
 const logger = createLogger('admin-service');
 
@@ -17,11 +18,7 @@ const logger = createLogger('admin-service');
 // ve service so huu.
 
 export const mysqlPool = mysql.createPool({
-    host: process.env.MYSQL_HOST || 'host.docker.internal',
-    port: Number(process.env.MYSQL_PORT || 3333),
-    user: process.env.MYSQL_USER || 'root',
-    password: process.env.MYSQL_PASSWORD || '',
-    database: process.env.MYSQL_DATABASE || 'jobfindtest',
+    ...resolveMysqlServiceCredentials(process.env, 'admin'),
     waitForConnections: true,
     connectionLimit: 5,
     charset: 'utf8mb4_general_ci',
@@ -29,7 +26,7 @@ export const mysqlPool = mysql.createPool({
 });
 
 export const pgPool = new pg.Pool({
-    connectionString: requireEnvironment('POSTGRES_URL'),
+    connectionString: resolvePostgresServiceUrl(process.env, 'admin') || requireEnvironment('POSTGRES_URL'),
     max: 5
 });
 

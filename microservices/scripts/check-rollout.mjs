@@ -3,7 +3,7 @@ import { promisify, parseEnv } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { featureFlags, mysqlChecks, evaluateFeatures, manualGates } from './rollout-policy.mjs';
+import { featureFlags, mysqlChecks, mongoChecks, evaluateFeatures, manualGates } from './rollout-policy.mjs';
 import { mysqlProbe, postgresProbe } from './rollout-probes.mjs';
 import { assertSecureJwtSecret } from '../shared/securityConfig.js';
 
@@ -86,7 +86,7 @@ try {
             const metadata=await db.db(name).listCollections({name:collection}).toArray();
             result[name]={exists:metadata.length===1,indexes:metadata.length?await db.db(name).collection(collection).listIndexes().toArray():[]};
         }console.log(JSON.stringify(result));}catch{console.log(JSON.stringify({unavailable:true}));}finally{await db.close();}`);
-    checks.push(...mysqlChecks(report.mysql));
+    checks.push(...mysqlChecks(report.mysql), ...mongoChecks(report.mongo));
     const required = { applications: ['id','legacy_cv_id','job_id','candidate_id','company_id','stage','cv_snapshot'],
         application_events: ['application_id','from_stage','to_stage'], application_notes: ['application_id','author_id','body'] };
     const pg = report.postgres;
@@ -96,16 +96,21 @@ try {
     add('postgres.application-schema', !pg.columns ? 'unknown' : pgPresent && pgUnique ? 'pass' : 'blocked', 'partial-columns-and-legacy-id-unique-only');
     const backend = await diskEnv('backend'), frontend = await diskEnv('frontend');
     const gateway = one('api-gateway'); const gatewayEnv = gateway ? envOf(gateway) : {};
-    const policy = env => [env.JWT_SECRET, env.JWT_ISSUER || 'jobfind-auth',env.JWT_AUDIENCE || 'jobfind-api',Number(env.JWT_ACCESS_TTL_SECONDS || 900)];
-    add('jwt.disk-to-gateway', backend.JWT_SECRET && gatewayEnv.JWT_SECRET && JSON.stringify(policy(backend)) === JSON.stringify(policy(gatewayEnv))
+    const claims = env => [env.JWT_ISSUER || 'jobfind-auth', env.JWT_AUDIENCE || 'jobfind-api', Number(env.JWT_ACCESS_TTL_SECONDS || 900)];
+    const sharedHs256 = Boolean(backend.JWT_SECRET && gatewayEnv.JWT_SECRET && backend.JWT_SECRET === gatewayEnv.JWT_SECRET);
+    const asymmetricEs256 = Boolean(backend.JWT_PRIVATE_KEY && gatewayEnv.JWT_JWKS_URL);
+    add('jwt.disk-to-gateway', (sharedHs256 || asymmetricEs256) && JSON.stringify(claims(backend)) === JSON.stringify(claims(gatewayEnv))
         ? 'pass' : 'blocked', 'disk-backend-policy-compared-with-container; running-backend-not-proven');
     // Worker only consumes/publishes through RabbitMQ; it has no trusted business HTTP route.
     const secretMismatches = services.filter(name => name !== 'ai-worker').filter(name => !one(name) || !envOf(one(name)).INTERNAL_SECRET
         || envOf(one(name)).INTERNAL_SECRET !== gatewayEnv.INTERNAL_SECRET);
     add('internal-secret-consistency', !secretMismatches.length && gatewayEnv.INTERNAL_SECRET !== gatewayEnv.JWT_SECRET ? 'pass' : 'blocked',
         secretMismatches.length ? 'missing-or-mismatched: ' + secretMismatches.join(', ') : 'distinct JWT/internal keys');
-    try { assertSecureJwtSecret(gatewayEnv.JWT_SECRET); assertSecureJwtSecret(gatewayEnv.INTERNAL_SECRET); add('secret-policy','pass'); }
-    catch { add('secret-policy','blocked','missing-or-insufficient-secret'); }
+    try {
+        if (!gatewayEnv.JWT_JWKS_URL || gatewayEnv.JWT_SECRET) assertSecureJwtSecret(gatewayEnv.JWT_SECRET);
+        assertSecureJwtSecret(gatewayEnv.INTERNAL_SECRET);
+        add('secret-policy','pass');
+    } catch { add('secret-policy','blocked','missing-or-insufficient-secret'); }
     report.frontendDiskFlags = Object.fromEntries(Object.values(featureFlags).map(([key, off, on]) =>
         [key, frontend[key] == null ? off : [off,on].includes(frontend[key]) ? frontend[key] : 'invalid']));
     report.frontendDiskFlagsAreServedEvidence = false;

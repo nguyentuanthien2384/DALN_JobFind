@@ -41,6 +41,7 @@ COPY --chown=node:node admin-service/ admin-service/
 COPY --chown=node:node ai-worker/ ai-worker/
 COPY --chown=node:node support-chat-service/ support-chat-service/
 COPY --chown=node:node scripts/healthcheck.mjs scripts/healthcheck.mjs
+COPY --chown=node:node scripts/provision-db-users.mjs scripts/provision-db-users.mjs
 USER node
 WORKDIR /app/api-gateway
 HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=3 CMD ["node", "/app/scripts/healthcheck.mjs"]

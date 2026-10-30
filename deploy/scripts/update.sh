@@ -28,6 +28,8 @@ main() {
     echo "== 5/6 Cap nhat cau truc CSDL (chi chay migration moi)"
     docker compose run --rm backend node /app/scripts/migrate-auth.mjs --from-env
     docker compose run --rm backend node /app/scripts/migrate-backend.mjs --from-env
+    docker compose run --rm --no-deps admin-service node scripts/migrate-audit-retention.mjs --apply --allow-expiry
+    docker compose run --rm --no-deps admin-service node ../scripts/provision-db-users.mjs --apply
 
     echo "== 6/6 Khoi dong ban moi"
     docker compose up -d

@@ -173,8 +173,8 @@ services:
       DB_HOST: mysql
       DB_PORT: "3306"
       DB_NAME: ${MYSQL_DATABASE:-jobfindtest}
-      DB_USER: ${MYSQL_USER:-jobfind}
-      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_USER: ${BACKEND_MYSQL_USER:-${MYSQL_USER:-jobfind}}
+      DB_PASSWORD: ${BACKEND_MYSQL_PASSWORD:-${MYSQL_PASSWORD}}
       JWT_SECRET: ${JWT_SECRET:?Dat JWT_SECRET trong deploy/.env}
       # Tuy chon ES256 (node scripts/generate-jwt-key.cjs). Chi backend giu khoa rieng.
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:-}
@@ -229,6 +229,8 @@ services:
     environment:
       <<: *mysql-env
       PORT: "4000"
+      GATEWAY_MYSQL_USER: ${GATEWAY_MYSQL_USER:-}
+      GATEWAY_MYSQL_PASSWORD: ${GATEWAY_MYSQL_PASSWORD:-}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       JWT_ISSUER: ${JWT_ISSUER:-jobfind-auth}
@@ -277,6 +279,8 @@ services:
     environment:
       <<: *mysql-env
       PORT: "4002"
+      JOB_CORE_MYSQL_USER: ${JOB_CORE_MYSQL_USER:-}
+      JOB_CORE_MYSQL_PASSWORD: ${JOB_CORE_MYSQL_PASSWORD:-}
       RABBITMQ_URL: *rabbitmq-url
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_SECRET: ${INTERNAL_SECRET}
@@ -304,6 +308,11 @@ services:
     environment:
       <<: *mysql-env
       PORT: "4004"
+      APPLICATION_MYSQL_USER: ${APPLICATION_MYSQL_USER:-}
+      APPLICATION_MYSQL_PASSWORD: ${APPLICATION_MYSQL_PASSWORD:-}
+      APPLICATION_POSTGRES_USER: ${APPLICATION_POSTGRES_USER:-}
+      APPLICATION_POSTGRES_PASSWORD: ${APPLICATION_POSTGRES_PASSWORD:-}
+      LEGACY_MYSQL_SYNC_ENABLED: ${LEGACY_MYSQL_SYNC_ENABLED:-true}
       POSTGRES_URL: *postgres-url
       RABBITMQ_URL: *rabbitmq-url
       RECONCILE_MINUTES: ${RECONCILE_MINUTES:-10}
@@ -320,6 +329,8 @@ services:
     environment:
       <<: *mysql-env
       PORT: "4005"
+      NOTIFICATION_MYSQL_USER: ${NOTIFICATION_MYSQL_USER:-}
+      NOTIFICATION_MYSQL_PASSWORD: ${NOTIFICATION_MYSQL_PASSWORD:-}
       NODE_ENV: production
       RABBITMQ_URL: *rabbitmq-url
       EMAIL_APP: ${EMAIL_APP:-}
@@ -337,6 +348,10 @@ services:
     environment:
       <<: *mysql-env
       PORT: "4006"
+      ADMIN_MYSQL_USER: ${ADMIN_MYSQL_USER:-}
+      ADMIN_MYSQL_PASSWORD: ${ADMIN_MYSQL_PASSWORD:-}
+      ADMIN_POSTGRES_USER: ${ADMIN_POSTGRES_USER:-}
+      ADMIN_POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD:-}
       MONGO_URL: mongodb://mongo:27017/admin_db
       POSTGRES_URL: *postgres-url
       RABBITMQ_URL: *rabbitmq-url
@@ -373,6 +388,8 @@ services:
     environment:
       <<: *mysql-env
       PORT: "4008"
+      SUPPORT_MYSQL_USER: ${SUPPORT_MYSQL_USER:-}
+      SUPPORT_MYSQL_PASSWORD: ${SUPPORT_MYSQL_PASSWORD:-}
       INTERNAL_SECRET: ${INTERNAL_SECRET}
       LEGACY_URL: http://backend:5000
       IDENTITY_URL: http://identity-service:4001
@@ -402,8 +419,8 @@ services:
       context: ..
       dockerfile: deploy/web.Dockerfile
       args:
-        REACT_APP_JOB_SEARCH_MODE: ${REACT_APP_JOB_SEARCH_MODE:-legacy}
-        REACT_APP_JOB_WORKSPACE_MODE: ${REACT_APP_JOB_WORKSPACE_MODE:-legacy}
+        REACT_APP_JOB_SEARCH_MODE: ${REACT_APP_JOB_SEARCH_MODE:-core}
+        REACT_APP_JOB_WORKSPACE_MODE: ${REACT_APP_JOB_WORKSPACE_MODE:-core}
         REACT_APP_JOB_CREATE_MODE: ${REACT_APP_JOB_CREATE_MODE:-core}
         REACT_APP_JOB_EDIT_MODE: ${REACT_APP_JOB_EDIT_MODE:-core}
         REACT_APP_JOB_REPOST_MODE: ${REACT_APP_JOB_REPOST_MODE:-core}

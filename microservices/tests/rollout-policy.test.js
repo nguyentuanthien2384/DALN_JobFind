@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasExactUnique, mysqlChecks, mysqlTables, evaluateFeatures, featureFlags } from '../scripts/rollout-policy.mjs';
+import { hasExactUnique, mysqlChecks, mongoChecks, mysqlTables, evaluateFeatures, featureFlags } from '../scripts/rollout-policy.mjs';
 
 const index = (column, extra = {}) => ({ table:'cvs',name:'unique_cv',column,nonUnique:0,prefix:null,...extra });
 describe('deployment preflight fails closed', () => {
@@ -48,5 +48,21 @@ describe('deployment preflight fails closed', () => {
         expect(Object.keys(featureFlags)).toHaveLength(8);
         expect(new Set(Object.values(featureFlags).map(row=>row[0])).size).toBe(8);
         expect(Object.values(featureFlags).every(([,off,on])=>off!==on)).toBe(true);
+    });
+    it('verifies MongoDB auditlogs TTL index (180 days = 15552000s)', () => {
+        expect(mongoChecks({ unavailable: true })).toEqual([{ id: 'mongo.audit-ttl-index', status: 'unknown' }]);
+        expect(mongoChecks({ admin_db: { exists: false, indexes: [] } })).toEqual([
+            { id: 'mongo.audit-ttl-index', status: 'pass', detail: 'collection-not-yet-created' }
+        ]);
+        expect(mongoChecks({
+            admin_db: { exists: true, indexes: [{ name: 'createdAt_1', key: { createdAt: 1 } }] }
+        })).toEqual([
+            { id: 'mongo.audit-ttl-index', status: 'blocked', detail: 'missing-or-non-ttl-createdAt_1' }
+        ]);
+        expect(mongoChecks({
+            admin_db: { exists: true, indexes: [{ name: 'createdAt_1', key: { createdAt: 1 }, expireAfterSeconds: 15552000 }] }
+        })).toEqual([
+            { id: 'mongo.audit-ttl-index', status: 'pass', detail: 'expireAfterSeconds=15552000' }
+        ]);
     });
 });

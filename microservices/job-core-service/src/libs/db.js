@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import { createLogger } from '../../../shared/logger.js';
+import { resolveMysqlServiceCredentials } from '../../../shared/dbProvisioning.js';
 
 const logger = createLogger('job-core-service');
 
@@ -8,11 +9,7 @@ const logger = createLogger('job-core-service');
 // ACID cho cac giao dich mua goi - dung nhu vai tro cua ben Ghi trong CQRS.
 
 export const pool = mysql.createPool({
-    host: process.env.MYSQL_HOST || 'host.docker.internal',
-    port: Number(process.env.MYSQL_PORT || 3333),
-    user: process.env.MYSQL_USER || 'root',
-    password: process.env.MYSQL_PASSWORD || '',
-    database: process.env.MYSQL_DATABASE || 'jobfindtest',
+    ...resolveMysqlServiceCredentials(process.env, 'core'),
     waitForConnections: true,
     connectionLimit: 10,
     charset: 'utf8mb4_general_ci',

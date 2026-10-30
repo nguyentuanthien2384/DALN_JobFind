@@ -654,6 +654,22 @@ describe('legacy application synchronization', () => {
         const res = makeRes();
         await syncEndpoint(makeReq(), res);
         expect(res.body.errCode).toBe(-1);
+
+        vi.stubEnv('LEGACY_MYSQL_SYNC_ENABLED', 'false');
+        try {
+            const { isLegacyMysqlSyncEnabled } = await import('../application-service/src/controllers/syncController.js');
+            expect(isLegacyMysqlSyncEnabled()).toBe(false);
+            mocks.legacy.query.mockClear();
+            await expect(syncFromLegacy()).resolves.toEqual({
+                total: 0,
+                imported: 0,
+                skipped: true,
+                reason: 'legacy_mysql_sync_disabled'
+            });
+            expect(mocks.legacy.query).not.toHaveBeenCalled();
+        } finally {
+            vi.unstubAllEnvs();
+        }
     });
 });
 

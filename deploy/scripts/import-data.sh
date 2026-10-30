@@ -80,6 +80,10 @@ echo "Nap MongoDB ..."
 docker compose exec -T mongo mongorestore --archive --gzip --drop --stopOnError --quiet \
     --nsExclude='admin.*' --nsExclude='config.*' --nsExclude='local.*' < "$dir/mongo.archive.gz"
 
+echo "Dong bo chi muc TTL nhat ky va phan quyen CSDL ..."
+docker compose run --rm --no-deps admin-service node scripts/migrate-audit-retention.mjs --apply --allow-expiry
+docker compose run --rm --no-deps admin-service node ../scripts/provision-db-users.mjs --apply
+
 echo "Nap xong. Khoi dong toan bo he thong ..."
 docker compose up -d
 echo "Xong. Theo doi: docker compose ps (cho cot STATUS deu 'healthy')."

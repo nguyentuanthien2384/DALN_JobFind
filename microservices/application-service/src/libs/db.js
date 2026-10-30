@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { createLogger } from '../../../shared/logger.js';
 import { requireEnvironment } from '../../../shared/securityConfig.js';
+import { resolvePostgresServiceUrl } from '../../../shared/dbProvisioning.js';
 
 const logger = createLogger('application-service');
 
@@ -16,7 +17,7 @@ const logger = createLogger('application-service');
 // Pool (max 10 ket noi): dung lai ket noi thay vi mo moi cho tung request; ket noi ranh
 // 30s thi dong. withTransaction muon MOT ket noi cho ca giao dich (BEGIN..COMMIT).
 export const pool = new pg.Pool({
-    connectionString: requireEnvironment('POSTGRES_URL'),
+    connectionString: resolvePostgresServiceUrl(process.env, 'application') || requireEnvironment('POSTGRES_URL'),
     max: 10,
     idleTimeoutMillis: 30000
 });

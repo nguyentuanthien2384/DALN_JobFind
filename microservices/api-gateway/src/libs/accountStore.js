@@ -1,14 +1,11 @@
 import mysql from 'mysql2/promise';
+import { resolveMysqlServiceCredentials } from '../../../shared/dbProvisioning.js';
 
 // JWT chi dung de chung minh userId. Role, company va trang thai luon doc lai
 // tu MySQL, vi token co han 3 ngay trong khi tai khoan co the bi khoa/chuyen cong
 // ty ngay lap tuc.
 const pool = mysql.createPool({
-    host: process.env.MYSQL_HOST || 'host.docker.internal',
-    port: Number(process.env.MYSQL_PORT || 3333),
-    user: process.env.MYSQL_USER || 'root',
-    password: process.env.MYSQL_PASSWORD || '',
-    database: process.env.MYSQL_DATABASE || 'jobfindtest',
+    ...resolveMysqlServiceCredentials(process.env, 'gateway'),
     waitForConnections: true,
     connectionLimit: Number(process.env.AUTH_DB_POOL_SIZE || 5),
     charset: 'utf8mb4_general_ci'

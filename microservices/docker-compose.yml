@@ -10,6 +10,8 @@ services:
     command: npm start
     environment:
       PORT: 4008
+      SUPPORT_MYSQL_USER: ${SUPPORT_MYSQL_USER:-}
+      SUPPORT_MYSQL_PASSWORD: ${SUPPORT_MYSQL_PASSWORD:-}
       INTERNAL_SECRET: ${INTERNAL_SECRET:?Set INTERNAL_SECRET in .env}
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
       MYSQL_PORT: ${MYSQL_PORT:-3333}
@@ -137,6 +139,8 @@ services:
     command: npm start
     environment:
       PORT: 4002
+      JOB_CORE_MYSQL_USER: ${JOB_CORE_MYSQL_USER:-}
+      JOB_CORE_MYSQL_PASSWORD: ${JOB_CORE_MYSQL_PASSWORD:-}
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
       MYSQL_PORT: ${MYSQL_PORT:-3333}
       MYSQL_USER: ${MYSQL_USER:-root}
@@ -227,6 +231,11 @@ services:
     command: npm start
     environment:
       PORT: 4004
+      APPLICATION_MYSQL_USER: ${APPLICATION_MYSQL_USER:-}
+      APPLICATION_MYSQL_PASSWORD: ${APPLICATION_MYSQL_PASSWORD:-}
+      APPLICATION_POSTGRES_USER: ${APPLICATION_POSTGRES_USER:-}
+      APPLICATION_POSTGRES_PASSWORD: ${APPLICATION_POSTGRES_PASSWORD:-}
+      LEGACY_MYSQL_SYNC_ENABLED: ${LEGACY_MYSQL_SYNC_ENABLED:-true}
       POSTGRES_URL: postgres://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/application_db
       RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
@@ -255,6 +264,8 @@ services:
     command: npm start
     environment:
       PORT: 4005
+      NOTIFICATION_MYSQL_USER: ${NOTIFICATION_MYSQL_USER:-}
+      NOTIFICATION_MYSQL_PASSWORD: ${NOTIFICATION_MYSQL_PASSWORD:-}
       NODE_ENV: ${NODE_ENV:-development}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
       MYSQL_HOST: ${MYSQL_HOST:-host.docker.internal}
@@ -285,6 +296,10 @@ services:
     command: npm start
     environment:
       PORT: 4006
+      ADMIN_MYSQL_USER: ${ADMIN_MYSQL_USER:-}
+      ADMIN_MYSQL_PASSWORD: ${ADMIN_MYSQL_PASSWORD:-}
+      ADMIN_POSTGRES_USER: ${ADMIN_POSTGRES_USER:-}
+      ADMIN_POSTGRES_PASSWORD: ${ADMIN_POSTGRES_PASSWORD:-}
       MONGO_URL: mongodb://mongo:27017/admin_db
       POSTGRES_URL: postgres://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/application_db
       RABBITMQ_URL: amqp://${RABBITMQ_USER:?Set RABBITMQ_USER in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672
@@ -315,6 +330,8 @@ services:
       - "127.0.0.1:4000:4000"
     environment:
       PORT: 4000
+      GATEWAY_MYSQL_USER: ${GATEWAY_MYSQL_USER:-}
+      GATEWAY_MYSQL_PASSWORD: ${GATEWAY_MYSQL_PASSWORD:-}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       JWT_ISSUER: ${JWT_ISSUER:-jobfind-auth}

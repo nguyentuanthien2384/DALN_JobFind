@@ -1,6 +1,7 @@
 import mysql from 'mysql2/promise';
 import { pool } from '../libs/db.js';
 import { createLogger } from '../../../shared/logger.js';
+import { resolveMysqlServiceCredentials } from '../../../shared/dbProvisioning.js';
 
 const logger = createLogger('application-service');
 
@@ -9,21 +10,28 @@ const logger = createLogger('application-service');
 // Khong the bat nha tuyen dung bat dau tu mot bang Kanban trong tron: nhung ho so
 // da nop tu truoc van phai quan ly duoc. Ham nay chay mot lan luc khoi dong, va co
 // the goi lai bat cu luc nao - ho so da dong bo se bi bo qua nho rang buoc UNIQUE
-// tren legacy_cv_id.
+// tren legacy_cv_id. Khi da chuyen han sang su kien RabbitMQ (application.submitted)
+// va khong con can doc MySQL, dat LEGACY_MYSQL_SYNC_ENABLED=false de ngat ket noi MySQL.
 
-const mysqlPool = mysql.createPool({
-    host: process.env.MYSQL_HOST || 'host.docker.internal',
-    port: Number(process.env.MYSQL_PORT || 3333),
-    user: process.env.MYSQL_USER || 'root',
-    password: process.env.MYSQL_PASSWORD || '',
-    database: process.env.MYSQL_DATABASE || 'jobfindtest',
-    waitForConnections: true,
-    connectionLimit: 5,
-    charset: 'utf8mb4_general_ci'
-});
-export const closeLegacySource = () => mysqlPool.end();
+export const isLegacyMysqlSyncEnabled = (env = process.env) =>
+    String(env.LEGACY_MYSQL_SYNC_ENABLED ?? 'true').trim().toLowerCase() !== 'false';
+
+const mysqlPool = isLegacyMysqlSyncEnabled()
+    ? mysql.createPool({
+        ...resolveMysqlServiceCredentials(process.env, 'application'),
+        waitForConnections: true,
+        connectionLimit: 5,
+        charset: 'utf8mb4_general_ci'
+    })
+    : null;
+
+export const closeLegacySource = () => (mysqlPool ? mysqlPool.end() : Promise.resolve());
 
 export const syncFromLegacy = async () => {
+    if (!isLegacyMysqlSyncEnabled() || !mysqlPool) {
+        logger.debug('bo qua dong bo MySQL legacy vi LEGACY_MYSQL_SYNC_ENABLED=false');
+        return { total: 0, imported: 0, skipped: true, reason: 'legacy_mysql_sync_disabled' };
+    }
     try {
         const [rows] = await mysqlPool.query(
             `SELECT cv.id AS cv_id, cv.userId AS candidate_id, cv.postId AS job_id,
