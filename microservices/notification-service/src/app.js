@@ -1,5 +1,6 @@
 import express from 'express';
 import { createServiceRuntime } from '../../shared/serviceRuntime.js';
+import { registerNotificationDeliveryMetrics } from '../../shared/operationalMetrics.js';
 import { isConsumerReady, drainConsumers, closeConnection } from '../../shared/rabbitmq.js';
 import { ensureDeliveryTables } from './libs/deliveryStore.js';
 import { startDeliveryWorker } from './libs/deliveryWorker.js';
@@ -21,6 +22,10 @@ const runtime = createServiceRuntime(app, { service: 'notification-service', log
 runtime.onStop(() => drainConsumers());
 runtime.onClose(() => closeConnection());
 runtime.onClose(() => mysqlPool.end());
+registerNotificationDeliveryMetrics(runtime.registry, async () => {
+    const [rows] = await mysqlPool.query('SELECT status, COUNT(*) AS total, MIN(createdAt) AS oldest FROM notification_deliveries GROUP BY status');
+    return rows;
+});
 
 app.use(express.json());
 

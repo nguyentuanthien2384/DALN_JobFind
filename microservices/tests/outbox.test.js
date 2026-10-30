@@ -140,4 +140,22 @@ describe('Job Core transactional outbox', () => {
             [expect.any(Date), 'broker unavailable', 'event-2', expect.any(String)]
         );
     });
+
+    it('forwards correlationId to publishOutboxEvent when present on the outbox row or payload', async () => {
+        const conn = {
+            query: vi.fn()
+                .mockResolvedValueOnce([[
+                    { id: 'event-corr', aggregateId: '15', correlationId: 'corr-abc-123', createdAt: new Date('2026-09-04T01:02:03Z'), eventType: 'job.created', payload: '{"job":{"id":15}}', attempts: 0 }
+                ]])
+                .mockResolvedValueOnce([{ affectedRows: 1 }])
+        };
+        mocks.withTransaction.mockImplementation((work) => work(conn));
+        const { runOutboxOnce } = await import('../job-core-service/src/libs/outbox.js');
+
+        await expect(runOutboxOnce()).resolves.toBe(1);
+        expect(mocks.publish).toHaveBeenCalledWith('job.created', { job: { id: 15 } }, {
+            messageId: 'event-corr', aggregateId: '15', occurredAt: new Date('2026-09-04T01:02:03Z'),
+            producer: 'job-core-service', correlationId: 'corr-abc-123'
+        });
+    });
 });

@@ -152,7 +152,10 @@ export const runOutboxOnce = async () => {
                     producer: event.eventType === 'notification.manual_moderation_requested' ||
                         (event.eventType === 'application.submitted' && event.aggregateType === 'legacy-application') ||
                         (['job.created', 'job.updated'].includes(event.eventType) && event.aggregateType === 'legacy-job')
-                        ? 'legacy-backend' : 'job-core-service'
+                        ? 'legacy-backend' : 'job-core-service',
+                    ...((event.correlationId || event.correlation_id || payload?._correlationId)
+                        ? { correlationId: event.correlationId || event.correlation_id || payload._correlationId }
+                        : {})
                 });
                 await markPublished(event);
                 published += 1;

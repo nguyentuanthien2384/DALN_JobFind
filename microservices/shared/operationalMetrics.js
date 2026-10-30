@@ -41,3 +41,38 @@ export const registerAiTaskMetrics = (registry, read) => {
     new Gauge({ name: 'jobfind_ai_oldest_pending_seconds', help: 'Age of the oldest pending AI task', registers: [registry],
         async collect() { this.set(age((await get()).find((row) => row.status === 'pending')?.oldest)); } });
 };
+
+export const registerNotificationDeliveryMetrics = (registry, read) => {
+    const get = snapshot(read);
+    new Gauge({ name: 'jobfind_notification_deliveries', help: 'Durable notification deliveries by bounded state', labelNames: ['state'], registers: [registry],
+        async collect() {
+            const rows = await get();
+            for (const state of ['pending', 'sent', 'failed', 'unknown']) {
+                this.set({ state }, Number(rows.find((row) => row.status === state)?.total || 0));
+            }
+        } });
+    new Gauge({ name: 'jobfind_notification_oldest_pending_seconds', help: 'Age of the oldest pending notification delivery', registers: [registry],
+        async collect() { this.set(age((await get()).find((row) => row.status === 'pending')?.oldest)); } });
+};
+
+export const registerCircuitBreakerMetrics = (registry, readBreakers) => {
+    const stateToCode = { closed: 0, 'half-open': 1, open: 2 };
+    new Gauge({ name: 'jobfind_gateway_breaker_state', help: 'Circuit breaker state per downstream target (0=closed, 1=half-open, 2=open)', labelNames: ['target'], registers: [registry],
+        collect() {
+            const items = readBreakers() || [];
+            for (const item of items) {
+                if (!item?.service) continue;
+                this.set({ target: String(item.service) }, stateToCode[item.state] ?? 0);
+            }
+        } });
+    new Gauge({ name: 'jobfind_gateway_breaker_totals', help: 'Circuit breaker cumulative outcomes per downstream target', labelNames: ['target', 'outcome'], registers: [registry],
+        collect() {
+            const items = readBreakers() || [];
+            for (const item of items) {
+                if (!item?.service) continue;
+                for (const outcome of ['successes', 'failures', 'timeouts', 'rejects']) {
+                    this.set({ target: String(item.service), outcome }, Number(item.stats?.[outcome] || 0));
+                }
+            }
+        } });
+};

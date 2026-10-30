@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'node:http';
 import cors from 'cors';
 import { createServiceRuntime } from '../../shared/serviceRuntime.js';
+import { registerCircuitBreakerMetrics } from '../../shared/operationalMetrics.js';
 import { requestBodies, safeHttpError } from '../../shared/httpBoundary.js';
 import { rejectUnknownModernRoute } from '../../shared/requestContract.js';
 import { checkAccountStore, closeAccountStore } from './libs/accountStore.js';
@@ -52,6 +53,7 @@ const runtime = createServiceRuntime(app, { service: 'api-gateway', logger,
     checks: { mysql: () => checkAccountStore(), redis: () => checkRedis() } });
 runtime.onClose(() => closeAccountStore());
 runtime.onClose(() => closeRedis());
+registerCircuitBreakerMetrics(runtime.registry, () => getBreakerStats());
 
 // Mac dinh false: bo qua hoan toan X-Forwarded-For do client tu gui. Neu co
 // reverse proxy, TRUST_PROXY phai la IP/CIDR cu the cua proxy do.

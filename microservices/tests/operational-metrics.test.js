@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Registry } from '@prometheus-io/client';
-import { registerOutboxMetrics, registerAiTaskMetrics } from '../shared/operationalMetrics.js';
+import {
+    registerOutboxMetrics,
+    registerAiTaskMetrics,
+    registerNotificationDeliveryMetrics,
+    registerCircuitBreakerMetrics
+} from '../shared/operationalMetrics.js';
 
 describe('durable backlog metrics', () => {
     it('reads one snapshot and exposes pending count and real oldest age', async () => {
@@ -24,5 +29,31 @@ describe('durable backlog metrics', () => {
         expect(metrics).toContain('jobfind_ai_tasks{state="done"} 4');
         expect(metrics).toContain('jobfind_ai_oldest_pending_seconds 0');
         expect(metrics).not.toContain('private-user-value');
+    });
+    it('exposes bounded notification delivery states and oldest pending age', async () => {
+        const registry = new Registry();
+        registerNotificationDeliveryMetrics(registry, async () => [
+            { status: 'pending', total: 2, oldest: new Date(Date.now() - 30000) },
+            { status: 'sent', total: 11 },
+            { status: 'unbounded-custom-state', total: 9 }
+        ]);
+        const metrics = await registry.metrics();
+        expect(metrics).toContain('jobfind_notification_deliveries{state="pending"} 2');
+        expect(metrics).toContain('jobfind_notification_deliveries{state="sent"} 11');
+        expect(metrics).not.toContain('unbounded-custom-state');
+        const values = await registry.getMetricsAsJSON();
+        expect(values.find((item) => item.name === 'jobfind_notification_oldest_pending_seconds').values[0].value).toBeGreaterThanOrEqual(30);
+    });
+    it('exposes gateway circuit breaker state and outcome totals per downstream target', async () => {
+        const registry = new Registry();
+        registerCircuitBreakerMetrics(registry, () => [
+            { service: 'jobs', state: 'closed', stats: { successes: 10, failures: 0, timeouts: 0, rejects: 0 } },
+            { service: 'search', state: 'open', stats: { successes: 2, failures: 5, timeouts: 1, rejects: 3 } }
+        ]);
+        const metrics = await registry.metrics();
+        expect(metrics).toContain('jobfind_gateway_breaker_state{target="jobs"} 0');
+        expect(metrics).toContain('jobfind_gateway_breaker_state{target="search"} 2');
+        expect(metrics).toContain('jobfind_gateway_breaker_totals{target="search",outcome="failures"} 5');
+        expect(metrics).toContain('jobfind_gateway_breaker_totals{target="search",outcome="rejects"} 3');
     });
 });
