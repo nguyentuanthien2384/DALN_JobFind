@@ -2,6 +2,14 @@
 # va chuyen /api, /socket.io vao API Gateway.
 #   SITE_ADDRESS=jobfind.example.com -> tu xin va gia han chung chi HTTPS.
 #   SITE_ADDRESS=:80                 -> chi HTTP, de thu khi chua co ten mien.
+{
+	# Chi dung HTTP/1.1 va HTTP/2 (TCP 443): nhieu mang Wi-Fi truong/doanh nghiep
+	# hoac firewall chan UDP 443 khien trinh duyet bao ERR_QUIC_PROTOCOL_ERROR.
+	servers {
+		protocols h1 h2
+	}
+}
+
 {$SITE_ADDRESS} {
 	encode zstd gzip
 
@@ -28,6 +36,8 @@
 	}
 
 	header {
+		# Xoa cache Alt-Svc h3 cu (ma=2592000) tren cac trinh duyet da tung truy cap.
+		Alt-Svc "clear"
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"

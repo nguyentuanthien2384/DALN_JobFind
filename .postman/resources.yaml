@@ -1,0 +1,13 @@
+# Use this workspace to collaborate
+workspace:
+  id: ""
+
+localResources:
+  specs:
+    - ../microservices/contracts/http/admin.openapi.json
+    - ../microservices/contracts/http/applications.openapi.json
+    - ../microservices/contracts/http/gateway.openapi.json
+    - ../microservices/contracts/http/identity.openapi.json
+    - ../microservices/contracts/http/jobs.openapi.json
+    - ../microservices/contracts/http/search.openapi.json
+    - ../microservices/contracts/http/support.openapi.json
