@@ -10,6 +10,16 @@ set -eu
 main() {
     cd "$(dirname "$0")/.."
 
+    # O dia day lam MongoDB/MariaDB khong ghi duoc file va khoi dong lai lien tuc.
+    # Build 3 image moi + ban sao luu can vai GB, nen dung som neu con duoi 5 GB.
+    min_free_kb=$((5 * 1024 * 1024))
+    free_kb=$(df -Pk / | awk 'NR==2 {print $4}')
+    if [ "$free_kb" -lt "$min_free_kb" ]; then
+        echo "Loi: o dia chi con $((free_kb / 1024)) MB trong (can it nhat 5 GB)." >&2
+        echo "Don dep truoc: docker image prune -af && docker builder prune -af" >&2
+        exit 1
+    fi
+
     echo "== 1/6 Sao luu du lieu"
     sh scripts/backup.sh
 
@@ -32,6 +42,8 @@ main() {
     docker compose build
 
     echo "== 5/6 Cap nhat cau truc CSDL (chi chay migration moi)"
+    # admin-service chay voi --no-deps nen phai tu bat cac CSDL truoc.
+    docker compose up -d --wait mysql mongo postgres
     docker compose run --rm backend node /app/scripts/migrate-auth.mjs --from-env
     docker compose run --rm backend node /app/scripts/migrate-backend.mjs --from-env
     docker compose run --rm --no-deps admin-service node scripts/migrate-audit-retention.mjs --apply --allow-expiry
@@ -40,6 +52,11 @@ main() {
     echo "== 6/6 Khoi dong ban moi"
     docker compose up -d
     docker compose ps --format 'table {{.Service}}\t{{.Status}}'
+
+    # Moi lan build de lai image cu (dangling) va cache build; khong don se day o dia.
+    docker image prune -f >/dev/null
+    docker builder prune -f --filter until=72h >/dev/null
+    echo "O dia con trong: $(df -h / | awk 'NR==2 {print $4}')"
     echo "Xong. Dich vu nao chua 'healthy' sau 2 phut: docker compose logs --tail 80 <dich-vu>"
 }
 
