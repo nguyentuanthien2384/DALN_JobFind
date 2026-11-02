@@ -5,7 +5,7 @@ Thư mục có các collection:
 | Collection | Dùng để |
 |---|---|
 | `JobFind-API-Tests.postman_collection.json` | Bộ kiểm thử tự động cho toàn dự án: backend cũ và microservices (433 request, có test script). Dùng với `JobFind-API-Tests-Local` (máy của bạn) hoặc `JobFind-API-Tests-Production` (https://thiennt.id.vn) |
-| `JobFind-Demo-Thu-Cong.postman_collection.json` | **Demo thủ công 1-click (Điền JSON & Send ngay)**: 18 request phẳng từ `01` → `18`, mở tab `Body` thấy sẵn JSON mẫu hoàn chỉnh để sửa thông tin thật rồi bấm **Send** 1 lần là đồng bộ ngay lên trình duyệt & gửi Email thật (dùng chung environment Local / Production) |
+| `JobFind-Demo-Thu-Cong.postman_collection.json` | **Demo thủ công 1-click toàn dự án (Điền JSON & Send ngay)**: 26 request phẳng từ `01` → `26` bao phủ trọn vẹn Backend + **9/9 Microservices**, mở tab `Body` thấy sẵn JSON mẫu hoàn chỉnh để sửa thông tin thật rồi bấm **Send** 1 lần là đồng bộ ngay lên trình duyệt & gửi Email thật (dùng chung environment Local / Production) |
 | `JobFind-Thao-Tac-Thu-Cong.postman_collection.json` | Tự đăng ký tài khoản, mời phỏng vấn, gửi thư trúng tuyển/từ chối, chuyển giai đoạn bằng dữ liệu của bạn theo cơ chế an toàn 2 bước: kiểm tra trước (`?dryRun=true`) rồi mới làm thật (mục bên dưới) |
 | `JobFind-Demo.postman_collection.json` | Bộ request chỉ đọc để demo nhanh (phần cuối file này) |
 

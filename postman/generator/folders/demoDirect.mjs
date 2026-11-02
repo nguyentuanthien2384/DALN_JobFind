@@ -587,6 +587,205 @@ const demoDirectItems = [
                 { label: 'Xem đánh giá trên trình duyệt', value: webOrigin + '/detail-company/' + cid }
             ]);
         })]
+    }),
+
+    req('19 - [Search Service - Elasticsearch] Tìm kiếm việc làm chịu lỗi sai chính tả (CQRS Read)', {
+        path: '/api/search/jobs?q=develper&limit=5',
+        description: 'Thử cố tình gõ sai chính tả từ khoá "q" ở tab Params (ví dụ "develper" thiếu chữ o, hoặc đổi thành "react", "nodejs") rồi bấm Send -> Elasticsearch vẫn chấm điểm _score và tìm ra tin!',
+        test: [...showHelper, ...ok(() => {
+            const resBody = pm.response.json();
+            const jobs = resBody.data || [];
+            const webOrigin = pm.environment.get('origin') || '';
+            const rows = jobs.map((j) => ({
+                label: 'Tin #' + j.id + ' (_score: ' + Number(j._score || 0).toFixed(2) + ')',
+                value: (j.name || '') + ' · Địa điểm: ' + (j.addressCode || '') + ' · Lương: ' + (j.salaryJobCode || '')
+            }));
+            rows.push({ label: 'Trang tìm kiếm Việc làm (Web)', value: webOrigin + '/job' });
+            show(true, 'Elasticsearch tìm thấy ' + (resBody.count || jobs.length) + ' việc làm phù hợp',
+                'Dù từ khoá gõ thiếu chữ ("develper"), Search Service vẫn tìm đúng nhờ Fuzzy Matching trên Elasticsearch!', rows);
+        })]
+    }),
+
+    req('20 - [Search Service - Elasticsearch] Bộ đếm bộ lọc đa chiều (Facets Aggregation)', {
+        path: '/api/search/facets',
+        description: 'Bấm Send để xem Elasticsearch thống kê tức thì số lượng tin theo từng Ngành nghề, Tỉnh thành, Mức lương (dùng cho cột bộ lọc bên trái trang Việc làm).',
+        test: [...showHelper, ...ok(() => {
+            const facets = pm.response.json().data || {};
+            const topCats = (facets.categories || []).slice(0, 4).map((b) => b.code + ' (' + b.count + ')').join(', ');
+            const topProvs = (facets.provinces || []).slice(0, 4).map((b) => b.code + ' (' + b.count + ')').join(', ');
+            const topSals = (facets.salaries || []).slice(0, 4).map((b) => b.code + ' (' + b.count + ')').join(', ');
+            show(true, 'Đã tổng hợp Facets từ Elasticsearch', 'Số đếm bộ lọc hiển thị theo thời gian thực trên trang tìm kiếm việc làm.', [
+                { label: 'Top Ngành nghề', value: topCats || 'Chưa có' },
+                { label: 'Top Tỉnh / Thành phố', value: topProvs || 'Chưa có' },
+                { label: 'Top Mức lương', value: topSals || 'Chưa có' }
+            ]);
+        })]
+    }),
+
+    req('21 - [Admin Service - Đa CSDL] Báo cáo thống kê tổng quan toàn hệ thống', {
+        path: '/api/admin/reports/overview', token: 'admin',
+        description: 'Bấm Send để Admin Service gom số liệu trực tiếp từ MySQL (người dùng, công ty, tin, doanh thu) + PostgreSQL (phễu hồ sơ Kanban) -> Đồng bộ trang /admin/reports.',
+        test: [...showHelper, ...ok(() => {
+            const ov = pm.response.json().data || {};
+            const webOrigin = pm.environment.get('origin') || '';
+            show(true, 'Báo cáo tổng hợp đa nguồn CSDL (MySQL + PostgreSQL + MongoDB)',
+                'Dữ liệu tổng hợp cho Dashboard Quản trị viên toàn sàn JobFind.', [
+                    { label: 'Người dùng hoạt động (MySQL)', value: ((ov.nguoiDung && ov.nguoiDung.tong) || 0) + ' (Mới 30 ngày: ' + ((ov.nguoiDung && ov.nguoiDung.moi) || 0) + ')' },
+                    { label: 'Tổng số công ty (MySQL)', value: ov.congTy || 0 },
+                    { label: 'Tin tuyển dụng (MySQL)', value: 'Đang hiển thị PS1: ' + ((ov.tinTuyenDung && ov.tinTuyenDung.dangHienThi) || 0) + ' | Chờ duyệt PS3: ' + ((ov.tinTuyenDung && ov.tinTuyenDung.choDuyet) || 0) },
+                    { label: 'Hồ sơ Kanban 30 ngày (PostgreSQL)', value: 'Tổng nộp: ' + ((ov.hoSoUngTuyen && ov.hoSoUngTuyen.tong) || 0) + ' | Đã nhận việc: ' + ((ov.hoSoUngTuyen && ov.hoSoUngTuyen.daTuyen) || 0) },
+                    { label: 'Tổng doanh thu 30 ngày (USD)', value: ((ov.doanhThu && ov.doanhThu.tong) || 0) + ' (Gói đăng tin: ' + ((ov.doanhThu && ov.doanhThu.goiTin) || 0) + ' | Gói xem CV: ' + ((ov.doanhThu && ov.doanhThu.goiXemCv) || 0) + ')' },
+                    { label: 'Dashboard Báo cáo Admin (Web)', value: webOrigin + '/admin/reports' }
+                ]);
+        })]
+    }),
+
+    req('22 - [Admin Service - MongoDB Audit] Xem Nhật ký kiểm toán các thao tác vừa chạy', {
+        path: '/api/admin/audit?kind=action&limit=10', token: 'admin',
+        description: 'Bấm Send để xem 10 bản ghi Audit Log mới nhất trong MongoDB — ghi lại chính xác các thao tác Đăng tin, Duyệt tin, Mời phỏng vấn, Gửi Offer... vừa chạy qua API Gateway kèm mã vết X-Correlation-Id!',
+        test: [...showHelper, ...ok(() => {
+            const logs = pm.response.json().data || [];
+            const webOrigin = pm.environment.get('origin') || '';
+            const rows = logs.map((row) => ({
+                label: (row.name || 'action') + ' [HTTP ' + row.status + ']',
+                value: 'User #' + (row.actorId || '-') + ' · Lúc: ' + (row.createdAt || '') + ' · Trace: ' + (row.correlationId || '')
+            }));
+            rows.push({ label: 'Xem trên trang Báo cáo Admin (Web)', value: webOrigin + '/admin/reports' });
+            show(true, logs.length + ' bản ghi Nhật ký kiểm toán (Audit Logs) mới nhất từ MongoDB',
+                'Mọi thao tác ghi đi qua API Gateway và RabbitMQ đều được lưu vết bất đồng bộ vào MongoDB.', rows);
+        })]
+    }),
+
+    req('23 - [Support Chat Service - SSE] Hỏi Trợ lý ảo Chatbot hỗ trợ (Streaming SSE)', {
+        method: 'POST', path: '/api/support/turn', token: 'manualCandidate',
+        description: 'Sửa câu hỏi "text" trong JSON bên dưới rồi bấm Send -> Nhận dòng sự kiện trực tiếp Server-Sent Events (state -> token -> done), hiển thị câu trả lời ở tab Visualize và đồng bộ vào bong bóng Chatbot góc dưới trình duyệt!',
+        body: JSON.stringify({
+            requestId: '{{$guid}}',
+            text: 'Trạng thái hồ sơ ứng tuyển của tôi thế nào?'
+        }, null, 2),
+        test: [...showHelper, ...script(() => {
+            pm.test('HTTP 200 (SSE Stream)', () => pm.response.to.have.status(200));
+            pm.test('Content-Type text/event-stream', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream'));
+            const rawStream = pm.response.text();
+            const events = rawStream.split(/\r?\n\r?\n/).filter((c) => c.trim()).map((chunk) => {
+                const name = (/^event: (.+)$/m.exec(chunk) || [])[1];
+                const rawPayload = (/^data: (.+)$/m.exec(chunk) || [])[1];
+                let parsed = null;
+                try { parsed = rawPayload ? JSON.parse(rawPayload) : null; } catch (e) { parsed = null; }
+                return { name, payload: parsed };
+            });
+            const stateEv = events.find((e) => e.name === 'state');
+            if (stateEv && stateEv.payload && stateEv.payload.id) {
+                pm.environment.set('manualSupportConvId', stateEv.payload.id);
+            }
+            const fullAnswer = events.filter((e) => e.name === 'token')
+                .map((e) => (e.payload && e.payload.text) || '').join('');
+            const webOrigin = pm.environment.get('origin') || '';
+            show(true, 'Trợ lý Chatbot đã trả lời qua luồng SSE (' + events.length + ' sự kiện stream)',
+                'Hội thoại đã lưu và đồng bộ lên bong bóng Trợ lý hỗ trợ góc dưới bên phải trang Web của Ứng viên!', [
+                    { label: 'Mã hội thoại (manualSupportConvId)', value: pm.environment.get('manualSupportConvId') || '' },
+                    { label: 'Câu trả lời của Chatbot', value: fullAnswer || '(Không có nội dung text)' },
+                    { label: 'Xem bong bóng Chatbot trên Web', value: webOrigin }
+                ]);
+        })]
+    }),
+
+    req('24 - [Support Chat Service] Chuyển hội thoại Chatbot cho Nhân viên hỗ trợ (Admin Inbox)', {
+        method: 'POST', path: '/api/support/conversations/{{manualSupportConvId}}/handoff', token: 'manualCandidate',
+        description: 'Bấm Send với {"consent": true} để ứng viên yêu cầu gặp Nhân viên tư vấn thật -> Phiếu hỗ trợ xuất hiện ngay trên trang /admin/support của Quản trị viên!',
+        pre: script(() => {
+            if (pm.environment.get('manualSupportConvId')) return;
+            const uuidv4 = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                const r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+            pm.sendRequest({
+                url: pm.environment.get('baseUrl') + '/api/support/turn',
+                method: 'POST',
+                header: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.environment.get('manualCandidateAccessToken') },
+                body: { mode: 'raw', raw: JSON.stringify({ requestId: uuidv4(), text: 'Trạng thái hồ sơ ứng tuyển của tôi thế nào?' }) }
+            }, (err, res) => {
+                if (!err && res.code === 200) {
+                    const match = /event: state\r?\ndata: (\{[^\r\n]+\})/.exec(res.text());
+                    if (match) {
+                        try { pm.environment.set('manualSupportConvId', JSON.parse(match[1]).id); } catch (e) {}
+                    }
+                }
+            });
+        }),
+        body: JSON.stringify({
+            consent: true
+        }, null, 2),
+        test: [...showHelper, ...ok(() => {
+            const ticket = pm.response.json().data || {};
+            const webOrigin = pm.environment.get('origin') || '';
+            show(true, 'Đã tạo phiếu chuyển Nhân viên tư vấn (Trạng thái: ' + (ticket.status || 'waiting') + ')',
+                'Đăng nhập tài khoản Admin (0795095049 / 123456) trên trình duyệt và mở Hộp thư hỗ trợ để tiếp nhận!', [
+                    { label: 'Mã hội thoại / Ticket', value: ticket.id || pm.environment.get('manualSupportConvId') },
+                    { label: 'Trạng thái hàng đợi', value: ticket.status || 'waiting' },
+                    { label: 'Hộp thư Hỗ trợ Admin (Web)', value: webOrigin + '/admin/support' }
+                ]);
+        })]
+    }),
+
+    req('25 - [AI Worker - RabbitMQ + Claude] Gửi bản nháp nhờ AI viết lại chuyên nghiệp (Async 202)', {
+        method: 'POST', path: '/api/ai/chat-assist', token: 'manualCandidate',
+        headers: { 'Idempotency-Key': '{{manualAiIdempotencyKey}}' },
+        description: 'Sửa câu nháp không dấu / viết vội ở trường "draft" rồi bấm Send -> Job Core ghi Outbox + bắn qua RabbitMQ sang AI Worker, trả về ngay HTTP 202 + taskId (không bắt người dùng treo máy chờ)! Sau đó bấm tiếp mục 26 để lấy câu chữ hoàn chỉnh.',
+        pre: script(() => {
+            pm.environment.set('manualAiIdempotencyKey', 'demo-ai-' + Date.now());
+        }),
+        body: JSON.stringify({
+            mode: 'polish',
+            language: 'vi',
+            draft: 'em chao anh chi hr, em muon hoi vi tri fullstack developer ben minh con tuyen khong va quy trinh phong van gom may vong a'
+        }, null, 2),
+        test: [...showHelper, ...script(() => {
+            pm.test('HTTP 202 Accepted (Đã xếp hàng RabbitMQ)', () => pm.response.to.have.status(202));
+            const resBody = pm.response.json();
+            pm.test('errCode = 0 và có taskId', () => {
+                pm.expect(resBody.errCode).to.eql(0);
+                pm.expect(resBody.taskId).to.be.a('string').and.not.empty;
+            });
+            if (resBody.taskId) pm.environment.set('manualAiTaskId', resBody.taskId);
+            show(true, 'Đã đẩy tác vụ sang AI Worker qua RabbitMQ (taskId: ' + (resBody.taskId || '') + ')',
+                'Bấm tiếp mục "26 - [AI Worker] Nhận kết quả câu chữ do AI xử lý xong" ngay bên dưới để xem bản viết lại!', [
+                    { label: 'Mã tác vụ AI (manualAiTaskId)', value: resBody.taskId || '' },
+                    { label: 'Cơ chế kiến trúc', value: 'API Gateway -> Job Core (Outbox) -> RabbitMQ -> AI Worker (Claude LLM)' }
+                ]);
+        })]
+    }),
+
+    req('26 - [AI Worker] Nhận kết quả câu chữ do AI xử lý xong', {
+        path: '/api/ai/tasks/{{manualAiTaskId}}', token: 'manualCandidate',
+        description: 'Bấm Send (nếu AI Worker đang xử lý, Pre-request tự động đợi vài giây tới khi hoàn tất rồi trả kết quả câu văn chuyên nghiệp ngay ở tab Body & Visualize).',
+        pre: script(() => {
+            const taskId = pm.environment.get('manualAiTaskId');
+            if (!taskId) {
+                console.log('Chưa có manualAiTaskId: hãy bấm mục 25 trước.');
+                pm.execution.skipRequest();
+                return;
+            }
+            const deadline = Date.now() + 45000;
+            const poll = () => pm.sendRequest({
+                url: pm.environment.get('baseUrl') + '/api/ai/tasks/' + taskId,
+                header: { Authorization: 'Bearer ' + pm.environment.get('manualCandidateAccessToken') }
+            }, (err, res) => {
+                const st = (!err && res.code === 200 && res.json().data) ? res.json().data.status : 'pending';
+                if (st === 'pending' && Date.now() < deadline) setTimeout(poll, 2500);
+            });
+            poll();
+        }),
+        test: [...showHelper, ...ok(() => {
+            const task = pm.response.json().data || {};
+            const suggestions = (task.result && task.result.suggestions) || [];
+            const rows = suggestions.map((s, idx) => ({ label: 'Phương án AI #' + (idx + 1), value: s }));
+            if (!rows.length && task.result) rows.push({ label: 'Kết quả AI', value: JSON.stringify(task.result) });
+            if (task.error) rows.push({ label: 'Thông báo lỗi (nếu có)', value: task.error });
+            show(task.status === 'done', 'Trạng thái AI Worker: ' + (task.status || 'unknown'),
+                task.status === 'done' ? 'AI Worker đã biên tập xong tin nhắn chuyên nghiệp qua RabbitMQ!' : 'Tác vụ chưa hoàn tất hoặc hết quota AI.',
+                rows);
+        })]
     })
 ];
 

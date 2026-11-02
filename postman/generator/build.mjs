@@ -70,8 +70,8 @@ const demoDirectCollection = {
         _postman_id: '7c4e9a12-6b3d-4e8f-91a5-24d8f6b0c3e9',
         name: 'JobFind - Demo Thủ Công (Điền JSON & Send ngay)',
         description: [
-            'Bộ 18 request phẳng (01 -> 18) dành riêng cho Demo Live: mở tab Body thấy sẵn JSON mẫu đầy đủ,',
-            'chỉ việc sửa thông tin thật rồi bấm Send 1 lần là đồng bộ ngay lên trình duyệt & gửi Email thật.',
+            'Bộ 26 request phẳng (01 -> 26) bao phủ trọn vẹn 100% dự án (Backend + 9/9 Microservices):',
+            'mở tab Body thấy sẵn JSON mẫu đầy đủ, chỉ việc sửa thông tin thật rồi bấm Send 1 lần là đồng bộ ngay lên trình duyệt & gửi Email thật.',
             'Tự động đăng nhập/gia hạn JWT Access Token theo cùng environment Local hoặc Production.',
             'Không bấm Run cả collection: hãy chọn request muốn demo, sửa JSON và bấm Send.'
         ].join('\n'),
