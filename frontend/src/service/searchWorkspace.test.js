@@ -1,4 +1,4 @@
-import { loadSearchPage, loadSearchLabels, searchCard } from './searchWorkspace';
+import { getCachedSearchLabels, loadSearchPage, loadSearchLabels, searchCard } from './searchWorkspace';
 import { searchJobs } from './aiSearchService';
 import { getListPostService, getAllCodeService } from './userService';
 import { filterExternalJobs } from './externalJobs';
@@ -60,4 +60,23 @@ test('native-only consumers such as Candidate AI keep numeric job IDs', async ()
     expect(result.data.map(row=>row.id)).toEqual([7]);
     expect(result.count).toBe(1);
     expect(filterExternalJobs).not.toHaveBeenCalled();
+});
+
+test('runs searchJobs in parallel with a pending labels promise and caches resolved labels', async () => {
+    let finishLabels;
+    getAllCodeService.mockImplementation((type) => new Promise((resolve) => {
+        if (type === 'SALARYTYPE') {
+            finishLabels = () => resolve({ errCode: 0, data: [{ code: 'S1', value: '15–20 triệu' }] });
+        } else {
+            resolve({ errCode: 0, data: [] });
+        }
+    }));
+    searchJobs.mockResolvedValue({ errCode: 0, data: [job], count: 1 });
+
+    const pendingPage = loadSearchPage({ search: 'React', limit: 5, offset: 0 }, 'core', loadSearchLabels());
+    expect(searchJobs).toHaveBeenCalledTimes(1);
+    finishLabels();
+    const page = await pendingPage;
+    expect(page.data[0].postDetailData.salaryTypePostData.value).toBe('15–20 triệu');
+    expect(getCachedSearchLabels()).toMatchObject({ SALARYTYPE: { S1: '15–20 triệu' } });
 });

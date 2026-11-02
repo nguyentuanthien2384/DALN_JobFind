@@ -91,6 +91,13 @@ describe("public Header", () => {
             "href",
             "/login"
         );
+        const logoImg = screen.getByRole("img", { name: "Job Finder" });
+        expect(logoImg).toHaveAttribute("src", "/assets/img/logo/logo.svg");
+        expect(logoImg).toHaveAttribute("width", "204");
+        expect(logoImg).toHaveAttribute("height", "64");
+        const desktopNav = screen.getByRole("navigation", { name: "Điều hướng chính" });
+        fireEvent.mouseEnter(within(desktopNav).getByRole("link", { name: "Việc làm" }));
+        fireEvent.mouseEnter(within(desktopNav).getByRole("link", { name: "Công ty" }));
         expect(getNotificationByUserService).not.toHaveBeenCalled();
     });
 

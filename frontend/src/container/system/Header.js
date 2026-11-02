@@ -170,7 +170,7 @@ const Header = ({ user: suppliedUser }) => {
             <div className="text-center navbar-brand-wrapper d-flex align-items-center justify-content-center">
                 <Link className="navbar-brand brand-logo mr-5" to={homePath}>
                     <img
-                        src="/assets/img/logo/logo.png"
+                        src="/assets/img/logo/logo.svg"
                         className="mr-2"
                         alt="logo"
                     />

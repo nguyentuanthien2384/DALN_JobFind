@@ -102,4 +102,18 @@ describe("job filters and results", () => {
         expect(prefetchJobDetail).not.toHaveBeenCalled();
         expect(screen.getByText('Tin từ nguồn bên ngoài')).toBeInTheDocument();
     });
+
+    it('holds five card-sized placeholders on the initial load so the job list never collapses', () => {
+        const { container, rerender } = render(
+            <RightContent loading count={0} post={[]} handleSearch={jest.fn()} />
+        );
+        expect(container.querySelectorAll('.single-job-items.is-placeholder')).toHaveLength(5);
+        expect(screen.getByRole('status')).toHaveTextContent('Đang tìm việc…');
+
+        rerender(
+            <RightContent loading={false} count={1} post={[{ id: 4, title: 'React' }]} handleSearch={jest.fn()} />
+        );
+        expect(container.querySelector('.single-job-items.is-placeholder')).toBeNull();
+        expect(screen.getByText('1 công việc được tìm thấy')).toBeInTheDocument();
+    });
 });

@@ -1,2 +1,85 @@
 .job-result-link { display: block; scroll-margin-top: 120px; }
 .job-result-link:focus-visible { outline: 2px solid #2453bf; outline-offset: 3px; }
+
+/* Giữ chiều cao ổn định khi trang vừa mở lần đầu để không giật thanh cuộn hoặc đẩy footer nhảy lên */
+.jf-job-search-page .job-listing-area {
+    min-height: calc(100vh - 89px);
+}
+
+.single-job-items.is-placeholder {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 36px 30px;
+    border: 1px solid #ededed;
+    border-radius: 6px;
+    background: #fff;
+    pointer-events: none;
+}
+
+.single-job-items.is-placeholder .job-items {
+    display: flex;
+    align-items: center;
+    flex: 1 1 360px;
+    min-width: 0;
+}
+
+.job-placeholder__logo {
+    width: 85px;
+    height: 85px;
+    margin-right: 26px;
+    border-radius: 8px;
+    background: #eef1f6;
+    flex-shrink: 0;
+}
+
+.single-job-items.is-placeholder .job-tittle {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.job-placeholder__title {
+    width: min(360px, 78%);
+    height: 20px;
+    margin-bottom: 16px;
+    border-radius: 6px;
+    background: #e8ecf3;
+}
+
+.job-placeholder__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.job-placeholder__meta > span {
+    display: inline-block;
+    width: 96px;
+    height: 14px;
+    border-radius: 5px;
+    background: #f0f3f8;
+}
+
+.job-placeholder__side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.job-placeholder__badge {
+    display: block;
+    width: 98px;
+    height: 16px;
+    border-radius: 8px;
+    background: #eef1f6;
+}
+
+.job-placeholder__time {
+    display: block;
+    width: 78px;
+    height: 13px;
+    border-radius: 5px;
+    background: #f2f4f8;
+}

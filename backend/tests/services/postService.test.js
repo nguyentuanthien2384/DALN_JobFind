@@ -440,8 +440,13 @@ describe('postService', () => {
       isHot: 1, limit: '10', offset: '0'
     });
     expect(result).toEqual({ errCode: 0, data: ['p'], count: 1 });
-    expect(mockDb.Post.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 0 }));
-    expectPublicOwnerScope(mockDb.Post.findAndCountAll.mock.calls[0][0]);
+    expect(mockDb.DetailPost.findAll).toHaveBeenCalledWith(expect.objectContaining({ attributes: ['id'] }));
+    const postQuery = mockDb.Post.findAndCountAll.mock.calls[0][0];
+    expect(postQuery).toEqual(expect.objectContaining({ limit: 10, offset: 0 }));
+    expect(postQuery.include.find(item => item.as === 'postDetailData').attributes).toEqual(['id', 'name', 'amount']);
+    expect(postQuery.include.find(item => item.as === 'userPostData').include.find(item => item.as === 'userCompanyData').attributes)
+      .toEqual(['id', 'name', 'thumbnail']);
+    expectPublicOwnerScope(postQuery);
   });
 
   test('public listing hides posts past their deadline, keeping the last open millisecond', async () => {

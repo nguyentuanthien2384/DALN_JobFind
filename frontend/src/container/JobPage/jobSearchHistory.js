@@ -1,11 +1,37 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import createListCache from '../../util/listCache';
 
 // Keep a bounded snapshot per browser history entry, never across accounts.
 const entries = new Map();
 let sessionToken;
 export const SEARCH_SNAPSHOT_TTL = 5 * 60 * 1000;
-export const clearJobSearchHistory = () => entries.clear();
+const querySnapshots = createListCache({ ttl: SEARCH_SNAPSHOT_TTL, limit: 20 });
+
+export const clearJobSearchHistory = () => {
+    entries.clear();
+    querySnapshots.clear();
+};
+
+export const buildJobQuerySnapshotKey = (params, mode) => JSON.stringify({
+    mode,
+    limit: Number(params.limit) || 5,
+    offset: Number(params.offset) || 0,
+    categoryJobCode: params.categoryJobCode || '',
+    addressCode: params.addressCode || '',
+    salaryJobCode: params.salaryJobCode || [],
+    categoryJoblevelCode: params.categoryJoblevelCode || [],
+    categoryWorktypeCode: params.categoryWorktypeCode || [],
+    experienceJobCode: params.experienceJobCode || [],
+    search: params.search || '',
+});
+
+export const readJobQuerySnapshot = key => querySnapshots.read(key)?.value || null;
+
+export const saveJobQuerySnapshot = (key, snapshot) => {
+    if (!key || !snapshot) return;
+    querySnapshots.save(key, snapshot);
+};
 
 export function JobNavigationScroll() {
     const { pathname } = useLocation();
@@ -33,6 +59,7 @@ export function useJobSearchHistory(key) {
     const token = localStorage.getItem('token_user');
     if (token !== sessionToken) {
         entries.clear();
+        querySnapshots.clear();
         sessionToken = token;
     }
     const entry = useMemo(() => {

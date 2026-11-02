@@ -151,7 +151,12 @@ describe('companyService', () => {
   test('lists active/admin companies with search and censorship filters', async () => {
     mockDb.Company.findAndCountAll.mockResolvedValue({ rows: ['c'], count: 1 });
     expect(await service.getListCompany({ limit: '5', offset: '0', search: 'Acme' })).toEqual({ errCode: 0, data: ['c'], count: 1 });
-    expect(mockDb.Company.findAndCountAll).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 5, offset: 0, where: expect.any(Object) }));
+    const publicListQuery = mockDb.Company.findAndCountAll.mock.calls.at(-1)[0];
+    expect(publicListQuery).toEqual(expect.objectContaining({
+      limit: 5, offset: 0, where: expect.any(Object), order: [['updatedAt', 'DESC'], ['id', 'DESC']]
+    }));
+    expect(publicListQuery.attributes).not.toContain('descriptionMarkdown');
+    expect(publicListQuery.attributes).not.toContain('file');
     expect(await service.getAllCompanyByAdmin({ limit: '5', offset: '0', search: '4', censorCode: 'CS2' })).toEqual({ errCode: 0, data: ['c'], count: 1 });
     expect(mockDb.Company.findAndCountAll).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ censorCode: 'CS2' }) }));
     // Active/stopped filter, bounded page size, and a literal search for "%".

@@ -1,7 +1,7 @@
 import React from "react";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { getAllCodeService } from "../service/userService";
-import { clearAllCodeCache, useFetchAllcode } from "./fetch";
+import { clearAllCodeCache, fetchAllCode, preloadAllCode, useFetchAllcode } from "./fetch";
 
 jest.mock("../service/userService", () => ({
     getAllCodeService: jest.fn(),
@@ -49,5 +49,27 @@ describe("useFetchAllcode", () => {
         await waitFor(() => expect(getAllCodeService).toHaveBeenCalledTimes(1));
         rerender({ type: "GENDER" });
         expect(getAllCodeService).toHaveBeenCalledTimes(1);
+    });
+
+    it("deduplicates concurrent in-flight requests and skips preloading already cached types", async () => {
+        let finish;
+        getAllCodeService.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+        const first = renderHook(() => useFetchAllcode("PROVINCE", { retain: true }));
+        const second = renderHook(() => useFetchAllcode("PROVINCE", { retain: true }));
+        const shared = fetchAllCode("PROVINCE", { retain: true });
+
+        expect(getAllCodeService).toHaveBeenCalledTimes(1);
+        const rows = [{ code: "HN", value: "Hà Nội" }];
+        await act(async () => {
+            finish({ errCode: 0, data: rows });
+            await shared;
+        });
+        expect(first.result.current.data).toEqual(rows);
+        expect(second.result.current.data).toEqual(rows);
+
+        getAllCodeService.mockResolvedValueOnce({ errCode: 0, data: [{ code: "IT", value: "IT" }] });
+        await preloadAllCode(["PROVINCE", "JOBTYPE"]);
+        expect(getAllCodeService).toHaveBeenCalledTimes(2);
+        expect(getAllCodeService).toHaveBeenLastCalledWith("JOBTYPE");
     });
 });

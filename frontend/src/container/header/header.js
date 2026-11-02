@@ -12,6 +12,8 @@ import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
 import SessionContext from '../../auth/SessionContext';
 import ChatAvatar from '../Chat/ChatAvatar';
 import { NOTIFICATIONS_UPDATED_EVENT, notifyNotificationsUpdated } from '../../util/notificationEvents';
+import { prefetchJobLanding } from '../JobPage/jobPageResource';
+import { prefetchCompanies } from '../Company/companyResource';
 
 const navigationItems = [
     { to: '/', label: 'Trang chủ', paths: ['/'] },
@@ -21,13 +23,26 @@ const navigationItems = [
     { to: '/contact', label: 'Liên hệ', paths: ['/contact'] },
 ]
 
+const prefetchPublicRoute = (to) => {
+    if (to === '/job') prefetchJobLanding()
+    else if (to === '/company') prefetchCompanies()
+}
+
 const NavigationLinks = ({ onNavigate }) => {
     const { pathname } = useLocation()
     return navigationItems.map(({ to, label, paths }) => {
         const isActive = paths.some(path => matchPath({ path, end: path === '/' }, pathname))
+        const warmRoute = () => prefetchPublicRoute(to)
         return (
             <li key={to}>
-                <Link to={to} className="public-nav-link" aria-current={isActive ? 'page' : undefined} onClick={onNavigate}>
+                <Link
+                    to={to}
+                    className="public-nav-link"
+                    aria-current={isActive ? 'page' : undefined}
+                    onMouseEnter={warmRoute}
+                    onTouchStart={warmRoute}
+                    onClick={onNavigate}
+                >
                     {label}
                 </Link>
             </li>
@@ -207,7 +222,15 @@ const Header = () => {
                                 <div className="col-lg-3 col-md-2">
                                     {/* <!-- Logo --> */}
                                     <div className="logo" style={{ zIndex: 1 }}>
-                                        <NavLink to="/"><img src="/assets/img/logo/logo.png" alt="" /></NavLink>
+                                        <NavLink to="/">
+                                            <img
+                                                src="/assets/img/logo/logo.svg"
+                                                alt="Job Finder"
+                                                width="204"
+                                                height="64"
+                                                decoding="async"
+                                            />
+                                        </NavLink>
                                     </div>
                                 </div>
                                 <div className="col-lg-9 col-md-9">

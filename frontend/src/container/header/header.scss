@@ -10,6 +10,14 @@
     box-shadow: 0 3px 16px rgba(0, 0, 0, 0.08);
 }
 
+.public-header-shell .logo img {
+    display: block;
+    width: 199px;
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 204 / 64;
+}
+
 .public-header-shell .header-area,
 .public-header-shell .header-area.sticky {
     position: static !important;

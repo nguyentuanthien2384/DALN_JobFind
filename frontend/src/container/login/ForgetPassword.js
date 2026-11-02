@@ -149,8 +149,8 @@ const ForgetPassword = () => {
                                 <div className="auth-form-light text-left py-5 px-4 px-sm-5">
                                     <div className="brand-logo">
                                         <img
-                                            src="/assets/img/logo/logo.png"
-                                            alt="logo"
+                                            src="/assets/img/logo/logo.svg"
+                                            alt="Job Finder"
                                         />
                                     </div>
                                     <h4>Quên mật khẩu?</h4>

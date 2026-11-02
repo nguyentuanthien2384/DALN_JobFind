@@ -1,11 +1,15 @@
 .stable-list { position: relative; min-width: 0; overflow-anchor: none; }
-.stable-list__content { display: flow-root; transition: opacity 120ms ease; }
-.stable-list[aria-busy="true"] > .stable-list__content { opacity: .45; pointer-events: none; user-select: none; }
-.stable-list__overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; min-height: 48px; }
+.stable-list__content { display: flow-root; opacity: 1; transition: opacity 140ms ease 0ms; }
+/* Trì hoãn làm mờ 140ms để các thao tác chuyển trang / lọc nhanh (<140ms) không bị nháy sáng-tối. */
+.stable-list[aria-busy="true"] > .stable-list__content { opacity: .55; pointer-events: none; user-select: none; transition: opacity 160ms ease 140ms; }
+.stable-list[aria-busy="true"]:has(.is-placeholder) > .stable-list__content { opacity: 1; transition: none; }
+.stable-list__overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; min-height: 48px; opacity: 0; animation: stable-list-overlay-in 150ms ease 150ms forwards; }
+.stable-list:has(.is-placeholder) > .stable-list__overlay { opacity: 0; animation: none; }
 .stable-list__status { position: sticky; top: 45vh; display: table; max-width: calc(100% - 24px); margin: 12px auto; padding: 10px 16px; color: #26395e; background: #fff; border: 1px solid #e0e6ef; border-radius: 22px; box-shadow: 0 3px 14px #14234414; font-size: 14px; line-height: 22px; }
 .stable-list__spinner { display: inline-block; width: 14px; height: 14px; margin-right: 9px; vertical-align: -2px; border: 2px solid #dce4f1; border-top-color: #4b49ac; border-radius: 50%; animation: stable-list-spin .8s linear infinite; }
+@keyframes stable-list-overlay-in { to { opacity: 1; } }
 @keyframes stable-list-spin { to { transform: rotate(360deg); } }
 /* Card-sized placeholders a page shows on its first load, so the page never collapses. */
 .stable-list__placeholder { animation: stable-list-pulse 1.4s ease-in-out infinite; }
-@keyframes stable-list-pulse { 50% { opacity: .55; } }
-@media (prefers-reduced-motion: reduce) { .stable-list__content { transition: none; } .stable-list__spinner, .stable-list__placeholder { animation: none; } }
+@keyframes stable-list-pulse { 50% { opacity: .62; } }
+@media (prefers-reduced-motion: reduce) { .stable-list__content, .stable-list[aria-busy="true"] > .stable-list__content { transition: none; } .stable-list__overlay, .stable-list__spinner, .stable-list__placeholder { animation: none; opacity: 1; } .stable-list:has(.is-placeholder) > .stable-list__overlay { opacity: 0; } }

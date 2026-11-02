@@ -87,6 +87,7 @@ export const searchJobs = async (req, res) => {
             from: Number(offset) || 0,
             size: Math.min(Number(limit) || 12, 100),
             track_total_hits: true,
+            _source: { excludes: ['description'] },
             query: { bool: { must: must.length ? must : [{ match_all: {} }], filter } },
             sort: sortClause,
             // Tra ve doan van ban co chua tu khoa de hien thi trong ket qua.
@@ -183,6 +184,7 @@ export const related = async (req, res) => {
         const result = await es.search({
             index: INDEX,
             size: Math.min(Number(req.query.limit) || 6, 20),
+            _source: { excludes: ['description'] },
             query: {
                 bool: {
                     filter: publicJobFilter(),

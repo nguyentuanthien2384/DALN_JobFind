@@ -4,24 +4,16 @@ import Categories from '../../components/home/Categories'
 import FeatureJobs from '../../components/home/FeaturesJobs'
 import RecommendedJobs from '../../components/home/RecommendedJobs'
 import { getListPostService } from '../../service/userService'
+import { prefetchJobLanding } from '../JobPage/jobPageResource'
+
 const Home = () => {
     const [dataFeature, setDataFeature] = useState([])
     const [dataHot,setDateHot] = useState([])
-    let loadPost = async (limit, offset) => {
-        let arrData = await getListPostService({
-            limit: limit,
-            offset: offset,
-            categoryJobCode: '',
-            addressCode: '',
-            salaryJobCode: '',
-            categoryJoblevelCode: '',
-            categoryWorktypeCode: '',
-            experienceJobCode: '',
-            sortName: false
-        })
-        let arrData2 = await getListPostService({
-            limit: limit,
-            offset: offset,
+    useEffect(() => {
+        let active = true
+        const baseFilters = {
+            limit: 5,
+            offset: 0,
             categoryJobCode: '',
             addressCode: '',
             salaryJobCode: '',
@@ -29,20 +21,20 @@ const Home = () => {
             categoryWorktypeCode: '',
             experienceJobCode: '',
             sortName: false,
-            isHot: 1
-        })
-        if (arrData && arrData.errCode === 0) {
-            setDataFeature(arrData.data)
         }
-        if (arrData2 && arrData2.errCode === 0) {
-            setDateHot(arrData2.data)
-        }
-    }
-    useEffect(() => {
-        let fetchPost = async () => {
-            await loadPost(5, 0)
+        const fetchPost = async () => {
+            const arrData = await getListPostService(baseFilters)
+            const arrData2 = await getListPostService({ ...baseFilters, isHot: 1 })
+            if (!active) return
+            if (arrData && arrData.errCode === 0) {
+                setDataFeature(arrData.data)
+            }
+            if (arrData2 && arrData2.errCode === 0) {
+                setDateHot(arrData2.data)
+            }
         }
         fetchPost()
+        return () => { active = false }
     }, [])
     return (
         <>
@@ -51,7 +43,7 @@ const Home = () => {
             <div class="preloader-inner position-relative">
                 <div class="preloader-circle"></div>
                 <div class="preloader-img pere-text">
-                    <img src="assets/img/logo/logo.png" alt="" />
+                    <img src="assets/img/logo/logo.svg" alt="" />
                 </div>
             </div>
         </div>
@@ -111,7 +103,14 @@ const Home = () => {
                                 <div className="cv-caption text-center">
                                     <p className="pera1">Nhiều công việc đang chờ bạn</p>
                                     <p className="pera2"> Bạn đã hứng thú đã tìm việc chưa ?</p>
-                                    <Link to='/job' className="border-btn2 border-btn4">Tìm việc ngay</Link>
+                                    <Link
+                                        to='/job'
+                                        className="border-btn2 border-btn4"
+                                        onMouseEnter={() => prefetchJobLanding()}
+                                        onTouchStart={() => prefetchJobLanding()}
+                                    >
+                                        Tìm việc ngay
+                                    </Link>
                                 </div>
                             </div>
                         </div>

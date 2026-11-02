@@ -51,6 +51,7 @@ describe('published search consumer contracts', () => {
         await searchJobs(makeReq({ query: { salaryJobCode:['S1','S2','S1'], experienceJobCode:['E1','E2'], addressCode:'HN' } }), res);
         const request = mocks.es.search.mock.lastCall[0];
         expect(request.track_total_hits).toBe(true);
+        expect(request._source).toEqual({ excludes: ['description'] });
         expect(request.query.bool.filter).toEqual(expect.arrayContaining([
             { terms:{salaryJobCode:['S1','S2']} }, { terms:{experienceJobCode:['E1','E2']} }, {term:{addressCode:'HN'}}
         ]));
@@ -292,7 +293,7 @@ describe('search controllers', () => {
         const res = makeRes();
         await related(makeReq({ params: { id: '9' }, query: { limit: '100' } }), res);
         expect(res.body.data).toEqual([{ id: 2 }]);
-        expect(mocks.es.search.mock.calls[0][0]).toMatchObject({ size: 20 });
+        expect(mocks.es.search.mock.calls[0][0]).toMatchObject({ size: 20, _source: { excludes: ['description'] } });
         expect(mocks.es.search.mock.calls[0][0].query.bool.must_not).toEqual([{ term: { id: 9 } }]);
         mocks.es.search.mockRejectedValue(new Error('x'));
         const failed = makeRes();

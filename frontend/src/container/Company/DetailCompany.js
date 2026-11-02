@@ -11,31 +11,51 @@ import { useNavigate } from 'react-router-dom';
 import { toggleFollowCompanyService, checkFollowCompanyService } from '../../service/userService';
 import { readJsonStorage } from '../../util/storage';
 import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
+import { readPrefetchedCompanyDetail, rememberCompanyDetail } from './companyResource';
+import { prefetchJobDetail } from '../JobDetail/jobDetailResource';
+
 const DetailCompany = () => {
-    const [dataCompany, setdataCompany] = useState({})
-    const [isLoading, setIsLoading] = useState(true)
+    const { id } = useParams();
+    const prefetched = readPrefetchedCompanyDetail(id)
+    const [dataCompany, setdataCompany] = useState(() => prefetched || {})
+    const [isLoading, setIsLoading] = useState(() => Boolean(id) && !prefetched)
     const [loadError, setLoadError] = useState('')
     const [isFollow, setIsFollow] = useState(false)
     const [countFollower, setCountFollower] = useState(0)
-    const { id } = useParams();
     const navigate = useNavigate()
     const currentUser = readJsonStorage('userData')
     const canSocialInteract = !currentUser || hasPermission(currentUser, PERMISSIONS.SOCIAL_INTERACT)
     useEffect(() => {
+        let active = true
+        const cached = readPrefetchedCompanyDetail(id)
+        if (cached) {
+            setdataCompany(cached)
+            setIsLoading(false)
+            setLoadError('')
+        } else if (id) {
+            setIsLoading(true)
+            setLoadError('')
+        }
         if (id) {
 
             let fetchCompany = async () => {
                 try {
                     const res = await getDetailCompanyById(id)
+                    if (!active) return
                     if (res && res.errCode === 0 && res.data) {
+                        rememberCompanyDetail(id, res.data)
                         setdataCompany(res.data)
-                    } else {
+                        setLoadError('')
+                    } else if (!cached) {
                         setLoadError(res?.errMessage || 'Không thể tải thông tin công ty')
                     }
                 } catch (error) {
-                    setLoadError('Không thể tải thông tin công ty. Vui lòng thử lại')
+                    if (!active) return
+                    if (!cached) {
+                        setLoadError('Không thể tải thông tin công ty. Vui lòng thử lại')
+                    }
                 } finally {
-                    setIsLoading(false)
+                    if (active) setIsLoading(false)
                 }
             }
             fetchCompany()
@@ -43,6 +63,7 @@ const DetailCompany = () => {
             setLoadError('Đường dẫn công ty không hợp lệ')
             setIsLoading(false)
         }
+        return () => { active = false }
     }, [id])
 
     useEffect(() => {
@@ -125,12 +146,12 @@ const DetailCompany = () => {
             <div className="company-cover">
                 <div className="container">
                     <div className="cover-wrapper">
-                        <img src={dataCompany.coverimage} alt="" className="img-responsive cover-img" width="100%" height="236px" />
+                        <img src={dataCompany.coverimage} alt="" className="img-responsive cover-img" width="100%" height="236px" decoding="async" />
                     </div>
                     <div className="company-detail-overview">
                         <div id="company-logo">
                             <div className="company-image-logo">
-                                <img style={{width: '100%', height: '100%'}} src={dataCompany.thumbnail} alt={dataCompany.name || 'Logo công ty'} className="img-responsive" />
+                                <img style={{width: '100%', height: '100%'}} src={dataCompany.thumbnail} alt={dataCompany.name || 'Logo công ty'} className="img-responsive" decoding="async" />
                             </div>
                         </div>
                         <div className="company-info">
@@ -179,10 +200,16 @@ const DetailCompany = () => {
                                     {dataCompany && dataCompany.postData && dataCompany.postData.length > 0 &&
                                         dataCompany.postData.map((item, index) => {
                                             return (
-                                                <Link key={item.id || index} to={`/detail-job/${item.id}`} className="company-logo">
+                                                <Link
+                                                    key={item.id || index}
+                                                    to={`/detail-job/${item.id}`}
+                                                    className="company-logo"
+                                                    onMouseEnter={() => prefetchJobDetail(item.id)}
+                                                    onTouchStart={() => prefetchJobDetail(item.id)}
+                                                >
                                                 <div className="job-item  job-ta result-job-hover">
                                                     <div className="avatar">
-                                                            <img src={dataCompany.thumbnail} className="w-100" alt={dataCompany.name || 'Logo công ty'} title={item.postDetailData.name} />
+                                                            <img src={dataCompany.thumbnail} className="w-100" alt={dataCompany.name || 'Logo công ty'} title={item.postDetailData.name} loading="lazy" decoding="async" />
                                                     </div>
                                                     <div className="body">
                                                         <div className="content">

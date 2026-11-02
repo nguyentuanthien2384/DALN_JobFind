@@ -315,4 +315,40 @@ describe("JobPage", () => {
         expect(screen.queryByText("ignored")).not.toBeInTheDocument();
         expect(screen.getByTestId("job-count")).toHaveTextContent("0");
     });
+
+    it("paints cached query results immediately without dimming when revisiting /job via a fresh navigation entry", async () => {
+        const Navigation = () => {
+            const navigate = useNavigate();
+            return (
+                <>
+                    <button onClick={() => navigate("/company")}>go-company</button>
+                    <button onClick={() => navigate("/job")}>go-jobs</button>
+                </>
+            );
+        };
+        render(
+            <MemoryRouter initialEntries={["/job"]}>
+                <Navigation />
+                <Routes>
+                    <Route path="/job" element={<JobPage />} />
+                    <Route path="/company" element={<p>Company</p>} />
+                </Routes>
+            </MemoryRouter>
+        );
+        await expectLatestQuery({ offset: 0 });
+        fireEvent.click(screen.getByRole("button", { name: "go-company" }));
+        expect(screen.getByText("Company")).toBeInTheDocument();
+
+        let finishRefresh;
+        getListPostService.mockImplementationOnce(() => new Promise((resolve) => { finishRefresh = resolve; }));
+        fireEvent.click(screen.getByRole("button", { name: "go-jobs" }));
+
+        // Instant SWR paint: rows are already visible and interactive while background refresh is in flight.
+        expect(screen.getByText("React Developer")).toBeInTheDocument();
+        expect(screen.getByText("React Developer").closest("[inert]")).toBeNull();
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+        await act(async () => finishRefresh({ errCode: 0, count: 12, data: [{ id: 2, name: "Updated Developer" }] }));
+        expect(screen.getByText("Updated Developer")).toBeInTheDocument();
+    });
 });

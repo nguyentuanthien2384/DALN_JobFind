@@ -12,6 +12,10 @@ const PUBLIC_COMPANY_ATTRIBUTES = [
     'descriptionMarkdown', 'website', 'address', 'phonenumber',
     'amountEmployer', 'statusCode', 'censorCode', 'createdAt', 'updatedAt'
 ];
+const LIST_PUBLIC_COMPANY_ATTRIBUTES = [
+    'id', 'name', 'thumbnail', 'coverimage', 'descriptionHTML',
+    'website', 'address', 'amountEmployer'
+];
 let sendmail = (note, userMail, link = null) => {
     var transporter = nodemailer.createTransport({
         service: 'gmail',
@@ -477,7 +481,8 @@ let getListCompany = (data) => {
                     offset: +data.offset,
                     limit: +data.limit,
                     where: { statusCode: 'S1', censorCode: 'CS1' },
-                    attributes: PUBLIC_COMPANY_ATTRIBUTES
+                    attributes: LIST_PUBLIC_COMPANY_ATTRIBUTES,
+                    order: [['updatedAt', 'DESC'], ['id', 'DESC']]
                 }
                 if (data.search) {
                     objectFilter.where = { ...objectFilter.where,

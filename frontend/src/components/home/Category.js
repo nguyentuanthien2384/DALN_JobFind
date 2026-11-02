@@ -1,11 +1,13 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { prefetchJobLanding } from '../../container/JobPage/jobPageResource'
 
 const Category = (props) => {
     const jobType = props.data.postDetailData.jobTypePostData
     const categoryUrl = jobType.code
         ? `/job?categoryJobCode=${encodeURIComponent(jobType.code)}`
         : '/job'
+    const warmCategory = () => prefetchJobLanding({ categoryJobCode: jobType.code || '' })
 
     return (
         <>
@@ -16,10 +18,20 @@ const Category = (props) => {
                                     style={{width: '70%' , height: '70%'}}
                                     src={jobType.image}
                                     alt={jobType.value}
+                                    loading="lazy"
+                                    decoding="async"
                                 />
                             </div>
                             <div className="services-cap">
-                               <h5><Link to={categoryUrl}>{jobType.value}</Link></h5>
+                               <h5>
+                                   <Link
+                                       to={categoryUrl}
+                                       onMouseEnter={warmCategory}
+                                       onTouchStart={warmCategory}
+                                   >
+                                       {jobType.value}
+                                   </Link>
+                               </h5>
                                 <span>{props.data.amount}</span>
                             </div>
                         </div>

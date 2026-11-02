@@ -12,6 +12,7 @@ const { allowed, likePattern, pageOf } = require('../utils/adminListQuery');
 // Danh sach tin chi can ten cong ty. Ban ghi cong ty day du co ca file giay phep
 // kinh doanh (base64 ~1 MB), keo theo moi dong tin lam danh sach nang hang MB.
 const LIST_COMPANY_ATTRIBUTES = ['id', 'name'];
+const LIST_PUBLIC_COMPANY_ATTRIBUTES = ['id', 'name', 'thumbnail'];
 const { normalizeProvinceCode, provinceFilterCodes } = require('../../../microservices/shared/recruitmentCatalog.cjs');
 require('dotenv').config();
 const PUBLIC_USER_ATTRIBUTES = ['id', 'firstName', 'lastName', 'image', 'companyId'];
@@ -444,18 +445,14 @@ let getFilterPost = (data) => {
                     },
                     raw: true,
                     nest: true,
-                    attributes: {
-                        exclude: ['statusCode']
-                    }
+                    attributes: ['id']
                 }
             }
             else {
                 objectFilter = {
                     raw: true,
                     nest: true,
-                    attributes: {
-                        exclude: ['statusCode']
-                    }
+                    attributes: ['id']
                 }
             }
             if (data.categoryJobCode && data.categoryJobCode !== '') objectFilter.where = { ...objectFilter.where, categoryJobCode: data.categoryJobCode }
@@ -482,7 +479,7 @@ let getFilterPost = (data) => {
                 order: [['timePost', 'DESC']],
                 include: [
                     {
-                        model: db.DetailPost, as: 'postDetailData', attributes: ['id', 'name', 'descriptionHTML', 'descriptionMarkdown', 'amount'],
+                        model: db.DetailPost, as: 'postDetailData', attributes: ['id', 'name', 'amount'],
                         include: [
                             { model: db.Allcode, as: 'jobTypePostData', attributes: ['value', 'code'] },
                             { model: db.Allcode, as: 'workTypePostData', attributes: ['value', 'code'] },
@@ -493,7 +490,7 @@ let getFilterPost = (data) => {
                             { model: db.Allcode, as: 'expTypePostData', attributes: ['value', 'code'] }
                         ]
                     },
-                    publicPostOwnerInclude()
+                    publicPostOwnerInclude(LIST_PUBLIC_COMPANY_ATTRIBUTES)
                 ],
                 raw: true,
                 nest: true

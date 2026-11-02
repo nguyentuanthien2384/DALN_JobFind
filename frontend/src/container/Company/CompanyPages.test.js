@@ -149,6 +149,7 @@ describe("ListCompany", () => {
             "/detail-company/42"
         );
         expect(screen.getByText("Môi trường tốt")).toBeInTheDocument();
+        expect(screen.getByAltText("Logo Công ty Sao Việt")).toHaveAttribute("src", "/logo.jpg");
         expect(screen.getByText("7 công ty được tìm thấy")).toBeInTheDocument();
         expect(screen.getByTestId("company-pages")).toHaveTextContent("2");
         expect(getListCompany).toHaveBeenCalledWith({ limit: 6, offset: 0, search: "" });
@@ -483,5 +484,24 @@ describe("DetailCompany", () => {
 
         expect(await screen.findByText("Chưa cập nhật website")).toBeInTheDocument();
         expect(document.querySelector('a[href^="javascript:"]')).toBeNull();
+    });
+
+    it("prefetches company detail on card hover so opening the company skips the blank loading flash", async () => {
+        getListCompany.mockResolvedValue({ errCode: 0, data: [company], count: 1 });
+        let finishRefresh;
+        getDetailCompanyById
+            .mockResolvedValueOnce({ errCode: 0, data: company })
+            .mockImplementationOnce(() => new Promise((resolve) => { finishRefresh = resolve; }));
+
+        const listView = render(<ListCompany />);
+        const companyLink = await screen.findByText("Công ty Sao Việt");
+        fireEvent.mouseEnter(companyLink);
+        await waitFor(() => expect(getDetailCompanyById).toHaveBeenCalledWith(42));
+        listView.unmount();
+
+        render(<DetailCompany />);
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Công ty Sao Việt" })).toBeInTheDocument();
+        await act(async () => finishRefresh({ errCode: 0, data: company }));
     });
 });

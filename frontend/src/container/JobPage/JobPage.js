@@ -4,30 +4,55 @@ import LeftBar from './LeftPage/LeftBar'
 import RightContent from './RightPage/RightContent'
 import { PAGINATION } from '../../util/constant';
 import ReactPaginate from 'react-paginate';
-import { loadSearchPage, loadSearchLabels, searchMode } from '../../service/searchWorkspace';
+import { getCachedSearchLabels, loadSearchPage, loadSearchLabels, searchMode } from '../../service/searchWorkspace';
 import CommonUtils from '../../util/CommonUtils';
-import { SEARCH_SNAPSHOT_TTL, useJobSearchHistory } from './jobSearchHistory';
+import {
+    buildJobQuerySnapshotKey,
+    readJobQuerySnapshot,
+    saveJobQuerySnapshot,
+    SEARCH_SNAPSHOT_TTL,
+    useJobSearchHistory,
+} from './jobSearchHistory';
 import useListQuery, { clampListPage } from '../../util/useListQuery';
 import { externalCatalogVersion, vietnamDate } from '../../service/externalJobs';
+
 const JobSearchPage = ({ historyKey }) => {
     const [restored, remember] = useJobSearchHistory(historyKey);
     const saved = restored || {};
     const loadedQuery = useRef(saved.loadedQuery);
+    const mode = searchMode();
+    const limit = PAGINATION.pagerow;
 
-    const [countPage, setCountPage] = useState(saved.countPage ?? 0)
-    const [post, setPost] = useState(saved.post || [])
-    const [count, setCount] = useState(saved.count ?? 0)
     const [query, setQuery] = useListQuery({ page: 0, search: '', categoryJobCode: '', addressCode: '',
         categoryWorktypeCode: [], salaryJobCode: [], experienceJobCode: [], categoryJoblevelCode: [] });
     const { page: numberPage, search, categoryJobCode: jobType, addressCode: jobLocation,
         categoryWorktypeCode: workType, salaryJobCode: salary, experienceJobCode: exp, categoryJoblevelCode: jobLevel } = query;
-    const [loading, setLoading] = useState(!saved.loadedQuery);
+
+    const currentSnapshotKey = buildJobQuerySnapshotKey({
+        limit,
+        offset: numberPage * limit,
+        categoryJobCode: jobType,
+        addressCode: jobLocation,
+        salaryJobCode: salary,
+        categoryJoblevelCode: jobLevel,
+        categoryWorktypeCode: workType,
+        experienceJobCode: exp,
+        search: CommonUtils.removeSpace(search),
+    }, mode);
+    const warmSnapshot = restored ? null : readJobQuerySnapshot(currentSnapshotKey);
+    const initial = restored ? saved : (warmSnapshot || {});
+    const cachedLabels = mode === 'core' ? getCachedSearchLabels() : null;
+
+    const [countPage, setCountPage] = useState(initial.countPage ?? 0)
+    const [post, setPost] = useState(initial.post || [])
+    const [count, setCount] = useState(initial.count ?? 0)
+    const [loading, setLoading] = useState(restored ? !saved.loadedQuery : !warmSnapshot);
     const [error, setError] = useState('');
     const [retry, setRetry] = useState(saved.retry || 0);
-    const [labels, setLabels] = useState(saved.labels || {});
-    const mode = searchMode();
-    const [labelsReady, setLabelsReady] = useState(mode === 'legacy' || Boolean(saved.labelsReady));
-    const limit = PAGINATION.pagerow
+    const [labels, setLabels] = useState(() => saved.labels || warmSnapshot?.labels || cachedLabels || {});
+    const [labelsReady, setLabelsReady] = useState(
+        mode === 'legacy' || Boolean(saved.labelsReady || warmSnapshot?.labelsReady || cachedLabels)
+    );
 
     // Every history entry shows the keyword that produced its results.
     const [searchDraft, setSearchDraft] = useState(search);
@@ -42,6 +67,16 @@ const JobSearchPage = ({ historyKey }) => {
             setPost(saved.post || []); setCount(saved.count || 0); setCountPage(saved.countPage || 0);
             setLabels(saved.labels || {}); setLabelsReady(mode === 'legacy' || Boolean(saved.labelsReady));
             setLoading(!saved.loadedQuery);
+        } else if (warmSnapshot) {
+            loadedQuery.current = null;
+            setPost(warmSnapshot.post || []);
+            setCount(warmSnapshot.count ?? 0);
+            setCountPage(warmSnapshot.countPage ?? 0);
+            if (warmSnapshot.labels) {
+                setLabels(warmSnapshot.labels);
+                setLabelsReady(true);
+            }
+            setLoading(false);
         } else { loadedQuery.current = null; setLoading(true); }
     }
     remember({ countPage, post, count, numberPage, labels, labelsReady, workType, jobType, salary, exp,
@@ -57,47 +92,81 @@ const JobSearchPage = ({ historyKey }) => {
     const recieveJobType = value => toggleFilter('categoryJobCode', value);
     const recieveJobLevel = value => toggleFilter('categoryJoblevelCode', value);
     const recieveLocation = value => toggleFilter('addressCode', value);
+
     useEffect(() => {
-        let active = true;
-        if (mode === 'core') loadSearchLabels().then(data => {
-            if (active) {
-                setLabels(previous => JSON.stringify(previous) === JSON.stringify(data) ? previous : data);
-                setLabelsReady(true);
-            }
-        });
-        return () => { active = false; };
-    }, [mode]);
-    useEffect(() => {
-        if (!labelsReady) return;
         let active = true;
         const params = { limit, offset: numberPage * limit, categoryJobCode: jobType,
             addressCode: jobLocation, salaryJobCode: salary, categoryJoblevelCode: jobLevel,
             categoryWorktypeCode: workType, experienceJobCode: exp,
             search: CommonUtils.removeSpace(search), sortName: undefined };
-        const queryKey = JSON.stringify({ params, mode, labels, retry });
+        const snapshotKey = buildJobQuerySnapshotKey(params, mode);
+        const queryKey = JSON.stringify({ params, mode, retry });
         const sameQuery = loadedQuery.current?.key === queryKey;
         if (sameQuery && loadedQuery.current.expiresAt > Date.now()) return;
+        const warmForQuery = readJobQuerySnapshot(snapshotKey);
         setError('');
         if (!sameQuery) {
             loadedQuery.current = null;
-            setLoading(true);
+            if (warmForQuery) {
+                setPost(warmForQuery.post || []);
+                setCount(warmForQuery.count ?? 0);
+                setCountPage(warmForQuery.countPage ?? 0);
+                setLoading(false);
+            } else {
+                setLoading(true);
+            }
         }
-        loadSearchPage(params, mode, labels, { includeExternal: true }).then(result => {
+        const needLabels = mode === 'core' && !labelsReady;
+        const labelsPromise = Promise.resolve(
+            needLabels ? (getCachedSearchLabels() || loadSearchLabels()) : labels
+        );
+        Promise.all([
+            loadSearchPage(params, mode, labelsPromise, { includeExternal: true }),
+            labelsPromise,
+        ]).then(([result, resolvedLabels]) => {
             if (!active) return;
+            const nextLabels = resolvedLabels || labels;
             const available = mode === 'core' ? Math.min(result.count, 10000) : result.count;
             const validPage = clampListPage(numberPage, available, limit);
-            if (validPage !== numberPage) { setQuery({ page: validPage }, { replace: true }); return; }
+            if (validPage !== numberPage) {
+                if (needLabels && resolvedLabels) {
+                    setLabels(previous => JSON.stringify(previous) === JSON.stringify(resolvedLabels) ? previous : resolvedLabels);
+                    setLabelsReady(true);
+                }
+                setQuery({ page: validPage }, { replace: true });
+                return;
+            }
+            const nextCountPage = Math.ceil(available / limit);
             loadedQuery.current = { key: queryKey, expiresAt: Date.now() + SEARCH_SNAPSHOT_TTL };
+            if (needLabels && resolvedLabels) {
+                setLabels(previous => JSON.stringify(previous) === JSON.stringify(resolvedLabels) ? previous : resolvedLabels);
+                setLabelsReady(true);
+            }
             setPost(result.data); setCount(result.count);
-            setCountPage(Math.ceil((mode === 'core' ? Math.min(result.count, 10000) : result.count) / limit));
+            setCountPage(nextCountPage);
+            saveJobQuerySnapshot(snapshotKey, {
+                post: result.data,
+                count: result.count,
+                countPage: nextCountPage,
+                labels: nextLabels,
+                labelsReady: true,
+            });
         }).catch(failure => {
             if (active) {
+                if (needLabels) {
+                    labelsPromise.then(resolved => {
+                        if (!active || !resolved) return;
+                        setLabels(previous => JSON.stringify(previous) === JSON.stringify(resolved) ? previous : resolved);
+                        setLabelsReady(true);
+                    });
+                }
                 setError(failure.message);
-                if (!sameQuery) { loadedQuery.current = null; setPost([]); setCount(0); setCountPage(0); }
+                if (!sameQuery && !warmForQuery) { loadedQuery.current = null; setPost([]); setCount(0); setCountPage(0); }
             }
         }).finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
     }, [workType, jobLevel, exp, jobType, jobLocation, salary, search, limit, numberPage, retry, mode, labels, labelsReady, setQuery, historyKey]);
+
     const handleChangePage = (number) => { setQuery({ page: number.selected }); };
     return (
         <>
