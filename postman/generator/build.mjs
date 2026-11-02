@@ -11,6 +11,7 @@ import { catalog, companies, posts, cvs, packages, social, notifications } from 
 import { recruitment } from './folders/recruitment.mjs';
 import { optionalWrites } from './folders/optional.mjs';
 import { manualFolders } from './folders/manual.mjs';
+import { demoDirectItems } from './folders/demoDirect.mjs';
 
 const OUT = process.argv[2] || join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -62,6 +63,24 @@ const manualCollection = {
     item: manualFolders
 };
 
+// Direct 1-click manual demo collection: every write request has its literal JSON sample
+// right in the Body tab (no 2-step ?dryRun=true gate or {{manual...Body}} indirection).
+const demoDirectCollection = {
+    info: {
+        _postman_id: '7c4e9a12-6b3d-4e8f-91a5-24d8f6b0c3e9',
+        name: 'JobFind - Demo Thủ Công (Điền JSON & Send ngay)',
+        description: [
+            'Bộ 18 request phẳng (01 -> 18) dành riêng cho Demo Live: mở tab Body thấy sẵn JSON mẫu đầy đủ,',
+            'chỉ việc sửa thông tin thật rồi bấm Send 1 lần là đồng bộ ngay lên trình duyệt & gửi Email thật.',
+            'Tự động đăng nhập/gia hạn JWT Access Token theo cùng environment Local hoặc Production.',
+            'Không bấm Run cả collection: hãy chọn request muốn demo, sửa JSON và bấm Send.'
+        ].join('\n'),
+        schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
+    },
+    event: [event('prerequest', collectionPre), event('test', collectionTest)],
+    item: demoDirectItems
+};
+
 const v = (key, value, type = 'default') => ({ key, value, type, enabled: true });
 // Same accounts and fixtures on both targets: the VPS data was exported from local.
 const environment = ({ id, name, baseUrl, origin, opsEndpoints, maxResponseMs, refreshCookieName }) => ({
@@ -90,12 +109,15 @@ const environment = ({ id, name, baseUrl, origin, opsEndpoints, maxResponseMs, r
         v('allowEmails', 'false'),
         v('allowAiCalls', 'false'),
         v('allowSideEffects', 'false'),
-        // Hand-made actions: recruiter account that sends, selected application, search text.
+        // Hand-made actions: recruiter account that sends, candidate account that applies, target post, selected application, search text.
         v('recruiterPhone', '0918800001'), v('recruiterPassword', 'Demo@123456', 'secret'),
+        v('manualCandidatePhone', '0764188123'), v('manualCandidatePassword', '123456', 'secret'),
+        v('manualCompanyId', '28'),
+        v('manualPostId', '234'),
         v('manualApplicationId', ''), v('manualSearch', ''),
         // Filled by the login requests and renewed automatically; never type them by hand.
         v('refreshCookieName', refreshCookieName),
-        ...['admin', 'employer', 'employer2', 'candidate', 'testCandidate', 'pm', 'recruiter']
+        ...['admin', 'employer', 'employer2', 'candidate', 'testCandidate', 'pm', 'recruiter', 'manualCandidate']
             .flatMap((account) => [v(account + 'AccessToken', '', 'secret'), v(account + 'RefreshToken', '', 'secret')])
     ],
     _postman_variable_scope: 'environment'
@@ -131,11 +153,15 @@ const checkNode = (node, trail) => {
 checkNode(collection, 'collection');
 names.clear();
 checkNode(manualCollection, 'manual');
+names.clear();
+checkNode(demoDirectCollection, 'demoDirect');
 
 writeFileSync(join(OUT, 'JobFind-API-Tests.postman_collection.json'), JSON.stringify(collection, null, 2) + '\n');
 writeFileSync(join(OUT, 'JobFind-Thao-Tac-Thu-Cong.postman_collection.json'), JSON.stringify(manualCollection, null, 2) + '\n');
+writeFileSync(join(OUT, 'JobFind-Demo-Thu-Cong.postman_collection.json'), JSON.stringify(demoDirectCollection, null, 2) + '\n');
 for (const [file, env] of Object.entries(environments)) writeFileSync(join(OUT, file), JSON.stringify(env, null, 2) + '\n');
 const count = (items) => items.reduce((n, i) => n + (i.item ? count(i.item) : 1), 0);
 console.log(`requests: ${count(collection.item)}`);
 for (const top of collection.item) console.log(`  ${String(count(top.item)).padStart(3)}  ${top.name}`);
 console.log(`manual requests: ${count(manualCollection.item)}`);
+console.log(`demo direct requests: ${count(demoDirectCollection.item)}`);

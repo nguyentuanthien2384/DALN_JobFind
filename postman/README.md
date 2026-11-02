@@ -1,11 +1,12 @@
 # Postman cho JobFind
 
-Thư mục có hai collection:
+Thư mục có các collection:
 
 | Collection | Dùng để |
 |---|---|
 | `JobFind-API-Tests.postman_collection.json` | Bộ kiểm thử tự động cho toàn dự án: backend cũ và microservices (433 request, có test script). Dùng với `JobFind-API-Tests-Local` (máy của bạn) hoặc `JobFind-API-Tests-Production` (https://thiennt.id.vn) |
-| `JobFind-Thao-Tac-Thu-Cong.postman_collection.json` | Tự đăng ký tài khoản, mời phỏng vấn, gửi thư trúng tuyển/từ chối, chuyển giai đoạn bằng dữ liệu của bạn: kiểm tra trước rồi mới làm thật (mục bên dưới) |
+| `JobFind-Demo-Thu-Cong.postman_collection.json` | **Demo thủ công 1-click (Điền JSON & Send ngay)**: 18 request phẳng từ `01` → `18`, mở tab `Body` thấy sẵn JSON mẫu hoàn chỉnh để sửa thông tin thật rồi bấm **Send** 1 lần là đồng bộ ngay lên trình duyệt & gửi Email thật (dùng chung environment Local / Production) |
+| `JobFind-Thao-Tac-Thu-Cong.postman_collection.json` | Tự đăng ký tài khoản, mời phỏng vấn, gửi thư trúng tuyển/từ chối, chuyển giai đoạn bằng dữ liệu của bạn theo cơ chế an toàn 2 bước: kiểm tra trước (`?dryRun=true`) rồi mới làm thật (mục bên dưới) |
 | `JobFind-Demo.postman_collection.json` | Bộ request chỉ đọc để demo nhanh (phần cuối file này) |
 
 ## Thao tác thủ công: kiểm tra trước rồi mới làm thật
@@ -18,12 +19,17 @@ Production). **Không bấm Run cả collection**: Send từng bước.
 
 | Thư mục | Việc |
 |---|---|
-| 1 - Đăng ký tài khoản | Bước 1 kiểm tra, Bước 2 tạo thật, Bước 3 đăng nhập thử |
-| 2 - Chọn hồ sơ ứng tuyển | Xem tài khoản nhà tuyển dụng đang dùng, tìm hồ sơ (biến `manualSearch`), đặt mã hồ sơ vào biến `manualApplicationId`, xem lại hồ sơ |
-| 3 - Mời phỏng vấn (hẹn lịch) | Bước 1 kiểm tra + xem trước email, Bước 2 gửi thật |
-| 4 - Gửi thư mời nhận việc | như trên |
-| 5 - Gửi email từ chối | như trên |
-| 6 - Chuyển giai đoạn hồ sơ | như trên; Bước 1 cho biết bước mới có gửi email cho ứng viên không |
+| 1 - Đăng ký tài khoản | Bước 1 kiểm tra, Bước 2 tạo thật (tự gán `manualCandidatePhone` nếu là `CANDIDATE`), Bước 3 đăng nhập thử |
+| 2 - Hồ sơ cá nhân & Tạo CV trực tuyến | Xem hồ sơ, cập nhật thông tin cá nhân, cài đặt tìm việc/kỹ năng và tạo CV trực tuyến (MongoDB) đồng bộ lên `/candidate/info`, `/candidate/ai-cv` |
+| 3 - Nhà tuyển dụng đăng tin, Admin duyệt & Sửa/Gỡ tin | Đăng tin mới (`PS3`), Admin duyệt công khai (`PS1`, tự gán `manualPostId`), sửa nội dung tin (`editRevision`) và gỡ tin (`PS4`) |
+| 4 - Ứng viên nộp CV ứng tuyển | Xem tin còn hạn, Bước 1 kiểm tra trước khi nộp, Bước 2 nộp CV PDF mẫu, Bước 3 chờ đồng bộ sang Kanban và tự điền `manualApplicationId` |
+| 5 - Chọn hồ sơ ứng tuyển | Xem tài khoản nhà tuyển dụng đang dùng, tìm hồ sơ có sẵn (biến `manualSearch`), đặt mã hồ sơ vào biến `manualApplicationId`, xem lại hồ sơ |
+| 6 - Mời phỏng vấn (hẹn lịch) | Bước 1 kiểm tra + xem trước email, Bước 2 gửi thật & đồng bộ lên trình duyệt |
+| 7 - Gửi thư mời nhận việc | như trên |
+| 8 - Gửi email từ chối | như trên |
+| 9 - Chuyển giai đoạn hồ sơ | như trên; Bước 1 cho biết bước mới có gửi email cho ứng viên không |
+| 10 - Nhắn tin Chat trực tiếp 2 chiều | Kết nối cặp ID, Ứng viên nhắn Nhà tuyển dụng, Nhà tuyển dụng trả lời Ứng viên (đồng bộ Socket.IO realtime lên `/chat` & `/admin/chat`) |
+| 11 - Ứng viên tương tác: Lưu tin, Theo dõi & Đánh giá công ty | Lưu/bỏ lưu việc làm (`manualPostId`), theo dõi/bỏ theo dõi công ty (`manualCompanyId`), gửi/sửa/xoá đánh giá sao công ty |
 
 Cách dùng mỗi việc:
 

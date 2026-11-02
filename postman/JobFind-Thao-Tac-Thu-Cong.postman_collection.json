@@ -28,7 +28,8 @@
           "    candidate: ['candidatePhone', 'candidatePassword'],",
           "    testCandidate: ['testCandidatePhone', 'testCandidatePassword'],",
           "    pm: ['pmPhone', 'pmPassword'],",
-          "    recruiter: ['recruiterPhone', 'recruiterPassword']",
+          "    recruiter: ['recruiterPhone', 'recruiterPassword'],",
+          "    manualCandidate: ['manualCandidatePhone', 'manualCandidatePassword']",
           "};",
           "const auth = pm.request.auth;",
           "const bearer = auth && auth.type === 'bearer' ? String(auth.parameters().get('token') || '') : '';",
@@ -131,7 +132,7 @@
   "item": [
     {
       "name": "1 - Đăng ký tài khoản",
-      "description": "Bước 1 kiểm tra dữ liệu với server mà không tạo gì; Bước 2 tạo thật đúng dữ liệu đó; Bước 3 đăng nhập thử.\nMỗi lần kiểm tra đạt chỉ cho tạo thật một lần, trong 15 phút.",
+      "description": "Bước 1 kiểm tra dữ liệu với server mà không tạo gì; Bước 2 tạo thật đúng dữ liệu đó; Bước 3 đăng nhập thử.\nNếu đăng ký CANDIDATE, Bước 2 tự lưu vào manualCandidatePhone/manualCandidatePassword để dùng xuyên suốt các thư mục ứng viên bên dưới.",
       "item": [
         {
           "name": "Bước 1 - Kiểm tra trước (không tạo tài khoản)",
@@ -141,7 +142,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "const body = pm.response.json();",
                   "const passed = pm.response.code === 200 && body.errCode === 0 && body.dryRun === true;",
                   "pm.test('Kiểm tra đạt: có thể tạo tài khoản', () => pm.expect(passed, body.errMessage).to.be.true);",
@@ -193,14 +194,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"roleCode\": \"CANDIDATE\",\n  \"firstName\": \"Nguyễn\",\n  \"lastName\": \"Văn A\",\n  \"phonenumber\": \"Nhập 10 chữ số\",\n  \"email\": \"Nhập email thật\",\n  \"password\": \"Ít nhất 8 ký tự\"\n}",
+              "raw": "{\n  \"roleCode\": \"CANDIDATE\",\n  \"firstName\": \"Nguyễn\",\n  \"lastName\": \"Văn An\",\n  \"phonenumber\": \"0988123456\",\n  \"email\": \"email-that-cua-ban@gmail.com\",\n  \"password\": \"User@123456\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Sửa body rồi Send. roleCode: CANDIDATE (ứng viên) hoặc EMPLOYER (nhà tuyển dụng, tạo công ty sau khi đăng nhập).\nServer chạy đúng các bước kiểm tra như khi đăng ký thật (dữ liệu, trùng số điện thoại, trùng email) nhưng KHÔNG tạo tài khoản.\nXem kết quả ở tab Visualize. Đạt thì sang Bước 2."
+            "description": "Sửa phonenumber (10 số chưa dùng) và email (email thật của bạn) rồi bấm Send.\nroleCode: CANDIDATE (ứng viên) hoặc EMPLOYER (nhà tuyển dụng). Server kiểm tra trùng SĐT/email nhưng KHÔNG tạo tài khoản."
           },
           "protocolProfileBehavior": {
             "disableCookies": true
@@ -232,13 +233,26 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
                   "const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
                   "pm.test('Đã tạo tài khoản', () => pm.expect(pm.response.json().message).to.eql('Tạo tài khoản thành công'));",
                   "pm.environment.set('manualLoginPhone', sent.phonenumber);",
                   "pm.environment.set('manualLoginPassword', sent.password || '');",
-                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
+                  "if (sent.roleCode === 'CANDIDATE' && sent.password) {",
+                  "    pm.environment.set('manualCandidatePhone', sent.phonenumber);",
+                  "    pm.environment.set('manualCandidatePassword', sent.password);",
+                  "    pm.environment.set('manualCandidateAccessToken', '');",
+                  "    pm.environment.set('manualCandidateRefreshToken', '');",
+                  "}",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "show(true, 'Đã tạo tài khoản thật thành công', 'Bấm Bước 3 để kiểm tra đăng nhập, hoặc mở trình duyệt đăng nhập ngay.', [",
+                  "    { label: 'Số điện thoại đăng nhập', value: sent.phonenumber },",
+                  "    { label: 'Vai trò', value: sent.roleCode },",
+                  "    { label: 'Tự gán cho tài khoản Ứng viên thao tác', value: sent.roleCode === 'CANDIDATE' ? 'Đã gán manualCandidatePhone = ' + sent.phonenumber : 'Không (chỉ áp dụng cho CANDIDATE)' },",
+                  "    { label: 'Đăng nhập trên trình duyệt', value: webOrigin + '/login' }",
+                  "]);",
                   "pm.environment.unset('manualRegisterBody');",
                   "pm.environment.unset('manualRegisterAt');"
                 ]
@@ -275,7 +289,7 @@
                 }
               }
             },
-            "description": "Gửi đúng body đã kiểm tra đạt ở Bước 1 (biến manualRegisterBody). Không sửa body ở đây."
+            "description": "Gửi đúng body đã kiểm tra đạt ở Bước 1. Nếu là CANDIDATE sẽ tự lưu vào manualCandidatePhone/manualCandidatePassword để dùng cho toàn bộ các mục ứng viên bên dưới."
           },
           "protocolProfileBehavior": {
             "disableCookies": true
@@ -289,15 +303,16 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
                   "const user = pm.response.json().user;",
-                  "// Khong de mat khau tai khoan that nam lai trong environment.",
+                  "const webOrigin = pm.environment.get('origin') || '';",
                   "pm.environment.unset('manualLoginPassword');",
-                  "show(true, 'Đăng nhập được', 'Tài khoản đã hoạt động (mật khẩu đã được xoá khỏi environment).', [",
+                  "show(true, 'Đăng nhập được - Đã đồng bộ lên hệ thống', 'Bạn có thể dùng tài khoản này đăng nhập trên trình duyệt web hoặc tiếp tục các thư mục bên dưới.', [",
                   "    { label: 'Mã người dùng', value: user.id }, { label: 'Vai trò', value: user.roleCode },",
-                  "    { label: 'Họ tên', value: [user.firstName, user.lastName].join(' ') }, { label: 'Email', value: user.email }",
+                  "    { label: 'Họ tên', value: [user.firstName, user.lastName].join(' ') }, { label: 'Email', value: user.email },",
+                  "    { label: 'Mở trang đăng nhập trên trình duyệt', value: webOrigin + '/login' }",
                   "]);"
                 ]
               }
@@ -345,8 +360,1084 @@
       ]
     },
     {
-      "name": "2 - Chọn hồ sơ ứng tuyển để thao tác",
-      "description": "Dùng tài khoản nhà tuyển dụng recruiterPhone/recruiterPassword (mặc định: nhà tuyển dụng công ty B).\nTìm hồ sơ, đặt mã hồ sơ vào biến manualApplicationId, xem lại đúng ứng viên trước khi gửi thư.",
+      "name": "2 - Hồ sơ cá nhân & Tạo CV trực tuyến của Ứng viên (đồng bộ trang Hồ sơ & CV)",
+      "description": "Xem và cập nhật họ tên, địa chỉ, cài đặt tìm việc, kỹ năng và tạo mẫu CV trực tuyến (MongoDB) cho ứng viên manualCandidatePhone.\nĐồng bộ trực tiếp lên /candidate/info, /candidate/usersetting và /candidate/ai-cv.",
+      "item": [
+        {
+          "name": "Xem thông tin hồ sơ ứng viên hiện tại",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.environment.get('baseUrl');",
+                  "const token = pm.environment.get('manualCandidateAccessToken');",
+                  "pm.sendRequest({ url: base + '/api/auth/me', header: { Authorization: 'Bearer ' + token } }, (err, res) => {",
+                  "    if (!err && res.code === 200 && res.json().data) {",
+                  "        pm.environment.set('manualCandidateUserId', String(res.json().data.userId));",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const account = pm.response.json().data;",
+                  "const u = account.userAccountData || {};",
+                  "const setting = u.userSettingData || {};",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "show(true, 'Hồ sơ ứng viên #' + account.userId, 'Dữ liệu hiện tại trên hệ thống của tài khoản manualCandidatePhone.', [",
+                  "    { label: 'Số điện thoại', value: account.phonenumber },",
+                  "    { label: 'Họ và tên', value: [u.firstName, u.lastName].filter(Boolean).join(' ') },",
+                  "    { label: 'Email', value: u.email || '(chưa có)' },",
+                  "    { label: 'Địa chỉ', value: u.address || '(chưa cập nhật)' },",
+                  "    { label: 'Ngành nghề tìm việc', value: setting.categoryJobCode || '(chưa cài đặt)' },",
+                  "    { label: 'Bật cho phép NTD tìm hồ sơ', value: Number(setting.isFindJob) === 1 ? 'Đang bật (1)' : 'Đang tắt (0)' },",
+                  "    { label: 'Xem trên trình duyệt', value: webOrigin + '/candidate/info' }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/get-detail-user-by-id?id={{manualCandidateUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "get-detail-user-by-id"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{manualCandidateUserId}}"
+                }
+              ]
+            },
+            "description": "Xem hồ sơ hiện tại của tài khoản manualCandidatePhone (đồng bộ với trang /candidate/info)."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Cập nhật thông tin cá nhân ứng viên",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.environment.get('baseUrl');",
+                  "const token = pm.environment.get('manualCandidateAccessToken');",
+                  "pm.sendRequest({ url: base + '/api/auth/me', header: { Authorization: 'Bearer ' + token } }, (err, res) => {",
+                  "    if (!err && res.code === 200 && res.json().data) {",
+                  "        pm.environment.set('manualCandidateUserId', String(res.json().data.userId));",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const u = pm.response.json().user || {};",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "show(true, 'Đã cập nhật thông tin cá nhân & đồng bộ Web', 'F5 trang Thông tin tài khoản trên trình duyệt để thấy thay đổi.', [",
+                  "    { label: 'Họ và tên mới', value: [u.firstName, u.lastName].filter(Boolean).join(' ') },",
+                  "    { label: 'Địa chỉ mới', value: u.address || '' },",
+                  "    { label: 'Giới tính', value: u.genderCode || '' },",
+                  "    { label: 'Xem trên trình duyệt', value: webOrigin + '/candidate/info' }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/update-user",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "update-user"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": {{manualCandidateUserId}},\n  \"firstName\": \"Nguyễn\",\n  \"lastName\": \"Văn An\",\n  \"address\": \"125 Nguyễn Văn Linh, Quận Hải Châu, Đà Nẵng\",\n  \"genderCode\": \"M\",\n  \"dob\": \"2002-08-20\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sửa họ tên, địa chỉ, giới tính (M = Nam, FE = Nữ), ngày sinh rồi bấm Send. Đồng bộ ngay lên trang Thông tin tài khoản."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Cập nhật cài đặt tìm việc & kỹ năng (bật gợi ý việc làm)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.environment.get('baseUrl');",
+                  "const token = pm.environment.get('manualCandidateAccessToken');",
+                  "pm.sendRequest({ url: base + '/api/auth/me', header: { Authorization: 'Bearer ' + token } }, (err, res) => {",
+                  "    if (!err && res.code === 200 && res.json().data) {",
+                  "        pm.environment.set('manualCandidateUserId', String(res.json().data.userId));",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "show(true, 'Đã lưu cài đặt tìm việc & kỹ năng', 'Hồ sơ đã được bật tìm việc và gợi ý việc làm phù hợp.', [",
+                  "    { label: 'Trang Cài đặt nâng cao (Web)', value: webOrigin + '/candidate/usersetting' },",
+                  "    { label: 'Trang Việc làm gợi ý (Web)', value: webOrigin + '/candidate/recommended-jobs' }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/setDataUserSetting",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "setDataUserSetting"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": {{manualCandidateUserId}},\n  \"data\": {\n    \"categoryJobCode\": \"cong-nghe-thong-tin\",\n    \"salaryJobCode\": \"10-15tr\",\n    \"addressCode\": \"Đà Nẵng\",\n    \"experienceJobCode\": \"1-nam\",\n    \"isFindJob\": 1,\n    \"isTakeMail\": 1,\n    \"file\": \"\",\n    \"listSkills\": [\n      1,\n      2,\n      9\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Cài đặt ngành nghề, mức lương, địa điểm, kinh nghiệm, kỹ năng (listSkills) và bật tìm việc (isFindJob: 1). Đồng bộ lên trang Cài đặt nâng cao."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Tạo mẫu CV trực tuyến mới (Identity MongoDB)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const cv = pm.response.json().data;",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "pm.environment.set('manualOnlineCvId', cv._id);",
+                  "show(true, 'Đã tạo CV trực tuyến (MongoDB ID: ' + cv._id + ')', 'Mở hoặc F5 trang CV trên trình duyệt để xem bản CV vừa tạo.', [",
+                  "    { label: 'Mã CV (_id)', value: cv._id },",
+                  "    { label: 'Tiêu đề CV', value: cv.title },",
+                  "    { label: 'Họ tên trên CV', value: cv.fullName },",
+                  "    { label: 'Kỹ năng', value: (cv.skills || []).join(', ') },",
+                  "    { label: 'Xem trên trình duyệt', value: webOrigin + '/candidate/ai-cv' }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/profile/cvs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "profile",
+                "cvs"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"CV Fullstack Web Developer - Nguyễn Văn An\",\n  \"template\": \"modern\",\n  \"fullName\": \"Nguyễn Văn An\",\n  \"email\": \"nguyenvanan.dev@gmail.com\",\n  \"phone\": \"0988123456\",\n  \"address\": \"Quận Hải Châu, Đà Nẵng\",\n  \"summary\": \"Lập trình viên Web có nền tảng vững về ReactJS, Node.js, RESTful API, MySQL/PostgreSQL và Docker. Yêu thích xây dựng sản phẩm có trải nghiệm tốt.\",\n  \"skills\": [\n    \"JavaScript (ES6+)\",\n    \"ReactJS\",\n    \"Node.js / Express\",\n    \"MySQL & PostgreSQL\",\n    \"Docker\",\n    \"Git\"\n  ],\n  \"languages\": [\n    \"Tiếng Việt (Bản ngữ)\",\n    \"Tiếng Anh (Đọc hiểu tài liệu & giao tiếp cơ bản)\"\n  ],\n  \"experiences\": [\n    {\n      \"company\": \"Dự án Website Tuyển dụng JobFind\",\n      \"position\": \"Fullstack Web Developer\",\n      \"from\": \"01/2026\",\n      \"to\": \"Hiện tại\",\n      \"description\": \"Phát triển hệ thống microservices tuyển dụng với ReactJS, Node.js, API Gateway, RabbitMQ và Elasticsearch.\"\n    }\n  ],\n  \"educations\": [\n    {\n      \"school\": \"Đại học Bách Khoa - Đại học Đà Nẵng\",\n      \"major\": \"Công nghệ Thông tin\",\n      \"degree\": \"Kỹ sư Công nghệ Thông tin\",\n      \"year\": \"2025\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Tạo bản CV trực tuyến đầy đủ học vấn, kinh nghiệm, kỹ năng. Đồng bộ ngay lên mục \"CV và trợ lý AI\" trên trình duyệt."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 - Nhà tuyển dụng đăng tin, Admin duyệt công khai & Sửa/Gỡ tin (đồng bộ trang Việc làm)",
+      "description": "Đăng tin mới (PS3), dùng Admin duyệt hiển thị công khai ngay lên trang Việc làm & Elasticsearch (PS1), sửa nội dung tin và gỡ tin (PS4).\nKhi Bước 2 duyệt xong, mã tin mới được tự gán vào manualPostId để Ứng viên có thể nộp CV ngay ở Thư mục 4.",
+      "item": [
+        {
+          "name": "Bước 1 - Nhà tuyển dụng đăng tin mới (chờ duyệt PS3)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('manualJobIdempotencyKey', 'manual-job-' + Date.now());",
+                  "pm.environment.set('manualJobTimeEnd', String(Date.now() + 30 * 24 * 3600 * 1000));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const job = pm.response.json().data;",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "pm.environment.set('manualCreatedJobId', String(job.id));",
+                  "pm.environment.set('manualCreatedJobRevision', job.editRevision || '');",
+                  "show(true, 'Đã đăng tin mới #' + job.id + ' (Trạng thái: ' + job.statusCode + ' - Chờ duyệt)',",
+                  "    'Bấm tiếp \"Bước 2 - Admin duyệt tin vừa đăng lên công khai (PS1)\" để tin xuất hiện ngay ngoài trang chủ Việc làm và cho phép ứng viên nộp CV!', [",
+                  "        { label: 'Mã tin mới (manualCreatedJobId)', value: job.id },",
+                  "        { label: 'Tiêu đề tin', value: job.name },",
+                  "        { label: 'Trạng thái hiện tại', value: job.statusCode + ' (Chờ kiểm duyệt)' },",
+                  "        { label: 'Quản lý tin NTD (Web)', value: webOrigin + '/admin/list-post' },",
+                  "        { label: 'Danh sách chờ duyệt Admin (Web)', value: webOrigin + '/admin/list-post-admin' }",
+                  "    ]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{manualJobIdempotencyKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lập trình viên Fullstack (ReactJS / Node.js) - Đi làm ngay\",\n  \"descriptionHTML\": \"<h3>Mô tả công việc</h3><ul><li>Phát triển và tối ưu giao diện web bằng <b>ReactJS</b>, kết nối RESTful API và Socket.IO.</li><li>Xây dựng dịch vụ backend với <b>Node.js (Express)</b>, MySQL/PostgreSQL và Docker.</li><li>Phối hợp cùng đội ngũ Product &amp; QA đảm bảo chất lượng sản phẩm.</li></ul><h3>Yêu cầu ứng viên</h3><ul><li>Có từ 1 năm kinh nghiệm làm việc với JavaScript, Reactjs, Nodejs, SQL.</li><li>Hiểu biết về Git, REST API, ưu tiên biết Docker / Microservices.</li></ul><h3>Quyền lợi</h3><ul><li>Thu nhập 10 - 15 triệu/tháng + thưởng dự án, xét tăng lương 2 lần/năm.</li><li>Đóng BHXH đầy đủ, 12 ngày phép/năm, cấp Macbook/Laptop làm việc.</li></ul>\",\n  \"descriptionMarkdown\": \"### Mô tả công việc\\n- Phát triển giao diện web bằng ReactJS và backend Node.js.\\n### Yêu cầu\\n- Có từ 1 năm kinh nghiệm JavaScript, Reactjs, Nodejs, SQL.\\n### Quyền lợi\\n- Lương 10 - 15 triệu/tháng, BHXH đầy đủ, thưởng dự án.\",\n  \"categoryJobCode\": \"cong-nghe-thong-tin\",\n  \"addressCode\": \"Đà Nẵng\",\n  \"salaryJobCode\": \"10-15tr\",\n  \"amount\": 2,\n  \"categoryJoblevelCode\": \"nhan-vien\",\n  \"categoryWorktypeCode\": \"fulltime\",\n  \"experienceJobCode\": \"1-nam\",\n  \"genderPostCode\": \"ca-hai\",\n  \"isHot\": 0,\n  \"timeEnd\": \"{{manualJobTimeEnd}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Đăng tin tuyển dụng mới (trừ 1 lượt đăng bài của công ty). Tin mới ở trạng thái PS3 (Chờ duyệt); chạy tiếp Bước 2 để Admin duyệt hiển thị công khai ngay trên trang Việc làm."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 2 - Admin duyệt tin vừa đăng lên công khai (PS1)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const id = pm.environment.get('manualCreatedJobId');",
+                  "if (!id) {",
+                  "    console.log('Chưa có manualCreatedJobId: hãy chạy Bước 1 đăng tin trước.');",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "const base = pm.environment.get('baseUrl');",
+                  "const recToken = pm.environment.get('recruiterAccessToken');",
+                  "if (recToken) {",
+                  "    pm.sendRequest({ url: base + '/api/jobs/' + id + '/manage', header: { Authorization: 'Bearer ' + recToken } }, (err, res) => {",
+                  "        if (!err && res.code === 200 && res.json().data) {",
+                  "            const live = res.json().data;",
+                  "            pm.environment.set('manualCreatedJobRevision', live.editRevision);",
+                  "            if (live.statusCode === 'PS1') {",
+                  "                pm.environment.set('manualPostId', String(live.id));",
+                  "                console.log('Tin #' + live.id + ' đã được AI kiểm duyệt tự động duyệt lên PS1 trước đó! Đã gán manualPostId = ' + live.id);",
+                  "                pm.execution.skipRequest();",
+                  "            }",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const id = pm.environment.get('manualCreatedJobId');",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "pm.environment.set('manualPostId', String(id));",
+                  "show(true, 'Đã duyệt công khai tin #' + id + ' (PS1) & đồng bộ lên Web',",
+                  "    'Biến manualPostId đã tự cập nhật = ' + id + '. Tin đã hiện công khai trên trang Việc làm và ứng viên có thể nộp CV ngay ở Thư mục 4!', [",
+                  "        { label: 'Mã tin công khai (manualPostId)', value: id },",
+                  "        { label: 'Xem trang chi tiết tin trên trình duyệt', value: webOrigin + '/detail-job/' + id },",
+                  "        { label: 'Xem danh sách Việc làm trên trình duyệt', value: webOrigin + '/job' }",
+                  "    ]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/accept-post",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "accept-post"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": {{manualCreatedJobId}},\n  \"statusCode\": \"PS1\",\n  \"expectedRevision\": \"{{manualCreatedJobRevision}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Dùng quyền Admin duyệt tin vừa tạo ở Bước 1 từ PS3 -> PS1 (hiển thị công khai trên Web & Elasticsearch), đồng thời gán luôn vào manualPostId để Ứng viên nộp CV ở Thư mục 4."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 3 - Lấy phiên bản tin trước khi sửa (editRevision)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const job = pm.response.json().data;",
+                  "pm.environment.set('manualEditJobRevision', job.editRevision);",
+                  "show(true, 'Đã lấy phiên bản tin #' + job.id, 'Bạn có thể sửa nội dung ở Bước 4 và bấm Send.', [",
+                  "    { label: 'Mã tin (manualPostId)', value: job.id },",
+                  "    { label: 'Tiêu đề hiện tại', value: job.name },",
+                  "    { label: 'Trạng thái', value: job.statusCode },",
+                  "    { label: 'Mã phiên bản (manualEditJobRevision)', value: job.editRevision }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{manualPostId}}/manage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{manualPostId}}",
+                "manage"
+              ]
+            },
+            "description": "Lấy mã editRevision hiện tại của tin manualPostId (chống ghi đè xung đột Optimistic Locking) trước khi chạy Bước 4 sửa tin."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 4 - Sửa nội dung tin tuyển dụng",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('manualEditJobRevision')) {",
+                  "    console.log('Chưa có manualEditJobRevision: hãy chạy \"Bước 3 - Lấy phiên bản tin trước khi sửa\" trước.');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const job = pm.response.json().data;",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "pm.environment.set('manualEditJobRevision', job.editRevision);",
+                  "show(true, 'Đã cập nhật tin #' + job.id + ' (Trạng thái: ' + job.statusCode + ')',",
+                  "    job.statusCode === 'PS3'",
+                  "        ? 'Nội dung tin thay đổi nên chuyển về PS3 để kiểm duyệt lại (nếu là tin vừa tạo ở Bước 1, có thể bấm lại Bước 2 để Admin duyệt lên PS1).'",
+                  "        : 'Tin đã cập nhật và đồng bộ lên trình duyệt.', [",
+                  "            { label: 'Mã tin', value: job.id },",
+                  "            { label: 'Tiêu đề mới', value: job.name },",
+                  "            { label: 'Trạng thái hiện tại', value: job.statusCode },",
+                  "            { label: 'Quản lý tin NTD (Web)', value: webOrigin + '/admin/list-post' },",
+                  "            { label: 'Chi tiết tin công khai (Web)', value: webOrigin + '/detail-job/' + job.id }",
+                  "        ]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{manualPostId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{manualPostId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lập trình viên Fullstack ReactJS / Node.js (Cập nhật lương & quyền lợi)\",\n  \"descriptionHTML\": \"<h3>Mô tả công việc (Đã cập nhật)</h3><ul><li>Phát triển ứng dụng Web với <b>ReactJS</b> và hệ thống Microservices <b>Node.js</b>.</li><li>Tham gia tối ưu hiệu năng truy vấn MySQL, PostgreSQL, Elasticsearch.</li></ul><h3>Yêu cầu</h3><ul><li>Từ 1 năm kinh nghiệm JavaScript, Reactjs, Nodejs, SQL, Docker.</li></ul><h3>Quyền lợi</h3><ul><li>Thu nhập hấp dẫn 12 - 18 triệu/tháng + thưởng hiệu suất quý.</li><li>Làm việc thứ Hai - thứ Sáu, hỗ trợ ăn trưa và gửi xe.</li></ul>\",\n  \"descriptionMarkdown\": \"### Mô tả công việc (Đã cập nhật)\\n- Phát triển Web ReactJS & Microservices Node.js.\\n### Quyền lợi\\n- Lương 12 - 18 triệu/tháng, làm thứ 2 - thứ 6.\",\n  \"categoryJobCode\": \"cong-nghe-thong-tin\",\n  \"addressCode\": \"Đà Nẵng\",\n  \"salaryJobCode\": \"10-15tr\",\n  \"amount\": 3,\n  \"categoryJoblevelCode\": \"chuyen-vien\",\n  \"categoryWorktypeCode\": \"fulltime\",\n  \"experienceJobCode\": \"1-nam\",\n  \"genderPostCode\": \"ca-hai\",\n  \"expectedRevision\": \"{{manualEditJobRevision}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sửa tiêu đề, mô tả, mức lương, số lượng tuyển của tin manualPostId (cần chạy Bước 3 trước để có manualEditJobRevision mới nhất)."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 5 - Gỡ / Đóng tin tuyển dụng vừa tạo (PS4)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('manualCreatedJobId')) {",
+                  "    console.log('Chưa có manualCreatedJobId để gỡ.');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const closedId = pm.environment.get('manualCreatedJobId');",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "if (pm.environment.get('manualPostId') === String(closedId)) {",
+                  "    pm.environment.set('manualPostId', '234');",
+                  "}",
+                  "show(true, 'Đã gỡ tin #' + closedId + ' (PS4)', 'Tin đã được ẩn khỏi trang Việc làm & Elasticsearch; manualPostId đã trả về tin mặc định #234.', [",
+                  "    { label: 'Tin đã gỡ', value: closedId },",
+                  "    { label: 'Quản lý tin NTD (Web)', value: webOrigin + '/admin/list-post' }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{manualCreatedJobId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{manualCreatedJobId}}"
+              ]
+            },
+            "description": "Chỉ chạy khi bạn muốn gỡ tin vừa đăng ở Bước 1 (chuyển sang PS4 và xoá khỏi kết quả tìm kiếm công khai)."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 - Ứng viên nộp CV ứng tuyển (tạo hồ sơ mới & đồng bộ lên Kanban)",
+      "description": "Nộp CV PDF mẫu trực tiếp từ Postman bằng tài khoản manualCandidatePhone vào tin manualPostId.\nBước 3 chờ RabbitMQ đồng bộ xong và tự động điền mã hồ sơ mới vào biến manualApplicationId để dùng ngay cho Thư mục 6-9.",
+      "item": [
+        {
+          "name": "Danh sách tin còn hạn của công ty nhà tuyển dụng",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const all = pm.response.json().data || [];",
+                  "const now = Date.now();",
+                  "const open = all.filter((j) => Number(j.timeEnd) > now);",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "if (open.length && !pm.environment.get('manualPostId')) {",
+                  "    pm.environment.set('manualPostId', String(open[0].id));",
+                  "}",
+                  "const rows = open.map((j) => ({",
+                  "    label: 'Mã tin ' + j.id,",
+                  "    value: (j.name || '') + ' · Hạn nộp: ' + new Date(Number(j.timeEnd)).toISOString().slice(0, 10)",
+                  "        + ' · Web: ' + webOrigin + '/detail-job/' + j.id",
+                  "}));",
+                  "show(true, open.length + ' tin đang nhận hồ sơ (công ty của recruiter)',",
+                  "    'Biến manualPostId hiện tại: ' + (pm.environment.get('manualPostId') || '(chưa đặt)') + '. Đổi manualPostId trong Environment nếu muốn nộp vào tin khác.',",
+                  "    rows);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/manage?limit=50&offset=0&statusCode=PS1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "manage"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "statusCode",
+                  "value": "PS1"
+                }
+              ]
+            },
+            "description": "Xem các tin đang tuyển (PS1, còn hạn) của công ty nhà tuyển dụng (recruiterPhone). Chọn mã tin đặt vào biến manualPostId."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 1 - Kiểm tra trước khi nộp CV (chưa nộp)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const postId = String(pm.environment.get('manualPostId') || '');",
+                  "if (!/^[1-9][0-9]*$/.test(postId)) {",
+                  "    console.log('Chưa chọn tin tuyển dụng: đặt biến manualPostId là mã tin hợp lệ (xem request \"Danh sách tin còn hạn\").');",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "const base = pm.environment.get('baseUrl');",
+                  "const token = pm.environment.get('manualCandidateAccessToken');",
+                  "pm.sendRequest({ url: base + '/api/auth/me', header: { Authorization: 'Bearer ' + token } }, (err, meRes) => {",
+                  "    const me = !err && meRes.code === 200 ? meRes.json().data : null;",
+                  "    pm.variables.set('manualApplyMe', JSON.stringify(me || null));",
+                  "    pm.sendRequest({ url: base + '/api/my-applications', header: { Authorization: 'Bearer ' + token } }, (err2, appRes) => {",
+                  "        const apps = !err2 && appRes.code === 200 ? (appRes.json().data || []) : [];",
+                  "        const found = apps.find((a) => String(a.job_id) === postId) || null;",
+                  "        pm.variables.set('manualApplyExisting', JSON.stringify(found));",
+                  "    });",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const body = pm.response.json();",
+                  "const me = JSON.parse(pm.variables.get('manualApplyMe') || 'null');",
+                  "const existing = JSON.parse(pm.variables.get('manualApplyExisting') || 'null');",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "const job = pm.response.code === 200 && body.errCode === 0 ? body.data : null;",
+                  "const isCandidate = Boolean(me && me.roleCode === 'CANDIDATE');",
+                  "const isOpen = Boolean(job && job.statusCode === 'PS1' && Number(job.timeEnd) > Date.now());",
+                  "const canApply = isCandidate && isOpen && !existing;",
+                  "",
+                  "if (existing && job) {",
+                  "    pm.environment.unset('manualApplyPostId');",
+                  "    if (!pm.environment.get('manualApplicationId')) {",
+                  "        pm.environment.set('manualApplicationId', String(existing.id));",
+                  "    }",
+                  "    pm.test('Ứng viên đã nộp tin này trước đó (đã có mã hồ sơ Kanban #' + existing.id + ')', () => pm.expect(true).to.be.true);",
+                  "    show(false, 'Ứng viên này đã ứng tuyển tin #' + job.id + ' trước đó',",
+                  "        'Mỗi ứng viên chỉ nộp 1 lần cho mỗi tin. Bạn có thể dùng luôn Mã hồ sơ #' + existing.id + ' ở Thư mục 5-9, hoặc đổi sang manualPostId khác / tạo ứng viên mới ở Thư mục 1.', [",
+                  "            { label: 'Mã hồ sơ Kanban đã có', value: '#' + existing.id + ' (giai đoạn: ' + existing.stage + ')' },",
+                  "            { label: 'Biến manualApplicationId hiện tại', value: pm.environment.get('manualApplicationId') },",
+                  "            { label: 'Tin tuyển dụng', value: '#' + job.id + ' - ' + job.name },",
+                  "            { label: 'Xem trên trình duyệt (Ứng viên)', value: webOrigin + '/candidate/cv-post/' },",
+                  "            { label: 'Xem trên trình duyệt (Kanban NTD)', value: webOrigin + '/admin/pipeline' }",
+                  "        ]);",
+                  "    return;",
+                  "}",
+                  "",
+                  "const errReason = !isCandidate ? 'Tài khoản manualCandidatePhone không phải vai trò CANDIDATE'",
+                  "    : !job ? (body.errMessage || 'Không tìm thấy tin tuyển dụng #' + pm.environment.get('manualPostId'))",
+                  "    : 'Tin tuyển dụng đã hết hạn hoặc không còn mở nhận hồ sơ';",
+                  "pm.test('Kiểm tra đạt: có thể nộp CV vào tin #' + pm.environment.get('manualPostId'), () => pm.expect(canApply, errReason).to.be.true);",
+                  "if (canApply) {",
+                  "    pm.environment.set('manualApplyPostId', String(job.id));",
+                  "    pm.environment.set('manualApplyAt', Date.now());",
+                  "    show(true, 'Đạt - Sẵn sàng nộp CV (CHƯA nộp)', 'Bấm Bước 2 trong 15 phút để nộp CV thật và đồng bộ sang Kanban.', [",
+                  "        { label: 'Tài khoản ứng viên nộp', value: pm.environment.get('manualCandidatePhone') + ' (userId: ' + me.userId + ')' },",
+                  "        { label: 'Tin tuyển dụng', value: '#' + job.id + ' - ' + job.name },",
+                  "        { label: 'Công ty nhận hồ sơ', value: (job.companyName || '') + ' (companyId: ' + job.companyId + ')' },",
+                  "        { label: 'Hạn nhận hồ sơ', value: new Date(Number(job.timeEnd)).toISOString().slice(0, 10) },",
+                  "        { label: 'Xem tin trên trình duyệt', value: webOrigin + '/detail-job/' + job.id }",
+                  "    ]);",
+                  "} else {",
+                  "    pm.environment.unset('manualApplyPostId');",
+                  "    show(false, 'Chưa đạt - không thể nộp CV', errReason);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/jobs/{{manualPostId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "jobs",
+                "{{manualPostId}}"
+              ]
+            },
+            "description": "Kiểm tra tài khoản ứng viên (manualCandidatePhone), tin tuyển dụng (manualPostId) còn hạn và chưa nộp trùng. KHÔNG lưu CV."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 2 - Nộp CV thật (tạo hồ sơ ứng tuyển)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const postId = pm.environment.get('manualApplyPostId');",
+                  "const at = Number(pm.environment.get('manualApplyAt') || 0);",
+                  "if (!postId) {",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": chưa chạy \"Bước 1 - Kiểm tra trước khi nộp CV\" đạt.');",
+                  "    pm.execution.skipRequest();",
+                  "} else if (Date.now() - at > 15 * 60000) {",
+                  "    pm.environment.unset('manualApplyPostId');",
+                  "    console.log('KHÔNG GỬI \"' + pm.info.requestName + '\": kết quả kiểm tra Bước 1 đã quá 15 phút. Chạy lại Bước 1.');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const body = pm.response.json();",
+                  "const appliedPostId = pm.environment.get('manualApplyPostId');",
+                  "pm.test('Đã tạo CV mới (cvId = ' + body.cvId + ')', () => pm.expect(body.cvId).to.be.a('number'));",
+                  "pm.environment.set('manualLastCvId', String(body.cvId));",
+                  "pm.environment.set('manualLastAppliedPostId', String(appliedPostId));",
+                  "pm.environment.unset('manualApplyPostId');",
+                  "pm.environment.unset('manualApplyAt');",
+                  "show(true, 'Đã nộp CV thành công (cvId #' + body.cvId + ')',",
+                  "    'Bấm tiếp \"Bước 3 - Đồng bộ sang Kanban & tự điền manualApplicationId\" để lấy mã hồ sơ Kanban và thao tác mời phỏng vấn / gửi offer.', [",
+                  "        { label: 'Mã CV vừa nộp (legacy_cv_id)', value: body.cvId },",
+                  "        { label: 'Mã tin đã ứng tuyển', value: appliedPostId },",
+                  "        { label: 'Ứng viên', value: pm.environment.get('manualCandidatePhone') }",
+                  "    ]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/create-new-cv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "create-new-cv"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"postId\": {{manualApplyPostId}},\n  \"description\": \"Em xin ứng tuyển vị trí tại quý công ty. Em có nền tảng về ReactJS, Node.js, SQL và Docker, rất mong có cơ hội trao đổi thêm trong buổi phỏng vấn.\",\n  \"file\": \"data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUgODQyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAyMzAgPj4Kc3RyZWFtCkJUIC9GMSAxNCBUZiA1MCA3ODAgVGQgKENWIEtJRU0gVEhVIFBPU1RNQU4gLSBKb2JGaW5kKSBUaiAwIC0yMiBUZCAoS3kgbmFuZzogTm9kZWpzLCBSZWFjdGpzLCBKUywgU1FMLCBEb2NrZXIpIFRqIDAgLTIyIFRkIChLaW5oIG5naGllbTogMiBuYW0gcGhhdCB0cmllbiB3ZWIpIFRqIDAgLTIyIFRkIChIbyBzbyBnaWEgbGFwIGNobyBibyB0ZXN0LCBraG9uZyBwaGFpIHVuZyB2aWVuIHRoYXQpIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBuIAowMDAwMDAwNTIyIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNTkyCiUlRU9GCg==\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Nộp CV PDF mẫu (có sẵn kỹ năng Nodejs, Reactjs, JS, SQL, Docker) vào đúng tin đã kiểm tra ở Bước 1. Có thể sửa lời giới thiệu \"description\"."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 3 - Đồng bộ sang Kanban & tự điền manualApplicationId",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('manualLastCvId') || !pm.environment.get('manualLastAppliedPostId')) {",
+                  "    console.log('Chưa có CV vừa nộp từ Bước 2: hãy chạy Bước 2 trước (hoặc chọn hồ sơ có sẵn ở Thư mục 5).');",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "const deadline = Date.now() + 20000;",
+                  "const targetCvId = Number(pm.environment.get('manualLastCvId'));",
+                  "const poll = () => pm.sendRequest({",
+                  "    url: pm.environment.get('baseUrl') + '/api/applications?jobId=' + pm.environment.get('manualLastAppliedPostId') + '&limit=100',",
+                  "    header: { Authorization: 'Bearer ' + pm.environment.get('recruiterAccessToken') }",
+                  "}, (err, res) => {",
+                  "    const rows = (!err && res.code === 200 && res.json().data) || [];",
+                  "    if (!rows.some((a) => Number(a.legacy_cv_id) === targetCvId) && Date.now() < deadline) setTimeout(poll, 1200);",
+                  "});",
+                  "poll();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const targetCvId = Number(pm.environment.get('manualLastCvId'));",
+                  "const app = (pm.response.json().data || []).find((a) => Number(a.legacy_cv_id) === targetCvId);",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "pm.test('Hồ sơ đã xuất hiện trên Kanban của nhà tuyển dụng', () => pm.expect(app, 'Chưa thấy hồ sơ trên Kanban (kiểm tra tin có thuộc đúng công ty của recruiterPhone không)').to.not.be.undefined);",
+                  "if (app) {",
+                  "    pm.environment.set('manualApplicationId', String(app.id));",
+                  "    show(true, 'Đã đồng bộ lên Kanban - Mã hồ sơ #' + app.id,",
+                  "        'Biến manualApplicationId đã được tự động điền = ' + app.id + '. Bạn có thể mở trình duyệt xem ngay hoặc chuyển sang Thư mục 6-9 để mời phỏng vấn / gửi offer!', [",
+                  "            { label: 'manualApplicationId (đã tự lưu)', value: app.id },",
+                  "            { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "            { label: 'Tin tuyển dụng', value: app.job_title },",
+                  "            { label: 'Giai đoạn hiện tại', value: app.stage },",
+                  "            { label: 'Xem trên trình duyệt (Kanban NTD)', value: webOrigin + '/admin/pipeline' },",
+                  "            { label: 'Xem trên trình duyệt (Việc đã nộp - UV)', value: webOrigin + '/candidate/cv-post/' }",
+                  "        ]);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/applications?jobId={{manualLastAppliedPostId}}&limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "jobId",
+                  "value": "{{manualLastAppliedPostId}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Chờ Outbox -> RabbitMQ -> Application Service đồng bộ CV vừa nộp lên Kanban của nhà tuyển dụng, rồi tự điền biến manualApplicationId."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 - Chọn hồ sơ ứng tuyển để thao tác",
+      "description": "Dùng tài khoản nhà tuyển dụng recruiterPhone/recruiterPassword (mặc định: nhà tuyển dụng công ty B).\nTìm hồ sơ có sẵn, đặt mã hồ sơ vào biến manualApplicationId (nhớ bấm Ctrl+S), xem lại đúng ứng viên trước khi gửi thư.",
       "item": [
         {
           "name": "Tài khoản nhà tuyển dụng đang dùng",
@@ -356,16 +1447,21 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
                   "const me = pm.response.json().data;",
+                  "const webOrigin = pm.environment.get('origin') || '';",
                   "pm.test('Là nhà tuyển dụng có công ty đã duyệt', () => {",
                   "    pm.expect(me.roleCode).to.be.oneOf(['COMPANY', 'EMPLOYER', 'ADMIN']);",
                   "    if (me.roleCode !== 'ADMIN') pm.expect(me.companyCensorCode).to.eql('CS1');",
                   "});",
-                  "show(true, 'Thao tác bằng tài khoản này', 'Đổi recruiterPhone/recruiterPassword trong environment để dùng tài khoản khác.', [",
-                  "    { label: 'Mã người dùng', value: me.userId }, { label: 'Vai trò', value: me.roleCode }, { label: 'Công ty', value: me.companyId }",
+                  "if (me.companyId) pm.environment.set('manualCompanyId', String(me.companyId));",
+                  "pm.environment.set('recruiterUserId', String(me.userId));",
+                  "show(true, 'Thao tác bằng tài khoản nhà tuyển dụng này', 'Đăng nhập cùng tài khoản recruiterPhone trên trình duyệt để xem bảng Kanban đồng bộ.', [",
+                  "    { label: 'Số điện thoại (recruiterPhone)', value: pm.environment.get('recruiterPhone') },",
+                  "    { label: 'Mã người dùng (recruiterUserId)', value: me.userId }, { label: 'Vai trò', value: me.roleCode }, { label: 'Công ty (manualCompanyId)', value: me.companyId },",
+                  "    { label: 'Bảng Kanban trên trình duyệt', value: webOrigin + '/admin/pipeline' }",
                   "]);"
                 ]
               }
@@ -408,14 +1504,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
                   "const rows = pm.response.json().data.map((a) => ({",
                   "    label: 'Mã hồ sơ ' + a.id,",
                   "    value: (a.candidate_name || '') + ' <' + (a.candidate_email || '') + '> · ' + (a.job_title || '') + ' · ' + a.stage",
                   "}));",
-                  "show(true, pm.response.json().count + ' hồ sơ', 'Chọn một mã hồ sơ rồi đặt vào biến manualApplicationId.', rows);"
+                  "show(true, pm.response.json().count + ' hồ sơ', 'Chọn một mã hồ sơ, điền vào Current value của biến manualApplicationId rồi bấm Ctrl+S.', rows);"
                 ]
               }
             }
@@ -453,7 +1549,7 @@
                 }
               ]
             },
-            "description": "Đặt biến manualSearch để lọc (để trống = tất cả). Chép số ở cột \"Mã hồ sơ\" vào biến manualApplicationId."
+            "description": "Đặt biến manualSearch để lọc (để trống = tất cả). Chép số ở cột \"Mã hồ sơ\" vào biến manualApplicationId rồi bấm Ctrl+S."
           },
           "protocolProfileBehavior": {
             "disableCookies": true
@@ -463,21 +1559,35 @@
           "name": "Hồ sơ đang chọn (manualApplicationId)",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!/^[1-9][0-9]*$/.test(String(pm.environment.get('manualApplicationId') || ''))) {",
+                  "    console.log('Chưa chọn hồ sơ: hãy nộp CV ở Thư mục 4 (tự động điền manualApplicationId) hoặc đặt biến manualApplicationId ở Thư mục 5 rồi bấm Ctrl+S.');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
                   "const app = pm.response.json().data;",
                   "const last = app.latestDecision;",
+                  "const webOrigin = pm.environment.get('origin') || '';",
                   "show(true, 'Hồ sơ #' + app.id, 'Kiểm tra đúng người trước khi gửi thư.', [",
                   "    { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
                   "    { label: 'Tin tuyển dụng', value: app.job_title },",
                   "    { label: 'Giai đoạn hiện tại', value: app.stage },",
-                  "    { label: 'Thư gần nhất', value: last ? last.decision + ' lúc ' + last.requestedAt : 'Chưa gửi thư nào' }",
-                  "].concat(app.timeline.slice(0, 5).map((e) => ({ label: 'Lịch sử ' + e.created_at, value: (e.from_stage || '') + ' → ' + e.to_stage + ' · ' + (e.reason || '') }))));"
+                  "    { label: 'Thư gần nhất', value: last ? last.decision + ' lúc ' + last.requestedAt : 'Chưa gửi thư nào' },",
+                  "    { label: 'Xem trên Kanban trình duyệt', value: webOrigin + '/admin/pipeline' }",
+                  "].concat((app.timeline || []).slice(0, 5).map((e) => ({ label: 'Lịch sử ' + e.created_at, value: (e.from_stage || '') + ' → ' + e.to_stage + ' · ' + (e.reason || '') }))));"
                 ]
               }
             }
@@ -505,7 +1615,8 @@
                 "applications",
                 "{{manualApplicationId}}"
               ]
-            }
+            },
+            "description": "Xem chi tiết hồ sơ đang chọn trong biến manualApplicationId trước khi gửi thư mời hoặc chuyển giai đoạn."
           },
           "protocolProfileBehavior": {
             "disableCookies": true
@@ -514,8 +1625,8 @@
       ]
     },
     {
-      "name": "3 - Mời phỏng vấn (hẹn lịch)",
-      "description": "interviewMode: onsite (cần location), online (cần meetingUrl), phone (cần contactPhone). Ngày giờ theo giờ Việt Nam.\nNgày gợi ý {{suggestedInterviewDate}} là 7 ngày tới; có thể ghi ngày cụ thể dạng YYYY-MM-DD. confirmBy phải trước giờ phỏng vấn.\nGửi thật: hồ sơ chuyển sang \"phỏng vấn\", ứng viên nhận email + thông báo, lịch hiện trong lịch phỏng vấn.",
+      "name": "6 - Mời phỏng vấn (hẹn lịch)",
+      "description": "interviewMode: onsite (cần location), online (cần meetingUrl), phone (cần contactPhone). Ngày giờ theo giờ Việt Nam.\nGửi thật: hồ sơ trên Kanban chuyển sang \"phỏng vấn\", ứng viên nhận email + chuông thông báo realtime + lịch phỏng vấn trên trình duyệt.",
       "item": [
         {
           "name": "Bước 1 - Kiểm tra trước (không lưu, không gửi email)",
@@ -526,7 +1637,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (!/^[1-9][0-9]*$/.test(String(pm.environment.get('manualApplicationId') || ''))) {",
-                  "    console.log('Chưa chọn hồ sơ: đặt biến manualApplicationId (xem thư mục 2 - Chọn hồ sơ ứng tuyển).');",
+                  "    console.log('Chưa chọn hồ sơ: hãy nộp CV ở Thư mục 4 (tự động điền manualApplicationId) hoặc đặt biến manualApplicationId ở Thư mục 5 rồi bấm Ctrl+S.');",
                   "    pm.execution.skipRequest();",
                   "}"
                 ]
@@ -537,7 +1648,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "const reasons = {",
                   "    email_not_configured: 'Server chưa cấu hình hộp thư gửi đi (EMAIL_APP): thư nằm trong hàng đợi, chưa gửi được',",
                   "    invalid_recipient: 'Email ứng viên không hợp lệ: sẽ không gửi',",
@@ -617,7 +1728,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"message\": \"Lời nhắn thêm cho ứng viên (không bắt buộc)\",\n  \"interview\": {\n    \"companyName\": \"Tên công ty\",\n    \"interviewDate\": \"{{suggestedInterviewDate}}\",\n    \"interviewTime\": \"09:30\",\n    \"durationMinutes\": \"60\",\n    \"timeZone\": \"Asia/Ho_Chi_Minh\",\n    \"interviewMode\": \"onsite\",\n    \"location\": \"Địa chỉ phỏng vấn cụ thể\",\n    \"round\": \"Vòng 1 - Chuyên môn\",\n    \"interviewers\": \"Người phỏng vấn\",\n    \"preparation\": \"Ứng viên cần chuẩn bị gì\",\n    \"contactName\": \"Người liên hệ HR\",\n    \"contactEmail\": \"{{hrContactEmail}}\",\n    \"contactPhone\": \"0900000000\",\n    \"confirmBy\": \"{{suggestedConfirmBy}}\"\n  }\n}",
+              "raw": "{\n  \"message\": \"Chào bạn, hồ sơ của bạn rất phù hợp với vị trí đang tuyển. Mời bạn tham dự buổi phỏng vấn theo thông tin bên dưới.\",\n  \"interview\": {\n    \"companyName\": \"Sao Khuê Digital\",\n    \"interviewDate\": \"{{suggestedInterviewDate}}\",\n    \"interviewTime\": \"09:30\",\n    \"durationMinutes\": \"60\",\n    \"timeZone\": \"Asia/Ho_Chi_Minh\",\n    \"interviewMode\": \"onsite\",\n    \"location\": \"Tầng 5, Tòa nhà Sao Khuê, Quận Hải Châu, Đà Nẵng\",\n    \"meetingUrl\": \"\",\n    \"round\": \"Vòng 1 - Phỏng vấn chuyên môn\",\n    \"interviewers\": \"Anh Trần Minh Hoàng - Tech Lead\",\n    \"preparation\": \"Mang theo laptop cá nhân và CV bản in (nếu có)\",\n    \"contactName\": \"Phòng Nhân sự - Sao Khuê Digital\",\n    \"contactEmail\": \"{{hrContactEmail}}\",\n    \"contactPhone\": \"0918800001\",\n    \"confirmBy\": \"{{suggestedConfirmBy}}\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -656,13 +1767,26 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
                   "const body = pm.response.json();",
+                  "const app = body.data || {};",
+                  "const webOrigin = pm.environment.get('origin') || '';",
                   "if (body.emailQueued !== undefined) pm.test('Đã lưu và xếp email vào hàng đợi gửi', () => pm.expect(body.emailQueued).to.be.true);",
-                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + body.data.stage, () => pm.expect(body.data.stage).to.be.a('string'));",
+                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + app.stage, () => pm.expect(app.stage).to.be.a('string'));",
+                  "show(true, 'Đã gửi thật & đồng bộ lên trình duyệt (Hồ sơ #' + app.id + ')',",
+                  "    'Dữ liệu đã ghi vào CSDL và phát sự kiện thông báo/email. Mở hoặc F5 trang trình duyệt bên dưới để xem ngay kết quả đồng bộ.', [",
+                  "        { label: 'Hồ sơ', value: '#' + app.id + ' - ' + (app.job_title || '') },",
+                  "        { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "        { label: 'Giai đoạn mới trên Kanban', value: app.stage },",
+                  "        { label: 'Hàng đợi gửi email', value: body.emailQueued ? 'Đã xếp vào hàng đợi gửi email' : 'Bước này không gửi email' },",
+                  "        { label: 'Trình duyệt NTD (Bảng Kanban)', value: webOrigin + '/admin/pipeline' },",
+                  "        { label: 'Trình duyệt NTD (Lịch phỏng vấn)', value: webOrigin + '/admin/interviews' },",
+                  "        { label: 'Trình duyệt Ứng viên (Thông báo)', value: webOrigin + '/candidate/notifications' },",
+                  "        { label: 'Trình duyệt Ứng viên (Lịch PV / Việc đã nộp)', value: webOrigin + '/candidate/interviews  |  ' + webOrigin + '/candidate/cv-post/' }",
+                  "    ]);",
                   "pm.test('Lưu thư mời phỏng vấn, hồ sơ ở bước phong_van', () => pm.expect(pm.response.json().data.stage).to.eql('phong_van'));",
-                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
                   "pm.environment.unset('manualInterviewBody');",
                   "pm.environment.unset('manualInterviewAt');"
                 ]
@@ -708,7 +1832,7 @@
                 }
               }
             },
-            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualInterviewBody, manualInterviewAppId). Không sửa body ở đây."
+            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualInterviewBody, manualInterviewAppId) và đồng bộ trực tiếp lên trình duyệt. Không sửa body ở đây."
           },
           "protocolProfileBehavior": {
             "disableCookies": true
@@ -721,7 +1845,6 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "// Goi y ngay theo gio Viet Nam; co the thay bang ngay cu the trong body (YYYY-MM-DD).",
               "const vnDate = (days) => new Date(Date.now() + days * 86400000 + 7 * 3600000).toISOString().slice(0, 10);",
               "pm.environment.set('suggestedInterviewDate', vnDate(7));",
               "pm.environment.set('suggestedConfirmBy', vnDate(5) + 'T17:00');",
@@ -733,8 +1856,8 @@
       ]
     },
     {
-      "name": "4 - Gửi thư mời nhận việc (trúng tuyển)",
-      "description": "workMode: onsite hoặc hybrid (cần location), remote (cần meetingUrl). responseDeadline phải trước ngày nhận việc.\nGửi thật: hồ sơ chuyển sang \"đề nghị\" (giữ \"nhận việc\" nếu đã xác nhận), ứng viên nhận thư mời nhận việc.",
+      "name": "7 - Gửi thư mời nhận việc (trúng tuyển)",
+      "description": "workMode: onsite hoặc hybrid (cần location), remote (cần meetingUrl). responseDeadline phải trước ngày nhận việc.\nGửi thật: hồ sơ trên Kanban chuyển sang \"đề nghị\", ứng viên nhận thư mời nhận việc + thông báo realtime trên trình duyệt.",
       "item": [
         {
           "name": "Bước 1 - Kiểm tra trước (không lưu, không gửi email)",
@@ -745,7 +1868,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (!/^[1-9][0-9]*$/.test(String(pm.environment.get('manualApplicationId') || ''))) {",
-                  "    console.log('Chưa chọn hồ sơ: đặt biến manualApplicationId (xem thư mục 2 - Chọn hồ sơ ứng tuyển).');",
+                  "    console.log('Chưa chọn hồ sơ: hãy nộp CV ở Thư mục 4 (tự động điền manualApplicationId) hoặc đặt biến manualApplicationId ở Thư mục 5 rồi bấm Ctrl+S.');",
                   "    pm.execution.skipRequest();",
                   "}"
                 ]
@@ -756,7 +1879,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "const reasons = {",
                   "    email_not_configured: 'Server chưa cấu hình hộp thư gửi đi (EMAIL_APP): thư nằm trong hàng đợi, chưa gửi được',",
                   "    invalid_recipient: 'Email ứng viên không hợp lệ: sẽ không gửi',",
@@ -836,7 +1959,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"decision\": \"accepted\",\n  \"message\": \"Lời nhắn thêm cho ứng viên (không bắt buộc)\",\n  \"offer\": {\n    \"companyName\": \"Tên công ty\",\n    \"startDate\": \"{{suggestedStartDate}}\",\n    \"startTime\": \"08:30\",\n    \"timeZone\": \"Asia/Ho_Chi_Minh\",\n    \"responseDeadline\": \"{{suggestedResponseDeadline}}\",\n    \"workMode\": \"onsite\",\n    \"location\": \"Địa điểm nhận việc cụ thể\",\n    \"contactName\": \"Người liên hệ HR\",\n    \"contactEmail\": \"{{hrContactEmail}}\",\n    \"contactPhone\": \"0900000000\",\n    \"workSchedule\": \"Thứ Hai - Thứ Sáu, 08:30 - 17:30\",\n    \"salary\": \"Mức lương (ghi rõ gross/net)\",\n    \"probation\": \"Thời gian thử việc\",\n    \"benefits\": \"Phúc lợi\",\n    \"requiredDocuments\": \"Giấy tờ cần mang\",\n    \"onboardingInstructions\": \"Hướng dẫn ngày đầu đi làm\"\n  }\n}",
+              "raw": "{\n  \"decision\": \"accepted\",\n  \"message\": \"Chúc mừng bạn đã vượt qua các vòng phỏng vấn! Chúng tôi trân trọng gửi tới bạn thư mời nhận việc chính thức.\",\n  \"offer\": {\n    \"companyName\": \"Sao Khuê Digital\",\n    \"startDate\": \"{{suggestedStartDate}}\",\n    \"startTime\": \"08:30\",\n    \"timeZone\": \"Asia/Ho_Chi_Minh\",\n    \"responseDeadline\": \"{{suggestedResponseDeadline}}\",\n    \"workMode\": \"onsite\",\n    \"location\": \"Tầng 5, Tòa nhà Sao Khuê, Quận Hải Châu, Đà Nẵng\",\n    \"meetingUrl\": \"\",\n    \"contactName\": \"Phòng Nhân sự - Sao Khuê Digital\",\n    \"contactEmail\": \"{{hrContactEmail}}\",\n    \"contactPhone\": \"0918800001\",\n    \"workSchedule\": \"Thứ Hai - Thứ Sáu, 08:30 - 17:30 (nghỉ Thứ Bảy, Chủ Nhật)\",\n    \"salary\": \"15.000.000 VNĐ gross/tháng\",\n    \"probation\": \"2 tháng (hưởng 85% mức lương chính thức)\",\n    \"benefits\": \"Đóng BHXH đầy đủ theo luật, 12 ngày phép/năm, thưởng lễ Tết và đánh giá tăng lương 2 lần/năm\",\n    \"requiredDocuments\": \"CCCD công chứng, sơ yếu lý lịch, bản sao bằng tốt nghiệp/bảng điểm và 02 ảnh 3x4\",\n    \"onboardingInstructions\": \"Vui lòng có mặt tại quầy Lễ tân tầng 5 lúc 08:15 ngày nhận việc để nhận máy tính và tài khoản nội bộ\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -875,13 +1998,26 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
                   "const body = pm.response.json();",
+                  "const app = body.data || {};",
+                  "const webOrigin = pm.environment.get('origin') || '';",
                   "if (body.emailQueued !== undefined) pm.test('Đã lưu và xếp email vào hàng đợi gửi', () => pm.expect(body.emailQueued).to.be.true);",
-                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + body.data.stage, () => pm.expect(body.data.stage).to.be.a('string'));",
+                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + app.stage, () => pm.expect(app.stage).to.be.a('string'));",
+                  "show(true, 'Đã gửi thật & đồng bộ lên trình duyệt (Hồ sơ #' + app.id + ')',",
+                  "    'Dữ liệu đã ghi vào CSDL và phát sự kiện thông báo/email. Mở hoặc F5 trang trình duyệt bên dưới để xem ngay kết quả đồng bộ.', [",
+                  "        { label: 'Hồ sơ', value: '#' + app.id + ' - ' + (app.job_title || '') },",
+                  "        { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "        { label: 'Giai đoạn mới trên Kanban', value: app.stage },",
+                  "        { label: 'Hàng đợi gửi email', value: body.emailQueued ? 'Đã xếp vào hàng đợi gửi email' : 'Bước này không gửi email' },",
+                  "        { label: 'Trình duyệt NTD (Bảng Kanban)', value: webOrigin + '/admin/pipeline' },",
+                  "        { label: 'Trình duyệt NTD (Lịch phỏng vấn)', value: webOrigin + '/admin/interviews' },",
+                  "        { label: 'Trình duyệt Ứng viên (Thông báo)', value: webOrigin + '/candidate/notifications' },",
+                  "        { label: 'Trình duyệt Ứng viên (Lịch PV / Việc đã nộp)', value: webOrigin + '/candidate/interviews  |  ' + webOrigin + '/candidate/cv-post/' }",
+                  "    ]);",
                   "pm.test('Hồ sơ ở bước de_nghi hoặc nhan_viec', () => pm.expect(pm.response.json().data.stage).to.be.oneOf(['de_nghi', 'nhan_viec']));",
-                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
                   "pm.environment.unset('manualOfferBody');",
                   "pm.environment.unset('manualOfferAt');"
                 ]
@@ -927,7 +2063,7 @@
                 }
               }
             },
-            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualOfferBody, manualOfferAppId). Không sửa body ở đây."
+            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualOfferBody, manualOfferAppId) và đồng bộ trực tiếp lên trình duyệt. Không sửa body ở đây."
           },
           "protocolProfileBehavior": {
             "disableCookies": true
@@ -940,7 +2076,6 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "// Goi y ngay theo gio Viet Nam; co the thay bang ngay cu the trong body (YYYY-MM-DD).",
               "const vnDate = (days) => new Date(Date.now() + days * 86400000 + 7 * 3600000).toISOString().slice(0, 10);",
               "pm.environment.set('suggestedInterviewDate', vnDate(7));",
               "pm.environment.set('suggestedConfirmBy', vnDate(5) + 'T17:00');",
@@ -952,8 +2087,8 @@
       ]
     },
     {
-      "name": "5 - Gửi email từ chối",
-      "description": "Hệ thống tự cảm ơn ứng viên đã tham gia phỏng vấn nếu hồ sơ từng có lịch phỏng vấn.\nThêm \"interviewed\": false nếu ứng viên được mời nhưng không tham gia.",
+      "name": "8 - Gửi email từ chối",
+      "description": "interviewed: true (thư cảm ơn đã tham gia phỏng vấn), false (từ chối hồ sơ chưa phỏng vấn / vắng mặt).",
       "item": [
         {
           "name": "Bước 1 - Kiểm tra trước (không lưu, không gửi email)",
@@ -964,7 +2099,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (!/^[1-9][0-9]*$/.test(String(pm.environment.get('manualApplicationId') || ''))) {",
-                  "    console.log('Chưa chọn hồ sơ: đặt biến manualApplicationId (xem thư mục 2 - Chọn hồ sơ ứng tuyển).');",
+                  "    console.log('Chưa chọn hồ sơ: hãy nộp CV ở Thư mục 4 (tự động điền manualApplicationId) hoặc đặt biến manualApplicationId ở Thư mục 5 rồi bấm Ctrl+S.');",
                   "    pm.execution.skipRequest();",
                   "}"
                 ]
@@ -975,7 +2110,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "const reasons = {",
                   "    email_not_configured: 'Server chưa cấu hình hộp thư gửi đi (EMAIL_APP): thư nằm trong hàng đợi, chưa gửi được',",
                   "    invalid_recipient: 'Email ứng viên không hợp lệ: sẽ không gửi',",
@@ -1055,7 +2190,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"decision\": \"rejected\",\n  \"message\": \"Lời nhắn thêm cho ứng viên (không bắt buộc)\"\n}",
+              "raw": "{\n  \"decision\": \"rejected\",\n  \"interviewed\": true,\n  \"message\": \"Cảm ơn bạn đã dành thời gian ứng tuyển và trao đổi cùng Sao Khuê Digital. Rất tiếc hiện tại chúng tôi chưa thể đồng hành cùng bạn và xin phép lưu hồ sơ cho các cơ hội phù hợp sắp tới.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1094,13 +2229,26 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
                   "const body = pm.response.json();",
+                  "const app = body.data || {};",
+                  "const webOrigin = pm.environment.get('origin') || '';",
                   "if (body.emailQueued !== undefined) pm.test('Đã lưu và xếp email vào hàng đợi gửi', () => pm.expect(body.emailQueued).to.be.true);",
-                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + body.data.stage, () => pm.expect(body.data.stage).to.be.a('string'));",
+                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + app.stage, () => pm.expect(app.stage).to.be.a('string'));",
+                  "show(true, 'Đã gửi thật & đồng bộ lên trình duyệt (Hồ sơ #' + app.id + ')',",
+                  "    'Dữ liệu đã ghi vào CSDL và phát sự kiện thông báo/email. Mở hoặc F5 trang trình duyệt bên dưới để xem ngay kết quả đồng bộ.', [",
+                  "        { label: 'Hồ sơ', value: '#' + app.id + ' - ' + (app.job_title || '') },",
+                  "        { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "        { label: 'Giai đoạn mới trên Kanban', value: app.stage },",
+                  "        { label: 'Hàng đợi gửi email', value: body.emailQueued ? 'Đã xếp vào hàng đợi gửi email' : 'Bước này không gửi email' },",
+                  "        { label: 'Trình duyệt NTD (Bảng Kanban)', value: webOrigin + '/admin/pipeline' },",
+                  "        { label: 'Trình duyệt NTD (Lịch phỏng vấn)', value: webOrigin + '/admin/interviews' },",
+                  "        { label: 'Trình duyệt Ứng viên (Thông báo)', value: webOrigin + '/candidate/notifications' },",
+                  "        { label: 'Trình duyệt Ứng viên (Lịch PV / Việc đã nộp)', value: webOrigin + '/candidate/interviews  |  ' + webOrigin + '/candidate/cv-post/' }",
+                  "    ]);",
                   "pm.test('Hồ sơ ở bước tu_choi', () => pm.expect(pm.response.json().data.stage).to.eql('tu_choi'));",
-                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
                   "pm.environment.unset('manualRejectBody');",
                   "pm.environment.unset('manualRejectAt');"
                 ]
@@ -1146,7 +2294,7 @@
                 }
               }
             },
-            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualRejectBody, manualRejectAppId). Không sửa body ở đây."
+            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualRejectBody, manualRejectAppId) và đồng bộ trực tiếp lên trình duyệt. Không sửa body ở đây."
           },
           "protocolProfileBehavior": {
             "disableCookies": true
@@ -1159,7 +2307,6 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "// Goi y ngay theo gio Viet Nam; co the thay bang ngay cu the trong body (YYYY-MM-DD).",
               "const vnDate = (days) => new Date(Date.now() + days * 86400000 + 7 * 3600000).toISOString().slice(0, 10);",
               "pm.environment.set('suggestedInterviewDate', vnDate(7));",
               "pm.environment.set('suggestedConfirmBy', vnDate(5) + 'T17:00');",
@@ -1171,8 +2318,8 @@
       ]
     },
     {
-      "name": "6 - Chuyển giai đoạn hồ sơ (như kéo thả trên Kanban)",
-      "description": "stage: moi_ung_tuyen, dang_xem_xet, phong_van, de_nghi, nhan_viec, tu_choi.\nBước 1 cho biết bước mới có gửi email/thông báo cho ứng viên không (ví dụ \"mới ứng tuyển\" thì không).",
+      "name": "9 - Chuyển giai đoạn hồ sơ (như kéo thả trên Kanban)",
+      "description": "stage nhận 1 trong 6 giá trị: moi_ung_tuyen, dang_xem_xet, phong_van, de_nghi, nhan_viec, tu_choi.\nBước 1 cho biết bước mới có gửi email/thông báo cho ứng viên không (ví dụ \"moi_ung_tuyen\" thì không gửi email, rất tiện để reset hồ sơ).",
       "item": [
         {
           "name": "Bước 1 - Kiểm tra trước (không lưu, không gửi email)",
@@ -1183,7 +2330,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "if (!/^[1-9][0-9]*$/.test(String(pm.environment.get('manualApplicationId') || ''))) {",
-                  "    console.log('Chưa chọn hồ sơ: đặt biến manualApplicationId (xem thư mục 2 - Chọn hồ sơ ứng tuyển).');",
+                  "    console.log('Chưa chọn hồ sơ: hãy nộp CV ở Thư mục 4 (tự động điền manualApplicationId) hoặc đặt biến manualApplicationId ở Thư mục 5 rồi bấm Ctrl+S.');",
                   "    pm.execution.skipRequest();",
                   "}"
                 ]
@@ -1194,7 +2341,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:220px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "const reasons = {",
                   "    email_not_configured: 'Server chưa cấu hình hộp thư gửi đi (EMAIL_APP): thư nằm trong hàng đợi, chưa gửi được',",
                   "    invalid_recipient: 'Email ứng viên không hợp lệ: sẽ không gửi',",
@@ -1274,7 +2421,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"stage\": \"dang_xem_xet\",\n  \"reason\": \"Ghi chú lý do (không bắt buộc)\"\n}",
+              "raw": "{\n  \"stage\": \"dang_xem_xet\",\n  \"reason\": \"Phòng Nhân sự đã tiếp nhận và đang đánh giá chuyên môn hồ sơ\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1313,13 +2460,26 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
                   "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
                   "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
                   "const body = pm.response.json();",
+                  "const app = body.data || {};",
+                  "const webOrigin = pm.environment.get('origin') || '';",
                   "if (body.emailQueued !== undefined) pm.test('Đã lưu và xếp email vào hàng đợi gửi', () => pm.expect(body.emailQueued).to.be.true);",
-                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + body.data.stage, () => pm.expect(body.data.stage).to.be.a('string'));",
+                  "pm.test('Giai đoạn hồ sơ sau khi gửi: ' + app.stage, () => pm.expect(app.stage).to.be.a('string'));",
+                  "show(true, 'Đã gửi thật & đồng bộ lên trình duyệt (Hồ sơ #' + app.id + ')',",
+                  "    'Dữ liệu đã ghi vào CSDL và phát sự kiện thông báo/email. Mở hoặc F5 trang trình duyệt bên dưới để xem ngay kết quả đồng bộ.', [",
+                  "        { label: 'Hồ sơ', value: '#' + app.id + ' - ' + (app.job_title || '') },",
+                  "        { label: 'Ứng viên', value: (app.candidate_name || '') + ' <' + (app.candidate_email || '') + '>' },",
+                  "        { label: 'Giai đoạn mới trên Kanban', value: app.stage },",
+                  "        { label: 'Hàng đợi gửi email', value: body.emailQueued ? 'Đã xếp vào hàng đợi gửi email' : 'Bước này không gửi email' },",
+                  "        { label: 'Trình duyệt NTD (Bảng Kanban)', value: webOrigin + '/admin/pipeline' },",
+                  "        { label: 'Trình duyệt NTD (Lịch phỏng vấn)', value: webOrigin + '/admin/interviews' },",
+                  "        { label: 'Trình duyệt Ứng viên (Thông báo)', value: webOrigin + '/candidate/notifications' },",
+                  "        { label: 'Trình duyệt Ứng viên (Lịch PV / Việc đã nộp)', value: webOrigin + '/candidate/interviews  |  ' + webOrigin + '/candidate/cv-post/' }",
+                  "    ]);",
                   "pm.test('Hồ sơ đã ở giai đoạn yêu cầu', () => pm.expect(pm.response.json().data.stage).to.eql(JSON.parse(pm.variables.replaceIn(pm.request.body.raw)).stage));",
-                  "// Moi lan kiem tra chi cho gui that mot lan: bam Send lan nua phai kiem tra lai.",
                   "pm.environment.unset('manualStageBody');",
                   "pm.environment.unset('manualStageAt');"
                 ]
@@ -1365,7 +2525,7 @@
                 }
               }
             },
-            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualStageBody, manualStageAppId). Không sửa body ở đây."
+            "description": "Gửi đúng body và hồ sơ đã kiểm tra đạt ở Bước 1 (biến manualStageBody, manualStageAppId) và đồng bộ trực tiếp lên trình duyệt. Không sửa body ở đây."
           },
           "protocolProfileBehavior": {
             "disableCookies": true
@@ -1378,13 +2538,614 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "// Goi y ngay theo gio Viet Nam; co the thay bang ngay cu the trong body (YYYY-MM-DD).",
               "const vnDate = (days) => new Date(Date.now() + days * 86400000 + 7 * 3600000).toISOString().slice(0, 10);",
               "pm.environment.set('suggestedInterviewDate', vnDate(7));",
               "pm.environment.set('suggestedConfirmBy', vnDate(5) + 'T17:00');",
               "pm.environment.set('suggestedStartDate', vnDate(21));",
               "pm.environment.set('suggestedResponseDeadline', vnDate(14) + 'T17:00');"
             ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 - Nhắn tin Chat trực tiếp Ứng viên <-> Nhà tuyển dụng (đồng bộ Chat realtime)",
+      "description": "Gửi tin nhắn 2 chiều giữa Ứng viên (manualCandidatePhone) và Nhà tuyển dụng (recruiterPhone).\nTin nhắn và số badge chưa đọc nhảy realtime qua Socket.IO ngay trên trình duyệt (/chat và /admin/chat).",
+      "item": [
+        {
+          "name": "Bước 1 - Kết nối cặp tài khoản Chat (Ứng viên <-> Nhà tuyển dụng)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.environment.get('baseUrl');",
+                  "const token = pm.environment.get('manualCandidateAccessToken');",
+                  "pm.sendRequest({ url: base + '/api/auth/me', header: { Authorization: 'Bearer ' + token } }, (err, res) => {",
+                  "    if (!err && res.code === 200 && res.json().data) {",
+                  "        pm.environment.set('manualCandidateUserId', String(res.json().data.userId));",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const rec = pm.response.json().data;",
+                  "const candId = pm.environment.get('manualCandidateUserId');",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "pm.environment.set('recruiterUserId', String(rec.userId));",
+                  "show(true, 'Sẵn sàng nhắn tin Chat 2 chiều', 'Tin nhắn gửi từ Bước 2 & Bước 3 sẽ nhảy realtime qua Socket.IO lên khung Chat trình duyệt của cả 2 bên.', [",
+                  "    { label: 'Ứng viên (manualCandidatePhone)', value: pm.environment.get('manualCandidatePhone') + ' (userId: ' + candId + ')' },",
+                  "    { label: 'Nhà tuyển dụng (recruiterPhone)', value: pm.environment.get('recruiterPhone') + ' (userId: ' + rec.userId + ')' },",
+                  "    { label: 'Khung Chat Ứng viên (Web)', value: webOrigin + '/chat' },",
+                  "    { label: 'Khung Chat Nhà tuyển dụng (Web)', value: webOrigin + '/admin/chat/' + candId }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Tự động lấy mã người nhận của cả hai phía (recruiterUserId & manualCandidateUserId) để gửi tin nhắn 2 chiều ở Bước 2 & Bước 3."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 2 - Ứng viên gửi tin nhắn cho Nhà tuyển dụng",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('recruiterUserId')) {",
+                  "    console.log('Chưa có recruiterUserId: hãy chạy \"Bước 1 - Kết nối cặp tài khoản Chat\" trước.');",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.environment.set('manualChatMsgId', 'manual-cand-msg-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const msg = pm.response.json().data;",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "show(true, 'Ứng viên đã gửi tin nhắn #' + msg.id + ' (Realtime)',",
+                  "    'Mở trang Chat của Nhà tuyển dụng hoặc Ứng viên trên trình duyệt sẽ thấy tin nhắn nhảy lên ngay lập tức!', [",
+                  "        { label: 'Nội dung đã gửi', value: msg.content },",
+                  "        { label: 'Người nhận (recruiterUserId)', value: msg.receiverId },",
+                  "        { label: 'Xem trên trình duyệt NTD', value: webOrigin + '/admin/chat/' + msg.senderId },",
+                  "        { label: 'Xem trên trình duyệt Ứng viên', value: webOrigin + '/chat' }",
+                  "    ]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/send-chat-message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "send-chat-message"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"v\": 1,\n  \"receiverId\": {{recruiterUserId}},\n  \"content\": \"Em chào anh/chị Phòng Nhân sự Sao Khuê Digital ạ! Em vừa nộp hồ sơ ứng tuyển vị trí Lập trình viên Web, rất mong nhận được phản hồi từ quý công ty.\",\n  \"clientMessageId\": \"{{manualChatMsgId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sửa nội dung \"content\" rồi bấm Send. Mỗi lần bấm tự sinh clientMessageId mới và đẩy realtime lên khung Chat của Nhà tuyển dụng."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 3 - Nhà tuyển dụng trả lời tin nhắn cho Ứng viên",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('manualCandidateUserId')) {",
+                  "    console.log('Chưa có manualCandidateUserId: hãy chạy \"Bước 1 - Kết nối cặp tài khoản Chat\" trước.');",
+                  "    pm.execution.skipRequest();",
+                  "    return;",
+                  "}",
+                  "pm.environment.set('manualChatReplyId', 'manual-rec-msg-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const msg = pm.response.json().data;",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "show(true, 'Nhà tuyển dụng đã trả lời tin nhắn #' + msg.id + ' (Realtime)',",
+                  "    'Trên trình duyệt của Ứng viên, số tin nhắn chưa đọc trên Header và khung Chat cập nhật ngay!', [",
+                  "        { label: 'Nội dung trả lời', value: msg.content },",
+                  "        { label: 'Người nhận (manualCandidateUserId)', value: msg.receiverId },",
+                  "        { label: 'Xem trên trình duyệt Ứng viên', value: webOrigin + '/chat' },",
+                  "        { label: 'Xem trên trình duyệt NTD', value: webOrigin + '/admin/chat/' + msg.receiverId }",
+                  "    ]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{recruiterAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/send-chat-message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "send-chat-message"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"v\": 1,\n  \"receiverId\": {{manualCandidateUserId}},\n  \"content\": \"Chào bạn, Phòng Nhân sự Sao Khuê Digital đã nhận được CV của bạn rồi nhé! Bên mình đang xem xét và sẽ gửi lịch hẹn phỏng vấn qua email cho bạn sớm.\",\n  \"clientMessageId\": \"{{manualChatReplyId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sửa nội dung trả lời \"content\" rồi bấm Send. Tin nhắn đẩy realtime lên khung Chat và badge tin nhắn trên Header của Ứng viên."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Bước 4 - Xem lịch sử hội thoại hai chiều",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const list = pm.response.json().data || [];",
+                  "const recId = Number(pm.environment.get('recruiterUserId'));",
+                  "const rows = list.slice(-10).map((m) => ({",
+                  "    label: (Number(m.senderId) === recId ? '🏢 Nhà tuyển dụng' : '👤 Ứng viên') + ' (#' + m.id + ')',",
+                  "    value: m.content",
+                  "}));",
+                  "show(true, 'Hội thoại Chat (' + list.length + ' tin nhắn)', '10 tin nhắn gần nhất giữa hai tài khoản.', rows);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/get-chat-conversation?partnerId={{recruiterUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "get-chat-conversation"
+              ],
+              "query": [
+                {
+                  "key": "partnerId",
+                  "value": "{{recruiterUserId}}"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 - Ứng viên tương tác: Lưu việc làm, Theo dõi & Đánh giá công ty (đồng bộ Web)",
+      "description": "Lưu/bỏ lưu tin tuyển dụng (manualPostId), theo dõi/bỏ theo dõi công ty (manualCompanyId) và gửi/xoá đánh giá 5 sao.\nĐồng bộ trực tiếp lên /candidate/saved-jobs/, /candidate/followed-jobs và /detail-company/<id>.",
+      "item": [
+        {
+          "name": "Lưu / Bỏ lưu việc làm yêu thích (manualPostId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const saved = Boolean(pm.response.json().isFavorite);",
+                  "const postId = pm.environment.get('manualPostId');",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "show(true, saved ? 'Đã LƯU việc làm #' + postId : 'Đã BỎ LƯU việc làm #' + postId,",
+                  "    'Mở hoặc F5 trang Việc làm đã lưu trên trình duyệt của Ứng viên để thấy cập nhật.', [",
+                  "        { label: 'Mã tin (postId)', value: postId },",
+                  "        { label: 'Trạng thái hiện tại', value: saved ? 'Đã lưu yêu thích (isFavorite = true)' : 'Chưa lưu (isFavorite = false)' },",
+                  "        { label: 'Trang Việc làm đã lưu (Web)', value: webOrigin + '/candidate/saved-jobs/' },",
+                  "        { label: 'Trang chi tiết tin (Web)', value: webOrigin + '/detail-job/' + postId }",
+                  "    ]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/toggle-favorite-post",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "toggle-favorite-post"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"postId\": {{manualPostId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Bấm lần 1 để Lưu việc làm vào danh sách yêu thích, bấm lần 2 để Bỏ lưu. Đồng bộ với trang /candidate/saved-jobs/."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Theo dõi / Bỏ theo dõi công ty (manualCompanyId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const companyId = pm.environment.get('manualCompanyId');",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "const msg = pm.response.json().errMessage || 'Đã cập nhật trạng thái theo dõi công ty';",
+                  "show(true, msg + ' (Công ty #' + companyId + ')',",
+                  "    'Đồng bộ trực tiếp lên trang Chi tiết công ty và trang Việc làm từ công ty theo dõi.', [",
+                  "        { label: 'Mã công ty (companyId)', value: companyId },",
+                  "        { label: 'Trang Chi tiết công ty (Web)', value: webOrigin + '/detail-company/' + companyId },",
+                  "        { label: 'Trang Việc làm công ty theo dõi (Web)', value: webOrigin + '/candidate/followed-jobs' }",
+                  "    ]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/toggle-follow-company",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "toggle-follow-company"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyId\": {{manualCompanyId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Bấm lần 1 để Theo dõi công ty (nhận thông báo khi công ty đăng tin mới), bấm lần 2 để Bỏ theo dõi."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Gửi / Cập nhật đánh giá sao cho công ty",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const base = pm.environment.get('baseUrl');",
+                  "const token = pm.environment.get('manualCandidateAccessToken');",
+                  "pm.sendRequest({ url: base + '/api/auth/me', header: { Authorization: 'Bearer ' + token } }, (err, res) => {",
+                  "    if (!err && res.code === 200 && res.json().data) {",
+                  "        pm.environment.set('manualCandidateUserId', String(res.json().data.userId));",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const companyId = pm.environment.get('manualCompanyId');",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                  "const base = pm.environment.get('baseUrl');",
+                  "const myId = Number(pm.environment.get('manualCandidateUserId'));",
+                  "pm.sendRequest({ url: base + '/api/get-review-by-company?companyId=' + companyId + '&limit=100&offset=0' }, (err, res) => {",
+                  "    const list = (!err && res.code === 200 && res.json().data) || [];",
+                  "    const mine = list.find((r) => Number(r.userId) === myId);",
+                  "    if (mine) pm.environment.set('manualReviewId', String(mine.id));",
+                  "});",
+                  "show(true, (pm.response.json().errMessage || 'Đã lưu đánh giá') + ' (' + sent.star + ' ★)',",
+                  "    'Mở hoặc F5 trang Chi tiết công ty trên trình duyệt để thấy đánh giá của bạn xuất hiện công khai!', [",
+                  "        { label: 'Công ty được đánh giá', value: '#' + companyId },",
+                  "        { label: 'Số sao', value: sent.star + ' / 5 ★' },",
+                  "        { label: 'Nội dung nhận xét', value: sent.content },",
+                  "        { label: 'Xem đánh giá trên trình duyệt', value: webOrigin + '/detail-company/' + companyId }",
+                  "    ]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/create-company-review",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "create-company-review"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyId\": {{manualCompanyId}},\n  \"star\": 5,\n  \"content\": \"Quy trình tuyển dụng của công ty rất rõ ràng, chuyên nghiệp. Anh chị HR và Tech Lead hỗ trợ nhiệt tình, môi trường làm việc năng động.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Đánh giá từ 1 đến 5 sao kèm nhận xét cho công ty manualCompanyId (mỗi ứng viên 1 đánh giá/công ty; gửi lại sẽ cập nhật nội dung mới). Đồng bộ ngay lên trang công ty."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
+          }
+        },
+        {
+          "name": "Xoá đánh giá công ty vừa viết (nếu muốn gỡ)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('manualReviewId')) {",
+                  "    console.log('Chưa có manualReviewId: hãy gửi đánh giá công ty ở request trên trước.');",
+                  "    pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const show = (ok, title, message, rows, html) => pm.visualizer.set(\"<style>\\nbody{font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f2937;margin:12px}\\n.box{padding:10px 12px;border-radius:6px;margin-bottom:12px}\\n.ok{background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0}.bad{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}\\ntable{border-collapse:collapse;width:100%;margin-bottom:12px}th,td{border:1px solid #e5e7eb;padding:6px 8px;text-align:left;vertical-align:top}\\nth{background:#f9fafb;width:240px}iframe{width:100%;height:900px;border:1px solid #d1d5db;border-radius:6px}\\n</style>\\n<div class=\\\"box {{#if ok}}ok{{else}}bad{{/if}}\\\"><b>{{title}}</b><br>{{message}}</div>\\n{{#if rows.length}}<table>{{#each rows}}<tr><th>{{label}}</th><td>{{value}}</td></tr>{{/each}}</table>{{/if}}\\n{{#if html}}<h4>Email sẽ gửi (xem trước, chưa gửi)</h4><iframe srcdoc=\\\"{{html}}\\\"></iframe>{{/if}}\", { ok, title, message, rows: rows || [], html: html || '' });",
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('errCode = 0', () => pm.expect(pm.response.json().errCode).to.eql(0));",
+                  "const companyId = pm.environment.get('manualCompanyId');",
+                  "const webOrigin = pm.environment.get('origin') || '';",
+                  "const deletedId = pm.environment.get('manualReviewId');",
+                  "pm.environment.unset('manualReviewId');",
+                  "show(true, 'Đã xoá đánh giá #' + deletedId, 'F5 trang Chi tiết công ty trên trình duyệt sẽ thấy đánh giá đã được gỡ.', [",
+                  "    { label: 'Trang Chi tiết công ty (Web)', value: webOrigin + '/detail-company/' + companyId }",
+                  "]);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{manualCandidateAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/delete-company-review",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "delete-company-review"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": {{manualReviewId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Xoá đánh giá của chính bạn (biến manualReviewId đã được tự lưu khi bạn gửi đánh giá ở bước trên)."
+          },
+          "protocolProfileBehavior": {
+            "disableCookies": true
           }
         }
       ]

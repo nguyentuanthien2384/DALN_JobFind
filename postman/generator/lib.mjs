@@ -207,7 +207,8 @@ export const collectionPre = script(() => {
         candidate: ['candidatePhone', 'candidatePassword'],
         testCandidate: ['testCandidatePhone', 'testCandidatePassword'],
         pm: ['pmPhone', 'pmPassword'],
-        recruiter: ['recruiterPhone', 'recruiterPassword']
+        recruiter: ['recruiterPhone', 'recruiterPassword'],
+        manualCandidate: ['manualCandidatePhone', 'manualCandidatePassword']
     };
     const auth = pm.request.auth;
     const bearer = auth && auth.type === 'bearer' ? String(auth.parameters().get('token') || '') : '';

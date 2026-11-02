@@ -377,6 +377,37 @@ nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link[aria-
     cursor: pointer;
 }
 
+/* Nhom DANG MO nhung KHONG chua trang dang xem (vd: dang o "Người dùng" ma bam
+   mo "Danh mục tuyển dụng"). Truoc day nhom nay cung to tim dam y het muc dang
+   xem -> sidebar co 2 khoi tim cung luc, nhin nhu 2 muc cung duoc chon.
+   Chi trang dang xem (hoac nhom chua no, li.active) moi duoc to tim dam; nhom
+   chi dang mo thi dung nen tim nhat + chu toi. Bo qua che do thu gon vi o do
+   menu con la flyout va van can nen dam cua theme. */
+body:not(.sidebar-icon-only) nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active) > .nav-link[aria-expanded="true"],
+body:not(.sidebar-icon-only) nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active):hover > .nav-link[aria-expanded="true"] {
+    background: #EEEEF8 !important;
+    color: #4B49AC !important;
+}
+
+body:not(.sidebar-icon-only) nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active) > .nav-link[aria-expanded="true"] .menu-title,
+body:not(.sidebar-icon-only) nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active) > .nav-link[aria-expanded="true"] i {
+    color: #4B49AC !important;
+}
+
+body:not(.sidebar-icon-only) nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active) > .jf-submenu > .nav.sub-menu {
+    background: #EEEEF8;
+    border-radius: 0 0 8px 8px;
+}
+
+body:not(.sidebar-icon-only) nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active) > .jf-submenu > .nav.sub-menu .nav-item .nav-link {
+    color: #4A4F5C;
+}
+
+body:not(.sidebar-icon-only) nav.sidebar .nav:not(.sub-menu) > .nav-item:not(.active) > .jf-submenu > .nav.sub-menu .nav-item .nav-link:hover {
+    color: #4B49AC;
+    background: rgba(75, 73, 172, 0.10);
+}
+
 /* ==========================================================================
    HEADER TRANG CHI TIET VIEC LAM (container/JobDetail/JobDetail.js)
    Dung cung bo cuc voi header trang chi tiet cong ty (DetailCompany.scss):
