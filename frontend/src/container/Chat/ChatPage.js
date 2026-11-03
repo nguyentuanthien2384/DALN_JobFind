@@ -153,7 +153,7 @@ const ChatPage = () => {
             syncCursorRef.current = { partnerId, id: Math.max(cursor, ...res.data.map((message) => Number(message.id)), 0) };
             setSyncError('');
             setPartnerData(res.partnerData);
-            setConversationMeta(res.conversationMeta || null);
+            setConversationMeta(res.conversationMeta ? { ...res.conversationMeta, partnerId } : null);
             // The REST snapshot marks its boundary read even while the socket
             // is offline. Refresh counters after that commit, not in parallel.
             fetchListConversation();
@@ -605,7 +605,7 @@ const ChatPage = () => {
                                     />
                                 </div>
                                 <div className="chat-composer">
-                                    {conversationMeta?.richContent && <ChatShareTools key={partnerId} partnerId={partnerId}
+                                    {conversationMeta?.partnerId === partnerId && conversationMeta?.richContent && <ChatShareTools key={`share-${partnerId}`} partnerId={partnerId}
                                         disabled={isSending || sendUncertain} onSelect={setMediaDraft} onBusy={setUploading} />}
                                     {mediaDraft && <div className="chat-media-draft">
                                         <div className="chat-media-draft-header"><span>{sendUncertain ? 'Đang chờ xác nhận gửi' : 'Sẵn sàng gửi · chỉ người trong cuộc trò chuyện được xem'}</span>
@@ -613,8 +613,8 @@ const ChatPage = () => {
                                         {mediaDraft.attachment && <ChatFileCard attachment={mediaDraft.attachment} onPreview={setPreview} />}
                                         {mediaDraft.job && <ChatJobCard job={mediaDraft.job} draft />}
                                     </div>}
-                                    {conversationMeta?.richContent && ['CANDIDATE', 'COMPANY', 'EMPLOYER'].includes(userData?.roleCode)
-                                        && <ChatAiAssist key={partnerId} messages={messages} userId={userData.id} draft={content}
+                                    {conversationMeta?.partnerId === partnerId && conversationMeta?.richContent && ['CANDIDATE', 'COMPANY', 'EMPLOYER'].includes(userData?.roleCode)
+                                        && <ChatAiAssist key={`ai-${partnerId}`} messages={messages} userId={userData.id} draft={content}
                                             disabled={isSending || sendUncertain} onUse={handleTyping} />}
                                     {sendUncertain && <p role="status" className="chat-media-status">Chưa xác nhận. Bấm gửi lại để kiểm tra cùng tin nhắn.</p>}
                                     <div className="chat-composer-row">

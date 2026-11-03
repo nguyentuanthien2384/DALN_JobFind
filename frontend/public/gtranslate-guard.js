@@ -51,7 +51,7 @@
     var BROAD_RE = new RegExp('[' + VI_BROAD + ']');
 
     var SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEMPLATE: 1, TEXTAREA: 1, TITLE: 1, OPTION: 1 };
-    var SKIP_SELECTOR = '.notranslate,[translate="no"],[contenteditable=""],[contenteditable="true"]';
+    var SKIP_SELECTOR = '.notranslate,[translate="no"],[contenteditable=""],[contenteditable="true"],.pagination,.page-item,.page-link';
     // Vùng thông báo/hội thoại trực tiếp (tin nhắn mới, lỗi biểu mẫu, toast) phải hiện ngay:
     // chậm vài giây còn tệ hơn hiện tạm tiếng Việt trong lúc chờ dịch.
     var LIVE_SELECTOR = '[aria-live],[role="alert"],[role="alertdialog"],[role="status"],[role="log"]';

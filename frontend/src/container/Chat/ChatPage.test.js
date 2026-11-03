@@ -504,4 +504,34 @@ describe("ChatPage", () => {
         expect(screen.queryByText('260',{exact:true})).not.toBeInTheDocument();
     });
 
+    it('renders exactly one share toolbar and one AI assist bar across multiple conversation switches', async () => {
+        mockPartnerId = '20';
+        getChatConversationService.mockResolvedValue({
+            errCode: 0,
+            data: messages,
+            partnerData: companyPartner,
+            conversationMeta: { richContent: true },
+        });
+        const view = render(<ChatPage />);
+        expect(await screen.findByRole('button', { name: /Chia sẻ công việc/ })).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: /Chia sẻ công việc/ })).toHaveLength(1);
+        expect(screen.getAllByRole('button', { name: /Đính kèm CV\/PDF/ })).toHaveLength(1);
+
+        mockPartnerId = '30';
+        await act(async () => view.rerender(<ChatPage />));
+        expect(await screen.findByRole('button', { name: /Chia sẻ công việc/ })).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: /Chia sẻ công việc/ })).toHaveLength(1);
+        expect(screen.getAllByRole('button', { name: /Đính kèm CV\/PDF/ })).toHaveLength(1);
+
+        mockPartnerId = '20';
+        await act(async () => view.rerender(<ChatPage />));
+        expect(await screen.findByRole('button', { name: /Chia sẻ công việc/ })).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: /Chia sẻ công việc/ })).toHaveLength(1);
+        expect(screen.getAllByRole('button', { name: /Đính kèm CV\/PDF/ })).toHaveLength(1);
+
+        fireEvent.click(screen.getByRole('button', { name: /Chia sẻ công việc/ }));
+        expect(mockNavigate).toHaveBeenCalled();
+        expect(screen.getAllByRole('button', { name: /Chia sẻ công việc/ })).toHaveLength(1);
+    });
+
 });
