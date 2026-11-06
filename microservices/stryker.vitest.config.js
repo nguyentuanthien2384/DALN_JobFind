@@ -25,6 +25,7 @@ export default {
         include: [
             'tests/access-control.test.js',
             'tests/security-config.test.js',
+            'tests/gateway-jwks.test.js',
             'tests/gateway.test.js',
             'tests/http-contracts.test.js',
             'tests/posting-quota.test.js',

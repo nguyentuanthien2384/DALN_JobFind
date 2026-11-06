@@ -52,9 +52,9 @@ jobs:
             frontend/package-lock.json
       # Microservices tests import frontend service modules, which resolve their own packages.
       - if: matrix.project == 'microservices'
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
         working-directory: frontend
-      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts || npm install --no-audit --no-fund --ignore-scripts
         working-directory: ${{ matrix.project }}
       # Pull requests reuse results for unchanged code and tests (Stryker incremental mode);
       # the weekly and manual runs retest everything and refresh that baseline.
