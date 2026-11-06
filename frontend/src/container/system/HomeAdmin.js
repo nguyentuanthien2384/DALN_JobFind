@@ -46,6 +46,7 @@ import PaymentSuccessCv from "./PackageCv/BuySuccesCv";
 import BuyCv from "./PackageCv/BuyCv";
 import HistoryTradePost from "./HistoryTrade/HistoryTradePost";
 import HistoryTradeCv from "./HistoryTrade/HistoryTradeCv";
+import EmployerRewardsSection from "./Rewards/EmployerRewardsSection";
 import ChartPost from "./Chart/ChartPost";
 import ChartCv from "./Chart/ChartCv";
 import ChatPage from "../Chat/ChatPage";
@@ -291,6 +292,7 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                                 element={guard(<ManagePost />, PERMISSIONS.MANAGE_POSTS)}
                             />
                             <Route path="/buy-post" element={guard(<BuyPost />, PERMISSIONS.PURCHASE_PACKAGES)} />
+                            <Route path="/rewards" element={guard(<EmployerRewardsSection />, PERMISSIONS.PURCHASE_PACKAGES)} />
                             <Route
                                 path="/payment/success"
                                 element={guard(<PaymentSuccess />, PERMISSIONS.PURCHASE_PACKAGES)}

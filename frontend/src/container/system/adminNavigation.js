@@ -89,6 +89,7 @@ const COMPANY_SECTIONS = [
                 key: 'company-history', title: 'Lịch sử giao dịch', icon: 'fas fa-receipt', permission: P.VIEW_TRANSACTIONS, children: [
                     { to: '/admin/history-post/', label: 'Lịch sử gói bài đăng' },
                     { to: '/admin/history-cv/', label: 'Lịch sử gói xem ứng viên' },
+                    { to: '/admin/rewards/', label: 'Tích điểm & Đổi quà (Top Point)', permission: P.PURCHASE_PACKAGES },
                 ],
             },
         ],

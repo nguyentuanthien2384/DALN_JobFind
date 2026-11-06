@@ -1,15 +1,26 @@
-import React from "react";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { getPackageByType, getPaymentLink } from "../../../service/userService";
+import { createPaymentCheckoutService } from "../../../service/rewardPaymentService";
 import { toast } from "react-toastify";
 import { Spinner, Modal } from "reactstrap";
 import { readJsonStorage } from "../../../util/storage";
+import EmployerRewardsSection from "../Rewards/EmployerRewardsSection";
+
+const GATEWAY_CHOICES = [
+    { code: "PAYPAL", label: "PayPal / Thẻ Quốc Tế (USD)" },
+    { code: "VNPAY", label: "VNPAY-QR / Ngân hàng nội địa (VNĐ)" },
+    { code: "MOMO", label: "Ví điện tử MoMo (VNĐ)" },
+    { code: "ZALOPAY", label: "Ví điện tử ZaloPay (VNĐ)" },
+];
+
 const BuyPost = () => {
     const [inputValues, setInputValues] = useState({
         amount: 1,
         packageId: "",
         isHot: 0,
     });
+    const [selectedGateway, setSelectedGateway] = useState("PAYPAL");
+    const [promoCode, setPromoCode] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [dataPackage, setDataPackage] = useState([]);
     const [isPackageLoading, setIsPackageLoading] = useState(true);
@@ -17,6 +28,9 @@ const BuyPost = () => {
     const [price, setPrice] = useState(0);
     const amountValue = Number(inputValues.amount);
     const total = Number.isFinite(amountValue) && amountValue > 0 ? amountValue * price : 0;
+    const totalVnd = total <= 1000 ? total * 24000 : total;
+    const estimatedTopPoints = totalVnd > 0 ? Math.max(1, Math.round(totalVnd / 100000)) : 0;
+
     const handleOnChangePackage = (event) => {
         const { value } = event.target;
         let item = dataPackage.find((item) => String(item.id) === value);
@@ -56,18 +70,35 @@ const BuyPost = () => {
         }
         setIsLoading(true);
         try {
-            const res = await getPaymentLink(inputValues.packageId, amount);
-            if (res?.errCode === 0 && res.link) {
-                const data = {
-                    packageId: inputValues.packageId,
-                    amount,
-                    userId: userData.id,
-                };
-                localStorage.setItem("orderData", JSON.stringify(data));
-                window.location.href = res.link;
+            if (selectedGateway === "PAYPAL" && !promoCode.trim()) {
+                const res = await getPaymentLink(inputValues.packageId, amount);
+                if (res?.errCode === 0 && res.link) {
+                    const data = {
+                        packageId: inputValues.packageId,
+                        amount,
+                        userId: userData.id,
+                    };
+                    localStorage.setItem("orderData", JSON.stringify(data));
+                    window.location.href = res.link;
+                    return;
+                }
+                toast.error(res?.errMessage || "Không thể tạo liên kết thanh toán");
                 return;
             }
-            toast.error(res?.errMessage || "Không thể tạo liên kết thanh toán");
+
+            const checkoutRes = await createPaymentCheckoutService({
+                purpose: "PACKAGE_POST",
+                itemCode: inputValues.packageId,
+                quantity: amount,
+                provider: selectedGateway,
+                promoCode: promoCode.trim(),
+                returnUrl: `${window.location.origin}/payment/result`,
+            });
+            if (checkoutRes?.errCode === 0 && checkoutRes.data?.paymentUrl) {
+                window.location.href = checkoutRes.data.paymentUrl;
+                return;
+            }
+            toast.error(checkoutRes?.errMessage || "Không thể tạo liên kết thanh toán");
         } catch (error) {
             toast.error(
                 error?.response?.data?.errMessage ||
@@ -97,7 +128,7 @@ const BuyPost = () => {
                 packageId: firstPackage?.id || "",
             }));
             setPrice(firstPackage?.price || 0);
-        } catch (error) {
+        } catch (_error) {
             setPackageError("Không thể tải danh sách gói đăng bài. Vui lòng thử lại");
         } finally {
             setIsPackageLoading(false);
@@ -229,10 +260,68 @@ const BuyPost = () => {
                                 <div className="col-md-8">
                                     <div className="form-group row">
                                         <label className="col-sm-3 col-form-label">
+                                            Phương thức thanh toán
+                                        </label>
+                                        <div className="col-sm-9">
+                                            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "6px" }}>
+                                                {GATEWAY_CHOICES.map((gw) => (
+                                                    <button
+                                                        key={gw.code}
+                                                        type="button"
+                                                        onClick={() => setSelectedGateway(gw.code)}
+                                                        style={{
+                                                            border:
+                                                                selectedGateway === gw.code
+                                                                    ? "2px solid #003d9b"
+                                                                    : "1px solid #cbd5e1",
+                                                            background:
+                                                                selectedGateway === gw.code ? "#eff6ff" : "#ffffff",
+                                                            color:
+                                                                selectedGateway === gw.code ? "#003d9b" : "#334155",
+                                                            borderRadius: "8px",
+                                                            padding: "6px 12px",
+                                                            fontSize: "12.5px",
+                                                            fontWeight: 700,
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        {gw.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="row">
+                                <div className="col-md-8">
+                                    <div className="form-group row">
+                                        <label className="col-sm-3 col-form-label">
+                                            Mã ưu đãi
+                                        </label>
+                                        <div className="col-sm-9">
+                                            <input
+                                                type="text"
+                                                className="form-control"
+                                                placeholder="Nhập mã khuyến mãi (VD: VNPAY5K, ARCHITECT5K, JOBFIND10K)"
+                                                value={promoCode}
+                                                onChange={(e) => setPromoCode(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="row">
+                                <div className="col-md-8">
+                                    <div className="form-group row">
+                                        <label className="col-sm-3 col-form-label">
                                             Tổng tiền
                                         </label>
                                         <div className="col-sm-9">
                                             <p className="mt-2">{total} USD</p>
+                                            <small style={{ color: "#003d9b", fontWeight: 700 }}>
+                                                Quy đổi: {totalVnd.toLocaleString("vi-VN")} VNĐ • Tích lũy ngay +{estimatedTopPoints} Top Point thưởng Nhà tuyển dụng
+                                            </small>
                                         </div>
                                     </div>
                                 </div>
@@ -249,6 +338,8 @@ const BuyPost = () => {
                         </form>
                     </div>
                 </div>
+
+                <EmployerRewardsSection compact />
             </div>
             {isLoading && (
                 <Modal isOpen centered contentClassName="closeBorder">

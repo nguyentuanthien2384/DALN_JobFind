@@ -6,6 +6,8 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { Link, NavLink, matchPath, useLocation } from 'react-router-dom'
 import './header.scss';
 import { getNotificationByUserService, markReadNotificationService, getListChatConversationService } from '../../service/userService';
+import { getCandidateRewardOverviewService, REWARD_WALLET_UPDATED_EVENT } from '../../service/rewardPaymentService';
+import PointTopupModal from '../../components/payment/PointTopupModal';
 import { getSocket, disconnectSocket } from '../../socket';
 import { readJsonStorage } from '../../util/storage';
 import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
@@ -63,6 +65,8 @@ const Header = () => {
     const [showProfileMenu, setShowProfileMenu] = useState(false)
     const [showMobileMenu, setShowMobileMenu] = useState(false)
     const [showMobileNotifications, setShowMobileNotifications] = useState(false)
+    const [rewardOverview, setRewardOverview] = useState(null)
+    const [showTopupModal, setShowTopupModal] = useState(false)
     const notificationRef = useRef(null)
     const profileRef = useRef(null)
     const mobileMenuRef = useRef(null)
@@ -71,6 +75,27 @@ const Header = () => {
     const canUseChat = hasPermission(user, PERMISSIONS.USE_CHAT)
     const profilePath = isCandidate ? '/candidate/info' : '/admin/user-info/'
     const passwordPath = isCandidate ? '/candidate/changepassword/' : '/admin/changepassword/'
+
+    useEffect(() => {
+        if (!user || !user.id || !isCandidate) return undefined
+        let active = true
+        const loadRewardWallet = async () => {
+            try {
+                const res = await getCandidateRewardOverviewService()
+                if (active && res && res.errCode === 0 && res.data) {
+                    setRewardOverview(res.data)
+                }
+            } catch (_err) {
+                // Ignore if unmocked in tests or offline
+            }
+        }
+        loadRewardWallet()
+        window.addEventListener(REWARD_WALLET_UPDATED_EVENT, loadRewardWallet)
+        return () => {
+            active = false
+            window.removeEventListener(REWARD_WALLET_UPDATED_EVENT, loadRewardWallet)
+        }
+    }, [user, isCandidate])
 
     useEffect(() => {
         if (!user || !user.id) return
@@ -250,6 +275,45 @@ const Header = () => {
                                         <div className="header-btn d-none f-right d-lg-block">
                                             {user ?
                                                 <ul className="navbar-nav navbar-nav-right" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 0 }}>
+                                                    {isCandidate && (
+                                                        <li className="nav-item" style={{ marginRight: '14px' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setShowTopupModal(true)}
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '6px',
+                                                                    padding: '5px 11px',
+                                                                    borderRadius: '999px',
+                                                                    border: '1px solid #fde68a',
+                                                                    background: '#fffbeb',
+                                                                    color: '#92400e',
+                                                                    fontSize: '12px',
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                }}
+                                                            >
+                                                                <i className="fas fa-coins" style={{ color: '#f59e0b' }} />
+                                                                <span>
+                                                                    {rewardOverview?.wallet
+                                                                        ? `${Number(rewardOverview.wallet.balancePoints || 0).toLocaleString('vi-VN')} Điểm`
+                                                                        : 'Ví Điểm & Xu'}
+                                                                </span>
+                                                                <span
+                                                                    style={{
+                                                                        background: '#004ac6',
+                                                                        color: '#fff',
+                                                                        borderRadius: '999px',
+                                                                        padding: '1px 7px',
+                                                                        fontSize: '10.5px',
+                                                                    }}
+                                                                >
+                                                                    + Nạp
+                                                                </span>
+                                                            </button>
+                                                        </li>
+                                                    )}
                                                     {canUseChat && <li className="nav-item" style={{ position: 'relative', marginRight: '18px' }}>
                                                         <Link aria-label="Tin nhắn" to="/chat" style={{ color: '#252b60', fontSize: '18px', position: 'relative' }}>
                                                             <i className="far fa-comment-dots"></i>
@@ -298,6 +362,19 @@ const Header = () => {
                                                                 <i className="far fa-user text-primary" />
                                                                 Thông tin
                                                             </Link>
+                                                            {isCandidate && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="dropdown-item"
+                                                                    onClick={() => {
+                                                                        closeHeaderMenus()
+                                                                        setShowTopupModal(true)
+                                                                    }}
+                                                                >
+                                                                    <i className="fas fa-coins text-primary" />
+                                                                    Nạp Điểm &amp; Mua Xu
+                                                                </button>
+                                                            )}
                                                             {isCandidate && <Link to="/candidate/notifications" className="dropdown-item" onClick={closeHeaderMenus}>
                                                                 <i className="far fa-bell text-primary" />
                                                                 Thông báo tài khoản
@@ -390,6 +467,20 @@ const Header = () => {
                                                             )}
                                                         </li>
                                                         <li><Link to={profilePath} onClick={closeHeaderMenus}>Thông tin tài khoản</Link></li>
+                                                        {isCandidate && (
+                                                            <li>
+                                                                <button
+                                                                    type="button"
+                                                                    className="public-mobile-menu-link"
+                                                                    onClick={() => {
+                                                                        closeHeaderMenus()
+                                                                        setShowTopupModal(true)
+                                                                    }}
+                                                                >
+                                                                    Nạp Điểm &amp; Mua Xu
+                                                                </button>
+                                                            </li>
+                                                        )}
                                                         {isCandidate && <li><Link to="/candidate/notifications" onClick={closeHeaderMenus}>Thông báo tài khoản</Link></li>}
                                                         {isCandidate && <li><Link to="/candidate/usersetting" onClick={closeHeaderMenus}>Cài đặt nâng cao</Link></li>}
                                                         {isCandidate && candidateAiEnabled() && <li><Link to="/candidate/ai-cv" onClick={closeHeaderMenus}>CV và trợ lý AI</Link></li>}
@@ -417,7 +508,11 @@ const Header = () => {
                 </div>
                 {/* <!-- Header End --> */}
             </header >
-
+            <PointTopupModal
+                isOpen={showTopupModal}
+                onClose={() => setShowTopupModal(false)}
+                walletData={rewardOverview}
+            />
         </>
     )
 }

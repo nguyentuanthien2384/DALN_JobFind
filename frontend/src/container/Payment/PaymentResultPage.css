@@ -1,0 +1,218 @@
+.jf-pay-result-page {
+    min-height: calc(100vh - 140px);
+    background: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 100%);
+    padding: 48px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.jf-pay-result-card {
+    width: 100%;
+    max-width: 640px;
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+.jf-pay-result-banner {
+    padding: 28px 32px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.jf-pay-result-banner--vnpay {
+    background: linear-gradient(135deg, #003d9b 0%, #0058be 100%);
+}
+
+.jf-pay-result-banner--momo {
+    background: linear-gradient(135deg, #880e4f 0%, #c2185b 100%);
+}
+
+.jf-pay-result-banner--zalopay {
+    background: linear-gradient(135deg, #0052cc 0%, #0068ff 100%);
+}
+
+.jf-pay-result-banner--paypal {
+    background: linear-gradient(135deg, #001c64 0%, #003087 100%);
+}
+
+.jf-pay-result-banner__title {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 800;
+}
+
+.jf-pay-result-banner__sub {
+    margin: 4px 0 0;
+    font-size: 13px;
+    opacity: 0.9;
+}
+
+.jf-pay-result-banner__badge {
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.jf-pay-result-body {
+    padding: 28px 32px;
+}
+
+.jf-pay-qr-simulator {
+    display: flex;
+    gap: 22px;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 22px;
+}
+
+@media (max-width: 560px) {
+    .jf-pay-qr-simulator {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+
+.jf-pay-qr-box {
+    width: 124px;
+    height: 124px;
+    border-radius: 14px;
+    background: #ffffff;
+    border: 2px solid #003d9b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0, 61, 155, 0.1);
+}
+
+.jf-pay-qr-box i {
+    font-size: 56px;
+    color: #0f172a;
+}
+
+.jf-pay-qr-box span {
+    font-size: 10px;
+    font-weight: 800;
+    color: #003d9b;
+    margin-top: 4px;
+}
+
+.jf-pay-order-table {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px;
+    border-radius: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 22px;
+}
+
+.jf-pay-order-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13.5px;
+    color: #475569;
+    gap: 12px;
+}
+
+.jf-pay-order-row strong {
+    color: #0f172a;
+    text-align: right;
+}
+
+.jf-pay-order-row--highlight strong {
+    color: #003d9b;
+    font-size: 18px;
+    font-weight: 900;
+}
+
+.jf-pay-status-box {
+    text-align: center;
+    margin-bottom: 22px;
+}
+
+.jf-pay-status-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    margin-bottom: 12px;
+}
+
+.jf-pay-status-icon--success {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.jf-pay-status-icon--failed {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.jf-pay-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.jf-pay-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 11px 20px;
+    font-size: 13.5px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+.jf-pay-btn--primary {
+    background: linear-gradient(90deg, #003d9b 0%, #0058be 100%);
+    color: #ffffff;
+    box-shadow: 0 6px 16px rgba(0, 61, 155, 0.22);
+}
+
+.jf-pay-btn--primary:hover:not(:disabled) {
+    filter: brightness(1.06);
+    color: #ffffff;
+}
+
+.jf-pay-btn--secondary {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.jf-pay-btn--secondary:hover:not(:disabled) {
+    background: #cbd5e1;
+    color: #0f172a;
+}
+
+.jf-pay-btn--danger {
+    background: #fee2e2;
+    color: #b91c1c;
+}

@@ -21,6 +21,7 @@ import ForgetPassword from "./container/login/ForgetPassword";
 import ListCompany from "./container/Company/ListCompany";
 import DetailCompany from "./container/Company/DetailCompany";
 import ChatPage from "./container/Chat/ChatPage";
+import PaymentResultPage from "./container/Payment/PaymentResultPage";
 import NotFound from "./container/NotFound/NotFound";
 import Forbidden from "./container/Forbidden/Forbidden";
 import { readJsonStorage } from "./util/storage";
@@ -234,6 +235,16 @@ function App() {
                         <>
                             <Header />
                             <DetailPage />
+                            <Footer />
+                        </>
+                    }
+                />
+                <Route
+                    path="/payment/result"
+                    element={
+                        <>
+                            <Header />
+                            <PaymentResultPage />
                             <Footer />
                         </>
                     }

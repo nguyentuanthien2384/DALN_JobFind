@@ -2,7 +2,11 @@ import React, { useContext, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import SendCvModal from '../../components/modal/SendCvModal';
+import PointTopupModal from '../../components/payment/PointTopupModal';
+import CandidateWalletCard from '../../components/rewards/CandidateWalletCard';
+import JobCompetitionSection from '../../components/rewards/JobCompetitionSection';
 import { toggleFavoritePostService } from '../../service/userService';
+import { notifyRewardWalletUpdated } from '../../service/rewardPaymentService';
 import { candidateAiEnabled } from '../../service/candidateWorkspace';
 import { hasPermission, PERMISSIONS } from '../../auth/accessControl';
 import SessionContext from '../../auth/SessionContext';
@@ -22,7 +26,7 @@ const paths = {
     bookmark: 'M6 3h12v18l-6-4-6 4V3Z',
     level: 'M4 3h16v18H4Z M8 15v2 M12 11v6 M16 7v10',
     experience: 'M3 5h18v14H3Z M8 5V2h8v3 M3 10l9 4 9-4 M12 11v5',
-    people: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M17 3a4 4 0 0 1 0 8 M22 21v-2a4 4 0 0 0-3-3.87',
+    people: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M17 3a4 0 0 1 0 8 M22 21v-2a4 4 0 0 0-3-3.87',
     shield: 'm12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6l8-4Z M12 8v8 M8 12h8',
     laptop: 'M4 3h16v14H4Z M2 21h20 M8 17v4 M16 17v4',
     graduate: 'm2 9 10-6 10 6-10 6-10-6Z M6 12v6l6 3 6-3v-6 M22 9v8',
@@ -68,6 +72,8 @@ export default function JobDetail() {
     const [applicationNotice, setApplicationNotice] = useState('');
     const [retry, setRetry] = useState(0);
     const [now, setNow] = useState(Date.now);
+    const [topupModalState, setTopupModalState] = useState({ open: false, tab: 'topup' });
+    const [walletOverview, setWalletOverview] = useState(null);
     const savingRef = useRef(false);
     const currentRoute = useRef(`${id}:${userId}:${token}`);
     const scrolled = useRef(null);
@@ -166,6 +172,7 @@ export default function JobDetail() {
     };
     const afterSubmit = () => {
         setSubmitted(true); setIsOpen(false); invalidateJobDetail(id);
+        notifyRewardWalletUpdated({ submittedPostId: id });
         loadJobDetail(id).then(response => {
             if (mounted.current && activeIdentity.current.id === id && response?.errCode === 0 && response.data?.companyData) setDetailState({ data: response.data, error: false });
         }).catch(() => {});
@@ -193,18 +200,38 @@ export default function JobDetail() {
                     <div className="jd-tags"><span><Icon name="pin" />{label(detail.provincePostData)}</span><span><Icon name="briefcase" />{label(detail.workTypePostData)}</span><span className="jd-tag--salary"><Icon name="money" />{label(detail.salaryTypePostData)}</span><span className={closed ? 'jd-tag--closed' : ''}><Icon name="calendar" />Hạn nộp: {deadline}</span></div>
                 </div>
                 <div className="jd-hero-actions">{applyButton()}{canSave && <button type="button" className={`jd-button jd-button--save${favorite ? ' is-active' : ''}`} aria-pressed={favorite} disabled={saving || favoriteLoading} onClick={toggleFavorite}><Icon name="bookmark" />{saving ? 'Đang lưu…' : favorite ? 'Đã lưu việc làm' : 'Lưu việc làm'}</button>}</div>
+                <div className="jf-reward-hero-notice" style={{ gridColumn: '1 / -1' }}>
+                    <div className="jf-reward-hero-notice__left">
+                        <span className="jf-reward-hero-notice__icon">★</span>
+                        <span><strong>Chương trình Tích điểm:</strong> Nhận ngay <strong className="jf-reward-hero-notice__highlight">+5 Điểm thưởng</strong> vào ví JobFind khi hoàn tất nộp hồ sơ vào tin tuyển dụng này!</span>
+                    </div>
+                    <div className="jf-reward-hero-notice__right">
+                        <span className="jf-reward-live-dot" />
+                        <span>Phân tích cạnh tranh thời gian thực</span>
+                    </div>
+                </div>
             </header>
             {applicationNotice && <p className="jd-application-notice" role="status">{applicationNotice}</p>}
             {!user && <p className="jd-application-notice">Bạn có thể xem đầy đủ thông tin công việc. Khi nộp CV, bạn cần đăng nhập hoặc tạo tài khoản ứng viên.</p>}
             {user && !canApply && <p className="jd-application-notice" role="status">Ứng tuyển dành cho tài khoản ứng viên. Để nộp CV, hãy đăng xuất tài khoản hiện tại và đăng nhập bằng tài khoản ứng viên.</p>}
             <div className="jd-layout">
                 <article className="jd-content">
+                    <JobCompetitionSection
+                        postId={id}
+                        applicationCount={applicationCount ?? 0}
+                        hiringTarget={Number(detail.amount) || 1}
+                        onOpenTopup={(tab = 'topup') => setTopupModalState({ open: true, tab })}
+                    />
                     <section className="jd-section"><h2>Mô tả công việc</h2>{sections.description.trim() ? <div className="jd-richtext" dangerouslySetInnerHTML={{ __html: sections.description }} /> : <p className="jd-muted">Nhà tuyển dụng chưa cập nhật mô tả công việc.</p>}</section>
                     {sections.requirements.trim() && <section className="jd-section jd-requirements"><h2>Yêu cầu ứng viên</h2><div className="jd-richtext" dangerouslySetInnerHTML={{ __html: sections.requirements }} /></section>}
                     {sections.benefits.length > 0 && <section className="jd-section"><h2>Quyền lợi</h2><div className="jd-benefits">{sections.benefits.map((html, index) => <div className="jd-benefit" key={index}><span className={`jd-benefit-icon jd-benefit-icon--${benefitIcon(html)}`}><Icon name={benefitIcon(html)} /></span><div className="jd-richtext" dangerouslySetInnerHTML={{ __html: html }} /></div>)}</div></section>}
                     {related.length > 0 && <section className="jd-section jd-related"><h2>Việc làm tương tự</h2>{related.map(item => <Link key={item.id} to={`/detail-job/${item.id}`} onMouseEnter={() => prefetchJobDetail(item.id)} onFocus={() => prefetchJobDetail(item.id)} onTouchStart={() => prefetchJobDetail(item.id)} className="jd-related-job"><CompanyLogo company={item.userPostData?.userCompanyData || {}} small /><div><h3>{item.postDetailData?.name}</h3><p>{item.userPostData?.userCompanyData?.name}</p><span>{item.postDetailData?.provincePostData?.value} · {jobLabel(item.postDetailData?.salaryTypePostData)}</span></div></Link>)}</section>}
                 </article>
                 <aside className="jd-sidebar" aria-label="Thông tin tuyển dụng">
+                    <CandidateWalletCard
+                        onOpenTopup={(tab = 'topup') => setTopupModalState({ open: true, tab })}
+                        onWalletLoaded={setWalletOverview}
+                    />
                     <section className="jd-card jd-company-card" aria-label="Thông tin công ty">
                         <div className="jd-company-heading"><CompanyLogo company={company} small /><div><h2>{company.name}</h2><Link to={`/detail-company/${company.id}`}>Xem trang công ty</Link></div></div>
                         <dl className="jd-company-facts"><div><dt>Quy mô:</dt><dd>{Number(company.amountEmployer) > 0 ? `${Number(company.amountEmployer).toLocaleString('vi-VN')} nhân viên` : 'Chưa cập nhật'}</dd></div><div><dt>Lĩnh vực công việc:</dt><dd>{label(detail.jobTypePostData)}</dd></div><div><dt>Địa điểm:</dt><dd>{company.address || 'Chưa cập nhật'}</dd></div></dl>
@@ -218,5 +245,12 @@ export default function JobDetail() {
             </div>
         </div>
         <SendCvModal isOpen={isOpen} onHide={() => setIsOpen(false)} onSubmitted={afterSubmit} postId={id} jobTitle={detail.name} />
+        <PointTopupModal
+            isOpen={topupModalState.open}
+            initialTab={topupModalState.tab}
+            walletData={walletOverview}
+            postId={id}
+            onClose={() => setTopupModalState(prev => ({ ...prev, open: false }))}
+        />
     </main>;
 }

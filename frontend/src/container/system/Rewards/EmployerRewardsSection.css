@@ -1,0 +1,241 @@
+.jf-emp-rewards {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 24px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.jf-emp-rewards__hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+    color: #ffffff;
+    border-radius: 14px;
+    padding: 22px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 18px;
+}
+
+.jf-emp-rewards__hero-left {
+    max-width: 560px;
+}
+
+.jf-emp-rewards__badge-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.jf-emp-rewards__tier-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.jf-emp-rewards__title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.jf-emp-rewards__desc {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.jf-emp-rewards__balance-box {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 14px;
+    padding: 14px 20px;
+    text-align: right;
+    min-width: 210px;
+}
+
+.jf-emp-rewards__balance-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #cbd5e1;
+    font-weight: 700;
+}
+
+.jf-emp-rewards__balance-pts {
+    font-size: 28px;
+    font-weight: 900;
+    color: #fbbf24;
+    line-height: 1.2;
+    margin-top: 2px;
+}
+
+.jf-emp-rewards__balance-sub {
+    font-size: 11.5px;
+    color: #e2e8f0;
+    margin-top: 4px;
+}
+
+.jf-emp-allowances-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 18px;
+}
+
+@media (max-width: 768px) {
+    .jf-emp-allowances-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.jf-emp-allowance-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.jf-emp-allowance-card__label {
+    font-size: 12.5px;
+    color: #475569;
+    font-weight: 600;
+}
+
+.jf-emp-allowance-card__value {
+    font-size: 20px;
+    font-weight: 800;
+    color: #003d9b;
+}
+
+.jf-emp-catalog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 22px 0 12px;
+}
+
+.jf-emp-catalog-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.jf-emp-catalog-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+@media (max-width: 960px) {
+    .jf-emp-catalog-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 540px) {
+    .jf-emp-catalog-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.jf-emp-gift-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 12px;
+    transition: all 0.16s ease;
+}
+
+.jf-emp-gift-card:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 8px 20px rgba(0, 61, 155, 0.08);
+}
+
+.jf-emp-gift-card__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #003d9b;
+    font-size: 11px;
+    font-weight: 800;
+    width: fit-content;
+}
+
+.jf-emp-gift-card__name {
+    margin: 8px 0 4px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.jf-emp-gift-card__desc {
+    margin: 0;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.45;
+}
+
+.jf-emp-gift-card__footer {
+    padding-top: 10px;
+    border-top: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.jf-emp-gift-card__cost {
+    font-size: 14px;
+    font-weight: 900;
+    color: #d97706;
+}
+
+.jf-emp-redeem-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 7px 12px;
+    background: #003d9b;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.jf-emp-redeem-btn:hover:not(:disabled) {
+    background: #0052cc;
+}
+
+.jf-emp-redeem-btn:disabled {
+    background: #cbd5e1;
+    color: #64748b;
+    cursor: not-allowed;
+}

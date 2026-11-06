@@ -8,6 +8,7 @@ import postController from '../controllers/postController';
 import cvController from '../controllers/cvController'
 import packageController from '../controllers/packagePostController'
 import packageCvController from '../controllers/packageCvController'
+import rewardPaymentController from '../controllers/rewardPaymentController'
 import favoritePostController from '../controllers/favoritePostController'
 import companyReviewController from '../controllers/companyReviewController'
 import followCompanyController from '../controllers/followCompanyController'
@@ -194,6 +195,24 @@ let initWebRoutes = (app) => {
     router.get('/api/get-all-package-cv-select', ...protectedBy(PERMISSIONS.PACKAGE_CATALOG_READ), packageCvController.getAllToSelect)
     router.get('/api/get-history-trade-cv', ...protectedBy(PERMISSIONS.PACKAGE_HISTORY_READ), packageCvController.getHistoryTrade)
     router.get('/api/get-sum-by-year-cv', ...protectedBy(PERMISSIONS.ADMINISTRATION), packageCvController.getSumByYear)
+
+    //==================API REWARDS & MULTI-GATEWAY PAYMENTS==================//
+    router.get('/api/rewards/candidate/overview', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.getCandidateOverview)
+    router.get('/api/rewards/candidate/transactions', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.getCandidateTransactions)
+    router.post('/api/rewards/candidate/checkin', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.claimDailyCheckin)
+    router.post('/api/rewards/candidate/profile-complete', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.claimProfileComplete)
+    router.get('/api/rewards/competition-report', middlewareControllers.verifyTokenOptional, rewardPaymentController.getCompetitionReport)
+    router.post('/api/rewards/competition-report/unlock', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.unlockCompetitionReport)
+    router.get('/api/rewards/employer/overview', ...protectedBy(PERMISSIONS.COMPANY_PRIVATE_READ), rewardPaymentController.getEmployerOverview)
+    router.post('/api/rewards/employer/redeem', ...protectedBy(PERMISSIONS.PACKAGE_PURCHASE), rewardPaymentController.redeemEmployerPoints)
+    router.get('/api/payments/catalog', middlewareControllers.verifyTokenOptional, rewardPaymentController.getPaymentCatalog)
+    router.post('/api/payments/promo/preview', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.previewPromoCode)
+    router.post('/api/payments/checkout', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.createCheckout)
+    router.post('/api/payments/verify-return', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.verifyPaymentReturn)
+    router.get('/api/payments/orders', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.getPaymentOrders)
+    router.get('/api/payments/vnpay/ipn', rewardPaymentController.vnpayIpn)
+    router.post('/api/payments/momo/ipn', rewardPaymentController.momoIpn)
+    router.post('/api/payments/zalopay/callback', rewardPaymentController.zalopayCallback)
 
 
     //==================API FAVORITE POST (LUU TIN)==========================//

@@ -12,9 +12,11 @@ const PROVIDER_INFO = Object.freeze({
     PAYPAL: { label: 'PayPal', description: 'Thanh toán quốc tế bằng tài khoản PayPal (quy đổi USD)', tags: 'USD' }
 });
 
-// Che do gia lap chi de demo khi chua co tai khoan sandbox: bat bang PAYMENT_SIMULATOR=true
-// va luon bi tat khi NODE_ENV=production.
-const simulatorEnabled = () => process.env.PAYMENT_SIMULATOR === 'true' && process.env.NODE_ENV !== 'production';
+// Che do gia lap cho moi truong dev khi chua dien khoa sandbox: mac dinh bat khi
+// NODE_ENV !== 'production' (co the tat bang PAYMENT_SIMULATOR=false), va luon tat
+// tren production. Khi da dien khoa that/sandbox, he thong luon goi cong thanh toan that.
+const simulatorEnabled = () => process.env.NODE_ENV !== 'production'
+    && process.env.PAYMENT_SIMULATOR !== 'false';
 
 const normalizeProvider = (value) => {
     const key = String(value || '').trim().toUpperCase();

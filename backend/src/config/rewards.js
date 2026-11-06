@@ -13,10 +13,10 @@ const POINT_VALUE_VND = 1000;
 
 // Goi nap diem cho ung vien (gia VND). bonus = diem tang them.
 const CANDIDATE_TOPUP_PACKAGES = Object.freeze([
-    { code: 'BASIC', name: 'Gói Cơ Bản', price: 20000, points: 20, bonus: 2 },
-    { code: 'STANDARD', name: 'Gói Tiêu Chuẩn', price: 50000, points: 50, bonus: 10, popular: true },
-    { code: 'PRO', name: 'Gói Chuyên Nghiệp', price: 100000, points: 100, bonus: 30 },
-    { code: 'PREMIUM', name: 'Gói Cao Cấp', price: 200000, points: 200, bonus: 80 }
+    { code: 'BASIC', name: 'Gói Cơ Bản', price: 20000, points: 20, bonus: 2, badge: '+2 Điểm thưởng' },
+    { code: 'STANDARD', name: 'Gói Tiêu Chuẩn', price: 50000, points: 50, bonus: 10, popular: true, badge: 'Tặng +10 Điểm (Tổng 60 Điểm)' },
+    { code: 'PRO', name: 'Gói Chuyên Nghiệp', price: 100000, points: 100, bonus: 30, badge: '+30 Điểm (Tổng 130 Điểm)' },
+    { code: 'PREMIUM', name: 'Gói Cao Cấp', price: 200000, points: 200, bonus: 80, badge: 'Tặng 1 lượt Đẩy Top CV', perk: 'TOP_CV_BOOST' }
 ]);
 
 // Cach nhan diem mien phi cho ung vien.
@@ -65,7 +65,11 @@ const USD_VND_RATE = toPositiveInt(process.env.PAYMENT_USD_VND_RATE, 25000);
 
 // Ma giam gia (co the ghi de bang PAYMENT_PROMO_CODES dang JSON).
 const DEFAULT_PROMO_CODES = {
-    VNPAY5K: { provider: 'VNPAY', discount: 5000, minAmount: 20000, description: 'Giảm 5.000đ khi thanh toán VNPAY-QR' }
+    VNPAY5K: { provider: 'VNPAY', discount: 5000, minAmount: 20000, description: 'Giảm 5.000đ khi thanh toán VNPAY-QR' },
+    ARCHITECT5K: { provider: null, discount: 5000, minAmount: 20000, description: 'Ưu đãi Career Architect giảm 5.000đ' },
+    MOMO5K: { provider: 'MOMO', discount: 5000, minAmount: 20000, description: 'Giảm 5.000đ khi thanh toán ví MoMo' },
+    ZALOPAY5K: { provider: 'ZALOPAY', discount: 5000, minAmount: 20000, description: 'Giảm 5.000đ khi thanh toán ví ZaloPay' },
+    JOBFIND10K: { provider: null, discount: 10000, minAmount: 50000, description: 'Giảm 10.000đ cho đơn từ 50.000đ' }
 };
 const loadPromoCodes = () => {
     if (!process.env.PAYMENT_PROMO_CODES) return DEFAULT_PROMO_CODES;

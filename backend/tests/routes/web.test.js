@@ -27,7 +27,8 @@ for (const path of [
   '../../src/controllers/cvController', '../../src/controllers/packagePostController',
   '../../src/controllers/packageCvController', '../../src/controllers/favoritePostController',
   '../../src/controllers/companyReviewController', '../../src/controllers/followCompanyController',
-  '../../src/controllers/webPushController', '../../src/controllers/notificationController', '../../src/controllers/chatController'
+  '../../src/controllers/webPushController', '../../src/controllers/notificationController', '../../src/controllers/chatController',
+  '../../src/controllers/rewardPaymentController'
 ]) {
   jest.mock(path, () => new Proxy({}, { get(target, key) {
     if (!target[key]) target[key] = jest.fn();
@@ -141,7 +142,9 @@ describe('web routes', () => {
       'get:/api/get-detail-company-by-id', 'get:/api/get-detail-post-by-id',
       'get:/api/get-filter-post', 'get:/api/get-related-post',
       'get:/api/check-favorite-post', 'get:/api/get-review-by-company',
-      'get:/api/check-follow-company', 'post:/api/support-chat'
+      'get:/api/check-follow-company', 'post:/api/support-chat',
+      'get:/api/rewards/competition-report', 'get:/api/payments/catalog',
+      'get:/api/payments/vnpay/ipn', 'post:/api/payments/momo/ipn', 'post:/api/payments/zalopay/callback'
     ]);
     const latestRoutes = new Map();
     for (const route of mockRoutes) latestRoutes.set(`${route.method}:${route.path}`, route);
