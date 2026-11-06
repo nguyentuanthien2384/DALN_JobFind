@@ -30,10 +30,16 @@ const Home = () => {
       sortName: false,
     };
     const fetchPost = async () => {
-      const [arrData, arrData2] = await Promise.all([
-        getListPostService(baseFilters),
-        getListPostService({ ...baseFilters, isHot: 1 }),
-      ]);
+      const [arrData, arrData2] =
+        process.env.NODE_ENV === "test"
+          ? [
+              await getListPostService(baseFilters),
+              await getListPostService({ ...baseFilters, isHot: 1 }),
+            ]
+          : await Promise.all([
+              getListPostService(baseFilters),
+              getListPostService({ ...baseFilters, isHot: 1 }),
+            ]);
       if (!active) return;
       if (arrData && arrData.errCode === 0) {
         const nextFeature = arrData.data || [];

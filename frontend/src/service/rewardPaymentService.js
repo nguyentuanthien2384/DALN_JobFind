@@ -60,6 +60,14 @@ export const notifyRewardWalletUpdated = (detail = {}) => {
     }
 };
 
+export const subscribeRewardWalletUpdated = (listener) => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function' || typeof listener !== 'function') {
+        return () => {};
+    }
+    window.addEventListener(REWARD_WALLET_UPDATED_EVENT, listener);
+    return () => window.removeEventListener(REWARD_WALLET_UPDATED_EVENT, listener);
+};
+
 export const DEFAULT_CANDIDATE_TOPUP_PACKAGES = [
     {
         code: 'BASIC',
