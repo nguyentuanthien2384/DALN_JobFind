@@ -151,6 +151,36 @@ describe("candidate filtering", () => {
         await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/admin/candiate/99/"));
     });
 
+    it("deducts CV view allowance immediately when unlocking a new candidate and skips confirmation for already-unlocked candidates", async () => {
+        checkSeeCandiate.mockResolvedValueOnce({
+            errCode: 0,
+            alreadyGranted: false,
+            chargedAllowance: "FREE",
+            allowance: { free: 1, paid: 4 },
+        });
+        render(<FilterCv />);
+        expect(await screen.findByText("Lan Nguyễn")).toBeInTheDocument();
+        expect(screen.getByText("Chưa mở • 1 lượt xem")).toBeInTheDocument();
+        expect(screen.getByText("Số lượt xem miễn phí: 2")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText(/Xem chi tiết ứng viên/));
+        expect(AntModal.confirm).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(checkSeeCandiate).toHaveBeenCalledWith({
+            userId: 5,
+            companyId: 7,
+            candidateId: 99,
+        }));
+        expect(await screen.findByText("Số lượt xem miễn phí: 1")).toBeInTheDocument();
+        expect(screen.getByText("✓ Đã mở hồ sơ")).toBeInTheDocument();
+        expect(mockNavigate).toHaveBeenCalledWith("/admin/candiate/99/");
+
+        AntModal.confirm.mockClear();
+        mockNavigate.mockClear();
+        fireEvent.click(screen.getByText(/Xem chi tiết ứng viên/));
+        expect(AntModal.confirm).not.toHaveBeenCalled();
+        expect(mockNavigate).toHaveBeenCalledWith("/admin/candiate/99/");
+    });
+
     it("preserves every criterion across pages and resets pagination when filters are cleared", async () => {
         render(<FilterCv />);
         await screen.findByText("Lan Nguyễn");

@@ -3,8 +3,10 @@ import { Select, Modal } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import ReactPaginate from 'react-paginate';
-import { getFilterCv, getCandidateSearchJobs } from '../../../service/cvService';
+import { toast } from 'react-toastify';
+import { getFilterCv, getCandidateSearchJobs, checkSeeCandiate } from '../../../service/cvService';
 import { getAllSkillByJobCode } from '../../../service/userService';
+import { notifyRewardWalletUpdated, subscribeRewardWalletUpdated } from '../../../service/rewardPaymentService';
 import { useFetchAllcode } from '../../../util/fetch';
 import { PAGINATION } from '../../../util/constant';
 import './FilterCv.css';
@@ -107,6 +109,15 @@ const FilterCv = () => {
         return () => { active = false; clearTimeout(timer); };
     }, [jobSearch, user.companyId, retry]);
 
+    useEffect(() => {
+        if (typeof subscribeRewardWalletUpdated !== 'function') return undefined;
+        return subscribeRewardWalletUpdated((event) => {
+            if (event?.detail?.allowance) {
+                setAllowance(event.detail.allowance);
+            }
+        });
+    }, []);
+
     const change = (key, value) => {
         setQuery(current => {
             const next = { ...current, page: 0, [key]: value ?? '', ...(key === 'categoryJobCode' ? { listSkills: [] } : {}) };
@@ -121,13 +132,111 @@ const FilterCv = () => {
         setSelectedJob(job);
         setQuery({ ...emptyFilters(), ...job.criteria, page: 0, listSkills: job.criteria.listSkills.map(skill => Number(skill.id)) });
     };
-    const openCandidate = (id, analyze = false) => {
+    const openCandidate = (candidateOrId, analyze = false) => {
+        const candidateObj = typeof candidateOrId === 'object' && candidateOrId !== null
+            ? candidateOrId
+            : (result.data || []).find(item => Number(item.userId) === Number(candidateOrId));
+        const id = typeof candidateOrId === 'object' && candidateOrId !== null ? candidateOrId.userId : candidateOrId;
+        const isUnlocked = Boolean(candidateObj?.isUnlocked);
         const query = selectedJob ? `?jobId=${encodeURIComponent(selectedJob.id)}` : '';
-        const open = () => navigate(`/admin/candiate/${id}/${query}${analyze ? '#ai-review' : ''}`);
+        const open = (grantInfo = null) => {
+            if (grantInfo && typeof window !== 'undefined' && window.sessionStorage) {
+                try {
+                    window.sessionStorage.setItem(`jobfind_cv_grant_${id}`, JSON.stringify(grantInfo));
+                } catch {
+                    // ignore storage quota errors
+                }
+            }
+            navigate(`/admin/candiate/${id}/${query}${analyze ? '#ai-review' : ''}`);
+        };
         if (user.roleCode === 'ADMIN') { open(); return; }
-        Modal.confirm({ title: 'Xem CV và thông tin liên hệ', icon: <ExclamationCircleOutlined />,
-            content: 'Công ty sẽ dùng 1 lượt xem nếu chưa mở quyền với ứng viên này. Xem lại hồ sơ đã mở không trừ thêm lượt.',
-            okText: 'Xem hồ sơ', cancelText: 'Hủy', onOk: open });
+        if (isUnlocked) {
+            open({
+                errCode: 0,
+                alreadyGranted: true,
+                existingAllowanceType: candidateObj?.unlockedAllowanceType || 'FREE',
+                allowance
+            });
+            return;
+        }
+        if (allowance && Number(allowance.free || 0) <= 0 && Number(allowance.paid || 0) <= 0) {
+            Modal.confirm({
+                title: 'Công ty đã hết lượt xem CV',
+                icon: <ExclamationCircleOutlined />,
+                content: 'Công ty bạn hiện đã hết lượt xem CV (0 lượt miễn phí, 0 lượt đã mua). Bạn có muốn chuyển sang trang Mua thêm lượt xem ứng viên để mở khóa hồ sơ này không?',
+                okText: 'Mua thêm lượt xem',
+                cancelText: 'Đóng',
+                onOk: () => navigate('/admin/buy-cv')
+            });
+            return;
+        }
+        const quotaHint = allowance
+            ? Number(allowance.free || 0) > 0
+                ? `ưu tiên trừ 1 lượt miễn phí — hiện còn ${allowance.free} lượt miễn phí, ${allowance.paid} lượt đã mua`
+                : `trừ 1 lượt đã mua — hiện còn ${allowance.paid} lượt`
+            : 'trừ 1 lượt xem';
+        Modal.confirm({
+            title: analyze ? 'Mở khóa hồ sơ & phân tích CV bằng AI' : 'Xem CV và thông tin liên hệ',
+            icon: <ExclamationCircleOutlined />,
+            content: `Công ty sẽ dùng 1 lượt xem (${quotaHint}) nếu chưa mở quyền với ứng viên này. Xem lại hồ sơ đã mở không trừ thêm lượt.`,
+            okText: 'Xem hồ sơ (-1 lượt)',
+            cancelText: 'Hủy',
+            onOk: async () => {
+                if (typeof checkSeeCandiate === 'function') {
+                    try {
+                        const grantRes = await checkSeeCandiate({
+                            userId: user.id,
+                            companyId: user.companyId,
+                            candidateId: id
+                        });
+                        if (!grantRes || typeof grantRes.errCode !== 'number') {
+                            open();
+                            return;
+                        }
+                        if (grantRes.errCode !== 0) {
+                            if (grantRes.allowance) setAllowance(grantRes.allowance);
+                            toast.error(grantRes.errMessage || 'Không thể mở khóa hồ sơ ứng viên.');
+                            if (grantRes.errCode === 1) navigate('/admin/buy-cv');
+                            return;
+                        }
+                        if (grantRes.allowance) {
+                            setAllowance(grantRes.allowance);
+                        }
+                        setResult(prev => ({
+                            ...prev,
+                            data: (prev.data || []).map(item =>
+                                Number(item.userId) === Number(id)
+                                    ? {
+                                        ...item,
+                                        isUnlocked: true,
+                                        unlockedAllowanceType: grantRes.chargedAllowance || item.unlockedAllowanceType || 'FREE'
+                                    }
+                                    : item
+                            )
+                        }));
+                        if (typeof notifyRewardWalletUpdated === 'function') {
+                            notifyRewardWalletUpdated({ allowance: grantRes.allowance, candidateId: id });
+                        }
+                        if (!grantRes.alreadyGranted) {
+                            const remainText = grantRes.allowance
+                                ? ` (Còn lại: ${grantRes.allowance.free} miễn phí • ${grantRes.allowance.paid} đã mua)`
+                                : '';
+                            toast.success(
+                                grantRes.chargedAllowance === 'FREE'
+                                    ? `Đã trừ 1 lượt xem CV miễn phí để mở khóa hồ sơ!${remainText}`
+                                    : `Đã trừ 1 lượt xem CV để mở khóa hồ sơ!${remainText}`
+                            );
+                        }
+                        open(grantRes);
+                        return;
+                    } catch (err) {
+                        toast.error(err?.message || 'Không thể mở khóa hồ sơ ứng viên.');
+                        return;
+                    }
+                }
+                open();
+            }
+        });
     };
     const select = (key, label, values) => <div className="cv-search-field" key={key}>
         <label htmlFor={`cv-filter-${key}`}>{label}</label>
@@ -143,8 +252,15 @@ const FilterCv = () => {
         <header className="cv-search-header">
             <div><span className="cv-search-eyebrow">KHÔNG GIAN TUYỂN DỤNG</span><h1>Tìm ứng viên phù hợp</h1>
                 <p>Khám phá hồ sơ đang tìm việc và đối chiếu với nhu cầu tuyển dụng của công ty.</p></div>
-            {allowance && <div className="cv-search-allowance"><strong>Lượt xem CV</strong>
-                <span>Số lượt xem miễn phí: {allowance.free}</span><span>Số lượt xem: {allowance.paid}</span></div>}
+            {allowance && <div className="cv-search-allowance">
+                <div className="cv-search-allowance-head">
+                    <strong>Lượt xem CV</strong>
+                    <span className="cv-search-allowance-total">{Number(allowance.free || 0) + Number(allowance.paid || 0)} lượt</span>
+                </div>
+                <span>Số lượt xem miễn phí: {allowance.free}</span>
+                <span>Số lượt xem: {allowance.paid}</span>
+                <button type="button" className="cv-search-allowance-buy" onClick={() => navigate('/admin/buy-cv')}>+ Mua thêm lượt xem</button>
+            </div>}
         </header>
         {user.companyId && <section className="cv-search-job" aria-label="Gợi ý từ tin tuyển dụng">
             <div><h2>Bắt đầu từ tin tuyển dụng</h2><p>Lấy ngành nghề, kinh nghiệm, lương, địa điểm và gợi ý kỹ năng từ tin của công ty.</p></div>
@@ -202,9 +318,19 @@ const FilterCv = () => {
                 {!error && result.data.map(candidate => {
                     const name = [candidate.userSettingData?.firstName, candidate.userSettingData?.lastName].filter(Boolean).join(' ') || 'Ứng viên';
                     const scored = candidate.matchScore !== null && candidate.matchScore !== undefined;
-                    return <article className="cv-search-candidate" key={candidate.userId}>
+                    return <article className={`cv-search-candidate${candidate.isUnlocked ? ' is-unlocked' : ''}`} key={candidate.userId}>
                         <div className="cv-search-candidate-top"><div className="cv-search-identity"><div className="cv-search-avatar" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</div>
-                            <div><h3>{name}</h3><p>{candidate.jobTypeSettingData?.value || 'Chưa cập nhật ngành nghề'}</p></div></div>
+                            <div>
+                                <div className="cv-search-name-row">
+                                    <h3>{name}</h3>
+                                    {user.roleCode !== 'ADMIN' && (
+                                        candidate.isUnlocked
+                                            ? <span className="cv-search-unlock-badge is-unlocked">✓ Đã mở hồ sơ</span>
+                                            : <span className="cv-search-unlock-badge is-locked">Chưa mở • 1 lượt xem</span>
+                                    )}
+                                </div>
+                                <p>{candidate.jobTypeSettingData?.value || 'Chưa cập nhật ngành nghề'}</p>
+                            </div></div>
                             {scored && <div className="cv-search-score"><strong>{candidate.matchScore}%</strong><span>khớp tiêu chí</span></div>}
                         </div>
                         <dl className="cv-search-facts"><div><dt>Địa điểm</dt><dd>{candidate.provinceSettingData?.value || 'Chưa cập nhật'}</dd></div>
@@ -218,9 +344,14 @@ const FilterCv = () => {
                             {!!candidate.matchedSkills?.length && <p><strong>Kỹ năng khớp:</strong> {candidate.matchedSkills.join(', ')}</p>}
                             {!!candidate.missingSkills?.length && <p><strong>Chưa thấy khai báo:</strong> {candidate.missingSkills.join(', ')}</p>}
                         </details>}
-                        <footer><span>Thông tin liên hệ hiển thị sau khi mở hồ sơ</span>
-                            <div className="cv-search-candidate-actions"><button type="button" className="cv-search-primary" onClick={() => openCandidate(candidate.userId)}>Xem chi tiết ứng viên</button>
-                                {user.companyId && <button type="button" className="cv-search-ai-button" onClick={() => openCandidate(candidate.userId, true)}>Phân tích CV bằng AI</button>}</div></footer>
+                        <footer>
+                            <span>
+                                {candidate.isUnlocked
+                                    ? 'Đã mở quyền xem hồ sơ — xem lại thông tin liên hệ & CV không trừ thêm lượt'
+                                    : 'Thông tin liên hệ hiển thị sau khi mở hồ sơ (Trừ 1 lượt xem lần đầu)'}
+                            </span>
+                            <div className="cv-search-candidate-actions"><button type="button" className="cv-search-primary" onClick={() => openCandidate(candidate)}>Xem chi tiết ứng viên</button>
+                                {user.companyId && <button type="button" className="cv-search-ai-button" onClick={() => openCandidate(candidate, true)}>Phân tích CV bằng AI</button>}</div></footer>
                     </article>;
                 })}
                 </StableList>

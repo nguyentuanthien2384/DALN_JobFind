@@ -3,7 +3,9 @@ import { toast } from 'react-toastify';
 import {
     createPaymentCheckoutService,
     DEFAULT_CANDIDATE_TOPUP_PACKAGES,
+    getCachedCandidateRewardOverview,
     getCandidateRewardOverviewService,
+    setCachedCandidateRewardOverview,
 } from '../../service/rewardPaymentService';
 import './PointTopupModal.css';
 
@@ -67,7 +69,7 @@ const PointTopupModal = ({
     postId = null,
 }) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'topup');
-    const [localWallet, setLocalWallet] = useState(walletData);
+    const [localWallet, setLocalWallet] = useState(() => walletData || getCachedCandidateRewardOverview());
     const [selectedPkgCode, setSelectedPkgCode] = useState('STANDARD');
     const [selectedProvider, setSelectedProvider] = useState('VNPAY');
     const [promoInput, setPromoInput] = useState('VNPAY5K');
@@ -96,6 +98,7 @@ const PointTopupModal = ({
             try {
                 const res = await getCandidateRewardOverviewService();
                 if (!cancelled && res && res.errCode === 0 && res.data) {
+                    setCachedCandidateRewardOverview(res.data);
                     setLocalWallet(res.data);
                 }
             } catch (_err) {
@@ -201,9 +204,11 @@ const PointTopupModal = ({
                 postId,
                 returnUrl,
             });
-            if (res && res.errCode === 0 && res.data?.paymentUrl) {
+            const paymentUrl =
+                res?.data?.paymentUrl || res?.data?.checkoutUrl || res?.link;
+            if (res && res.errCode === 0 && paymentUrl) {
                 if (process.env.NODE_ENV !== 'test') {
-                    window.location.assign(res.data.paymentUrl);
+                    window.location.assign(paymentUrl);
                 }
                 return;
             }

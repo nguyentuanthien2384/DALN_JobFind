@@ -376,7 +376,12 @@ let checkSeeCandiate = async (data) => {
                 errCode: 0,
                 errMessage: 'Ok',
                 alreadyGranted: true,
-                chargedAllowance: null
+                chargedAllowance: null,
+                existingAllowanceType: existingView.allowanceType || null,
+                allowance: {
+                    free: Math.max(0, Number(company.allowCvFree) || 0),
+                    paid: Math.max(0, Number(company.allowCv) || 0)
+                }
             }
         }
 
@@ -394,7 +399,13 @@ let checkSeeCandiate = async (data) => {
         else {
             return {
                 errCode: 1,
-                errMessage: 'Công ty bạn đã hết lượt xem'
+                errMessage: 'Công ty bạn đã hết lượt xem',
+                alreadyGranted: false,
+                chargedAllowance: null,
+                allowance: {
+                    free: 0,
+                    paid: 0
+                }
             }
         }
 
@@ -408,7 +419,11 @@ let checkSeeCandiate = async (data) => {
             errCode: 0,
             errMessage: 'Ok',
             alreadyGranted: false,
-            chargedAllowance: allowanceType
+            chargedAllowance: allowanceType,
+            allowance: {
+                free: Math.max(0, Number(company.allowCvFree) || 0),
+                paid: Math.max(0, Number(company.allowCv) || 0)
+            }
         }
     })
 }

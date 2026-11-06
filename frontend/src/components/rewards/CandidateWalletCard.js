@@ -3,14 +3,16 @@ import { toast } from 'react-toastify';
 import {
     claimCandidateDailyCheckinService,
     claimCandidateProfileCompletionService,
+    getCachedCandidateRewardOverview,
     getCandidateRewardOverviewService,
     notifyRewardWalletUpdated,
     REWARD_WALLET_UPDATED_EVENT,
+    setCachedCandidateRewardOverview,
 } from '../../service/rewardPaymentService';
 import './CandidateRewards.css';
 
 const CandidateWalletCard = ({ onOpenTopup, onWalletLoaded }) => {
-    const [overview, setOverview] = useState(null);
+    const [overview, setOverview] = useState(() => getCachedCandidateRewardOverview());
     const [claimingCheckin, setClaimingCheckin] = useState(false);
     const [claimingProfile, setClaimingProfile] = useState(false);
 
@@ -20,6 +22,7 @@ const CandidateWalletCard = ({ onOpenTopup, onWalletLoaded }) => {
         try {
             const res = await getCandidateRewardOverviewService();
             if (res && res.errCode === 0 && res.data) {
+                setCachedCandidateRewardOverview(res.data);
                 setOverview(res.data);
                 if (onWalletLoaded) onWalletLoaded(res.data);
             }

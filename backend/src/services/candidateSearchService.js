@@ -110,12 +110,25 @@ export const searchCandidates = async (data, companyId = null) => {
         limit: filters.limit, offset: filters.offset, distinct: true, raw: true, nest: true,
     });
     const userIds = result.rows.map(row => row.userId);
-    const [skills, company] = await Promise.all([userIds.length ? db.UserSkill.findAll({
-        where: { UserId: { [Op.in]: userIds } }, attributes: ['UserId'],
-        include: [{ model: db.Skill, attributes: ['id', 'name'] }], raw: true, nest: true,
-    }) : [], Number.isSafeInteger(companyId) && companyId > 0 ? db.Company.findOne({
-        where: { id: companyId }, attributes: ['allowCvFree', 'allowCv'], raw: true,
-    }) : null]);
+    const [skills, company, candidateViews] = await Promise.all([
+        userIds.length ? db.UserSkill.findAll({
+            where: { UserId: { [Op.in]: userIds } }, attributes: ['UserId'],
+            include: [{ model: db.Skill, attributes: ['id', 'name'] }], raw: true, nest: true,
+        }) : [],
+        Number.isSafeInteger(companyId) && companyId > 0 ? db.Company.findOne({
+            where: { id: companyId }, attributes: ['allowCvFree', 'allowCv'], raw: true,
+        }) : null,
+        userIds.length && Number.isSafeInteger(companyId) && companyId > 0 && typeof db.CandidateView?.findAll === 'function'
+            ? db.CandidateView.findAll({
+                where: { companyId, candidateId: { [Op.in]: userIds } },
+                attributes: ['candidateId', 'allowanceType', 'createdAt'],
+                raw: true,
+            })
+            : [],
+    ]);
+    const viewedByCandidate = new Map(
+        (Array.isArray(candidateViews) ? candidateViews : []).map(item => [Number(item.candidateId), item])
+    );
     const byUser = new Map();
     for (const item of skills) {
         if (!item.Skill?.id) continue;
@@ -126,18 +139,24 @@ export const searchCandidates = async (data, companyId = null) => {
     return {
         errCode: 0, count: result.count, isHiddenPercent: !criterionCount,
         allowance: company ? { free: Number(company.allowCvFree || 0), paid: Number(company.allowCv || 0) } : null,
-        data: result.rows.map(row => ({
-            id: row.id, userId: row.userId,
-            userSettingData: { id: row.userSettingData?.id, firstName: row.userSettingData?.firstName,
-                lastName: row.userSettingData?.lastName, image: row.userSettingData?.image },
-            jobTypeSettingData: publicCode(row.jobTypeSettingData), expTypeSettingData: publicCode(row.expTypeSettingData),
-            salaryTypeSettingData: publicCode(row.salaryTypeSettingData), provinceSettingData: publicCode(row.provinceSettingData),
-            skills: [...(byUser.get(Number(row.userId))?.values() || [])],
-            matchScore: criterionCount ? Number(row.matchScore) : null,
-            matchedSkills: requiredSkills.filter((_, index) => Number(row[`matchedSkill${index}`]) === 1),
-            missingSkills: requiredSkills.filter((_, index) => Number(row[`matchedSkill${index}`]) !== 1),
-            matchedCriteria: preferences.map(([key]) => key), criterionCount,
-        })),
+        data: result.rows.map(row => {
+            const viewGrant = viewedByCandidate.get(Number(row.userId)) || null;
+            return {
+                id: row.id, userId: row.userId,
+                isUnlocked: Boolean(viewGrant),
+                unlockedAllowanceType: viewGrant?.allowanceType || null,
+                unlockedAt: viewGrant?.createdAt || null,
+                userSettingData: { id: row.userSettingData?.id, firstName: row.userSettingData?.firstName,
+                    lastName: row.userSettingData?.lastName, image: row.userSettingData?.image },
+                jobTypeSettingData: publicCode(row.jobTypeSettingData), expTypeSettingData: publicCode(row.expTypeSettingData),
+                salaryTypeSettingData: publicCode(row.salaryTypeSettingData), provinceSettingData: publicCode(row.provinceSettingData),
+                skills: [...(byUser.get(Number(row.userId))?.values() || [])],
+                matchScore: criterionCount ? Number(row.matchScore) : null,
+                matchedSkills: requiredSkills.filter((_, index) => Number(row[`matchedSkill${index}`]) === 1),
+                missingSkills: requiredSkills.filter((_, index) => Number(row[`matchedSkill${index}`]) !== 1),
+                matchedCriteria: preferences.map(([key]) => key), criterionCount,
+            };
+        }),
     };
 };
 

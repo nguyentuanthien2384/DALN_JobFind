@@ -6,9 +6,16 @@ import RecommendedJobs from "../../components/home/RecommendedJobs";
 import { getListPostService } from "../../service/userService";
 import { prefetchJobLanding } from "../JobPage/jobPageResource";
 
+let cachedHomeFeature = [];
+let cachedHomeHot = [];
+
 const Home = () => {
-  const [dataFeature, setDataFeature] = useState([]);
-  const [dataHot, setDateHot] = useState([]);
+  const [dataFeature, setDataFeature] = useState(() =>
+    process.env.NODE_ENV !== "test" && cachedHomeFeature.length > 0 ? cachedHomeFeature : []
+  );
+  const [dataHot, setDateHot] = useState(() =>
+    process.env.NODE_ENV !== "test" && cachedHomeHot.length > 0 ? cachedHomeHot : []
+  );
   useEffect(() => {
     let active = true;
     const baseFilters = {
@@ -23,14 +30,20 @@ const Home = () => {
       sortName: false,
     };
     const fetchPost = async () => {
-      const arrData = await getListPostService(baseFilters);
-      const arrData2 = await getListPostService({ ...baseFilters, isHot: 1 });
+      const [arrData, arrData2] = await Promise.all([
+        getListPostService(baseFilters),
+        getListPostService({ ...baseFilters, isHot: 1 }),
+      ]);
       if (!active) return;
       if (arrData && arrData.errCode === 0) {
-        setDataFeature(arrData.data);
+        const nextFeature = arrData.data || [];
+        if (process.env.NODE_ENV !== "test") cachedHomeFeature = nextFeature;
+        setDataFeature(nextFeature);
       }
       if (arrData2 && arrData2.errCode === 0) {
-        setDateHot(arrData2.data);
+        const nextHot = arrData2.data || [];
+        if (process.env.NODE_ENV !== "test") cachedHomeHot = nextHot;
+        setDateHot(nextHot);
       }
     };
     fetchPost();

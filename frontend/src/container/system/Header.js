@@ -24,6 +24,7 @@ const Header = ({ user: suppliedUser }) => {
         [suppliedUser]
     );
     const [listNotification, setListNotification] = useState([]);
+    const userId = user?.id || null;
     const [unreadCount, setUnreadCount] = useState(0);
     const [showNotification, setShowNotification] = useState(false);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -64,14 +65,14 @@ const Header = ({ user: suppliedUser }) => {
     // Khu quan tri truoc day khong co chuong thong bao (chi giao dien ngoai moi co),
     // nen nha tuyen dung khong biet co CV moi hay tin duoc duyet.
     useEffect(() => {
-        if (!user || !user.id) return;
+        if (!userId) return;
         let active = true;
         const loadNotification = async () => {
             if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
             const version = ++refreshVersion.current;
             try {
                 const res = await getNotificationByUserService({
-                    userId: user.id,
+                    userId,
                     limit: 10,
                     offset: 0,
                 });
@@ -100,7 +101,7 @@ const Header = ({ user: suppliedUser }) => {
             document.removeEventListener('visibilitychange', loadNotification);
             window.removeEventListener('online', loadNotification);
         };
-    }, [user]);
+    }, [userId]);
 
     const closeHeaderMenus = useCallback(() => {
         setShowNotification(false);

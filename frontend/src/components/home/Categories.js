@@ -3,18 +3,32 @@ import { toast } from "react-toastify";
 import { getListJobTypeAndCountPost } from "../../service/userService";
 import Category from "./Category";
 
+let cachedCategories = [];
+
 const Categories = () => {
-    const [allCategory, setAllCategory] = useState([]);
+    const [allCategory, setAllCategory] = useState(() =>
+        process.env.NODE_ENV !== "test" && cachedCategories.length > 0 ? cachedCategories : []
+    );
     useEffect(() => {
+        let active = true;
         const loadData = async () => {
             let res = await getListJobTypeAndCountPost({
                 limit: 4,
                 offset: 0,
             });
-            if (res.errCode === 0) setAllCategory(res.data);
-            else toast.error(res.message);
+            if (!active || !res) return;
+            if (res.errCode === 0) {
+                const next = res.data || [];
+                if (process.env.NODE_ENV !== "test") cachedCategories = next;
+                setAllCategory(next);
+            } else {
+                toast.error(res.message);
+            }
         };
         loadData();
+        return () => {
+            active = false;
+        };
     }, []);
     return (
         <>

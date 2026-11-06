@@ -6,7 +6,12 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'r
 import { Link, NavLink, matchPath, useLocation } from 'react-router-dom'
 import './header.scss';
 import { getNotificationByUserService, markReadNotificationService, getListChatConversationService } from '../../service/userService';
-import { getCandidateRewardOverviewService, REWARD_WALLET_UPDATED_EVENT } from '../../service/rewardPaymentService';
+import {
+    getCachedCandidateRewardOverview,
+    getCandidateRewardOverviewService,
+    REWARD_WALLET_UPDATED_EVENT,
+    setCachedCandidateRewardOverview,
+} from '../../service/rewardPaymentService';
 import PointTopupModal from '../../components/payment/PointTopupModal';
 import { getSocket, disconnectSocket } from '../../socket';
 import { readJsonStorage } from '../../util/storage';
@@ -52,20 +57,33 @@ const NavigationLinks = ({ onNavigate }) => {
     })
 }
 
+let cachedPublicHeaderState = {
+    userId: null,
+    listNotification: [],
+    unreadCount: 0,
+    unreadChat: 0,
+    fetchedAt: 0,
+};
+
 const Header = () => {
     const sessionUser = useContext(SessionContext)
     const user = useMemo(
         () => sessionUser || readJsonStorage('userData'),
         [sessionUser]
     )
-    const [listNotification, setListNotification] = useState([])
-    const [unreadCount, setUnreadCount] = useState(0)
-    const [unreadChat, setUnreadChat] = useState(0)
+    const userId = user?.id || null
+    const warmHeader =
+        process.env.NODE_ENV !== 'test' && userId && cachedPublicHeaderState.userId === userId
+            ? cachedPublicHeaderState
+            : null
+    const [listNotification, setListNotification] = useState(() => warmHeader?.listNotification || [])
+    const [unreadCount, setUnreadCount] = useState(() => warmHeader?.unreadCount || 0)
+    const [unreadChat, setUnreadChat] = useState(() => warmHeader?.unreadChat || 0)
     const [showNotification, setShowNotification] = useState(false)
     const [showProfileMenu, setShowProfileMenu] = useState(false)
     const [showMobileMenu, setShowMobileMenu] = useState(false)
     const [showMobileNotifications, setShowMobileNotifications] = useState(false)
-    const [rewardOverview, setRewardOverview] = useState(null)
+    const [rewardOverview, setRewardOverview] = useState(() => getCachedCandidateRewardOverview())
     const [showTopupModal, setShowTopupModal] = useState(false)
     const notificationRef = useRef(null)
     const profileRef = useRef(null)
@@ -77,12 +95,13 @@ const Header = () => {
     const passwordPath = isCandidate ? '/candidate/changepassword/' : '/admin/changepassword/'
 
     useEffect(() => {
-        if (!user || !user.id || !isCandidate) return undefined
+        if (!userId || !isCandidate) return undefined
         let active = true
         const loadRewardWallet = async () => {
             try {
                 const res = await getCandidateRewardOverviewService()
                 if (active && res && res.errCode === 0 && res.data) {
+                    setCachedCandidateRewardOverview(res.data)
                     setRewardOverview(res.data)
                 }
             } catch (_err) {
@@ -95,31 +114,53 @@ const Header = () => {
             active = false
             window.removeEventListener(REWARD_WALLET_UPDATED_EVENT, loadRewardWallet)
         }
-    }, [user, isCandidate])
+    }, [userId, isCandidate])
 
     useEffect(() => {
-        if (!user || !user.id) return
+        if (!userId) return
         let active = true
         const loadHeaderData = async () => {
             if (document.visibilityState === 'hidden' || navigator.onLine === false) return
             const version = ++refreshVersion.current
             const [notificationResult, chatResult] = await Promise.allSettled([
-                getNotificationByUserService({ userId: user.id, limit: 10, offset: 0 }),
+                getNotificationByUserService({ userId, limit: 10, offset: 0 }),
                 canUseChat ? getListChatConversationService() : Promise.resolve(null)
             ])
             if (!active || version !== refreshVersion.current) return
             const notificationRes = notificationResult.status === 'fulfilled' ? notificationResult.value : null
             const chatRes = chatResult.status === 'fulfilled' ? chatResult.value : null
+            let nextList = cachedPublicHeaderState.listNotification
+            let nextUnread = cachedPublicHeaderState.unreadCount
+            let nextChat = cachedPublicHeaderState.unreadChat
             if (notificationRes && notificationRes.errCode === 0) {
-                setListNotification(notificationRes.data || [])
-                setUnreadCount(notificationRes.unreadCount || 0)
+                nextList = notificationRes.data || []
+                nextUnread = notificationRes.unreadCount || 0
+                setListNotification(nextList)
+                setUnreadCount(nextUnread)
             }
             if (chatRes && chatRes.errCode === 0) {
-                setUnreadChat(chatRes.totalUnread || 0)
+                nextChat = chatRes.totalUnread || 0
+                setUnreadChat(nextChat)
+            }
+            if (process.env.NODE_ENV !== 'test') {
+                cachedPublicHeaderState = {
+                    userId,
+                    listNotification: nextList,
+                    unreadCount: nextUnread,
+                    unreadChat: nextChat,
+                    fetchedAt: Date.now(),
+                }
             }
         }
 
-        loadHeaderData()
+        // Tranh goi lai API ngay lap tuc khi Header remount giua cac route cong khai va route guard trong cung 10s.
+        const recentlyFetched =
+            process.env.NODE_ENV !== 'test' &&
+            cachedPublicHeaderState.userId === userId &&
+            Date.now() - cachedPublicHeaderState.fetchedAt < 10000
+        if (!recentlyFetched) {
+            loadHeaderData()
+        }
         const intervalId = window.setInterval(loadHeaderData, 30000)
 
         // Co tin nhan / thong bao moi thi cap nhat so badge ngay, khong doi
@@ -152,7 +193,7 @@ const Header = () => {
                 socket.off('connect', refresh)
             }
         }
-    }, [user, canUseChat])
+    }, [userId, canUseChat])
 
     let handleLogout = async () => {
         const cleanup=clearPushOnLogout();

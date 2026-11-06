@@ -106,6 +106,11 @@ const handleShutdown = () => {
 const startServer = async () => {
     // Never advertise a usable API before the configured database is reachable.
     await connectDB();
+    if (process.env.NODE_ENV !== 'test') {
+        for (const model of [db.RewardWallet, db.RewardTransaction, db.CompetitionUnlock, db.PaymentOrder]) {
+            if (typeof model?.sync === 'function') await model.sync();
+        }
+    }
     if(require('./utils/webPushConfig').settings()){
         // Detect a missing migration before accepting chat writes.
         await db.WebPushSubscription.findOne({attributes:['id'],raw:true});

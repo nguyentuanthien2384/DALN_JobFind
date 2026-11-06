@@ -13,18 +13,25 @@ const GATEWAY_CHOICES = [
     { code: "ZALOPAY", label: "Ví điện tử ZaloPay (VNĐ)" },
 ];
 
+let cachedCvPackages = null;
+const readWarmCvPackages = () =>
+    process.env.NODE_ENV !== "test" && Array.isArray(cachedCvPackages) && cachedCvPackages.length > 0
+        ? cachedCvPackages
+        : null;
+
 const BuyCv = () => {
+    const warmPackages = readWarmCvPackages();
     const [inputValues, setInputValues] = useState({
         amount: 1,
-        packageCvId: "",
+        packageCvId: warmPackages ? warmPackages[0]?.id || "" : "",
     });
     const [selectedGateway, setSelectedGateway] = useState("PAYPAL");
     const [promoCode, setPromoCode] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const [dataPackage, setDataPackage] = useState([]);
-    const [isPackageLoading, setIsPackageLoading] = useState(true);
+    const [dataPackage, setDataPackage] = useState(() => warmPackages || []);
+    const [isPackageLoading, setIsPackageLoading] = useState(() => !warmPackages);
     const [packageError, setPackageError] = useState("");
-    const [price, setPrice] = useState(0);
+    const [price, setPrice] = useState(() => (warmPackages ? warmPackages[0]?.price || 0 : 0));
     const amountValue = Number(inputValues.amount);
     const total = Number.isFinite(amountValue) && amountValue > 0 ? amountValue * price : 0;
     const totalVnd = total <= 1000 ? total * 24000 : total;
@@ -89,8 +96,12 @@ const BuyCv = () => {
                 promoCode: promoCode.trim(),
                 returnUrl: `${window.location.origin}/payment/result`,
             });
-            if (checkoutRes?.errCode === 0 && checkoutRes.data?.paymentUrl) {
-                window.location.href = checkoutRes.data.paymentUrl;
+            const paymentUrl =
+                checkoutRes?.data?.paymentUrl ||
+                checkoutRes?.data?.checkoutUrl ||
+                checkoutRes?.link;
+            if (checkoutRes?.errCode === 0 && paymentUrl) {
+                window.location.href = paymentUrl;
                 return;
             }
             toast.error(checkoutRes?.errMessage || "Không thể tạo liên kết thanh toán");
@@ -104,7 +115,9 @@ const BuyCv = () => {
         }
     };
     const fetchPackagePost = async () => {
-        setIsPackageLoading(true);
+        if (!readWarmCvPackages()) {
+            setIsPackageLoading(true);
+        }
         setPackageError("");
         try {
             const res = await getAllToSelect();
@@ -113,6 +126,9 @@ const BuyCv = () => {
                 return;
             }
             const packages = Array.isArray(res.data) ? res.data : [];
+            if (process.env.NODE_ENV !== "test") {
+                cachedCvPackages = packages;
+            }
             const firstPackage = packages[0];
             setDataPackage(packages);
             setInputValues((current) => ({

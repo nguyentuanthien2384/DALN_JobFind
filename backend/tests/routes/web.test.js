@@ -143,7 +143,8 @@ describe('web routes', () => {
       'get:/api/get-filter-post', 'get:/api/get-related-post',
       'get:/api/check-favorite-post', 'get:/api/get-review-by-company',
       'get:/api/check-follow-company', 'post:/api/support-chat',
-      'get:/api/rewards/competition-report', 'get:/api/payments/catalog',
+      'get:/api/rewards/competition-report', 'get:/api/rewards/jobs/:postId/competition',
+      'get:/api/rewards/config', 'get:/api/payments/catalog',
       'get:/api/payments/vnpay/ipn', 'post:/api/payments/momo/ipn', 'post:/api/payments/zalopay/callback'
     ]);
     const latestRoutes = new Map();

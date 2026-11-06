@@ -58,6 +58,8 @@ const BADGE_LABELS = {
     waitingSupport: 'yêu cầu chờ tiếp nhận',
 };
 
+let cachedMenuUnreadChat = { userId: null, totalUnread: 0 };
+
 const Menu = ({ user: suppliedUser }) => {
     const location = useLocation()
     const navigationRef = useRef(null)
@@ -65,7 +67,12 @@ const Menu = ({ user: suppliedUser }) => {
         () => suppliedUser || readJsonStorage('userData'),
         [suppliedUser]
     )
-    const [unreadChat, setUnreadChat] = useState(0)
+    const userId = user?.id || null
+    const [unreadChat, setUnreadChat] = useState(() => (
+        process.env.NODE_ENV !== 'test' && cachedMenuUnreadChat.userId === userId
+            ? cachedMenuUnreadChat.totalUnread
+            : 0
+    ))
     const [openKey, setOpenKey] = useState(null)
     const canUseChat = hasPermission(user, PERMISSIONS.USE_CHAT)
 
@@ -77,14 +84,20 @@ const Menu = ({ user: suppliedUser }) => {
 
     // Dem tin nhan chua doc cho muc "Tin nhan".
     useEffect(() => {
-        if (!user || !user.id || !canUseChat) return
+        if (!userId || !canUseChat) return
         let active = true, version = 0
         const loadUnread = async () => {
             if (document.visibilityState === 'hidden' || navigator.onLine === false) return
             const current = ++version
             try {
                 const res = await getListChatConversationService()
-                if (active && current === version && res && res.errCode === 0) setUnreadChat(res.totalUnread || 0)
+                if (active && current === version && res && res.errCode === 0) {
+                    const nextUnread = res.totalUnread || 0
+                    if (process.env.NODE_ENV !== 'test') {
+                        cachedMenuUnreadChat = { userId, totalUnread: nextUnread }
+                    }
+                    setUnreadChat(nextUnread)
+                }
             } catch { /* Keep the last known badge until the next refresh. */ }
         }
         loadUnread()
@@ -102,7 +115,7 @@ const Menu = ({ user: suppliedUser }) => {
             document.removeEventListener('visibilitychange', loadUnread)
             window.removeEventListener('online', loadUnread)
         }
-    }, [user, canUseChat])
+    }, [userId, canUseChat])
 
     const navigation = useMemo(() => getAdminNavigation(user), [user])
     // Trang con khong co trong menu (vd: /admin/add-user) van to sang muc cha.

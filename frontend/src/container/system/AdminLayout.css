@@ -274,7 +274,7 @@
 .jf-admin .sidebar { flex-shrink: 0; min-height: 0; }
 .jf-admin .sidebar > .nav { margin-top: 16px; margin-bottom: 16px; }
 .jf-admin .main-panel { flex: 1; min-width: 0; }
-.jf-admin .content-wrapper { min-width: 0; padding: var(--admin-content-space); }
+.jf-admin .content-wrapper { min-width: 0; min-height: calc(100dvh - 116px); padding: var(--admin-content-space); }
 /* The public footer styles otherwise add a second 98px block inside the
    admin theme's 60px padding, even on an empty management page. */
 .jf-admin .main-panel > .footer { padding: 12px var(--admin-content-space); }

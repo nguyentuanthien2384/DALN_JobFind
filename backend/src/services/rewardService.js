@@ -178,6 +178,17 @@ const evaluateCandidateProfileCompletion = async (userId) => {
     return { percent, isComplete: passed >= 5 };
 };
 
+const formatTransactionsForClient = (rows = []) => (rows || []).map((item) => {
+    const raw = typeof item?.toJSON === 'function' ? item.toJSON() : { ...item };
+    const amount = Number(raw.amount || 0);
+    const pointsDelta = raw.direction === 'DEBIT' ? -amount : amount;
+    return {
+        ...raw,
+        pointsDelta,
+        transactionType: raw.reasonCode || raw.transactionType || 'REWARD'
+    };
+});
+
 const syncCandidateApplicationRewards = async (userId) => {
     if (!db.Cv?.findAll) return;
     const submittedCvs = await db.Cv.findAll({
@@ -185,9 +196,22 @@ const syncCandidateApplicationRewards = async (userId) => {
         attributes: ['id', 'postId'],
         order: [['id', 'ASC']]
     });
-    for (const cv of submittedCvs) {
-        if (cv.postId) {
-            await awardCandidateApplicationPoints({ userId, postId: cv.postId });
+    const postIds = [...new Set((submittedCvs || []).map((cv) => cv.postId).filter(Boolean))];
+    if (!postIds.length) return;
+
+    const candidateKeys = postIds.map((postId) => `CANDIDATE:APPLY:${userId}:${postId}`);
+    const existingRows = db.RewardTransaction?.findAll
+        ? await db.RewardTransaction.findAll({
+            where: { idempotencyKey: { [Op.in]: candidateKeys } },
+            attributes: ['idempotencyKey'],
+            raw: true
+        })
+        : [];
+    const existingKeys = new Set((existingRows || []).map((row) => row?.idempotencyKey).filter(Boolean));
+
+    for (const postId of postIds) {
+        if (!existingKeys.has(`CANDIDATE:APPLY:${userId}:${postId}`)) {
+            await awardCandidateApplicationPoints({ userId, postId });
         }
     }
 };
@@ -216,6 +240,7 @@ const getCandidateRewardOverview = async (userId) => {
     const lifetimeEarned = Number(wallet.lifetimeEarned || 0);
     const lifetimeSpent = Number(wallet.lifetimeSpent || 0);
     const tier = tierFor(CANDIDATE_TIERS, lifetimeEarned);
+    const formattedTransactions = formatTransactionsForClient(recentTransactions);
 
     return {
         errCode: 0,
@@ -223,12 +248,22 @@ const getCandidateRewardOverview = async (userId) => {
             wallet: {
                 id: wallet.id,
                 balance,
+                balancePoints: balance,
+                balanceXu: balance * POINT_VALUE_VND,
                 valueVnd: balance * POINT_VALUE_VND,
                 pointValueVnd: POINT_VALUE_VND,
+                tierLabel: tier.name,
+                tierShortLabel: tier.name,
                 lifetimeEarned,
                 lifetimeSpent
             },
             tier,
+            missions: {
+                checkedInToday: Boolean(checkinTx),
+                profileCompletionClaimed: Boolean(profileTx),
+                profileCompletionPercent: profileStatus.percent,
+                profileCompletionEligible: profileStatus.isComplete
+            },
             earnRules: {
                 applyJob: { points: CANDIDATE_EARN_RULES.APPLY_JOB, label: 'Nộp CV vào vị trí tuyển dụng' },
                 dailyCheckin: {
@@ -247,7 +282,8 @@ const getCandidateRewardOverview = async (userId) => {
             },
             competitionReport: COMPETITION_REPORT,
             packages: CANDIDATE_TOPUP_PACKAGES,
-            recentTransactions
+            recentTransactions,
+            transactions: formattedTransactions
         }
     };
 };
@@ -495,21 +531,44 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
                 label: 'Dưới 3 năm kinh nghiệm',
                 percent: pUnder3,
                 count: counts.under3,
-                isUserGroup: userBucket === 'under3'
+                isUserGroup: userBucket === 'under3',
+                highlight: userBucket === 'under3',
+                colorClass: '#94a3b8'
             },
             {
                 key: 'threeToFive',
                 label: '3 - 5 năm kinh nghiệm',
                 percent: pMid,
                 count: counts.threeToFive,
-                isUserGroup: userBucket === 'threeToFive'
+                isUserGroup: userBucket === 'threeToFive',
+                highlight: userBucket === 'threeToFive',
+                colorClass: '#004ac6'
             },
             {
                 key: 'over5',
                 label: 'Trên 5 năm kinh nghiệm',
                 percent: pOver5,
                 count: counts.over5,
-                isUserGroup: userBucket === 'over5'
+                isUserGroup: userBucket === 'over5',
+                highlight: userBucket === 'over5',
+                colorClass: '#6366f1'
+            }
+        ],
+        aiCorrelation: [
+            {
+                label: `Kỹ năng cốt lõi (${skillNames})`,
+                status: `${Math.round(skillRatio * 100)}% Khớp`,
+                tone: 'emerald'
+            },
+            {
+                label: `Kinh nghiệm yêu cầu (${requiredExpLabel})`,
+                status: expMatch ? `Đạt (${userExpLabel})` : `Cần bổ sung (${userExpLabel})`,
+                tone: expMatch ? 'emerald' : 'amber'
+            },
+            {
+                label: 'Mức lương đề xuất cạnh tranh',
+                status: salary.suggestedLabel,
+                tone: 'amber'
             }
         ],
         tacticalTip: `Nhóm 3-5 năm chiếm ưu thế (${pMid}%). Nêu bật kinh nghiệm thực tế với ${skillNames} trong CV sẽ giúp bạn tăng khả năng vào vòng phỏng vấn!`
@@ -568,12 +627,20 @@ const getJobCompetitionReport = async ({ postId, userId }) => {
             unlocked,
             expiresAt: activeUnlock?.expiresAt || null,
             unlockCost: COMPETITION_REPORT.unlockCost,
+            unlockCostPoints: COMPETITION_REPORT.unlockCost,
             validDays: COMPETITION_REPORT.validDays,
+            unlockTtlDays: COMPETITION_REPORT.validDays,
             walletBalance,
+            walletBalancePoints: walletBalance,
             totalApplicants: insights.totalApplicants,
             todayApplicants: insights.todayApplicants,
             targetAmount: insights.targetAmount,
+            hiringTarget: insights.targetAmount,
             competitionRatio: insights.competitionRatio,
+            expectedSalaryAvgMillion: unlocked ? insights.salaryRange.averageMillion : null,
+            expectedSalaryRangeLabel: unlocked ? insights.salaryRange.rangeLabel : null,
+            profileMatchPercent: insights.profileMatch.matchPercent,
+            profileRankLabel: insights.profileMatch.rankLabel,
             // Chi tra du lieu phan tich sau khi da mo khoa (hoac preview co ban).
             salaryRange: unlocked ? insights.salaryRange : null,
             profileMatch: unlocked ? insights.profileMatch : {
@@ -581,6 +648,7 @@ const getJobCompetitionReport = async ({ postId, userId }) => {
                 rankLabel: insights.profileMatch.rankLabel
             },
             experienceBreakdown: unlocked ? insights.experienceBreakdown : null,
+            aiCorrelation: unlocked ? insights.aiCorrelation : null,
             tacticalTip: unlocked ? insights.tacticalTip : null
         }
     };
@@ -648,6 +716,7 @@ const unlockJobCompetitionReport = async ({ postId, userId }) => {
     const report = await getJobCompetitionReport({ postId, userId });
     return {
         ...report,
+        data: report.data ? { ...report.data, report: report.data } : report.data,
         errMessage: `Đã mở khóa báo cáo cạnh tranh (-${COMPETITION_REPORT.unlockCost} Điểm)`
     };
 };
@@ -698,25 +767,47 @@ const syncHistoricalCompanyOrders = async (companyId) => {
         db.OrderPackageCV.findAll({ where: { userId: { [Op.in]: userIds } }, order: [['id', 'ASC']] })
     ]);
 
-    for (const order of postOrders) {
+    const pendingAwards = [];
+    for (const order of postOrders || []) {
         const usdTotal = (Number(order.currentPrice) || 0) * (Number(order.amount) || 1);
-        await awardEmployerPointsForPayment({
+        const sourceId = order.paymentIntentId ? `INTENT_${order.paymentIntentId}` : `HIST_POST_${order.id}`;
+        pendingAwards.push({
+            idempotencyKey: `COMPANY:PAYMENT:ORDER_POST:${sourceId}`,
             companyId,
             vndAmount: usdTotal * USD_VND_RATE,
             sourceType: 'ORDER_POST',
-            sourceId: order.paymentIntentId ? `INTENT_${order.paymentIntentId}` : `HIST_POST_${order.id}`,
+            sourceId,
             description: `Tích điểm Top Point đơn mua gói đăng tin #${order.id}`
         });
     }
-    for (const order of cvOrders) {
+    for (const order of cvOrders || []) {
         const usdTotal = (Number(order.currentPrice) || 0) * (Number(order.amount) || 1);
-        await awardEmployerPointsForPayment({
+        const sourceId = order.paymentIntentId ? `INTENT_${order.paymentIntentId}` : `HIST_CV_${order.id}`;
+        pendingAwards.push({
+            idempotencyKey: `COMPANY:PAYMENT:ORDER_CV:${sourceId}`,
             companyId,
             vndAmount: usdTotal * USD_VND_RATE,
             sourceType: 'ORDER_CV',
-            sourceId: order.paymentIntentId ? `INTENT_${order.paymentIntentId}` : `HIST_CV_${order.id}`,
+            sourceId,
             description: `Tích điểm Top Point đơn mua gói xem CV #${order.id}`
         });
+    }
+
+    if (!pendingAwards.length) return;
+
+    const existingRows = db.RewardTransaction?.findAll
+        ? await db.RewardTransaction.findAll({
+            where: { idempotencyKey: { [Op.in]: pendingAwards.map((item) => item.idempotencyKey) } },
+            attributes: ['idempotencyKey'],
+            raw: true
+        })
+        : [];
+    const existingKeys = new Set((existingRows || []).map((row) => row?.idempotencyKey).filter(Boolean));
+
+    for (const item of pendingAwards) {
+        if (!existingKeys.has(item.idempotencyKey)) {
+            await awardEmployerPointsForPayment(item);
+        }
     }
 };
 
@@ -737,6 +828,20 @@ const getEmployerRewardOverview = async (companyId) => {
     const lifetimeEarned = Number(wallet.lifetimeEarned || 0);
     const lifetimeSpent = Number(wallet.lifetimeSpent || 0);
     const tier = tierFor(EMPLOYER_REWARDS.tiers, lifetimeEarned);
+    const allowances = {
+        allowPost: Number(company.allowPost || 0),
+        allowHotPost: Number(company.allowHotPost || 0),
+        allowCv: Number(company.allowCv || 0),
+        allowCvFree: Number(company.allowCvFree || 0)
+    };
+    const redemptionCatalog = EMPLOYER_REWARDS.catalog.map((item) => ({
+        ...item,
+        costPoints: item.cost,
+        rewardField: item.allowanceField,
+        rewardAmount: item.amount,
+        description: item.description || `Cộng ngay +${item.amount} vào quỹ lượt của công ty sau khi đổi.`
+    }));
+    const formattedTransactions = formatTransactionsForClient(recentTransactions);
 
     return {
         errCode: 0,
@@ -744,14 +849,15 @@ const getEmployerRewardOverview = async (companyId) => {
             company: {
                 id: company.id,
                 name: company.name,
-                allowPost: Number(company.allowPost || 0),
-                allowHotPost: Number(company.allowHotPost || 0),
-                allowCv: Number(company.allowCv || 0),
-                allowCvFree: Number(company.allowCvFree || 0)
+                ...allowances
             },
+            allowances,
             wallet: {
                 id: wallet.id,
                 balance,
+                balancePoints: balance,
+                tierLabel: tier.name,
+                multiplier: tier.multiplier,
                 lifetimeEarned,
                 lifetimeSpent,
                 vndPerPoint: EMPLOYER_REWARDS.vndPerPoint,
@@ -760,7 +866,9 @@ const getEmployerRewardOverview = async (companyId) => {
             tier,
             tiers: EMPLOYER_REWARDS.tiers,
             catalog: EMPLOYER_REWARDS.catalog,
-            recentTransactions
+            redemptionCatalog,
+            recentTransactions,
+            transactions: formattedTransactions
         }
     };
 };

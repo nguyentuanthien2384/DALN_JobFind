@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import {
+    getCachedEmployerRewardOverview,
     getEmployerRewardOverviewService,
     notifyRewardWalletUpdated,
     redeemEmployerPointsService,
     REWARD_WALLET_UPDATED_EVENT,
+    setCachedEmployerRewardOverview,
 } from '../../../service/rewardPaymentService';
 import './EmployerRewardsSection.css';
 
@@ -44,13 +46,14 @@ const DEFAULT_EMPLOYER_CATALOG = [
 ];
 
 const EmployerRewardsSection = ({ compact = false }) => {
-    const [overview, setOverview] = useState(null);
+    const [overview, setOverview] = useState(() => getCachedEmployerRewardOverview());
     const [redeemingCode, setRedeemingCode] = useState('');
 
     const loadEmployerRewards = useCallback(async () => {
         try {
             const res = await getEmployerRewardOverviewService();
             if (res && res.errCode === 0 && res.data) {
+                setCachedEmployerRewardOverview(res.data);
                 setOverview(res.data);
             }
         } catch (_err) {

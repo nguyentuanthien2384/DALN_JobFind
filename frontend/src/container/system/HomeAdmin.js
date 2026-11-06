@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import SupportInbox from '../../components/support/SupportInbox';
 import Header from "./Header";
 import Menu from "./Menu";
@@ -61,7 +61,10 @@ import { readJsonStorage } from "../../util/storage";
 import './AdminLayout.css';
 
 const HomeAdmin = ({ user: suppliedUser }) => {
-    const user = suppliedUser || readJsonStorage("userData");
+    const user = useMemo(
+        () => suppliedUser || readJsonStorage("userData"),
+        [suppliedUser]
+    );
     const defaultRoute = getDefaultRouteForUser(user);
     const guard = (element, ...permissions) => (
         <RouteGuard user={user} anyPermissions={permissions}>

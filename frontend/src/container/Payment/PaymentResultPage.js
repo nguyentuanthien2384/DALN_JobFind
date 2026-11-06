@@ -58,9 +58,13 @@ const PaymentResultPage = () => {
                 if (res && res.errCode === 0 && res.data) {
                     setResultData(res.data);
                     setErrorMessage('');
-                    if (res.data.paid) {
-                        notifyRewardWalletUpdated({ order: res.data.order });
+                    const resolvedOrder = res.data.order || res.data;
+                    if (res.data.paid || resolvedOrder?.status === 'PAID') {
+                        notifyRewardWalletUpdated({ order: resolvedOrder });
                     }
+                } else if (res && res.data && (res.data.order || res.data.orderCode)) {
+                    setResultData(res.data);
+                    setErrorMessage('');
                 } else {
                     setErrorMessage(res?.errMessage || 'Không tìm thấy thông tin đơn thanh toán.');
                 }
@@ -89,12 +93,12 @@ const PaymentResultPage = () => {
         }
     };
 
-    const order = resultData?.order || null;
+    const order = resultData?.order || (resultData?.orderCode ? resultData : null);
     const providerKey = String(order?.provider || queryObject.provider || 'VNPAY').toUpperCase();
     const providerMeta = PROVIDER_META[providerKey] || PROVIDER_META.VNPAY;
     const requireSimAction = Boolean(resultData?.requireSimulationAction);
     const isPaid = Boolean(resultData?.paid || order?.status === 'PAID');
-    const postId = order?.metadata?.postId || null;
+    const postId = order?.metadata?.postId || queryObject.postId || null;
 
     return (
         <div className="jf-pay-result-page">

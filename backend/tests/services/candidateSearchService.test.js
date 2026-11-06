@@ -3,7 +3,8 @@ const sql = new Sequelize('test', 'test', 'test', { dialect: 'mysql', logging: f
 const model = table => ({ getTableName: () => table, findAll: jest.fn(), findAndCountAll: jest.fn() });
 const mockDb = { sequelize: sql, Skill: model('Skills'), UserSkill: model('UserSkills'),
     UserSetting: model('UserSettings'), User: model('Users'), Account: model('Accounts'),
-    Post: model('Posts'), DetailPost: model('DetailPosts'), Allcode: model('Allcodes'), Company: { findOne: jest.fn() } };
+    Post: model('Posts'), DetailPost: model('DetailPosts'), Allcode: model('Allcodes'),
+    CandidateView: model('CandidateViews'), Company: { findOne: jest.fn() } };
 jest.mock('../../src/models/index', () => mockDb);
 const { searchCandidates, parseCandidateFilters, skillsFromDescription, listCandidateSearchJobs } = require('../../src/services/candidateSearchService');
 const query = { limit: 5, offset: 0 };
@@ -12,6 +13,7 @@ beforeEach(() => {
     jest.clearAllMocks();
     mockDb.Skill.findAll.mockResolvedValue([]);
     mockDb.UserSkill.findAll.mockResolvedValue([]);
+    mockDb.CandidateView.findAll.mockResolvedValue([]);
     mockDb.UserSetting.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });
 });
 
@@ -44,9 +46,19 @@ test('rejects stale skill ids explicitly', async () => {
 
 test('returns only view counters for the authenticated company, including employer access', async () => {
     mockDb.Company.findOne.mockResolvedValue({ allowCvFree: 2, allowCv: 7, taxNumber: 'private' });
+    mockDb.UserSetting.findAndCountAll.mockResolvedValue({
+        count: 2,
+        rows: [
+            { id: 1, userId: 9, userSettingData: { id: 9, firstName: 'Lan', lastName: 'Nguyễn' } },
+            { id: 2, userId: 10, userSettingData: { id: 10, firstName: 'Minh', lastName: 'Trần' } }
+        ]
+    });
+    mockDb.CandidateView.findAll.mockResolvedValue([{ candidateId: 9, allowanceType: 'FREE', createdAt: '2026-11-06T00:00:00.000Z' }]);
     const result = await searchCandidates({ ...query, companyId: 999 }, 5);
     expect(mockDb.Company.findOne).toHaveBeenCalledWith({ where: { id: 5 }, attributes: ['allowCvFree', 'allowCv'], raw: true });
     expect(result.allowance).toEqual({ free: 2, paid: 7 });
+    expect(result.data[0]).toMatchObject({ userId: 9, isUnlocked: true, unlockedAllowanceType: 'FREE' });
+    expect(result.data[1]).toMatchObject({ userId: 10, isUnlocked: false, unlockedAllowanceType: null });
     expect(JSON.stringify(result)).not.toContain('private');
 });
 

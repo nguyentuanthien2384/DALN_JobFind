@@ -213,6 +213,7 @@ async function serve() {
         await exec(process.execPath, ['scripts/prepare-local.mjs'], { cwd: path.join(root, 'microservices'), windowsHide: true, timeout: 60000, signal: lifecycleSignal });
         await longCommand([...composeApps, 'build', 'api-gateway'], dockerEnvironment);
         await update('Khởi động backend với MySQL');
+        await exec(process.execPath, ['scripts/migrate-backend.mjs'], { cwd: root, windowsHide: true, timeout: 60000, signal: lifecycleSignal });
         await launchNode('backend', path.join(root, 'scripts/run-backend.cjs'), [], path.join(root, 'backend'), {
             ...process.env, ...backend, PORT: String(backendPort), URL_REACT: `${state.webUrl},http://127.0.0.1:${webPort}`,
             SCHEDULED_JOBS_ENABLED: 'false', EMAIL_APP: '', EMAIL_APP_PASSWORD: '',

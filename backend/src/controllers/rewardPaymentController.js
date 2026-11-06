@@ -91,7 +91,7 @@ const redeemEmployerPoints = async (req, res) => {
         const result = await rewardService.redeemEmployerPoints({
             companyId: req.user.companyId,
             userId: req.user.id,
-            itemCode: req.body?.itemCode
+            itemCode: req.body?.itemCode || req.body?.rewardCode
         });
         return res.status(200).json(result);
     } catch (error) {
@@ -135,6 +135,8 @@ const createCheckout = async (req, res) => {
             provider: req.body?.provider,
             promoCode: req.body?.promoCode,
             bankCode: req.body?.bankCode,
+            postId: req.body?.postId,
+            returnUrl: req.body?.returnUrl,
             ipAddr: getClientIp(req)
         });
         return res.status(200).json(result);

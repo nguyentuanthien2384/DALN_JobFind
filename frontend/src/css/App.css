@@ -1,5 +1,9 @@
 @import './ButtonColors.css';
 
+html {
+    scrollbar-gutter: stable;
+}
+
 .box-email-verify{
     display: flex;
     align-items: center;

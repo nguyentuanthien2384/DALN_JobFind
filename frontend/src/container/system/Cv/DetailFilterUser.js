@@ -18,7 +18,21 @@ import { Select } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 import PdfPreviewButton from "../../../components/documents/PdfPreviewButton";
 import { SESSION_ENDED_EVENT } from "../../../auth/sessionExpiry";
+import { notifyRewardWalletUpdated } from "../../../service/rewardPaymentService";
 import RecruiterAiReview from './RecruiterAiReview';
+
+const consumeStoredGrant = (candidateId) => {
+    if (!candidateId || typeof window === "undefined" || !window.sessionStorage) return null;
+    const key = `jobfind_cv_grant_${candidateId}`;
+    try {
+        const raw = window.sessionStorage.getItem(key);
+        if (!raw) return null;
+        window.sessionStorage.removeItem(key);
+        return JSON.parse(raw);
+    } catch {
+        return null;
+    }
+};
 
 const DetailFilterUser = () => {
     const [listSkills, setListSkills] = useState([]);
@@ -37,6 +51,7 @@ const DetailFilterUser = () => {
     });
     const { id } = useParams();
     const navigate = useNavigate();
+    const [viewGrant, setViewGrant] = useState(null);
     const token = localStorage.getItem('token_user');
     const sessionUser = localStorage.getItem('userData');
     const scope = JSON.stringify([id, token, sessionUser]);
@@ -95,6 +110,28 @@ const DetailFilterUser = () => {
                         toast.error(message);
                         redirect = setTimeout(() => { if (isCurrent()) navigate("/admin/list-candiate/"); }, 1000);
                         return;
+                    }
+                    const preGrant = consumeStoredGrant(id);
+                    const mergedGrant = {
+                        ...check,
+                        alreadyGranted: preGrant && preGrant.errCode === 0 ? Boolean(preGrant.alreadyGranted) : Boolean(check.alreadyGranted),
+                        chargedAllowance: preGrant?.chargedAllowance || check.chargedAllowance || null,
+                        existingAllowanceType: check.existingAllowanceType || preGrant?.existingAllowanceType || null,
+                        allowance: check.allowance || preGrant?.allowance || null,
+                    };
+                    setViewGrant(mergedGrant);
+                    if (typeof notifyRewardWalletUpdated === 'function' && mergedGrant.allowance) {
+                        notifyRewardWalletUpdated({ allowance: mergedGrant.allowance, candidateId: id });
+                    }
+                    if (!preGrant && !check.alreadyGranted && check.chargedAllowance) {
+                        const remainText = mergedGrant.allowance
+                            ? ` (Còn lại: ${mergedGrant.allowance.free} miễn phí • ${mergedGrant.allowance.paid} đã mua)`
+                            : '';
+                        toast.success(
+                            check.chargedAllowance === 'FREE'
+                                ? `Đã trừ 1 lượt xem CV miễn phí để mở khóa hồ sơ!${remainText}`
+                                : `Đã trừ 1 lượt xem CV để mở khóa hồ sơ!${remainText}`
+                        );
                     }
                     const user = await getDetailUserById(id);
                     if (!isCurrent()) return;
@@ -158,6 +195,63 @@ const DetailFilterUser = () => {
                         <h4 className="card-title">
                             Thông tin chi tiết ứng viên
                         </h4>
+
+                        {viewGrant && (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    gap: "12px",
+                                    padding: "12px 16px",
+                                    marginBottom: "18px",
+                                    borderRadius: "10px",
+                                    border: viewGrant.alreadyGranted ? "1px solid #b7eb8f" : "1px solid #91d5ff",
+                                    background: viewGrant.alreadyGranted ? "#f6ffed" : "#e6f7ff",
+                                    color: "#1f2937",
+                                    fontSize: "13px",
+                                }}
+                            >
+                                <div>
+                                    {viewGrant.alreadyGranted ? (
+                                        <span>
+                                            <strong style={{ color: "#15803d" }}>✓ Hồ sơ đã mở khóa:</strong> Công ty đã mở quyền xem ứng viên này trước đó — lần xem lại này <b>không trừ thêm lượt</b>.
+                                        </span>
+                                    ) : (
+                                        <span>
+                                            <strong style={{ color: "#0369a1" }}>✓ Đã mở khóa hồ sơ (-1 lượt xem):</strong> Công ty vừa sử dụng{" "}
+                                            <b>1 lượt xem {viewGrant.chargedAllowance === "FREE" ? "miễn phí" : "đã mua"}</b> để mở quyền xem ứng viên này. Các lần xem lại sau sẽ hoàn toàn miễn phí.
+                                        </span>
+                                    )}
+                                </div>
+                                {viewGrant.allowance && (
+                                    <div style={{ display: "flex", alignItems: "center", gap: "12px", fontWeight: 600 }}>
+                                        <span>
+                                            Lượt xem còn lại:{" "}
+                                            <span style={{ color: "#13795c" }}>{viewGrant.allowance.free} miễn phí</span> •{" "}
+                                            <span style={{ color: "#0369a1" }}>{viewGrant.allowance.paid} đã mua</span>
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate("/admin/buy-cv")}
+                                            style={{
+                                                border: "1px solid #13795c",
+                                                background: "#fff",
+                                                color: "#13795c",
+                                                borderRadius: "6px",
+                                                padding: "4px 10px",
+                                                fontSize: "12px",
+                                                fontWeight: 600,
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            + Mua thêm lượt
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* ---- Thông tin liên hệ ---- */}
                         {hoSo && hoSo.userAccountData && (

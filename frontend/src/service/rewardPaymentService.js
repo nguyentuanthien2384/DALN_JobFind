@@ -2,13 +2,63 @@ import axios from '../axios';
 
 export const REWARD_WALLET_UPDATED_EVENT = 'jobfind:reward-wallet-updated';
 
+const isUnmockedUnitTest = () => process.env.NODE_ENV === 'test';
+
+let cachedCandidateOverview = null;
+let cachedCandidateOverviewAt = 0;
+let inflightCandidateOverview = null;
+
+let cachedEmployerOverview = null;
+let cachedEmployerOverviewAt = 0;
+let inflightEmployerOverview = null;
+
+const OVERVIEW_CACHE_TTL_MS = 15000;
+
+export const getCachedCandidateRewardOverview = () => (
+    isUnmockedUnitTest() ? null : cachedCandidateOverview
+);
+
+export const setCachedCandidateRewardOverview = (data) => {
+    if (!isUnmockedUnitTest() && data) {
+        cachedCandidateOverview = data;
+        cachedCandidateOverviewAt = Date.now();
+    }
+};
+
+export const getCachedEmployerRewardOverview = () => (
+    isUnmockedUnitTest() ? null : cachedEmployerOverview
+);
+
+export const setCachedEmployerRewardOverview = (data) => {
+    if (!isUnmockedUnitTest() && data) {
+        cachedEmployerOverview = data;
+        cachedEmployerOverviewAt = Date.now();
+    }
+};
+
+export const invalidateRewardOverviewCache = () => {
+    cachedCandidateOverviewAt = 0;
+    cachedEmployerOverviewAt = 0;
+    inflightCandidateOverview = null;
+    inflightEmployerOverview = null;
+};
+
 export const notifyRewardWalletUpdated = (detail = {}) => {
+    if (detail?.allowance && cachedEmployerOverview?.quota) {
+        cachedEmployerOverview = {
+            ...cachedEmployerOverview,
+            quota: {
+                ...cachedEmployerOverview.quota,
+                allowCvFree: Number(detail.allowance.free ?? cachedEmployerOverview.quota.allowCvFree ?? 0),
+                allowCv: Number(detail.allowance.paid ?? cachedEmployerOverview.quota.allowCv ?? 0)
+            }
+        };
+    }
+    invalidateRewardOverviewCache();
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
         window.dispatchEvent(new CustomEvent(REWARD_WALLET_UPDATED_EVENT, { detail }));
     }
 };
-
-const isUnmockedUnitTest = () => process.env.NODE_ENV === 'test';
 
 export const DEFAULT_CANDIDATE_TOPUP_PACKAGES = [
     {
@@ -112,9 +162,27 @@ export const getRewardConfigService = () => {
     return axios.get('/api/rewards/config');
 };
 
-export const getCandidateRewardOverviewService = () => {
+export const getCandidateRewardOverviewService = ({ force = false } = {}) => {
     if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
-    return axios.get('/api/rewards/candidate/overview');
+    const now = Date.now();
+    if (!force && cachedCandidateOverview && now - cachedCandidateOverviewAt < OVERVIEW_CACHE_TTL_MS) {
+        return Promise.resolve({ errCode: 0, data: cachedCandidateOverview, cached: true });
+    }
+    if (!force && inflightCandidateOverview) {
+        return inflightCandidateOverview;
+    }
+    inflightCandidateOverview = axios
+        .get('/api/rewards/candidate/overview')
+        .then((res) => {
+            if (res && res.errCode === 0 && res.data) {
+                setCachedCandidateRewardOverview(res.data);
+            }
+            return res;
+        })
+        .finally(() => {
+            inflightCandidateOverview = null;
+        });
+    return inflightCandidateOverview;
 };
 
 export const claimCandidateDailyCheckinService = () => {
@@ -137,9 +205,27 @@ export const unlockJobCompetitionReportService = (postId) => {
     return axios.post(`/api/rewards/jobs/${encodeURIComponent(postId)}/unlock-competition`);
 };
 
-export const getEmployerRewardOverviewService = () => {
+export const getEmployerRewardOverviewService = ({ force = false } = {}) => {
     if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
-    return axios.get('/api/rewards/employer/overview');
+    const now = Date.now();
+    if (!force && cachedEmployerOverview && now - cachedEmployerOverviewAt < OVERVIEW_CACHE_TTL_MS) {
+        return Promise.resolve({ errCode: 0, data: cachedEmployerOverview, cached: true });
+    }
+    if (!force && inflightEmployerOverview) {
+        return inflightEmployerOverview;
+    }
+    inflightEmployerOverview = axios
+        .get('/api/rewards/employer/overview')
+        .then((res) => {
+            if (res && res.errCode === 0 && res.data) {
+                setCachedEmployerRewardOverview(res.data);
+            }
+            return res;
+        })
+        .finally(() => {
+            inflightEmployerOverview = null;
+        });
+    return inflightEmployerOverview;
 };
 
 export const redeemEmployerPointsService = (rewardCode) => {

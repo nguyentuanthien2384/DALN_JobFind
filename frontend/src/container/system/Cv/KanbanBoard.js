@@ -108,11 +108,12 @@ const KanbanBoard = () => {
                     if (mounted && res?.errCode === 0 && res.data) setCompany({ name: res.data.name || "", address: res.data.address || "" });
                 }).catch(() => {});
             }
+            const boardPromise = loadBoard("");
             const res = await getAllPostByAdminService({
                 limit: 100, offset: 0, companyId: user.companyId, search: "", censorCode: "",
             });
             if (mounted && res && res.errCode === 0) setPosts(res.data || []);
-            await loadBoard("");
+            await boardPromise;
         };
         init();
         return () => { mounted = false; };

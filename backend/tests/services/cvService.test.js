@@ -281,7 +281,9 @@ describe('cvService', () => {
       errCode: 0,
       errMessage: 'Ok',
       alreadyGranted: true,
-      chargedAllowance: null
+      chargedAllowance: null,
+      existingAllowanceType: 'FREE',
+      allowance: { free: 2, paid: 3 }
     });
     expect(company.save).not.toHaveBeenCalled();
     expect(mockDb.CandidateView.create).not.toHaveBeenCalled();
@@ -294,7 +296,7 @@ describe('cvService', () => {
     mockDb.CandidateView.findOne.mockResolvedValue(null);
 
     expect(await service.checkSeeCandiate({ companyId: 4, candidateId: 9 })).toEqual(expect.objectContaining({
-      errCode: 0, alreadyGranted: false, chargedAllowance: 'FREE'
+      errCode: 0, alreadyGranted: false, chargedAllowance: 'FREE', allowance: { free: 0, paid: 3 }
     }));
     expect(free).toEqual(expect.objectContaining({ allowCvFree: 0, allowCv: 3 }));
     expect(free.save).toHaveBeenCalledWith({ fields: ['allowCvFree'], transaction: mockTransaction });
