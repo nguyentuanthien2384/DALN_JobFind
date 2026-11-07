@@ -1,8 +1,10 @@
 import db from '../models/index';
 import rewardService from './rewardService';
+import { emitDashboardChanged } from '../config/socket';
 const {
     POINT_VALUE_VND,
     CANDIDATE_TOPUP_PACKAGES,
+    formatCandidateTopupPackages,
     USD_VND_RATE,
     loadPromoCodes
 } = require('../config/rewards');
@@ -69,7 +71,7 @@ const getPaymentCatalog = async ({ userId, companyId } = {}) => {
         errCode: 0,
         data: {
             providers: listProviders(),
-            topupPackages: CANDIDATE_TOPUP_PACKAGES,
+            topupPackages: formatCandidateTopupPackages(),
             promoCodes: promoList,
             pointValueVnd: POINT_VALUE_VND,
             usdVndRate: USD_VND_RATE,
@@ -395,6 +397,21 @@ const settleOrderPaid = async (orderCode, { transId = null } = {}) => {
             data: enrichOrderPayload(order),
             errMessage: 'Thanh toán thành công! Quyền lợi và điểm thưởng đã được cộng vào tài khoản'
         };
+    }).then(async (result) => {
+        if (result?.errCode === 0 && !result.alreadyProcessed) {
+            const purpose = result.data?.purpose;
+            if (purpose === 'PACKAGE_POST' || purpose === 'PACKAGE_CV') {
+                try {
+                    await emitDashboardChanged(
+                        purpose === 'PACKAGE_POST' ? 'payment-post' : 'payment-cv',
+                        { userId: Number(result.data.userId || 0) }
+                    );
+                } catch (err) {
+                    // Khong chan luong thanh toan khi socket dashboard ban.
+                }
+            }
+        }
+        return result;
     });
 };
 

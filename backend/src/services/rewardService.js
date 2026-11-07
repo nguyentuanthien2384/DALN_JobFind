@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 const {
     POINT_VALUE_VND,
     CANDIDATE_TOPUP_PACKAGES,
+    formatCandidateTopupPackages,
     CANDIDATE_EARN_RULES,
     COMPETITION_REPORT,
     CANDIDATE_TIERS,
@@ -282,6 +283,7 @@ const getCandidateRewardOverview = async (userId) => {
             },
             competitionReport: COMPETITION_REPORT,
             packages: CANDIDATE_TOPUP_PACKAGES,
+            topupPackages: formatCandidateTopupPackages(),
             recentTransactions,
             transactions: formattedTransactions
         }
@@ -450,7 +452,10 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
     const settings = applicantIds.length && db.UserSetting?.findAll
         ? await db.UserSetting.findAll({
             where: { userId: { [Op.in]: applicantIds } },
-            include: db.Allcode ? [{ model: db.Allcode, as: 'expTypeSettingData', attributes: ['code', 'value'] }] : []
+            attributes: ['userId', 'experienceJobCode'],
+            include: db.Allcode ? [{ model: db.Allcode, as: 'expTypeSettingData', attributes: ['code', 'value'] }] : [],
+            raw: true,
+            nest: true
         })
         : [];
 
@@ -482,7 +487,10 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
         userId && db.UserSkill?.findAll ? db.UserSkill.findAll({ where: { UserId: userId } }) : [],
         userId && db.UserSetting?.findOne ? db.UserSetting.findOne({
             where: { userId },
-            include: db.Allcode ? [{ model: db.Allcode, as: 'expTypeSettingData', attributes: ['code', 'value'] }] : []
+            attributes: ['userId', 'experienceJobCode', 'categoryJobCode', 'salaryJobCode', 'addressCode'],
+            include: db.Allcode ? [{ model: db.Allcode, as: 'expTypeSettingData', attributes: ['code', 'value'] }] : [],
+            raw: true,
+            nest: true
         }) : null
     ]);
 
@@ -585,7 +593,9 @@ const loadPostWithDetail = (postId) => db.Post.findOne({
             { model: db.Allcode, as: 'salaryTypePostData', attributes: ['value', 'code'] },
             { model: db.Allcode, as: 'expTypePostData', attributes: ['value', 'code'] }
         ]
-    }]
+    }],
+    raw: true,
+    nest: true
 });
 
 const getJobCompetitionReport = async ({ postId, userId }) => {
@@ -910,7 +920,8 @@ const redeemEmployerPoints = async ({ companyId, userId, itemCode }) => {
                 allowances: {
                     allowPost: Number(company.allowPost || 0),
                     allowHotPost: Number(company.allowHotPost || 0),
-                    allowCv: Number(company.allowCv || 0)
+                    allowCv: Number(company.allowCv || 0),
+                    allowCvFree: Number(company.allowCvFree || 0)
                 }
             }
         };

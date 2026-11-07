@@ -7,6 +7,7 @@ import {
     getDetailPostByIdService,
     getDetailCompanyByUserId,
 } from "../../../service/userService";
+import { subscribeRewardWalletUpdated } from "../../../service/rewardPaymentService";
 import MarkdownIt from "markdown-it";
 import MdEditor from "react-markdown-editor-lite";
 import "react-markdown-editor-lite/lib/index.css";
@@ -188,6 +189,15 @@ const AddPost = () => {
         }
         return () => { active = false; viewEpoch.current += 1; };
     }, [fetchCompany, id, reloadVersion]);
+
+    useEffect(() => {
+        if (id || !user?.id || user?.roleCode === "ADMIN" || typeof subscribeRewardWalletUpdated !== "function") {
+            return undefined;
+        }
+        return subscribeRewardWalletUpdated(() => {
+            fetchCompany(user.id, user.companyId).catch(() => {});
+        });
+    }, [fetchCompany, id, user?.companyId, user?.id, user?.roleCode]);
 
     const { data: dataGenderPost } = useFetchAllcode("GENDERPOST");
     const { data: dataJobType } = useFetchAllcode("JOBTYPE");

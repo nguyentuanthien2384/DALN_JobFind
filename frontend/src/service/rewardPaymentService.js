@@ -44,14 +44,23 @@ export const invalidateRewardOverviewCache = () => {
 };
 
 export const notifyRewardWalletUpdated = (detail = {}) => {
-    if (detail?.allowance && cachedEmployerOverview?.quota) {
+    if (cachedEmployerOverview?.allowances && (detail?.allowance || detail?.allowances)) {
+        const nextAllowances = {
+            ...cachedEmployerOverview.allowances,
+            ...(detail.allowances || {}),
+            ...(detail.allowance
+                ? {
+                    allowCvFree: Number(detail.allowance.free ?? cachedEmployerOverview.allowances.allowCvFree ?? 0),
+                    allowCv: Number(detail.allowance.paid ?? cachedEmployerOverview.allowances.allowCv ?? 0),
+                }
+                : {}),
+        };
         cachedEmployerOverview = {
             ...cachedEmployerOverview,
-            quota: {
-                ...cachedEmployerOverview.quota,
-                allowCvFree: Number(detail.allowance.free ?? cachedEmployerOverview.quota.allowCvFree ?? 0),
-                allowCv: Number(detail.allowance.paid ?? cachedEmployerOverview.quota.allowCv ?? 0)
-            }
+            allowances: nextAllowances,
+            company: cachedEmployerOverview.company
+                ? { ...cachedEmployerOverview.company, ...nextAllowances }
+                : cachedEmployerOverview.company,
         };
     }
     invalidateRewardOverviewCache();
@@ -72,12 +81,15 @@ export const DEFAULT_CANDIDATE_TOPUP_PACKAGES = [
     {
         code: 'BASIC',
         name: 'Gói Khởi Đầu (Basic)',
-        points: 20,
-        xu: 20000,
+        points: 22,
+        totalPoints: 22,
+        basePoints: 20,
+        bonusPoints: 2,
+        xu: 22000,
         priceVnd: 20000,
-        originalPriceVnd: 20000,
-        discountPercent: 0,
-        badge: null,
+        originalPriceVnd: 22000,
+        discountPercent: 9,
+        badge: 'Tặng +2 Điểm (Tổng 22 Điểm)',
         featured: false,
         perks: [
             'Mở khóa 02 báo cáo phân tích đối thủ',
@@ -87,49 +99,58 @@ export const DEFAULT_CANDIDATE_TOPUP_PACKAGES = [
     {
         code: 'STANDARD',
         name: 'Gói Tiêu Chuẩn (Standard)',
-        points: 50,
-        xu: 50000,
-        priceVnd: 45000,
-        originalPriceVnd: 50000,
-        discountPercent: 10,
-        badge: 'PHỔ BIẾN NHẤT',
+        points: 60,
+        totalPoints: 60,
+        basePoints: 50,
+        bonusPoints: 10,
+        xu: 60000,
+        priceVnd: 50000,
+        originalPriceVnd: 60000,
+        discountPercent: 17,
+        badge: 'PHỔ BIẾN NHẤT (+10 Điểm)',
         featured: true,
         perks: [
-            'Mở khóa 05 báo cáo phân tích cạnh tranh',
+            'Mở khóa 06 báo cáo phân tích cạnh tranh',
             'Đẩy Top hồ sơ ứng viên 03 lần',
-            'Tặng thêm 5.000 Xu vào ví thưởng',
+            'Tặng thêm 10 Điểm (10.000 Xu) vào ví thưởng',
         ],
     },
     {
         code: 'PRO',
         name: 'Gói Tăng Tốc (Pro)',
-        points: 100,
-        xu: 100000,
-        priceVnd: 85000,
-        originalPriceVnd: 100000,
-        discountPercent: 15,
-        badge: 'TIẾT KIỆM 15%',
+        points: 130,
+        totalPoints: 130,
+        basePoints: 100,
+        bonusPoints: 30,
+        xu: 130000,
+        priceVnd: 100000,
+        originalPriceVnd: 130000,
+        discountPercent: 23,
+        badge: 'Tặng +30 Điểm (Tổng 130 Điểm)',
         featured: false,
         perks: [
-            'Mở khóa 10 báo cáo phân tích chuyên sâu',
+            'Mở khóa 13 báo cáo phân tích chuyên sâu',
             'Ưu tiên hiển thị CV với Nhà tuyển dụng (7 ngày)',
             'Miễn phí 01 lần AI Review CV chi tiết',
         ],
     },
     {
         code: 'PREMIUM',
-        name: 'Gói Chuyên Nghiệp (VIP)',
-        points: 200,
-        xu: 200000,
-        priceVnd: 160000,
-        originalPriceVnd: 200000,
-        discountPercent: 20,
-        badge: 'Lên thẳng Hạng Vàng',
+        name: 'Gói Cao Cấp (VIP)',
+        points: 280,
+        totalPoints: 280,
+        basePoints: 200,
+        bonusPoints: 80,
+        xu: 280000,
+        priceVnd: 200000,
+        originalPriceVnd: 280000,
+        discountPercent: 29,
+        badge: 'Tặng +80 Điểm & Đẩy Top CV',
         featured: false,
         perks: [
-            'Mở khóa 20 báo cáo + Xem mức lương đối thủ',
+            'Mở khóa 28 báo cáo + Xem mức lương đối thủ',
             'Đặc quyền Huy hiệu Ứng viên Kim Cương (30 ngày)',
-            'Hoàn thêm 10% Điểm cho các lần nạp tiếp theo',
+            'Tặng thêm 80 Điểm thưởng vào ví ngay lập tức',
         ],
     },
 ];

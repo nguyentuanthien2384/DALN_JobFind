@@ -1,6 +1,6 @@
 import rewardService from '../services/rewardService';
 import paymentOrderService from '../services/paymentOrderService';
-import { emitDashboardChanged } from '../config/socket';
+import { PERMISSIONS, ROLES, getRoleCode, isPermissionGranted } from '../middlewares/authorize';
 
 const getClientIp = (req) => (
     req.headers?.['x-forwarded-for']
@@ -9,8 +9,21 @@ const getClientIp = (req) => (
     || '127.0.0.1'
 );
 
+const requireCandidateAccess = (req, res) => {
+    const roleCode = getRoleCode(req);
+    if (roleCode && roleCode !== ROLES.CANDIDATE && roleCode !== ROLES.ADMIN) {
+        res.status(403).json({
+            errCode: 3,
+            errMessage: 'Tính năng tích điểm ứng viên chỉ dành cho tài khoản Ứng viên'
+        });
+        return false;
+    }
+    return true;
+};
+
 const getCandidateOverview = async (req, res) => {
     try {
+        if (!requireCandidateAccess(req, res)) return undefined;
         const result = await rewardService.getCandidateRewardOverview(req.user.id);
         return res.status(200).json(result);
     } catch (error) {
@@ -20,6 +33,7 @@ const getCandidateOverview = async (req, res) => {
 
 const getCandidateTransactions = async (req, res) => {
     try {
+        if (!requireCandidateAccess(req, res)) return undefined;
         const result = await rewardService.getCandidateTransactions({
             userId: req.user.id,
             limit: req.query?.limit,
@@ -33,6 +47,7 @@ const getCandidateTransactions = async (req, res) => {
 
 const claimDailyCheckin = async (req, res) => {
     try {
+        if (!requireCandidateAccess(req, res)) return undefined;
         const result = await rewardService.claimDailyCheckin(req.user.id);
         return res.status(200).json(result);
     } catch (error) {
@@ -42,6 +57,7 @@ const claimDailyCheckin = async (req, res) => {
 
 const claimProfileComplete = async (req, res) => {
     try {
+        if (!requireCandidateAccess(req, res)) return undefined;
         const result = await rewardService.claimProfileCompleteBonus(req.user.id);
         return res.status(200).json(result);
     } catch (error) {
@@ -64,6 +80,7 @@ const getCompetitionReport = async (req, res) => {
 
 const unlockCompetitionReport = async (req, res) => {
     try {
+        if (!requireCandidateAccess(req, res)) return undefined;
         const postId = req.params?.postId || req.body?.postId;
         const result = await rewardService.unlockJobCompetitionReport({
             postId,
@@ -126,6 +143,24 @@ const previewPromoCode = async (req, res) => {
 
 const createCheckout = async (req, res) => {
     try {
+        const normalizedPurpose = String(req.body?.purpose || 'POINT_TOPUP').trim().toUpperCase();
+        const roleCode = getRoleCode(req);
+        if (normalizedPurpose === 'PACKAGE_POST' || normalizedPurpose === 'PACKAGE_CV') {
+            if (roleCode && !isPermissionGranted(req, PERMISSIONS.PACKAGE_PURCHASE)) {
+                return res.status(403).json({
+                    errCode: 3,
+                    errMessage: 'Bạn không có quyền thực hiện thao tác này'
+                });
+            }
+        } else if (normalizedPurpose === 'POINT_TOPUP') {
+            if (roleCode && roleCode !== ROLES.CANDIDATE && roleCode !== ROLES.ADMIN) {
+                return res.status(403).json({
+                    errCode: 3,
+                    errMessage: 'Tính năng nạp điểm chỉ dành cho tài khoản Ứng viên'
+                });
+            }
+        }
+
         const result = await paymentOrderService.createCheckout({
             userId: req.user.id,
             companyId: req.user.companyId,
@@ -153,19 +188,6 @@ const verifyPaymentReturn = async (req, res) => {
             provider: params.provider,
             params
         });
-        if (result?.errCode === 0 && !result.alreadyProcessed && !result.requireSimulationAction) {
-            const purpose = result.data?.purpose;
-            if (purpose === 'PACKAGE_POST' || purpose === 'PACKAGE_CV') {
-                try {
-                    await emitDashboardChanged(
-                        purpose === 'PACKAGE_POST' ? 'payment-post' : 'payment-cv',
-                        { userId: req.user.id }
-                    );
-                } catch (err) {
-                    // Khong chan phan hoi thanh toan khi socket dashboard ban.
-                }
-            }
-        }
         return res.status(200).json(result);
     } catch (error) {
         return res.status(200).json({ errCode: -1, errMessage: 'Error from server' });

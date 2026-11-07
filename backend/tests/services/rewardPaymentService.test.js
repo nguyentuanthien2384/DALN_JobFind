@@ -545,20 +545,32 @@ describe('rewardService & paymentOrderService', () => {
         mockDb.Post.findOne.mockResolvedValue({ id: 12, postDetailData: { name: 'Dev', amount: 1 } });
         mockDb.PaymentOrder.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });
 
+        const candidateUser = {
+            id: 7,
+            companyId: null,
+            userAccountData: { roleCode: 'CANDIDATE' }
+        };
+        const companyOwnerUser = {
+            id: 9,
+            companyId: 4,
+            userCompanyData: { id: 4, statusCode: 'S1', censorCode: 'CS1' },
+            userAccountData: { roleCode: 'COMPANY' }
+        };
+
         const calls = [
-            () => controller.getCandidateOverview(createRequest(), createResponse()),
-            () => controller.getCandidateTransactions(createRequest({ query: { limit: 5 } }), createResponse()),
-            () => controller.claimDailyCheckin(createRequest(), createResponse()),
-            () => controller.claimProfileComplete(createRequest(), createResponse()),
-            () => controller.getCompetitionReport(createRequest({ params: { postId: 12 } }), createResponse()),
-            () => controller.unlockCompetitionReport(createRequest({ params: { postId: 12 } }), createResponse()),
-            () => controller.getEmployerOverview(createRequest({ user: { id: 9, companyId: 4 } }), createResponse()),
-            () => controller.redeemEmployerPoints(createRequest({ user: { id: 9, companyId: 4 }, body: { itemCode: 'CV_5' } }), createResponse()),
-            () => controller.getPaymentCatalog(createRequest({ user: { id: 7, companyId: 4 } }), createResponse()),
+            () => controller.getCandidateOverview(createRequest({ user: candidateUser }), createResponse()),
+            () => controller.getCandidateTransactions(createRequest({ user: candidateUser, query: { limit: 5 } }), createResponse()),
+            () => controller.claimDailyCheckin(createRequest({ user: candidateUser }), createResponse()),
+            () => controller.claimProfileComplete(createRequest({ user: candidateUser }), createResponse()),
+            () => controller.getCompetitionReport(createRequest({ user: candidateUser, params: { postId: 12 } }), createResponse()),
+            () => controller.unlockCompetitionReport(createRequest({ user: candidateUser, params: { postId: 12 } }), createResponse()),
+            () => controller.getEmployerOverview(createRequest({ user: companyOwnerUser }), createResponse()),
+            () => controller.redeemEmployerPoints(createRequest({ user: companyOwnerUser, body: { itemCode: 'CV_5' } }), createResponse()),
+            () => controller.getPaymentCatalog(createRequest({ user: candidateUser }), createResponse()),
             () => controller.previewPromoCode(createRequest({ body: { promoCode: 'VNPAY5K', provider: 'VNPAY', amountVnd: 50000 } }), createResponse()),
-            () => controller.createCheckout(createRequest({ body: { purpose: 'POINT_TOPUP', itemCode: 'BASIC', provider: 'VNPAY' } }), createResponse()),
-            () => controller.verifyPaymentReturn(createRequest({ query: { order: 'JF500', provider: 'VNPAY' } }), createResponse()),
-            () => controller.getPaymentOrders(createRequest({ query: { scope: 'user' } }), createResponse()),
+            () => controller.createCheckout(createRequest({ user: candidateUser, body: { purpose: 'POINT_TOPUP', itemCode: 'BASIC', provider: 'VNPAY' } }), createResponse()),
+            () => controller.verifyPaymentReturn(createRequest({ user: companyOwnerUser, query: { order: 'JF500', provider: 'VNPAY' } }), createResponse()),
+            () => controller.getPaymentOrders(createRequest({ user: candidateUser, query: { scope: 'user' } }), createResponse()),
             () => controller.vnpayIpn(createRequest({ query: {} }), createResponse()),
             () => controller.momoIpn(createRequest({ body: {} }), createResponse()),
             () => controller.zalopayCallback(createRequest({ body: {} }), createResponse()),
@@ -567,5 +579,31 @@ describe('rewardService & paymentOrderService', () => {
         for (const fn of calls) {
             await fn();
         }
+
+        // RBAC enforcement checks across roles
+        const forbiddenCandidateEndpoint = createResponse();
+        await controller.claimDailyCheckin(createRequest({ user: companyOwnerUser }), forbiddenCandidateEndpoint);
+        expect(forbiddenCandidateEndpoint.status).toHaveBeenCalledWith(403);
+
+        const forbiddenTopupForEmployer = createResponse();
+        await controller.createCheckout(
+            createRequest({ user: companyOwnerUser, body: { purpose: 'POINT_TOPUP', itemCode: 'BASIC', provider: 'VNPAY' } }),
+            forbiddenTopupForEmployer
+        );
+        expect(forbiddenTopupForEmployer.status).toHaveBeenCalledWith(403);
+
+        const forbiddenPackageForCandidate = createResponse();
+        await controller.createCheckout(
+            createRequest({ user: candidateUser, body: { purpose: 'PACKAGE_POST', itemCode: 5, provider: 'MOMO' } }),
+            forbiddenPackageForCandidate
+        );
+        expect(forbiddenPackageForCandidate.status).toHaveBeenCalledWith(403);
+
+        const forbiddenPackageForSubEmployer = createResponse();
+        await controller.createCheckout(
+            createRequest({ body: { purpose: 'PACKAGE_CV', itemCode: 2, provider: 'VNPAY' } }),
+            forbiddenPackageForSubEmployer
+        );
+        expect(forbiddenPackageForSubEmployer.status).toHaveBeenCalledWith(403);
     });
 });

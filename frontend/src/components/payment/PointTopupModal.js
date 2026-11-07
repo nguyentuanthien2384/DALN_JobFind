@@ -10,11 +10,11 @@ import {
 import './PointTopupModal.css';
 
 const PROMO_CATALOG = {
-    VNPAY5K: { discountVnd: 5000, provider: 'VNPAY', label: 'Khuyến mãi VNPAY-QR (-5.000đ)' },
-    ARCHITECT5K: { discountVnd: 5000, provider: null, label: 'Mã ưu đãi ARCHITECT5K (-5.000đ)' },
-    MOMO5K: { discountVnd: 5000, provider: 'MOMO', label: 'Ưu đãi Ví MoMo (-5.000đ)' },
-    ZALOPAY5K: { discountVnd: 5000, provider: 'ZALOPAY', label: 'Ưu đãi Ví ZaloPay (-5.000đ)' },
-    JOBFIND10K: { discountVnd: 10000, provider: null, minAmountVnd: 80000, label: 'Ưu đãi JOBFIND10K (-10.000đ)' },
+    VNPAY5K: { discountVnd: 5000, provider: 'VNPAY', minAmountVnd: 20000, label: 'Khuyến mãi VNPAY-QR (-5.000đ)' },
+    ARCHITECT5K: { discountVnd: 5000, provider: null, minAmountVnd: 20000, label: 'Mã ưu đãi ARCHITECT5K (-5.000đ)' },
+    MOMO5K: { discountVnd: 5000, provider: 'MOMO', minAmountVnd: 20000, label: 'Ưu đãi Ví MoMo (-5.000đ)' },
+    ZALOPAY5K: { discountVnd: 5000, provider: 'ZALOPAY', minAmountVnd: 20000, label: 'Ưu đãi Ví ZaloPay (-5.000đ)' },
+    JOBFIND10K: { discountVnd: 10000, provider: null, minAmountVnd: 50000, label: 'Ưu đãi JOBFIND10K (-10.000đ)' },
 };
 
 const GATEWAY_METHODS = [
@@ -119,7 +119,17 @@ const PointTopupModal = ({
     }, [localWallet]);
 
     const selectedPkg = useMemo(() => {
-        return packages.find((pkg) => pkg.code === selectedPkgCode) || packages[1] || packages[0];
+        const found = packages.find((pkg) => pkg.code === selectedPkgCode) || packages[1] || packages[0];
+        if (!found) return DEFAULT_CANDIDATE_TOPUP_PACKAGES[1];
+        const totalPoints = Number(found.totalPoints ?? found.points ?? 0);
+        const priceVnd = Number(found.priceVnd ?? found.price ?? 0);
+        return {
+            ...found,
+            points: totalPoints,
+            xu: Number(found.xu || totalPoints * 1000),
+            priceVnd,
+            originalPriceVnd: Number(found.originalPriceVnd || totalPoints * 1000 || priceVnd),
+        };
     }, [packages, selectedPkgCode]);
 
     const discountInfo = useMemo(() => {

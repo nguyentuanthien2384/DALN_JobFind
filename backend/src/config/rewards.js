@@ -13,11 +13,33 @@ const POINT_VALUE_VND = 1000;
 
 // Goi nap diem cho ung vien (gia VND). bonus = diem tang them.
 const CANDIDATE_TOPUP_PACKAGES = Object.freeze([
-    { code: 'BASIC', name: 'Gói Cơ Bản', price: 20000, points: 20, bonus: 2, badge: '+2 Điểm thưởng' },
-    { code: 'STANDARD', name: 'Gói Tiêu Chuẩn', price: 50000, points: 50, bonus: 10, popular: true, badge: 'Tặng +10 Điểm (Tổng 60 Điểm)' },
-    { code: 'PRO', name: 'Gói Chuyên Nghiệp', price: 100000, points: 100, bonus: 30, badge: '+30 Điểm (Tổng 130 Điểm)' },
-    { code: 'PREMIUM', name: 'Gói Cao Cấp', price: 200000, points: 200, bonus: 80, badge: 'Tặng 1 lượt Đẩy Top CV', perk: 'TOP_CV_BOOST' }
+    { code: 'BASIC', name: 'Gói Khởi Đầu (Basic)', price: 20000, points: 20, bonus: 2, badge: 'Tặng +2 Điểm (Tổng 22 Điểm)' },
+    { code: 'STANDARD', name: 'Gói Tiêu Chuẩn (Standard)', price: 50000, points: 50, bonus: 10, popular: true, badge: 'PHỔ BIẾN NHẤT (+10 Điểm)' },
+    { code: 'PRO', name: 'Gói Tăng Tốc (Pro)', price: 100000, points: 100, bonus: 30, badge: 'Tặng +30 Điểm (Tổng 130 Điểm)' },
+    { code: 'PREMIUM', name: 'Gói Cao Cấp (VIP)', price: 200000, points: 200, bonus: 80, badge: 'Tặng +80 Điểm & Đẩy Top CV', perk: 'TOP_CV_BOOST' }
 ]);
+
+const formatCandidateTopupPackages = () => CANDIDATE_TOPUP_PACKAGES.map((pkg) => {
+    const basePoints = Number(pkg.points) || 0;
+    const bonusPoints = Number(pkg.bonus) || 0;
+    const totalPoints = basePoints + bonusPoints;
+    const originalValueVnd = totalPoints * POINT_VALUE_VND;
+    const discountPercent = originalValueVnd > pkg.price
+        ? Math.round(((originalValueVnd - pkg.price) / originalValueVnd) * 100)
+        : 0;
+    return {
+        ...pkg,
+        basePoints,
+        bonusPoints,
+        points: totalPoints,
+        totalPoints,
+        xu: totalPoints * POINT_VALUE_VND,
+        priceVnd: pkg.price,
+        originalPriceVnd: originalValueVnd,
+        discountPercent,
+        featured: Boolean(pkg.popular)
+    };
+});
 
 // Cach nhan diem mien phi cho ung vien.
 const CANDIDATE_EARN_RULES = Object.freeze({
@@ -97,6 +119,7 @@ const tierFor = (tiers, points) => {
 module.exports = {
     POINT_VALUE_VND,
     CANDIDATE_TOPUP_PACKAGES,
+    formatCandidateTopupPackages,
     CANDIDATE_EARN_RULES,
     COMPETITION_REPORT,
     CANDIDATE_TIERS,

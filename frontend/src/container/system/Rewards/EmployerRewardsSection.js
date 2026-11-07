@@ -13,35 +13,35 @@ import './EmployerRewardsSection.css';
 const DEFAULT_EMPLOYER_CATALOG = [
     {
         code: 'POST_1',
-        name: 'Đổi 01 lượt đăng tin tiêu chuẩn',
-        costPoints: 20,
+        name: '1 lượt đăng tin thường',
+        costPoints: 3,
         rewardField: 'allowPost',
         rewardAmount: 1,
         description: 'Cộng ngay +1 lượt đăng bài tuyển dụng tiêu chuẩn cho công ty.',
     },
     {
         code: 'HOT_POST_1',
-        name: 'Đổi 01 lượt đăng tin nổi bật (Hot)',
-        costPoints: 45,
+        name: '1 lượt đăng tin nổi bật',
+        costPoints: 6,
         rewardField: 'allowHotPost',
         rewardAmount: 1,
         description: 'Cộng ngay +1 lượt đăng tin nổi bật ưu tiên hiển thị đầu trang.',
     },
     {
         code: 'CV_5',
-        name: 'Đổi 05 lượt mở khóa hồ sơ ứng viên',
-        costPoints: 30,
+        name: '5 lượt xem hồ sơ ứng viên',
+        costPoints: 4,
         rewardField: 'allowCv',
         rewardAmount: 5,
         description: 'Cộng ngay +5 lượt xem và tìm kiếm CV ứng viên tiềm năng.',
     },
     {
         code: 'CV_20',
-        name: 'Đổi gói 20 lượt mở khóa hồ sơ (Tiết kiệm)',
-        costPoints: 100,
+        name: '20 lượt xem hồ sơ ứng viên',
+        costPoints: 14,
         rewardField: 'allowCv',
         rewardAmount: 20,
-        description: 'Cộng ngay +20 lượt mở khóa CV ứng viên (Tiết kiệm 20 Top Point).',
+        description: 'Cộng ngay +20 lượt mở khóa CV ứng viên (Tiết kiệm 2 Top Point).',
     },
 ];
 
@@ -82,7 +82,17 @@ const EmployerRewardsSection = ({ compact = false }) => {
             if (res && res.errCode === 0) {
                 toast.success(res.errMessage || 'Đổi quà Top Point thành công!');
                 await loadEmployerRewards();
-                notifyRewardWalletUpdated({ redeemed: rewardCode });
+                const nextAllowances = res.data?.allowances;
+                notifyRewardWalletUpdated({
+                    redeemed: rewardCode,
+                    allowances: nextAllowances,
+                    allowance: nextAllowances
+                        ? {
+                            free: Number(nextAllowances.allowCvFree ?? overview?.allowances?.allowCvFree ?? 0),
+                            paid: Number(nextAllowances.allowCv ?? 0),
+                        }
+                        : undefined,
+                });
             } else {
                 toast.warning(res?.errMessage || 'Số dư Top Point chưa đủ để đổi phần quà này.');
             }

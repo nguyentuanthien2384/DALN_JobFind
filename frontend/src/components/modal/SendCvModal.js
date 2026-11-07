@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { Modal, ModalFooter, ModalBody, Button } from 'reactstrap';
 import { createNewCv } from '../../service/cvService';
+import { notifyRewardWalletUpdated } from '../../service/rewardPaymentService';
 import { applicationPdf, MAX_APPLICATION_PDF_BYTES, APPLICATION_PDF_TOO_LARGE, APPLICATION_PDF_INVALID } from '../../service/applicationPdf';
 import CommonUtils from '../../util/CommonUtils';
 import { readJsonStorage } from '../../util/storage';
@@ -54,7 +55,13 @@ function ApplicationForm({ user, token, postId, jobTitle, onHide, onSubmitted })
         try { response = await createNewCv(payload); } catch { response = null; }
         if (!current()) return;
         sending.current = false; setIsLoading(false);
-        if (response?.errCode === 0 && !(response.httpStatus >= 400)) { toast.success('Đã gửi thành công'); onSubmitted?.(); onHide(); return; }
+        if (response?.errCode === 0 && !(response.httpStatus >= 400)) {
+            notifyRewardWalletUpdated({ submittedPostId: postId });
+            toast.success('Đã gửi thành công');
+            onSubmitted?.();
+            onHide();
+            return;
+        }
         const message = response?.errCode === 5 ? 'Bạn đã ứng tuyển tin này. Hãy kiểm tra CV trong Công việc đã nộp.'
             : !response || response.errCode === -1 || response.httpStatus >= 500
                 ? 'Chưa xác nhận được việc nộp hồ sơ. Kiểm tra Công việc đã nộp trước khi gửi lại.' : response.errMessage || 'Gửi thất bại';

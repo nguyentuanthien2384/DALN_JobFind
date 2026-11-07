@@ -114,6 +114,12 @@ const FilterCv = () => {
         return subscribeRewardWalletUpdated((event) => {
             if (event?.detail?.allowance) {
                 setAllowance(event.detail.allowance);
+            } else if (
+                event?.detail?.paidOrder?.purpose === 'PACKAGE_CV'
+                || event?.detail?.redeemed === 'CV_5'
+                || event?.detail?.redeemed === 'CV_20'
+            ) {
+                setRetry((value) => value + 1);
             }
         });
     }, []);

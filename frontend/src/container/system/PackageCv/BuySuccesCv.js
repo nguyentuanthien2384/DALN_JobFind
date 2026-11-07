@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { paymentOrderSuccessServiceCv } from "../../../service/userService";
+import { notifyRewardWalletUpdated } from "../../../service/rewardPaymentService";
 import { useLocation, useNavigate } from "react-router-dom";
 import { readJsonStorage } from "../../../util/storage";
 
@@ -44,6 +45,7 @@ function PaymentSuccessCv() {
                 if (res?.errCode === 0) {
                     toast.success(res.errMessage || "Thanh toán thành công");
                     localStorage.removeItem("orderCvData");
+                    notifyRewardWalletUpdated({ paidOrder: { purpose: "PACKAGE_CV", provider: "PAYPAL" } });
                     setStatus("success");
                     setMessage("Chúc mừng bạn đã mua lượt tìm ứng viên thành công");
                     return;

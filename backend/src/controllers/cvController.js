@@ -1,4 +1,5 @@
 import cvService from '../services/cvService';
+import rewardService from '../services/rewardService';
 import db from '../models/index';
 import { emitDashboardChanged } from '../config/socket';
 import {
@@ -26,6 +27,10 @@ let handleCreateNewCV = async (req, res) => {
         });
         // Ung vien vua nop CV -> bang "so luong CV" ben nha tuyen dung phai doi ngay.
         if (data.errCode === 0) {
+            await rewardService.awardCandidateApplicationPoints({
+                userId: req.user.id,
+                postId: req.body.postId
+            }).catch(() => null);
             try { await emitDashboardChanged('cv', { postId: req.body.postId }); }
             catch { console.error('Không gửi được tín hiệu dashboard sau khi lưu hồ sơ'); }
         }

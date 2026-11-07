@@ -227,7 +227,7 @@ const PaymentResultPage = () => {
                                 <p style={{ margin: 0, fontSize: '13.5px', color: '#475569' }}>
                                     {isPaid
                                         ? 'Quyền lợi gói dịch vụ và Điểm thưởng đã được kích hoạt tự động vào tài khoản của bạn.'
-                                        : 'Chưa phát sinh扣 tiền hoặc đơn hàng đã được hủy theo yêu cầu.'}
+                                        : 'Chưa phát sinh trừ tiền hoặc đơn hàng đã được hủy theo yêu cầu.'}
                                 </p>
                             </div>
 
