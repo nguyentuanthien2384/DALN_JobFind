@@ -1,13 +1,14 @@
-// ===== MOMO (API v2 captureWallet, sandbox mac dinh) =====
-// Tham khao Class-Payment-MOMO: chuoi ky HMAC-SHA256 phai dung DUNG thu tu khoa theo tai lieu MoMo.
+// ===== MOMO (API v2 payWithMethod / captureWallet, sandbox mac dinh) =====
+// Mac dinh dung requestType = 'payWithMethod' de cho phep nhap the ATM NAPAS / Visa dung thu
+// ngay tren trinh duyet (khong bat buoc cai app MoMo Test tren dien thoai).
 const { hmacHex, safeEqual, getPublicBackendUrl, getPaymentReturnUrl, postJson } = require('./common');
 
 const config = () => ({
-    partnerCode: process.env.MOMO_PARTNER_CODE || '',
-    accessKey: process.env.MOMO_ACCESS_KEY || '',
-    secretKey: process.env.MOMO_SECRET_KEY || '',
+    partnerCode: String(process.env.MOMO_PARTNER_CODE || '').trim(),
+    accessKey: String(process.env.MOMO_ACCESS_KEY || '').trim(),
+    secretKey: String(process.env.MOMO_SECRET_KEY || '').trim(),
     endpoint: process.env.MOMO_ENDPOINT || 'https://test-payment.momo.vn/v2/gateway/api/create',
-    requestType: process.env.MOMO_REQUEST_TYPE || 'captureWallet',
+    requestType: process.env.MOMO_REQUEST_TYPE || 'payWithMethod',
     redirectUrl: process.env.MOMO_RETURN_URL || getPaymentReturnUrl('MOMO'),
     ipnUrl: process.env.MOMO_IPN_URL || `${getPublicBackendUrl()}/api/payments/momo/ipn`
 });
@@ -25,8 +26,13 @@ const resultSignatureRaw = (accessKey, b) => `accessKey=${accessKey}&amount=${b.
     + `&requestId=${b.requestId ?? ''}&responseTime=${b.responseTime ?? ''}&resultCode=${b.resultCode ?? ''}`
     + `&transId=${b.transId ?? ''}`;
 
-const createPayment = async ({ orderCode, amount, orderInfo }) => {
+const createPayment = async ({ orderCode, amount, orderInfo, postId }) => {
     const cfg = config();
+    let redirectUrl = cfg.redirectUrl;
+    if (!process.env.MOMO_RETURN_URL) {
+        redirectUrl += `${redirectUrl.includes('?') ? '&' : '?'}order=${encodeURIComponent(orderCode)}`;
+        if (postId) redirectUrl += `&postId=${encodeURIComponent(postId)}`;
+    }
     const payload = {
         partnerCode: cfg.partnerCode,
         accessKey: cfg.accessKey,
@@ -34,15 +40,24 @@ const createPayment = async ({ orderCode, amount, orderInfo }) => {
         amount: String(Math.round(Number(amount))),
         orderId: orderCode,
         orderInfo,
-        redirectUrl: cfg.redirectUrl,
+        redirectUrl,
         ipnUrl: cfg.ipnUrl,
         extraData: '',
         requestType: cfg.requestType
     };
     const signature = hmacHex('sha256', cfg.secretKey, createSignatureRaw(payload));
-    const data = await postJson(cfg.endpoint, { ...payload, signature, lang: 'vi' });
+    const data = await postJson(cfg.endpoint, {
+        ...payload,
+        partnerName: 'JobFind',
+        storeId: 'JobFindStore',
+        autoCapture: true,
+        orderGroupId: '',
+        signature,
+        lang: 'vi'
+    });
     if (Number(data?.resultCode) !== 0 || !data?.payUrl) {
-        return { error: data?.message || 'MoMo từ chối tạo giao dịch' };
+        const statusHint = data?.httpStatus ? ` (HTTP ${data.httpStatus})` : '';
+        return { error: data?.message || `MoMo từ chối hoặc tạm gián đoạn kết nối Sandbox${statusHint}` };
     }
     return { checkoutUrl: data.payUrl, providerRef: payload.requestId, deeplink: data.deeplink, qrCodeUrl: data.qrCodeUrl };
 };

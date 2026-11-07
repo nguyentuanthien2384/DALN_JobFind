@@ -17,8 +17,9 @@ const isConfigured = () => Boolean((process.env.PAYPAL_CLIENT_ID || process.env.
 const money = (value) => Number(value).toFixed(2);
 const call = (fn, ...args) => new Promise((resolve) => fn(...args, (error, payment) => resolve({ error, payment })));
 
-const createPayment = async ({ orderCode, providerAmount, orderInfo }) => {
-    const returnUrl = `${getPaymentReturnUrl('PAYPAL')}&order=${encodeURIComponent(orderCode)}`;
+const createPayment = async ({ orderCode, providerAmount, orderInfo, postId }) => {
+    const postQuery = postId ? `&postId=${encodeURIComponent(postId)}` : '';
+    const returnUrl = `${getPaymentReturnUrl('PAYPAL')}&order=${encodeURIComponent(orderCode)}${postQuery}`;
     const { error, payment } = await call(paypal.payment.create.bind(paypal.payment), {
         intent: 'sale',
         payer: { payment_method: 'paypal' },

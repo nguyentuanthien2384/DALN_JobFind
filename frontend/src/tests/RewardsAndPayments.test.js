@@ -313,8 +313,19 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
         const confirmBtn = await screen.findByRole('button', {
             name: /Xác nhận thanh toán thành công \(Sandbox\)/i,
         });
+        expect(screen.getByDisplayValue('9704198526191432198')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('NGUYEN VAN A')).toBeInTheDocument();
         fireEvent.click(confirmBtn);
 
+        await waitFor(() => {
+            expect(rewardPaymentService.verifyPaymentReturnService).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    simulateAction: 'confirm',
+                    simulateCardNumber: '9704198526191432198',
+                    simulateCardHolder: 'NGUYEN VAN A',
+                })
+            );
+        });
         expect(await screen.findByText('Thanh toán thành công!')).toBeInTheDocument();
         expect(screen.getByText(/Quay lại Tin tuyển dụng & Xem Báo cáo/i)).toBeInTheDocument();
     });

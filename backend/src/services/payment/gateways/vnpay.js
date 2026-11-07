@@ -4,15 +4,31 @@
 const { hmacHex, safeEqual, getPaymentReturnUrl, vnTimestamp } = require('./common');
 
 const config = () => ({
-    tmnCode: process.env.VNP_TMN_CODE || '',
-    hashSecret: process.env.VNP_HASH_SECRET || '',
+    tmnCode: String(process.env.VNP_TMN_CODE || '').trim(),
+    hashSecret: String(process.env.VNP_HASH_SECRET || '').trim(),
     payUrl: process.env.VNP_URL || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
-    returnUrl: process.env.VNP_RETURN_URL || getPaymentReturnUrl('VNPAY')
+    returnUrl: process.env.VNP_RETURN_URL || getPaymentReturnUrl('VNPAY'),
+    defaultBankCode: String(process.env.VNP_DEFAULT_BANK_CODE || '').trim()
 });
 
 const isConfigured = () => Boolean(config().tmnCode && config().hashSecret);
 
-const encodeValue = (value) => encodeURIComponent(value === undefined || value === null ? '' : String(value)).replace(/%20/g, '+');
+// Tai lieu VNPAY pay.html yeu cau vnp_OrderInfo la Tieng Viet khong dau, khong ky tu dac biet
+// (tranh sai lech ma hoa dau ngoac/ky tu la gay loi RspCode=97 Invalid Checksum).
+const sanitizeOrderInfo = (value) => String(value || 'Thanh toan don hang JobFind')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9 .,_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 240) || 'Thanh toan don hang JobFind';
+
+// Chuan urlencode RFC1738/Java URLEncoder ma VNPAY su dung: ma hoa them !'()* va doi %20 -> '+'.
+const encodeValue = (value) => encodeURIComponent(value === undefined || value === null ? '' : String(value))
+    .replace(/[!'()*]/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/%20/g, '+');
 
 const signData = (params) => Object.keys(params)
     .filter((key) => params[key] !== undefined && params[key] !== null && params[key] !== '')
@@ -30,8 +46,13 @@ const normalizeIp = (rawIp) => {
     return ip;
 };
 
-const createPayment = async ({ orderCode, amount, orderInfo, ipAddr, bankCode, locale = 'vn', expiresAt }) => {
-    const { tmnCode, payUrl, returnUrl } = config();
+const createPayment = async ({ orderCode, amount, orderInfo, ipAddr, bankCode, locale = 'vn', expiresAt, postId }) => {
+    const { tmnCode, payUrl, returnUrl, defaultBankCode } = config();
+    const resolvedBank = String(bankCode || defaultBankCode || '').trim().toUpperCase();
+    const effectiveReturnUrl = postId && !process.env.VNP_RETURN_URL
+        ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}postId=${encodeURIComponent(postId)}`
+        : returnUrl;
+    const effectiveExpire = expiresAt ? new Date(expiresAt) : new Date(Date.now() + 15 * 60 * 1000);
     const params = {
         vnp_Version: '2.1.0',
         vnp_Command: 'pay',
@@ -39,14 +60,14 @@ const createPayment = async ({ orderCode, amount, orderInfo, ipAddr, bankCode, l
         vnp_Locale: locale,
         vnp_CurrCode: 'VND',
         vnp_TxnRef: orderCode,
-        vnp_OrderInfo: orderInfo,
+        vnp_OrderInfo: sanitizeOrderInfo(orderInfo),
         vnp_OrderType: 'other',
         vnp_Amount: String(Math.round(Number(amount)) * 100), // VNPAY nhan so tien x100
-        vnp_ReturnUrl: returnUrl,
+        vnp_ReturnUrl: effectiveReturnUrl,
         vnp_IpAddr: normalizeIp(ipAddr),
         vnp_CreateDate: vnTimestamp(),
-        ...(expiresAt ? { vnp_ExpireDate: vnTimestamp(new Date(expiresAt)) } : {}),
-        ...(bankCode ? { vnp_BankCode: String(bankCode).toUpperCase() } : {})
+        vnp_ExpireDate: vnTimestamp(effectiveExpire),
+        ...(resolvedBank ? { vnp_BankCode: resolvedBank } : {})
     };
     const query = signData(params);
     return { checkoutUrl: `${payUrl}?${query}&vnp_SecureHash=${sign(params)}`, providerRef: orderCode };
@@ -71,4 +92,4 @@ const verifyCallback = (query = {}) => {
     };
 };
 
-module.exports = { name: 'VNPAY', isConfigured, createPayment, verifyCallback, sign, signData, normalizeIp };
+module.exports = { name: 'VNPAY', isConfigured, createPayment, verifyCallback, sign, signData, normalizeIp, sanitizeOrderInfo };

@@ -84,12 +84,14 @@ describe('payment gateways', () => {
         const created = await vnpay.createPayment({
             orderCode: 'JF100',
             amount: 45000,
-            orderInfo: 'Nap goi tieu chuan',
+            orderInfo: 'Nạp gói Đẳng Cấp (JF100)',
             ipAddr: '127.0.0.1',
-            bankCode: 'vnpayqr',
-            expiresAt: new Date()
+            bankCode: 'vnpayqr'
         });
+        expect(vnpay.sanitizeOrderInfo('Nạp gói Đẳng Cấp (JF100)')).toBe('Nap goi Dang Cap JF100');
         expect(created.checkoutUrl).toContain('vnp_SecureHash=');
+        expect(created.checkoutUrl).toContain('vnp_ExpireDate=');
+        expect(created.checkoutUrl).toContain('vnp_BankCode=VNPAYQR');
         const query = Object.fromEntries(new URL(created.checkoutUrl).searchParams.entries());
         query.vnp_ResponseCode = '00';
         query.vnp_TransactionStatus = '00';
@@ -137,6 +139,8 @@ describe('payment gateways', () => {
             userId: 7
         });
         expect(created.checkoutUrl).toBe('https://test-payment.momo.vn/pay');
+        const momoReqBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+        expect(momoReqBody.requestType).toBe('payWithMethod');
         global.fetch = origFetch;
 
         const { hmacHex } = require('../../src/services/payment/gateways/common');
@@ -202,6 +206,8 @@ describe('payment gateways', () => {
             userId: 7
         });
         expect(created.checkoutUrl).toBe('https://sb-openapi.zalopay.vn/order');
+        const zaloReqBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+        expect(JSON.parse(zaloReqBody.embed_data).preferred_payment_method).toEqual(['domestic_card', 'account']);
 
         const queriedPaid = await zalopay.queryStatus(appTransId);
         expect(queriedPaid).toMatchObject({ state: 'PAID', transId: 'ZP99' });
@@ -211,6 +217,28 @@ describe('payment gateways', () => {
         global.fetch = origFetch;
 
         const { hmacHex } = require('../../src/services/payment/gateways/common');
+        const redirectQuery = {
+            appid: '2554',
+            apptransid: appTransId,
+            pmcid: '39',
+            bankcode: 'ATM',
+            amount: '100000',
+            discountamount: '0',
+            status: '1'
+        };
+        redirectQuery.checksum = hmacHex(
+            'sha256',
+            'KEY2_SECRET',
+            `${redirectQuery.appid}|${redirectQuery.apptransid}|${redirectQuery.pmcid}|${redirectQuery.bankcode}|${redirectQuery.amount}|${redirectQuery.discountamount}|${redirectQuery.status}`
+        );
+        expect(zalopay.verifyRedirect(redirectQuery)).toMatchObject({
+            valid: true,
+            success: true,
+            cancelled: false,
+            orderCode: 'JF300',
+            amount: 100000
+        });
+        expect(zalopay.verifyRedirect({ ...redirectQuery, checksum: 'invalid' }).valid).toBe(false);
         const data = JSON.stringify({ app_trans_id: appTransId, amount: 100000, zp_trans_id: 555666 });
         const mac = hmacHex('sha256', 'KEY2_SECRET', data);
         const verified = zalopay.verifyCallback({ data, mac });
@@ -513,6 +541,20 @@ describe('rewardService & paymentOrderService', () => {
         });
         expect(simPreview.requireSimulationAction).toBe(true);
 
+        expect(gatewaysIndex.evaluateSimulatedCard('VNPAY', '9704198526191432198', '123456').ok).toBe(true);
+        expect(gatewaysIndex.evaluateSimulatedCard('VNPAY', '9704195798459170488', '123456').ok).toBe(false);
+        expect(gatewaysIndex.evaluateSimulatedCard('ZALOPAY', '9704540000000047', '123456').ok).toBe(false);
+        expect(gatewaysIndex.evaluateSimulatedCard('MOMO', '12345', '000000').ok).toBe(false);
+
+        const simBadCard = await paymentOrderService.verifyPaymentReturn({
+            userId: 9,
+            provider: 'MOMO',
+            params: { order: 'JF601', simulateAction: 'confirm', simulateCardNumber: '9704195798459170488' }
+        });
+        expect(simBadCard.errCode).toBe(2);
+        expect(simBadCard.requireSimulationAction).toBe(true);
+        expect(pendingSimOrder.status).toBe('PENDING');
+
         const simCancel = await paymentOrderService.verifyPaymentReturn({
             userId: 9,
             provider: 'MOMO',
@@ -521,7 +563,175 @@ describe('rewardService & paymentOrderService', () => {
         expect(simCancel.errCode).toBe(2);
         expect(pendingSimOrder.status).toBe('CANCELLED');
 
-        // IPN handlers
+        // Live gateway return & IPN branches (VNPAY, MOMO, ZALOPAY, PAYPAL)
+        const { hmacHex } = require('../../src/services/payment/gateways/common');
+        process.env.VNP_TMN_CODE = 'TMN123';
+        process.env.VNP_HASH_SECRET = 'SECRET123456';
+        process.env.MOMO_PARTNER_CODE = 'MOMO_PARTNER';
+        process.env.MOMO_ACCESS_KEY = 'ACCESS_1';
+        process.env.MOMO_SECRET_KEY = 'SECRET_1';
+        process.env.ZALOPAY_APP_ID = '2554';
+        process.env.ZALOPAY_KEY1 = 'KEY1_SECRET';
+        process.env.ZALOPAY_KEY2 = 'KEY2_SECRET';
+        process.env.PAYPAL_CLIENT_ID = 'PP_ID';
+        process.env.PAYPAL_CLIENT_SECRET = 'PP_SECRET';
+
+        const makeLiveOrder = (provider, extra = {}) => ({
+            id: 99,
+            orderCode: 'JF700',
+            provider,
+            purpose: 'POINT_TOPUP',
+            userId: 7,
+            itemCode: 'BASIC',
+            itemName: 'Gói Khởi Đầu',
+            amount: 20000,
+            providerAmount: '1.00',
+            points: 22,
+            status: 'PENDING',
+            simulated: false,
+            providerRef: provider === 'ZALOPAY' ? zalopay.buildAppTransId('JF700') : 'PAY-700',
+            save: jest.fn(),
+            ...extra
+        });
+
+        mockDb.RewardWallet.findOne.mockResolvedValue(makeWallet({ ownerType: 'CANDIDATE', ownerId: 7, balance: 10 }));
+        mockDb.RewardTransaction.findOne.mockResolvedValue(null);
+        mockDb.RewardTransaction.create.mockResolvedValue({ id: 500 });
+
+        // VNPAY return: invalid hash & valid success
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('VNPAY'));
+        expect((await paymentOrderService.verifyPaymentReturn({
+            userId: 7,
+            provider: 'VNPAY',
+            params: { vnp_TxnRef: 'JF700', vnp_Amount: '2000000', vnp_ResponseCode: '00', vnp_SecureHash: 'bad' }
+        })).errCode).toBe(2);
+
+        const vnpParams = { vnp_TxnRef: 'JF700', vnp_Amount: '2000000', vnp_ResponseCode: '00', vnp_TransactionStatus: '00', vnp_TransactionNo: 'VNPTX1' };
+        vnpParams.vnp_SecureHash = vnpay.sign(vnpParams);
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('VNPAY'));
+        expect((await paymentOrderService.verifyPaymentReturn({ userId: 7, provider: 'VNPAY', params: vnpParams })).errCode).toBe(0);
+
+        // VNPAY IPN: not found, amount mismatch, success
+        mockDb.PaymentOrder.findOne.mockResolvedValueOnce(null);
+        expect((await paymentOrderService.handleVnpayIpn(vnpParams)).RspCode).toBe('01');
+        mockDb.PaymentOrder.findOne.mockResolvedValueOnce(makeLiveOrder('VNPAY', { amount: 99999 }));
+        expect((await paymentOrderService.handleVnpayIpn(vnpParams)).RspCode).toBe('04');
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('VNPAY'));
+        expect((await paymentOrderService.handleVnpayIpn(vnpParams)).RspCode).toBe('00');
+
+        // MOMO return & IPN
+        const momoBody = {
+            partnerCode: 'MOMO_PARTNER',
+            amount: '20000',
+            extraData: '',
+            message: 'OK',
+            orderId: 'JF700',
+            orderInfo: 'Info',
+            orderType: 'momo_wallet',
+            payType: 'napas',
+            requestId: 'R700',
+            responseTime: '1700000000',
+            resultCode: 0,
+            transId: 'MM700'
+        };
+        momoBody.signature = hmacHex('sha256', 'SECRET_1', momo.resultSignatureRaw('ACCESS_1', momoBody));
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('MOMO'));
+        expect((await paymentOrderService.verifyPaymentReturn({ userId: 7, provider: 'MOMO', params: { ...momoBody, signature: 'bad' } })).errCode).toBe(2);
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('MOMO'));
+        expect((await paymentOrderService.verifyPaymentReturn({ userId: 7, provider: 'MOMO', params: momoBody })).errCode).toBe(0);
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('MOMO'));
+        expect((await paymentOrderService.handleMomoIpn(momoBody)).httpStatus).toBe(200);
+
+        // ZALOPAY redirect checksum (invalid, cancelled, success) & callback
+        const zpOrder = makeLiveOrder('ZALOPAY');
+        const zpRedirect = {
+            appid: '2554',
+            apptransid: zpOrder.providerRef,
+            pmcid: '39',
+            bankcode: 'ATM',
+            amount: '20000',
+            discountamount: '0',
+            status: '1'
+        };
+        zpRedirect.checksum = hmacHex(
+            'sha256',
+            'KEY2_SECRET',
+            `${zpRedirect.appid}|${zpRedirect.apptransid}|${zpRedirect.pmcid}|${zpRedirect.bankcode}|${zpRedirect.amount}|${zpRedirect.discountamount}|${zpRedirect.status}`
+        );
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('ZALOPAY'));
+        expect((await paymentOrderService.verifyPaymentReturn({
+            userId: 7,
+            provider: 'ZALOPAY',
+            params: { ...zpRedirect, checksum: 'wrong' }
+        })).errCode).toBe(2);
+
+        const zpCancelRedirect = { ...zpRedirect, status: '-49' };
+        zpCancelRedirect.checksum = hmacHex(
+            'sha256',
+            'KEY2_SECRET',
+            `${zpCancelRedirect.appid}|${zpCancelRedirect.apptransid}|${zpCancelRedirect.pmcid}|${zpCancelRedirect.bankcode}|${zpCancelRedirect.amount}|${zpCancelRedirect.discountamount}|${zpCancelRedirect.status}`
+        );
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('ZALOPAY'));
+        expect((await paymentOrderService.verifyPaymentReturn({
+            userId: 7,
+            provider: 'ZALOPAY',
+            params: zpCancelRedirect
+        })).errCode).toBe(2);
+
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('ZALOPAY'));
+        expect((await paymentOrderService.verifyPaymentReturn({
+            userId: 7,
+            provider: 'ZALOPAY',
+            params: zpRedirect
+        })).errCode).toBe(0);
+
+        const zpCallbackData = JSON.stringify({ app_trans_id: zpOrder.providerRef, amount: 20000, zp_trans_id: 888 });
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('ZALOPAY'));
+        expect((await paymentOrderService.handleZaloPayCallback({
+            data: zpCallbackData,
+            mac: hmacHex('sha256', 'KEY2_SECRET', zpCallbackData)
+        })).return_code).toBe(1);
+
+        // PAYPAL return: cancel, missing PayerID, success
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('PAYPAL'));
+        expect((await paymentOrderService.verifyPaymentReturn({
+            userId: 7,
+            provider: 'PAYPAL',
+            params: { order: 'JF700', cancel: '1' }
+        })).errCode).toBe(2);
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('PAYPAL'));
+        expect((await paymentOrderService.verifyPaymentReturn({
+            userId: 7,
+            provider: 'PAYPAL',
+            params: { order: 'JF700' }
+        })).errCode).toBe(1);
+        mockPaypal.payment.execute.mockImplementationOnce((id, payload, cb) => cb(null, {
+            id: 'PAY-700',
+            state: 'approved',
+            transactions: [{
+                amount: { currency: 'USD', total: '1.00' },
+                related_resources: [{ sale: { id: 'SALE-700', state: 'completed' } }]
+            }]
+        }));
+        mockDb.PaymentOrder.findOne.mockResolvedValue(makeLiveOrder('PAYPAL'));
+        expect((await paymentOrderService.verifyPaymentReturn({
+            userId: 7,
+            provider: 'PAYPAL',
+            params: { order: 'JF700', PayerID: 'PAYER700' }
+        })).errCode).toBe(0);
+
+        delete process.env.VNP_TMN_CODE;
+        delete process.env.VNP_HASH_SECRET;
+        delete process.env.MOMO_PARTNER_CODE;
+        delete process.env.MOMO_ACCESS_KEY;
+        delete process.env.MOMO_SECRET_KEY;
+        delete process.env.ZALOPAY_APP_ID;
+        delete process.env.ZALOPAY_KEY1;
+        delete process.env.ZALOPAY_KEY2;
+        delete process.env.PAYPAL_CLIENT_ID;
+        delete process.env.PAYPAL_CLIENT_SECRET;
+
+        // IPN handlers invalid signatures
         expect((await paymentOrderService.handleVnpayIpn({})).RspCode).toBe('97');
         expect((await paymentOrderService.handleMomoIpn({})).httpStatus).toBe(400);
         expect((await paymentOrderService.handleZaloPayCallback({})).return_code).toBe(-1);

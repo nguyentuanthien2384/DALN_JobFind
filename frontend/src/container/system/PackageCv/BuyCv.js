@@ -5,12 +5,13 @@ import { toast } from "react-toastify";
 import { Spinner, Modal } from "reactstrap";
 import { readJsonStorage } from "../../../util/storage";
 import EmployerRewardsSection from "../Rewards/EmployerRewardsSection";
+import SandboxTestCardHint from "../../../components/payment/SandboxTestCardHint";
 
 const GATEWAY_CHOICES = [
-    { code: "PAYPAL", label: "PayPal / Thẻ Quốc Tế (USD)" },
-    { code: "VNPAY", label: "VNPAY-QR / Ngân hàng nội địa (VNĐ)" },
-    { code: "MOMO", label: "Ví điện tử MoMo (VNĐ)" },
-    { code: "ZALOPAY", label: "Ví điện tử ZaloPay (VNĐ)" },
+    { code: "PAYPAL", label: "PayPal Sandbox / Thẻ Quốc Tế (USD)" },
+    { code: "ZALOPAY", label: "ZaloPay Gateway - Nhập thẻ ATM (VNĐ)" },
+    { code: "VNPAY", label: "VNPAY Sandbox - Thẻ nội địa NCB (VNĐ)" },
+    { code: "MOMO", label: "MoMo Sandbox - Thẻ ATM / Visa (VNĐ)" },
 ];
 
 let cachedCvPackages = null;
@@ -275,6 +276,7 @@ const BuyCv = () => {
                                                     </button>
                                                 ))}
                                             </div>
+                                            <SandboxTestCardHint provider={selectedGateway} compact />
                                         </div>
                                     </div>
                                 </div>

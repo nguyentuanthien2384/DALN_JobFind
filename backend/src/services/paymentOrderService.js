@@ -8,7 +8,14 @@ const {
     USD_VND_RATE,
     loadPromoCodes
 } = require('../config/rewards');
-const { gateways, normalizeProvider, listProviders, simulatorEnabled } = require('./payment/gateways');
+const {
+    gateways,
+    normalizeProvider,
+    listProviders,
+    simulatorEnabled,
+    SANDBOX_TEST_CARDS,
+    evaluateSimulatedCard
+} = require('./payment/gateways');
 const { getPaymentReturnUrl } = require('./payment/gateways/common');
 
 const ORDER_TTL_MS = 30 * 60 * 1000;
@@ -168,6 +175,7 @@ const enrichOrderPayload = (order, { requireSimulationAction = false, postId = n
         entitlementAmount: order.entitlementAmount,
         status: order.status,
         simulated: Boolean(order.simulated),
+        testCards: SANDBOX_TEST_CARDS[order.provider] || [],
         metadata: postId ? { postId } : (order.metadata || null)
     };
     const extraFields = {
@@ -176,6 +184,7 @@ const enrichOrderPayload = (order, { requireSimulationAction = false, postId = n
         pointsGranted,
         paid,
         requireSimulationAction: Boolean(requireSimulationAction),
+        testCards: SANDBOX_TEST_CARDS[order.provider] || [],
         order: snapshot
     };
     if (order.dataValues && typeof order.dataValues === 'object') {
@@ -220,6 +229,7 @@ const createCheckout = async ({
 
     const gateway = gateways[providerKey];
     let gatewayResult = null;
+    let gatewayError = null;
     let simulated = false;
 
     if (gateway.isConfigured()) {
@@ -232,10 +242,14 @@ const createCheckout = async ({
                 userId,
                 ipAddr,
                 bankCode,
-                expiresAt
+                expiresAt,
+                postId
             });
         } catch (error) {
             gatewayResult = { error: error.message || 'Không thể kết nối cổng thanh toán' };
+        }
+        if (gatewayResult?.error) {
+            gatewayError = gatewayResult.error;
         }
     }
 
@@ -302,12 +316,14 @@ const createCheckout = async ({
             entitlementAmount: spec.entitlementAmount,
             checkoutUrl: gatewayResult.checkoutUrl,
             paymentUrl: gatewayResult.checkoutUrl,
-            simulated
+            simulated,
+            gatewayFallbackReason: simulated && gatewayError ? gatewayError : null,
+            testCards: SANDBOX_TEST_CARDS[providerKey] || []
         }
     };
 };
 
-const settleOrderPaid = async (orderCode, { transId = null } = {}) => {
+const settleOrderPaid = async (orderCode, { transId = null, postId = null } = {}) => {
     if (!orderCode) return { errCode: 1, errMessage: 'Thiếu mã đơn thanh toán' };
 
     const runTx = typeof db.sequelize?.transaction === 'function'
@@ -323,7 +339,7 @@ const settleOrderPaid = async (orderCode, { transId = null } = {}) => {
         });
         if (!order) return { errCode: 2, errMessage: 'Không tìm thấy đơn thanh toán' };
         if (order.status === 'PAID') {
-            return { errCode: 0, alreadyProcessed: true, data: enrichOrderPayload(order), errMessage: 'Giao dịch đã được ghi nhận trước đó' };
+            return { errCode: 0, alreadyProcessed: true, data: enrichOrderPayload(order, { postId }), errMessage: 'Giao dịch đã được ghi nhận trước đó' };
         }
         if (order.status !== 'PENDING' && order.status !== 'EXPIRED') {
             return { errCode: 2, errMessage: 'Đơn thanh toán không còn hiệu lực' };
@@ -394,7 +410,7 @@ const settleOrderPaid = async (orderCode, { transId = null } = {}) => {
         return {
             errCode: 0,
             alreadyProcessed: false,
-            data: enrichOrderPayload(order),
+            data: enrichOrderPayload(order, { postId }),
             errMessage: 'Thanh toán thành công! Quyền lợi và điểm thưởng đã được cộng vào tài khoản'
         };
     }).then(async (result) => {
@@ -499,13 +515,22 @@ const verifyPaymentReturn = async ({ userId, provider, params = {} }) => {
             return { errCode: 2, data: enrichOrderPayload(cancelled, { postId: params.postId }), errMessage: 'Bạn đã hủy giao dịch thanh toán' };
         }
         if (String(params.simulateAction || '').toLowerCase() === 'confirm') {
-            return settleOrderPaid(order.orderCode, { transId: `SIM_TX_${Date.now()}` });
+            const cardCheck = evaluateSimulatedCard(order.provider, params.simulateCardNumber, params.simulateOtp);
+            if (!cardCheck.ok) {
+                return {
+                    errCode: 2,
+                    requireSimulationAction: true,
+                    data: enrichOrderPayload(order, { requireSimulationAction: true, postId: params.postId }),
+                    errMessage: cardCheck.reason
+                };
+            }
+            return settleOrderPaid(order.orderCode, { transId: `SIM_TX_${Date.now()}`, postId: params.postId });
         }
         return {
             errCode: 0,
             requireSimulationAction: true,
             data: enrichOrderPayload(order, { requireSimulationAction: true, postId: params.postId }),
-            errMessage: 'Đơn hàng đang ở chế độ Cổng Thanh Toán Thử Nghiệm (Sandbox). Hãy bấm xác nhận để hoàn tất.'
+            errMessage: 'Đơn hàng đang ở chế độ Cổng Thanh Toán Thử Nghiệm (Sandbox). Hãy nhập thẻ dùng thử cấp sẵn và xác nhận thanh toán.'
         };
     }
 
@@ -513,40 +538,57 @@ const verifyPaymentReturn = async ({ userId, provider, params = {} }) => {
     if (activeProvider === 'VNPAY' && params.vnp_SecureHash) {
         const verified = gateways.VNPAY.verifyCallback(params);
         if (!verified.valid || Number(verified.amount) !== Number(order.amount)) {
-            return { errCode: 2, data: enrichOrderPayload(order), errMessage: 'Chữ ký phản hồi VNPAY không hợp lệ' };
+            return { errCode: 2, data: enrichOrderPayload(order, { postId: params.postId }), errMessage: 'Chữ ký phản hồi VNPAY không hợp lệ' };
         }
         if (!verified.success) {
             const failed = await markOrderFailed(order.orderCode, verified.message, 'CANCELLED');
-            return { errCode: 2, data: enrichOrderPayload(failed), errMessage: verified.message };
+            return { errCode: 2, data: enrichOrderPayload(failed, { postId: params.postId }), errMessage: verified.message };
         }
-        return settleOrderPaid(order.orderCode, { transId: verified.transId });
+        return settleOrderPaid(order.orderCode, { transId: verified.transId, postId: params.postId });
     }
 
     if (activeProvider === 'MOMO' && params.signature) {
         const verified = gateways.MOMO.verifyCallback(params);
         if (!verified.valid || Number(verified.amount) !== Number(order.amount)) {
-            return { errCode: 2, data: enrichOrderPayload(order), errMessage: 'Chữ ký phản hồi MoMo không hợp lệ' };
+            return { errCode: 2, data: enrichOrderPayload(order, { postId: params.postId }), errMessage: 'Chữ ký phản hồi MoMo không hợp lệ' };
         }
         if (!verified.success) {
             const failed = await markOrderFailed(order.orderCode, verified.message, 'CANCELLED');
-            return { errCode: 2, data: enrichOrderPayload(failed), errMessage: verified.message };
+            return { errCode: 2, data: enrichOrderPayload(failed, { postId: params.postId }), errMessage: verified.message };
         }
-        return settleOrderPaid(order.orderCode, { transId: verified.transId });
+        return settleOrderPaid(order.orderCode, { transId: verified.transId, postId: params.postId });
     }
 
     if (activeProvider === 'ZALOPAY') {
-        if (String(params.status || '') === '-49' || String(params.cancel || '') === '1') {
+        if (params.checksum && gateways.ZALOPAY.isConfigured()) {
+            const redirectVerified = gateways.ZALOPAY.verifyRedirect(params);
+            if (!redirectVerified.valid) {
+                return { errCode: 2, data: enrichOrderPayload(order, { postId: params.postId }), errMessage: 'Chữ ký phản hồi ZaloPay không hợp lệ' };
+            }
+            if (redirectVerified.cancelled) {
+                const failed = await markOrderFailed(order.orderCode, redirectVerified.message, 'CANCELLED');
+                return { errCode: 2, data: enrichOrderPayload(failed, { postId: params.postId }), errMessage: redirectVerified.message };
+            }
+            if (redirectVerified.success && Number(redirectVerified.amount) === Number(order.amount)) {
+                return settleOrderPaid(order.orderCode, {
+                    transId: params.apptransid || order.providerRef,
+                    postId: params.postId
+                });
+            }
+        }
+        const rawStatus = params.status !== undefined && params.status !== '' ? Number(params.status) : null;
+        if (String(params.cancel || '') === '1' || (Number.isFinite(rawStatus) && rawStatus < 0)) {
             const failed = await markOrderFailed(order.orderCode, 'Người dùng hủy thanh toán ZaloPay', 'CANCELLED');
-            return { errCode: 2, data: enrichOrderPayload(failed), errMessage: 'Bạn đã hủy thanh toán ZaloPay' };
+            return { errCode: 2, data: enrichOrderPayload(failed, { postId: params.postId }), errMessage: 'Bạn đã hủy thanh toán ZaloPay' };
         }
         if (gateways.ZALOPAY.isConfigured() && order.providerRef) {
             const queried = await gateways.ZALOPAY.queryStatus(order.providerRef);
             if (queried.state === 'PAID') {
-                return settleOrderPaid(order.orderCode, { transId: queried.transId });
+                return settleOrderPaid(order.orderCode, { transId: queried.transId, postId: params.postId });
             }
             if (queried.state === 'FAILED') {
                 const failed = await markOrderFailed(order.orderCode, queried.message || 'ZaloPay báo giao dịch thất bại');
-                return { errCode: 2, data: enrichOrderPayload(failed), errMessage: queried.message || 'Giao dịch ZaloPay không thành công' };
+                return { errCode: 2, data: enrichOrderPayload(failed, { postId: params.postId }), errMessage: queried.message || 'Giao dịch ZaloPay không thành công' };
             }
         }
     }
@@ -554,15 +596,15 @@ const verifyPaymentReturn = async ({ userId, provider, params = {} }) => {
     if (activeProvider === 'PAYPAL') {
         if (String(params.cancel || '') === '1') {
             const failed = await markOrderFailed(order.orderCode, 'Người dùng hủy thanh toán PayPal', 'CANCELLED');
-            return { errCode: 2, data: enrichOrderPayload(failed), errMessage: 'Bạn đã hủy thanh toán PayPal' };
+            return { errCode: 2, data: enrichOrderPayload(failed, { postId: params.postId }), errMessage: 'Bạn đã hủy thanh toán PayPal' };
         }
         const payerId = params.PayerID || params.payerId;
-        if (!payerId) return { errCode: 1, data: enrichOrderPayload(order), errMessage: 'Thiếu PayerID từ PayPal' };
+        if (!payerId) return { errCode: 1, data: enrichOrderPayload(order, { postId: params.postId }), errMessage: 'Thiếu PayerID từ PayPal' };
         const executed = await gateways.PAYPAL.executePayment(order, payerId);
         if (!executed.success) {
-            return { errCode: 2, data: enrichOrderPayload(order), errMessage: executed.message || 'PayPal chưa xác nhận giao dịch' };
+            return { errCode: 2, data: enrichOrderPayload(order, { postId: params.postId }), errMessage: executed.message || 'PayPal chưa xác nhận giao dịch' };
         }
-        return settleOrderPaid(order.orderCode, { transId: executed.transId });
+        return settleOrderPaid(order.orderCode, { transId: executed.transId, postId: params.postId });
     }
 
     return {

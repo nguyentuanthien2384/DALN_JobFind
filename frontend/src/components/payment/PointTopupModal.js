@@ -7,6 +7,7 @@ import {
     getCandidateRewardOverviewService,
     setCachedCandidateRewardOverview,
 } from '../../service/rewardPaymentService';
+import SandboxTestCardHint from './SandboxTestCardHint';
 import './PointTopupModal.css';
 
 const PROMO_CATALOG = {
@@ -23,8 +24,8 @@ const GATEWAY_METHODS = [
         shortLogo: 'VNPAY',
         logoClass: 'jf-topup-method-logo--vnpay',
         title: 'Cổng thanh toán VNPAY',
-        tag: 'QR / ATM / Visa',
-        desc: 'Quét mã VNPAY-QR giảm thêm 5.000đ trực tiếp',
+        tag: 'Thẻ ATM NCB / Visa / QR',
+        desc: 'Nhập thẻ dùng thử NCB nội địa hoặc Visa Sandbox (giảm thêm 5.000đ)',
         defaultPromo: 'VNPAY5K',
     },
     {
@@ -32,8 +33,8 @@ const GATEWAY_METHODS = [
         shortLogo: 'MoMo',
         logoClass: 'jf-topup-method-logo--momo',
         title: 'Ví điện tử MoMo',
-        tag: 'Siêu ứng dụng',
-        desc: 'Thanh toán siêu tốc 1 chạm qua ứng dụng MoMo',
+        tag: 'Thẻ ATM NAPAS / Visa',
+        desc: 'Cổng MoMo Merchant Trial — hỗ trợ nhập thẻ ATM NAPAS & Visa dùng thử',
         defaultPromo: 'MOMO5K',
     },
     {
@@ -41,8 +42,8 @@ const GATEWAY_METHODS = [
         shortLogo: 'ZaloPay',
         logoClass: 'jf-topup-method-logo--zalopay',
         title: 'Ví điện tử ZaloPay',
-        tag: 'Zalo / QR Đa năng',
-        desc: 'Thanh toán tiện lợi trực tiếp qua ứng dụng Zalo hoặc ZaloPay',
+        tag: 'Merchant Trial V2',
+        desc: 'Cổng ZaloPay Gateway — nhập trực tiếp thẻ ATM nội địa hoặc Internet Banking',
         defaultPromo: 'ZALOPAY5K',
     },
     {
@@ -50,8 +51,8 @@ const GATEWAY_METHODS = [
         shortLogo: 'PayPal',
         logoClass: 'jf-topup-method-logo--paypal',
         title: 'PayPal / Thẻ Quốc Tế',
-        tag: 'Visa / Master / JCB',
-        desc: 'Hỗ trợ tài khoản PayPal và thẻ thanh toán quốc tế bảo mật cao',
+        tag: 'Visa / Master / USD',
+        desc: 'Cổng PayPal Sandbox quốc tế hỗ trợ tài khoản Buyer & thẻ dùng thử',
         defaultPromo: 'ARCHITECT5K',
     },
 ];
@@ -501,6 +502,8 @@ const PointTopupModal = ({
                                             Áp dụng
                                         </button>
                                     </div>
+
+                                    <SandboxTestCardHint provider={selectedProvider} compact />
                                 </div>
 
                                 {/* Col Right: Payment Summary */}
