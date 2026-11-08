@@ -240,6 +240,8 @@ describe("package purchases", () => {
         fireEvent.change(container.querySelector('input[type="number"]'), { target: { value: "3" } });
         expect(screen.getByText("21 USD")).toBeInTheDocument();
         fireEvent.click(screen.getByRole("button", { name: "Mua" }));
+        expect(config.payment).not.toHaveBeenCalled();
+        fireEvent.click(await screen.findByRole("button", { name: "Xác nhận thanh toán" }));
         await waitFor(() => expect(config.payment).toHaveBeenCalledWith(2, 3));
         expect(toast.error).toHaveBeenCalledWith("Thanh toán lỗi");
         await waitFor(() => expect(screen.queryByTestId("loading")).not.toBeInTheDocument());
@@ -293,6 +295,7 @@ describe("package purchases", () => {
         render(<config.Component />);
         await screen.findByText("Plus");
         fireEvent.click(screen.getByRole("button", { name: "Mua" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Xác nhận thanh toán" }));
 
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Không thể kết nối cổng thanh toán. Vui lòng thử lại"));
         expect(screen.queryByTestId("loading")).not.toBeInTheDocument();

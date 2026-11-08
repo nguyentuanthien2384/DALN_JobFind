@@ -35,7 +35,7 @@ const prefetchPublicRoute = (to) => {
     else if (to === '/company') prefetchCompanies()
 }
 
-const NavigationLinks = ({ onNavigate }) => {
+const NavigationLinks = React.memo(({ onNavigate }) => {
     const { pathname } = useLocation()
     return navigationItems.map(({ to, label, paths }) => {
         const isActive = paths.some(path => matchPath({ path, end: path === '/' }, pathname))
@@ -55,7 +55,7 @@ const NavigationLinks = ({ onNavigate }) => {
             </li>
         )
     })
-}
+})
 
 let cachedPublicHeaderState = {
     userId: null,
@@ -212,6 +212,22 @@ const Header = () => {
         setShowMobileNotifications(false)
     }, [])
 
+    const handleScrollTop = useCallback(() => {
+        window.scrollTo(0, 0)
+    }, [])
+
+    const openTopupModal = useCallback(() => {
+        setShowNotification(false)
+        setShowProfileMenu(false)
+        setShowMobileMenu(false)
+        setShowMobileNotifications(false)
+        setShowTopupModal(true)
+    }, [])
+
+    const closeTopupModal = useCallback(() => {
+        setShowTopupModal(false)
+    }, [])
+
     // Các menu do React điều khiển để không phụ thuộc vào script Bootstrap chạy
     // trước khi giao diện được render. Bấm ra ngoài hoặc nhấn Esc đều đóng menu.
     useEffect(() => {
@@ -283,9 +299,9 @@ const Header = () => {
                 {/* <!-- Header Start --> */}
                 <div className="header-area header-transparrent" data-testid="public-header-area">
                     <div className="headder-top header-sticky">
-                        <div className="container">
-                            <div className="row align-items-center">
-                                <div className="col-lg-3 col-md-2">
+                        <div className="container public-header-container">
+                            <div className="row align-items-center public-header-row">
+                                <div className="col-lg-auto col-md-3 public-header-logo-col">
                                     {/* <!-- Logo --> */}
                                     <div className="logo" style={{ zIndex: 1 }}>
                                         <NavLink to="/">
@@ -299,99 +315,105 @@ const Header = () => {
                                         </NavLink>
                                     </div>
                                 </div>
-                                <div className="col-lg-9 col-md-9">
+                                <div className="col-lg col-md-9 public-header-menu-col">
                                     <div className="menu-wrapper">
                                         {/* <!-- Main-menu --> */}
                                         <div className="main-menu">
                                             <nav className="d-none d-lg-block" aria-label="Điều hướng chính">
                                                 <ul id="navigation">
-                                                    <NavigationLinks onNavigate={() => window.scrollTo(0, 0)} />
+                                                    <NavigationLinks onNavigate={handleScrollTop} />
                                                 </ul>
                                             </nav>
                                         </div>
                                         {/* <!-- Header-btn --> */}
-                                        {/* Bootstrap dat .navbar-nav { flex-direction: column } nen o ul ben duoi
-                                            phai chi dinh flexDirection: 'row', neu khong 3 muc (chat / thong bao /
-                                            ten user) se xep chong len nhau theo chieu doc. */}
                                         <div className="header-btn d-none f-right d-lg-block">
                                             {user ?
-                                                <ul className="navbar-nav navbar-nav-right" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 0 }}>
+                                                <ul className="navbar-nav navbar-nav-right public-header-actions">
                                                     {isCandidate && (
-                                                        <li className="nav-item" style={{ marginRight: '14px' }}>
+                                                        <li className="nav-item public-header-action-item">
                                                             <button
                                                                 type="button"
-                                                                onClick={() => setShowTopupModal(true)}
-                                                                style={{
-                                                                    display: 'inline-flex',
-                                                                    alignItems: 'center',
-                                                                    gap: '6px',
-                                                                    padding: '5px 11px',
-                                                                    borderRadius: '999px',
-                                                                    border: '1px solid #fde68a',
-                                                                    background: '#fffbeb',
-                                                                    color: '#92400e',
-                                                                    fontSize: '12px',
-                                                                    fontWeight: 700,
-                                                                    cursor: 'pointer',
-                                                                }}
+                                                                className="public-header-wallet-btn"
+                                                                onClick={openTopupModal}
                                                             >
-                                                                <i className="fas fa-coins" style={{ color: '#f59e0b' }} />
-                                                                <span>
+                                                                <i className="fas fa-coins public-header-wallet-btn__icon" aria-hidden="true" />
+                                                                <span className="public-header-wallet-btn__balance">
                                                                     {rewardOverview?.wallet
-                                                                        ? `${Number(rewardOverview.wallet.balancePoints || 0).toLocaleString('vi-VN')} Điểm`
-                                                                        : 'Ví Điểm & Xu'}
+                                                                        ? `${Number(rewardOverview.wallet.balancePoints || 0).toLocaleString('vi-VN')} điểm`
+                                                                        : 'Ví điểm'}
                                                                 </span>
-                                                                <span
-                                                                    style={{
-                                                                        background: '#004ac6',
-                                                                        color: '#fff',
-                                                                        borderRadius: '999px',
-                                                                        padding: '1px 7px',
-                                                                        fontSize: '10.5px',
-                                                                    }}
-                                                                >
+                                                                <span className="public-header-wallet-btn__cta">
                                                                     + Nạp
                                                                 </span>
                                                             </button>
                                                         </li>
                                                     )}
-                                                    {canUseChat && <li className="nav-item" style={{ position: 'relative', marginRight: '18px' }}>
-                                                        <Link aria-label="Tin nhắn" to="/chat" style={{ color: '#252b60', fontSize: '18px', position: 'relative' }}>
-                                                            <i className="far fa-comment-dots"></i>
-                                                            {unreadChat > 0 &&
-                                                                <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: '#fb246a', color: '#fff', borderRadius: '50%', fontSize: '10px', padding: '1px 5px' }}>{unreadChat}</span>
-                                                            }
-                                                        </Link>
-                                                    </li>}
-                                                    <li ref={notificationRef} className="nav-item" style={{ position: 'relative', marginRight: '10px' }}>
-                                                        <button type="button" aria-label="Thông báo" aria-expanded={showNotification} aria-controls="public-notification-menu" style={{ color: '#252b60', fontSize: '18px', position: 'relative', cursor: 'pointer', border: 0, background: 'none', padding: 0 }} onClick={toggleNotificationMenu}>
-                                                            <i className="far fa-bell"></i>
-                                                            {unreadCount > 0 &&
-                                                                <span style={{ position: 'absolute', top: '-8px', right: '-10px', background: '#fb246a', color: '#fff', borderRadius: '50%', fontSize: '10px', padding: '1px 5px' }}>{unreadCount}</span>
-                                                            }
+                                                    {canUseChat && (
+                                                        <li className="nav-item public-header-action-item">
+                                                            <Link aria-label="Tin nhắn" to="/chat" className="public-header-icon-btn">
+                                                                <i className="far fa-comment-dots" aria-hidden="true"></i>
+                                                                {unreadChat > 0 && (
+                                                                    <span className="public-header-badge">{unreadChat}</span>
+                                                                )}
+                                                            </Link>
+                                                        </li>
+                                                    )}
+                                                    <li ref={notificationRef} className="nav-item public-header-action-item">
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Thông báo"
+                                                            aria-expanded={showNotification}
+                                                            aria-controls="public-notification-menu"
+                                                            className="public-header-icon-btn"
+                                                            onClick={toggleNotificationMenu}
+                                                        >
+                                                            <i className="far fa-bell" aria-hidden="true"></i>
+                                                            {unreadCount > 0 && (
+                                                                <span className="public-header-badge">{unreadCount}</span>
+                                                            )}
                                                         </button>
-                                                        {showNotification &&
-                                                            <div id="public-notification-menu" style={{ position: 'absolute', top: '35px', right: '-50px', width: '330px', background: '#fff', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', zIndex: 999, maxHeight: '400px', overflowY: 'auto' }}>
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #f0f0f0' }}>
-                                                                    <b style={{ color: '#333' }}>Thông báo</b>
-                                                                    <button type="button" style={{ fontSize: '12px', color: '#fb246a', cursor: 'pointer', border: 0, background: 'none', padding: 0 }} onClick={() => handleReadAll()}>Đọc tất cả</button>
+                                                        {showNotification && (
+                                                            <div id="public-notification-menu" className="public-notification-dropdown">
+                                                                <div className="public-notification-dropdown__head">
+                                                                    <b>Thông báo</b>
+                                                                    <button type="button" onClick={() => handleReadAll()}>Đọc tất cả</button>
                                                                 </div>
                                                                 {listNotification && listNotification.length > 0 ? listNotification.map((item, index) => (
-                                                                    <div key={index} onClick={() => handleClickNotification(item)}
-                                                                        style={{ padding: '10px 14px', borderBottom: '1px solid #f7f7f7', cursor: 'pointer', background: +item.isChecked === 0 ? '#fff5f8' : '#fff' }}>
-                                                                        <div style={{ fontSize: '13px', color: '#333' }}>{item.content}</div>
+                                                                    <div
+                                                                        key={index}
+                                                                        onClick={() => handleClickNotification(item)}
+                                                                        className={`public-notification-dropdown__item${+item.isChecked === 0 ? ' is-unread' : ''}`}
+                                                                    >
+                                                                        <div>{item.content}</div>
                                                                     </div>
-                                                                )) :
-                                                                    <div style={{ padding: '18px', textAlign: 'center', color: '#999', fontSize: '13px' }}>Chưa có thông báo nào</div>
-                                                                }
-                                                                {isCandidate && <Link to="/candidate/notifications" onClick={closeHeaderMenus} style={{ display: 'block', padding: '12px 14px', textAlign: 'center', color: '#b92055', fontSize: '13px' }}>Xem tất cả thông báo</Link>}
+                                                                )) : (
+                                                                    <div className="public-notification-dropdown__empty">Chưa có thông báo nào</div>
+                                                                )}
+                                                                {isCandidate && (
+                                                                    <Link to="/candidate/notifications" onClick={closeHeaderMenus} className="public-notification-dropdown__footer">
+                                                                        Xem tất cả thông báo
+                                                                    </Link>
+                                                                )}
                                                             </div>
-                                                        }
+                                                        )}
                                                     </li>
-                                                    <li ref={profileRef} className="nav-item nav-profile dropdown">
-                                                        <button type="button" className="nav-link dropdown-toggle box-header-profile" id="profileDropdown" aria-haspopup="menu" aria-expanded={showProfileMenu} aria-controls="public-profile-menu" onClick={toggleProfileMenu} style={{ border: 0, background: 'none', cursor: 'pointer' }}>
-                                                            <ChatAvatar style={{ objectFit: 'cover', width: '30px', height: '30px', borderRadius: '50%' }} src={user.image} name={user.firstName} alt="" />
-                                                            <span className='header-name-user'>{user.firstName + " " + user.lastName}</span>
+                                                    <li ref={profileRef} className="nav-item nav-profile dropdown public-header-action-item">
+                                                        <button
+                                                            type="button"
+                                                            className="nav-link dropdown-toggle box-header-profile"
+                                                            id="profileDropdown"
+                                                            aria-haspopup="menu"
+                                                            aria-expanded={showProfileMenu}
+                                                            aria-controls="public-profile-menu"
+                                                            onClick={toggleProfileMenu}
+                                                        >
+                                                            <ChatAvatar
+                                                                style={{ objectFit: 'cover', width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0 }}
+                                                                src={user.image}
+                                                                name={user.firstName}
+                                                                alt=""
+                                                            />
+                                                            <span className="header-name-user">{[user.firstName, user.lastName].filter(Boolean).join(' ')}</span>
                                                         </button>
                                                         <div
                                                             id="public-profile-menu"
@@ -407,13 +429,10 @@ const Header = () => {
                                                                 <button
                                                                     type="button"
                                                                     className="dropdown-item"
-                                                                    onClick={() => {
-                                                                        closeHeaderMenus()
-                                                                        setShowTopupModal(true)
-                                                                    }}
+                                                                    onClick={openTopupModal}
                                                                 >
                                                                     <i className="fas fa-coins text-primary" />
-                                                                    Nạp Điểm &amp; Mua Xu
+                                                                    Nạp điểm tài khoản
                                                                 </button>
                                                             )}
                                                             {isCandidate && <Link to="/candidate/notifications" className="dropdown-item" onClick={closeHeaderMenus}>
@@ -513,12 +532,9 @@ const Header = () => {
                                                                 <button
                                                                     type="button"
                                                                     className="public-mobile-menu-link"
-                                                                    onClick={() => {
-                                                                        closeHeaderMenus()
-                                                                        setShowTopupModal(true)
-                                                                    }}
+                                                                    onClick={openTopupModal}
                                                                 >
-                                                                    Nạp Điểm &amp; Mua Xu
+                                                                    Nạp điểm tài khoản
                                                                 </button>
                                                             </li>
                                                         )}
@@ -549,11 +565,13 @@ const Header = () => {
                 </div>
                 {/* <!-- Header End --> */}
             </header >
-            <PointTopupModal
-                isOpen={showTopupModal}
-                onClose={() => setShowTopupModal(false)}
-                walletData={rewardOverview}
-            />
+            {showTopupModal && (
+                <PointTopupModal
+                    isOpen
+                    onClose={closeTopupModal}
+                    walletData={rewardOverview}
+                />
+            )}
         </>
     )
 }

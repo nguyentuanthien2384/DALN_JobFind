@@ -13,10 +13,10 @@ const POINT_VALUE_VND = 1000;
 
 // Goi nap diem cho ung vien (gia VND). bonus = diem tang them.
 const CANDIDATE_TOPUP_PACKAGES = Object.freeze([
-    { code: 'BASIC', name: 'Gói Khởi Đầu (Basic)', price: 20000, points: 20, bonus: 2, badge: 'Tặng +2 Điểm (Tổng 22 Điểm)' },
-    { code: 'STANDARD', name: 'Gói Tiêu Chuẩn (Standard)', price: 50000, points: 50, bonus: 10, popular: true, badge: 'PHỔ BIẾN NHẤT (+10 Điểm)' },
-    { code: 'PRO', name: 'Gói Tăng Tốc (Pro)', price: 100000, points: 100, bonus: 30, badge: 'Tặng +30 Điểm (Tổng 130 Điểm)' },
-    { code: 'PREMIUM', name: 'Gói Cao Cấp (VIP)', price: 200000, points: 200, bonus: 80, badge: 'Tặng +80 Điểm & Đẩy Top CV', perk: 'TOP_CV_BOOST' }
+    { code: 'BASIC', name: 'Gói Cơ Bản', price: 20000, points: 20, bonus: 2 },
+    { code: 'STANDARD', name: 'Gói Tiêu Chuẩn', price: 50000, points: 50, bonus: 10, popular: true },
+    { code: 'PRO', name: 'Gói Nâng Cao', price: 100000, points: 100, bonus: 30 },
+    { code: 'PREMIUM', name: 'Gói Chuyên Nghiệp', price: 200000, points: 200, bonus: 80, perk: 'TOP_CV_BOOST' }
 ]);
 
 const formatCandidateTopupPackages = () => CANDIDATE_TOPUP_PACKAGES.map((pkg) => {

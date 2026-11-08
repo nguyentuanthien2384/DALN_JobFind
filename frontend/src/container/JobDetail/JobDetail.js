@@ -245,12 +245,14 @@ export default function JobDetail() {
             </div>
         </div>
         <SendCvModal isOpen={isOpen} onHide={() => setIsOpen(false)} onSubmitted={afterSubmit} postId={id} jobTitle={detail.name} />
-        <PointTopupModal
-            isOpen={topupModalState.open}
-            initialTab={topupModalState.tab}
-            walletData={walletOverview}
-            postId={id}
-            onClose={() => setTopupModalState(prev => ({ ...prev, open: false }))}
-        />
+        {topupModalState.open && (
+            <PointTopupModal
+                isOpen
+                initialTab={topupModalState.tab}
+                walletData={walletOverview}
+                postId={id}
+                onClose={() => setTopupModalState(prev => ({ ...prev, open: false }))}
+            />
+        )}
     </main>;
 }

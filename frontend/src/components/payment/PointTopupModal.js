@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { toast } from 'react-toastify';
 import {
     createPaymentCheckoutService,
@@ -7,60 +8,44 @@ import {
     getCandidateRewardOverviewService,
     setCachedCandidateRewardOverview,
 } from '../../service/rewardPaymentService';
-import SandboxTestCardHint from './SandboxTestCardHint';
 import './PointTopupModal.css';
 
 const PROMO_CATALOG = {
-    VNPAY5K: { discountVnd: 5000, provider: 'VNPAY', minAmountVnd: 20000, label: 'Khuyến mãi VNPAY-QR (-5.000đ)' },
-    ARCHITECT5K: { discountVnd: 5000, provider: null, minAmountVnd: 20000, label: 'Mã ưu đãi ARCHITECT5K (-5.000đ)' },
-    MOMO5K: { discountVnd: 5000, provider: 'MOMO', minAmountVnd: 20000, label: 'Ưu đãi Ví MoMo (-5.000đ)' },
-    ZALOPAY5K: { discountVnd: 5000, provider: 'ZALOPAY', minAmountVnd: 20000, label: 'Ưu đãi Ví ZaloPay (-5.000đ)' },
-    JOBFIND10K: { discountVnd: 10000, provider: null, minAmountVnd: 50000, label: 'Ưu đãi JOBFIND10K (-10.000đ)' },
+    VNPAY5K: { discountVnd: 5000, provider: 'VNPAY', minAmountVnd: 20000, label: 'Giảm 5.000đ qua VNPAY' },
+    ARCHITECT5K: { discountVnd: 5000, provider: null, minAmountVnd: 20000, label: 'Giảm 5.000đ' },
+    MOMO5K: { discountVnd: 5000, provider: 'MOMO', minAmountVnd: 20000, label: 'Giảm 5.000đ qua MoMo' },
+    ZALOPAY5K: { discountVnd: 5000, provider: 'ZALOPAY', minAmountVnd: 20000, label: 'Giảm 5.000đ qua ZaloPay' },
+    JOBFIND10K: { discountVnd: 10000, provider: null, minAmountVnd: 50000, label: 'Giảm 10.000đ' },
 };
 
 const GATEWAY_METHODS = [
     {
         code: 'VNPAY',
         shortLogo: 'VNPAY',
-        logoClass: 'jf-topup-method-logo--vnpay',
         title: 'Cổng thanh toán VNPAY',
-        tag: 'Thẻ ATM NCB / Visa / QR',
-        desc: 'Nhập thẻ dùng thử NCB nội địa hoặc Visa Sandbox (giảm thêm 5.000đ)',
-        defaultPromo: 'VNPAY5K',
+        desc: 'Thẻ ATM nội địa (NAPAS), Visa/MasterCard hoặc VNPAY-QR',
     },
     {
         code: 'MOMO',
         shortLogo: 'MoMo',
-        logoClass: 'jf-topup-method-logo--momo',
         title: 'Ví điện tử MoMo',
-        tag: 'Thẻ ATM NAPAS / Visa',
-        desc: 'Cổng MoMo Merchant Trial — hỗ trợ nhập thẻ ATM NAPAS & Visa dùng thử',
-        defaultPromo: 'MOMO5K',
+        desc: 'Thanh toán qua ví MoMo hoặc thẻ ngân hàng liên kết',
     },
     {
         code: 'ZALOPAY',
         shortLogo: 'ZaloPay',
-        logoClass: 'jf-topup-method-logo--zalopay',
         title: 'Ví điện tử ZaloPay',
-        tag: 'Merchant Trial V2',
-        desc: 'Cổng ZaloPay Gateway — nhập trực tiếp thẻ ATM nội địa hoặc Internet Banking',
-        defaultPromo: 'ZALOPAY5K',
+        desc: 'Thanh toán qua ví ZaloPay hoặc thẻ ATM nội địa',
     },
     {
         code: 'PAYPAL',
         shortLogo: 'PayPal',
-        logoClass: 'jf-topup-method-logo--paypal',
         title: 'PayPal / Thẻ Quốc Tế',
-        tag: 'Visa / Master / USD',
-        desc: 'Cổng PayPal Sandbox quốc tế hỗ trợ tài khoản Buyer & thẻ dùng thử',
-        defaultPromo: 'ARCHITECT5K',
+        desc: 'Thanh toán quốc tế qua thẻ Visa, MasterCard hoặc PayPal',
     },
 ];
 
-const formatVnd = (value) => {
-    const num = Number(value || 0);
-    return `${num.toLocaleString('vi-VN')} VNĐ`;
-};
+const formatVnd = (value) => `${Number(value || 0).toLocaleString('vi-VN')} VNĐ`;
 
 const PointTopupModal = ({
     isOpen,
@@ -70,16 +55,18 @@ const PointTopupModal = ({
     postId = null,
 }) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'topup');
+    const [step, setStep] = useState('select');
     const [localWallet, setLocalWallet] = useState(() => walletData || getCachedCandidateRewardOverview());
     const [selectedPkgCode, setSelectedPkgCode] = useState('STANDARD');
     const [selectedProvider, setSelectedProvider] = useState('VNPAY');
-    const [promoInput, setPromoInput] = useState('VNPAY5K');
-    const [appliedPromo, setAppliedPromo] = useState('VNPAY5K');
+    const [promoInput, setPromoInput] = useState('');
+    const [appliedPromo, setAppliedPromo] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setActiveTab(initialTab || 'topup');
+            setStep('select');
         }
     }, [isOpen, initialTab]);
 
@@ -91,22 +78,40 @@ const PointTopupModal = ({
 
     useEffect(() => {
         if (!isOpen) return undefined;
-        let cancelled = false;
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape' && !submitting && onClose) {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = prevOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, submitting, onClose]);
+
+    useEffect(() => {
+        if (!isOpen) return undefined;
         const rawUser = localStorage.getItem('userData');
         if (!rawUser) return undefined;
+        if (process.env.NODE_ENV !== 'test' && getCachedCandidateRewardOverview()) {
+            return undefined;
+        }
 
-        const fetchOverview = async () => {
-            try {
-                const res = await getCandidateRewardOverviewService();
+        let cancelled = false;
+        getCandidateRewardOverviewService()
+            .then((res) => {
                 if (!cancelled && res && res.errCode === 0 && res.data) {
                     setCachedCandidateRewardOverview(res.data);
                     setLocalWallet(res.data);
                 }
-            } catch (_err) {
-                // Keep existing wallet state if unauthenticated or offline
-            }
-        };
-        fetchOverview();
+            })
+            .catch(() => {
+                // Keep existing wallet state if offline
+            });
+
         return () => {
             cancelled = true;
         };
@@ -123,15 +128,22 @@ const PointTopupModal = ({
         const found = packages.find((pkg) => pkg.code === selectedPkgCode) || packages[1] || packages[0];
         if (!found) return DEFAULT_CANDIDATE_TOPUP_PACKAGES[1];
         const totalPoints = Number(found.totalPoints ?? found.points ?? 0);
+        const bonusPoints = Number(found.bonusPoints ?? found.bonus ?? 0);
+        const basePoints = Number(found.basePoints ?? Math.max(0, totalPoints - bonusPoints));
         const priceVnd = Number(found.priceVnd ?? found.price ?? 0);
         return {
             ...found,
+            basePoints,
+            bonusPoints,
             points: totalPoints,
-            xu: Number(found.xu || totalPoints * 1000),
             priceVnd,
-            originalPriceVnd: Number(found.originalPriceVnd || totalPoints * 1000 || priceVnd),
         };
     }, [packages, selectedPkgCode]);
+
+    const selectedGateway = useMemo(
+        () => GATEWAY_METHODS.find((item) => item.code === selectedProvider) || GATEWAY_METHODS[0],
+        [selectedProvider]
+    );
 
     const discountInfo = useMemo(() => {
         const code = String(appliedPromo || '').trim().toUpperCase();
@@ -159,30 +171,18 @@ const PointTopupModal = ({
 
     if (!isOpen) return null;
 
-    const walletBalance = Number(localWallet?.wallet?.balancePoints ?? 45);
-    const walletXu = Number(localWallet?.wallet?.balanceXu ?? walletBalance * 1000);
-    const tierLabel = localWallet?.wallet?.tierLabel || 'Hạng Bạc (Silver Member)';
+    const walletBalance = Number(localWallet?.wallet?.balancePoints ?? 0);
     const transactions = Array.isArray(localWallet?.transactions) ? localWallet.transactions : [];
-
-    const handleSelectProvider = (providerCode) => {
-        setSelectedProvider(providerCode);
-        const gateway = GATEWAY_METHODS.find((item) => item.code === providerCode);
-        if (gateway?.defaultPromo) {
-            setPromoInput(gateway.defaultPromo);
-            setAppliedPromo(gateway.defaultPromo);
-        }
-    };
 
     const handleApplyPromo = () => {
         const normalized = String(promoInput || '').trim().toUpperCase();
         if (!normalized) {
             setAppliedPromo('');
-            toast.info('Đã xóa mã khuyến mãi.');
             return;
         }
         const rule = PROMO_CATALOG[normalized];
         if (!rule) {
-            toast.warning('Mã ưu đãi không tồn tại. Gợi ý: VNPAY5K, ARCHITECT5K, MOMO5K, ZALOPAY5K, JOBFIND10K');
+            toast.warning('Mã giảm giá không tồn tại hoặc đã hết hạn.');
             return;
         }
         if (rule.provider && rule.provider !== selectedProvider) {
@@ -194,7 +194,7 @@ const PointTopupModal = ({
             return;
         }
         setAppliedPromo(normalized);
-        toast.success(`Đã áp dụng ${rule.label}!`);
+        toast.success(`Đã áp dụng mã ${normalized} (${rule.label}).`);
     };
 
     const handleConfirmCheckout = async () => {
@@ -211,12 +211,11 @@ const PointTopupModal = ({
                 purpose: 'POINT_TOPUP',
                 itemCode: selectedPkg.code,
                 provider: selectedProvider,
-                promoCode: appliedPromo,
+                promoCode: discountInfo.discountVnd > 0 ? appliedPromo : '',
                 postId,
                 returnUrl,
             });
-            const paymentUrl =
-                res?.data?.paymentUrl || res?.data?.checkoutUrl || res?.link;
+            const paymentUrl = res?.data?.paymentUrl || res?.data?.checkoutUrl || res?.link;
             if (res && res.errCode === 0 && paymentUrl) {
                 if (process.env.NODE_ENV !== 'test') {
                     window.location.assign(paymentUrl);
@@ -231,393 +230,361 @@ const PointTopupModal = ({
         }
     };
 
-    return (
+    const modalNode = (
         <div
             className="jf-topup-backdrop"
             role="dialog"
             aria-modal="true"
-            aria-label="Nạp Điểm & Mua Xu Ứng Viên"
+            aria-label="Nạp điểm tài khoản"
             onClick={(e) => {
-                if (e.target === e.currentTarget && onClose) onClose();
+                if (e.target === e.currentTarget && !submitting && onClose) onClose();
             }}
         >
             <div className="jf-topup-modal">
-                {/* Modal Header */}
                 <div className="jf-topup-header">
-                    <div className="jf-topup-header__left">
-                        <div className="jf-topup-header__icon">
-                            <i className="fas fa-coins" />
-                        </div>
-                        <div>
-                            <div className="jf-topup-header__title-row">
-                                <h2 className="jf-topup-header__title">Nạp Điểm &amp; Mua Xu Ứng Viên</h2>
-                                <span className="jf-topup-header__promo-pill">
-                                    <i className="fas fa-fire" />
-                                    Ưu đãi +20% hôm nay
-                                </span>
-                            </div>
-                            <p className="jf-topup-header__subtitle">
-                                Dùng điểm để mở khóa báo cáo cạnh tranh ứng viên, đẩy Top CV và xem phân tích chuyên sâu
-                            </p>
-                        </div>
+                    <div>
+                        <h2 className="jf-topup-header__title">Nạp điểm tài khoản</h2>
+                        <p className="jf-topup-header__subtitle">
+                            Nạp điểm để mở khóa thống kê ứng tuyển và các tiện ích dành cho ứng viên
+                        </p>
                     </div>
-
-                    <div className="jf-topup-header__actions">
-                        <div className="jf-topup-tab-switch">
-                            <button
-                                type="button"
-                                className={`jf-topup-tab-btn ${activeTab === 'topup' ? 'is-active' : ''}`}
-                                onClick={() => setActiveTab('topup')}
-                            >
-                                Nạp Điểm
-                            </button>
-                            <button
-                                type="button"
-                                className={`jf-topup-tab-btn ${activeTab === 'history' ? 'is-active' : ''}`}
-                                onClick={() => setActiveTab('history')}
-                            >
-                                Lịch sử dùng điểm
-                            </button>
-                        </div>
-                        <button
-                            type="button"
-                            className="jf-topup-close-btn"
-                            aria-label="Đóng modal"
-                            onClick={onClose}
-                        >
-                            <i className="fas fa-times" />
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        className="jf-topup-close-btn"
+                        aria-label="Đóng modal"
+                        disabled={submitting}
+                        onClick={onClose}
+                    >
+                        &times;
+                    </button>
                 </div>
 
-                {/* Modal Body */}
+                <div className="jf-topup-tabs">
+                    <button
+                        type="button"
+                        className={`jf-topup-tab-btn ${activeTab === 'topup' ? 'is-active' : ''}`}
+                        onClick={() => setActiveTab('topup')}
+                    >
+                        Nạp điểm
+                    </button>
+                    <button
+                        type="button"
+                        className={`jf-topup-tab-btn ${activeTab === 'history' ? 'is-active' : ''}`}
+                        onClick={() => setActiveTab('history')}
+                    >
+                        Lịch sử dùng điểm
+                    </button>
+                </div>
+
                 <div className="jf-topup-body">
-                    {/* Candidate Current Balance Card */}
-                    <div className="jf-topup-balance-card">
-                        <div className="jf-topup-balance-card__left">
-                            <div className="jf-topup-balance-card__icon">
-                                <i className="fas fa-wallet" />
-                            </div>
-                            <div>
-                                <div className="jf-topup-balance-card__label">Số dư khả dụng hiện tại</div>
-                                <div className="jf-topup-balance-card__value">
-                                    <span>{walletBalance.toLocaleString('vi-VN')} Điểm thưởng</span>
-                                    <span className="jf-topup-balance-card__xu">
-                                        (Tương đương {walletXu.toLocaleString('vi-VN')} Xu)
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="jf-topup-balance-card__tier">
-                            <i className="fas fa-shield-alt" style={{ color: '#003d9b' }} />
-                            <span>{tierLabel}</span>
-                        </div>
+                    <div className="jf-topup-balance-bar">
+                        <span>
+                            Số dư hiện tại: <strong>{walletBalance.toLocaleString('vi-VN')} điểm</strong>
+                        </span>
+                        <span className="jf-topup-balance-rate">Quy đổi: 1 điểm = 1.000 VNĐ</span>
                     </div>
 
                     {activeTab === 'history' ? (
-                        <div>
-                            <div className="jf-topup-section-head">
-                                <h3 className="jf-topup-section-title">
-                                    <span className="jf-topup-step-num">
-                                        <i className="fas fa-history" />
-                                    </span>
-                                    Lịch sử biến động Điểm &amp; Xu gần đây
-                                </h3>
-                            </div>
-                            {transactions.length === 0 ? (
-                                <div className="jf-topup-history-item">
-                                    <div>
-                                        <div className="jf-topup-history-item__title">
-                                            Chưa có giao dịch điểm nào được ghi nhận
-                                        </div>
-                                        <div className="jf-topup-history-item__meta">
-                                            Bạn có thể nộp CV (+5 Điểm), điểm danh hằng ngày (+1 Điểm) hoặc nạp Xu trực tiếp.
-                                        </div>
+                        transactions.length === 0 ? (
+                            <div className="jf-topup-history-item">
+                                <div>
+                                    <div className="jf-topup-history-item__title">
+                                        Chưa có giao dịch điểm nào
+                                    </div>
+                                    <div className="jf-topup-history-item__meta">
+                                        Lịch sử cộng hoặc trừ điểm sẽ hiển thị tại đây.
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="jf-topup-history-list">
-                                    {transactions.map((tx) => {
-                                        const pts = Number(tx.pointsDelta || 0);
-                                        const isPlus = pts >= 0;
-                                        return (
-                                            <div key={tx.id} className="jf-topup-history-item">
-                                                <div>
-                                                    <div className="jf-topup-history-item__title">
-                                                        {tx.description || tx.transactionType}
-                                                    </div>
-                                                    <div className="jf-topup-history-item__meta">
-                                                        {tx.createdAt
-                                                            ? new Date(tx.createdAt).toLocaleString('vi-VN')
-                                                            : 'Vừa xong'}{' '}
-                                                        • Số dư sau GD: {Number(tx.balanceAfter || 0).toLocaleString('vi-VN')} Điểm
-                                                    </div>
+                            </div>
+                        ) : (
+                            <div className="jf-topup-history-list">
+                                {transactions.map((tx) => {
+                                    const pts = Number(tx.pointsDelta || 0);
+                                    const isPlus = pts >= 0;
+                                    return (
+                                        <div key={tx.id} className="jf-topup-history-item">
+                                            <div>
+                                                <div className="jf-topup-history-item__title">
+                                                    {tx.description || tx.transactionType}
                                                 </div>
-                                                <div
-                                                    className={`jf-topup-history-item__amount ${
-                                                        isPlus ? 'is-plus' : 'is-minus'
-                                                    }`}
-                                                >
-                                                    {isPlus ? `+${pts}` : pts} Điểm
+                                                <div className="jf-topup-history-item__meta">
+                                                    {tx.createdAt
+                                                        ? new Date(tx.createdAt).toLocaleString('vi-VN')
+                                                        : 'Vừa xong'}{' '}
+                                                    • Số dư: {Number(tx.balanceAfter || 0).toLocaleString('vi-VN')} điểm
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
+                                            <div
+                                                className={`jf-topup-history-item__amount ${
+                                                    isPlus ? 'is-plus' : 'is-minus'
+                                                }`}
+                                            >
+                                                {isPlus ? `+${pts}` : pts} điểm
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )
                     ) : (
                         <>
-                            {/* Step 1: Choose Package */}
-                            <div>
-                                <div className="jf-topup-section-head">
-                                    <h3 className="jf-topup-section-title">
-                                        <span className="jf-topup-step-num">1</span>
-                                        Chọn gói nạp điểm tối ưu
-                                    </h3>
-                                    <span style={{ fontSize: '12px', color: '#0058be', fontWeight: 600 }}>
-                                        1 Điểm = 1.000 Xu = 1.000 VNĐ
-                                    </span>
-                                </div>
-
-                                <div className="jf-topup-pkg-grid">
-                                    {packages.map((pkg) => {
-                                        const isSelected = pkg.code === selectedPkg.code;
-                                        return (
-                                            <button
-                                                key={pkg.code}
-                                                type="button"
-                                                className={`jf-topup-pkg-card ${isSelected ? 'is-selected' : ''}`}
-                                                onClick={() => setSelectedPkgCode(pkg.code)}
-                                            >
-                                                {pkg.badge && (
-                                                    <span className="jf-topup-pkg-badge">{pkg.badge}</span>
-                                                )}
-                                                <div>
-                                                    <div className="jf-topup-pkg-card__top">
-                                                        <span className="jf-topup-pkg-card__name">{pkg.name}</span>
-                                                        <i
-                                                            className={`fas ${
-                                                                isSelected ? 'fa-check-circle' : 'fa-circle'
-                                                            } jf-topup-pkg-card__check`}
-                                                        />
-                                                    </div>
-                                                    <div className="jf-topup-pkg-card__price">
-                                                        {Number(pkg.priceVnd || 0).toLocaleString('vi-VN')}{' '}
-                                                        <small>VNĐ</small>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="jf-topup-pkg-card__points">
-                                                        <i className="fas fa-check-circle" />
-                                                        Nhận {pkg.points} Điểm ({Number(pkg.xu || pkg.points * 1000).toLocaleString('vi-VN')} Xu)
-                                                    </div>
-                                                    <div className="jf-topup-pkg-card__bonus">
-                                                        {pkg.discountPercent > 0
-                                                            ? `Tiết kiệm ${pkg.discountPercent}% (${formatVnd(pkg.originalPriceVnd - pkg.priceVnd)})`
-                                                            : 'Mở ngay 02 báo cáo cạnh tranh'}
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                            <div className="jf-topup-stepper">
+                                <span
+                                    className={`jf-topup-step-item ${
+                                        step === 'select' ? 'is-active' : 'is-done'
+                                    }`}
+                                >
+                                    <span className="jf-topup-step-badge">1</span>
+                                    Chọn gói &amp; phương thức
+                                </span>
+                                <span className="jf-topup-step-sep">/</span>
+                                <span
+                                    className={`jf-topup-step-item ${
+                                        step === 'confirm' ? 'is-active' : ''
+                                    }`}
+                                >
+                                    <span className="jf-topup-step-badge">2</span>
+                                    Xác nhận đơn nạp
+                                </span>
                             </div>
 
-                            {/* Step 2 & 3: Payment Methods + Order Summary */}
-                            <div className="jf-topup-split">
-                                {/* Col Left: Payment methods */}
-                                <div>
-                                    <div className="jf-topup-section-head">
-                                        <h3 className="jf-topup-section-title">
-                                            <span className="jf-topup-step-num">2</span>
-                                            Phương thức thanh toán (VNPAY, MoMo, ZaloPay, PayPal)
-                                        </h3>
+                            {step === 'select' ? (
+                                <>
+                                    <div className="jf-topup-section">
+                                        <label className="jf-topup-label">1. Chọn gói điểm</label>
+                                        <div className="jf-topup-pkg-grid">
+                                            {packages.map((pkg) => {
+                                                const isSelected = pkg.code === selectedPkg.code;
+                                                const totalPts = Number(pkg.totalPoints ?? pkg.points ?? 0);
+                                                const bonusPts = Number(pkg.bonusPoints ?? pkg.bonus ?? 0);
+                                                const priceVal = Number(pkg.priceVnd ?? pkg.price ?? 0);
+                                                return (
+                                                    <button
+                                                        key={pkg.code}
+                                                        type="button"
+                                                        className={`jf-topup-pkg-card ${
+                                                            isSelected ? 'is-selected' : ''
+                                                        }`}
+                                                        onClick={() => setSelectedPkgCode(pkg.code)}
+                                                    >
+                                                        <div className="jf-topup-pkg-card__head">
+                                                            <span className="jf-topup-pkg-card__name">
+                                                                {pkg.name}
+                                                            </span>
+                                                            <span className="jf-topup-radio" />
+                                                        </div>
+                                                        <div className="jf-topup-pkg-card__price">
+                                                            {formatVnd(priceVal)}
+                                                        </div>
+                                                        <div className="jf-topup-pkg-card__pts">
+                                                            Nhận <strong>{totalPts} điểm</strong>
+                                                            {bonusPts > 0 ? ` (đã cộng ${bonusPts} điểm thưởng)` : ''}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
 
-                                    <div className="jf-topup-methods">
-                                        {GATEWAY_METHODS.map((method) => {
-                                            const isSelected = selectedProvider === method.code;
-                                            return (
-                                                <div
-                                                    key={method.code}
-                                                    role="radio"
-                                                    aria-checked={isSelected}
-                                                    tabIndex={0}
-                                                    className={`jf-topup-method-card jf-topup-method-card--${method.code.toLowerCase()} ${
-                                                        isSelected ? 'is-selected' : ''
-                                                    }`}
-                                                    onClick={() => handleSelectProvider(method.code)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' || e.key === ' ') {
-                                                            e.preventDefault();
-                                                            handleSelectProvider(method.code);
-                                                        }
+                                    <div className="jf-topup-section">
+                                        <label className="jf-topup-label">2. Phương thức thanh toán</label>
+                                        <div className="jf-topup-method-list">
+                                            {GATEWAY_METHODS.map((method) => {
+                                                const isSelected = method.code === selectedProvider;
+                                                return (
+                                                    <button
+                                                        key={method.code}
+                                                        type="button"
+                                                        className={`jf-topup-method-item ${
+                                                            isSelected ? 'is-selected' : ''
+                                                        }`}
+                                                        onClick={() => setSelectedProvider(method.code)}
+                                                    >
+                                                        <div className="jf-topup-method-item__left">
+                                                            <span className="jf-topup-method-tag">
+                                                                {method.shortLogo}
+                                                            </span>
+                                                            <div>
+                                                                <div className="jf-topup-method-title">
+                                                                    {method.title}
+                                                                </div>
+                                                                <div className="jf-topup-method-desc">
+                                                                    {method.desc}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <span className="jf-topup-radio" />
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="jf-topup-section">
+                                        <label className="jf-topup-label" htmlFor="jf-topup-promo-input">
+                                            Mã giảm giá (không bắt buộc)
+                                        </label>
+                                        <div className="jf-topup-promo-row">
+                                            <input
+                                                id="jf-topup-promo-input"
+                                                type="text"
+                                                className="jf-topup-promo-input"
+                                                placeholder="Nhập mã giảm giá (nếu có)"
+                                                value={promoInput}
+                                                onChange={(e) => setPromoInput(e.target.value)}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="jf-topup-btn jf-topup-btn--secondary"
+                                                onClick={handleApplyPromo}
+                                            >
+                                                Áp dụng
+                                            </button>
+                                        </div>
+                                        {discountInfo.discountVnd > 0 && (
+                                            <div className="jf-topup-promo-applied">
+                                                <span>
+                                                    Đã áp dụng mã <strong>{appliedPromo}</strong> (-
+                                                    {formatVnd(discountInfo.discountVnd)})
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    style={{
+                                                        border: 'none',
+                                                        background: 'none',
+                                                        color: '#b91c1c',
+                                                        fontSize: '12px',
+                                                        cursor: 'pointer',
+                                                        padding: 0,
+                                                    }}
+                                                    onClick={() => {
+                                                        setPromoInput('');
+                                                        setAppliedPromo('');
                                                     }}
                                                 >
-                                                    <div className="jf-topup-method-card__left">
-                                                        <div className={`jf-topup-method-logo ${method.logoClass}`}>
-                                                            {method.shortLogo}
-                                                        </div>
-                                                        <div>
-                                                            <div className="jf-topup-method-card__title">
-                                                                <span>{method.title}</span>
-                                                                <span className="jf-topup-method-card__tag">
-                                                                    {method.tag}
-                                                                </span>
-                                                            </div>
-                                                            <p className="jf-topup-method-card__desc">{method.desc}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <i
-                                                            className={`fas ${
-                                                                isSelected ? 'fa-check-circle' : 'fa-circle'
-                                                            }`}
-                                                            style={{
-                                                                color: isSelected ? '#003d9b' : '#c3c6d7',
-                                                                fontSize: '18px',
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                                    Bỏ mã
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-
-                                    {/* Promo code box */}
-                                    <div className="jf-topup-promo-box">
-                                        <input
-                                            type="text"
-                                            className="jf-topup-promo-input"
-                                            placeholder="Nhập mã ưu đãi (VD: VNPAY5K, ARCHITECT5K)"
-                                            value={promoInput}
-                                            onChange={(e) => setPromoInput(e.target.value)}
-                                        />
-                                        <button
-                                            type="button"
-                                            className="jf-topup-promo-btn"
-                                            onClick={handleApplyPromo}
-                                        >
-                                            Áp dụng
-                                        </button>
-                                    </div>
-
-                                    <SandboxTestCardHint provider={selectedProvider} compact />
-                                </div>
-
-                                {/* Col Right: Payment Summary */}
-                                <div className="jf-topup-summary-card">
-                                    <div>
-                                        <div className="jf-topup-section-head">
-                                            <h3 className="jf-topup-section-title">
-                                                <span className="jf-topup-step-num">3</span>
-                                                Chi tiết thanh toán
-                                            </h3>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="jf-topup-confirm-box">
+                                        <div className="jf-topup-confirm-row">
+                                            <span>Gói nạp đã chọn:</span>
+                                            <strong>{selectedPkg.name}</strong>
                                         </div>
-
-                                        <div className="jf-topup-summary-rows">
-                                            <div className="jf-topup-summary-row">
-                                                <span>Gói đã chọn:</span>
-                                                <strong>{selectedPkg.name}</strong>
-                                            </div>
-                                            <div className="jf-topup-summary-row">
-                                                <span>Cổng thanh toán:</span>
-                                                <strong>{selectedProvider}</strong>
-                                            </div>
-                                            <div className="jf-topup-summary-row">
-                                                <span>Giá niêm yết gói nạp:</span>
-                                                <strong>{formatVnd(selectedPkg.priceVnd)}</strong>
-                                            </div>
-                                            <div className="jf-topup-summary-row jf-topup-summary-row--points">
-                                                <span>Điểm nhận được:</span>
-                                                <strong>
-                                                    +{selectedPkg.points} Điểm ({Number(selectedPkg.xu || selectedPkg.points * 1000).toLocaleString('vi-VN')} Xu)
+                                        <div className="jf-topup-confirm-row">
+                                            <span>Số điểm nhận được:</span>
+                                            <strong>+{selectedPkg.points} điểm</strong>
+                                        </div>
+                                        <div className="jf-topup-confirm-row">
+                                            <span>Số dư dự kiến sau khi nạp:</span>
+                                            <strong>
+                                                {(walletBalance + selectedPkg.points).toLocaleString('vi-VN')} điểm
+                                            </strong>
+                                        </div>
+                                        <div className="jf-topup-confirm-row">
+                                            <span>Phương thức thanh toán:</span>
+                                            <strong>{selectedGateway.title}</strong>
+                                        </div>
+                                        <div className="jf-topup-confirm-row">
+                                            <span>Giá gói:</span>
+                                            <strong>{formatVnd(selectedPkg.priceVnd)}</strong>
+                                        </div>
+                                        {discountInfo.discountVnd > 0 && (
+                                            <div className="jf-topup-confirm-row">
+                                                <span>Giảm giá ({appliedPromo}):</span>
+                                                <strong style={{ color: '#15803d' }}>
+                                                    -{formatVnd(discountInfo.discountVnd)}
                                                 </strong>
                                             </div>
-                                            {discountInfo.discountVnd > 0 && (
-                                                <div className="jf-topup-summary-row jf-topup-summary-row--discount">
-                                                    <span>{discountInfo.label}:</span>
-                                                    <span>-{formatVnd(discountInfo.discountVnd)}</span>
-                                                </div>
-                                            )}
-
-                                            <div className="jf-topup-summary-total">
-                                                <div>
-                                                    <div style={{ fontWeight: 700, color: '#191c1e' }}>
-                                                        Tổng thanh toán:
-                                                    </div>
-                                                    <div style={{ fontSize: '11px', color: '#64748b' }}>
-                                                        Đã bao gồm thuế VAT
-                                                    </div>
-                                                </div>
-                                                <div className="jf-topup-summary-total__price">
-                                                    {formatVnd(finalAmountVnd)}
-                                                </div>
-                                            </div>
+                                        )}
+                                        <div className="jf-topup-confirm-row jf-topup-confirm-row--total">
+                                            <span>Tổng thanh toán:</span>
+                                            <strong>{formatVnd(finalAmountVnd)}</strong>
                                         </div>
                                     </div>
 
-                                    <div className="jf-topup-summary-guarantee">
-                                        <div className="jf-topup-summary-guarantee__title">
-                                            <i className="fas fa-user-shield" />
-                                            Bảo vệ hoàn tiền 100% nếu phát sinh lỗi
-                                        </div>
-                                        <div>
-                                            Điểm thưởng được cộng tự động vào ví ứng viên ngay sau khi xác nhận giao dịch thành công.
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                                    <p className="jf-topup-confirm-hint">
+                                        Sau khi nhấn <strong>Xác nhận thanh toán</strong>, hệ thống sẽ chuyển sang trang cổng thanh toán để bạn nhập thông tin thẻ ngân hàng và xác thực mã OTP.
+                                    </p>
+                                </>
+                            )}
                         </>
                     )}
                 </div>
 
-                {/* Modal Footer */}
                 <div className="jf-topup-footer">
-                    <div className="jf-topup-security">
-                        <span>
-                            <i className="fas fa-lock" />
-                            Mã hóa SSL 256-bit
-                        </span>
-                        <span>|</span>
-                        <span>
-                            <i className="fas fa-shield-alt" />
-                            Chứng chỉ PCI-DSS
-                        </span>
-                    </div>
-
-                    <div className="jf-topup-footer__cta">
-                        <button type="button" className="jf-topup-btn-cancel" onClick={onClose}>
-                            Hủy bỏ
-                        </button>
-                        {activeTab === 'topup' ? (
+                    {activeTab === 'history' ? (
+                        <div className="jf-topup-footer__actions">
                             <button
                                 type="button"
-                                className="jf-topup-btn-submit"
+                                className="jf-topup-btn jf-topup-btn--secondary"
+                                onClick={() => setActiveTab('topup')}
+                            >
+                                Chuyển sang Nạp điểm
+                            </button>
+                            <button
+                                type="button"
+                                className="jf-topup-btn jf-topup-btn--primary"
+                                onClick={onClose}
+                            >
+                                Đóng
+                            </button>
+                        </div>
+                    ) : step === 'select' ? (
+                        <>
+                            <div className="jf-topup-footer__summary">
+                                Tổng cộng: <strong>{formatVnd(finalAmountVnd)}</strong>
+                            </div>
+                            <div className="jf-topup-footer__actions">
+                                <button
+                                    type="button"
+                                    className="jf-topup-btn jf-topup-btn--secondary"
+                                    onClick={onClose}
+                                >
+                                    Hủy
+                                </button>
+                                <button
+                                    type="button"
+                                    className="jf-topup-btn jf-topup-btn--primary"
+                                    onClick={() => setStep('confirm')}
+                                >
+                                    Tiếp tục
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="jf-topup-footer__actions">
+                            <button
+                                type="button"
+                                className="jf-topup-btn jf-topup-btn--secondary"
+                                disabled={submitting}
+                                onClick={() => setStep('select')}
+                            >
+                                Quay lại
+                            </button>
+                            <button
+                                type="button"
+                                className="jf-topup-btn jf-topup-btn--primary"
                                 disabled={submitting}
                                 onClick={handleConfirmCheckout}
                             >
-                                <span>
-                                    {submitting ? 'Đang kết nối cổng thanh toán...' : 'Xác Nhận Thanh Toán Ngay'}
-                                </span>
-                                <i className="fas fa-arrow-right" />
+                                {submitting ? 'Đang khởi tạo...' : 'Xác nhận thanh toán'}
                             </button>
-                        ) : (
-                            <button
-                                type="button"
-                                className="jf-topup-btn-submit"
-                                onClick={() => setActiveTab('topup')}
-                            >
-                                <span>Chuyển sang Nạp Điểm</span>
-                                <i className="fas fa-plus" />
-                            </button>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
+
+    if (typeof document !== 'undefined' && document.body) {
+        return ReactDOM.createPortal(modalNode, document.body);
+    }
+    return modalNode;
 };
 
-export default PointTopupModal;
+export default React.memo(PointTopupModal);

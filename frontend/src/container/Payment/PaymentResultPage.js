@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
     notifyRewardWalletUpdated,
-    SANDBOX_TEST_CARDS,
     verifyPaymentReturnService,
 } from '../../service/rewardPaymentService';
 import './PaymentResultPage.css';
@@ -12,26 +11,37 @@ const formatVnd = (value) => `${Number(value || 0).toLocaleString('vi-VN')} VNĐ
 
 const PROVIDER_META = {
     VNPAY: {
-        name: 'Cổng thanh toán VNPAY Sandbox',
+        name: 'Cổng thanh toán VNPAY',
         bannerClass: 'jf-pay-result-banner--vnpay',
-        qrHint: 'Nhập thẻ nội địa NCB / NAPAS hoặc thẻ quốc tế VISA cấp sẵn miễn phí',
     },
     MOMO: {
-        name: 'Cổng thanh toán MoMo Sandbox',
+        name: 'Ví điện tử MoMo',
         bannerClass: 'jf-pay-result-banner--momo',
-        qrHint: 'Nhập thẻ ATM NAPAS hoặc thẻ quốc tế VISA dùng thử của MoMo Merchant Trial',
     },
     ZALOPAY: {
-        name: 'ZaloPay Gateway (Merchant Trial V2)',
+        name: 'Ví điện tử ZaloPay',
         bannerClass: 'jf-pay-result-banner--zalopay',
-        qrHint: 'Nhập thẻ ATM nội địa NAPAS hoặc Internet Banking dùng thử của ZaloPay',
     },
     PAYPAL: {
-        name: 'Cổng thanh toán quốc tế PayPal Sandbox',
+        name: 'PayPal / Thẻ Quốc Tế',
         bannerClass: 'jf-pay-result-banner--paypal',
-        qrHint: 'Xác thực thanh toán an toàn qua tài khoản Buyer hoặc thẻ PayPal Sandbox',
     },
 };
+
+const BANK_OPTIONS = [
+    'Vietcombank (Ngân hàng Ngoại thương VN)',
+    'VietinBank (Ngân hàng Công thương VN)',
+    'BIDV (Ngân hàng Đầu tư và Phát triển VN)',
+    'Agribank (Ngân hàng NN & PTNT)',
+    'Techcombank (Ngân hàng Kỹ thương VN)',
+    'MBBank (Ngân hàng Quân Đội)',
+    'ACB (Ngân hàng Á Châu)',
+    'Sacombank (Ngân hàng Sài Gòn Thương Tín)',
+    'VPBank (Ngân hàng Việt Nam Thịnh Vượng)',
+    'TPBank (Ngân hàng Tiên Phong)',
+    'NCB (Ngân hàng Quốc Dân)',
+    'Thẻ Quốc tế VISA / MasterCard / JCB',
+];
 
 const detectProviderFromQuery = (queryObject = {}) => {
     if (queryObject.provider) return String(queryObject.provider).toUpperCase();
@@ -42,6 +52,12 @@ const detectProviderFromQuery = (queryObject = {}) => {
     return 'VNPAY';
 };
 
+const maskCardNumber = (raw) => {
+    const digits = String(raw || '').replace(/[\s-]+/g, '');
+    if (digits.length < 8) return digits;
+    return `${digits.slice(0, 4)} **** **** ${digits.slice(-4)}`;
+};
+
 const PaymentResultPage = () => {
     const location = useLocation();
     const [loading, setLoading] = useState(true);
@@ -49,6 +65,14 @@ const PaymentResultPage = () => {
     const [resultData, setResultData] = useState(null);
     const [errorMessage, setErrorMessage] = useState('');
     const [cardError, setCardError] = useState('');
+    const [gatewayStep, setGatewayStep] = useState('card');
+    const [cardForm, setCardForm] = useState({
+        bank: '',
+        cardNumber: '',
+        cardHolder: '',
+        issueDate: '',
+        otp: '',
+    });
 
     const queryObject = useMemo(() => {
         const params = new URLSearchParams(location.search || '');
@@ -62,47 +86,6 @@ const PaymentResultPage = () => {
     const order = resultData?.order || (resultData?.orderCode ? resultData : null);
     const providerKey = String(order?.provider || detectProviderFromQuery(queryObject)).toUpperCase();
     const providerMeta = PROVIDER_META[providerKey] || PROVIDER_META.VNPAY;
-    const availableTestCards = useMemo(() => {
-        if (Array.isArray(resultData?.testCards) && resultData.testCards.length > 0) {
-            return resultData.testCards;
-        }
-        return SANDBOX_TEST_CARDS[providerKey] || SANDBOX_TEST_CARDS.VNPAY;
-    }, [resultData, providerKey]);
-
-    const [cardForm, setCardForm] = useState(() => {
-        const initialCard = (SANDBOX_TEST_CARDS[detectProviderFromQuery()] || SANDBOX_TEST_CARDS.VNPAY)[0];
-        return {
-            bank: initialCard.bank,
-            cardNumber: initialCard.cardNumber,
-            cardHolder: initialCard.cardHolder,
-            issueDate: initialCard.issueDate || initialCard.expiryDate || '07/15',
-            otp: initialCard.otp || '123456',
-        };
-    });
-
-    useEffect(() => {
-        const firstCard = availableTestCards[0];
-        if (firstCard) {
-            setCardForm({
-                bank: firstCard.bank,
-                cardNumber: firstCard.cardNumber,
-                cardHolder: firstCard.cardHolder,
-                issueDate: firstCard.issueDate || firstCard.expiryDate || '07/15',
-                otp: firstCard.otp || '123456',
-            });
-        }
-    }, [providerKey, availableTestCards]);
-
-    const applyPresetCard = (card) => {
-        setCardError('');
-        setCardForm({
-            bank: card.bank,
-            cardNumber: card.cardNumber,
-            cardHolder: card.cardHolder || 'NGUYEN VAN A',
-            issueDate: card.issueDate || card.expiryDate || '07/15',
-            otp: card.otp || '123456',
-        });
-    };
 
     const verifyPayment = useCallback(
         async (extraParams = {}) => {
@@ -124,7 +107,7 @@ const PaymentResultPage = () => {
                 if (res && res.requireSimulationAction && res.data) {
                     setResultData(res.data);
                     setErrorMessage('');
-                    setCardError(res.errMessage || 'Thông tin thẻ dùng thử chưa hợp lệ.');
+                    setCardError(res.errMessage || 'Thông tin thẻ hoặc mã OTP chưa hợp lệ.');
                     return { ok: false, cardInvalid: true, res };
                 }
                 if (res && res.data && (res.data.order || res.data.orderCode)) {
@@ -150,26 +133,60 @@ const PaymentResultPage = () => {
         verifyPayment();
     }, [verifyPayment]);
 
-    const handleSimulationDecision = async (action) => {
+    const handleProceedToOtp = (event) => {
+        if (event) event.preventDefault();
+        setCardError('');
+        if (!cardForm.bank.trim()) {
+            setCardError('Vui lòng chọn ngân hàng hoặc loại thẻ thanh toán.');
+            return;
+        }
+        const digits = String(cardForm.cardNumber || '').replace(/[\s-]+/g, '');
+        if (!/^\d{15,19}$/.test(digits) || !/^(9704|4|5|35)/.test(digits)) {
+            setCardError(
+                'Số thẻ không hợp lệ. Vui lòng nhập thẻ ATM nội địa (9704...) hoặc thẻ quốc tế Visa/MasterCard/JCB (15 - 19 chữ số).'
+            );
+            return;
+        }
+        if (cardForm.cardHolder.trim().length < 3) {
+            setCardError('Vui lòng nhập họ tên chủ thẻ (không dấu).');
+            return;
+        }
+        if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardForm.issueDate.trim())) {
+            setCardError('Vui lòng nhập ngày phát hành / hết hạn đúng định dạng MM/YY (VD: 08/27).');
+            return;
+        }
+        setGatewayStep('otp');
+    };
+
+    const handleConfirmPayment = async (event) => {
+        if (event) event.preventDefault();
+        setCardError('');
+        const rawOtp = String(cardForm.otp || '').trim();
+        if (rawOtp.length < 4) {
+            setCardError('Vui lòng nhập mã xác thực OTP (từ 4 - 6 chữ số).');
+            return;
+        }
+        setProcessingAction(true);
+        const digits = String(cardForm.cardNumber || '').replace(/[\s-]+/g, '');
+        const outcome = await verifyPayment({
+            simulateAction: 'confirm',
+            simulateCardNumber: digits,
+            simulateCardHolder: cardForm.cardHolder.trim(),
+            simulateIssueDate: cardForm.issueDate.trim(),
+            simulateOtp: rawOtp,
+        });
+        if (outcome?.paid) {
+            toast.success('Thanh toán thành công! Quyền lợi đã được cập nhật vào tài khoản.');
+        } else if (outcome?.cardInvalid) {
+            toast.error(outcome.res?.errMessage || 'Không thể xác thực giao dịch thanh toán.');
+        }
+    };
+
+    const handleCancelPayment = async () => {
         setProcessingAction(true);
         setCardError('');
-        if (action === 'confirm') {
-            const outcome = await verifyPayment({
-                simulateAction: 'confirm',
-                simulateCardNumber: cardForm.cardNumber,
-                simulateCardHolder: cardForm.cardHolder,
-                simulateIssueDate: cardForm.issueDate,
-                simulateOtp: cardForm.otp,
-            });
-            if (outcome?.paid) {
-                toast.success('Thanh toán thành công! Điểm/lượt dịch vụ đã được cộng vào tài khoản.');
-            } else if (outcome?.cardInvalid) {
-                toast.error(outcome.res?.errMessage || 'Thẻ dùng thử không hợp lệ.');
-            }
-        } else {
-            await verifyPayment({ simulateAction: 'cancel' });
-            toast.info('Đã hủy giao dịch thanh toán.');
-        }
+        await verifyPayment({ simulateAction: 'cancel' });
+        toast.info('Đã hủy giao dịch thanh toán.');
     };
 
     const requireSimAction = Boolean(resultData?.requireSimulationAction);
@@ -184,8 +201,8 @@ const PaymentResultPage = () => {
                         <h1 className="jf-pay-result-banner__title">{providerMeta.name}</h1>
                         <p className="jf-pay-result-banner__sub">
                             {requireSimAction
-                                ? 'Cổng thanh toán Sandbox (Môi trường kiểm thử tích hợp JobFind)'
-                                : 'Biên lai xác nhận giao dịch trực tuyến JobFind'}
+                                ? 'Xác thực thông tin thẻ và thanh toán đơn hàng'
+                                : 'Thông tin kết quả giao dịch thanh toán'}
                         </p>
                     </div>
                     <span className="jf-pay-result-banner__badge">{providerKey}</span>
@@ -194,12 +211,12 @@ const PaymentResultPage = () => {
                 <div className="jf-pay-result-body">
                     {loading ? (
                         <div className="jf-pay-status-box">
-                            <div className="jf-pay-status-icon jf-pay-status-icon--success">
+                            <div className="jf-pay-status-icon jf-pay-status-icon--pending">
                                 <i className="fas fa-spinner fa-spin" />
                             </div>
-                            <h3>Đang đồng bộ kết quả giao dịch...</h3>
-                            <p style={{ color: '#64748b', fontSize: '13.5px' }}>
-                                Hệ thống đang kiểm tra chữ ký điện tử với cổng {providerKey}.
+                            <h3>Đang kiểm tra thông tin đơn hàng...</h3>
+                            <p className="jf-pay-status-sub">
+                                Vui lòng đợi trong giây lát, hệ thống đang kết nối cổng {providerKey}.
                             </p>
                         </div>
                     ) : errorMessage ? (
@@ -208,7 +225,7 @@ const PaymentResultPage = () => {
                                 <i className="fas fa-exclamation-triangle" />
                             </div>
                             <h3>Không thể xác nhận giao dịch</h3>
-                            <p style={{ color: '#64748b', fontSize: '13.5px' }}>{errorMessage}</p>
+                            <p className="jf-pay-status-sub">{errorMessage}</p>
                             <div className="jf-pay-actions" style={{ justifyContent: 'center', marginTop: '18px' }}>
                                 <Link to="/home" className="jf-pay-btn jf-pay-btn--primary">
                                     Về trang chủ
@@ -217,19 +234,28 @@ const PaymentResultPage = () => {
                         </div>
                     ) : requireSimAction ? (
                         <>
-                            <div className="jf-pay-qr-simulator">
-                                <div className="jf-pay-qr-box">
-                                    <i className="fas fa-credit-card" />
-                                    <span>{providerKey} TRIAL</span>
+                            <div className="jf-pay-stepper" aria-label="Các bước thanh toán">
+                                <div
+                                    className={`jf-pay-step ${
+                                        gatewayStep === 'card' ? 'is-active' : 'is-done'
+                                    }`}
+                                >
+                                    <span className="jf-pay-step__num">1</span>
+                                    <span>Nhập thông tin thẻ</span>
                                 </div>
-                                <div>
-                                    <div style={{ fontWeight: 800, fontSize: '15px', color: '#0f172a', marginBottom: '6px' }}>
-                                        Nhập thông tin thẻ dùng thử — {providerMeta.name}
-                                    </div>
-                                    <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
-                                        {providerMeta.qrHint}. Hệ thống đã điền sẵn thẻ dùng thử hợp lệ của{' '}
-                                        <strong>{providerKey}</strong> — bạn có thể chọn thẻ khác, tự nhập số thẻ hoặc bấm xác nhận thanh toán ngay bên dưới.
-                                    </div>
+                                <span className="jf-pay-step__divider">&rarr;</span>
+                                <div
+                                    className={`jf-pay-step ${
+                                        gatewayStep === 'otp' ? 'is-active' : ''
+                                    }`}
+                                >
+                                    <span className="jf-pay-step__num">2</span>
+                                    <span>Xác thực OTP</span>
+                                </div>
+                                <span className="jf-pay-step__divider">&rarr;</span>
+                                <div className="jf-pay-step">
+                                    <span className="jf-pay-step__num">3</span>
+                                    <span>Hoàn tất</span>
                                 </div>
                             </div>
 
@@ -249,8 +275,8 @@ const PaymentResultPage = () => {
                                     </div>
                                     {Number(order.discountVnd || 0) > 0 && (
                                         <div className="jf-pay-order-row">
-                                            <span>Ưu đãi ({order.promoCode}):</span>
-                                            <strong style={{ color: '#059669' }}>
+                                            <span>Giảm giá ({order.promoCode}):</span>
+                                            <strong style={{ color: '#15803d' }}>
                                                 -{formatVnd(order.discountVnd)}
                                             </strong>
                                         </div>
@@ -262,135 +288,198 @@ const PaymentResultPage = () => {
                                 </div>
                             )}
 
-                            <div className="jf-pay-card-form">
-                                <div className="jf-pay-card-form__head">
-                                    <span className="jf-pay-card-form__title">
-                                        <i className="fas fa-university" /> Thẻ nội địa / Quốc tế dùng thử miễn phí
-                                    </span>
-                                    <div className="jf-pay-card-presets">
-                                        {availableTestCards.map((card, idx) => (
-                                            <button
-                                                key={`${card.cardNumber}-${idx}`}
-                                                type="button"
-                                                className={`jf-pay-card-preset-btn ${
-                                                    cardForm.cardNumber === card.cardNumber ? 'is-active' : ''
-                                                }`}
-                                                onClick={() => applyPresetCard(card)}
-                                            >
-                                                {card.type === 'VISA' ? 'Thẻ VISA test' : `Thẻ ATM #${idx + 1}`}
-                                            </button>
-                                        ))}
+                            {gatewayStep === 'card' ? (
+                                <form onSubmit={handleProceedToOtp} noValidate>
+                                    <div className="jf-pay-card-form">
+                                        <div className="jf-pay-card-form__head">
+                                            <span className="jf-pay-card-form__title">
+                                                Thông tin thẻ thanh toán
+                                            </span>
+                                        </div>
+
+                                        <div className="jf-pay-card-grid">
+                                            <div className="jf-pay-card-field jf-pay-card-field--full">
+                                                <label htmlFor="jf-sim-bank">Ngân hàng / Loại thẻ</label>
+                                                <select
+                                                    id="jf-sim-bank"
+                                                    value={cardForm.bank}
+                                                    onChange={(e) => {
+                                                        setCardError('');
+                                                        setCardForm({ ...cardForm, bank: e.target.value });
+                                                    }}
+                                                >
+                                                    <option value="">-- Chọn ngân hàng hoặc loại thẻ --</option>
+                                                    {BANK_OPTIONS.map((bankName) => (
+                                                        <option key={bankName} value={bankName}>
+                                                            {bankName}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="jf-pay-card-field jf-pay-card-field--full">
+                                                <label htmlFor="jf-sim-card-number">Số thẻ</label>
+                                                <input
+                                                    id="jf-sim-card-number"
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    autoComplete="off"
+                                                    value={cardForm.cardNumber}
+                                                    onChange={(e) => {
+                                                        setCardError('');
+                                                        setCardForm({ ...cardForm, cardNumber: e.target.value });
+                                                    }}
+                                                    placeholder="Nhập 16 - 19 chữ số in trên mặt thẻ"
+                                                />
+                                            </div>
+
+                                            <div className="jf-pay-card-field">
+                                                <label htmlFor="jf-sim-holder">Tên chủ thẻ (không dấu)</label>
+                                                <input
+                                                    id="jf-sim-holder"
+                                                    type="text"
+                                                    autoComplete="off"
+                                                    value={cardForm.cardHolder}
+                                                    onChange={(e) => {
+                                                        setCardError('');
+                                                        setCardForm({
+                                                            ...cardForm,
+                                                            cardHolder: e.target.value.toUpperCase(),
+                                                        });
+                                                    }}
+                                                    placeholder="VD: NGUYEN VAN A"
+                                                />
+                                            </div>
+
+                                            <div className="jf-pay-card-field">
+                                                <label htmlFor="jf-sim-date">Ngày phát hành / hết hạn (MM/YY)</label>
+                                                <input
+                                                    id="jf-sim-date"
+                                                    type="text"
+                                                    autoComplete="off"
+                                                    maxLength={5}
+                                                    value={cardForm.issueDate}
+                                                    onChange={(e) => {
+                                                        setCardError('');
+                                                        setCardForm({ ...cardForm, issueDate: e.target.value });
+                                                    }}
+                                                    placeholder="MM/YY"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {cardError && (
+                                            <div className="jf-pay-card-error" role="alert">
+                                                <i className="fas fa-exclamation-circle" />
+                                                <span>{cardError}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="jf-pay-actions">
                                         <button
                                             type="button"
-                                            className={`jf-pay-card-preset-btn jf-pay-card-preset-btn--err ${
-                                                cardForm.cardNumber === '9704195798459170488' ? 'is-active' : ''
-                                            }`}
-                                            onClick={() =>
-                                                applyPresetCard({
-                                                    bank: 'NCB (Thẻ test không đủ số dư)',
-                                                    cardNumber: '9704195798459170488',
-                                                    cardHolder: 'NGUYEN VAN A',
-                                                    issueDate: '07/15',
-                                                    otp: '123456',
-                                                })
-                                            }
+                                            className="jf-pay-btn jf-pay-btn--danger"
+                                            disabled={processingAction}
+                                            onClick={handleCancelPayment}
                                         >
-                                            Thử thẻ lỗi số dư
+                                            Hủy giao dịch
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="jf-pay-btn jf-pay-btn--primary"
+                                            disabled={processingAction}
+                                        >
+                                            Tiếp tục
                                         </button>
                                     </div>
-                                </div>
+                                </form>
+                            ) : (
+                                <form onSubmit={handleConfirmPayment} noValidate>
+                                    <div className="jf-pay-card-form">
+                                        <div className="jf-pay-card-form__head">
+                                            <span className="jf-pay-card-form__title">
+                                                Xác nhận thông tin thẻ &amp; nhập mã OTP
+                                            </span>
+                                        </div>
 
-                                <div className="jf-pay-card-grid">
-                                    <div className="jf-pay-card-field jf-pay-card-field--full">
-                                        <label htmlFor="jf-sim-bank">Ngân hàng phát hành</label>
-                                        <input
-                                            id="jf-sim-bank"
-                                            type="text"
-                                            value={cardForm.bank}
-                                            onChange={(e) => setCardForm({ ...cardForm, bank: e.target.value })}
-                                            placeholder="VD: NCB / NAPAS / VietinBank"
-                                        />
+                                        <div className="jf-pay-card-review">
+                                            <div className="jf-pay-order-row">
+                                                <span>Ngân hàng / Loại thẻ:</span>
+                                                <strong>{cardForm.bank}</strong>
+                                            </div>
+                                            <div className="jf-pay-order-row">
+                                                <span>Số thẻ thanh toán:</span>
+                                                <strong>{maskCardNumber(cardForm.cardNumber)}</strong>
+                                            </div>
+                                            <div className="jf-pay-order-row">
+                                                <span>Tên chủ thẻ:</span>
+                                                <strong>{cardForm.cardHolder}</strong>
+                                            </div>
+                                            <div className="jf-pay-order-row">
+                                                <span>Ngày thẻ (MM/YY):</span>
+                                                <strong>{cardForm.issueDate}</strong>
+                                            </div>
+                                        </div>
+
+                                        <div className="jf-pay-card-field jf-pay-card-field--full">
+                                            <label htmlFor="jf-sim-otp">Mã xác thực OTP</label>
+                                            <input
+                                                id="jf-sim-otp"
+                                                type="text"
+                                                inputMode="numeric"
+                                                autoComplete="one-time-code"
+                                                maxLength={8}
+                                                value={cardForm.otp}
+                                                onChange={(e) => {
+                                                    setCardError('');
+                                                    setCardForm({ ...cardForm, otp: e.target.value });
+                                                }}
+                                                placeholder="Nhập mã OTP xác thực giao dịch"
+                                            />
+                                            <small className="jf-pay-otp-note">
+                                                Nhập mã xác thực OTP gửi tới số điện thoại đăng ký thẻ để xác nhận trừ tiền.
+                                            </small>
+                                        </div>
+
+                                        {cardError && (
+                                            <div className="jf-pay-card-error" role="alert">
+                                                <i className="fas fa-exclamation-circle" />
+                                                <span>{cardError}</span>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="jf-pay-card-field jf-pay-card-field--full">
-                                        <label htmlFor="jf-sim-card-number">Số thẻ</label>
-                                        <input
-                                            id="jf-sim-card-number"
-                                            type="text"
-                                            value={cardForm.cardNumber}
-                                            onChange={(e) => {
+
+                                    <div className="jf-pay-actions">
+                                        <button
+                                            type="button"
+                                            className="jf-pay-btn jf-pay-btn--secondary"
+                                            disabled={processingAction}
+                                            onClick={() => {
                                                 setCardError('');
-                                                setCardForm({ ...cardForm, cardNumber: e.target.value });
+                                                setGatewayStep('card');
                                             }}
-                                            placeholder="Nhập số thẻ dùng thử (VD: 9704198526191432198)"
-                                        />
+                                        >
+                                            Quay lại sửa thẻ
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="jf-pay-btn jf-pay-btn--danger"
+                                            disabled={processingAction}
+                                            onClick={handleCancelPayment}
+                                        >
+                                            Hủy giao dịch
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="jf-pay-btn jf-pay-btn--primary"
+                                            disabled={processingAction}
+                                        >
+                                            {processingAction ? 'Đang xử lý...' : 'Xác nhận thanh toán'}
+                                        </button>
                                     </div>
-                                    <div className="jf-pay-card-field">
-                                        <label htmlFor="jf-sim-holder">Tên chủ thẻ (không dấu)</label>
-                                        <input
-                                            id="jf-sim-holder"
-                                            type="text"
-                                            value={cardForm.cardHolder}
-                                            onChange={(e) =>
-                                                setCardForm({ ...cardForm, cardHolder: e.target.value.toUpperCase() })
-                                            }
-                                            placeholder="NGUYEN VAN A"
-                                        />
-                                    </div>
-                                    <div className="jf-pay-card-field">
-                                        <label htmlFor="jf-sim-date">Ngày phát hành / hết hạn (MM/YY)</label>
-                                        <input
-                                            id="jf-sim-date"
-                                            type="text"
-                                            value={cardForm.issueDate}
-                                            onChange={(e) => setCardForm({ ...cardForm, issueDate: e.target.value })}
-                                            placeholder="07/15"
-                                        />
-                                    </div>
-                                    <div className="jf-pay-card-field jf-pay-card-field--full">
-                                        <label htmlFor="jf-sim-otp">Mã xác thực OTP (Sandbox)</label>
-                                        <input
-                                            id="jf-sim-otp"
-                                            type="text"
-                                            value={cardForm.otp}
-                                            onChange={(e) => {
-                                                setCardError('');
-                                                setCardForm({ ...cardForm, otp: e.target.value });
-                                            }}
-                                            placeholder="123456 hoặc 000000"
-                                        />
-                                    </div>
-                                </div>
-
-                                {cardError && (
-                                    <div className="jf-pay-card-error">
-                                        <i className="fas fa-exclamation-circle" />
-                                        <span>{cardError}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="jf-pay-actions">
-                                <button
-                                    type="button"
-                                    className="jf-pay-btn jf-pay-btn--danger"
-                                    disabled={processingAction}
-                                    onClick={() => handleSimulationDecision('cancel')}
-                                >
-                                    <i className="fas fa-times" />
-                                    Hủy giao dịch
-                                </button>
-                                <button
-                                    type="button"
-                                    className="jf-pay-btn jf-pay-btn--primary"
-                                    disabled={processingAction}
-                                    onClick={() => handleSimulationDecision('confirm')}
-                                >
-                                    <i className="fas fa-check-circle" />
-                                    {processingAction
-                                        ? 'Đang xử lý...'
-                                        : 'Xác nhận thanh toán thành công (Sandbox)'}
-                                </button>
-                            </div>
+                                </form>
+                            )}
                         </>
                     ) : (
                         <>
@@ -402,15 +491,15 @@ const PaymentResultPage = () => {
                                 >
                                     <i className={`fas ${isPaid ? 'fa-check' : 'fa-times'}`} />
                                 </div>
-                                <h2 style={{ margin: '0 0 6px', fontSize: '20px', fontWeight: 800 }}>
+                                <h2 className="jf-pay-status-title">
                                     {isPaid
                                         ? 'Thanh toán thành công!'
                                         : 'Giao dịch chưa hoàn tất hoặc đã bị hủy'}
                                 </h2>
-                                <p style={{ margin: 0, fontSize: '13.5px', color: '#475569' }}>
+                                <p className="jf-pay-status-sub">
                                     {isPaid
-                                        ? 'Quyền lợi gói dịch vụ và Điểm thưởng đã được kích hoạt tự động vào tài khoản của bạn.'
-                                        : 'Chưa phát sinh trừ tiền hoặc đơn hàng đã được hủy theo yêu cầu.'}
+                                        ? 'Quyền lợi gói dịch vụ và điểm tài khoản đã được cập nhật.'
+                                        : 'Đơn hàng đã được hủy theo yêu cầu và chưa phát sinh trừ tiền.'}
                                 </p>
                             </div>
 
@@ -430,16 +519,16 @@ const PaymentResultPage = () => {
                                     </div>
                                     <div className="jf-pay-order-row">
                                         <span>Trạng thái:</span>
-                                        <strong style={{ color: isPaid ? '#059669' : '#dc2626' }}>
-                                            {isPaid ? 'ĐÃ THANH TOÁN (PAID)' : order.status}
+                                        <strong style={{ color: isPaid ? '#15803d' : '#dc2626' }}>
+                                            {isPaid ? 'Đã thanh toán' : 'Đã hủy'}
                                         </strong>
                                     </div>
                                     {isPaid && Number(order.pointsGranted || 0) > 0 && (
                                         <div className="jf-pay-order-row">
-                                            <span>Điểm / Top Point cộng thêm:</span>
-                                            <strong style={{ color: '#003d9b' }}>
+                                            <span>Điểm cộng thêm:</span>
+                                            <strong style={{ color: '#252b60' }}>
                                                 +{order.pointsGranted}{' '}
-                                                {order.purpose === 'POINT_TOPUP' ? 'Điểm thưởng Ứng viên' : 'Top Point Nhà tuyển dụng'}
+                                                {order.purpose === 'POINT_TOPUP' ? 'điểm' : 'Top Point'}
                                             </strong>
                                         </div>
                                     )}
@@ -456,7 +545,6 @@ const PaymentResultPage = () => {
                                         to={`/detail-job/${postId}`}
                                         className="jf-pay-btn jf-pay-btn--primary"
                                     >
-                                        <i className="fas fa-chart-pie" />
                                         Quay lại Tin tuyển dụng &amp; Xem Báo cáo
                                     </Link>
                                 )}
@@ -466,14 +554,12 @@ const PaymentResultPage = () => {
                                             to="/admin/rewards"
                                             className="jf-pay-btn jf-pay-btn--secondary"
                                         >
-                                            <i className="fas fa-gift" />
                                             Đổi quà Top Point
                                         </Link>
                                         <Link
                                             to="/admin/add-post"
                                             className="jf-pay-btn jf-pay-btn--primary"
                                         >
-                                            <i className="fas fa-arrow-left" />
                                             Quay lại Quản lý Gói đăng bài
                                         </Link>
                                     </>
@@ -484,14 +570,12 @@ const PaymentResultPage = () => {
                                             to="/admin/rewards"
                                             className="jf-pay-btn jf-pay-btn--secondary"
                                         >
-                                            <i className="fas fa-gift" />
                                             Đổi quà Top Point
                                         </Link>
                                         <Link
                                             to="/admin/buy-cv"
                                             className="jf-pay-btn jf-pay-btn--primary"
                                         >
-                                            <i className="fas fa-arrow-left" />
                                             Quay lại Mua lượt tìm ứng viên
                                         </Link>
                                     </>

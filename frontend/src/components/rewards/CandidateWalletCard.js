@@ -141,7 +141,7 @@ const CandidateWalletCard = ({ onOpenTopup, onWalletLoaded }) => {
                         gap: '6px',
                     }}
                 >
-                    <i className="fas fa-sparkles" style={{ color: '#f59e0b' }} />
+                    <i className="fas fa-star" style={{ color: '#f59e0b' }} />
                     <span>Cách nhận thêm điểm miễn phí:</span>
                 </div>
 

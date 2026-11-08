@@ -454,7 +454,7 @@ const JobCompetitionSection = ({
                     Bảo mật tuyệt đối: Mọi thông tin danh tính cá nhân và CV của các ứng viên khác đều được mã hóa ẩn danh.
                 </span>
                 <span style={{ color: '#004ac6', fontWeight: 600 }}>
-                    Quy chế tính điểm &amp; báo cáo TopCV Model
+                    Dữ liệu tổng hợp tự động trên hệ thống
                 </span>
             </div>
         </section>

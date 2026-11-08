@@ -1,127 +1,148 @@
 .jf-pay-result-page {
     min-height: calc(100vh - 140px);
-    background: linear-gradient(180deg, #f1f5f9 0%, #f8fafc 100%);
-    padding: 48px 16px;
+    background: #f3f4f6;
+    padding: 36px 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .jf-pay-result-card {
     width: 100%;
-    max-width: 640px;
+    max-width: 580px;
     background: #ffffff;
-    border-radius: 20px;
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
-    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    border: 1px solid #d1d5db;
     overflow: hidden;
 }
 
 .jf-pay-result-banner {
-    padding: 28px 32px;
+    padding: 20px 24px;
     color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
+    background: #252b60;
 }
 
 .jf-pay-result-banner--vnpay {
-    background: linear-gradient(135deg, #003d9b 0%, #0058be 100%);
+    background: #1e3a8a;
 }
 
 .jf-pay-result-banner--momo {
-    background: linear-gradient(135deg, #880e4f 0%, #c2185b 100%);
+    background: #9d174d;
 }
 
 .jf-pay-result-banner--zalopay {
-    background: linear-gradient(135deg, #0052cc 0%, #0068ff 100%);
+    background: #1d4ed8;
 }
 
 .jf-pay-result-banner--paypal {
-    background: linear-gradient(135deg, #001c64 0%, #003087 100%);
+    background: #1e3a8a;
 }
 
 .jf-pay-result-banner__title {
     margin: 0;
-    font-size: 21px;
-    font-weight: 800;
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffffff;
 }
 
 .jf-pay-result-banner__sub {
     margin: 4px 0 0;
     font-size: 13px;
-    opacity: 0.9;
+    color: rgba(255, 255, 255, 0.88);
 }
 
 .jf-pay-result-banner__badge {
-    padding: 6px 14px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.18);
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.16);
     font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    font-weight: 700;
     white-space: nowrap;
 }
 
 .jf-pay-result-body {
-    padding: 28px 32px;
+    padding: 22px 24px;
 }
 
-.jf-pay-qr-simulator {
+.jf-pay-stepper {
     display: flex;
-    gap: 22px;
     align-items: center;
-    background: #f8fafc;
-    border: 1px dashed #cbd5e1;
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 22px;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+    border-radius: 6px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    font-size: 13px;
 }
 
-@media (max-width: 560px) {
-    .jf-pay-qr-simulator {
-        flex-direction: column;
-        text-align: center;
-    }
+.jf-pay-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #9ca3af;
+    font-weight: 600;
 }
 
-.jf-pay-qr-box {
-    width: 124px;
-    height: 124px;
-    border-radius: 14px;
-    background: #ffffff;
-    border: 2px solid #003d9b;
-    display: flex;
-    flex-direction: column;
+.jf-pay-step.is-active {
+    color: #252b60;
+}
+
+.jf-pay-step.is-done {
+    color: #15803d;
+}
+
+.jf-pay-step__num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #4b5563;
+    font-size: 11.5px;
+    font-weight: 700;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(0, 61, 155, 0.1);
 }
 
-.jf-pay-qr-box i {
-    font-size: 56px;
-    color: #0f172a;
+.jf-pay-step.is-active .jf-pay-step__num {
+    background: #252b60;
+    color: #ffffff;
 }
 
-.jf-pay-qr-box span {
-    font-size: 10px;
-    font-weight: 800;
-    color: #003d9b;
-    margin-top: 4px;
+.jf-pay-step.is-done .jf-pay-step__num {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.jf-pay-step__divider {
+    color: #cbd5e1;
+    font-size: 12px;
+}
+
+@media (max-width: 520px) {
+    .jf-pay-stepper {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
 }
 
 .jf-pay-order-table {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 18px;
-    border-radius: 14px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    margin-bottom: 22px;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 6px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 18px;
 }
 
 .jf-pay-order-row {
@@ -129,40 +150,63 @@
     align-items: center;
     justify-content: space-between;
     font-size: 13.5px;
-    color: #475569;
+    color: #4b5563;
     gap: 12px;
 }
 
 .jf-pay-order-row strong {
-    color: #0f172a;
+    color: #111827;
     text-align: right;
 }
 
+.jf-pay-order-row--highlight {
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+}
+
 .jf-pay-order-row--highlight strong {
-    color: #003d9b;
-    font-size: 18px;
-    font-weight: 900;
+    color: #252b60;
+    font-size: 16.5px;
+    font-weight: 700;
 }
 
 .jf-pay-status-box {
     text-align: center;
-    margin-bottom: 22px;
+    margin-bottom: 18px;
+}
+
+.jf-pay-status-title {
+    margin: 0 0 6px;
+    font-size: 19px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.jf-pay-status-sub {
+    margin: 0;
+    font-size: 13.5px;
+    color: #4b5563;
 }
 
 .jf-pay-status-icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 999px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 28px;
-    margin-bottom: 12px;
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.jf-pay-status-icon--pending {
+    background: #eff6ff;
+    color: #1d4ed8;
 }
 
 .jf-pay-status-icon--success {
-    background: #d1fae5;
-    color: #059669;
+    background: #dcfce7;
+    color: #15803d;
 }
 
 .jf-pay-status-icon--failed {
@@ -170,116 +214,35 @@
     color: #dc2626;
 }
 
-.jf-pay-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: flex-end;
-}
-
-.jf-pay-btn {
-    border: none;
-    border-radius: 10px;
-    padding: 11px 20px;
-    font-size: 13.5px;
-    font-weight: 700;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: all 0.15s ease;
-}
-
-.jf-pay-btn--primary {
-    background: linear-gradient(90deg, #003d9b 0%, #0058be 100%);
-    color: #ffffff;
-    box-shadow: 0 6px 16px rgba(0, 61, 155, 0.22);
-}
-
-.jf-pay-btn--primary:hover:not(:disabled) {
-    filter: brightness(1.06);
-    color: #ffffff;
-}
-
-.jf-pay-btn--secondary {
-    background: #e2e8f0;
-    color: #1e293b;
-}
-
-.jf-pay-btn--secondary:hover:not(:disabled) {
-    background: #cbd5e1;
-    color: #0f172a;
-}
-
-.jf-pay-btn--danger {
-    background: #fee2e2;
-    color: #b91c1c;
-}
-
 .jf-pay-card-form {
-    border: 1px solid #cbd5e1;
-    border-radius: 16px;
-    padding: 18px 20px;
-    margin-bottom: 22px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 18px;
     background: #ffffff;
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
 }
 
 .jf-pay-card-form__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
     margin-bottom: 14px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .jf-pay-card-form__title {
     font-size: 14px;
-    font-weight: 800;
-    color: #003d9b;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.jf-pay-card-presets {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.jf-pay-card-preset-btn {
-    border: 1px solid #cbd5e1;
-    background: #f8fafc;
-    color: #334155;
-    border-radius: 8px;
-    padding: 4px 10px;
-    font-size: 11.5px;
     font-weight: 700;
-    cursor: pointer;
-    transition: all 0.15s ease;
+    color: #1f2937;
 }
 
-.jf-pay-card-preset-btn.is-active {
-    background: #003d9b;
-    border-color: #003d9b;
-    color: #ffffff;
-}
-
-.jf-pay-card-preset-btn--err {
-    border-color: #fecaca;
-    color: #b91c1c;
-    background: #fef2f2;
-}
-
-.jf-pay-card-preset-btn--err.is-active {
-    background: #dc2626;
-    border-color: #dc2626;
-    color: #ffffff;
+.jf-pay-card-review {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    margin-bottom: 14px;
+    border-radius: 6px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
 }
 
 .jf-pay-card-grid {
@@ -288,7 +251,7 @@
     gap: 12px;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 520px) {
     .jf-pay-card-grid {
         grid-template-columns: 1fr;
     }
@@ -305,40 +268,103 @@
 }
 
 .jf-pay-card-field label {
-    font-size: 12px;
-    font-weight: 700;
-    color: #334155;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
     margin: 0;
 }
 
-.jf-pay-card-field input {
+.jf-pay-card-field input,
+.jf-pay-card-field select {
+    height: 38px;
+    border-radius: 6px;
     border: 1px solid #cbd5e1;
-    border-radius: 10px;
-    padding: 9px 12px;
+    padding: 0 12px;
     font-size: 13.5px;
-    font-weight: 600;
-    color: #0f172a;
-    background: #f8fafc;
-    outline: none;
-    transition: border-color 0.15s ease, background 0.15s ease;
+    color: #111827;
+    background: #ffffff;
 }
 
-.jf-pay-card-field input:focus {
-    border-color: #003d9b;
-    background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(0, 61, 155, 0.1);
+.jf-pay-card-field input:focus,
+.jf-pay-card-field select:focus {
+    outline: none;
+    border-color: #252b60;
+}
+
+.jf-pay-otp-note {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 2px;
 }
 
 .jf-pay-card-error {
     margin-top: 12px;
     padding: 10px 12px;
-    border-radius: 10px;
+    border-radius: 6px;
     background: #fef2f2;
     border: 1px solid #fecaca;
     color: #b91c1c;
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 13px;
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.jf-pay-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.jf-pay-btn {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    height: 38px;
+    padding: 0 16px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-decoration: none;
+}
+
+.jf-pay-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.jf-pay-btn--primary {
+    background: #252b60;
+    color: #ffffff;
+}
+
+.jf-pay-btn--primary:hover:not(:disabled) {
+    background: #1c214b;
+    color: #ffffff;
+}
+
+.jf-pay-btn--secondary {
+    background: #ffffff;
+    border-color: #d1d5db;
+    color: #374151;
+}
+
+.jf-pay-btn--secondary:hover:not(:disabled) {
+    background: #f3f4f6;
+    color: #111827;
+}
+
+.jf-pay-btn--danger {
+    background: #ffffff;
+    border-color: #fca5a5;
+    color: #b91c1c;
+}
+
+.jf-pay-btn--danger:hover:not(:disabled) {
+    background: #fef2f2;
+    color: #991b1b;
 }

@@ -128,7 +128,7 @@ const EmployerRewardsSection = ({ compact = false }) => {
                             {tierLabel} (x{multiplier})
                         </span>
                         <span style={{ fontSize: '12px', color: '#93c5fd', fontWeight: 700 }}>
-                            Mô hình TopCV Rewards (Top Point)
+                            Chương trình ưu đãi khách hàng doanh nghiệp
                         </span>
                     </div>
                     <h2 className="jf-emp-rewards__title">

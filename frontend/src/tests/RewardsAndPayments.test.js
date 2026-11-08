@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
 import PointTopupModal from '../components/payment/PointTopupModal';
+import OrderConfirmModal from '../components/payment/OrderConfirmModal';
 import JobCompetitionSection from '../components/rewards/JobCompetitionSection';
 import CandidateWalletCard from '../components/rewards/CandidateWalletCard';
 import EmployerRewardsSection from '../container/system/Rewards/EmployerRewardsSection';
@@ -85,25 +86,33 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
 
         render(<PointTopupModal isOpen onClose={jest.fn()} postId={123} />);
 
-        expect(await screen.findByText('Nạp Điểm & Mua Xu Ứng Viên')).toBeInTheDocument();
+        expect(await screen.findByText('Nạp điểm tài khoản')).toBeInTheDocument();
         expect(screen.getByText('Cổng thanh toán VNPAY')).toBeInTheDocument();
         expect(screen.getByText('Ví điện tử MoMo')).toBeInTheDocument();
         expect(screen.getByText('Ví điện tử ZaloPay')).toBeInTheDocument();
         expect(screen.getByText('PayPal / Thẻ Quốc Tế')).toBeInTheDocument();
 
-        // Switch packages and promo codes
-        fireEvent.click(screen.getByText(/Gói Tăng Tốc/i));
-        const promoInput = screen.getByPlaceholderText(/Nhập mã ưu đãi/i);
+        // Promo code starts empty (not pre-filled)
+        const promoInput = screen.getByPlaceholderText(/Nhập mã giảm giá/i);
+        expect(promoInput).toHaveValue('');
+
+        // Switch packages and apply promo code
+        fireEvent.click(screen.getByText(/Gói Nâng Cao/i));
         fireEvent.change(promoInput, { target: { value: 'JOBFIND10K' } });
         fireEvent.click(screen.getByRole('button', { name: 'Áp dụng' }));
 
         // Switch to history tab and back
         fireEvent.click(screen.getByRole('button', { name: 'Lịch sử dùng điểm' }));
         expect(await screen.findByText('Nộp CV nhận +5 Điểm')).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: /Chuyển sang Nạp Điểm/i }));
+        fireEvent.click(screen.getByRole('button', { name: /Chuyển sang Nạp điểm/i }));
 
+        // Step 1 -> Step 2 order confirmation before initiating checkout
         fireEvent.click(screen.getByText('Ví điện tử MoMo'));
-        fireEvent.click(screen.getByRole('button', { name: /Xác Nhận Thanh Toán Ngay/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'Tiếp tục' }));
+        expect(rewardPaymentService.createPaymentCheckoutService).not.toHaveBeenCalled();
+        expect(screen.getByText('Phương thức thanh toán:')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Xác nhận thanh toán' }));
 
         await waitFor(() => {
             expect(rewardPaymentService.createPaymentCheckoutService).toHaveBeenCalledWith(
@@ -111,6 +120,7 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
                     purpose: 'POINT_TOPUP',
                     itemCode: 'PRO',
                     provider: 'MOMO',
+                    promoCode: 'JOBFIND10K',
                     postId: 123,
                 })
             );
@@ -310,12 +320,36 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
             </MemoryRouter>
         );
 
-        const confirmBtn = await screen.findByRole('button', {
-            name: /Xác nhận thanh toán thành công \(Sandbox\)/i,
-        });
-        expect(screen.getByDisplayValue('9704198526191432198')).toBeInTheDocument();
-        expect(screen.getByDisplayValue('NGUYEN VAN A')).toBeInTheDocument();
-        fireEvent.click(confirmBtn);
+        const nextBtn = await screen.findByRole('button', { name: 'Tiếp tục' });
+        const bankSelect = screen.getByLabelText('Ngân hàng / Loại thẻ');
+        const cardInput = screen.getByLabelText('Số thẻ');
+        const holderInput = screen.getByLabelText('Tên chủ thẻ (không dấu)');
+        const dateInput = screen.getByLabelText('Ngày phát hành / hết hạn (MM/YY)');
+
+        // Card fields must start empty (never pre-filled)
+        expect(bankSelect).toHaveValue('');
+        expect(cardInput).toHaveValue('');
+        expect(holderInput).toHaveValue('');
+        expect(dateInput).toHaveValue('');
+
+        // Submitting empty card step is blocked by validation
+        fireEvent.click(nextBtn);
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+        expect(rewardPaymentService.verifyPaymentReturnService).toHaveBeenCalledTimes(1);
+
+        // Step 1: Enter card details manually
+        fireEvent.change(bankSelect, { target: { value: 'NCB (Ngân hàng Quốc Dân)' } });
+        fireEvent.change(cardInput, { target: { value: '9704198526191432198' } });
+        fireEvent.change(holderInput, { target: { value: 'nguyen van a' } });
+        fireEvent.change(dateInput, { target: { value: '07/28' } });
+        fireEvent.click(nextBtn);
+
+        // Step 2: Review masked card & enter OTP manually
+        expect(await screen.findByText('9704 **** **** 2198')).toBeInTheDocument();
+        const otpInput = screen.getByLabelText('Mã xác thực OTP');
+        expect(otpInput).toHaveValue('');
+        fireEvent.change(otpInput, { target: { value: '123456' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Xác nhận thanh toán' }));
 
         await waitFor(() => {
             expect(rewardPaymentService.verifyPaymentReturnService).toHaveBeenLastCalledWith(
@@ -323,10 +357,152 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
                     simulateAction: 'confirm',
                     simulateCardNumber: '9704198526191432198',
                     simulateCardHolder: 'NGUYEN VAN A',
+                    simulateOtp: '123456',
                 })
             );
         });
         expect(await screen.findByText('Thanh toán thành công!')).toBeInTheDocument();
         expect(screen.getByText(/Quay lại Tin tuyển dụng & Xem Báo cáo/i)).toBeInTheDocument();
+    });
+
+    test('validates card/OTP branches, cancel action, and modal keyboard/promo interactions', async () => {
+        // OrderConfirmModal Escape & backdrop cancel
+        const onCancelConfirm = jest.fn();
+        const { unmount: unmountConfirm } = render(
+            <OrderConfirmModal
+                isOpen
+                title="Xác nhận đơn"
+                rows={[{ label: 'Gói:', value: 'Basic' }]}
+                totalValue="10 USD"
+                subTotalNote="Quy đổi: 250.000 VNĐ"
+                onCancel={onCancelConfirm}
+                onConfirm={jest.fn()}
+            />
+        );
+        fireEvent.keyDown(window, { key: 'Escape' });
+        fireEvent.click(screen.getByRole('dialog', { name: 'Xác nhận đơn' }));
+        expect(onCancelConfirm).toHaveBeenCalledTimes(2);
+        unmountConfirm();
+
+        // PointTopupModal promo edge cases, step back, and Escape close
+        rewardPaymentService.getCandidateRewardOverviewService.mockResolvedValueOnce({
+            errCode: 0,
+            data: { wallet: { balancePoints: 10 }, topupPackages: [], transactions: [] },
+        });
+        const onCloseTopup = jest.fn();
+        const { unmount: unmountTopup } = render(<PointTopupModal isOpen onClose={onCloseTopup} />);
+        expect(await screen.findByText('Nạp điểm tài khoản')).toBeInTheDocument();
+
+        const promoInput = screen.getByPlaceholderText(/Nhập mã giảm giá/i);
+        fireEvent.change(promoInput, { target: { value: 'UNKNOWN_PROMO' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Áp dụng' }));
+        fireEvent.change(promoInput, { target: { value: 'MOMO5K' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Áp dụng' }));
+        fireEvent.change(promoInput, { target: { value: 'JOBFIND10K' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Áp dụng' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Bỏ mã' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Tiếp tục' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Quay lại' }));
+        fireEvent.keyDown(window, { key: 'Escape' });
+        expect(onCloseTopup).toHaveBeenCalled();
+        unmountTopup();
+
+        // PaymentResultPage validation branches, cardInvalid retry, and cancel
+        rewardPaymentService.verifyPaymentReturnService
+            .mockResolvedValueOnce({
+                errCode: 0,
+                data: {
+                    requireSimulationAction: true,
+                    paid: false,
+                    order: {
+                        orderCode: 'JF888',
+                        provider: 'MOMO',
+                        purpose: 'PACKAGE_POST',
+                        itemName: 'Gói đăng bài',
+                        finalAmountVnd: 100000,
+                        status: 'PENDING',
+                    },
+                },
+            })
+            .mockResolvedValueOnce({
+                errCode: 2,
+                requireSimulationAction: true,
+                errMessage: 'Giao dịch bị từ chối: Không đủ số dư',
+                data: {
+                    requireSimulationAction: true,
+                    paid: false,
+                    order: {
+                        orderCode: 'JF888',
+                        provider: 'MOMO',
+                        purpose: 'PACKAGE_POST',
+                        itemName: 'Gói đăng bài',
+                        finalAmountVnd: 100000,
+                        status: 'PENDING',
+                    },
+                },
+            })
+            .mockResolvedValueOnce({
+                errCode: 2,
+                errMessage: 'Bạn đã hủy giao dịch thanh toán',
+                data: {
+                    requireSimulationAction: false,
+                    paid: false,
+                    order: {
+                        orderCode: 'JF888',
+                        provider: 'MOMO',
+                        purpose: 'PACKAGE_POST',
+                        itemName: 'Gói đăng bài',
+                        finalAmountVnd: 100000,
+                        status: 'CANCELLED',
+                    },
+                },
+            });
+
+        render(
+            <MemoryRouter initialEntries={['/payment/result?partnerCode=MOMO&resultCode=0&order=JF888']}>
+                <PaymentResultPage />
+            </MemoryRouter>
+        );
+
+        const nextBtn = await screen.findByRole('button', { name: 'Tiếp tục' });
+        fireEvent.change(screen.getByLabelText('Ngân hàng / Loại thẻ'), {
+            target: { value: 'Vietcombank (Ngân hàng Ngoại thương VN)' },
+        });
+        // Invalid card number
+        fireEvent.change(screen.getByLabelText('Số thẻ'), { target: { value: '12345' } });
+        fireEvent.click(nextBtn);
+        expect(screen.getByRole('alert')).toHaveTextContent(/Số thẻ không hợp lệ/i);
+
+        // Missing holder
+        fireEvent.change(screen.getByLabelText('Số thẻ'), { target: { value: '9704195798459170488' } });
+        fireEvent.click(nextBtn);
+        expect(screen.getByRole('alert')).toHaveTextContent(/chủ thẻ/i);
+
+        // Invalid date
+        fireEvent.change(screen.getByLabelText('Tên chủ thẻ (không dấu)'), { target: { value: 'TRAN B' } });
+        fireEvent.change(screen.getByLabelText('Ngày phát hành / hết hạn (MM/YY)'), { target: { value: '99/99' } });
+        fireEvent.click(nextBtn);
+        expect(screen.getByRole('alert')).toHaveTextContent(/MM\/YY/i);
+
+        // Proceed to Step 2
+        fireEvent.change(screen.getByLabelText('Ngày phát hành / hết hạn (MM/YY)'), { target: { value: '10/28' } });
+        fireEvent.click(nextBtn);
+
+        // Empty OTP validation
+        fireEvent.click(await screen.findByRole('button', { name: 'Xác nhận thanh toán' }));
+        expect(screen.getByRole('alert')).toHaveTextContent(/OTP/i);
+
+        // Rejected card response, then go back and cancel transaction
+        fireEvent.change(screen.getByLabelText('Mã xác thực OTP'), { target: { value: '123456' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Xác nhận thanh toán' }));
+        expect(await screen.findByText(/Không đủ số dư/i)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Quay lại sửa thẻ' }));
+        expect(await screen.findByLabelText('Số thẻ')).toHaveValue('9704195798459170488');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Hủy giao dịch' }));
+        expect(await screen.findByText(/Giao dịch chưa hoàn tất hoặc đã bị hủy/i)).toBeInTheDocument();
+        expect(screen.getByText(/Quay lại Quản lý Gói đăng bài/i)).toBeInTheDocument();
     });
 });

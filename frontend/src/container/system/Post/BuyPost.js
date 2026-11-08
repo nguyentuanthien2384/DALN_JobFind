@@ -5,13 +5,13 @@ import { toast } from "react-toastify";
 import { Spinner, Modal } from "reactstrap";
 import { readJsonStorage } from "../../../util/storage";
 import EmployerRewardsSection from "../Rewards/EmployerRewardsSection";
-import SandboxTestCardHint from "../../../components/payment/SandboxTestCardHint";
+import OrderConfirmModal from "../../../components/payment/OrderConfirmModal";
 
 const GATEWAY_CHOICES = [
-    { code: "PAYPAL", label: "PayPal Sandbox / Thẻ Quốc Tế (USD)" },
-    { code: "ZALOPAY", label: "ZaloPay Gateway - Nhập thẻ ATM (VNĐ)" },
-    { code: "VNPAY", label: "VNPAY Sandbox - Thẻ nội địa NCB (VNĐ)" },
-    { code: "MOMO", label: "MoMo Sandbox - Thẻ ATM / Visa (VNĐ)" },
+    { code: "PAYPAL", label: "PayPal / Thẻ Quốc Tế (USD)" },
+    { code: "VNPAY", label: "Cổng thanh toán VNPAY (VNĐ)" },
+    { code: "MOMO", label: "Ví điện tử MoMo (VNĐ)" },
+    { code: "ZALOPAY", label: "Ví điện tử ZaloPay (VNĐ)" },
 ];
 
 const cachedPostPackagesByType = {};
@@ -31,6 +31,7 @@ const BuyPost = () => {
     const [selectedGateway, setSelectedGateway] = useState("PAYPAL");
     const [promoCode, setPromoCode] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [dataPackage, setDataPackage] = useState(() => warmPackages || []);
     const [isPackageLoading, setIsPackageLoading] = useState(() => !warmPackages);
     const [packageError, setPackageError] = useState("");
@@ -62,21 +63,38 @@ const BuyPost = () => {
         fetchPackagePost(value);
     };
 
-    const handleBuy = async () => {
+    const validateOrderInputs = () => {
         if (!inputValues.packageId) {
             toast.error("Hiện chưa có gói đăng bài phù hợp");
-            return;
+            return null;
         }
         const amount = Number(inputValues.amount);
         if (!Number.isInteger(amount) || amount < 1) {
             toast.error("Số lượng phải là số nguyên lớn hơn 0");
-            return;
+            return null;
         }
         const userData = readJsonStorage("userData");
         if (!userData?.id) {
             toast.error("Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại");
+            return null;
+        }
+        return { amount, userData };
+    };
+
+    const handleRequestBuy = () => {
+        const valid = validateOrderInputs();
+        if (!valid) return;
+        setShowConfirmModal(true);
+    };
+
+    const handleConfirmBuy = async () => {
+        const valid = validateOrderInputs();
+        if (!valid) {
+            setShowConfirmModal(false);
             return;
         }
+        const { amount, userData } = valid;
+        setShowConfirmModal(false);
         setIsLoading(true);
         try {
             if (selectedGateway === "PAYPAL" && !promoCode.trim()) {
@@ -325,7 +343,6 @@ const BuyPost = () => {
                                                     </button>
                                                 ))}
                                             </div>
-                                            <SandboxTestCardHint provider={selectedGateway} compact />
                                         </div>
                                     </div>
                                 </div>
@@ -340,7 +357,7 @@ const BuyPost = () => {
                                             <input
                                                 type="text"
                                                 className="form-control"
-                                                placeholder="Nhập mã khuyến mãi (VD: VNPAY5K, ARCHITECT5K, JOBFIND10K)"
+                                                placeholder="Nhập mã giảm giá (nếu có)"
                                                 value={promoCode}
                                                 onChange={(e) => setPromoCode(e.target.value)}
                                             />
@@ -357,7 +374,7 @@ const BuyPost = () => {
                                         <div className="col-sm-9">
                                             <p className="mt-2">{total} USD</p>
                                             <small style={{ color: "#003d9b", fontWeight: 700 }}>
-                                                Quy đổi: {totalVnd.toLocaleString("vi-VN")} VNĐ • Tích lũy ngay +{estimatedTopPoints} Top Point thưởng Nhà tuyển dụng
+                                                Quy đổi: {totalVnd.toLocaleString("vi-VN")} VNĐ • Tích lũy +{estimatedTopPoints} Top Point
                                             </small>
                                         </div>
                                     </div>
@@ -366,7 +383,7 @@ const BuyPost = () => {
                             <button
                                 type="button"
                                 className="btn1 btn1-primary1 btn1-icon-text"
-                                onClick={() => handleBuy()}
+                                onClick={handleRequestBuy}
                                 disabled={isPackageLoading || !!packageError || dataPackage.length === 0 || isLoading}
                             >
                                 <i className="ti-file btn1-icon-prepend"></i>
@@ -378,6 +395,37 @@ const BuyPost = () => {
 
                 <EmployerRewardsSection compact />
             </div>
+            <OrderConfirmModal
+                isOpen={showConfirmModal}
+                title="Xác nhận mua gói đăng tin"
+                rows={[
+                    {
+                        label: "Loại bài viết:",
+                        value: Number(inputValues.isHot) === 1 ? "Bài viết nổi bật" : "Bài viết bình thường",
+                    },
+                    {
+                        label: "Gói dịch vụ:",
+                        value:
+                            dataPackage.find((item) => String(item.id) === String(inputValues.packageId))?.name ||
+                            "—",
+                    },
+                    { label: "Đơn giá:", value: `${price} USD` },
+                    { label: "Số lượng:", value: String(inputValues.amount) },
+                    {
+                        label: "Phương thức thanh toán:",
+                        value: GATEWAY_CHOICES.find((gw) => gw.code === selectedGateway)?.label || selectedGateway,
+                    },
+                    ...(promoCode.trim()
+                        ? [{ label: "Mã giảm giá:", value: promoCode.trim().toUpperCase() }]
+                        : []),
+                ]}
+                totalLabel="Tổng thanh toán:"
+                totalValue={`${total} USD`}
+                subTotalNote={`Quy đổi tương đương: ${totalVnd.toLocaleString("vi-VN")} VNĐ`}
+                isSubmitting={isLoading}
+                onCancel={() => setShowConfirmModal(false)}
+                onConfirm={handleConfirmBuy}
+            />
             {isLoading && (
                 <Modal isOpen centered contentClassName="closeBorder">
                     <div

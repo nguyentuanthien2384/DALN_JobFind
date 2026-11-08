@@ -511,7 +511,7 @@ const verifyPaymentReturn = async ({ userId, provider, params = {} }) => {
     // Che do gia lap (local dev sandbox)
     if (order.simulated && simulatorEnabled()) {
         if (String(params.simulateAction || '').toLowerCase() === 'cancel' || String(params.cancel || '') === '1') {
-            const cancelled = await markOrderFailed(order.orderCode, 'Người dùng hủy giao dịch thử nghiệm', 'CANCELLED');
+            const cancelled = await markOrderFailed(order.orderCode, 'Người dùng hủy giao dịch thanh toán', 'CANCELLED');
             return { errCode: 2, data: enrichOrderPayload(cancelled, { postId: params.postId }), errMessage: 'Bạn đã hủy giao dịch thanh toán' };
         }
         if (String(params.simulateAction || '').toLowerCase() === 'confirm') {
@@ -530,7 +530,7 @@ const verifyPaymentReturn = async ({ userId, provider, params = {} }) => {
             errCode: 0,
             requireSimulationAction: true,
             data: enrichOrderPayload(order, { requireSimulationAction: true, postId: params.postId }),
-            errMessage: 'Đơn hàng đang ở chế độ Cổng Thanh Toán Thử Nghiệm (Sandbox). Hãy nhập thẻ dùng thử cấp sẵn và xác nhận thanh toán.'
+            errMessage: 'Vui lòng nhập thông tin thẻ và xác thực OTP để hoàn tất thanh toán.'
         };
     }
 

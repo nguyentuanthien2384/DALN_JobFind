@@ -12,7 +12,7 @@ let cachedEmployerOverview = null;
 let cachedEmployerOverviewAt = 0;
 let inflightEmployerOverview = null;
 
-const OVERVIEW_CACHE_TTL_MS = 15000;
+const OVERVIEW_CACHE_TTL_MS = 60000;
 
 export const getCachedCandidateRewardOverview = () => (
     isUnmockedUnitTest() ? null : cachedCandidateOverview
@@ -80,7 +80,7 @@ export const subscribeRewardWalletUpdated = (listener) => {
 export const DEFAULT_CANDIDATE_TOPUP_PACKAGES = [
     {
         code: 'BASIC',
-        name: 'Gói Khởi Đầu (Basic)',
+        name: 'Gói Cơ Bản',
         points: 22,
         totalPoints: 22,
         basePoints: 20,
@@ -89,16 +89,11 @@ export const DEFAULT_CANDIDATE_TOPUP_PACKAGES = [
         priceVnd: 20000,
         originalPriceVnd: 22000,
         discountPercent: 9,
-        badge: 'Tặng +2 Điểm (Tổng 22 Điểm)',
         featured: false,
-        perks: [
-            'Mở khóa 02 báo cáo phân tích đối thủ',
-            'Không giới hạn thời gian lưu trữ điểm',
-        ],
     },
     {
         code: 'STANDARD',
-        name: 'Gói Tiêu Chuẩn (Standard)',
+        name: 'Gói Tiêu Chuẩn',
         points: 60,
         totalPoints: 60,
         basePoints: 50,
@@ -107,17 +102,11 @@ export const DEFAULT_CANDIDATE_TOPUP_PACKAGES = [
         priceVnd: 50000,
         originalPriceVnd: 60000,
         discountPercent: 17,
-        badge: 'PHỔ BIẾN NHẤT (+10 Điểm)',
         featured: true,
-        perks: [
-            'Mở khóa 06 báo cáo phân tích cạnh tranh',
-            'Đẩy Top hồ sơ ứng viên 03 lần',
-            'Tặng thêm 10 Điểm (10.000 Xu) vào ví thưởng',
-        ],
     },
     {
         code: 'PRO',
-        name: 'Gói Tăng Tốc (Pro)',
+        name: 'Gói Nâng Cao',
         points: 130,
         totalPoints: 130,
         basePoints: 100,
@@ -126,17 +115,11 @@ export const DEFAULT_CANDIDATE_TOPUP_PACKAGES = [
         priceVnd: 100000,
         originalPriceVnd: 130000,
         discountPercent: 23,
-        badge: 'Tặng +30 Điểm (Tổng 130 Điểm)',
         featured: false,
-        perks: [
-            'Mở khóa 13 báo cáo phân tích chuyên sâu',
-            'Ưu tiên hiển thị CV với Nhà tuyển dụng (7 ngày)',
-            'Miễn phí 01 lần AI Review CV chi tiết',
-        ],
     },
     {
         code: 'PREMIUM',
-        name: 'Gói Cao Cấp (VIP)',
+        name: 'Gói Chuyên Nghiệp',
         points: 280,
         totalPoints: 280,
         basePoints: 200,
@@ -145,130 +128,33 @@ export const DEFAULT_CANDIDATE_TOPUP_PACKAGES = [
         priceVnd: 200000,
         originalPriceVnd: 280000,
         discountPercent: 29,
-        badge: 'Tặng +80 Điểm & Đẩy Top CV',
         featured: false,
-        perks: [
-            'Mở khóa 28 báo cáo + Xem mức lương đối thủ',
-            'Đặc quyền Huy hiệu Ứng viên Kim Cương (30 ngày)',
-            'Tặng thêm 80 Điểm thưởng vào ví ngay lập tức',
-        ],
     },
 ];
-
-export const SANDBOX_TEST_CARDS = {
-    VNPAY: [
-        {
-            type: 'ATM_NCB',
-            bank: 'NCB (Ngân hàng Quốc Dân)',
-            cardNumber: '9704198526191432198',
-            cardHolder: 'NGUYEN VAN A',
-            issueDate: '07/15',
-            otp: '123456',
-            note: 'Thẻ nội địa dùng thử miễn phí của VNPAY Sandbox',
-        },
-        {
-            type: 'ATM_NAPAS',
-            bank: 'NAPAS / VietinBank',
-            cardNumber: '9704000000000018',
-            cardHolder: 'NGUYEN VAN A',
-            issueDate: '03/07',
-            otp: 'otp',
-            note: 'Thẻ nội địa NAPAS dùng thử',
-        },
-        {
-            type: 'VISA',
-            bank: 'VISA Quốc tế',
-            cardNumber: '4456530000001005',
-            cardHolder: 'NGUYEN VAN A',
-            expiryDate: '12/26',
-            cvv: '123',
-            otp: '123456',
-            note: 'Thẻ quốc tế VISA (No 3DS)',
-        },
-    ],
-    ZALOPAY: [
-        {
-            type: 'ATM_NAPAS',
-            bank: 'Thẻ ATM NAPAS (Merchant Trial V2)',
-            cardNumber: '9704540000000062',
-            cardHolder: 'NGUYEN VAN A',
-            issueDate: '10/18',
-            otp: '123456',
-            note: 'Thẻ ATM nội địa cấp sẵn của ZaloPay Sandbox',
-        },
-        {
-            type: 'VISA',
-            bank: 'VISA / MasterCard',
-            cardNumber: '4111111111111111',
-            cardHolder: 'NGUYEN VAN A',
-            expiryDate: '01/28',
-            cvv: '123',
-            otp: '123456',
-            note: 'Thẻ quốc tế dùng thử ZaloPay',
-        },
-    ],
-    MOMO: [
-        {
-            type: 'ATM_NAPAS',
-            bank: 'Thẻ ATM NAPAS (MoMo Test)',
-            cardNumber: '9704000000000018',
-            cardHolder: 'NGUYEN VAN A',
-            issueDate: '03/07',
-            otp: '000000',
-            note: 'Thẻ ATM nội địa dùng thử MoMo Sandbox',
-        },
-        {
-            type: 'VISA',
-            bank: 'VISA / MasterCard',
-            cardNumber: '4111111111111111',
-            cardHolder: 'NGUYEN VAN A',
-            expiryDate: '12/28',
-            cvv: '123',
-            otp: '000000',
-            note: 'Thẻ quốc tế dùng thử MoMo',
-        },
-    ],
-    PAYPAL: [
-        {
-            type: 'VISA',
-            bank: 'PayPal Sandbox Card',
-            cardNumber: '4032039935147760',
-            cardHolder: 'NGUYEN VAN A',
-            expiryDate: '12/28',
-            cvv: '123',
-            otp: '123456',
-            note: 'Hoặc đăng nhập tài khoản Buyer trên cổng PayPal Sandbox',
-        },
-    ],
-};
 
 export const PAYMENT_METHOD_OPTIONS = [
     {
         code: 'VNPAY',
-        name: 'Cổng VNPAY Sandbox',
-        badge: 'KHUYÊN DÙNG',
-        description: 'Nhập thẻ ATM nội địa NCB / NAPAS, thẻ Visa hoặc VNPAY-QR (Giảm thêm 5K)',
-        defaultPromo: 'VNPAY5K',
+        name: 'Cổng thanh toán VNPAY',
+        description: 'Thẻ ATM / Tài khoản ngân hàng nội địa',
+        defaultPromo: '',
     },
     {
         code: 'MOMO',
-        name: 'Cổng MoMo Sandbox',
-        badge: null,
-        description: 'Nhập thẻ ATM NAPAS, Visa/MasterCard hoặc Ví MoMo dùng thử',
+        name: 'Ví điện tử MoMo',
+        description: 'Thanh toán qua ứng dụng MoMo hoặc thẻ liên kết',
         defaultPromo: '',
     },
     {
         code: 'ZALOPAY',
-        name: 'ZaloPay Gateway (Trial V2)',
-        badge: null,
-        description: 'Nhập thẻ ATM nội địa NAPAS, Internet Banking hoặc Ví ZaloPay dùng thử',
+        name: 'Ví điện tử ZaloPay',
+        description: 'Thanh toán qua ZaloPay hoặc thẻ ngân hàng nội địa',
         defaultPromo: '',
     },
     {
         code: 'PAYPAL',
         name: 'PayPal / Thẻ Quốc Tế',
-        badge: null,
-        description: 'Hỗ trợ tài khoản PayPal Sandbox và thẻ tín dụng/ghi nợ quốc tế Visa, Mastercard',
+        description: 'Thanh toán quốc tế bằng thẻ Visa, MasterCard hoặc PayPal',
         defaultPromo: '',
     },
 ];

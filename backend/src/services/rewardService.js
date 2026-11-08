@@ -190,10 +190,21 @@ const formatTransactionsForClient = (rows = []) => (rows || []).map((item) => {
     };
 });
 
+const CANDIDATE_APP_SYNC_TTL_MS = 60 * 1000;
+const syncedCandidateAppsAt = new Map();
+
 const syncCandidateApplicationRewards = async (userId) => {
     if (!db.Cv?.findAll) return;
+    const normalizedUserId = Number(userId);
+    if (process.env.NODE_ENV !== 'test') {
+        const lastSyncedAt = syncedCandidateAppsAt.get(normalizedUserId) || 0;
+        if (Date.now() - lastSyncedAt < CANDIDATE_APP_SYNC_TTL_MS) {
+            return;
+        }
+        syncedCandidateAppsAt.set(normalizedUserId, Date.now());
+    }
     const submittedCvs = await db.Cv.findAll({
-        where: { userId: Number(userId) },
+        where: { userId: normalizedUserId },
         attributes: ['id', 'postId'],
         order: [['id', 'ASC']]
     });
@@ -382,6 +393,7 @@ const claimProfileCompleteBonus = async (userId) => {
 // Tu dong cong +5 diem khi ung vien nop CV thanh cong vao mot tin tuyen dung.
 const awardCandidateApplicationPoints = async ({ userId, postId }, externalTransaction = null) => {
     if (!userId || !postId) return null;
+    syncedCandidateAppsAt.delete(Number(userId));
     return creditWallet({
         ownerType: OWNER_CANDIDATE,
         ownerId: userId,

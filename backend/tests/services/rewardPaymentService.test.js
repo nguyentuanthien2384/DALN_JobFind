@@ -542,9 +542,20 @@ describe('rewardService & paymentOrderService', () => {
         expect(simPreview.requireSimulationAction).toBe(true);
 
         expect(gatewaysIndex.evaluateSimulatedCard('VNPAY', '9704198526191432198', '123456').ok).toBe(true);
+        expect(gatewaysIndex.evaluateSimulatedCard('VNPAY', '', '123456').ok).toBe(false);
+        expect(gatewaysIndex.evaluateSimulatedCard('VNPAY', '9704198526191432198', '').ok).toBe(false);
+        expect(gatewaysIndex.evaluateSimulatedCard('VNPAY', '9704198526191432198', '999999').ok).toBe(false);
         expect(gatewaysIndex.evaluateSimulatedCard('VNPAY', '9704195798459170488', '123456').ok).toBe(false);
         expect(gatewaysIndex.evaluateSimulatedCard('ZALOPAY', '9704540000000047', '123456').ok).toBe(false);
         expect(gatewaysIndex.evaluateSimulatedCard('MOMO', '12345', '000000').ok).toBe(false);
+
+        const simEmptyCard = await paymentOrderService.verifyPaymentReturn({
+            userId: 9,
+            provider: 'MOMO',
+            params: { order: 'JF601', simulateAction: 'confirm' }
+        });
+        expect(simEmptyCard.errCode).toBe(2);
+        expect(simEmptyCard.requireSimulationAction).toBe(true);
 
         const simBadCard = await paymentOrderService.verifyPaymentReturn({
             userId: 9,
