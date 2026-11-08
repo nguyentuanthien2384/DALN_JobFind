@@ -58,6 +58,7 @@ const values = {
     EMAIL_APP: pick(micro.EMAIL_APP, backend.EMAIL_APP), EMAIL_APP_PASSWORD: pick(micro.EMAIL_APP_PASSWORD, backend.EMAIL_APP_PASSWORD),
     CLOUDINARY_CLOUD_NAME: pick(backend.CLOUD_NAME), CLOUDINARY_API_KEY: pick(backend.API_KEY), CLOUDINARY_API_SECRET: pick(backend.API_SECRET),
     // PayPal luon la sandbox nhu cau hinh nguon; ten cu CLIENT_ID/CLIENT_SECRET duoc doi ten.
+    PAYMENT_SIMULATOR: pick(backend.PAYMENT_SIMULATOR, 'true'),
     PAYPAL_MODE: 'sandbox',
     PAYPAL_CLIENT_ID: pick(backend.PAYPAL_CLIENT_ID, backend.CLIENT_ID), PAYPAL_CLIENT_SECRET: pick(backend.PAYPAL_CLIENT_SECRET, backend.CLIENT_SECRET),
     ZALOPAY_APP_ID: pick(backend.ZALOPAY_APP_ID, '2554'),

@@ -27,24 +27,57 @@ const vnTimestamp = (date = new Date()) => {
         + `${pad(shifted.getUTCHours())}${pad(shifted.getUTCMinutes())}${pad(shifted.getUTCSeconds())}`;
 };
 
-const postJson = async (url, body, { timeoutMs = 20000 } = {}) => {
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs)
-    });
+const resolveGatewayTimeoutMs = (explicit) => {
+    const parsed = Number(explicit ?? process.env.PAYMENT_GATEWAY_TIMEOUT_MS ?? 5000);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 5000;
+};
+
+const normalizeGatewayNetworkError = (error) => {
+    const code = String(error?.cause?.code || error?.code || '');
+    const name = String(error?.name || '');
+    const msg = String(error?.message || '');
+    if (
+        name === 'TimeoutError'
+        || name === 'AbortError'
+        || code === 'UND_ERR_CONNECT_TIMEOUT'
+        || code === 'ETIMEDOUT'
+    ) {
+        return new Error('Máy chủ cổng thanh toán phản hồi quá thời gian chờ (tạm bảo trì hoặc gián đoạn kết nối).');
+    }
+    if (msg === 'fetch failed' || code.startsWith('UND_ERR_') || code === 'ECONNREFUSED' || code === 'ENOTFOUND') {
+        return new Error('Không thể kết nối tới máy chủ cổng thanh toán bên ngoài.');
+    }
+    return error;
+};
+
+const postJson = async (url, body, { timeoutMs } = {}) => {
+    let response;
+    try {
+        response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(resolveGatewayTimeoutMs(timeoutMs))
+        });
+    } catch (error) {
+        throw normalizeGatewayNetworkError(error);
+    }
     const text = await response.text();
     try { return JSON.parse(text); } catch (error) { return { raw: text, httpStatus: response.status }; }
 };
 
-const postForm = async (url, form, { timeoutMs = 20000 } = {}) => {
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(form).toString(),
-        signal: AbortSignal.timeout(timeoutMs)
-    });
+const postForm = async (url, form, { timeoutMs } = {}) => {
+    let response;
+    try {
+        response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams(form).toString(),
+            signal: AbortSignal.timeout(resolveGatewayTimeoutMs(timeoutMs))
+        });
+    } catch (error) {
+        throw normalizeGatewayNetworkError(error);
+    }
     const text = await response.text();
     try { return JSON.parse(text); } catch (error) { return { raw: text, httpStatus: response.status }; }
 };

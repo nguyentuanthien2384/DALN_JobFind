@@ -307,6 +307,65 @@ describe('payment gateways', () => {
         expect(gatewaysIndex.normalizeProvider('momo')).toBe('MOMO');
         expect(gatewaysIndex.normalizeProvider('unknown')).toBeNull();
     });
+
+    test('supports PAYMENT_SIMULATOR in production and normalizes gateway network errors', async () => {
+        process.env.NODE_ENV = 'production';
+        delete process.env.PAYMENT_SIMULATOR;
+        expect(gatewaysIndex.simulatorEnabled()).toBe(false);
+
+        process.env.PAYMENT_SIMULATOR = 'true';
+        expect(gatewaysIndex.simulatorEnabled()).toBe(true);
+
+        process.env.PAYMENT_SIMULATOR = 'false';
+        expect(gatewaysIndex.simulatorEnabled()).toBe(false);
+
+        process.env.NODE_ENV = 'development';
+        expect(gatewaysIndex.simulatorEnabled()).toBe(false);
+
+        process.env.NODE_ENV = 'production';
+        process.env.PAYMENT_SIMULATOR = 'true';
+        process.env.ZALOPAY_APP_ID = '2554';
+        process.env.ZALOPAY_KEY1 = 'KEY1_SECRET';
+        process.env.ZALOPAY_KEY2 = 'KEY2_SECRET';
+
+        const origFetch = global.fetch;
+        global.fetch = jest.fn().mockRejectedValueOnce(new TypeError('fetch failed'));
+
+        mockDb.PaymentOrder.create.mockResolvedValueOnce({
+            id: 901,
+            orderCode: 'JF901',
+            provider: 'ZALOPAY',
+            purpose: 'POINT_TOPUP',
+            userId: 7,
+            amount: 20000,
+            points: 22,
+            status: 'PENDING',
+            simulated: true
+        });
+
+        const fallbackCheckout = await paymentOrderService.createCheckout({
+            userId: 7,
+            purpose: 'POINT_TOPUP',
+            itemCode: 'BASIC',
+            provider: 'ZALOPAY'
+        });
+        expect(fallbackCheckout.errCode).toBe(0);
+        expect(fallbackCheckout.data.simulated).toBe(true);
+        expect(fallbackCheckout.data.checkoutUrl).toContain('simulate=1');
+        expect(fallbackCheckout.data.gatewayFallbackReason).toContain('Không thể kết nối');
+
+        process.env.PAYMENT_SIMULATOR = 'false';
+        global.fetch = jest.fn().mockRejectedValueOnce(Object.assign(new Error('timed out'), { name: 'TimeoutError' }));
+        const strictFailure = await paymentOrderService.createCheckout({
+            userId: 7,
+            purpose: 'POINT_TOPUP',
+            itemCode: 'BASIC',
+            provider: 'ZALOPAY'
+        });
+        expect(strictFailure.errCode).toBe(-1);
+        expect(strictFailure.errMessage).toContain('quá thời gian chờ');
+        global.fetch = origFetch;
+    });
 });
 
 describe('rewardService & paymentOrderService', () => {

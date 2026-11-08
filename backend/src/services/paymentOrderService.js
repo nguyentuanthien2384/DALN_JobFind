@@ -19,6 +19,23 @@ const {
 const { getPaymentReturnUrl } = require('./payment/gateways/common');
 
 const ORDER_TTL_MS = 30 * 60 * 1000;
+const GATEWAY_FAILURE_COOLDOWN_MS = 2 * 60 * 1000;
+const gatewayCooldownUntil = new Map();
+
+const isGatewayCoolingDown = (providerKey) => {
+    if (process.env.NODE_ENV === 'test' || !simulatorEnabled()) return false;
+    const until = gatewayCooldownUntil.get(providerKey) || 0;
+    if (until <= Date.now()) {
+        gatewayCooldownUntil.delete(providerKey);
+        return false;
+    }
+    return true;
+};
+
+const markGatewayCooldown = (providerKey) => {
+    if (process.env.NODE_ENV === 'test' || !simulatorEnabled()) return;
+    gatewayCooldownUntil.set(providerKey, Date.now() + GATEWAY_FAILURE_COOLDOWN_MS);
+};
 
 const ALLOWANCE_FIELDS = {
     ALLOW_POST: 'allowPost',
@@ -236,7 +253,7 @@ const createCheckout = async ({
     let gatewayError = null;
     let simulated = false;
 
-    if (gateway.isConfigured()) {
+    if (gateway.isConfigured() && !isGatewayCoolingDown(providerKey)) {
         try {
             gatewayResult = await gateway.createPayment({
                 orderCode,
@@ -252,8 +269,11 @@ const createCheckout = async ({
         } catch (error) {
             gatewayResult = { error: error.message || 'Không thể kết nối cổng thanh toán' };
         }
-        if (gatewayResult?.error) {
-            gatewayError = gatewayResult.error;
+        if (gatewayResult?.error || !gatewayResult?.checkoutUrl) {
+            gatewayError = gatewayResult?.error || 'Không thể khởi tạo phiên thanh toán';
+            markGatewayCooldown(providerKey);
+        } else {
+            gatewayCooldownUntil.delete(providerKey);
         }
     }
 
