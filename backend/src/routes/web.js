@@ -1,5 +1,5 @@
 import express from "express";
-import { trustedSupport, publicTool, deliverHandoff } from '../controllers/supportBridgeController';
+import { trustedSupport, publicTool, privateTool, deliverHandoff } from '../controllers/supportBridgeController';
 import { supportChatAccess } from '../middlewares/supportChatAccess';
 import userController from '../controllers/userController';
 import allcodeController from '../controllers/allcodeController';
@@ -43,6 +43,7 @@ let initWebRoutes = (app) => {
         '/api/changepasswordbyPhone'
     ], authResponseHeaders);
     router.post('/internal/support/public-tool', trustedSupport, publicTool);
+    router.post('/internal/support/private-tool', trustedSupport, privateTool);
     router.post('/internal/support/handoff', trustedSupport, deliverHandoff);
     router.post('/api/support-chat', supportChatLimiter, handleSupportChat);
 

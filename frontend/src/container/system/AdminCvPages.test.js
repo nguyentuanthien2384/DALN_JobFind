@@ -238,6 +238,31 @@ describe("candidate filtering", () => {
         await act(async () => finishOld({ errCode: 0, data: [], count: 0 }));
         expect(screen.getByText("Lan Nguyễn")).toBeInTheDocument();
     });
+
+    it("replaces buy-cv links with company quota workspace for EMPLOYER staff to avoid 403 dead-ends", async () => {
+        localStorage.setItem("userData", JSON.stringify({ id: 12, companyId: 7, roleCode: "EMPLOYER", companyStatusCode: "S1", companyCensorCode: "CS1" }));
+        getFilterCv.mockResolvedValueOnce({
+            errCode: 0,
+            count: 1,
+            isHiddenPercent: false,
+            data: [candidate],
+            allowance: { free: 0, paid: 0 },
+        });
+        render(<FilterCv />);
+        expect(await screen.findByText("Lan Nguyễn")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "+ Mua thêm lượt xem" })).not.toBeInTheDocument();
+
+        const quotaBtn = screen.getByRole("button", { name: "Quỹ lượt công ty" });
+        fireEvent.click(quotaBtn);
+        expect(mockNavigate).toHaveBeenCalledWith("/admin/rewards/");
+
+        mockNavigate.mockClear();
+        fireEvent.click(screen.getByText(/Xem chi tiết ứng viên/));
+        expect(AntModal.confirm).toHaveBeenCalledWith(expect.objectContaining({
+            okText: "Xem quỹ lượt công ty",
+        }));
+        expect(mockNavigate).toHaveBeenCalledWith("/admin/rewards/");
+    });
 });
 
 describe("CV list and detail", () => {
@@ -397,5 +422,20 @@ describe("candidate access detail", () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('Phiên đăng nhập đã kết thúc');
         expect(screen.queryByRole('button', { name: 'Xem CV của ứng viên' })).not.toBeInTheDocument();
         expect(checkSeeCandiate).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows company quota link instead of buy-cv button in DetailFilterUser for EMPLOYER staff', async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 12, companyId: 7, roleCode: 'EMPLOYER' }));
+        checkSeeCandiate.mockResolvedValue({ errCode: 0, alreadyGranted: true, allowance: { free: 1, paid: 5 } });
+        getDetailUserById.mockResolvedValue({ errCode: 0, data: detailedUser });
+        getAllListCvByUserIdService.mockResolvedValue({ errCode: 0, data: [] });
+
+        render(<DetailFilterUser />);
+        expect(await screen.findByText('Mai Lê')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: '+ Mua thêm lượt' })).not.toBeInTheDocument();
+
+        const quotaBtn = screen.getByRole('button', { name: 'Quỹ lượt công ty' });
+        fireEvent.click(quotaBtn);
+        expect(mockNavigate).toHaveBeenCalledWith('/admin/rewards/');
     });
 });

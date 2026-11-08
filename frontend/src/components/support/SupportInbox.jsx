@@ -6,7 +6,13 @@ import { notifyAdminAttentionChanged } from '../../container/system/adminEvents'
 import SupportMarkdown from './SupportMarkdown';
 import './SupportInbox.css';
 
-const labels = { waiting: 'Chờ tiếp nhận', assigned: 'Đang xử lý', resolved: 'Đã xử lý' };
+const labels = { waiting: 'Chờ tiếp nhận', assigned: 'Đang xử lý', resolved: 'Đã xử lý', rejected: 'Đã từ chối' };
+const REJECT_REASONS = [
+    'Spam / Ngôn từ không phù hợp',
+    'Nội dung không rõ ràng / Nhấn nhầm',
+    'Chatbot đã cung cấp đủ thông tin',
+    'Ngoài phạm vi hỗ trợ của hệ thống'
+];
 const date = value => value ? new Date(Number(value)).toLocaleString('vi-VN') : '—';
 const searchText = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
 const Icon = ({ name, size = 22 }) => <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -14,7 +20,8 @@ const Icon = ({ name, size = 22 }) => <svg aria-hidden="true" width={size} heigh
         : name === 'search' ? <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></>
             : name === 'check' ? <><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></>
                 : name === 'clock' ? <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>
-                    : <><path d="M21 11a8 8 0 0 1-8 8H7l-4 3V11a9 9 0 0 1 18 0Z"/><path d="M8 9h8M8 13h5"/></>}
+                    : name === 'ban' ? <><circle cx="12" cy="12" r="9"/><path d="M5.7 5.7 18.3 18.3"/></>
+                        : <><path d="M21 11a8 8 0 0 1-8 8H7l-4 3V11a9 9 0 0 1 18 0Z"/><path d="M8 9h8M8 13h5"/></>}
 </svg>;
 
 export default function SupportInbox() {
@@ -27,6 +34,9 @@ export default function SupportInbox() {
     const [detailLoading, setDetailLoading] = useState(false), [busy, setBusy] = useState(false);
     const [error, setError] = useState(''), [notice, setNotice] = useState(''), [updatedAt, setUpdatedAt] = useState(null);
     const [filter, setFilter] = useState('all'), [query, setQuery] = useState('');
+    const [rejectTarget, setRejectTarget] = useState(null);
+    const [rejectPreset, setRejectPreset] = useState(REJECT_REASONS[0]);
+    const [rejectCustom, setRejectCustom] = useState('');
     const queueRequest = useRef(null), detailRequest = useRef(null), actionRequest = useRef(null), selectedId = useRef(null), queuePending = useRef(false);
     const refresh = useCallback(async () => {
         queueRequest.current?.abort();
@@ -65,44 +75,81 @@ export default function SupportInbox() {
         } catch (cause) { if (!controller.signal.aborted) setError(cause.message); }
         finally { if (!controller.signal.aborted) setDetailLoading(false); }
     };
-    const act = async (ticket, action) => {
+    const act = async (ticket, action, body = {}) => {
         if (actionRequest.current) return;
         if (action === 'resolve' && !window.confirm('Xác nhận yêu cầu đã được xử lý xong và muốn đóng yêu cầu này?')) return;
         queueRequest.current?.abort(); detailRequest.current?.abort();
         const controller = new AbortController(); actionRequest.current = controller;
         setBusy(true); setRefreshing(false); setDetailLoading(false); setError(''); setNotice(''); selectedId.current = ticket.id;
         try {
-            const result = await supportRequest(`/handoffs/${encodeURIComponent(ticket.id)}/${action}`, { method: 'POST', body: {}, signal: controller.signal });
+            const result = await supportRequest(`/handoffs/${encodeURIComponent(ticket.id)}/${action}`, { method: 'POST', body, signal: controller.signal });
             if (controller.signal.aborted) return;
             setSelected({ ...ticket, ...result });
             notifyAdminAttentionChanged();
-            setNotice(action === 'resolve' ? 'Đã đánh dấu yêu cầu hoàn tất.' : handlesOwnRequest(ticket) ? 'Đã tiếp nhận yêu cầu. Bạn có thể xử lý ngay tại đây.' : result.deliveryPending ? 'Đã tiếp nhận yêu cầu. Cần thử chuyển lại hội thoại.' : 'Đã tiếp nhận và chuyển hội thoại vào Tin nhắn.');
+            setNotice(
+                action === 'reject'
+                    ? 'Đã từ chối yêu cầu hỗ trợ.'
+                    : action === 'resolve'
+                        ? 'Đã đánh dấu yêu cầu hoàn tất.'
+                        : handlesOwnRequest(ticket)
+                            ? 'Đã tiếp nhận yêu cầu. Bạn có thể xử lý ngay tại đây.'
+                            : result.deliveryPending
+                                ? 'Đã tiếp nhận yêu cầu. Cần thử chuyển lại hội thoại.'
+                                : 'Đã tiếp nhận và chuyển hội thoại vào Tin nhắn.'
+            );
             await refresh();
         } catch (cause) {
             if (!controller.signal.aborted) { await refresh(); setError(cause.message); }
         } finally { if (!controller.signal.aborted) { actionRequest.current = null; setBusy(false); } }
     };
+    const openRejectDialog = ticket => {
+        setRejectTarget(ticket);
+        setRejectPreset(REJECT_REASONS[0]);
+        setRejectCustom('');
+    };
+    const confirmReject = async event => {
+        event.preventDefault();
+        if (!rejectTarget) return;
+        const reason = rejectPreset === 'custom' ? rejectCustom.trim() : rejectPreset;
+        const target = rejectTarget;
+        setRejectTarget(null);
+        await act(target, 'reject', { reason: reason || null });
+    };
     const mine = ticket => Number(ticket.agentId) === Number(user?.id);
-    const canClaim = ticket => ticket.status !== 'resolved' && (!isOwnRequest(ticket) || isAdmin) && (!ticket.agentId || mine(ticket));
-    const counts = { all: tickets.length, waiting: tickets.filter(t => t.status === 'waiting').length, assigned: tickets.filter(t => t.status === 'assigned').length, resolved: tickets.filter(t => t.status === 'resolved').length };
+    const closed = ticket => ticket.status === 'resolved' || ticket.status === 'rejected';
+    const canClaim = ticket => !closed(ticket) && (!isOwnRequest(ticket) || isAdmin) && (!ticket.agentId || mine(ticket));
+    const counts = {
+        all: tickets.length,
+        waiting: tickets.filter(t => t.status === 'waiting').length,
+        assigned: tickets.filter(t => t.status === 'assigned').length,
+        resolved: tickets.filter(t => t.status === 'resolved').length,
+        rejected: tickets.filter(t => t.status === 'rejected').length
+    };
     const term = searchText(query.trim());
     const filtered = tickets.filter(ticket => (filter === 'all' || (filter === 'mine' ? mine(ticket) && ticket.status === 'assigned' : ticket.status === filter))
-        && (!term || searchText(`${ticket.title} ${ticket.id} ${ticket.userId}`).includes(term)));
+        && (!term || searchText(`${ticket.title} ${ticket.id} ${ticket.userId} ${ticket.rejectReason || ''}`).includes(term)));
     const deliveryPending = selected?.status === 'assigned' && !selected.delivered && !handlesOwnRequest(selected);
+    const ticketSubtitle = ticket => {
+        if (ticket.status === 'rejected') {
+            const actor = ticket.agentId ? (mine(ticket) ? 'Bạn đã từ chối' : `Nhân viên #${ticket.agentId} đã từ chối`) : 'Đã từ chối';
+            return `${actor}${ticket.rejectReason ? ` · ${ticket.rejectReason}` : ''}`;
+        }
+        return ticket.agentId ? (mine(ticket) ? 'Bạn đang phụ trách' : `Nhân viên #${ticket.agentId}`) : 'Chưa có nhân viên tiếp nhận';
+    };
     return <main className="jf-support-inbox">
         <header className="jf-support-inbox__header">
             <div><span className="jf-support-inbox__eyebrow">TRUNG TÂM HỖ TRỢ</span><h1>Yêu cầu hỗ trợ chatbot</h1><p>Tiếp nhận hội thoại được chia sẻ và hỗ trợ người dùng đến khi hoàn tất.</p></div>
             <div className="jf-support-inbox__refresh-area"><button className="jf-support-inbox__button jf-support-inbox__button--refresh" type="button" onClick={refresh} disabled={refreshing || busy}><Icon name="refresh" size={18}/>{refreshing ? 'Đang làm mới...' : 'Làm mới'}</button><small>{updatedAt ? `Cập nhật lúc ${new Date(updatedAt).toLocaleTimeString('vi-VN')}` : 'Đang kết nối hàng đợi'}</small></div>
         </header>
         <div className="jf-support-inbox__stats" aria-label="Tổng quan yêu cầu trong danh sách">
-            {[['all', 'Tổng yêu cầu', 'chat'], ['waiting', 'Chờ tiếp nhận', 'clock'], ['assigned', 'Đang xử lý', 'chat'], ['resolved', 'Đã xử lý', 'check']].map(([key, title, icon]) => <button key={key} type="button" className={`jf-support-inbox__stat jf-support-inbox__stat--${key}`} onClick={() => setFilter(key)} aria-pressed={filter === key}><span className="jf-support-inbox__stat-icon"><Icon name={icon}/></span><span><small>{title}</small><strong>{loaded ? counts[key] : '—'}</strong></span></button>)}
+            {[['all', 'Tổng yêu cầu', 'chat'], ['waiting', 'Chờ tiếp nhận', 'clock'], ['assigned', 'Đang xử lý', 'chat'], ['resolved', 'Đã xử lý', 'check'], ['rejected', 'Đã từ chối', 'ban']].map(([key, title, icon]) => <button key={key} type="button" className={`jf-support-inbox__stat jf-support-inbox__stat--${key}`} onClick={() => setFilter(key)} aria-pressed={filter === key}><span className="jf-support-inbox__stat-icon"><Icon name={icon}/></span><span><small>{title}</small><strong>{loaded ? counts[key] : '—'}</strong></span></button>)}
         </div>
         <div className="jf-support-inbox__privacy"><Icon name="check" size={18}/><span>Chỉ hiển thị nội dung người dùng đã đồng ý chia sẻ với nhân viên. Hội thoại riêng với chatbot không tự đưa vào hàng đợi.</span></div>
         {error && <div role="alert" className="jf-support-inbox__alert"><strong>Chưa hoàn tất thao tác.</strong> {error} <button type="button" onClick={refresh} disabled={busy || refreshing}>Tải lại danh sách</button></div>}
         {notice && <p role="status" className="jf-support-inbox__notice">{notice}</p>}
         <div className="jf-support-inbox__toolbar">
             <label className="jf-support-inbox__search"><Icon name="search" size={19}/><input type="search" aria-label="Tìm yêu cầu hỗ trợ" placeholder="Tìm nội dung, mã yêu cầu hoặc mã người dùng..." value={query} onChange={e => setQuery(e.target.value)}/></label>
-            <label className="jf-support-inbox__filter">Trạng thái<select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">Tất cả yêu cầu</option><option value="waiting">Chờ tiếp nhận</option><option value="assigned">Đang xử lý</option><option value="mine">Tôi đang xử lý</option><option value="resolved">Đã xử lý</option></select></label>
+            <label className="jf-support-inbox__filter">Trạng thái<select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">Tất cả yêu cầu</option><option value="waiting">Chờ tiếp nhận</option><option value="assigned">Đang xử lý</option><option value="mine">Tôi đang xử lý</option><option value="resolved">Đã xử lý</option><option value="rejected">Đã từ chối</option></select></label>
         </div>
         <div className="jf-support-inbox__columns">
             <section className="jf-support-inbox__list" aria-labelledby="support-list-title" aria-busy={refreshing}>
@@ -112,9 +159,17 @@ export default function SupportInbox() {
                         : !filtered.length ? <div className="jf-support-inbox__empty"><Icon name="search" size={32}/><h3>Không tìm thấy yêu cầu phù hợp</h3><p>Thử từ khóa khác hoặc bỏ bộ lọc để xem lại danh sách.</p><button className="jf-support-inbox__button jf-support-inbox__button--secondary" onClick={() => { setQuery(''); setFilter('all'); }}>Xóa bộ lọc</button></div>
                             : <ul>{filtered.map(ticket => <li key={ticket.id} className={selectedId.current === ticket.id ? 'is-selected' : ''}>
                                 <button type="button" className="jf-support-inbox__ticket" disabled={busy} onClick={() => openTicket(ticket)} aria-pressed={selectedId.current === ticket.id}>
-                                    <span className={`jf-support-inbox__badge jf-support-inbox__badge--${ticket.status}`}>{labels[ticket.status]}</span><h3>{ticket.title || 'Yêu cầu hỗ trợ'}</h3><span className="jf-support-inbox__ticket-meta">Người dùng #{ticket.userId} · {date(ticket.createdAt)}</span><small>{ticket.agentId ? mine(ticket) ? 'Bạn đang phụ trách' : `Nhân viên #${ticket.agentId}` : 'Chưa có nhân viên tiếp nhận'}</small>
+                                    <span className={`jf-support-inbox__badge jf-support-inbox__badge--${ticket.status}`}>{labels[ticket.status]}</span><h3>{ticket.title || 'Yêu cầu hỗ trợ'}</h3><span className="jf-support-inbox__ticket-meta">Người dùng #{ticket.userId} · {date(ticket.createdAt)}</span><small>{ticketSubtitle(ticket)}</small>
                                 </button>
-                                <div className="jf-support-inbox__ticket-footer"><span>Mã: {ticket.id.slice(0, 8)}</span>{ticket.status === 'waiting' && canClaim(ticket) && <button className="jf-support-inbox__text-button" disabled={busy || refreshing} onClick={() => act(ticket, 'claim')}>Tiếp nhận</button>}</div>
+                                <div className="jf-support-inbox__ticket-footer">
+                                    <span>Mã: {ticket.id.slice(0, 8)}</span>
+                                    {ticket.status === 'waiting' && canClaim(ticket) && (
+                                        <div className="jf-support-inbox__ticket-actions">
+                                            <button className="jf-support-inbox__text-button jf-support-inbox__text-button--danger" type="button" disabled={busy || refreshing} onClick={() => openRejectDialog(ticket)}>Từ chối</button>
+                                            <button className="jf-support-inbox__text-button" type="button" disabled={busy || refreshing} onClick={() => act(ticket, 'claim')}>Tiếp nhận</button>
+                                        </div>
+                                    )}
+                                </div>
                             </li>)}</ul>}
                 {loaded && tickets.length > 0 && <p className="jf-support-inbox__list-note">Tối đa 100 yêu cầu còn lưu, ưu tiên yêu cầu chờ tiếp nhận. Tìm kiếm và thống kê áp dụng cho danh sách này.</p>}
             </section>
@@ -123,17 +178,82 @@ export default function SupportInbox() {
                 {detailLoading ? <p role="status" className="jf-support-inbox__placeholder">Đang tải hội thoại đã chia sẻ...</p> : selected ? <>
                     <div className="jf-support-inbox__detail-heading"><span className={`jf-support-inbox__badge jf-support-inbox__badge--${selected.status}`}>{labels[selected.status]}</span><h3>{selected.title}</h3><p>Người dùng #{selected.userId} · {date(selected.createdAt)}</p><small>Mã yêu cầu: {selected.id}</small></div>
                     {deliveryPending && <p className="jf-support-inbox__warning" role="alert">Yêu cầu đã được tiếp nhận nhưng chưa chuyển được hội thoại vào Tin nhắn. Nhân viên phụ trách có thể thử lại mà không tạo tin nhắn trùng.</p>}
-                    {selected.agentId && !mine(selected) && <p className="jf-support-inbox__info">Nhân viên #{selected.agentId} phụ trách yêu cầu này. Bạn có thể xem nội dung đã được chia sẻ.</p>}
+                    {selected.status === 'rejected' && <p className="jf-support-inbox__rejected-note">Yêu cầu đã bị từ chối tiếp nhận{selected.rejectReason ? ` — Lý do: ${selected.rejectReason}` : ''}. Hội thoại không mở phòng chat trong Tin nhắn.</p>}
+                    {selected.agentId && !mine(selected) && <p className="jf-support-inbox__info">{selected.status === 'rejected' ? `Nhân viên #${selected.agentId} đã từ chối yêu cầu này.` : `Nhân viên #${selected.agentId} phụ trách yêu cầu này. Bạn có thể xem nội dung đã được chia sẻ.`}</p>}
                     {isOwnRequest(selected) && <p className="jf-support-inbox__info">{isAdmin ? 'Với quyền quản trị viên, bạn có thể tiếp nhận và đánh dấu đã xử lý yêu cầu do mình gửi ngay tại đây.' : 'Yêu cầu do bạn gửi cần một nhân viên khác tiếp nhận.'}</p>}
                     <div className="jf-support-inbox__actions">
-                        {canClaim(selected) && (selected.status === 'waiting' || deliveryPending) && <button className="jf-support-inbox__button jf-support-inbox__button--primary" disabled={busy || refreshing} onClick={() => act(selected, 'claim')}>{busy ? 'Đang xử lý...' : selected.status === 'waiting' ? 'Tiếp nhận yêu cầu' : 'Thử chuyển lại hội thoại'}</button>}
-                        {mine(selected) && selected.delivered && !isOwnRequest(selected) && <Link className="jf-support-inbox__button jf-support-inbox__button--primary" to={`/admin/chat/${selected.userId}`}>Mở tin nhắn với người dùng ↗</Link>}
-                        {mine(selected) && selected.status === 'assigned' && (selected.delivered || handlesOwnRequest(selected)) && <button className="jf-support-inbox__button jf-support-inbox__button--secondary" disabled={busy || refreshing} onClick={() => act(selected, 'resolve')}>Đánh dấu đã xử lý</button>}
+                        {canClaim(selected) && (selected.status === 'waiting' || deliveryPending) && <button className="jf-support-inbox__button jf-support-inbox__button--primary" type="button" disabled={busy || refreshing} onClick={() => act(selected, 'claim')}>{busy ? 'Đang xử lý...' : selected.status === 'waiting' ? 'Tiếp nhận yêu cầu' : 'Thử chuyển lại hội thoại'}</button>}
+                        {mine(selected) && selected.status !== 'rejected' && selected.delivered && !isOwnRequest(selected) && <Link className="jf-support-inbox__button jf-support-inbox__button--primary" to={`/admin/chat/${selected.userId}`}>Mở tin nhắn với người dùng ↗</Link>}
+                        {mine(selected) && selected.status === 'assigned' && (selected.delivered || handlesOwnRequest(selected)) && <button className="jf-support-inbox__button jf-support-inbox__button--secondary" type="button" disabled={busy || refreshing} onClick={() => act(selected, 'resolve')}>Đánh dấu đã xử lý</button>}
+                        {canClaim(selected) && (selected.status === 'waiting' || selected.status === 'assigned') && <button className="jf-support-inbox__button jf-support-inbox__button--danger" type="button" disabled={busy || refreshing} onClick={() => openRejectDialog(selected)}>{selected.status === 'waiting' ? 'Từ chối tiếp nhận' : 'Từ chối hỗ trợ'}</button>}
                     </div>
                     <h4 className="jf-support-inbox__transcript-title">Hội thoại được chia sẻ</h4>
                     <div className="jf-support-inbox__transcript">{(selected.messages || []).map(message => <article key={message.id} className={`jf-support-inbox__message jf-support-inbox__message--${message.role}`}><strong>{message.role === 'user' ? 'Người dùng' : 'Trợ lý JobFind'}</strong><SupportMarkdown text={message.text}/></article>)}</div>
-                </> : <div className="jf-support-inbox__guide"><p>Theo dõi yêu cầu và tiếp tục trao đổi với người dùng trong mục Tin nhắn.</p><ol><li><span>1</span><div><strong>Người dùng gửi yêu cầu</strong><p>Trong chatbot, người dùng đồng ý chia sẻ hội thoại và chọn chuyển cho hỗ trợ.</p></div></li><li><span>2</span><div><strong>Xem nội dung và tiếp nhận</strong><p>Chọn yêu cầu để xem trước. Khi tiếp nhận, phần hội thoại gần nhất được chuyển vào Tin nhắn.</p></div></li><li><span>3</span><div><strong>Trả lời và hoàn tất</strong><p>Mở Tin nhắn để hỗ trợ trực tiếp, sau đó đánh dấu yêu cầu đã xử lý.</p></div></li></ol><Link to="/support/help" className="jf-support-inbox__help-link">Xem hướng dẫn sử dụng JobFind ↗</Link></div>}
+                </> : <div className="jf-support-inbox__guide"><p>Theo dõi yêu cầu và tiếp tục trao đổi với người dùng trong mục Tin nhắn.</p><ol><li><span>1</span><div><strong>Người dùng gửi yêu cầu</strong><p>Trong chatbot, người dùng đồng ý chia sẻ hội thoại và chọn chuyển cho hỗ trợ.</p></div></li><li><span>2</span><div><strong>Xem nội dung và tiếp nhận</strong><p>Chọn yêu cầu để xem trước. Tiếp nhận để chuyển vào Tin nhắn hoặc từ chối ngay nếu là spam/ngoài phạm vi.</p></div></li><li><span>3</span><div><strong>Trả lời và hoàn tất</strong><p>Mở Tin nhắn để hỗ trợ trực tiếp, sau đó đánh dấu yêu cầu đã xử lý.</p></div></li></ol><Link to="/support/help" className="jf-support-inbox__help-link">Xem hướng dẫn sử dụng JobFind ↗</Link></div>}
             </section>
         </div>
+        {rejectTarget && (
+            <div className="jf-support-inbox__modal-backdrop" onClick={() => !busy && setRejectTarget(null)}>
+                <div
+                    className="jf-support-inbox__modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="jf-support-reject-title"
+                    onClick={e => e.stopPropagation()}
+                    onKeyDown={e => { if (e.key === 'Escape' && !busy) setRejectTarget(null); }}
+                >
+                    <h3 id="jf-support-reject-title">{rejectTarget.status === 'waiting' ? 'Từ chối tiếp nhận yêu cầu' : 'Từ chối yêu cầu hỗ trợ'}</h3>
+                    <p className="jf-support-inbox__modal-sub">
+                        Người dùng #{rejectTarget.userId} · <strong>{rejectTarget.title || 'Yêu cầu hỗ trợ'}</strong>
+                    </p>
+                    <form onSubmit={confirmReject}>
+                        <fieldset className="jf-support-inbox__reasons">
+                            <legend>Chọn lý do từ chối</legend>
+                            {REJECT_REASONS.map(reason => (
+                                <label key={reason} className={`jf-support-inbox__reason${rejectPreset === reason ? ' is-active' : ''}`}>
+                                    <input
+                                        type="radio"
+                                        name="rejectReason"
+                                        value={reason}
+                                        checked={rejectPreset === reason}
+                                        onChange={() => setRejectPreset(reason)}
+                                    />
+                                    <span>{reason}</span>
+                                </label>
+                            ))}
+                            <label className={`jf-support-inbox__reason${rejectPreset === 'custom' ? ' is-active' : ''}`}>
+                                <input
+                                    type="radio"
+                                    name="rejectReason"
+                                    value="custom"
+                                    checked={rejectPreset === 'custom'}
+                                    onChange={() => setRejectPreset('custom')}
+                                />
+                                <span>Lý do khác</span>
+                            </label>
+                        </fieldset>
+                        {rejectPreset === 'custom' && (
+                            <input
+                                type="text"
+                                className="jf-support-inbox__custom-reason"
+                                aria-label="Nhập lý do từ chối"
+                                placeholder="Nhập lý do cụ thể (tối đa 200 ký tự)..."
+                                maxLength={200}
+                                value={rejectCustom}
+                                onChange={e => setRejectCustom(e.target.value)}
+                                autoFocus
+                            />
+                        )}
+                        <p className="jf-support-inbox__modal-hint">
+                            Yêu cầu sẽ chuyển sang trạng thái <strong>Đã từ chối</strong>, tắt thông báo chờ và không tạo hội thoại trong mục Tin nhắn.
+                        </p>
+                        <div className="jf-support-inbox__modal-actions">
+                            <button type="button" className="jf-support-inbox__button jf-support-inbox__button--secondary" disabled={busy} onClick={() => setRejectTarget(null)}>Hủy</button>
+                            <button type="submit" className="jf-support-inbox__button jf-support-inbox__button--danger-solid" disabled={busy || (rejectPreset === 'custom' && !rejectCustom.trim())}>Xác nhận từ chối</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        )}
     </main>;
 }

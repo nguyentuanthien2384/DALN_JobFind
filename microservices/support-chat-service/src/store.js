@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { failure } from './policy.js';
+import { failure, redact } from './policy.js';
 
 export const ddl = [
     `CREATE TABLE IF NOT EXISTS support_conversations (
@@ -18,6 +18,24 @@ export const ddl = [
 ];
 const decode = row => row && ({ id: row.id, title: row.title, messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
     version: row.version, createdAt: Number(row.created_at), updatedAt: Number(row.updated_at), expiresAt: Number(row.expires_at) });
+const decodeTranscript = raw => {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) return { messages: parsed, rejectReason: null };
+    return {
+        messages: Array.isArray(parsed?.messages) ? parsed.messages : [],
+        rejectReason: typeof parsed?.rejectReason === 'string' && parsed.rejectReason.trim() ? parsed.rejectReason.trim() : null
+    };
+};
+const sanitizeUserTicket = row => {
+    if (!row) return null;
+    const { rejectReason } = decodeTranscript(row.transcript);
+    return {
+        id: row.id,
+        status: row.status,
+        agentId: row.status === 'rejected' ? null : row.agentId,
+        rejectReason
+    };
+};
 const MAX_CONVERSATION_MESSAGES = 200;
 export function createStore(pool, retentionDays = 30) {
     const ttl = Math.max(1, Math.min(90, Number(retentionDays) || 30)) * 86400000;
@@ -42,8 +60,8 @@ export function createStore(pool, retentionDays = 30) {
             const row = await owned(pool, owner, id);
             const result = decode(row);
             result.messages = result.messages.map(message => message.status === 'pending' && Number(row.lease_until) < Date.now() ? { ...message, status: 'failed' } : message);
-            const [tickets] = await pool.query('SELECT id,status,agent_id AS agentId FROM support_handoffs WHERE conversation_id=?', [id]);
-            return { ...result, handoff: tickets[0] || null };
+            const [tickets] = await pool.query('SELECT id,status,agent_id AS agentId,transcript FROM support_handoffs WHERE conversation_id=?', [id]);
+            return { ...result, handoff: sanitizeUserTicket(tickets[0]) };
         },
         async remove(owner, id) {
             return transaction(async db => {
@@ -116,22 +134,26 @@ export function createStore(pool, retentionDays = 30) {
                 const now = Date.now();
                 const transcript = decode(row).messages.filter(message => message.status === 'complete');
                 await db.query('INSERT IGNORE INTO support_handoffs (id,conversation_id,user_id,transcript,created_at,updated_at) VALUES (?,?,?,?,?,?)', [randomUUID(), id, userId, JSON.stringify(transcript), now, now]);
-                const [rows] = await db.query('SELECT id,status,agent_id AS agentId FROM support_handoffs WHERE conversation_id=?', [id]);
-                return rows[0];
+                const [rows] = await db.query('SELECT id,status,agent_id AS agentId,transcript FROM support_handoffs WHERE conversation_id=?', [id]);
+                return sanitizeUserTicket(rows[0]);
             });
         },
         async queue() {
-            const [rows] = await pool.query("SELECT h.id,h.user_id AS userId,h.status,h.agent_id AS agentId,h.created_at AS createdAt,h.updated_at AS updatedAt,h.delivered_at AS deliveredAt,LEFT(JSON_UNQUOTE(JSON_EXTRACT(h.transcript,'$[0].text')),140) AS title FROM support_handoffs h JOIN support_conversations c ON c.id=h.conversation_id WHERE c.expires_at>? ORDER BY (h.status='waiting') DESC,(h.status='assigned') DESC,h.created_at ASC LIMIT 100", [Date.now()]);
-            return rows.map(({ deliveredAt, ...row }) => ({ ...row, title: row.title || 'Yêu cầu hỗ trợ', delivered: !!deliveredAt }));
+            const [rows] = await pool.query("SELECT h.id,h.user_id AS userId,h.status,h.agent_id AS agentId,h.created_at AS createdAt,h.updated_at AS updatedAt,h.delivered_at AS deliveredAt,h.transcript FROM support_handoffs h JOIN support_conversations c ON c.id=h.conversation_id WHERE c.expires_at>? ORDER BY (h.status='waiting') DESC,(h.status='assigned') DESC,h.created_at ASC LIMIT 100", [Date.now()]);
+            return rows.map(({ deliveredAt, transcript, ...row }) => {
+                const { messages, rejectReason } = decodeTranscript(transcript);
+                const title = messages.find(m => m.role === 'user')?.text?.slice(0, 140) || messages[0]?.text?.slice(0, 140) || 'Yêu cầu hỗ trợ';
+                return { ...row, title, rejectReason, delivered: !!deliveredAt };
+            });
         },
         async ticket(id) {
             const [rows] = await pool.query('SELECT h.id,h.user_id AS userId,h.status,h.agent_id AS agentId,h.created_at AS createdAt,h.updated_at AS updatedAt,h.delivered_at AS deliveredAt,h.transcript FROM support_handoffs h JOIN support_conversations c ON c.id=h.conversation_id WHERE h.id=? AND c.expires_at>?', [id, Date.now()]);
             if (!rows[0]) throw failure(404, 'Yêu cầu không còn tồn tại hoặc đã hết thời gian lưu.');
             const { transcript, deliveredAt, ...row } = rows[0];
-            const messages = typeof transcript === 'string' ? JSON.parse(transcript) : transcript;
+            const { messages, rejectReason } = decodeTranscript(transcript);
             // Read only the snapshot explicitly shared with support. Viewing
             // details never claims the ticket or sends a chat message.
-            return { ...row, title: messages.find(m => m.role === 'user')?.text.slice(0, 140) || 'Yêu cầu hỗ trợ', messages, delivered: !!deliveredAt };
+            return { ...row, title: messages.find(m => m.role === 'user')?.text?.slice(0, 140) || 'Yêu cầu hỗ trợ', rejectReason, messages, delivered: !!deliveredAt };
         },
         async claim(id, agentId, resolve = false, { roleCode } = {}) {
             return transaction(async db => {
@@ -142,11 +164,27 @@ export function createStore(pool, retentionDays = 30) {
                 // ticket. Such a ticket has no separate chat recipient.
                 const ownAdminTicket = roleCode === 'ADMIN' && row.user_id === agentId;
                 if (row.user_id === agentId && !ownAdminTicket) throw failure(409, 'Bạn không thể tự tiếp nhận yêu cầu của mình.');
-                if ((row.agent_id && row.agent_id !== agentId) || row.status === 'resolved') throw failure(409, 'Yêu cầu đã được nhân viên khác xử lý hoặc đã đóng.');
+                if ((row.agent_id && row.agent_id !== agentId) || row.status === 'resolved' || row.status === 'rejected') throw failure(409, 'Yêu cầu đã được nhân viên khác xử lý hoặc đã đóng.');
                 if (resolve && row.agent_id !== agentId) throw failure(409, 'Hãy tiếp nhận yêu cầu trước.');
                 if (resolve && !row.delivered_at && !ownAdminTicket) throw failure(409, 'Hãy chuyển hội thoại vào Tin nhắn trước khi đánh dấu đã xử lý.');
+                const { messages, rejectReason } = decodeTranscript(row.messages ?? row.transcript);
                 await db.query('UPDATE support_handoffs SET agent_id=?,status=?,updated_at=? WHERE id=?', [agentId, resolve ? 'resolved' : 'assigned', Date.now(), id]);
-                return { id, userId: row.user_id, agentId, delivered: !!row.delivered_at, status: resolve ? 'resolved' : 'assigned', messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages };
+                return { id, userId: row.user_id, agentId, delivered: !!row.delivered_at, status: resolve ? 'resolved' : 'assigned', rejectReason, messages };
+            });
+        },
+        async reject(id, agentId, reason = null, { roleCode } = {}) {
+            return transaction(async db => {
+                const [rows] = await db.query('SELECT h.*,h.transcript AS messages FROM support_handoffs h JOIN support_conversations c ON c.id=h.conversation_id WHERE h.id=? AND c.expires_at>? FOR UPDATE', [id, Date.now()]);
+                const row = rows[0];
+                if (!row) throw failure(404, 'Yêu cầu không tồn tại.');
+                const ownAdminTicket = roleCode === 'ADMIN' && row.user_id === agentId;
+                if (row.user_id === agentId && !ownAdminTicket) throw failure(409, 'Bạn không thể tự từ chối yêu cầu của mình.');
+                if ((row.agent_id && row.agent_id !== agentId) || row.status === 'resolved' || row.status === 'rejected') throw failure(409, 'Yêu cầu đã được nhân viên khác xử lý hoặc đã đóng.');
+                const { messages } = decodeTranscript(row.messages ?? row.transcript);
+                const cleanReason = typeof reason === 'string' && reason.trim() ? redact(reason.trim()).slice(0, 255) : null;
+                const payload = cleanReason ? { messages, rejectReason: cleanReason } : { messages };
+                await db.query('UPDATE support_handoffs SET agent_id=?,status=?,transcript=?,updated_at=? WHERE id=?', [agentId, 'rejected', JSON.stringify(payload), Date.now(), id]);
+                return { id, userId: row.user_id, agentId, delivered: !!row.delivered_at, status: 'rejected', rejectReason: cleanReason, messages };
             });
         },
         async delivered(id) { await pool.query('UPDATE support_handoffs SET delivered_at=? WHERE id=?', [Date.now(), id]); }

@@ -54,6 +54,16 @@ const DetailFilterUser = () => {
     const [viewGrant, setViewGrant] = useState(null);
     const token = localStorage.getItem('token_user');
     const sessionUser = localStorage.getItem('userData');
+    let parsedSessionUser = {};
+    try {
+        parsedSessionUser = sessionUser ? JSON.parse(sessionUser) || {} : {};
+    } catch {
+        parsedSessionUser = {};
+    }
+    const canPurchasePackages = parsedSessionUser?.roleCode === 'COMPANY'
+        && (parsedSessionUser.companyStatusCode === undefined
+            || (parsedSessionUser.companyStatusCode === 'S1' && parsedSessionUser.companyCensorCode === 'CS1'));
+    const isRecruiterStaff = parsedSessionUser?.roleCode === 'EMPLOYER';
     const scope = JSON.stringify([id, token, sessionUser]);
     const [loadState, setLoadState] = useState(null);
     const [ended, setEnded] = useState(false);
@@ -232,22 +242,43 @@ const DetailFilterUser = () => {
                                             <span style={{ color: "#13795c" }}>{viewGrant.allowance.free} miễn phí</span> •{" "}
                                             <span style={{ color: "#0369a1" }}>{viewGrant.allowance.paid} đã mua</span>
                                         </span>
-                                        <button
-                                            type="button"
-                                            onClick={() => navigate("/admin/buy-cv")}
-                                            style={{
-                                                border: "1px solid #13795c",
-                                                background: "#fff",
-                                                color: "#13795c",
-                                                borderRadius: "6px",
-                                                padding: "4px 10px",
-                                                fontSize: "12px",
-                                                fontWeight: 600,
-                                                cursor: "pointer",
-                                            }}
-                                        >
-                                            + Mua thêm lượt
-                                        </button>
+                                        {canPurchasePackages && (
+                                            <button
+                                                type="button"
+                                                onClick={() => navigate("/admin/buy-cv")}
+                                                style={{
+                                                    border: "1px solid #13795c",
+                                                    background: "#fff",
+                                                    color: "#13795c",
+                                                    borderRadius: "6px",
+                                                    padding: "4px 10px",
+                                                    fontSize: "12px",
+                                                    fontWeight: 600,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                + Mua thêm lượt
+                                            </button>
+                                        )}
+                                        {isRecruiterStaff && (
+                                            <button
+                                                type="button"
+                                                title="Chỉ Chủ công ty mới có quyền thanh toán mua thêm gói dịch vụ"
+                                                onClick={() => navigate("/admin/rewards/")}
+                                                style={{
+                                                    border: "1px solid #13795c",
+                                                    background: "#fff",
+                                                    color: "#13795c",
+                                                    borderRadius: "6px",
+                                                    padding: "4px 10px",
+                                                    fontSize: "12px",
+                                                    fontWeight: 600,
+                                                    cursor: "pointer",
+                                                }}
+                                            >
+                                                Quỹ lượt công ty
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>

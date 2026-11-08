@@ -143,10 +143,31 @@ describe('support handoff administrative handling', () => {
 
     it.each([
         { agent_id: 9, status: 'assigned' },
-        { agent_id: 7, status: 'resolved' }
-    ])('does not silently override another assignment or reopen a resolved ticket: %j', async assigned => {
+        { agent_id: 7, status: 'resolved' },
+        { agent_id: 7, status: 'rejected' }
+    ])('does not silently override another assignment or reopen a closed ticket: %j', async assigned => {
         const { store, row, query } = handoffFixture(assigned);
         await expect(store.claim(row.id, 7, false, { roleCode: 'ADMIN' })).rejects.toMatchObject({ status: 409 });
+        await expect(store.reject(row.id, 7, 'Spam', { roleCode: 'ADMIN' })).rejects.toMatchObject({ status: 409 });
         expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE'))).toBe(false);
+    });
+
+    it('rejects a waiting or own-assigned ticket with redacted reason without requiring chat delivery', async () => {
+        const { store, row, query } = handoffFixture({ user_id: 8 });
+        const rejected = await store.reject(row.id, 7, '  Spam a@example.com  ', { roleCode: 'ADMIN' });
+        expect(rejected).toMatchObject({
+            id: row.id,
+            userId: 8,
+            agentId: 7,
+            delivered: false,
+            status: 'rejected',
+            rejectReason: 'Spam [email đã ẩn]'
+        });
+        expect(row.delivered_at).toBeNull();
+        const savedTranscript = JSON.parse(query.mock.calls.at(-1)[1][2]);
+        expect(savedTranscript).toMatchObject({
+            rejectReason: 'Spam [email đã ẩn]',
+            messages: expect.any(Array)
+        });
     });
 });

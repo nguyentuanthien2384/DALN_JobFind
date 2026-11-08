@@ -24,6 +24,7 @@ const editRevision = 'jv1-' + 'a'.repeat(64);
 const bodyExamples = {
     SupportTurn: { requestId: '12345678-1234-4234-8234-123456789012', text: 'Tạo CV thế nào?' },
     SupportHandoff: { consent: true },
+    SupportReject: { reason: 'Spam / Ngôn từ không phù hợp' },
     SupportFeedback: { value: 'up' },
     JobRepost: { timeEnd: '2000000000000' },
     JobCreate: { name: 'Lập trình viên', descriptionHTML: '<p>Phát triển ứng dụng</p>', categoryJobCode: 'IT', amount: '2' },
@@ -276,7 +277,9 @@ describe('real HTTP request contracts', () => {
         ['reportOverview', { query: '?fromDate=2026-02-30' }],
         ['reportOverview', { query: '?fromDate=2026-02-02&toDate=2026-02-01' }],
         ['reportOverview', { query: '?fromDate=not-a-date' }], ['auditList', { query: '?offset=-1' }],
-        ['auditList', { query: '?limit=201' }]
+        ['auditList', { query: '?limit=201' }],
+        ['supportReject', { body: { reason: 'x'.repeat(256) } }],
+        ['supportReject', { body: { extra: true } }]
     ])('%s rejects unsafe input before business side effects: %j', async (id, options) => {
         const response = await send(id, options);
         expect(response.status).toBe(400);

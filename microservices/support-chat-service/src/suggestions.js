@@ -31,15 +31,19 @@ export function parseSuggestions(raw) {
 const TOPIC_SUGGESTIONS = {
     account: ['Tôi không nhận được mã OTP', 'Đổi mật khẩu ở đâu?'],
     jobs: ['Có việc IT nào đang tuyển?', 'Công ty nào đang tuyển nhiều nhất?'],
-    cv: ['Mẹo viết CV cho người mới đi làm', 'Theo dõi đơn ứng tuyển ở đâu?'],
-    applications: ['Bao lâu thì nhà tuyển dụng phản hồi?', 'Mẹo chuẩn bị phỏng vấn'],
+    cv: ['Mẹo viết CV cho người mới đi làm', 'Trợ lý AI CV làm được gì?'],
+    applications: ['Xem lịch phỏng vấn ở đâu?', 'Mẹo chuẩn bị phỏng vấn'],
     saved: ['Có việc IT nào đang tuyển?', 'Làm sao ứng tuyển một tin đã lưu?'],
-    employer: ['Mua gói đăng tin thế nào?', 'Vì sao tin chưa được duyệt?'],
-    payment: ['Xem hạn mức gói ở đâu?', 'Đã thanh toán nhưng chưa nhận gói'],
+    rewards: ['Làm sao tích điểm miễn phí?', 'Top Point đổi được những gì?'],
+    competition: ['Mở khóa báo cáo cạnh tranh tốn mấy điểm?', 'Làm sao tăng độ khớp hồ sơ?'],
+    employer: ['Nhân viên tuyển dụng có quyền gì?', 'Mua gói đăng tin thế nào?'],
+    recruitment: ['Bảng Kanban tuyển dụng nằm ở đâu?', 'Cách đặt lịch phỏng vấn ứng viên'],
+    payment: ['Hỗ trợ những cổng thanh toán nào?', 'Đã thanh toán nhưng chưa nhận gói'],
+    'company-follow': ['Xem việc làm gợi ý ở đâu?', 'Làm sao theo dõi công ty?'],
     chat: ['Gặp nhân viên hỗ trợ JobFind', 'Làm sao nhắn tin với nhà tuyển dụng?'],
     privacy: ['Xóa lịch sử trò chuyện thế nào?', 'Dữ liệu của tôi được lưu bao lâu?']
 };
-const DEFAULT_SUGGESTIONS = ['Có việc IT nào đang tuyển?', 'Mẹo phỏng vấn xin việc', 'Làm sao tạo CV trên JobFind?'];
+const DEFAULT_SUGGESTIONS = ['Có việc IT nào đang tuyển?', 'Làm sao tích điểm trên JobFind?', 'Trợ lý AI CV dùng thế nào?'];
 
 // Used when the model omitted the line, or when no model answered at all.
 export function fallbackSuggestions({ sources = [], tools = [] } = {}) {

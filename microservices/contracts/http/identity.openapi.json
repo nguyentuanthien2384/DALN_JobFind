@@ -1612,6 +1612,24 @@
         ],
         "additionalProperties": false
       },
+      "SupportReject": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
       "SupportFeedback": {
         "type": "object",
         "properties": {
@@ -5263,7 +5281,8 @@
             "enum": [
               "waiting",
               "assigned",
-              "resolved"
+              "resolved",
+              "rejected"
             ]
           },
           "userId": {
@@ -5304,6 +5323,17 @@
           "title": {
             "type": "string",
             "maxLength": 140
+          },
+          "rejectReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "createdAt": {
             "anyOf": [

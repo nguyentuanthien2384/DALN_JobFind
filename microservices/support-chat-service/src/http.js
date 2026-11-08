@@ -48,6 +48,11 @@ export function registerSupportRoutes(app, { store, respond, tools, env = proces
         return data(res, ticket);
     });
     contractRoute(app, 'supportResolve', manage, async (req, res) => data(res, await store.claim(req.params.id, req.user.id, true, { roleCode: req.user.roleCode })));
+    contractRoute(app, 'supportReject', manage, async (req, res) => {
+        const ticket = await store.reject(req.params.id, req.user.id, req.body?.reason, { roleCode: req.user.roleCode });
+        audit({ event: 'support.handoff_rejected', ticketId: ticket.id, agentId: req.user.id });
+        return data(res, ticket);
+    });
     let active = 0;
     // Compatibility for older stateless callers of /api/support-chat.
     // It uses the same configured Claude responder as saved conversations.

@@ -18,17 +18,38 @@ const convertMessage = (item) => ({
     metadata: { custom: item }
 });
 
-const QUICK_QUESTIONS = [
-    'Tìm việc IT đang tuyển tại Hà Nội',
-    'Công ty nào đang tuyển nhiều nhất?',
-    'Tôi muốn tạo CV và ứng tuyển',
-    'Làm sao nhắn tin với nhà tuyển dụng?'
-];
+const QUICK_QUESTIONS_BY_ROLE = {
+    DEFAULT: [
+        'Tìm việc IT đang tuyển tại Hà Nội',
+        'Làm sao tích điểm và mở khóa phân tích cạnh tranh?',
+        'Tôi muốn tạo CV bằng AI và ứng tuyển',
+        'Làm sao nhắn tin với nhà tuyển dụng?'
+    ],
+    EMPLOYER: [
+        'Tìm việc IT đang tuyển tại Hà Nội',
+        'Cơ chế tích điểm Top Point và phân quyền công ty thế nào?',
+        'Hướng dẫn dùng bảng Kanban và lịch phỏng vấn',
+        'Mua gói đăng tin, lượt xem CV qua cổng nào?'
+    ],
+    ADMIN: [
+        'Tìm việc IT đang tuyển tại Hà Nội',
+        'Công ty nào đang tuyển nhiều nhất?',
+        'Quy trình tiếp nhận hoặc từ chối yêu cầu hỗ trợ thế nào?',
+        'Cơ chế điểm thưởng ứng viên và Top Point hoạt động ra sao?'
+    ]
+};
+const quickQuestionsFor = (roleCode) => {
+    if (roleCode === 'ADMIN') return QUICK_QUESTIONS_BY_ROLE.ADMIN;
+    if (['COMPANY', 'EMPLOYER'].includes(roleCode)) return QUICK_QUESTIONS_BY_ROLE.EMPLOYER;
+    return QUICK_QUESTIONS_BY_ROLE.DEFAULT;
+};
 // Persistent shortcuts, like the menu of a chatbot on a social network page.
 const MENU_ITEMS = [
     { icon: '🔎', label: 'Việc làm mới nhất', text: 'Cho mình xem các việc làm mới nhất đang tuyển' },
     { icon: '📊', label: 'Thống kê tuyển dụng', text: 'Tỉnh thành và công ty nào đang tuyển nhiều nhất?' },
-    { icon: '📄', label: 'Hướng dẫn tạo CV', text: 'Hướng dẫn mình tạo CV và ứng tuyển trên JobFind' },
+    { icon: '📄', label: 'Trợ lý AI CV', text: 'Hướng dẫn mình dùng trợ lý AI CV và ứng tuyển trên JobFind' },
+    { icon: '🪙', label: 'Điểm thưởng & Top Point', text: 'Hướng dẫn tích điểm ứng viên và đổi Top Point doanh nghiệp' },
+    { icon: '📈', label: 'Báo cáo cạnh tranh', text: 'Báo cáo phân tích mức độ cạnh tranh ứng viên là gì?' },
     { icon: '💡', label: 'Mẹo phỏng vấn', text: 'Cho mình vài mẹo chuẩn bị phỏng vấn xin việc' },
     { icon: '🔑', label: 'Quên mật khẩu', text: 'Tôi quên mật khẩu JobFind thì phải làm gì?' },
     { icon: '🙋', label: 'Gặp nhân viên hỗ trợ', text: 'Làm sao để gặp nhân viên hỗ trợ JobFind?' }
@@ -44,7 +65,8 @@ const pageJobId = (pathname = '') => /^\/detail-job\/([1-9]\d{0,9})\/?$/.exec(pa
 const jobQuestions = (id) => [
     { label: 'Tóm tắt tin này', text: `Tóm tắt giúp mình tin tuyển dụng mã ${id}` },
     { label: 'Tin này yêu cầu gì?', text: `Tin tuyển dụng mã ${id} yêu cầu kinh nghiệm và kỹ năng gì?` },
-    { label: 'Tìm việc tương tự', text: `Tìm giúp mình các việc tương tự tin tuyển dụng mã ${id}` }
+    { label: 'Tìm việc tương tự', text: `Tìm giúp mình các việc tương tự tin tuyển dụng mã ${id}` },
+    ...(!String(id).startsWith('external-') ? [{ label: 'Phân tích cạnh tranh', text: 'Làm sao mở khóa báo cáo phân tích cạnh tranh của tin tuyển dụng này?' }] : [])
 ];
 // The greeting appears only where people browse jobs, never on account or admin pages.
 const teaserPage = (pathname = '') => pathname === '/' || /^\/(job|company|detail-job|external-job|detail-company)(\/|$)/.test(pathname);
@@ -122,7 +144,7 @@ const SupportChat = () => {
     const messages = thread?.messages || [];
     const viewedJob = pageJobId(pathname);
     const name = String(user?.lastName || user?.firstName || '').trim().slice(0, 40);
-    const greeting = `Chào ${name || 'bạn'} 👋 Mình là trợ lý AI của JobFind, có thể tìm việc, thống kê tuyển dụng, hướng dẫn tạo CV hoặc kết nối bạn với nhân viên hỗ trợ.`;
+    const greeting = `Chào ${name || 'bạn'} 👋 Mình là trợ lý AI của JobFind, có thể tìm việc, thống kê tuyển dụng, hướng dẫn AI CV, điểm thưởng & Top Point hoặc kết nối nhân viên hỗ trợ.`;
 
     useEffect(() => { openRef.current = isOpen; }, [isOpen]);
     useEffect(() => {
@@ -463,8 +485,9 @@ const SupportChat = () => {
                             {!user?.id && <div className="jf-support__login">Đăng nhập để sử dụng các chức năng cá nhân của JobFind. <Link to="/login">Đăng nhập</Link></div>}
                             {user?.id && <div className="jf-support__private-actions" aria-label="Tra cứu riêng tư">
                                 <button type="button" disabled={privateBusy} onClick={() => lookup('getMyProfileSummary')}>Hồ sơ của tôi</button>
-                                {user.roleCode === 'CANDIDATE' && <><button type="button" disabled={privateBusy} onClick={() => lookup('getMyApplications')}>Đơn ứng tuyển của tôi</button><button type="button" disabled={privateBusy} onClick={() => lookup('getMySavedJobs')}>Việc đã lưu</button></>}
-                                {['COMPANY', 'EMPLOYER'].includes(user.roleCode) && <><button type="button" disabled={privateBusy} onClick={() => lookup('getMyCompanyJobs')}>Tin công ty</button><button type="button" disabled={privateBusy} onClick={() => lookup('getSubscriptionStatus')}>Hạn mức gói</button></>}
+                                {user.roleCode === 'CANDIDATE' && <><button type="button" disabled={privateBusy} onClick={() => lookup('getMyRewards')}>Điểm thưởng</button><button type="button" disabled={privateBusy} onClick={() => lookup('getMyApplications')}>Đơn ứng tuyển của tôi</button><button type="button" disabled={privateBusy} onClick={() => lookup('getMyInterviews')}>Lịch phỏng vấn</button><button type="button" disabled={privateBusy} onClick={() => lookup('getMySavedJobs')}>Việc đã lưu</button></>}
+                                {['COMPANY', 'EMPLOYER'].includes(user.roleCode) && <><button type="button" disabled={privateBusy} onClick={() => lookup('getMyRewards')}>Top Point & Quỹ lượt</button><button type="button" disabled={privateBusy} onClick={() => lookup('getSubscriptionStatus')}>Hạn mức gói</button><button type="button" disabled={privateBusy} onClick={() => lookup('getMyCompanyJobs')}>Tin công ty</button><button type="button" disabled={privateBusy} onClick={() => lookup('getMyInterviews')}>Lịch phỏng vấn</button></>}
+                                {user.roleCode === 'ADMIN' && <button type="button" disabled={privateBusy} onClick={() => lookup('getAdminOverview')}>Việc cần duyệt</button>}
                             </div>}
                             <div className="jf-support__conversation">
                             <ThreadPrimitive.Viewport className="jf-support__messages" role="log" aria-live="polite" aria-label="Nội dung trò chuyện">
@@ -478,7 +501,7 @@ const SupportChat = () => {
                                             <div className="jf-support__chips">{jobQuestions(viewedJob).map((item) => <button key={item.label} type="button" onClick={() => sendMessage(item.text)} disabled={!canAsk}>{item.label}</button>)}</div>
                                         </div>}
                                         <div className="jf-support__suggestions">
-                                            {QUICK_QUESTIONS.map((question) => <button key={question} type="button" onClick={() => sendMessage(question)} disabled={!canAsk}>{question}<span aria-hidden="true">↗</span></button>)}
+                                            {quickQuestionsFor(user?.roleCode).map((question) => <button key={question} type="button" onClick={() => sendMessage(question)} disabled={!canAsk}>{question}<span aria-hidden="true">↗</span></button>)}
                                         </div>
                                     </div>
                                 ) : <ThreadPrimitive.Messages>{({ message }) => { const item = message.metadata.custom; const index = messages.findIndex((entry) => entry.id === message.id); const previousAt = messages[index - 1]?.at; const isLast = index === messages.length - 1; return (<>
@@ -536,10 +559,10 @@ const SupportChat = () => {
                                 <div className="jf-support__private-result-body">
                                     <ul>{privateResult.lines?.length ? privateResult.lines.map((line, index) => <li key={index}>{line}</li>) : <li>Chưa có dữ liệu.</li>}</ul>
                                     <small>Tra cứu trực tiếp, không gửi cho AI.</small>
-                                    {/^\/(candidate|admin)\/[a-z-]+$/.test(privateResult.href || '') && <Link to={privateResult.href} onClick={() => setPrivateResult(null)}>Mở trang quản lý ↗</Link>}
+                                    {/^\/(candidate\/[a-z-]+|admin(?:\/[a-z-]+)?)$/.test(privateResult.href || '') && <Link to={privateResult.href} onClick={() => setPrivateResult(null)}>Mở trang quản lý ↗</Link>}
                                 </div>
                             </div>}
-                            {thread.handoff && <div className="jf-support__login">{thread.handoff.status === 'resolved' ? 'Yêu cầu đã được xử lý.' : thread.handoff.agentId ? 'Nhân viên đã tiếp nhận. ' : 'Đã lưu yêu cầu. Đang chờ nhân viên tiếp nhận.'}{thread.handoff.agentId && <Link to={`/support/chat/${thread.handoff.agentId}`}>Mở tin nhắn</Link>}<button type="button" onClick={() => openThread(thread)}>Cập nhật</button></div>}
+                            {thread.handoff && <div className="jf-support__login">{thread.handoff.status === 'rejected' ? `Yêu cầu hỗ trợ đã bị từ chối tiếp nhận${thread.handoff.rejectReason ? ` (Lý do: ${thread.handoff.rejectReason})` : ''}.` : thread.handoff.status === 'resolved' ? 'Yêu cầu đã được xử lý.' : thread.handoff.agentId ? 'Nhân viên đã tiếp nhận. ' : 'Đã lưu yêu cầu. Đang chờ nhân viên tiếp nhận.'}{thread.handoff.status !== 'rejected' && thread.handoff.agentId && <Link to={`/support/chat/${thread.handoff.agentId}`}>Mở tin nhắn</Link>}<button type="button" onClick={() => openThread(thread)}>Cập nhật</button></div>}
                             {error && <div className="jf-support__error" role="alert">{error}<button type="button" onClick={ready ? retryLast : () => setHistoryRefresh(value => value + 1)} disabled={busy}><Icon name="retry" size={15}/>{ready ? 'Thử lại' : 'Kết nối lại'}</button>{!ready && !user?.id && <button type="button" onClick={() => { supportApi.resetGuest(); setHistoryRefresh(value => value + 1); }}>Bắt đầu phiên khách mới</button>}</div>}
                             <div className="jf-support__compose-area">
                                 {editing && <form className="jf-support__edit" onSubmit={(event) => {

@@ -26,6 +26,9 @@ const FilterCv = () => {
     const [user] = useState(() => {
         try { return JSON.parse(localStorage.getItem('userData')) || {}; } catch { return {}; }
     });
+    const canPurchasePackages = user?.roleCode === 'COMPANY'
+        && (user.companyStatusCode === undefined || (user.companyStatusCode === 'S1' && user.companyCensorCode === 'CS1'));
+    const isRecruiterStaff = user?.roleCode === 'EMPLOYER';
     const [query, setQuery] = useListQuery({ ...emptyFilters(), page: 0 });
     const { page } = query;
     const filters = useMemo(() => {
@@ -169,10 +172,12 @@ const FilterCv = () => {
             Modal.confirm({
                 title: 'Công ty đã hết lượt xem CV',
                 icon: <ExclamationCircleOutlined />,
-                content: 'Công ty bạn hiện đã hết lượt xem CV (0 lượt miễn phí, 0 lượt đã mua). Bạn có muốn chuyển sang trang Mua thêm lượt xem ứng viên để mở khóa hồ sơ này không?',
-                okText: 'Mua thêm lượt xem',
+                content: canPurchasePackages
+                    ? 'Công ty bạn hiện đã hết lượt xem CV (0 lượt miễn phí, 0 lượt đã mua). Bạn có muốn chuyển sang trang Mua thêm lượt xem ứng viên để mở khóa hồ sơ này không?'
+                    : 'Công ty bạn hiện đã hết lượt xem CV (0 lượt miễn phí, 0 lượt đã mua). Vui lòng liên hệ Chủ doanh nghiệp (Quản trị công ty) để mua thêm gói hoặc đổi điểm Top Point.',
+                okText: canPurchasePackages ? 'Mua thêm lượt xem' : 'Xem quỹ lượt công ty',
                 cancelText: 'Đóng',
-                onOk: () => navigate('/admin/buy-cv')
+                onOk: () => navigate(canPurchasePackages ? '/admin/buy-cv' : '/admin/rewards/')
             });
             return;
         }
@@ -202,7 +207,9 @@ const FilterCv = () => {
                         if (grantRes.errCode !== 0) {
                             if (grantRes.allowance) setAllowance(grantRes.allowance);
                             toast.error(grantRes.errMessage || 'Không thể mở khóa hồ sơ ứng viên.');
-                            if (grantRes.errCode === 1) navigate('/admin/buy-cv');
+                            if (grantRes.errCode === 1) {
+                                navigate(canPurchasePackages ? '/admin/buy-cv' : '/admin/rewards/');
+                            }
                             return;
                         }
                         if (grantRes.allowance) {
@@ -265,7 +272,21 @@ const FilterCv = () => {
                 </div>
                 <span>Số lượt xem miễn phí: {allowance.free}</span>
                 <span>Số lượt xem: {allowance.paid}</span>
-                <button type="button" className="cv-search-allowance-buy" onClick={() => navigate('/admin/buy-cv')}>+ Mua thêm lượt xem</button>
+                {canPurchasePackages && (
+                    <button type="button" className="cv-search-allowance-buy" onClick={() => navigate('/admin/buy-cv')}>
+                        + Mua thêm lượt xem
+                    </button>
+                )}
+                {isRecruiterStaff && (
+                    <button
+                        type="button"
+                        className="cv-search-allowance-buy"
+                        title="Chỉ Chủ công ty mới có quyền thanh toán mua thêm gói dịch vụ"
+                        onClick={() => navigate('/admin/rewards/')}
+                    >
+                        Quỹ lượt công ty
+                    </button>
+                )}
             </div>}
         </header>
         {user.companyId && <section className="cv-search-job" aria-label="Gợi ý từ tin tuyển dụng">

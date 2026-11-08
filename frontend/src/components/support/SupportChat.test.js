@@ -557,3 +557,56 @@ test('an answer that arrives while the chat is closed shows a preview and unread
     expect(await screen.findByText('Có 15 tin IT đang tuyển tại Hà Nội.')).toBeInTheDocument();
     expect(screen.queryByText(/Trợ lý vừa trả lời/)).not.toBeInTheDocument();
 });
+
+test('a rejected handoff shows rejection reason and never exposes direct admin chat link', async () => {
+    const rejectedThread = remoteThread({
+        handoff: {
+            id: 'ticket-rejected',
+            status: 'rejected',
+            agentId: 21,
+            rejectReason: 'Spam / Ngôn từ không phù hợp'
+        }
+    });
+    supportApi.list.mockResolvedValue([remoteThread({ messages: undefined })]);
+    supportApi.get.mockResolvedValue(rejectedThread);
+    show({ id: 7, roleCode: 'CANDIDATE' });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Lịch sử trò chuyện' }));
+    fireEvent.click(await screen.findByRole('button', { name: /^Hỏi về hồ sơ/ }));
+    expect(await screen.findByText(/Yêu cầu hỗ trợ đã bị từ chối tiếp nhận \(Lý do: Spam \/ Ngôn từ không phù hợp\)\./)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Mở tin nhắn/ })).not.toBeInTheDocument();
+});
+
+
+test('renders synchronized role-specific private actions for candidate, employer and admin', async () => {
+    supportApi.privateTool
+        .mockResolvedValueOnce({ title: 'Top Point & Quỹ lượt công ty', lines: ['Số dư Top Point: 15 điểm'], href: '/admin/rewards' })
+        .mockResolvedValueOnce({ title: 'Hàng đợi kiểm duyệt & hỗ trợ', lines: ['Yêu cầu hỗ trợ chờ tiếp nhận: 1'], href: '/admin/support' });
+
+    const view = show({ id: 7, roleCode: 'CANDIDATE' });
+    await open();
+    expect(screen.getByRole('button', { name: 'Điểm thưởng' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lịch phỏng vấn' })).toBeInTheDocument();
+
+    view.rerender(renderFor({ id: 9, roleCode: 'EMPLOYER' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Top Point & Quỹ lượt' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Lịch phỏng vấn' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Top Point & Quỹ lượt' }));
+    expect(await screen.findByText('Số dư Top Point: 15 điểm')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Mở trang quản lý/ })).toHaveAttribute('href', '/admin/rewards');
+
+    view.rerender(renderFor({ id: 1, roleCode: 'ADMIN', lastName: 'Thiền' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Việc cần duyệt' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Việc cần duyệt' }));
+    expect(await screen.findByText('Yêu cầu hỗ trợ chờ tiếp nhận: 1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Mở trang quản lý/ })).toHaveAttribute('href', '/admin/support');
+});
+
+test('offers competition insight shortcut on internal job detail pages', async () => {
+    mockLocation = { pathname: '/detail-job/42' };
+    streamSupportReply.mockResolvedValue('Dùng 10 điểm mở khóa trong 30 ngày.');
+    show(); await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Phân tích cạnh tranh' }));
+    await waitFor(() => expect(streamSupportReply).toHaveBeenCalled());
+    expect(streamSupportReply.mock.calls[0][1].turn.text).toContain('phân tích cạnh tranh');
+});

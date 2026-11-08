@@ -1,11 +1,13 @@
 jest.mock('../../src/models', () => ({ Account: { findOne: jest.fn() }, sequelize: { query: jest.fn() } }));
 jest.mock('../../src/services/chatService', () => ({ handleSendMessage: jest.fn() }));
+jest.mock('../../src/services/rewardService', () => ({ getCandidateRewardOverview: jest.fn(), getEmployerRewardOverview: jest.fn() }));
 jest.mock('../../src/config/socket', () => ({ emitNewMessage: jest.fn() }));
 jest.mock('../../src/services/supportJobTools', () => ({ executeSupportTool: jest.fn(), PUBLIC_TOOL_NAMES: ['search_jobs', 'get_job_details', 'job_market_overview'] }));
-const { trustedSupport, publicTool, deliverHandoff } = require('../../src/controllers/supportBridgeController');
+const { trustedSupport, publicTool, privateTool, deliverHandoff } = require('../../src/controllers/supportBridgeController');
 const { supportChatAccess } = require('../../src/middlewares/supportChatAccess');
 const db = require('../../src/models');
 const chat = require('../../src/services/chatService');
+const rewardService = require('../../src/services/rewardService');
 const { emitNewMessage } = require('../../src/config/socket');
 const { executeSupportTool } = require('../../src/services/supportJobTools');
 const { createResponse } = require('../helpers/http');
@@ -132,4 +134,49 @@ test('contains malformed stored transcripts without delivering or disclosing the
     expect(res.status).toHaveBeenCalledWith(503);
     expect(res.json).toHaveBeenCalledWith({ errCode: 503, errMessage: 'Yêu cầu đã lưu; vui lòng thử chuyển lại.' });
     expect(chat.handleSendMessage).not.toHaveBeenCalled(); expect(emitNewMessage).not.toHaveBeenCalled();
+});
+
+
+test('privateTool returns candidate and employer reward summaries from verified headers only', async () => {
+    const unauth = createResponse(); unauth.sendStatus = jest.fn();
+    await privateTool({ headers: {}, body: { name: 'getMyRewards' } }, unauth);
+    expect(unauth.sendStatus).toHaveBeenCalledWith(401);
+
+    const badTool = createResponse();
+    await privateTool({ headers: { 'x-user-id': '7', 'x-user-role': 'CANDIDATE' }, body: { name: 'deleteWallet' } }, badTool);
+    expect(badTool.status).toHaveBeenCalledWith(400);
+
+    rewardService.getCandidateRewardOverview.mockResolvedValueOnce({
+        errCode: 0,
+        data: {
+            wallet: { balance: 40, valueVnd: 40000, tierLabel: 'Bạc', lifetimeEarned: 40 },
+            missions: { checkedInToday: true, profileCompletionClaimed: false, profileCompletionPercent: 75 }
+        }
+    });
+    const candRes = createResponse();
+    await privateTool({ headers: { 'x-user-id': '7', 'x-user-role': 'CANDIDATE' }, body: { name: 'getMyRewards', userId: 999 } }, candRes);
+    expect(rewardService.getCandidateRewardOverview).toHaveBeenCalledWith(7);
+    expect(candRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        errCode: 0,
+        data: expect.objectContaining({ title: 'Điểm thưởng & hạng thành viên', href: '/candidate/info' })
+    }));
+
+    const unapproved = createResponse(); unapproved.sendStatus = jest.fn();
+    await privateTool({ headers: { 'x-user-id': '9', 'x-user-role': 'EMPLOYER', 'x-company-id': '4', 'x-company-status': 'S1', 'x-company-censor': 'CS2' }, body: { name: 'getMyRewards' } }, unapproved);
+    expect(unapproved.sendStatus).toHaveBeenCalledWith(403);
+
+    rewardService.getEmployerRewardOverview.mockResolvedValueOnce({
+        errCode: 0,
+        data: {
+            wallet: { balance: 15, tierLabel: 'Bạc', multiplier: 1.1 },
+            allowances: { allowPost: 3, allowHotPost: 1, allowCv: 20, allowCvFree: 5 }
+        }
+    });
+    const empRes = createResponse();
+    await privateTool({ headers: { 'x-user-id': '9', 'x-user-role': 'EMPLOYER', 'x-company-id': '4', 'x-company-status': 'S1', 'x-company-censor': 'CS1' }, body: { name: 'getMyRewards' } }, empRes);
+    expect(rewardService.getEmployerRewardOverview).toHaveBeenCalledWith(4, { canRedeem: false });
+    expect(empRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        errCode: 0,
+        data: expect.objectContaining({ title: 'Top Point & Quỹ lượt công ty', href: '/admin/rewards' })
+    }));
 });

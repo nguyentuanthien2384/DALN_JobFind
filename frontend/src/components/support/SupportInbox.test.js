@@ -150,3 +150,37 @@ test('refreshes the visible queue without overlapping requests and stops on unmo
   view.unmount(); await act(async () => { jest.advanceTimersByTime(60000); });
   expect(supportRequest).toHaveBeenCalledTimes(2);
 });
+test('rejects a waiting spam request with reason without opening chat and filters rejected requests', async () => {
+  let current = ticket({ title: 'bac an cut' });
+  supportRequest.mockImplementation((path, options) => {
+    if (options?.method === 'POST' && path.endsWith('/reject')) {
+      current = { ...current, agentId: 21, delivered: false, status: 'rejected', rejectReason: options.body?.reason || null };
+    }
+    return Promise.resolve(path === '/handoffs' ? [current] : { ...current, messages });
+  });
+  show();
+  fireEvent.click(await screen.findByRole('button', { name: 'Từ chối', exact: true }));
+  const dialog = screen.getByRole('dialog', { name: 'Từ chối tiếp nhận yêu cầu' });
+  expect(within(dialog).getByLabelText('Spam / Ngôn từ không phù hợp')).toBeChecked();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Hủy' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(current.status).toBe('waiting');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Từ chối', exact: true }));
+  const reopened = screen.getByRole('dialog', { name: 'Từ chối tiếp nhận yêu cầu' });
+  fireEvent.click(within(reopened).getByLabelText('Lý do khác'));
+  fireEvent.change(within(reopened).getByLabelText('Nhập lý do từ chối'), { target: { value: 'Ngôn từ xúc phạm nhân viên' } });
+  fireEvent.click(within(reopened).getByRole('button', { name: 'Xác nhận từ chối' }));
+
+  expect(await screen.findByText('Đã từ chối yêu cầu hỗ trợ.')).toBeInTheDocument();
+  expect(supportRequest).toHaveBeenCalledWith(
+    '/handoffs/ticket-1/reject',
+    expect.objectContaining({ method: 'POST', body: { reason: 'Ngôn từ xúc phạm nhân viên' } })
+  );
+  expect(screen.getByText(/Yêu cầu đã bị từ chối tiếp nhận — Lý do: Ngôn từ xúc phạm nhân viên/)).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /Mở tin nhắn/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Tiếp nhận|Đánh dấu đã xử lý|Từ chối/ })).toBeNull();
+
+  fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'rejected' } });
+  expect(screen.getAllByRole('heading', { name: 'bac an cut' }).length).toBeGreaterThan(0);
+});

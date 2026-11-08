@@ -139,6 +139,11 @@ describe('reviewed knowledge and provider fallback', () => {
         ['Tôi muốn xem việc đã lưu', 'saved'],
         ['Hãy thanh toán mua gói thay tôi', 'payment'],
         ['Tôi muốn đăng tin tuyển dụng', 'employer'],
+        ['Làm sao tích điểm thưởng và đổi Top Point?', 'rewards'],
+        ['Mở khóa báo cáo cạnh tranh tốn bao nhiêu điểm?', 'competition'],
+        ['Hướng dẫn dùng bảng Kanban và lịch phỏng vấn', 'recruitment'],
+        ['Làm sao theo dõi công ty và xem việc làm gợi ý?', 'company-follow'],
+        ['Thanh toán qua VNPay MoMo ZaloPay thế nào?', 'payment'],
     ])('ranks the relevant reviewed topic first for %s', (query, id) => {
         expect(localKnowledge(query)[0]?.id).toBe(id);
     });
@@ -333,6 +338,9 @@ describe('private tools never take user selectors', () => {
     it('routes explicit self-service questions locally without model-selected identities',()=>{
         expect(privateIntent('Trạng thái đơn ứng tuyển của tôi')).toBe('getMyApplications');
         expect(privateIntent('Xem việc đã lưu của mình')).toBe('getMySavedJobs');
+        expect(privateIntent('Số dư điểm thưởng của tôi')).toBe('getMyRewards');
+        expect(privateIntent('Xem lịch phỏng vấn của mình')).toBe('getMyInterviews');
+        expect(privateIntent('Xem việc cần duyệt của mình')).toBe('getAdminOverview');
         expect(privateIntent('Xem hồ sơ người khác')).toBeNull();
     });
     it.each(['Tôi đã nộp đơn ứng tuyển thì xem ở đâu?', 'Hướng dẫn tôi xem việc đã lưu', 'Làm sao tôi mua gói đăng tin?', 'Cách xem thông tin tài khoản của tôi'])('keeps public how-to guidance out of private lookups: %s', query => {
@@ -376,12 +384,53 @@ describe('private tools never take user selectors', () => {
         expect(JSON.stringify(result)).not.toMatch(/private@example|secret CV/);
         expect(fetcher.mock.calls[0][1].headers['x-user-id']).toBe('7'); expect(fetcher.mock.calls[0][1].headers.authorization).toBeUndefined();
     });
+    it('supports rewards, interview schedule, admin overview and employer-safe quota links', async () => {
+        const employer = { ...company, id: 12, roleCode: 'EMPLOYER' };
+        const admin = { id: 1, roleCode: 'ADMIN' };
+        const query = vi.fn()
+            .mockResolvedValueOnce([[{ allowPost: 2, allowHotPost: 1, allowCv: 10, allowCvFree: 5 }]])
+            .mockResolvedValueOnce([[{ count: 4 }]])
+            .mockResolvedValueOnce([[{ count: 2 }]])
+            .mockResolvedValueOnce([[{ count: 1 }]]);
+        const fetcher = vi.fn(async (url) => {
+            if (url.endsWith('/internal/support/private-tool')) {
+                return { ok: true, json: async () => ({ errCode: 0, data: { title: 'Điểm thưởng & hạng thành viên', lines: ['Số dư: 40 điểm'], href: '/candidate/info' } }) };
+            }
+            return {
+                ok: true,
+                json: async () => ({
+                    errCode: 0,
+                    data: [
+                        { id: 1, jobId: 55, jobTitle: 'Backend NodeJS', companyName: 'Acme', candidateId: 7, candidateName: 'An', candidateEmail: 'secret@example.com', scheduledAt: '2026-11-10T09:00:00.000Z', startAt: '2026-11-10T09:00:00.000Z', status: 'scheduled', interview: { mode: 'online' } },
+                        { id: 2, jobId: 56, jobTitle: 'Cancelled', companyName: 'Acme', candidateId: 7, scheduledAt: '2026-11-11T09:00:00.000Z', status: 'inactive', interview: { mode: 'onsite' } }
+                    ]
+                })
+            };
+        });
+        const tools = createTools({ pool: { query }, env: { INTERNAL_SECRET: secret, LEGACY_URL: 'http://legacy', APPLICATION_URL: 'http://apps' }, fetcher });
+
+        const empQuota = await tools.privateTool('getSubscriptionStatus', employer);
+        expect(empQuota.href).toBe('/admin/rewards');
+
+        const rewards = await tools.privateTool('getMyRewards', candidate);
+        expect(rewards.title).toContain('Điểm thưởng');
+        await expect(tools.privateTool('getMyRewards', admin)).rejects.toMatchObject({ status: 403 });
+
+        const interviews = await tools.privateTool('getMyInterviews', candidate);
+        expect(interviews).toMatchObject({ title: 'Lịch phỏng vấn của tôi', count: 1, href: '/candidate/interviews' });
+        expect(JSON.stringify(interviews)).not.toContain('secret@example.com');
+
+        await expect(tools.privateTool('getAdminOverview', candidate)).rejects.toMatchObject({ status: 403 });
+        const adminOverview = await tools.privateTool('getAdminOverview', admin);
+        expect(adminOverview).toMatchObject({ title: 'Hàng đợi kiểm duyệt & hỗ trợ', count: 7, href: '/admin/support' });
+    });
 });
 
 describe('administrator support handoff routes', () => {
     async function supportApp(ticket, deliver = vi.fn(async () => {})) {
         vi.stubEnv('INTERNAL_SECRET', secret);
         const store = { claim: vi.fn(async (_id, _agentId, resolve) => ({ ...ticket, status: resolve ? 'resolved' : 'assigned' })),
+            reject: vi.fn(async (_id, agentId, reason) => ({ ...ticket, agentId, status: 'rejected', rejectReason: reason || null, delivered: false })),
             delivered: vi.fn(async () => {}) };
         const app = express();
         registerSupportRoutes(app, { store, tools: { deliver }, respond: vi.fn(), env: { INTERNAL_SECRET: secret } });
@@ -427,13 +476,35 @@ describe('administrator support handoff routes', () => {
     it.each(['CANDIDATE', 'COMPANY', 'EMPLOYER'])('rejects claim and resolve from a non-admin role: %s', async roleCode => {
         const ticket = { id: randomUUID(), userId: 7, delivered: false };
         const { store, deliver, base } = await supportApp(ticket);
-        for (const action of ['claim', 'resolve']) {
+        for (const action of ['claim', 'resolve', 'reject']) {
             const response = await fetch(`${base}/support/handoffs/${ticket.id}/${action}`, { method: 'POST',
                 headers: { ...headers, 'x-user-id': '7', 'x-user-role': roleCode }, body: '{}' });
             expect(response.status).toBe(403);
         }
         expect(store.claim).not.toHaveBeenCalled();
+        expect(store.reject).not.toHaveBeenCalled();
         expect(deliver).not.toHaveBeenCalled();
+    });
+
+    it('rejects a waiting ticket directly without delivering any message to admin chat', async () => {
+        const ticket = { id: randomUUID(), userId: 8, agentId: null, delivered: false };
+        const { store, deliver, base } = await supportApp(ticket);
+        const response = await fetch(`${base}/support/handoffs/${ticket.id}/reject`, {
+            method: 'POST',
+            headers: adminHeaders,
+            body: JSON.stringify({ reason: 'Spam / Ngôn từ không phù hợp' })
+        });
+        expect(response.status).toBe(200);
+        expect((await response.json()).data).toMatchObject({
+            id: ticket.id,
+            status: 'rejected',
+            agentId: 7,
+            delivered: false,
+            rejectReason: 'Spam / Ngôn từ không phù hợp'
+        });
+        expect(store.reject).toHaveBeenCalledWith(ticket.id, 7, 'Spam / Ngôn từ không phù hợp', { roleCode: 'ADMIN' });
+        expect(deliver).not.toHaveBeenCalled();
+        expect(store.delivered).not.toHaveBeenCalled();
     });
 });
 
