@@ -30,9 +30,9 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
     origin = `http://127.0.0.1:${server.address().port}`;
     let browser; const errors = [], calls = [], failures = [], checkpoints = []; let current;
     // While the test itself restarts services, pages that stay open keep polling
-    // notifications/chat in the background and can hit the stopped upstream (502).
-    // Those reads are expected; anything else during or outside that window still fails.
-    let deliberateRestart = false; const restartFailures = [];
+    // notifications/chat in the background and can hit the stopped upstream (502/503).
+    // Those reads (and automatic session refreshes) are expected; anything else fails.
+    let deliberateRestart = false; const restartFailures = [], restartRequests = new WeakSet();
     const screenshot = (page, name) => page.screenshot({ path: path.join(artifacts, name + '.png'), fullPage: true });
     const pass = message => { checkpoints.push(message); console.log('PASS browser: ' + message); };
     try {
@@ -44,11 +44,12 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
             await context.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
             const page = await context.newPage(); current = page;
             page.on('pageerror', error => errors.push(error.message));
+            page.on('request', request => { if (deliberateRestart) restartRequests.add(request); });
             page.on('response', async response => {
                 const url = new URL(response.url()); if (!url.pathname.startsWith('/api/')) return;
                 const request = response.request(); calls.push({ path: url.pathname, method: request.method(), status: response.status() });
                 if (response.status() >= 500) {
-                    if (deliberateRestart) restartFailures.push({ status: response.status(), method: request.method(), path: url.pathname });
+                    if (deliberateRestart || restartRequests.has(request)) restartFailures.push({ status: response.status(), method: request.method(), path: url.pathname });
                     else failures.push(`${response.status()} ${url.pathname}`);
                 }
             });
@@ -264,11 +265,46 @@ export async function runComposeBrowser({ gateway, password, build, compose, aut
         await expect(candidate.getByRole('button', { name: 'Xóa CV', exact: true })).not.toBeVisible();
         deliberateRestart = true;
         await compose('restart', 'application-service', 'identity-service', 'legacy');
-        await compose('run', '--rm', '--no-deps', 'runner', 'node', '--input-type=module', '-e',
-            "for (const url of ['http://legacy:4011/readyz','http://identity-service:4001/readyz','http://application-service:4004/readyz']) { let ready=false; for(let n=0;n<90;n++){try{ready=(await fetch(url,{signal:AbortSignal.timeout(1000)})).ok;}catch{} if(ready)break;await new Promise(r=>setTimeout(r,1000));}if(!ready)throw Error('Restart readiness timeout'); }");
+        await compose('run', '--rm', '--no-deps', 'runner', 'node', '--input-type=module', '-e', `
+            const waitOk = async (url, options = {}) => {
+                for (let n = 0; n < 90; n++) {
+                    try { if ((await fetch(url, { ...options, signal: AbortSignal.timeout(2000) })).ok) return; } catch {}
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+                throw Error('Restart readiness timeout: ' + url);
+            };
+            for (const url of ['http://legacy:4011/readyz', 'http://identity-service:4001/readyz', 'http://application-service:4004/readyz']) {
+                await waitOk(url);
+            }
+            // Background browser polls during restart can trip Gateway Opossum circuit breakers (15s resetTimeout).
+            // Probe all restarted services through Gateway until their breakers close before resuming UI navigation.
+            let token = '';
+            for (let n = 0; n < 45; n++) {
+                try {
+                    const res = await fetch('http://api-gateway:4000/api/login', {
+                        method: 'POST',
+                        headers: { origin: process.env.URL_REACT, 'content-type': 'application/json' },
+                        body: JSON.stringify({ phonenumber: '0008', password: process.env.FIXTURE_PASSWORD }),
+                        signal: AbortSignal.timeout(5000)
+                    });
+                    const body = await res.json();
+                    if (res.ok && body?.token) { token = body.token; break; }
+                } catch {}
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            if (!token) throw Error('Gateway login readiness timeout');
+            const auth = { headers: { authorization: 'Bearer ' + token } };
+            for (const [url, opts] of [
+                ['http://api-gateway:4000/api/get-all-code?type=ROLE', {}],
+                ['http://api-gateway:4000/api/profile/cvs', auth],
+                ['http://api-gateway:4000/api/my-applications', auth]
+            ]) {
+                await waitOk(url, opts);
+            }
+        `);
         deliberateRestart = false;
-        // Only background reads may fail while the services are down; a failed write would be a real loss.
-        assert.deepEqual(restartFailures.filter(entry => entry.method !== 'GET'), [], 'writes failed during the deliberate restart');
+        // Only background reads (or automatic token refresh) may fail while services are down; a failed write would be a real loss.
+        assert.deepEqual(restartFailures.filter(entry => entry.method !== 'GET' && entry.path !== '/api/auth/refresh'), [], 'writes failed during the deliberate restart');
         if (restartFailures.length) console.log(`Expected during deliberate restart: ${restartFailures.map(entry => `${entry.status} ${entry.method} ${entry.path}`).join(', ')}`);
         await candidate.goto(origin + '/candidate/cv-post');
         await expect(historyRow).toContainText('Đang xem xét', { timeout: 30000 });

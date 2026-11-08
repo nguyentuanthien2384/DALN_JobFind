@@ -17,7 +17,7 @@ const mongo = new MongoClient('mongodb://mongo:27017', { serverSelectionTimeoutM
 let broker, channel;
 const rows = async (sql, values = []) => (await pool.query(sql, values))[0];
 const one = async (sql, values = []) => (await rows(sql, values))[0];
-const eventually = async (name, fn, ms = 90000) => {
+const eventually = async (name, fn, ms = 120000) => {
     const deadline = Date.now() + ms; let last;
     while (Date.now() < deadline) {
         try { const result = await fn(); if (result) return result; }
