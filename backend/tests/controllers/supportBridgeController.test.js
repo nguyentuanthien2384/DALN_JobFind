@@ -180,3 +180,69 @@ test('privateTool returns candidate and employer reward summaries from verified 
         data: expect.objectContaining({ title: 'Top Point & Quỹ lượt công ty', href: '/admin/rewards' })
     }));
 });
+
+
+test('privateTool and deliverHandoff cover remaining role, error and wrapped-transcript branches', async () => {
+    rewardService.getCandidateRewardOverview
+        .mockResolvedValueOnce({
+            errCode: 0,
+            data: {
+                wallet: { balance: 0, valueVnd: 0, tierLabel: 'Đồng', lifetimeEarned: 20 },
+                missions: { checkedInToday: false, profileCompletionClaimed: true, profileCompletionPercent: 100 }
+            }
+        })
+        .mockResolvedValueOnce({ errCode: 2 })
+        .mockRejectedValueOnce(new Error('db down'));
+
+    const candClaimed = createResponse();
+    await privateTool({ headers: { 'x-user-id': '7', 'x-user-role': 'CANDIDATE' }, body: { name: 'getMyRewards' } }, candClaimed);
+    expect(candClaimed.json.mock.calls[0][0].data.lines.join('\n')).toContain('Chưa điểm danh');
+    expect(candClaimed.json.mock.calls[0][0].data.lines.join('\n')).toContain('Đã nhận (+20 điểm)');
+
+    const candUnavailable = createResponse();
+    await privateTool({ headers: { 'x-user-id': '7', 'x-user-role': 'CANDIDATE' }, body: { name: 'getMyRewards' } }, candUnavailable);
+    expect(candUnavailable.status).toHaveBeenCalledWith(503);
+
+    const candCrashed = createResponse();
+    await privateTool({ headers: { 'x-user-id': '7', 'x-user-role': 'CANDIDATE' }, body: { name: 'getMyRewards' } }, candCrashed);
+    expect(candCrashed.status).toHaveBeenCalledWith(503);
+
+    for (const headers of [
+        { 'x-user-id': '9', 'x-user-role': 'COMPANY', 'x-company-id': '0', 'x-company-status': 'S1', 'x-company-censor': 'CS1' },
+        { 'x-user-id': '9', 'x-user-role': 'COMPANY', 'x-company-id': '4', 'x-company-status': 'S2', 'x-company-censor': 'CS1' },
+        { 'x-user-id': '1', 'x-user-role': 'ADMIN' },
+        { 'x-user-id': '1' }
+    ]) {
+        const res = createResponse(); res.sendStatus = jest.fn();
+        await privateTool({ headers, body: { name: 'getMyRewards' } }, res);
+        expect(res.sendStatus).toHaveBeenCalledWith(403);
+    }
+
+    rewardService.getEmployerRewardOverview
+        .mockResolvedValueOnce({
+            errCode: 0,
+            data: {
+                wallet: { balance: 60, tierLabel: 'Vàng', multiplier: 1.2 },
+                allowances: { allowPost: 5, allowHotPost: 2, allowCv: 30, allowCvFree: 10 }
+            }
+        })
+        .mockResolvedValueOnce({ errCode: 2 });
+
+    const ownerRes = createResponse();
+    await privateTool({ headers: { 'x-user-id': '9', 'x-user-role': 'COMPANY', 'x-company-id': '4', 'x-company-status': 'S1', 'x-company-censor': 'CS1' }, body: { name: 'getMyRewards' } }, ownerRes);
+    expect(rewardService.getEmployerRewardOverview).toHaveBeenCalledWith(4, { canRedeem: true });
+    expect(ownerRes.json.mock.calls[0][0].data.lines[3]).toContain('Chủ công ty');
+
+    const ownerUnavailable = createResponse();
+    await privateTool({ headers: { 'x-user-id': '9', 'x-user-role': 'COMPANY', 'x-company-id': '4', 'x-company-status': 'S1', 'x-company-censor': 'CS1' }, body: { name: 'getMyRewards' } }, ownerUnavailable);
+    expect(ownerUnavailable.status).toHaveBeenCalledWith(503);
+
+    db.Account.findOne.mockResolvedValue({ userId: 21 });
+    db.sequelize.query
+        .mockResolvedValueOnce([[{ id: ticketId, user_id: 7, agent_id: 21, messages: { messages: [{ role: 'user', text: 'Wrapped', status: 'complete' }], rejectReason: null } }]])
+        .mockResolvedValueOnce([[{ id: ticketId, user_id: 7, agent_id: 21, messages: {} }]]);
+    chat.handleSendMessage.mockResolvedValue({ errCode: 0, duplicate: true });
+    await deliverHandoff({ headers: { 'x-user-id': '21' }, body: { ticketId } }, createResponse());
+    expect(chat.handleSendMessage.mock.calls[0][0].content).toContain('Khách: Wrapped');
+    await deliverHandoff({ headers: { 'x-user-id': '21' }, body: { ticketId } }, createResponse());
+});
