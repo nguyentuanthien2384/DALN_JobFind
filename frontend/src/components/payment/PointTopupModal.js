@@ -8,6 +8,7 @@ import {
     getCandidateRewardOverviewService,
     setCachedCandidateRewardOverview,
 } from '../../service/rewardPaymentService';
+import { readJsonStorage } from '../../util/storage';
 import './PointTopupModal.css';
 
 const PROMO_CATALOG = {
@@ -94,8 +95,8 @@ const PointTopupModal = ({
 
     useEffect(() => {
         if (!isOpen) return undefined;
-        const rawUser = localStorage.getItem('userData');
-        if (!rawUser) return undefined;
+        const user = readJsonStorage('userData');
+        if (!user || (user.roleCode && user.roleCode !== 'CANDIDATE')) return undefined;
         if (process.env.NODE_ENV !== 'test' && getCachedCandidateRewardOverview()) {
             return undefined;
         }
@@ -171,6 +172,8 @@ const PointTopupModal = ({
 
     if (!isOpen) return null;
 
+    const currentUser = readJsonStorage('userData');
+    const isForbiddenRole = Boolean(currentUser?.roleCode && currentUser.roleCode !== 'CANDIDATE');
     const walletBalance = Number(localWallet?.wallet?.balancePoints ?? 0);
     const transactions = Array.isArray(localWallet?.transactions) ? localWallet.transactions : [];
 
@@ -198,10 +201,14 @@ const PointTopupModal = ({
     };
 
     const handleConfirmCheckout = async () => {
-        const rawUser = localStorage.getItem('userData');
-        if (!rawUser) {
+        const user = readJsonStorage('userData');
+        if (!user) {
             toast.warning('Vui lòng đăng nhập tài khoản Ứng viên để nạp điểm!');
             window.location.href = '/login';
+            return;
+        }
+        if (user.roleCode && user.roleCode !== 'CANDIDATE') {
+            toast.error('Tính năng nạp điểm chỉ dành cho tài khoản Ứng viên.');
             return;
         }
         setSubmitting(true);
@@ -284,7 +291,17 @@ const PointTopupModal = ({
                         <span className="jf-topup-balance-rate">Quy đổi: 1 điểm = 1.000 VNĐ</span>
                     </div>
 
-                    {activeTab === 'history' ? (
+                    {isForbiddenRole ? (
+                        <div className="jf-topup-confirm-box" role="alert">
+                            <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+                                Tài khoản hiện tại không thuộc nhóm Ứng viên
+                            </div>
+                            <p style={{ margin: 0, fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
+                                Tính năng nạp điểm và ví xu cá nhân chỉ áp dụng cho tài khoản <strong>Ứng viên (CANDIDATE)</strong>.
+                                Nếu bạn là Chủ doanh nghiệp, vui lòng sử dụng mục Mua gói dịch vụ trong trang quản trị công ty.
+                            </p>
+                        </div>
+                    ) : activeTab === 'history' ? (
                         transactions.length === 0 ? (
                             <div className="jf-topup-history-item">
                                 <div>
@@ -517,7 +534,17 @@ const PointTopupModal = ({
                 </div>
 
                 <div className="jf-topup-footer">
-                    {activeTab === 'history' ? (
+                    {isForbiddenRole ? (
+                        <div className="jf-topup-footer__actions">
+                            <button
+                                type="button"
+                                className="jf-topup-btn jf-topup-btn--primary"
+                                onClick={onClose}
+                            >
+                                Đóng
+                            </button>
+                        </div>
+                    ) : activeTab === 'history' ? (
                         <div className="jf-topup-footer__actions">
                             <button
                                 type="button"

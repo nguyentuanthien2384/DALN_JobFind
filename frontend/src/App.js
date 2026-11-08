@@ -5,6 +5,7 @@ import {
     BrowserRouter as Router,
     Routes,
     Route,
+    Navigate,
 } from "react-router-dom";
 import Header from "./container/header/header";
 import Footer from "./container/footer/Footer";
@@ -77,13 +78,23 @@ function App() {
             else window.location.reload(); // a different tab signed into another account
         };
         const profileSaved = event => { if (event.detail) setUserData(event.detail); };
+        const onPaginationPointerClick = event => {
+            if (!event || event.detail === 0) return;
+            const target = event.target instanceof Element ? event.target : null;
+            const pageLink = target ? target.closest('.pagination .page-link') : null;
+            if (pageLink && typeof pageLink.blur === 'function') {
+                pageLink.blur();
+            }
+        };
         window.addEventListener(SESSION_ENDED_EVENT, ended);
         window.addEventListener(SESSION_USER_UPDATED_EVENT, profileSaved);
         window.addEventListener('storage', onStorage);
+        document.addEventListener('click', onPaginationPointerClick, true);
         return () => {
             window.removeEventListener(SESSION_ENDED_EVENT, ended);
             window.removeEventListener(SESSION_USER_UPDATED_EVENT, profileSaved);
             window.removeEventListener('storage', onStorage);
+            document.removeEventListener('click', onPaginationPointerClick, true);
         };
     }, []);
 
@@ -169,6 +180,7 @@ function App() {
                         </>
                     }
                 />
+                <Route path="/home" element={<Navigate to="/" replace />} />
                 <Route
                     path="/about"
                     element={

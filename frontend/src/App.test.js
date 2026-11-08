@@ -296,6 +296,8 @@ describe("application routes", () => {
     it("uses the not-found page for an unknown route", () => {
         renderAt("/does-not-exist");
         expect(screen.getByText("not-found-page")).toBeInTheDocument();
+        renderAt("/home");
+        expect(screen.getByText("navigate-/")).toBeInTheDocument();
     });
 
     it("recovers from malformed persisted login data instead of crashing public routes", () => {
@@ -306,5 +308,28 @@ describe("application routes", () => {
         expect(() => render(<App />)).not.toThrow();
         expect(screen.getByText("home-page")).toBeInTheDocument();
         expect(localStorage.getItem("userData")).toBeNull();
+    });
+
+    it("blurs pagination links after pointer clicks so Quay lại / Tiếp do not stay highlighted", () => {
+        renderAt("/");
+        const pagination = document.createElement("ul");
+        pagination.className = "pagination";
+        const item = document.createElement("li");
+        item.className = "page-item";
+        const link = document.createElement("a");
+        link.className = "page-link";
+        link.href = "#page";
+        link.textContent = "Tiếp";
+        item.appendChild(link);
+        pagination.appendChild(item);
+        document.body.appendChild(pagination);
+
+        link.focus();
+        expect(document.activeElement).toBe(link);
+
+        link.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+        expect(document.activeElement).not.toBe(link);
+
+        document.body.removeChild(pagination);
     });
 });

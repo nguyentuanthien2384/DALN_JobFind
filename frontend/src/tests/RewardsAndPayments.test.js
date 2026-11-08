@@ -7,6 +7,7 @@ import OrderConfirmModal from '../components/payment/OrderConfirmModal';
 import JobCompetitionSection from '../components/rewards/JobCompetitionSection';
 import CandidateWalletCard from '../components/rewards/CandidateWalletCard';
 import EmployerRewardsSection from '../container/system/Rewards/EmployerRewardsSection';
+import RewardsWorkspace from '../container/system/Rewards/RewardsWorkspace';
 import PaymentResultPage from '../container/Payment/PaymentResultPage';
 import * as rewardPaymentService from '../service/rewardPaymentService';
 
@@ -35,6 +36,7 @@ jest.mock('../service/rewardPaymentService', () => {
         getJobCompetitionReportService: jest.fn(),
         unlockJobCompetitionReportService: jest.fn(),
         getEmployerRewardOverviewService: jest.fn(),
+        getAdminRewardsOverviewService: jest.fn(),
         redeemEmployerPointsService: jest.fn(),
         createPaymentCheckoutService: jest.fn(),
         verifyPaymentReturnService: jest.fn(),
@@ -144,17 +146,17 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
         });
         rewardPaymentService.claimCandidateDailyCheckinService.mockResolvedValue({
             errCode: 0,
-            errMessage: 'Điểm danh thành công (+1 Điểm)!',
+            errMessage: 'Điểm danh thành công (+1 điểm).',
         });
         rewardPaymentService.claimCandidateProfileCompletionService.mockResolvedValue({
             errCode: 0,
-            errMessage: 'Đã nhận +20 Điểm thưởng hoàn thiện CV!',
+            errMessage: 'Đã nhận +20 điểm hoàn thiện hồ sơ.',
         });
 
         const onOpenTopup = jest.fn();
         render(<CandidateWalletCard onOpenTopup={onOpenTopup} />);
 
-        expect(await screen.findByText('50.000 Xu (VNĐ)')).toBeInTheDocument();
+        expect(await screen.findByText('50.000 VNĐ')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Điểm danh' }));
         fireEvent.click(screen.getByRole('button', { name: 'Nhận +20' }));
 
@@ -163,11 +165,13 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
             expect(rewardPaymentService.claimCandidateProfileCompletionService).toHaveBeenCalled();
         });
 
-        fireEvent.click(screen.getByRole('button', { name: '+ Nạp Thêm Xu' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Nạp điểm' }));
         expect(onOpenTopup).toHaveBeenCalledWith('topup');
+        fireEvent.click(screen.getByRole('button', { name: 'Lịch sử điểm' }));
+        expect(onOpenTopup).toHaveBeenCalledWith('history');
     });
 
-    test('renders JobCompetitionSection and unlocks locked competition report using 10 points', async () => {
+    test('renders JobCompetitionSection locked without fake numbers and unlocks real DB metrics', async () => {
         rewardPaymentService.getJobCompetitionReportService.mockResolvedValue({
             errCode: 0,
             data: {
@@ -179,20 +183,19 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
                 todayApplicants: 5,
                 hiringTarget: 2,
                 competitionRatio: '1 : 17',
-                experienceBreakdown: [
-                    { key: 'under3', label: 'Dưới 3 năm kinh nghiệm', percent: 20, count: 7 },
-                    { key: 'mid3to5', label: '3 - 5 năm (Cùng nhóm với bạn)', percent: 55, count: 19, highlight: true },
-                    { key: 'over5', label: 'Trên 5 năm kinh nghiệm', percent: 25, count: 8 },
-                ],
-                aiCorrelation: [
-                    { label: 'Kỹ năng cốt lõi (React, TypeScript)', status: '100% Khớp', tone: 'emerald' },
-                ],
+                expectedSalaryAvgMillion: null,
+                expectedSalaryRangeLabel: null,
+                profileMatchPercent: null,
+                profileRankLabel: null,
+                experienceBreakdown: null,
+                applicantTopSkills: null,
+                aiCorrelation: null,
             },
         });
 
         rewardPaymentService.unlockJobCompetitionReportService.mockResolvedValue({
             errCode: 0,
-            errMessage: 'Đã mở khóa Báo cáo cạnh tranh thành công!',
+            errMessage: 'Đã mở khóa thống kê chi tiết.',
             data: {
                 report: {
                     unlocked: true,
@@ -203,24 +206,113 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
                     todayApplicants: 5,
                     hiringTarget: 2,
                     competitionRatio: '1 : 17',
-                    expectedSalaryAvgMillion: 32.5,
-                    expectedSalaryRangeLabel: 'Dải: 27 - 38 triệu',
+                    expectedSalaryAvgMillion: 24.5,
+                    expectedSalaryRangeLabel: 'Từ 34 hồ sơ: 15 - 30 triệu',
                     profileMatchPercent: 91,
-                    profileRankLabel: 'Top 10% ứng viên',
+                    profileRankLabel: 'Xếp hạng #2/34 hồ sơ đã nộp',
+                    experienceBreakdown: [
+                        { key: 'under3', label: 'Dưới 3 năm kinh nghiệm', percent: 21, count: 7 },
+                        { key: 'threeToFive', label: '3 - 5 năm kinh nghiệm', percent: 56, count: 19, isUserGroup: true, highlight: true },
+                        { key: 'over5', label: 'Trên 5 năm kinh nghiệm', percent: 24, count: 8 },
+                    ],
+                    applicantTopSkills: [
+                        { skillId: 1, name: 'React', count: 22 },
+                        { skillId: 2, name: 'TypeScript', count: 15 },
+                    ],
+                    aiCorrelation: [
+                        { label: 'Kỹ năng theo tin đăng (React, TypeScript)', status: 'Khớp 2/2 (100%)', tone: 'emerald' },
+                        { label: 'Kinh nghiệm yêu cầu (3 năm)', status: 'Đạt (3 năm)', tone: 'emerald' },
+                    ],
+                    tacticalTip: 'Thống kê trực tiếp từ 34 hồ sơ đã nộp trên hệ thống.',
                 },
             },
         });
 
-        render(<JobCompetitionSection postId={88} applicationCount={34} hiringTarget={2} />);
+        const onOpenTopup = jest.fn();
+        render(
+            <JobCompetitionSection
+                postId={88}
+                applicationCount={34}
+                hiringTarget={2}
+                onOpenTopup={onOpenTopup}
+            />
+        );
 
         expect(await screen.findByText('1 : 17')).toBeInTheDocument();
-        const unlockBtn = await screen.findByRole('button', { name: /Mở khóa ngay \(-10 Điểm\)/i });
+        expect(screen.getAllByText('Đang khóa')).toHaveLength(2);
+        expect(screen.queryByText('Phân bổ kinh nghiệm ứng viên')).not.toBeInTheDocument();
+
+        const unlockBtn = await screen.findByRole('button', { name: /Mở khóa ngay \(-10 điểm\)/i });
         fireEvent.click(unlockBtn);
 
         await waitFor(() => {
             expect(rewardPaymentService.unlockJobCompetitionReportService).toHaveBeenCalledWith(88);
         });
         expect(await screen.findByText('91%')).toBeInTheDocument();
+        expect(screen.getByText('24.5 triệu')).toBeInTheDocument();
+        expect(screen.getByText('React (22)')).toBeInTheDocument();
+        expect(screen.getByText('Khớp 2/2 (100%)')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Xem lịch sử điểm' }));
+        expect(onOpenTopup).toHaveBeenCalledWith('history');
+    });
+
+    test('handles insufficient balance when unlocking and renders empty-applicant unlocked state', async () => {
+        rewardPaymentService.getJobCompetitionReportService
+            .mockResolvedValueOnce({
+                errCode: 0,
+                data: {
+                    unlocked: false,
+                    unlockCostPoints: 10,
+                    walletBalancePoints: 2,
+                    totalApplicants: 0,
+                    todayApplicants: 0,
+                    hiringTarget: 1,
+                    competitionRatio: '1 : 0',
+                },
+            })
+            .mockResolvedValueOnce({
+                errCode: 0,
+                data: {
+                    unlocked: true,
+                    unlockCostPoints: 10,
+                    walletBalancePoints: 10,
+                    totalApplicants: 0,
+                    todayApplicants: 0,
+                    hiringTarget: 1,
+                    competitionRatio: '1 : 0',
+                    expectedSalaryAvgMillion: null,
+                    expectedSalaryRangeLabel: 'Thỏa thuận (chưa có ứng viên kê khai lương)',
+                    profileMatchPercent: 0,
+                    profileRankLabel: 'Chưa có hồ sơ đối thủ',
+                    experienceBreakdown: [],
+                    applicantTopSkills: [],
+                    aiCorrelation: [],
+                },
+            });
+
+        rewardPaymentService.unlockJobCompetitionReportService.mockResolvedValueOnce({
+            errCode: 2,
+            errMessage: 'Số dư điểm không đủ',
+        });
+
+        const onOpenTopup = jest.fn();
+        const { unmount } = render(
+            <JobCompetitionSection postId={90} applicationCount={0} hiringTarget={1} onOpenTopup={onOpenTopup} />
+        );
+
+        const unlockBtn = await screen.findByRole('button', { name: /Mở khóa ngay \(-10 điểm\)/i });
+        fireEvent.click(unlockBtn);
+        await waitFor(() => {
+            expect(onOpenTopup).toHaveBeenCalledWith('topup');
+        });
+        unmount();
+
+        render(<JobCompetitionSection postId={91} applicationCount={0} hiringTarget={1} />);
+        expect(
+            await screen.findByText('Hiện chưa có ứng viên nào nộp hồ sơ vào vị trí này.')
+        ).toBeInTheDocument();
+        expect(screen.getByText('Thỏa thuận')).toBeInTheDocument();
     });
 
     test('renders EmployerRewardsSection and redeems Top Points for recruitment allowances', async () => {
@@ -363,6 +455,7 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
         });
         expect(await screen.findByText('Thanh toán thành công!')).toBeInTheDocument();
         expect(screen.getByText(/Quay lại Tin tuyển dụng & Xem Báo cáo/i)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Về trang chủ' })).toHaveAttribute('href', '/');
     });
 
     test('validates card/OTP branches, cancel action, and modal keyboard/promo interactions', async () => {
@@ -504,5 +597,130 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Hủy giao dịch' }));
         expect(await screen.findByText(/Giao dịch chưa hoàn tất hoặc đã bị hủy/i)).toBeInTheDocument();
         expect(screen.getByText(/Quay lại Quản lý Gói đăng bài/i)).toBeInTheDocument();
+    });
+
+    test('enforces strict UI RBAC across Candidate, Employer, Company, Admin, and Guest', async () => {
+        // 1. Non-candidate roles cannot load or interact with CandidateWalletCard / JobCompetitionSection / PointTopupModal
+        for (const roleCode of ['COMPANY', 'EMPLOYER', 'ADMIN']) {
+            localStorage.setItem('userData', JSON.stringify({ id: 9, roleCode, companyId: 4 }));
+            const { unmount } = render(
+                <>
+                    <CandidateWalletCard onOpenTopup={jest.fn()} />
+                    <JobCompetitionSection postId={55} applicationCount={10} hiringTarget={1} />
+                    <PointTopupModal isOpen onClose={jest.fn()} />
+                </>
+            );
+            expect(screen.queryByText('Ví điểm ứng viên')).not.toBeInTheDocument();
+            expect(screen.queryByText('Thống kê ứng tuyển')).not.toBeInTheDocument();
+            expect(screen.getByText('Tài khoản hiện tại không thuộc nhóm Ứng viên')).toBeInTheDocument();
+            expect(rewardPaymentService.getCandidateRewardOverviewService).not.toHaveBeenCalled();
+            expect(rewardPaymentService.getJobCompetitionReportService).not.toHaveBeenCalled();
+            unmount();
+        }
+
+        // 2. EMPLOYER sees EmployerRewardsSection in read-only mode (cannot redeem)
+        const employerUser = {
+            id: 8,
+            roleCode: 'EMPLOYER',
+            companyId: 4,
+            companyStatusCode: 'S1',
+            companyCensorCode: 'CS1',
+        };
+        localStorage.setItem('userData', JSON.stringify(employerUser));
+        rewardPaymentService.getEmployerRewardOverviewService.mockResolvedValueOnce({
+            errCode: 0,
+            data: {
+                canRedeem: false,
+                wallet: { balancePoints: 30, lifetimeEarned: 50, tierLabel: 'Thành viên (Member)', multiplier: 1 },
+                allowances: { allowPost: 2, allowHotPost: 0, allowCv: 5 },
+                redemptionCatalog: [
+                    { code: 'POST_1', name: '1 lượt đăng tin', costPoints: 3, rewardField: 'allowPost', rewardAmount: 1, description: 'Cộng 1 lượt' },
+                ],
+                transactions: [],
+            },
+        });
+        const { unmount: unmountEmp } = render(<RewardsWorkspace user={employerUser} />);
+        expect(await screen.findByText('1 lượt đăng tin')).toBeInTheDocument();
+        expect(screen.getByRole('status')).toHaveTextContent(/Nhân viên tuyển dụng/i);
+        const lockedRedeemBtns = screen.getAllByRole('button', { name: 'Chỉ Chủ công ty' });
+        lockedRedeemBtns.forEach((btn) => expect(btn).toBeDisabled());
+        fireEvent.click(lockedRedeemBtns[0]);
+        expect(rewardPaymentService.redeemEmployerPointsService).not.toHaveBeenCalled();
+        unmountEmp();
+
+        // 3. ADMIN sees AdminRewardsOverview on /admin/rewards instead of company wallet
+        const adminUser = { id: 1, roleCode: 'ADMIN' };
+        localStorage.setItem('userData', JSON.stringify(adminUser));
+        rewardPaymentService.getAdminRewardsOverviewService.mockResolvedValueOnce({
+            errCode: 0,
+            data: {
+                summary: {
+                    totalPaidRevenueVnd: 250000,
+                    candidateTopupPaidVnd: 50000,
+                    companyPackagePaidVnd: 200000,
+                    paidOrders: 2,
+                    totalOrders: 3,
+                    pendingOrders: 1,
+                    candidateWallets: { walletCount: 4, totalBalance: 120, totalEarned: 150, totalSpent: 30 },
+                    companyWallets: { walletCount: 2, totalBalance: 15, totalEarned: 20, totalSpent: 5 },
+                },
+                orders: [
+                    {
+                        id: 11,
+                        orderCode: 'JFADMIN99',
+                        provider: 'VNPAY',
+                        purpose: 'PACKAGE_POST',
+                        itemName: 'Gói VIP',
+                        actorName: 'Minh Trần',
+                        companyName: 'VNG Corp',
+                        amount: 200000,
+                        points: 2,
+                        status: 'PAID',
+                        createdAt: new Date().toISOString(),
+                    },
+                ],
+                transactions: [
+                    {
+                        id: 21,
+                        ownerType: 'COMPANY',
+                        ownerId: 4,
+                        ownerLabel: 'VNG Corp',
+                        description: 'Tích Top Point',
+                        pointsDelta: 2,
+                        balanceAfter: 15,
+                        createdAt: new Date().toISOString(),
+                    },
+                ],
+            },
+        });
+        const { unmount: unmountAdmin } = render(
+            <MemoryRouter>
+                <RewardsWorkspace user={adminUser} />
+            </MemoryRouter>
+        );
+        expect(await screen.findByText('250.000 VNĐ')).toBeInTheDocument();
+        expect(screen.getByText('JFADMIN99')).toBeInTheDocument();
+        expect(screen.getAllByText('VNG Corp').length).toBeGreaterThanOrEqual(1);
+        unmountAdmin();
+
+        // 4. Guest and EMPLOYER are blocked at PaymentResultPage without hitting verify endpoint
+        localStorage.clear();
+        const { unmount: unmountGuest } = render(
+            <MemoryRouter initialEntries={['/payment/result?provider=VNPAY&order=JF1']}>
+                <PaymentResultPage />
+            </MemoryRouter>
+        );
+        expect(await screen.findByText(/Vui lòng đăng nhập tài khoản đã khởi tạo giao dịch/i)).toBeInTheDocument();
+        expect(rewardPaymentService.verifyPaymentReturnService).not.toHaveBeenCalled();
+        unmountGuest();
+
+        localStorage.setItem('userData', JSON.stringify(employerUser));
+        render(
+            <MemoryRouter initialEntries={['/payment/result?provider=VNPAY&order=JF1']}>
+                <PaymentResultPage />
+            </MemoryRouter>
+        );
+        expect(await screen.findByText(/Tài khoản hiện tại không có quyền thực hiện giao dịch thanh toán dịch vụ/i)).toBeInTheDocument();
+        expect(rewardPaymentService.verifyPaymentReturnService).not.toHaveBeenCalled();
     });
 });

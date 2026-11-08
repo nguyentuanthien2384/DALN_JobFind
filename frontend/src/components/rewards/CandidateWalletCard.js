@@ -9,16 +9,24 @@ import {
     REWARD_WALLET_UPDATED_EVENT,
     setCachedCandidateRewardOverview,
 } from '../../service/rewardPaymentService';
+import { readJsonStorage } from '../../util/storage';
 import './CandidateRewards.css';
 
 const CandidateWalletCard = ({ onOpenTopup, onWalletLoaded }) => {
-    const [overview, setOverview] = useState(() => getCachedCandidateRewardOverview());
+    const activeUser = readJsonStorage('userData');
+    const isForbiddenRole = Boolean(activeUser?.roleCode && activeUser.roleCode !== 'CANDIDATE');
+    const [overview, setOverview] = useState(() => (
+        activeUser && !isForbiddenRole ? getCachedCandidateRewardOverview() : null
+    ));
     const [claimingCheckin, setClaimingCheckin] = useState(false);
     const [claimingProfile, setClaimingProfile] = useState(false);
 
     const loadWallet = useCallback(async () => {
-        const rawUser = localStorage.getItem('userData');
-        if (!rawUser) return;
+        const user = readJsonStorage('userData');
+        if (!user || (user.roleCode && user.roleCode !== 'CANDIDATE')) {
+            setOverview(null);
+            return;
+        }
         try {
             const res = await getCandidateRewardOverviewService();
             if (res && res.errCode === 0 && res.data) {
@@ -27,7 +35,7 @@ const CandidateWalletCard = ({ onOpenTopup, onWalletLoaded }) => {
                 if (onWalletLoaded) onWalletLoaded(res.data);
             }
         } catch (_err) {
-            // Keep default display when guest or offline
+            // Keep cached state if request fails
         }
     }, [onWalletLoaded]);
 
@@ -46,17 +54,21 @@ const CandidateWalletCard = ({ onOpenTopup, onWalletLoaded }) => {
     }, [loadWallet]);
 
     const handleDailyCheckin = async () => {
-        const rawUser = localStorage.getItem('userData');
-        if (!rawUser) {
-            toast.warning('Vui lòng đăng nhập để điểm danh nhận +1 Điểm!');
+        const user = readJsonStorage('userData');
+        if (!user) {
+            toast.warning('Vui lòng đăng nhập để điểm danh nhận +1 điểm.');
             window.location.href = '/login';
+            return;
+        }
+        if (user.roleCode && user.roleCode !== 'CANDIDATE') {
+            toast.error('Tính năng điểm danh nhận điểm chỉ dành cho tài khoản Ứng viên.');
             return;
         }
         setClaimingCheckin(true);
         try {
             const res = await claimCandidateDailyCheckinService();
             if (res && res.errCode === 0) {
-                toast.success(res.errMessage || 'Điểm danh thành công (+1 Điểm)!');
+                toast.success(res.errMessage || 'Điểm danh thành công (+1 điểm).');
                 notifyRewardWalletUpdated();
             } else {
                 toast.info(res?.errMessage || 'Bạn đã điểm danh hôm nay.');
@@ -69,97 +81,70 @@ const CandidateWalletCard = ({ onOpenTopup, onWalletLoaded }) => {
     };
 
     const handleClaimProfileBonus = async () => {
-        const rawUser = localStorage.getItem('userData');
-        if (!rawUser) {
-            toast.warning('Vui lòng đăng nhập để nhận thưởng hoàn thiện hồ sơ!');
+        const user = readJsonStorage('userData');
+        if (!user) {
+            toast.warning('Vui lòng đăng nhập để nhận điểm hoàn thiện hồ sơ.');
             window.location.href = '/login';
+            return;
+        }
+        if (user.roleCode && user.roleCode !== 'CANDIDATE') {
+            toast.error('Tính năng tích điểm hồ sơ chỉ dành cho tài khoản Ứng viên.');
             return;
         }
         setClaimingProfile(true);
         try {
             const res = await claimCandidateProfileCompletionService();
             if (res && res.errCode === 0) {
-                toast.success(res.errMessage || 'Đã nhận +20 Điểm thưởng hoàn thiện CV!');
+                toast.success(res.errMessage || 'Đã nhận +20 điểm hoàn thiện hồ sơ.');
                 notifyRewardWalletUpdated();
             } else {
-                toast.info(res?.errMessage || 'Bạn đã nhận thưởng mục này trước đó.');
+                toast.info(res?.errMessage || 'Bạn đã nhận mục này trước đó.');
             }
         } catch (_err) {
-            toast.error('Không thể nhận thưởng lúc này.');
+            toast.error('Không thể nhận điểm lúc này.');
         } finally {
             setClaimingProfile(false);
         }
     };
 
-    const balancePoints = Number(overview?.wallet?.balancePoints ?? 45);
+    if (isForbiddenRole) return null;
+
+    const hasUser = Boolean(activeUser);
+    const balancePoints = Number(overview?.wallet?.balancePoints ?? 0);
     const balanceXu = Number(overview?.wallet?.balanceXu ?? balancePoints * 1000);
-    const tierShort = overview?.wallet?.tierShortLabel || 'Hạng Bạc';
+    const tierShort = overview?.wallet?.tierShortLabel || 'Thành viên';
     const checkedInToday = Boolean(overview?.missions?.checkedInToday);
     const profileClaimed = Boolean(overview?.missions?.profileCompletionClaimed);
 
     return (
-        <div className="jf-wallet-sidebar-card" aria-label="Ví Điểm & Xu Ứng Viên">
+        <section className="jf-wallet-sidebar-card" aria-label="Ví điểm ứng viên">
             <div className="jf-wallet-sidebar-card__head">
-                <div className="jf-wallet-sidebar-card__title-wrap">
-                    <div className="jf-wallet-sidebar-card__icon">
-                        <i className="fas fa-wallet" />
-                    </div>
-                    <h3 className="jf-wallet-sidebar-card__title">Ví Điểm &amp; Xu Ứng Viên</h3>
-                </div>
-                <span className="jf-wallet-sidebar-card__tier">{tierShort}</span>
+                <h2 className="jf-wallet-sidebar-card__title">Ví điểm ứng viên</h2>
+                {hasUser && <span className="jf-wallet-sidebar-card__tier">{tierShort}</span>}
             </div>
 
-            <div className="jf-wallet-balance-box">
-                <div className="jf-wallet-balance-box__top">
-                    <span style={{ fontSize: '12px', color: '#434655' }}>Số dư khả dụng:</span>
-                    <div>
-                        <span className="jf-wallet-balance-box__pts">
-                            {balancePoints.toLocaleString('vi-VN')}
-                        </span>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#b45309' }}>
-                            {' '}
-                            Điểm thưởng
-                        </span>
-                    </div>
+            <dl className="jf-wallet-facts">
+                <div>
+                    <dt>Số dư hiện tại:</dt>
+                    <dd className="jf-wallet-facts__pts">
+                        {balancePoints.toLocaleString('vi-VN')} điểm
+                    </dd>
                 </div>
-                <div className="jf-wallet-balance-box__sub">
-                    <span>Quy đổi tương đương:</span>
-                    <strong style={{ color: '#334155' }}>
-                        {balanceXu.toLocaleString('vi-VN')} Xu (VNĐ)
-                    </strong>
+                <div>
+                    <dt>Giá trị quy đổi:</dt>
+                    <dd>{balanceXu.toLocaleString('vi-VN')} VNĐ</dd>
                 </div>
-            </div>
+            </dl>
 
-            <div>
-                <div
-                    style={{
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        color: '#191c1e',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                    }}
-                >
-                    <i className="fas fa-star" style={{ color: '#f59e0b' }} />
-                    <span>Cách nhận thêm điểm miễn phí:</span>
-                </div>
-
+            <div className="jf-wallet-tasks">
+                <p className="jf-wallet-tasks__title">Nhận thêm điểm</p>
                 <ul className="jf-wallet-earn-list">
                     <li className="jf-wallet-earn-item">
-                        <span>
-                            • Nộp CV vào vị trí này:{' '}
-                            <strong style={{ color: '#047857' }}>+5 Điểm</strong>
-                        </span>
-                        <span style={{ fontSize: '10.5px', color: '#059669', fontWeight: 700 }}>
-                            Tự động
-                        </span>
+                        <span>Nộp CV ứng tuyển (+5 điểm)</span>
+                        <span className="jf-wallet-earn-tag">Tự động</span>
                     </li>
                     <li className="jf-wallet-earn-item">
-                        <span>
-                            • Hoàn thiện CV đạt 100%:{' '}
-                            <strong style={{ color: '#004ac6' }}>+20 Điểm</strong>
-                        </span>
+                        <span>Hoàn thiện hồ sơ (+20 điểm)</span>
                         <button
                             type="button"
                             className="jf-wallet-claim-btn"
@@ -170,10 +155,7 @@ const CandidateWalletCard = ({ onOpenTopup, onWalletLoaded }) => {
                         </button>
                     </li>
                     <li className="jf-wallet-earn-item">
-                        <span>
-                            • Điểm danh hằng ngày:{' '}
-                            <strong style={{ color: '#b45309' }}>+1 Điểm</strong>
-                        </span>
+                        <span>Điểm danh mỗi ngày (+1 điểm)</span>
                         <button
                             type="button"
                             className="jf-wallet-claim-btn"
@@ -192,18 +174,17 @@ const CandidateWalletCard = ({ onOpenTopup, onWalletLoaded }) => {
                     className="jf-comp-btn-primary"
                     onClick={() => onOpenTopup && onOpenTopup('topup')}
                 >
-                    + Nạp Thêm Xu
+                    Nạp điểm
                 </button>
                 <button
                     type="button"
                     className="jf-comp-btn-outline"
-                    style={{ borderColor: '#e0e3e5', color: '#191c1e' }}
                     onClick={() => onOpenTopup && onOpenTopup('history')}
                 >
-                    Lịch Sử Dùng Điểm
+                    Lịch sử điểm
                 </button>
             </div>
-        </div>
+        </section>
     );
 };
 

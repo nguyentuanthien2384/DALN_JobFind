@@ -1,6 +1,6 @@
 import rewardService from '../services/rewardService';
 import paymentOrderService from '../services/paymentOrderService';
-import { PERMISSIONS, ROLES, getRoleCode, isPermissionGranted } from '../middlewares/authorize';
+import { ROLES, getRoleCode, hasApprovedCompany } from '../middlewares/authorize';
 
 const getClientIp = (req) => (
     req.headers?.['x-forwarded-for']
@@ -11,10 +11,22 @@ const getClientIp = (req) => (
 
 const requireCandidateAccess = (req, res) => {
     const roleCode = getRoleCode(req);
-    if (roleCode && roleCode !== ROLES.CANDIDATE && roleCode !== ROLES.ADMIN) {
+    if (roleCode !== ROLES.CANDIDATE) {
         res.status(403).json({
             errCode: 3,
-            errMessage: 'Tính năng tích điểm ứng viên chỉ dành cho tài khoản Ứng viên'
+            errMessage: 'Tính năng nạp điểm & tích điểm ứng viên chỉ dành cho tài khoản Ứng viên'
+        });
+        return false;
+    }
+    return true;
+};
+
+const requireApprovedCompanyOwner = (req, res) => {
+    const roleCode = getRoleCode(req);
+    if (roleCode !== ROLES.COMPANY || !hasApprovedCompany(req)) {
+        res.status(403).json({
+            errCode: 3,
+            errMessage: 'Chỉ Chủ doanh nghiệp đã được duyệt mới có quyền mua gói dịch vụ hoặc đổi điểm Top Point'
         });
         return false;
     }
@@ -70,7 +82,8 @@ const getCompetitionReport = async (req, res) => {
         const postId = req.params?.postId || req.query?.postId;
         const result = await rewardService.getJobCompetitionReport({
             postId,
-            userId: req.user?.id || null
+            userId: req.user?.id || null,
+            roleCode: getRoleCode(req)
         });
         return res.status(200).json(result);
     } catch (error) {
@@ -94,9 +107,41 @@ const unlockCompetitionReport = async (req, res) => {
 
 const getEmployerOverview = async (req, res) => {
     try {
-        const isAdmin = req.user?.userAccountData?.roleCode === 'ADMIN';
+        const roleCode = getRoleCode(req);
+        const isAdmin = roleCode === ROLES.ADMIN;
+        const isCompanyOwner = roleCode === ROLES.COMPANY && Boolean(req.user?.companyId);
+        const isApprovedRecruiter = roleCode === ROLES.EMPLOYER && hasApprovedCompany(req);
+
+        if (!isAdmin && !isCompanyOwner && !isApprovedRecruiter) {
+            return res.status(403).json({
+                errCode: 3,
+                errMessage: 'Bạn không có quyền xem ví điểm doanh nghiệp'
+            });
+        }
         const companyId = isAdmin ? (req.query?.companyId || req.user.companyId) : req.user.companyId;
-        const result = await rewardService.getEmployerRewardOverview(companyId);
+        const result = await rewardService.getEmployerRewardOverview(companyId, {
+            canRedeem: roleCode === ROLES.COMPANY && hasApprovedCompany(req)
+        });
+        return res.status(200).json(result);
+    } catch (error) {
+        return res.status(200).json({ errCode: -1, errMessage: 'Error from server' });
+    }
+};
+
+const getAdminRewardsOverview = async (req, res) => {
+    try {
+        if (getRoleCode(req) !== ROLES.ADMIN) {
+            return res.status(403).json({
+                errCode: 3,
+                errMessage: 'Chỉ Quản trị viên mới có quyền giám sát điểm thưởng và thanh toán toàn hệ thống'
+            });
+        }
+        const result = await rewardService.getAdminRewardsOverview({
+            limit: req.query?.limit,
+            offset: req.query?.offset,
+            purpose: req.query?.purpose,
+            status: req.query?.status
+        });
         return res.status(200).json(result);
     } catch (error) {
         return res.status(200).json({ errCode: -1, errMessage: 'Error from server' });
@@ -105,6 +150,7 @@ const getEmployerOverview = async (req, res) => {
 
 const redeemEmployerPoints = async (req, res) => {
     try {
+        if (!requireApprovedCompanyOwner(req, res)) return undefined;
         const result = await rewardService.redeemEmployerPoints({
             companyId: req.user.companyId,
             userId: req.user.id,
@@ -118,9 +164,11 @@ const redeemEmployerPoints = async (req, res) => {
 
 const getPaymentCatalog = async (req, res) => {
     try {
+        const roleCode = getRoleCode(req);
         const result = await paymentOrderService.getPaymentCatalog({
             userId: req.user?.id || null,
-            companyId: req.user?.companyId || null
+            companyId: req.user?.companyId || null,
+            roleCode
         });
         return res.status(200).json(result);
     } catch (error) {
@@ -130,6 +178,11 @@ const getPaymentCatalog = async (req, res) => {
 
 const previewPromoCode = async (req, res) => {
     try {
+        const requestedPurpose = String(req.body?.purpose || req.query?.purpose || '').trim().toUpperCase();
+        if (requestedPurpose === 'POINT_TOPUP' && !requireCandidateAccess(req, res)) return undefined;
+        if ((requestedPurpose === 'PACKAGE_POST' || requestedPurpose === 'PACKAGE_CV') && !requireApprovedCompanyOwner(req, res)) {
+            return undefined;
+        }
         const result = paymentOrderService.evaluatePromo({
             promoCode: req.body?.promoCode || req.query?.promoCode,
             provider: req.body?.provider || req.query?.provider,
@@ -144,21 +197,15 @@ const previewPromoCode = async (req, res) => {
 const createCheckout = async (req, res) => {
     try {
         const normalizedPurpose = String(req.body?.purpose || 'POINT_TOPUP').trim().toUpperCase();
-        const roleCode = getRoleCode(req);
         if (normalizedPurpose === 'PACKAGE_POST' || normalizedPurpose === 'PACKAGE_CV') {
-            if (roleCode && !isPermissionGranted(req, PERMISSIONS.PACKAGE_PURCHASE)) {
-                return res.status(403).json({
-                    errCode: 3,
-                    errMessage: 'Bạn không có quyền thực hiện thao tác này'
-                });
-            }
+            if (!requireApprovedCompanyOwner(req, res)) return undefined;
         } else if (normalizedPurpose === 'POINT_TOPUP') {
-            if (roleCode && roleCode !== ROLES.CANDIDATE && roleCode !== ROLES.ADMIN) {
-                return res.status(403).json({
-                    errCode: 3,
-                    errMessage: 'Tính năng nạp điểm chỉ dành cho tài khoản Ứng viên'
-                });
-            }
+            if (!requireCandidateAccess(req, res)) return undefined;
+        } else {
+            return res.status(400).json({
+                errCode: 2,
+                errMessage: 'Loại giao dịch thanh toán không hợp lệ'
+            });
         }
 
         const result = await paymentOrderService.createCheckout({
@@ -182,12 +229,24 @@ const createCheckout = async (req, res) => {
 
 const verifyPaymentReturn = async (req, res) => {
     try {
+        const roleCode = getRoleCode(req);
+        if (roleCode !== ROLES.CANDIDATE && roleCode !== ROLES.COMPANY) {
+            return res.status(403).json({
+                errCode: 3,
+                errMessage: 'Tài khoản này không có quyền xác thực giao dịch thanh toán'
+            });
+        }
         const params = { ...(req.query || {}), ...(req.body || {}) };
         const result = await paymentOrderService.verifyPaymentReturn({
             userId: req.user.id,
+            roleCode,
+            companyId: req.user.companyId || null,
             provider: params.provider,
             params
         });
+        if (result?.errCode === 3) {
+            return res.status(403).json(result);
+        }
         return res.status(200).json(result);
     } catch (error) {
         return res.status(200).json({ errCode: -1, errMessage: 'Error from server' });
@@ -196,10 +255,62 @@ const verifyPaymentReturn = async (req, res) => {
 
 const getPaymentOrders = async (req, res) => {
     try {
-        const scope = String(req.query?.scope || '').toLowerCase();
+        const roleCode = getRoleCode(req);
+        const scope = String(req.query?.scope || 'self').trim().toLowerCase();
+
+        if (scope === 'admin' || scope === 'all') {
+            if (roleCode !== ROLES.ADMIN) {
+                return res.status(403).json({
+                    errCode: 3,
+                    errMessage: 'Chỉ Quản trị viên mới có quyền xem toàn bộ giao dịch hệ thống'
+                });
+            }
+            const result = await paymentOrderService.getUserPaymentOrders({
+                all: true,
+                companyId: req.query?.companyId || null,
+                userId: req.query?.userId || null,
+                purpose: req.query?.purpose,
+                status: req.query?.status,
+                limit: req.query?.limit,
+                offset: req.query?.offset
+            });
+            return res.status(200).json(result);
+        }
+
+        if (scope === 'company') {
+            if (
+                (roleCode !== ROLES.COMPANY || !hasApprovedCompany(req))
+                && roleCode !== ROLES.ADMIN
+            ) {
+                return res.status(403).json({
+                    errCode: 3,
+                    errMessage: 'Bạn không có quyền xem lịch sử thanh toán của doanh nghiệp'
+                });
+            }
+            const companyId = roleCode === ROLES.ADMIN
+                ? (req.query?.companyId || req.user.companyId)
+                : req.user.companyId;
+            const result = await paymentOrderService.getUserPaymentOrders({
+                companyId,
+                purpose: req.query?.purpose,
+                status: req.query?.status,
+                limit: req.query?.limit,
+                offset: req.query?.offset
+            });
+            return res.status(200).json(result);
+        }
+
+        if (roleCode !== ROLES.CANDIDATE && roleCode !== ROLES.COMPANY) {
+            return res.status(403).json({
+                errCode: 3,
+                errMessage: 'Tài khoản này không có đơn thanh toán cá nhân'
+            });
+        }
+
         const result = await paymentOrderService.getUserPaymentOrders({
-            userId: scope === 'company' ? null : req.user.id,
-            companyId: scope === 'company' ? req.user.companyId : null,
+            userId: req.user.id,
+            purpose: roleCode === ROLES.CANDIDATE ? 'POINT_TOPUP' : (req.query?.purpose || ''),
+            status: req.query?.status,
             limit: req.query?.limit,
             offset: req.query?.offset
         });
@@ -244,6 +355,7 @@ module.exports = {
     getCompetitionReport,
     unlockCompetitionReport,
     getEmployerOverview,
+    getAdminRewardsOverview,
     redeemEmployerPoints,
     getPaymentCatalog,
     previewPromoCode,

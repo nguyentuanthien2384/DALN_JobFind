@@ -46,7 +46,7 @@ import PaymentSuccessCv from "./PackageCv/BuySuccesCv";
 import BuyCv from "./PackageCv/BuyCv";
 import HistoryTradePost from "./HistoryTrade/HistoryTradePost";
 import HistoryTradeCv from "./HistoryTrade/HistoryTradeCv";
-import EmployerRewardsSection from "./Rewards/EmployerRewardsSection";
+import RewardsWorkspace from "./Rewards/RewardsWorkspace";
 import ChartPost from "./Chart/ChartPost";
 import ChartCv from "./Chart/ChartCv";
 import ChatPage from "../Chat/ChatPage";
@@ -56,6 +56,7 @@ import {
     getDefaultRouteForUser,
     hasPermission,
     PERMISSIONS,
+    ROLES,
 } from "../../auth/accessControl";
 import { readJsonStorage } from "../../util/storage";
 import './AdminLayout.css';
@@ -68,6 +69,15 @@ const HomeAdmin = ({ user: suppliedUser }) => {
     const defaultRoute = getDefaultRouteForUser(user);
     const guard = (element, ...permissions) => (
         <RouteGuard user={user} anyPermissions={permissions}>
+            {element}
+        </RouteGuard>
+    );
+    const companyOwnerPurchaseGuard = (element) => (
+        <RouteGuard
+            user={user}
+            allowedRoles={[ROLES.COMPANY]}
+            anyPermissions={[PERMISSIONS.PURCHASE_PACKAGES]}
+        >
             {element}
         </RouteGuard>
     );
@@ -294,40 +304,46 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                                 path="/list-post/:id"
                                 element={guard(<ManagePost />, PERMISSIONS.MANAGE_POSTS)}
                             />
-                            <Route path="/buy-post" element={guard(<BuyPost />, PERMISSIONS.PURCHASE_PACKAGES)} />
-                            <Route path="/rewards" element={guard(<EmployerRewardsSection />, PERMISSIONS.PURCHASE_PACKAGES)} />
+                            <Route path="/buy-post" element={companyOwnerPurchaseGuard(<BuyPost />)} />
+                            <Route
+                                path="/rewards"
+                                element={guard(
+                                    <RewardsWorkspace user={user} />,
+                                    PERMISSIONS.PURCHASE_PACKAGES,
+                                    PERMISSIONS.MANAGE_POSTS,
+                                    PERMISSIONS.VIEW_PLATFORM_REPORTS
+                                )}
+                            />
                             <Route
                                 path="/payment/success"
-                                element={guard(<PaymentSuccess />, PERMISSIONS.PURCHASE_PACKAGES)}
+                                element={companyOwnerPurchaseGuard(<PaymentSuccess />)}
                             />
                             <Route
                                 path="/payment/cancel"
                                 element={
-                                    guard(
+                                    companyOwnerPurchaseGuard(
                                         <PaymentCancelled
                                             storageKey="orderData"
                                             buyPath="/admin/buy-post"
                                             packageLabel="gói đăng bài"
-                                        />,
-                                        PERMISSIONS.PURCHASE_PACKAGES
+                                        />
                                     )
                                 }
                             />
-                            <Route path="/buy-cv" element={guard(<BuyCv />, PERMISSIONS.PURCHASE_PACKAGES)} />
+                            <Route path="/buy-cv" element={companyOwnerPurchaseGuard(<BuyCv />)} />
                             <Route
                                 path="/paymentCv/success"
-                                element={guard(<PaymentSuccessCv />, PERMISSIONS.PURCHASE_PACKAGES)}
+                                element={companyOwnerPurchaseGuard(<PaymentSuccessCv />)}
                             />
                             <Route
                                 path="/paymentCv/cancel"
                                 element={
-                                    guard(
+                                    companyOwnerPurchaseGuard(
                                         <PaymentCancelled
                                             storageKey="orderCvData"
                                             buyPath="/admin/buy-cv"
                                             packageLabel="gói tìm ứng viên"
-                                        />,
-                                        PERMISSIONS.PURCHASE_PACKAGES
+                                        />
                                     )
                                 }
                             />

@@ -37,6 +37,7 @@ const ADMIN_SECTIONS = [
         key: 'commerce', title: 'Kinh doanh', items: [
             { key: 'package-post', to: '/admin/list-package-post/', label: 'Gói đăng tin', icon: 'fas fa-box-open', permission: P.MANAGE_PACKAGES, action: { to: '/admin/add-package-post/', label: 'Thêm gói đăng tin' } },
             { key: 'package-cv', to: '/admin/list-package-cv/', label: 'Gói xem ứng viên', icon: 'fas fa-id-card', permission: P.MANAGE_PACKAGES, action: { to: '/admin/add-package-cv/', label: 'Thêm gói xem ứng viên' } },
+            { key: 'admin-rewards', to: '/admin/rewards/', label: 'Quản lý nạp & tích điểm', icon: 'fas fa-coins', permission: P.VIEW_PLATFORM_REPORTS },
         ],
     },
     {
@@ -98,7 +99,15 @@ const COMPANY_SECTIONS = [
 
 const EMPLOYER_SECTIONS = [
     { key: 'main', items: [DASHBOARD, CHAT] },
-    { key: 'recruiting', title: 'Tuyển dụng', items: [RECRUITING_POSTS, RECRUITING_CANDIDATES] },
+    {
+        key: 'recruiting',
+        title: 'Tuyển dụng',
+        items: [
+            RECRUITING_POSTS,
+            RECRUITING_CANDIDATES,
+            { key: 'employer-rewards', to: '/admin/rewards/', label: 'Quỹ lượt & Điểm công ty', icon: 'fas fa-coins', permission: P.MANAGE_POSTS },
+        ],
+    },
 ];
 
 const EMPLOYER_WITHOUT_COMPANY_SECTIONS = [

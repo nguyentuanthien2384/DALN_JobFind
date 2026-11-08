@@ -1,153 +1,78 @@
-/* Reward Notice Bar inside Job Hero */
+/* Subtle notice inside Job Hero */
 .jf-reward-hero-notice {
-    margin-top: 18px;
-    padding-top: 14px;
-    border-top: 1px solid #e2e8f0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px;
-    font-size: 12.5px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #eef0f4;
+    font-size: 13px;
+    color: #4b5563;
 }
 
-.jf-reward-hero-notice__left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #92400e;
+.jf-reward-hero-notice strong {
+    color: #252b60;
+    font-weight: 600;
 }
 
-.jf-reward-hero-notice__icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    background: #fef3c7;
-    color: #d97706;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    flex-shrink: 0;
-}
-
-.jf-reward-hero-notice__highlight {
-    color: #004ac6;
-    font-weight: 800;
-}
-
-.jf-reward-hero-notice__right {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: #434655;
-    font-size: 12px;
-}
-
-.jf-reward-live-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
-    background: #10b981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-}
-
-/* Competition Insights Card */
+/* Competition Statistics Card */
 .jf-competition-card {
     background: #ffffff;
-    border-radius: 18px;
-    border: 2px solid rgba(0, 74, 198, 0.22);
-    padding: 24px;
-    box-shadow: 0 12px 32px -8px rgba(0, 74, 198, 0.08);
-    margin-bottom: 24px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 22px 24px;
+    box-shadow: 0 6px 24px rgba(37, 43, 96, 0.03);
+    margin-bottom: 28px;
 }
 
 .jf-competition-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 14px;
-    padding-bottom: 18px;
-    border-bottom: 1px solid #e0e3e5;
-}
-
-.jf-competition-header__left {
-    display: flex;
-    align-items: center;
     gap: 12px;
-}
-
-.jf-competition-header__icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
-}
-
-.jf-competition-header__title-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #f0f2f5;
 }
 
 .jf-competition-header__title {
     margin: 0;
-    font-size: 17px;
-    font-weight: 800;
-    color: #191c1e;
-}
-
-.jf-competition-header__badge {
-    padding: 2px 9px;
-    border-radius: 999px;
-    font-size: 11px;
+    font-size: 18px;
     font-weight: 700;
-    background: #eff6ff;
-    color: #004ac6;
-    border: 1px solid #bfdbfe;
+    color: #191c21;
+    line-height: 1.3;
 }
 
 .jf-competition-header__subtitle {
-    margin: 3px 0 0;
-    font-size: 12px;
-    color: #434655;
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #6b7280;
 }
 
 .jf-competition-status-pill {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 6px 12px;
-    border-radius: 999px;
+    padding: 4px 10px;
+    border-radius: 6px;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .jf-competition-status-pill--unlocked {
-    background: #ecfdf5;
-    border: 1px solid #a7f3d0;
-    color: #065f46;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
 }
 
 .jf-competition-status-pill--locked {
-    background: #fffbeb;
-    border: 1px solid #fde68a;
-    color: #92400e;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    color: #374151;
 }
 
+/* 4 Stat Boxes */
 .jf-competition-stats-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
-    margin-top: 20px;
+    margin-top: 16px;
 }
 
 @media (max-width: 768px) {
@@ -157,62 +82,78 @@
 }
 
 .jf-comp-stat-box {
-    background: #f7f9fb;
-    border: 1px solid #e0e3e5;
-    border-radius: 12px;
-    padding: 14px 12px;
-    text-align: center;
-}
-
-.jf-comp-stat-box--highlight {
-    background: linear-gradient(180deg, rgba(239, 246, 255, 0.75) 0%, #ffffff 100%);
-    border-color: #bfdbfe;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px;
 }
 
 .jf-comp-stat-box__label {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #434655;
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
     margin-bottom: 4px;
 }
 
-.jf-comp-stat-box--highlight .jf-comp-stat-box__label {
-    color: #004ac6;
-}
-
 .jf-comp-stat-box__value {
-    font-size: 25px;
-    font-weight: 900;
-    line-height: 1.15;
-    color: #191c1e;
-}
-
-.jf-comp-stat-box__value--blue {
-    color: #004ac6;
-}
-
-.jf-comp-stat-box__value--amber {
-    color: #d97706;
-}
-
-.jf-comp-stat-box__value--emerald {
-    color: #059669;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #111827;
 }
 
 .jf-comp-stat-box__sub {
     margin-top: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #64748b;
+    font-size: 12px;
+    color: #6b7280;
 }
 
+/* Locked State Box */
+.jf-comp-lock-box {
+    margin-top: 16px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.jf-comp-lock-box__info {
+    flex: 1;
+    min-width: 240px;
+}
+
+.jf-comp-lock-box__title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.jf-comp-lock-box__desc {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.5;
+}
+
+.jf-comp-lock-box__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Unlocked Detail Panels */
 .jf-competition-charts-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
-    margin-top: 18px;
+    margin-top: 16px;
 }
 
 @media (max-width: 820px) {
@@ -222,10 +163,10 @@
 }
 
 .jf-comp-panel {
-    background: #f8fafc;
-    border: 1px solid #e0e3e5;
-    border-radius: 14px;
-    padding: 18px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -237,57 +178,99 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    margin-bottom: 12px;
 }
 
 .jf-comp-panel__title {
     margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.jf-comp-panel__meta {
     font-size: 12px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #191c1e;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    color: #6b7280;
+}
+
+.jf-comp-empty {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.5;
 }
 
 .jf-comp-bars {
     display: flex;
     flex-direction: column;
-    gap: 11px;
+    gap: 10px;
 }
 
 .jf-comp-bar-row__top {
     display: flex;
     justify-content: space-between;
-    font-size: 12px;
+    gap: 8px;
+    font-size: 12.5px;
+    color: #374151;
     margin-bottom: 4px;
+}
+
+.jf-comp-bar-label--active {
+    color: #252b60;
+    font-weight: 600;
 }
 
 .jf-comp-bar-track {
     width: 100%;
-    height: 9px;
-    border-radius: 999px;
-    background: #e2e8f0;
+    height: 7px;
+    border-radius: 4px;
+    background: #eef0f4;
     overflow: hidden;
 }
 
 .jf-comp-bar-fill {
     height: 100%;
-    border-radius: 999px;
+    border-radius: 4px;
+    background: #64748b;
 }
 
-.jf-comp-tactical-tip {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 11.5px;
-    color: #434655;
+.jf-comp-bar-fill--active {
+    background: #252b60;
+}
+
+.jf-comp-skills-summary {
+    padding-top: 12px;
+    border-top: 1px solid #f0f2f5;
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    line-height: 1.45;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.jf-comp-skills-summary__label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.jf-comp-skills-summary__empty {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.jf-comp-skill-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.jf-comp-skill-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    font-size: 12px;
+    color: #374151;
 }
 
 .jf-comp-ai-list {
@@ -298,211 +281,202 @@
 
 .jf-comp-ai-item {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: space-between;
     gap: 10px;
-    padding: 9px 11px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 9px;
-    font-size: 12px;
-    color: #434655;
+    padding: 8px 10px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: #374151;
 }
 
-.jf-comp-unlock-banner {
-    margin-top: 18px;
-    border: 1px dashed rgba(245, 158, 11, 0.65);
-    background: rgba(255, 251, 235, 0.65);
-    border-radius: 14px;
-    padding: 16px 18px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 14px;
-}
-
-.jf-comp-unlock-banner__left {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    flex: 1;
-    min-width: 240px;
-}
-
-.jf-comp-unlock-banner__icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    background: #fef3c7;
-    color: #d97706;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
+.jf-comp-ai-item strong {
+    text-align: right;
     flex-shrink: 0;
 }
 
-.jf-comp-unlock-banner__title {
+.jf-comp-tone--emerald {
+    color: #166534;
+}
+
+.jf-comp-tone--amber {
+    color: #92400e;
+}
+
+.jf-comp-tone--rose {
+    color: #991b1b;
+}
+
+.jf-comp-tone--neutral {
+    color: #4b5563;
+}
+
+.jf-comp-note {
     margin: 0;
-    font-size: 13.5px;
-    font-weight: 800;
-    color: #92400e;
-}
-
-.jf-comp-unlock-banner__desc {
-    margin: 3px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid #f0f2f5;
     font-size: 12px;
-    color: #b45309;
-    line-height: 1.45;
-}
-
-.jf-comp-unlock-banner__actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.jf-comp-btn-outline {
-    border: 1px solid #fde68a;
-    background: #ffffff;
-    color: #92400e;
-    border-radius: 9px;
-    padding: 8px 13px;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.jf-comp-btn-outline:hover {
-    background: #fef3c7;
-}
-
-.jf-comp-btn-primary {
-    border: none;
-    background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
-    color: #ffffff;
-    border-radius: 9px;
-    padding: 8px 15px;
-    font-size: 12px;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(217, 119, 6, 0.22);
-}
-
-.jf-comp-btn-primary:hover:not(:disabled) {
-    filter: brightness(1.05);
+    color: #4b5563;
+    line-height: 1.5;
 }
 
 .jf-comp-footer-note {
-    margin-top: 16px;
+    margin-top: 14px;
     padding-top: 12px;
-    border-top: 1px solid #f1f5f9;
+    border-top: 1px solid #f0f2f5;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
-    font-size: 11px;
-    color: #94a3b8;
+    font-size: 12px;
+    color: #6b7280;
 }
 
-/* Candidate Wallet Sidebar Card */
+.jf-comp-link-btn {
+    border: none;
+    background: transparent;
+    color: #252b60;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+}
+
+/* Shared Buttons */
+.jf-comp-btn-primary {
+    border: 1px solid #252b60;
+    background: #252b60;
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.jf-comp-btn-primary:hover:not(:disabled) {
+    background: #1d224d;
+}
+
+.jf-comp-btn-primary:disabled {
+    opacity: 0.65;
+    cursor: default;
+}
+
+.jf-comp-btn-outline {
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    color: #374151;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.jf-comp-btn-outline:hover:not(:disabled) {
+    background: #f9fafb;
+    border-color: #9ca3af;
+}
+
+/* Candidate Wallet Sidebar Card (matches .jd-card in JobDetail) */
 .jf-wallet-sidebar-card {
-    background: linear-gradient(145deg, #fffbeb 0%, #ffffff 55%, rgba(254, 243, 199, 0.4) 100%);
-    border: 1px solid #fde68a;
-    border-radius: 16px;
-    padding: 20px;
-    box-shadow: 0 8px 24px -4px rgba(25, 28, 30, 0.05);
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 20px 22px;
+    box-shadow: 0 6px 24px rgba(37, 43, 96, 0.03);
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    margin-bottom: 20px;
+    gap: 14px;
 }
 
 .jf-wallet-sidebar-card__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     padding-bottom: 12px;
-    border-bottom: 1px solid rgba(253, 230, 138, 0.7);
-}
-
-.jf-wallet-sidebar-card__title-wrap {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-}
-
-.jf-wallet-sidebar-card__icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
+    border-bottom: 1px solid #f0f2f5;
 }
 
 .jf-wallet-sidebar-card__title {
     margin: 0;
-    font-size: 14px;
-    font-weight: 800;
-    color: #191c1e;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1b1e24;
 }
 
 .jf-wallet-sidebar-card__tier {
-    padding: 3px 9px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 800;
-    text-transform: uppercase;
-    background: #fef3c7;
-    color: #92400e;
-    border: 1px solid #fde68a;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #e5e7eb;
 }
 
-.jf-wallet-balance-box {
-    background: #ffffff;
-    border: 1px solid rgba(252, 211, 77, 0.7);
-    border-radius: 12px;
-    padding: 13px 14px;
+.jf-wallet-facts {
+    margin: 0;
 }
 
-.jf-wallet-balance-box__top {
+.jf-wallet-facts > div {
     display: flex;
+    justify-content: space-between;
     align-items: baseline;
-    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid #f0f2f5;
+    font-size: 13px;
 }
 
-.jf-wallet-balance-box__pts {
-    font-size: 22px;
-    font-weight: 900;
-    color: #92400e;
+.jf-wallet-facts > div:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
 }
 
-.jf-wallet-balance-box__sub {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid #f1f5f9;
-    display: flex;
-    justify-content: space-between;
-    font-size: 11.5px;
-    color: #64748b;
+.jf-wallet-facts dt {
+    color: #6b7280;
+    font-weight: 400;
+}
+
+.jf-wallet-facts dd {
+    margin: 0;
+    color: #1f2937;
+    font-weight: 500;
+}
+
+.jf-wallet-facts__pts {
+    color: #252b60 !important;
+    font-weight: 700 !important;
+    font-size: 15px;
+}
+
+.jf-wallet-tasks {
+    padding-top: 2px;
+}
+
+.jf-wallet-tasks__title {
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #374151;
 }
 
 .jf-wallet-earn-list {
     list-style: none;
     padding: 0;
-    margin: 8px 0 0;
+    margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    font-size: 11.5px;
-    color: #434655;
+    gap: 8px;
+    font-size: 12.5px;
+    color: #4b5563;
 }
 
 .jf-wallet-earn-item {
@@ -512,20 +486,25 @@
     gap: 8px;
 }
 
+.jf-wallet-earn-tag {
+    font-size: 11.5px;
+    color: #6b7280;
+}
+
 .jf-wallet-claim-btn {
-    border: 1px solid #cbd5e1;
+    border: 1px solid #d1d5db;
     background: #ffffff;
-    color: #004ac6;
-    font-size: 10.5px;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 6px;
+    color: #252b60;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 4px;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .jf-wallet-claim-btn:hover:not(:disabled) {
-    background: #eff6ff;
-    border-color: #93c5fd;
+    background: #f3f4f6;
 }
 
 .jf-wallet-claim-btn:disabled {
@@ -537,4 +516,5 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+    padding-top: 4px;
 }

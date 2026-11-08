@@ -5,6 +5,7 @@ import {
     notifyRewardWalletUpdated,
     verifyPaymentReturnService,
 } from '../../service/rewardPaymentService';
+import { readJsonStorage } from '../../util/storage';
 import './PaymentResultPage.css';
 
 const formatVnd = (value) => `${Number(value || 0).toLocaleString('vi-VN')} VNĐ`;
@@ -89,6 +90,19 @@ const PaymentResultPage = () => {
 
     const verifyPayment = useCallback(
         async (extraParams = {}) => {
+            const activeUser = readJsonStorage('userData');
+            if (!activeUser?.id) {
+                setErrorMessage('Vui lòng đăng nhập tài khoản đã khởi tạo giao dịch để xác thực thanh toán.');
+                setLoading(false);
+                setProcessingAction(false);
+                return { ok: false, unauthenticated: true };
+            }
+            if (activeUser.roleCode && activeUser.roleCode !== 'CANDIDATE' && activeUser.roleCode !== 'COMPANY') {
+                setErrorMessage('Tài khoản hiện tại không có quyền thực hiện giao dịch thanh toán dịch vụ.');
+                setLoading(false);
+                setProcessingAction(false);
+                return { ok: false, forbidden: true };
+            }
             try {
                 const res = await verifyPaymentReturnService({
                     ...queryObject,
@@ -227,7 +241,21 @@ const PaymentResultPage = () => {
                             <h3>Không thể xác nhận giao dịch</h3>
                             <p className="jf-pay-status-sub">{errorMessage}</p>
                             <div className="jf-pay-actions" style={{ justifyContent: 'center', marginTop: '18px' }}>
-                                <Link to="/home" className="jf-pay-btn jf-pay-btn--primary">
+                                {!readJsonStorage('userData')?.id && (
+                                    <Link
+                                        to="/login"
+                                        className="jf-pay-btn jf-pay-btn--primary"
+                                        onClick={() => {
+                                            localStorage.setItem('lastUrl', `${location.pathname}${location.search || ''}`);
+                                        }}
+                                    >
+                                        Đăng nhập
+                                    </Link>
+                                )}
+                                <Link
+                                    to="/"
+                                    className={`jf-pay-btn ${readJsonStorage('userData')?.id ? 'jf-pay-btn--primary' : 'jf-pay-btn--secondary'}`}
+                                >
                                     Về trang chủ
                                 </Link>
                             </div>
@@ -540,12 +568,20 @@ const PaymentResultPage = () => {
                             )}
 
                             <div className="jf-pay-actions">
-                                {postId && (
+                                {postId && (!order?.purpose || order.purpose === 'POINT_TOPUP') && (
                                     <Link
                                         to={`/detail-job/${postId}`}
                                         className="jf-pay-btn jf-pay-btn--primary"
                                     >
                                         Quay lại Tin tuyển dụng &amp; Xem Báo cáo
+                                    </Link>
+                                )}
+                                {!postId && order?.purpose === 'POINT_TOPUP' && (
+                                    <Link
+                                        to="/job"
+                                        className="jf-pay-btn jf-pay-btn--primary"
+                                    >
+                                        Tìm việc làm ngay
                                     </Link>
                                 )}
                                 {order?.purpose === 'PACKAGE_POST' && (
@@ -557,7 +593,7 @@ const PaymentResultPage = () => {
                                             Đổi quà Top Point
                                         </Link>
                                         <Link
-                                            to="/admin/add-post"
+                                            to={isPaid ? '/admin/add-post' : '/admin/buy-post'}
                                             className="jf-pay-btn jf-pay-btn--primary"
                                         >
                                             Quay lại Quản lý Gói đăng bài
@@ -580,7 +616,7 @@ const PaymentResultPage = () => {
                                         </Link>
                                     </>
                                 )}
-                                <Link to="/home" className="jf-pay-btn jf-pay-btn--secondary">
+                                <Link to="/" className="jf-pay-btn jf-pay-btn--secondary">
                                     Về trang chủ
                                 </Link>
                             </div>

@@ -1,39 +1,73 @@
 import axios from '../axios';
+import { SESSION_ENDED_EVENT } from '../auth/sessionExpiry';
+import { readJsonStorage } from '../util/storage';
 
 export const REWARD_WALLET_UPDATED_EVENT = 'jobfind:reward-wallet-updated';
 
 const isUnmockedUnitTest = () => process.env.NODE_ENV === 'test';
 
+const readActiveUser = () => readJsonStorage('userData');
+
+let cachedCandidateUserId = null;
 let cachedCandidateOverview = null;
 let cachedCandidateOverviewAt = 0;
 let inflightCandidateOverview = null;
 
+let cachedEmployerCompanyId = null;
 let cachedEmployerOverview = null;
 let cachedEmployerOverviewAt = 0;
 let inflightEmployerOverview = null;
 
 const OVERVIEW_CACHE_TTL_MS = 60000;
 
-export const getCachedCandidateRewardOverview = () => (
-    isUnmockedUnitTest() ? null : cachedCandidateOverview
-);
+export const clearRewardOverviewCache = () => {
+    cachedCandidateUserId = null;
+    cachedCandidateOverview = null;
+    cachedCandidateOverviewAt = 0;
+    inflightCandidateOverview = null;
 
-export const setCachedCandidateRewardOverview = (data) => {
-    if (!isUnmockedUnitTest() && data) {
-        cachedCandidateOverview = data;
-        cachedCandidateOverviewAt = Date.now();
-    }
+    cachedEmployerCompanyId = null;
+    cachedEmployerOverview = null;
+    cachedEmployerOverviewAt = 0;
+    inflightEmployerOverview = null;
 };
 
-export const getCachedEmployerRewardOverview = () => (
-    isUnmockedUnitTest() ? null : cachedEmployerOverview
-);
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener(SESSION_ENDED_EVENT, clearRewardOverviewCache);
+}
+
+export const getCachedCandidateRewardOverview = () => {
+    if (isUnmockedUnitTest()) return null;
+    const user = readActiveUser();
+    if (!user?.id || (user.roleCode && user.roleCode !== 'CANDIDATE')) return null;
+    if (Number(cachedCandidateUserId) !== Number(user.id)) return null;
+    return cachedCandidateOverview;
+};
+
+export const setCachedCandidateRewardOverview = (data) => {
+    if (isUnmockedUnitTest() || !data) return;
+    const user = readActiveUser();
+    if (!user?.id || (user.roleCode && user.roleCode !== 'CANDIDATE')) return;
+    cachedCandidateUserId = Number(user.id);
+    cachedCandidateOverview = data;
+    cachedCandidateOverviewAt = Date.now();
+};
+
+export const getCachedEmployerRewardOverview = () => {
+    if (isUnmockedUnitTest()) return null;
+    const user = readActiveUser();
+    if (!user?.companyId || (user.roleCode !== 'COMPANY' && user.roleCode !== 'EMPLOYER')) return null;
+    if (Number(cachedEmployerCompanyId) !== Number(user.companyId)) return null;
+    return cachedEmployerOverview;
+};
 
 export const setCachedEmployerRewardOverview = (data) => {
-    if (!isUnmockedUnitTest() && data) {
-        cachedEmployerOverview = data;
-        cachedEmployerOverviewAt = Date.now();
-    }
+    if (isUnmockedUnitTest() || !data) return;
+    const user = readActiveUser();
+    if (!user?.companyId || (user.roleCode !== 'COMPANY' && user.roleCode !== 'EMPLOYER')) return;
+    cachedEmployerCompanyId = Number(user.companyId);
+    cachedEmployerOverview = data;
+    cachedEmployerOverviewAt = Date.now();
 };
 
 export const invalidateRewardOverviewCache = () => {
@@ -166,9 +200,14 @@ export const getRewardConfigService = () => {
 
 export const getCandidateRewardOverviewService = ({ force = false } = {}) => {
     if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
+    const user = readActiveUser();
+    if (user?.roleCode && user.roleCode !== 'CANDIDATE') {
+        return Promise.resolve({ errCode: 3, errMessage: 'Tính năng chỉ dành cho ứng viên', data: null });
+    }
     const now = Date.now();
-    if (!force && cachedCandidateOverview && now - cachedCandidateOverviewAt < OVERVIEW_CACHE_TTL_MS) {
-        return Promise.resolve({ errCode: 0, data: cachedCandidateOverview, cached: true });
+    const cached = getCachedCandidateRewardOverview();
+    if (!force && cached && now - cachedCandidateOverviewAt < OVERVIEW_CACHE_TTL_MS) {
+        return Promise.resolve({ errCode: 0, data: cached, cached: true });
     }
     if (!force && inflightCandidateOverview) {
         return inflightCandidateOverview;
@@ -210,8 +249,9 @@ export const unlockJobCompetitionReportService = (postId) => {
 export const getEmployerRewardOverviewService = ({ force = false } = {}) => {
     if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
     const now = Date.now();
-    if (!force && cachedEmployerOverview && now - cachedEmployerOverviewAt < OVERVIEW_CACHE_TTL_MS) {
-        return Promise.resolve({ errCode: 0, data: cachedEmployerOverview, cached: true });
+    const cached = getCachedEmployerRewardOverview();
+    if (!force && cached && now - cachedEmployerOverviewAt < OVERVIEW_CACHE_TTL_MS) {
+        return Promise.resolve({ errCode: 0, data: cached, cached: true });
     }
     if (!force && inflightEmployerOverview) {
         return inflightEmployerOverview;
@@ -228,6 +268,11 @@ export const getEmployerRewardOverviewService = ({ force = false } = {}) => {
             inflightEmployerOverview = null;
         });
     return inflightEmployerOverview;
+};
+
+export const getAdminRewardsOverviewService = (params = {}) => {
+    if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
+    return axios.get('/api/rewards/admin/overview', { params });
 };
 
 export const redeemEmployerPointsService = (rewardCode) => {

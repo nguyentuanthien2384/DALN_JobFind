@@ -7,6 +7,7 @@ import { Link, NavLink, matchPath, useLocation } from 'react-router-dom'
 import './header.scss';
 import { getNotificationByUserService, markReadNotificationService, getListChatConversationService } from '../../service/userService';
 import {
+    clearRewardOverviewCache,
     getCachedCandidateRewardOverview,
     getCandidateRewardOverviewService,
     REWARD_WALLET_UPDATED_EVENT,
@@ -95,7 +96,10 @@ const Header = () => {
     const passwordPath = isCandidate ? '/candidate/changepassword/' : '/admin/changepassword/'
 
     useEffect(() => {
-        if (!userId || !isCandidate) return undefined
+        if (!userId || !isCandidate) {
+            setRewardOverview(null)
+            return undefined
+        }
         let active = true
         const loadRewardWallet = async () => {
             try {
@@ -200,6 +204,7 @@ const Header = () => {
         if(cleanup)await cleanup;
         try { await logoutServer(); } catch { window.alert('Chưa xác nhận được đăng xuất trên máy chủ. Vui lòng kiểm tra kết nối và thử lại.'); return; }
         disconnectSocket()
+        clearRewardOverviewCache()
         localStorage.removeItem("userData");
         localStorage.removeItem("token_user")
         window.location.href = "/login"
@@ -565,7 +570,7 @@ const Header = () => {
                 </div>
                 {/* <!-- Header End --> */}
             </header >
-            {showTopupModal && (
+            {isCandidate && showTopupModal && (
                 <PointTopupModal
                     isOpen
                     onClose={closeTopupModal}

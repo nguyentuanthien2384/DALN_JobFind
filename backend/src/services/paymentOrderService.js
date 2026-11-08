@@ -62,7 +62,7 @@ const evaluatePromo = ({ promoCode, provider, amountVnd }) => {
     };
 };
 
-const getPaymentCatalog = async ({ userId, companyId } = {}) => {
+const getPaymentCatalog = async ({ userId, companyId, roleCode = null } = {}) => {
     const promos = loadPromoCodes();
     const promoList = Object.entries(promos).map(([code, info]) => ({
         code,
@@ -71,8 +71,12 @@ const getPaymentCatalog = async ({ userId, companyId } = {}) => {
         minAmount: Number(info.minAmount) || 0,
         description: info.description || ''
     }));
-    const candidateOverview = userId ? await rewardService.getCandidateRewardOverview(userId) : null;
-    const employerOverview = companyId ? await rewardService.getEmployerRewardOverview(companyId) : null;
+    const canLoadCandidate = Boolean(userId) && (!roleCode || roleCode === 'CANDIDATE');
+    const canLoadEmployer = Boolean(companyId) && (!roleCode || roleCode === 'COMPANY' || roleCode === 'EMPLOYER');
+    const candidateOverview = canLoadCandidate ? await rewardService.getCandidateRewardOverview(userId) : null;
+    const employerOverview = canLoadEmployer
+        ? await rewardService.getEmployerRewardOverview(companyId, { canRedeem: !roleCode || roleCode === 'COMPANY' })
+        : null;
 
     return {
         errCode: 0,
@@ -484,7 +488,7 @@ const handleZaloPayCallback = async (body = {}) => {
 };
 
 // ===== XAC MINH KET QUA KHI TRINH DUYET QUAY VE (RETURN URL) =====
-const verifyPaymentReturn = async ({ userId, provider, params = {} }) => {
+const verifyPaymentReturn = async ({ userId, roleCode = null, companyId = null, provider, params = {} }) => {
     const providerKey = normalizeProvider(provider || params.provider);
     const extractedOrderCode = params.order
         || params.orderCode
@@ -502,6 +506,18 @@ const verifyPaymentReturn = async ({ userId, provider, params = {} }) => {
     });
     if (!order || Number(order.userId) !== Number(userId)) {
         return { errCode: 2, errMessage: 'Giao dịch không tồn tại hoặc không thuộc tài khoản này' };
+    }
+
+    if (roleCode) {
+        if (order.purpose === 'POINT_TOPUP' && roleCode !== 'CANDIDATE') {
+            return { errCode: 3, errMessage: 'Giao dịch nạp điểm chỉ thuộc quyền tài khoản Ứng viên' };
+        }
+        if (
+            (order.purpose === 'PACKAGE_POST' || order.purpose === 'PACKAGE_CV')
+            && (roleCode !== 'COMPANY' || Number(companyId) !== Number(order.companyId))
+        ) {
+            return { errCode: 3, errMessage: 'Tài khoản không có quyền xác nhận đơn hàng doanh nghiệp này' };
+        }
     }
 
     if (order.status === 'PAID') {
@@ -614,9 +630,33 @@ const verifyPaymentReturn = async ({ userId, provider, params = {} }) => {
     };
 };
 
-const getUserPaymentOrders = async ({ userId, companyId, limit = 20, offset = 0 }) => {
-    if (!userId && !companyId) return { errCode: 1, errMessage: 'Missing required parameters !' };
-    const where = companyId ? { companyId: Number(companyId) } : { userId: Number(userId) };
+const getUserPaymentOrders = async ({
+    userId,
+    companyId,
+    all = false,
+    purpose = '',
+    status = '',
+    limit = 20,
+    offset = 0
+}) => {
+    if (!all && !userId && !companyId) return { errCode: 1, errMessage: 'Missing required parameters !' };
+    const where = {};
+    if (!all) {
+        if (companyId) where.companyId = Number(companyId);
+        else where.userId = Number(userId);
+    } else if (companyId) {
+        where.companyId = Number(companyId);
+    } else if (userId) {
+        where.userId = Number(userId);
+    }
+    const normalizedPurpose = String(purpose || '').trim().toUpperCase();
+    if (normalizedPurpose && ['POINT_TOPUP', 'PACKAGE_POST', 'PACKAGE_CV'].includes(normalizedPurpose)) {
+        where.purpose = normalizedPurpose;
+    }
+    const normalizedStatus = String(status || '').trim().toUpperCase();
+    if (normalizedStatus && ['PAID', 'PENDING', 'FAILED', 'CANCELLED'].includes(normalizedStatus)) {
+        where.status = normalizedStatus;
+    }
     const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
     const safeOffset = Math.max(0, Number(offset) || 0);
     const result = await db.PaymentOrder.findAndCountAll({

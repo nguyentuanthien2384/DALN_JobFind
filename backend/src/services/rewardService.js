@@ -393,6 +393,16 @@ const claimProfileCompleteBonus = async (userId) => {
 // Tu dong cong +5 diem khi ung vien nop CV thanh cong vao mot tin tuyen dung.
 const awardCandidateApplicationPoints = async ({ userId, postId }, externalTransaction = null) => {
     if (!userId || !postId) return null;
+    if (db.Account?.findOne) {
+        const account = await db.Account.findOne({
+            where: { userId: Number(userId) },
+            attributes: ['roleCode'],
+            raw: true
+        });
+        if (account && account.roleCode !== OWNER_CANDIDATE) {
+            return null;
+        }
+    }
     syncedCandidateAppsAt.delete(Number(userId));
     return creditWallet({
         ownerType: OWNER_CANDIDATE,
@@ -406,127 +416,482 @@ const awardCandidateApplicationPoints = async ({ userId, postId }, externalTrans
     }, externalTransaction);
 };
 
-// Phan loai nhom kinh nghiem ("under3" | "threeToFive" | "over5") tu code hoac chuoi mo ta.
-const classifyExperienceBucket = (codeOrValue) => {
-    const text = String(codeOrValue || '').toLowerCase();
+// Bo dau tieng Viet va chuan hoa chu thuong de phan tich nhan Allcode chinh xac.
+const foldVi = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .replace(/[–—]/g, '-')
+    .toLowerCase()
+    .trim();
+
+// Phan tich moc nam kinh nghiem va nhom ("under3" | "threeToFive" | "over5") tu du lieu Allcode that.
+const parseExperienceInfo = (code, label) => {
+    const text = foldVi(`${label || ''} ${code || ''}`);
     if (!text) return null;
-    if (/khong|chua|duoi\s*1|1\s*nam|2\s*nam|1-2|0-1|intern|fresher|junior/i.test(text)) return 'under3';
-    if (/3\s*nam|4\s*nam|5\s*nam|3-5|2-4|3-4|middle|senior/i.test(text)) return 'threeToFive';
-    if (/tren\s*5|5\+|6|7|8|10|lead|manager|principal/i.test(text)) return 'over5';
+    if (/khong\s*yeu\s*cau|khong\s*can|chua\s*co|moi\s*tot\s*nghiep|intern|thuc\s*tap|fresher/.test(text)) {
+        return { bucket: 'under3', years: 0 };
+    }
+    if (/duoi\s*1|0\s*-\s*1|<\s*1/.test(text)) {
+        return { bucket: 'under3', years: 0.5 };
+    }
+    if (/tren\s*5|hon\s*5|>\s*5|5\s*\+|\b(?:[6-9]|[1-9]\d)\s*(?:nam|y|yr|year)|principal|director|giam\s*doc/.test(text)) {
+        return { bucket: 'over5', years: 6 };
+    }
+    const rangeMatch = text.match(/(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)/);
+    if (rangeMatch) {
+        const low = Number(rangeMatch[1].replace(',', '.'));
+        const high = Number(rangeMatch[2].replace(',', '.'));
+        if (Number.isFinite(low) && Number.isFinite(high)) {
+            const avg = (low + high) / 2;
+            const bucket = avg < 3 ? 'under3' : avg <= 5 ? 'threeToFive' : 'over5';
+            return { bucket, years: avg };
+        }
+    }
+    const numMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(?:nam|y|yr|year)/);
+    if (numMatch) {
+        const yrs = Number(numMatch[1].replace(',', '.'));
+        if (Number.isFinite(yrs)) {
+            const bucket = yrs < 3 ? 'under3' : yrs <= 5 ? 'threeToFive' : 'over5';
+            return { bucket, years: yrs };
+        }
+    }
+    if (/junior/.test(text)) return { bucket: 'under3', years: 1.5 };
+    if (/middle|senior|lead|truong\s*nhom/.test(text)) return { bucket: 'threeToFive', years: 4 };
+    if (/manager|truong\s*phong/.test(text)) return { bucket: 'over5', years: 6 };
     return null;
 };
 
-// Uoc luong dai luong ky vong (trieu VND) tu ma luong hoac nhan luong cua tin tuyen dung.
-const deriveSalaryInsights = (salaryCode, salaryLabel) => {
-    const raw = `${salaryCode || ''} ${salaryLabel || ''}`;
-    const numbers = (raw.match(/\d+(?:[.,]\d+)?/g) || [])
+// Phan tich khoang luong (trieu VND) tu Allcode SALARYTYPE; tra null neu Thoa thuan hoac chua cap nhat.
+const parseSalaryMillion = (code, label) => {
+    const foldedLabel = foldVi(label);
+    const foldedCode = foldVi(code);
+    if (/thoa\s*thuan|thuong\s*luong|canh\s*tranh/.test(foldedLabel) || /thoa-?thuan/.test(foldedCode)) {
+        return null;
+    }
+    const source = foldedLabel || (/tr|trieu|\d+\s*-\s*\d+|^\d+(?:[.,]\d+)?$/.test(foldedCode) ? foldedCode : '');
+    if (!source) return null;
+
+    const numbers = (source.match(/\d+(?:[.,]\d+)?/g) || [])
         .map((val) => Number(val.replace(',', '.')))
         .filter((num) => Number.isFinite(num) && num > 0 && num < 500);
     if (numbers.length >= 2) {
         const min = Math.min(numbers[0], numbers[1]);
         const max = Math.max(numbers[0], numbers[1]);
-        const avg = Number(((min + max) / 2).toFixed(1));
-        const sugMin = Math.round(min + (max - min) * 0.35);
-        const sugMax = Math.round(min + (max - min) * 0.75);
-        return {
-            averageMillion: avg,
-            rangeLabel: `Dải: ${min} - ${max} triệu`,
-            suggestedLabel: `${sugMin} - ${sugMax} Triệu`
-        };
+        return { min, max, mid: Number(((min + max) / 2).toFixed(1)) };
     }
     if (numbers.length === 1) {
         const base = numbers[0];
-        const min = Math.max(8, Math.round(base * 0.8));
-        const max = Math.round(base * 1.2);
+        if (/tren|hon|>|\+/.test(source)) {
+            const max = Math.round(base + Math.max(5, base * 0.3));
+            return { min: base, max, mid: Number(((base + max) / 2).toFixed(1)) };
+        }
+        if (/duoi|<|toi\s*da/.test(source)) {
+            const min = Math.max(1, Math.round(base * 0.6));
+            return { min, max: base, mid: Number(((min + base) / 2).toFixed(1)) };
+        }
+        return { min: base, max: base, mid: Number(base.toFixed(1)) };
+    }
+    return null;
+};
+
+// Tinh muc luong ky vong tu ho so ung vien da nop; neu chua ai ke khai so cu the thi hien thi khung luong tin dang.
+const computeApplicantSalaryInsights = (applicantSettings, detail) => {
+    const parsedApplicants = (applicantSettings || [])
+        .map((item) => parseSalaryMillion(item?.salaryJobCode, item?.salaryTypeSettingData?.value))
+        .filter(Boolean);
+
+    if (parsedApplicants.length > 0) {
+        const min = Math.min(...parsedApplicants.map((item) => item.min));
+        const max = Math.max(...parsedApplicants.map((item) => item.max));
+        const avg = Number(
+            (parsedApplicants.reduce((sum, item) => sum + item.mid, 0) / parsedApplicants.length).toFixed(1)
+        );
+        const rangeText = min === max ? `${min} triệu` : `${min} - ${max} triệu`;
         return {
-            averageMillion: Number(base.toFixed(1)),
-            rangeLabel: `Dải: ${min} - ${max} triệu`,
-            suggestedLabel: `${Math.round(base * 0.9)} - ${Math.round(base * 1.1)} Triệu`
+            averageMillion: avg,
+            rangeLabel: `Từ ${parsedApplicants.length} hồ sơ: ${rangeText}`,
+            suggestedLabel: rangeText,
+            source: 'APPLICANTS',
+            sampleCount: parsedApplicants.length
         };
     }
+
+    const postSalary = parseSalaryMillion(detail?.salaryJobCode, detail?.salaryTypePostData?.value);
+    if (postSalary) {
+        const postLabel = detail?.salaryTypePostData?.value
+            || (postSalary.min === postSalary.max
+                ? `${postSalary.min} triệu`
+                : `${postSalary.min} - ${postSalary.max} triệu`);
+        return {
+            averageMillion: postSalary.mid,
+            rangeLabel: `Theo tin đăng: ${postLabel}`,
+            suggestedLabel: postLabel,
+            source: 'JOB_POST',
+            sampleCount: 0
+        };
+    }
+
     return {
-        averageMillion: 24.5,
-        rangeLabel: 'Dải: 18 - 32 triệu',
-        suggestedLabel: '22 - 28 Triệu'
+        averageMillion: null,
+        rangeLabel: 'Thỏa thuận (chưa có ứng viên kê khai lương)',
+        suggestedLabel: 'Thỏa thuận',
+        source: 'NEGOTIABLE',
+        sampleCount: 0
     };
 };
 
-// Xay dung Bao Cao Ung Tuyen & Ti Le Canh Tranh (giong TopCV & design10).
+// Cham diem ho so ung vien (0..100%) dua tren 4 tieu chi thuc te trong CSDL:
+// Ky nang JD (50d) + Kinh nghiem (25d) + Nganh nghe (15d) + Khu vuc (10d).
+const evaluateProfileAgainstPost = ({ detail, requiredSkills, allSkills, ownedSkillIds, setting }) => {
+    let skillRatio = 0;
+    let matchedCount = 0;
+    if (requiredSkills.length > 0) {
+        matchedCount = requiredSkills.filter((skill) => ownedSkillIds.has(Number(skill.id))).length;
+        skillRatio = matchedCount / requiredSkills.length;
+    } else if ((allSkills || []).length > 0) {
+        matchedCount = allSkills.filter((skill) => ownedSkillIds.has(Number(skill.id))).length;
+        const targetSkillCount = Math.min(3, Math.max(1, allSkills.length));
+        skillRatio = Math.min(1, matchedCount / targetSkillCount);
+    } else {
+        skillRatio = ownedSkillIds.size > 0 ? 1 : 0;
+    }
+    const skillPoints = skillRatio * 50;
+
+    const reqExp = parseExperienceInfo(detail?.experienceJobCode, detail?.expTypePostData?.value);
+    const candExp = parseExperienceInfo(setting?.experienceJobCode, setting?.expTypeSettingData?.value);
+    let expPoints = 0;
+    let expMet = false;
+    if (!reqExp || reqExp.years === 0) {
+        expPoints = candExp ? 25 : 18;
+        expMet = true;
+    } else if (!candExp) {
+        expPoints = 0;
+        expMet = false;
+    } else if (
+        candExp.years >= reqExp.years
+        || (detail?.experienceJobCode && detail.experienceJobCode === setting?.experienceJobCode)
+    ) {
+        expPoints = 25;
+        expMet = true;
+    } else {
+        expPoints = Math.round((candExp.years / reqExp.years) * 18);
+        expMet = false;
+    }
+
+    const catMatch = !detail?.categoryJobCode
+        || Boolean(setting?.categoryJobCode && setting.categoryJobCode === detail.categoryJobCode);
+    const locMatch = !detail?.addressCode
+        || Boolean(setting?.addressCode && setting.addressCode === detail.addressCode);
+
+    const categoryPoints = catMatch ? 15 : 0;
+    const locationPoints = locMatch ? 10 : 0;
+    const matchPercent = Math.max(0, Math.min(100, Math.round(skillPoints + expPoints + categoryPoints + locationPoints)));
+
+    return {
+        matchPercent,
+        skillRatio,
+        matchedCount,
+        expMet,
+        candExp,
+        reqExp,
+        catMatch: Boolean(setting?.categoryJobCode && detail?.categoryJobCode && setting.categoryJobCode === detail.categoryJobCode),
+        locMatch: Boolean(setting?.addressCode && detail?.addressCode && setting.addressCode === detail.addressCode)
+    };
+};
+
+// Tong hop thong ke ung tuyen & doi chieu ho so 100% tu du lieu CSDL that (Cvs, UserSettings, UserSkills, Skills, DetailPosts).
 // Chi tiet ca nhan / file CV cua ung vien khac TUYET DOI KHONG bao gio tra ra ngoai.
 const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
     const totalApplicants = cvs.length;
     const targetAmount = Math.max(1, Number(detail?.amount) || 1);
-    const ratioRight = totalApplicants === 0 ? 1 : Math.max(1, Math.round(totalApplicants / targetAmount));
+    const ratioRight = totalApplicants === 0 ? 0 : Math.max(1, Math.round(totalApplicants / targetAmount));
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
     const todayApplicants = cvs.filter((cv) => cv.createdAt && new Date(cv.createdAt).getTime() >= dayAgo).length;
 
     const applicantIds = [...new Set(cvs.map((cv) => Number(cv.userId)).filter(Boolean))];
-    const settings = applicantIds.length && db.UserSetting?.findAll
-        ? await db.UserSetting.findAll({
-            where: { userId: { [Op.in]: applicantIds } },
-            attributes: ['userId', 'experienceJobCode'],
-            include: db.Allcode ? [{ model: db.Allcode, as: 'expTypeSettingData', attributes: ['code', 'value'] }] : [],
-            raw: true,
-            nest: true
-        })
-        : [];
+    const settingIncludes = db.Allcode ? [
+        { model: db.Allcode, as: 'expTypeSettingData', attributes: ['code', 'value'] },
+        { model: db.Allcode, as: 'salaryTypeSettingData', attributes: ['code', 'value'] },
+        { model: db.Allcode, as: 'jobTypeSettingData', attributes: ['code', 'value'] },
+        { model: db.Allcode, as: 'provinceSettingData', attributes: ['code', 'value'] }
+    ] : [];
 
-    const counts = { under3: 0, threeToFive: 0, over5: 0 };
-    settings.forEach((setting) => {
-        const bucket = classifyExperienceBucket(setting.expTypeSettingData?.value || setting.experienceJobCode);
-        if (bucket) counts[bucket] += 1;
+    const categoryCode = detail?.categoryJobCode;
+    const [settings, applicantSkillRows, allSkills, userSkills, userSetting] = await Promise.all([
+        applicantIds.length && db.UserSetting?.findAll
+            ? db.UserSetting.findAll({
+                where: { userId: { [Op.in]: applicantIds } },
+                attributes: ['userId', 'experienceJobCode', 'salaryJobCode', 'categoryJobCode', 'addressCode'],
+                include: settingIncludes,
+                raw: true,
+                nest: true
+            })
+            : [],
+        applicantIds.length && db.UserSkill?.findAll
+            ? db.UserSkill.findAll({
+                where: { UserId: { [Op.in]: applicantIds } },
+                attributes: ['UserId', 'SkillId'],
+                include: db.Skill ? [{ model: db.Skill, attributes: ['id', 'name'] }] : [],
+                raw: true,
+                nest: true
+            })
+            : [],
+        categoryCode && db.Skill?.findAll ? db.Skill.findAll({ where: { categoryJobCode: categoryCode } }) : [],
+        userId && db.UserSkill?.findAll ? db.UserSkill.findAll({ where: { UserId: Number(userId) } }) : [],
+        userId && db.UserSetting?.findOne
+            ? db.UserSetting.findOne({
+                where: { userId: Number(userId) },
+                attributes: ['userId', 'experienceJobCode', 'categoryJobCode', 'salaryJobCode', 'addressCode'],
+                include: settingIncludes,
+                raw: true,
+                nest: true
+            })
+            : null
+    ]);
+
+    const settingByUserId = new Map(
+        (settings || []).map((item) => [Number(item.userId), item])
+    );
+
+    const counts = { under3: 0, threeToFive: 0, over5: 0, unupdated: 0 };
+    cvs.forEach((cv) => {
+        const setting = settingByUserId.get(Number(cv.userId));
+        const parsed = parseExperienceInfo(setting?.experienceJobCode, setting?.expTypeSettingData?.value);
+        if (parsed?.bucket) {
+            counts[parsed.bucket] += 1;
+        } else {
+            counts.unupdated += 1;
+        }
     });
-    const classified = counts.under3 + counts.threeToFive + counts.over5;
-    if (totalApplicants > classified) {
-        const rem = totalApplicants - classified;
-        const b2 = Math.round(rem * 0.56);
-        const b3 = Math.round(rem * 0.26);
-        const b1 = Math.max(0, rem - b2 - b3);
-        counts.under3 += b1;
-        counts.threeToFive += b2;
-        counts.over5 += b3;
-    }
 
     const pct = (value) => (totalApplicants > 0 ? Math.round((value / totalApplicants) * 100) : 0);
-    const pUnder3 = pct(counts.under3);
-    const pOver5 = pct(counts.over5);
-    const pMid = totalApplicants > 0 ? Math.max(0, 100 - pUnder3 - pOver5) : 0;
 
-    // So khop ho so cua ung vien hien tai voi JD
-    const categoryCode = detail?.categoryJobCode;
-    const [allSkills, userSkills, userSetting] = await Promise.all([
-        categoryCode && db.Skill?.findAll ? db.Skill.findAll({ where: { categoryJobCode: categoryCode } }) : [],
-        userId && db.UserSkill?.findAll ? db.UserSkill.findAll({ where: { UserId: userId } }) : [],
-        userId && db.UserSetting?.findOne ? db.UserSetting.findOne({
-            where: { userId },
-            attributes: ['userId', 'experienceJobCode', 'categoryJobCode', 'salaryJobCode', 'addressCode'],
-            include: db.Allcode ? [{ model: db.Allcode, as: 'expTypeSettingData', attributes: ['code', 'value'] }] : [],
-            raw: true,
-            nest: true
-        }) : null
-    ]);
+    // Tong hop ky nang thuc te cua cac ung vien da nop CV vao tin nay
+    const skillNameById = new Map((allSkills || []).map((skill) => [Number(skill.id), skill.name]));
+    const applicantSkillSets = new Map();
+    const applicantSkillCounts = new Map();
+    (applicantSkillRows || []).forEach((row) => {
+        const uid = Number(row.UserId ?? row.userId);
+        const sid = Number(row.SkillId ?? row.skillId ?? row.Skill?.id);
+        if (!uid || !sid) return;
+        if (row.Skill?.name && !skillNameById.has(sid)) {
+            skillNameById.set(sid, row.Skill.name);
+        }
+        if (!applicantSkillSets.has(uid)) {
+            applicantSkillSets.set(uid, new Set());
+        }
+        const userSet = applicantSkillSets.get(uid);
+        if (!userSet.has(sid)) {
+            userSet.add(sid);
+            applicantSkillCounts.set(sid, (applicantSkillCounts.get(sid) || 0) + 1);
+        }
+    });
 
     const jdText = prepareSkillText(`${detail?.name || ''} ${detail?.descriptionHTML || ''}`);
     const requiredSkills = (allSkills || []).filter((skill) => {
         const matcher = createSkillMatcher(skill.name);
         return matcher && matcher.matches(jdText);
     });
-    const ownedSkillIds = new Set((userSkills || []).map((item) => Number(item.SkillId ?? item.skillId)));
+    const requiredSkillIds = new Set(requiredSkills.map((skill) => Number(skill.id)));
+
+    const applicantTopSkills = [...applicantSkillCounts.entries()]
+        .map(([skillId, count]) => ({
+            skillId,
+            name: skillNameById.get(skillId) || `Kỹ năng #${skillId}`,
+            count,
+            percent: applicantIds.length > 0 ? Math.round((count / applicantIds.length) * 100) : 0,
+            isRequired: requiredSkillIds.has(skillId)
+        }))
+        .sort((a, b) => (b.count - a.count) || (Number(b.isRequired) - Number(a.isRequired)) || a.name.localeCompare(b.name))
+        .slice(0, 6);
+
+    const salary = computeApplicantSalaryInsights(settings, detail);
+    const ownedSkillIds = new Set((userSkills || []).map((item) => Number(item.SkillId ?? item.skillId)).filter(Boolean));
     const matchedSkills = requiredSkills.filter((skill) => ownedSkillIds.has(Number(skill.id)));
-    const focusSkills = (requiredSkills.length ? requiredSkills : (allSkills || []).slice(0, 3)).slice(0, 3);
-    const skillNames = focusSkills.map((item) => item.name).join(', ') || detail?.jobTypePostData?.value || 'Kỹ năng chuyên môn';
+    const missingSkills = requiredSkills.filter((skill) => !ownedSkillIds.has(Number(skill.id)));
 
-    let skillRatio = requiredSkills.length > 0 ? matchedSkills.length / requiredSkills.length : (ownedSkillIds.size > 0 ? 0.85 : 0.75);
-    skillRatio = Math.min(1, Math.max(0.55, skillRatio));
-    const expMatch = !detail?.experienceJobCode || !userSetting?.experienceJobCode
-        || detail.experienceJobCode === userSetting.experienceJobCode;
-    const matchPercent = Math.min(98, Math.max(62, Math.round(skillRatio * 70 + (expMatch ? 24 : 16))));
-    const topPercentile = matchPercent >= 88 ? 15 : matchPercent >= 80 ? 25 : 35;
+    const requiredSkillNames = requiredSkills.slice(0, 4).map((item) => item.name).join(', ');
+    const requiredExpLabel = detail?.expTypePostData?.value || 'Không yêu cầu cụ thể';
+    const userExpLabel = userSetting?.expTypeSettingData?.value || null;
+    const userBucket = parseExperienceInfo(userSetting?.experienceJobCode, userExpLabel)?.bucket || null;
 
-    const userBucket = classifyExperienceBucket(userSetting?.expTypeSettingData?.value || userSetting?.experienceJobCode) || 'threeToFive';
-    const salary = deriveSalaryInsights(detail?.salaryJobCode, detail?.salaryTypePostData?.value);
-    const requiredExpLabel = detail?.expTypePostData?.value || '2 - 3 năm';
-    const userExpLabel = userSetting?.expTypeSettingData?.value || requiredExpLabel;
+    let matchPercent = null;
+    let rankLabel = 'Đăng nhập để đối chiếu hồ sơ';
+    let userEval = null;
+
+    if (userId) {
+        userEval = evaluateProfileAgainstPost({
+            detail,
+            requiredSkills,
+            allSkills: allSkills || [],
+            ownedSkillIds,
+            setting: userSetting
+        });
+        matchPercent = userEval.matchPercent;
+
+        if (applicantIds.length === 0) {
+            rankLabel = 'Chưa có hồ sơ đối thủ';
+        } else {
+            const normalizedUid = Number(userId);
+            const peerIds = applicantIds.filter((id) => id !== normalizedUid);
+            const peerScores = peerIds.map((id) => evaluateProfileAgainstPost({
+                detail,
+                requiredSkills,
+                allSkills: allSkills || [],
+                ownedSkillIds: applicantSkillSets.get(id) || new Set(),
+                setting: settingByUserId.get(id) || null
+            }).matchPercent);
+            const higherCount = peerScores.filter((score) => score > matchPercent).length;
+            const poolSize = peerIds.length + 1;
+            const rank = higherCount + 1;
+            rankLabel = applicantIds.includes(normalizedUid)
+                ? `Xếp hạng #${rank}/${poolSize} hồ sơ đã nộp`
+                : `Dự kiến #${rank}/${poolSize} nếu nộp hồ sơ`;
+        }
+    }
+
+    const experienceBreakdown = [
+        {
+            key: 'under3',
+            label: 'Dưới 3 năm kinh nghiệm',
+            percent: pct(counts.under3),
+            count: counts.under3,
+            isUserGroup: userBucket === 'under3',
+            highlight: userBucket === 'under3',
+            colorClass: '#64748b'
+        },
+        {
+            key: 'threeToFive',
+            label: '3 - 5 năm kinh nghiệm',
+            percent: pct(counts.threeToFive),
+            count: counts.threeToFive,
+            isUserGroup: userBucket === 'threeToFive',
+            highlight: userBucket === 'threeToFive',
+            colorClass: '#252b60'
+        },
+        {
+            key: 'over5',
+            label: 'Trên 5 năm kinh nghiệm',
+            percent: pct(counts.over5),
+            count: counts.over5,
+            isUserGroup: userBucket === 'over5',
+            highlight: userBucket === 'over5',
+            colorClass: '#475569'
+        }
+    ];
+
+    if (counts.unupdated > 0) {
+        experienceBreakdown.push({
+            key: 'unupdated',
+            label: 'Chưa cập nhật kinh nghiệm',
+            percent: pct(counts.unupdated),
+            count: counts.unupdated,
+            isUserGroup: false,
+            highlight: false,
+            colorClass: '#94a3b8'
+        });
+    }
+
+    const postSalaryLabel = detail?.salaryTypePostData?.value || 'Thỏa thuận';
+    const userSalaryLabel = userSetting?.salaryTypeSettingData?.value || null;
+    const postSalParsed = parseSalaryMillion(detail?.salaryJobCode, postSalaryLabel);
+    const userSalParsed = parseSalaryMillion(userSetting?.salaryJobCode, userSalaryLabel);
+    const salaryExceedsPost = Boolean(postSalParsed && userSalParsed && userSalParsed.min > postSalParsed.max);
+
+    const skillRowLabel = requiredSkills.length > 0
+        ? `Kỹ năng theo tin đăng (${requiredSkillNames})`
+        : `Kỹ năng chuyên môn (${detail?.jobTypePostData?.value || 'Theo ngành'})`;
+    let skillRowStatus = 'Cần đăng nhập';
+    let skillRowTone = 'neutral';
+    if (userId) {
+        if (requiredSkills.length > 0) {
+            skillRowStatus = `Khớp ${matchedSkills.length}/${requiredSkills.length} (${Math.round(userEval.skillRatio * 100)}%)`;
+            skillRowTone = matchedSkills.length === requiredSkills.length
+                ? 'emerald'
+                : matchedSkills.length > 0
+                    ? 'amber'
+                    : 'rose';
+        } else if (ownedSkillIds.size > 0) {
+            skillRowStatus = `Đã cập nhật ${ownedSkillIds.size} kỹ năng`;
+            skillRowTone = 'emerald';
+        } else {
+            skillRowStatus = 'Hồ sơ chưa cập nhật kỹ năng';
+            skillRowTone = 'amber';
+        }
+    }
+
+    let expRowStatus = 'Cần đăng nhập';
+    let expRowTone = 'neutral';
+    if (userId) {
+        if (!userExpLabel && userEval.reqExp && userEval.reqExp.years > 0) {
+            expRowStatus = 'Hồ sơ chưa cập nhật';
+            expRowTone = 'amber';
+        } else if (userEval.expMet) {
+            expRowStatus = userExpLabel ? `Đạt (${userExpLabel})` : 'Đạt yêu cầu';
+            expRowTone = 'emerald';
+        } else {
+            expRowStatus = `Chưa đạt (Hồ sơ: ${userExpLabel})`;
+            expRowTone = 'amber';
+        }
+    }
+
+    let fieldLocStatus = 'Cần đăng nhập';
+    let fieldLocTone = 'neutral';
+    if (userId) {
+        if (!userSetting?.categoryJobCode && !userSetting?.addressCode) {
+            fieldLocStatus = 'Hồ sơ chưa cập nhật';
+            fieldLocTone = 'amber';
+        } else if (userEval.catMatch && (userEval.locMatch || !detail?.addressCode)) {
+            fieldLocStatus = 'Đúng ngành & khu vực';
+            fieldLocTone = 'emerald';
+        } else if (userEval.catMatch) {
+            fieldLocStatus = 'Đúng ngành, khác khu vực';
+            fieldLocTone = 'amber';
+        } else if (userEval.locMatch) {
+            fieldLocStatus = 'Cùng khu vực, khác ngành';
+            fieldLocTone = 'amber';
+        } else {
+            fieldLocStatus = 'Khác ngành & khu vực';
+            fieldLocTone = 'rose';
+        }
+    }
+
+    const aiCorrelation = [
+        {
+            label: skillRowLabel,
+            status: skillRowStatus,
+            tone: skillRowTone
+        },
+        {
+            label: `Kinh nghiệm yêu cầu (${requiredExpLabel})`,
+            status: expRowStatus,
+            tone: expRowTone
+        },
+        {
+            label: 'Ngành nghề & địa điểm',
+            status: fieldLocStatus,
+            tone: fieldLocTone
+        },
+        {
+            label: `Khung lương tin đăng (${postSalaryLabel})`,
+            status: !userId
+                ? 'Cần đăng nhập'
+                : userSalaryLabel
+                    ? `Hồ sơ chọn: ${userSalaryLabel}`
+                    : 'Chưa chọn mức lương kỳ vọng',
+            tone: !userId ? 'neutral' : salaryExceedsPost ? 'amber' : userSalaryLabel ? 'emerald' : 'neutral'
+        }
+    ];
+
+    let tacticalTip = `Thống kê trực tiếp từ ${totalApplicants} hồ sơ đã nộp trên hệ thống.`;
+    if (totalApplicants === 0) {
+        tacticalTip = 'Hiện chưa có ứng viên nào nộp hồ sơ vào tin tuyển dụng này.';
+    } else if (userId && missingSkills.length > 0) {
+        tacticalTip = `So với tin đăng, hồ sơ của bạn chưa có kỹ năng: ${missingSkills.slice(0, 4).map((s) => s.name).join(', ')}.`;
+    } else if (userId && !userSetting) {
+        tacticalTip = 'Cập nhật mục Cài đặt hồ sơ và Kỹ năng để hệ thống đối chiếu chính xác hơn.';
+    }
 
     return {
         postId: Number(post.id),
@@ -535,63 +900,19 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
         targetAmount,
         competitionRatio: `1 : ${ratioRight}`,
         salaryRange: salary,
+        applicantTopSkills,
         profileMatch: {
             matchPercent,
-            rankLabel: `Top ${topPercentile}% ứng viên`,
-            ratingBadge: matchPercent >= 85 ? 'Rất cao' : 'Khá cao',
-            coreSkillsLabel: `Kỹ năng cốt lõi (${skillNames})`,
-            coreSkillsMatch: `${Math.round(skillRatio * 100)}% Khớp`,
+            rankLabel,
+            coreSkillsLabel: skillRowLabel,
+            coreSkillsMatch: skillRowStatus,
             experienceRequiredLabel: `Kinh nghiệm yêu cầu (${requiredExpLabel})`,
-            experienceUserLabel: expMatch ? `Đạt (${userExpLabel})` : `Cần bổ sung (${userExpLabel})`,
+            experienceUserLabel: expRowStatus,
             suggestedSalaryLabel: salary.suggestedLabel
         },
-        experienceBreakdown: [
-            {
-                key: 'under3',
-                label: 'Dưới 3 năm kinh nghiệm',
-                percent: pUnder3,
-                count: counts.under3,
-                isUserGroup: userBucket === 'under3',
-                highlight: userBucket === 'under3',
-                colorClass: '#94a3b8'
-            },
-            {
-                key: 'threeToFive',
-                label: '3 - 5 năm kinh nghiệm',
-                percent: pMid,
-                count: counts.threeToFive,
-                isUserGroup: userBucket === 'threeToFive',
-                highlight: userBucket === 'threeToFive',
-                colorClass: '#004ac6'
-            },
-            {
-                key: 'over5',
-                label: 'Trên 5 năm kinh nghiệm',
-                percent: pOver5,
-                count: counts.over5,
-                isUserGroup: userBucket === 'over5',
-                highlight: userBucket === 'over5',
-                colorClass: '#6366f1'
-            }
-        ],
-        aiCorrelation: [
-            {
-                label: `Kỹ năng cốt lõi (${skillNames})`,
-                status: `${Math.round(skillRatio * 100)}% Khớp`,
-                tone: 'emerald'
-            },
-            {
-                label: `Kinh nghiệm yêu cầu (${requiredExpLabel})`,
-                status: expMatch ? `Đạt (${userExpLabel})` : `Cần bổ sung (${userExpLabel})`,
-                tone: expMatch ? 'emerald' : 'amber'
-            },
-            {
-                label: 'Mức lương đề xuất cạnh tranh',
-                status: salary.suggestedLabel,
-                tone: 'amber'
-            }
-        ],
-        tacticalTip: `Nhóm 3-5 năm chiếm ưu thế (${pMid}%). Nêu bật kinh nghiệm thực tế với ${skillNames} trong CV sẽ giúp bạn tăng khả năng vào vòng phỏng vấn!`
+        experienceBreakdown,
+        aiCorrelation,
+        tacticalTip
     };
 };
 
@@ -603,14 +924,15 @@ const loadPostWithDetail = (postId) => db.Post.findOne({
         include: [
             { model: db.Allcode, as: 'jobTypePostData', attributes: ['value', 'code'] },
             { model: db.Allcode, as: 'salaryTypePostData', attributes: ['value', 'code'] },
-            { model: db.Allcode, as: 'expTypePostData', attributes: ['value', 'code'] }
+            { model: db.Allcode, as: 'expTypePostData', attributes: ['value', 'code'] },
+            { model: db.Allcode, as: 'provincePostData', attributes: ['value', 'code'] }
         ]
     }],
     raw: true,
     nest: true
 });
 
-const getJobCompetitionReport = async ({ postId, userId }) => {
+const getJobCompetitionReport = async ({ postId, userId, roleCode = null }) => {
     if (!postId) return { errCode: 1, errMessage: 'Missing required parameters !' };
     const post = await loadPostWithDetail(postId);
     if (!post) return { errCode: 2, errMessage: 'Không tìm thấy tin tuyển dụng' };
@@ -621,9 +943,10 @@ const getJobCompetitionReport = async ({ postId, userId }) => {
         attributes: ['id', 'userId', 'createdAt']
     });
 
+    const isCandidateCaller = Boolean(userId) && (!roleCode || roleCode === 'CANDIDATE');
     let activeUnlock = null;
     let walletBalance = 0;
-    if (userId) {
+    if (isCandidateCaller) {
         const [unlock, wallet] = await Promise.all([
             db.CompetitionUnlock.findOne({
                 where: {
@@ -639,7 +962,12 @@ const getJobCompetitionReport = async ({ postId, userId }) => {
         walletBalance = Number(wallet?.balance || 0);
     }
 
-    const insights = await buildCompetitionInsights({ post, detail, cvs, userId });
+    const insights = await buildCompetitionInsights({
+        post,
+        detail,
+        cvs,
+        userId: isCandidateCaller ? userId : null
+    });
     const unlocked = Boolean(activeUnlock);
 
     return {
@@ -661,15 +989,12 @@ const getJobCompetitionReport = async ({ postId, userId }) => {
             competitionRatio: insights.competitionRatio,
             expectedSalaryAvgMillion: unlocked ? insights.salaryRange.averageMillion : null,
             expectedSalaryRangeLabel: unlocked ? insights.salaryRange.rangeLabel : null,
-            profileMatchPercent: insights.profileMatch.matchPercent,
-            profileRankLabel: insights.profileMatch.rankLabel,
-            // Chi tra du lieu phan tich sau khi da mo khoa (hoac preview co ban).
+            profileMatchPercent: unlocked ? insights.profileMatch.matchPercent : null,
+            profileRankLabel: unlocked ? insights.profileMatch.rankLabel : null,
             salaryRange: unlocked ? insights.salaryRange : null,
-            profileMatch: unlocked ? insights.profileMatch : {
-                matchPercent: insights.profileMatch.matchPercent,
-                rankLabel: insights.profileMatch.rankLabel
-            },
+            profileMatch: unlocked ? insights.profileMatch : null,
             experienceBreakdown: unlocked ? insights.experienceBreakdown : null,
+            applicantTopSkills: unlocked ? insights.applicantTopSkills : null,
             aiCorrelation: unlocked ? insights.aiCorrelation : null,
             tacticalTip: unlocked ? insights.tacticalTip : null
         }
@@ -833,7 +1158,7 @@ const syncHistoricalCompanyOrders = async (companyId) => {
     }
 };
 
-const getEmployerRewardOverview = async (companyId) => {
+const getEmployerRewardOverview = async (companyId, { canRedeem = true } = {}) => {
     if (!companyId) return { errCode: 1, errMessage: 'Missing required parameters !' };
     const company = await db.Company.findOne({ where: { id: Number(companyId) } });
     if (!company) return { errCode: 2, errMessage: 'Không tìm thấy công ty' };
@@ -868,6 +1193,7 @@ const getEmployerRewardOverview = async (companyId) => {
     return {
         errCode: 0,
         data: {
+            canRedeem: Boolean(canRedeem),
             company: {
                 id: company.id,
                 name: company.name,
@@ -891,6 +1217,176 @@ const getEmployerRewardOverview = async (companyId) => {
             redemptionCatalog,
             recentTransactions,
             transactions: formattedTransactions
+        }
+    };
+};
+
+const getAdminRewardsOverview = async ({ limit = 20, offset = 0, purpose = '', status = '' } = {}) => {
+    const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+    const safeOffset = Math.max(0, Number(offset) || 0);
+    const normalizedPurpose = String(purpose || '').trim().toUpperCase();
+    const normalizedStatus = String(status || '').trim().toUpperCase();
+
+    const orderWhere = {};
+    if (normalizedPurpose && ['POINT_TOPUP', 'PACKAGE_POST', 'PACKAGE_CV'].includes(normalizedPurpose)) {
+        orderWhere.purpose = normalizedPurpose;
+    }
+    if (normalizedStatus && ['PAID', 'PENDING', 'FAILED', 'CANCELLED'].includes(normalizedStatus)) {
+        orderWhere.status = normalizedStatus;
+    }
+
+    const [allWallets, allOrdersSummary, pagedOrders, recentTxRows] = await Promise.all([
+        db.RewardWallet?.findAll
+            ? db.RewardWallet.findAll({
+                attributes: ['id', 'ownerType', 'ownerId', 'balance', 'lifetimeEarned', 'lifetimeSpent'],
+                raw: true
+            })
+            : [],
+        db.PaymentOrder?.findAll
+            ? db.PaymentOrder.findAll({
+                attributes: ['purpose', 'status', 'amount', 'points'],
+                raw: true
+            })
+            : [],
+        db.PaymentOrder?.findAndCountAll
+            ? db.PaymentOrder.findAndCountAll({
+                where: orderWhere,
+                order: [['createdAt', 'DESC'], ['id', 'DESC']],
+                limit: safeLimit,
+                offset: safeOffset
+            })
+            : { rows: [], count: 0 },
+        db.RewardTransaction?.findAll
+            ? db.RewardTransaction.findAll({
+                order: [['createdAt', 'DESC'], ['id', 'DESC']],
+                limit: 25
+            })
+            : []
+    ]);
+
+    const summarizeWallets = (type) => {
+        const subset = (allWallets || []).filter((w) => w.ownerType === type);
+        return {
+            walletCount: subset.length,
+            totalBalance: subset.reduce((sum, w) => sum + (Number(w.balance) || 0), 0),
+            totalEarned: subset.reduce((sum, w) => sum + (Number(w.lifetimeEarned) || 0), 0),
+            totalSpent: subset.reduce((sum, w) => sum + (Number(w.lifetimeSpent) || 0), 0)
+        };
+    };
+
+    const candidateWallets = summarizeWallets(OWNER_CANDIDATE);
+    const companyWallets = summarizeWallets(OWNER_COMPANY);
+
+    let paidOrders = 0;
+    let pendingOrders = 0;
+    let totalPaidRevenueVnd = 0;
+    let candidateTopupPaidVnd = 0;
+    let candidateTopupOrders = 0;
+    let companyPackagePaidVnd = 0;
+    let companyPackageOrders = 0;
+
+    for (const ord of allOrdersSummary || []) {
+        if (ord.status === 'PAID') {
+            paidOrders += 1;
+            const amt = Number(ord.amount) || 0;
+            totalPaidRevenueVnd += amt;
+            if (ord.purpose === 'POINT_TOPUP') {
+                candidateTopupPaidVnd += amt;
+                candidateTopupOrders += 1;
+            } else if (ord.purpose === 'PACKAGE_POST' || ord.purpose === 'PACKAGE_CV') {
+                companyPackagePaidVnd += amt;
+                companyPackageOrders += 1;
+            }
+        } else if (ord.status === 'PENDING') {
+            pendingOrders += 1;
+        }
+    }
+
+    const walletById = new Map((allWallets || []).map((w) => [Number(w.id), w]));
+    const rawOrderRows = (pagedOrders?.rows || []).map((row) => (typeof row?.toJSON === 'function' ? row.toJSON() : { ...row }));
+    const rawTxRows = formatTransactionsForClient(recentTxRows || []);
+
+    const userIds = new Set();
+    const companyIds = new Set();
+    for (const row of rawOrderRows) {
+        if (row.userId) userIds.add(Number(row.userId));
+        if (row.companyId) companyIds.add(Number(row.companyId));
+    }
+    for (const tx of rawTxRows) {
+        const wallet = walletById.get(Number(tx.walletId));
+        if (wallet?.ownerType === OWNER_CANDIDATE && wallet.ownerId) userIds.add(Number(wallet.ownerId));
+        if (wallet?.ownerType === OWNER_COMPANY && wallet.ownerId) companyIds.add(Number(wallet.ownerId));
+    }
+
+    const [users, companies] = await Promise.all([
+        userIds.size > 0 && db.User?.findAll
+            ? db.User.findAll({
+                where: { id: { [Op.in]: [...userIds] } },
+                attributes: ['id', 'firstName', 'lastName', 'email'],
+                raw: true
+            })
+            : [],
+        companyIds.size > 0 && db.Company?.findAll
+            ? db.Company.findAll({
+                where: { id: { [Op.in]: [...companyIds] } },
+                attributes: ['id', 'name'],
+                raw: true
+            })
+            : []
+    ]);
+
+    const userMap = new Map((users || []).map((u) => {
+        const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+        return [Number(u.id), { id: Number(u.id), name: fullName || u.email || `User #${u.id}`, email: u.email || '' }];
+    }));
+    const companyMap = new Map((companies || []).map((c) => [Number(c.id), c.name || `Công ty #${c.id}`]));
+
+    const orders = rawOrderRows.map((row) => {
+        const userInfo = userMap.get(Number(row.userId));
+        return {
+            ...row,
+            actorName: userInfo?.name || `Tài khoản #${row.userId}`,
+            actorEmail: userInfo?.email || '',
+            companyName: row.companyId ? (companyMap.get(Number(row.companyId)) || `Công ty #${row.companyId}`) : null
+        };
+    });
+
+    const transactions = rawTxRows.map((tx) => {
+        const wallet = walletById.get(Number(tx.walletId));
+        const ownerType = wallet?.ownerType || 'CANDIDATE';
+        const ownerId = wallet?.ownerId || null;
+        let ownerLabel = ownerId ? `#${ownerId}` : 'Hệ thống';
+        if (ownerType === OWNER_COMPANY && ownerId) {
+            ownerLabel = companyMap.get(Number(ownerId)) || `Công ty #${ownerId}`;
+        } else if (ownerType === OWNER_CANDIDATE && ownerId) {
+            ownerLabel = userMap.get(Number(ownerId))?.name || `Ứng viên #${ownerId}`;
+        }
+        return {
+            ...tx,
+            ownerType,
+            ownerId,
+            ownerLabel
+        };
+    });
+
+    return {
+        errCode: 0,
+        data: {
+            summary: {
+                candidateWallets,
+                companyWallets,
+                totalOrders: (allOrdersSummary || []).length,
+                paidOrders,
+                pendingOrders,
+                totalPaidRevenueVnd,
+                candidateTopupPaidVnd,
+                candidateTopupOrders,
+                companyPackagePaidVnd,
+                companyPackageOrders
+            },
+            orders,
+            orderCount: Number(pagedOrders?.count || 0),
+            transactions
         }
     };
 };
@@ -958,5 +1454,6 @@ module.exports = {
     calculateEmployerTopPoints,
     awardEmployerPointsForPayment,
     getEmployerRewardOverview,
+    getAdminRewardsOverview,
     redeemEmployerPoints
 };

@@ -18,6 +18,7 @@ const mockDb = {
     OrderPackage: model(),
     OrderPackageCV: model(),
     User: model(),
+    Account: model(),
     UserSetting: model(),
     UserSkill: model(),
     Skill: model(),
@@ -311,9 +312,13 @@ describe('payment gateways', () => {
 describe('rewardService & paymentOrderService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockDb.Account.findOne.mockResolvedValue({ roleCode: 'CANDIDATE' });
         mockDb.Cv.findAll.mockResolvedValue([]);
         mockDb.RewardTransaction.findAll.mockResolvedValue([]);
         mockDb.User.findAll.mockResolvedValue([]);
+        mockDb.Company.findAll.mockResolvedValue([]);
+        mockDb.RewardWallet.findAll.mockResolvedValue([]);
+        mockDb.PaymentOrder.findAll.mockResolvedValue([]);
         mockDb.OrderPackage.findAll.mockResolvedValue([]);
         mockDb.OrderPackageCV.findAll.mockResolvedValue([]);
     });
@@ -389,15 +394,37 @@ describe('rewardService & paymentOrderService', () => {
             { id: 3, userId: 22, createdAt: new Date() }
         ]);
         mockDb.UserSetting.findAll.mockResolvedValue([
-            { userId: 20, expTypeSettingData: { value: '1 năm kinh nghiệm' } },
-            { userId: 21, expTypeSettingData: { value: '3 - 5 năm' } },
-            { userId: 22, expTypeSettingData: { value: 'Trên 5 năm' } }
+            {
+                userId: 20,
+                expTypeSettingData: { value: '1 năm kinh nghiệm' },
+                salaryTypeSettingData: { value: '15 - 20 triệu' }
+            },
+            {
+                userId: 21,
+                expTypeSettingData: { value: '3 - 5 năm' },
+                salaryTypeSettingData: { value: '20 - 30 triệu' }
+            },
+            {
+                userId: 22,
+                expTypeSettingData: { value: 'Trên 5 năm' },
+                salaryTypeSettingData: { value: 'Trên 30 triệu' }
+            }
         ]);
         mockDb.Skill.findAll.mockResolvedValue([{ id: 1, name: 'React' }, { id: 2, name: 'TypeScript' }]);
-        mockDb.UserSkill.findAll.mockResolvedValue([{ SkillId: 1 }, { SkillId: 2 }]);
-        mockDb.UserSetting.findOne.mockResolvedValue({ experienceJobCode: '3Y', expTypeSettingData: { value: '3.5 năm' } });
+        mockDb.UserSkill.findAll.mockResolvedValue([
+            { UserId: 20, SkillId: 1, Skill: { id: 1, name: 'React' } },
+            { UserId: 21, SkillId: 1, Skill: { id: 1, name: 'React' } },
+            { UserId: 21, SkillId: 2, Skill: { id: 2, name: 'TypeScript' } }
+        ]);
+        mockDb.UserSetting.findOne.mockResolvedValue({
+            userId: 7,
+            categoryJobCode: 'IT',
+            experienceJobCode: '3Y',
+            expTypeSettingData: { value: '3.5 năm' },
+            salaryTypeSettingData: { value: '20 - 30 triệu' }
+        });
 
-        // Locked state first
+        // Locked state first: locked fields must be null (no leaked or fake numbers)
         mockDb.CompetitionUnlock.findOne.mockResolvedValueOnce(null);
         const wallet = makeWallet({ balance: 45 });
         mockDb.RewardWallet.findOne.mockResolvedValue(wallet);
@@ -406,6 +433,9 @@ describe('rewardService & paymentOrderService', () => {
         expect(locked.errCode).toBe(0);
         expect(locked.data.unlocked).toBe(false);
         expect(locked.data.totalApplicants).toBe(3);
+        expect(locked.data.experienceBreakdown).toBeNull();
+        expect(locked.data.expectedSalaryAvgMillion).toBeNull();
+        expect(locked.data.profileMatchPercent).toBeNull();
 
         // Insufficient balance branch
         const lowWallet = makeWallet({ balance: 2 });
@@ -414,7 +444,7 @@ describe('rewardService & paymentOrderService', () => {
         const insufficient = await rewardService.unlockJobCompetitionReport({ postId: 12, userId: 7 });
         expect(insufficient.errCode).toBe(2);
 
-        // Unlock report (-10 points)
+        // Unlock report (-10 points) and verify 100% real DB metrics
         mockDb.RewardWallet.findOne.mockResolvedValue(wallet);
         mockDb.CompetitionUnlock.findOne
             .mockResolvedValueOnce(null)
@@ -428,7 +458,40 @@ describe('rewardService & paymentOrderService', () => {
         expect(unlocked.errCode).toBe(0);
         expect(unlocked.data.unlocked).toBe(true);
         expect(unlocked.data.experienceBreakdown).toHaveLength(3);
+        expect(unlocked.data.experienceBreakdown.map((r) => r.count)).toEqual([1, 1, 1]);
+        expect(unlocked.data.salaryRange.source).toBe('APPLICANTS');
+        expect(unlocked.data.expectedSalaryAvgMillion).toBe(25.7);
+        expect(unlocked.data.applicantTopSkills[0]).toMatchObject({ name: 'React', count: 2 });
+        expect(unlocked.data.profileMatchPercent).toBe(100);
         expect(wallet.balance).toBe(35);
+
+        // Zero-match candidate & negotiable post without applicant salary -> honest 0% & null avg salary
+        mockDb.Post.findOne.mockResolvedValueOnce({
+            id: 15,
+            postDetailData: {
+                name: 'Data Analyst Python SQL',
+                amount: 1,
+                categoryJobCode: 'IT',
+                addressCode: 'HCM',
+                salaryJobCode: 'thoa-thuan',
+                experienceJobCode: '2-nam',
+                salaryTypePostData: { value: 'Thoả thuận' },
+                expTypePostData: { value: '2 năm' },
+                descriptionHTML: '<p>Python SQL</p>'
+            }
+        });
+        mockDb.Cv.findAll.mockResolvedValueOnce([{ id: 9, userId: 30, createdAt: new Date() }]);
+        mockDb.UserSetting.findAll.mockResolvedValueOnce([]);
+        mockDb.Skill.findAll.mockResolvedValueOnce([{ id: 10, name: 'Python' }, { id: 11, name: 'SQL' }]);
+        mockDb.UserSkill.findAll.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+        mockDb.UserSetting.findOne.mockResolvedValueOnce(null);
+        mockDb.CompetitionUnlock.findOne.mockResolvedValueOnce({ id: 6, expiresAt: new Date(Date.now() + 86400000) });
+
+        const honestReport = await rewardService.getJobCompetitionReport({ postId: 15, userId: 7 });
+        expect(honestReport.data.expectedSalaryAvgMillion).toBeNull();
+        expect(honestReport.data.profileMatchPercent).toBe(0);
+        expect(honestReport.data.experienceBreakdown).toHaveLength(4);
+        expect(honestReport.data.experienceBreakdown[3]).toMatchObject({ key: 'unupdated', count: 1 });
     });
 
     test('manages employer Top Points, historical order sync, and catalog redemption', async () => {
@@ -826,5 +889,173 @@ describe('rewardService & paymentOrderService', () => {
             forbiddenPackageForSubEmployer
         );
         expect(forbiddenPackageForSubEmployer.status).toHaveBeenCalledWith(403);
+    });
+
+    test('enforces strict 5-group RBAC, tenant isolation, and Admin platform supervision', async () => {
+        const candidateUser = { id: 7, companyId: null, userAccountData: { roleCode: 'CANDIDATE' } };
+        const approvedEmployer = {
+            id: 8,
+            companyId: 4,
+            userCompanyData: { id: 4, statusCode: 'S1', censorCode: 'CS1' },
+            userAccountData: { roleCode: 'EMPLOYER' }
+        };
+        const unattachedEmployer = {
+            id: 81,
+            companyId: null,
+            userAccountData: { roleCode: 'EMPLOYER' }
+        };
+        const pendingCompanyOwner = {
+            id: 91,
+            companyId: 5,
+            userCompanyData: { id: 5, statusCode: 'S1', censorCode: 'CS3' },
+            userAccountData: { roleCode: 'COMPANY' }
+        };
+        const adminUser = {
+            id: 1,
+            companyId: null,
+            userAccountData: { roleCode: 'ADMIN' }
+        };
+
+        mockDb.Company.findOne.mockResolvedValue({ id: 4, name: 'VNG', allowPost: 3, allowHotPost: 1, allowCv: 5 });
+        mockDb.RewardWallet.findOne.mockResolvedValue(makeWallet({ ownerType: 'COMPANY', ownerId: 4, balance: 25, lifetimeEarned: 40 }));
+        mockDb.RewardTransaction.findAll.mockResolvedValue([]);
+
+        // 1. ADMIN must be rejected from candidate wallets, candidate check-in, candidate topup, and employer redeem/package purchase
+        const adminCandRes = createResponse();
+        await controller.getCandidateOverview(createRequest({ user: adminUser }), adminCandRes);
+        expect(adminCandRes.status).toHaveBeenCalledWith(403);
+
+        const adminCheckinRes = createResponse();
+        await controller.claimDailyCheckin(createRequest({ user: adminUser }), adminCheckinRes);
+        expect(adminCheckinRes.status).toHaveBeenCalledWith(403);
+
+        const adminUnlockRes = createResponse();
+        await controller.unlockCompetitionReport(createRequest({ user: adminUser, params: { postId: 12 } }), adminUnlockRes);
+        expect(adminUnlockRes.status).toHaveBeenCalledWith(403);
+
+        const adminRedeemRes = createResponse();
+        await controller.redeemEmployerPoints(createRequest({ user: adminUser, body: { itemCode: 'POST_1' } }), adminRedeemRes);
+        expect(adminRedeemRes.status).toHaveBeenCalledWith(403);
+
+        const adminTopupCheckoutRes = createResponse();
+        await controller.createCheckout(
+            createRequest({ user: adminUser, body: { purpose: 'POINT_TOPUP', itemCode: 'BASIC', provider: 'VNPAY' } }),
+            adminTopupCheckoutRes
+        );
+        expect(adminTopupCheckoutRes.status).toHaveBeenCalledWith(403);
+
+        const adminVerifyRes = createResponse();
+        await controller.verifyPaymentReturn(
+            createRequest({ user: adminUser, query: { order: 'JF1', provider: 'VNPAY' } }),
+            adminVerifyRes
+        );
+        expect(adminVerifyRes.status).toHaveBeenCalledWith(403);
+
+        // 2. Approved EMPLOYER can view company Top Points read-only (canRedeem: false),
+        // but CANNOT redeem, CANNOT view company payment orders (?scope=company), CANNOT call candidate endpoints
+        const empOverviewRes = createResponse();
+        await controller.getEmployerOverview(createRequest({ user: approvedEmployer }), empOverviewRes);
+        expect(empOverviewRes.status).toHaveBeenCalledWith(200);
+        expect(empOverviewRes.json.mock.calls[0][0].data.canRedeem).toBe(false);
+
+        const empOrdersCompanyRes = createResponse();
+        await controller.getPaymentOrders(createRequest({ user: approvedEmployer, query: { scope: 'company' } }), empOrdersCompanyRes);
+        expect(empOrdersCompanyRes.status).toHaveBeenCalledWith(403);
+
+        const empOrdersSelfRes = createResponse();
+        await controller.getPaymentOrders(createRequest({ user: approvedEmployer, query: { scope: 'self' } }), empOrdersSelfRes);
+        expect(empOrdersSelfRes.status).toHaveBeenCalledWith(403);
+
+        const empRedeemRes = createResponse();
+        await controller.redeemEmployerPoints(createRequest({ user: approvedEmployer, body: { itemCode: 'POST_1' } }), empRedeemRes);
+        expect(empRedeemRes.status).toHaveBeenCalledWith(403);
+
+        const unattachedEmpOverviewRes = createResponse();
+        await controller.getEmployerOverview(createRequest({ user: unattachedEmployer }), unattachedEmpOverviewRes);
+        expect(unattachedEmpOverviewRes.status).toHaveBeenCalledWith(403);
+
+        // 3. Pending COMPANY (CS3) cannot purchase packages or redeem points
+        const pendingRedeemRes = createResponse();
+        await controller.redeemEmployerPoints(createRequest({ user: pendingCompanyOwner, body: { itemCode: 'POST_1' } }), pendingRedeemRes);
+        expect(pendingRedeemRes.status).toHaveBeenCalledWith(403);
+
+        const pendingCheckoutRes = createResponse();
+        await controller.createCheckout(
+            createRequest({ user: pendingCompanyOwner, body: { purpose: 'PACKAGE_POST', itemCode: 1, provider: 'MOMO' } }),
+            pendingCheckoutRes
+        );
+        expect(pendingCheckoutRes.status).toHaveBeenCalledWith(403);
+
+        // 4. CANDIDATE cannot view Admin rewards overview or Employer overview
+        const candAdminRes = createResponse();
+        await controller.getAdminRewardsOverview(createRequest({ user: candidateUser }), candAdminRes);
+        expect(candAdminRes.status).toHaveBeenCalledWith(403);
+
+        const candEmpOverviewRes = createResponse();
+        await controller.getEmployerOverview(createRequest({ user: candidateUser }), candEmpOverviewRes);
+        expect(candEmpOverviewRes.status).toHaveBeenCalledWith(403);
+
+        // 5. Non-candidate account does not receive candidate CV submission points
+        mockDb.Account.findOne.mockResolvedValueOnce({ roleCode: 'COMPANY' });
+        mockDb.RewardWallet.findOne.mockClear();
+        const nonCandApply = await rewardService.awardCandidateApplicationPoints({ userId: 91, postId: 123 });
+        expect(nonCandApply).toBeNull();
+        expect(mockDb.RewardWallet.findOne).not.toHaveBeenCalled();
+
+        // 6. Payment catalog for COMPANY does not touch CANDIDATE wallet
+        mockDb.RewardWallet.findOne.mockClear();
+        mockDb.RewardWallet.create.mockClear();
+        mockDb.RewardWallet.findOne.mockResolvedValueOnce(makeWallet({ ownerType: 'COMPANY', ownerId: 4, balance: 25 }));
+        const companyCatalog = await paymentOrderService.getPaymentCatalog({ userId: 9, companyId: 4, roleCode: 'COMPANY' });
+        expect(companyCatalog.data.candidateRewards).toBeNull();
+        expect(companyCatalog.data.employerRewards).toBeTruthy();
+
+        // 7. ADMIN supervision endpoint returns aggregated platform metrics, orders, and transactions
+        mockDb.RewardWallet.findAll.mockResolvedValueOnce([
+            { id: 1, ownerType: 'CANDIDATE', ownerId: 7, balance: 50, lifetimeEarned: 70, lifetimeSpent: 20 },
+            { id: 2, ownerType: 'COMPANY', ownerId: 4, balance: 25, lifetimeEarned: 40, lifetimeSpent: 15 },
+        ]);
+        mockDb.PaymentOrder.findAll.mockResolvedValueOnce([
+            { purpose: 'POINT_TOPUP', status: 'PAID', amount: 50000, points: 60 },
+            { purpose: 'PACKAGE_POST', status: 'PAID', amount: 500000, points: 5 },
+            { purpose: 'POINT_TOPUP', status: 'PENDING', amount: 20000, points: 22 },
+        ]);
+        mockDb.PaymentOrder.findAndCountAll.mockResolvedValueOnce({
+            count: 1,
+            rows: [
+                {
+                    id: 101,
+                    orderCode: 'JFADMIN1',
+                    provider: 'VNPAY',
+                    purpose: 'PACKAGE_POST',
+                    userId: 9,
+                    companyId: 4,
+                    itemName: 'Gói VIP',
+                    amount: 500000,
+                    points: 5,
+                    status: 'PAID',
+                    createdAt: new Date()
+                }
+            ]
+        });
+        mockDb.RewardTransaction.findAll.mockResolvedValueOnce([
+            { id: 501, walletId: 1, type: 'TOPUP_PURCHASE', amount: 60, balanceAfter: 50, description: 'Nạp điểm', createdAt: new Date() }
+        ]);
+        mockDb.User.findAll.mockResolvedValueOnce([
+            { id: 7, firstName: 'An', lastName: 'Nguyễn', email: 'an@test.vn' },
+            { id: 9, firstName: 'Minh', lastName: 'Trần', email: 'minh@vng.vn' }
+        ]);
+        mockDb.Company.findAll.mockResolvedValueOnce([{ id: 4, name: 'VNG Corp' }]);
+
+        const adminOverviewRes = createResponse();
+        await controller.getAdminRewardsOverview(createRequest({ user: adminUser }), adminOverviewRes);
+        expect(adminOverviewRes.status).toHaveBeenCalledWith(200);
+        const overviewPayload = adminOverviewRes.json.mock.calls[0][0].data;
+        expect(overviewPayload.summary.totalPaidRevenueVnd).toBe(550000);
+        expect(overviewPayload.summary.candidateWallets.totalBalance).toBe(50);
+        expect(overviewPayload.summary.companyWallets.totalBalance).toBe(25);
+        expect(overviewPayload.orders[0].companyName).toBe('VNG Corp');
+        expect(overviewPayload.orders[0].actorName).toBe('Minh Trần');
+        expect(overviewPayload.transactions[0].ownerLabel).toBe('An Nguyễn');
     });
 });

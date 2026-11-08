@@ -61,6 +61,7 @@ export default function JobDetail() {
     const canApply = !user || (user.roleCode === 'CANDIDATE' && hasPermission(user, PERMISSIONS.APPLY_TO_JOB));
     const canSave = !user || hasPermission(user, PERMISSIONS.SOCIAL_INTERACT);
     const canChat = !user || (hasPermission(user, PERMISSIONS.USE_CHAT) && hasPermission(user, PERMISSIONS.SOCIAL_INTERACT));
+    const showCandidateRewards = !user || user.roleCode === 'CANDIDATE';
     const checkFavorite = Boolean(userId && canSave);
     const [detailState, setDetailState] = useState(() => ({ data: getCachedJobDetail(id), error: false }));
     const [related, setRelated] = useState([]);
@@ -200,38 +201,37 @@ export default function JobDetail() {
                     <div className="jd-tags"><span><Icon name="pin" />{label(detail.provincePostData)}</span><span><Icon name="briefcase" />{label(detail.workTypePostData)}</span><span className="jd-tag--salary"><Icon name="money" />{label(detail.salaryTypePostData)}</span><span className={closed ? 'jd-tag--closed' : ''}><Icon name="calendar" />Hạn nộp: {deadline}</span></div>
                 </div>
                 <div className="jd-hero-actions">{applyButton()}{canSave && <button type="button" className={`jd-button jd-button--save${favorite ? ' is-active' : ''}`} aria-pressed={favorite} disabled={saving || favoriteLoading} onClick={toggleFavorite}><Icon name="bookmark" />{saving ? 'Đang lưu…' : favorite ? 'Đã lưu việc làm' : 'Lưu việc làm'}</button>}</div>
-                <div className="jf-reward-hero-notice" style={{ gridColumn: '1 / -1' }}>
-                    <div className="jf-reward-hero-notice__left">
-                        <span className="jf-reward-hero-notice__icon">★</span>
-                        <span><strong>Chương trình Tích điểm:</strong> Nhận ngay <strong className="jf-reward-hero-notice__highlight">+5 Điểm thưởng</strong> vào ví JobFind khi hoàn tất nộp hồ sơ vào tin tuyển dụng này!</span>
+                {showCandidateRewards && (
+                    <div className="jf-reward-hero-notice" style={{ gridColumn: '1 / -1' }}>
+                        <span>Ứng viên hoàn tất nộp CV vào vị trí này được cộng <strong>+5 điểm</strong> tích lũy.</span>
                     </div>
-                    <div className="jf-reward-hero-notice__right">
-                        <span className="jf-reward-live-dot" />
-                        <span>Phân tích cạnh tranh thời gian thực</span>
-                    </div>
-                </div>
+                )}
             </header>
             {applicationNotice && <p className="jd-application-notice" role="status">{applicationNotice}</p>}
             {!user && <p className="jd-application-notice">Bạn có thể xem đầy đủ thông tin công việc. Khi nộp CV, bạn cần đăng nhập hoặc tạo tài khoản ứng viên.</p>}
             {user && !canApply && <p className="jd-application-notice" role="status">Ứng tuyển dành cho tài khoản ứng viên. Để nộp CV, hãy đăng xuất tài khoản hiện tại và đăng nhập bằng tài khoản ứng viên.</p>}
             <div className="jd-layout">
                 <article className="jd-content">
-                    <JobCompetitionSection
-                        postId={id}
-                        applicationCount={applicationCount ?? 0}
-                        hiringTarget={Number(detail.amount) || 1}
-                        onOpenTopup={(tab = 'topup') => setTopupModalState({ open: true, tab })}
-                    />
+                    {showCandidateRewards && (
+                        <JobCompetitionSection
+                            postId={id}
+                            applicationCount={applicationCount ?? 0}
+                            hiringTarget={Number(detail.amount) || 1}
+                            onOpenTopup={(tab = 'topup') => setTopupModalState({ open: true, tab })}
+                        />
+                    )}
                     <section className="jd-section"><h2>Mô tả công việc</h2>{sections.description.trim() ? <div className="jd-richtext" dangerouslySetInnerHTML={{ __html: sections.description }} /> : <p className="jd-muted">Nhà tuyển dụng chưa cập nhật mô tả công việc.</p>}</section>
                     {sections.requirements.trim() && <section className="jd-section jd-requirements"><h2>Yêu cầu ứng viên</h2><div className="jd-richtext" dangerouslySetInnerHTML={{ __html: sections.requirements }} /></section>}
                     {sections.benefits.length > 0 && <section className="jd-section"><h2>Quyền lợi</h2><div className="jd-benefits">{sections.benefits.map((html, index) => <div className="jd-benefit" key={index}><span className={`jd-benefit-icon jd-benefit-icon--${benefitIcon(html)}`}><Icon name={benefitIcon(html)} /></span><div className="jd-richtext" dangerouslySetInnerHTML={{ __html: html }} /></div>)}</div></section>}
                     {related.length > 0 && <section className="jd-section jd-related"><h2>Việc làm tương tự</h2>{related.map(item => <Link key={item.id} to={`/detail-job/${item.id}`} onMouseEnter={() => prefetchJobDetail(item.id)} onFocus={() => prefetchJobDetail(item.id)} onTouchStart={() => prefetchJobDetail(item.id)} className="jd-related-job"><CompanyLogo company={item.userPostData?.userCompanyData || {}} small /><div><h3>{item.postDetailData?.name}</h3><p>{item.userPostData?.userCompanyData?.name}</p><span>{item.postDetailData?.provincePostData?.value} · {jobLabel(item.postDetailData?.salaryTypePostData)}</span></div></Link>)}</section>}
                 </article>
                 <aside className="jd-sidebar" aria-label="Thông tin tuyển dụng">
-                    <CandidateWalletCard
-                        onOpenTopup={(tab = 'topup') => setTopupModalState({ open: true, tab })}
-                        onWalletLoaded={setWalletOverview}
-                    />
+                    {showCandidateRewards && (
+                        <CandidateWalletCard
+                            onOpenTopup={(tab = 'topup') => setTopupModalState({ open: true, tab })}
+                            onWalletLoaded={setWalletOverview}
+                        />
+                    )}
                     <section className="jd-card jd-company-card" aria-label="Thông tin công ty">
                         <div className="jd-company-heading"><CompanyLogo company={company} small /><div><h2>{company.name}</h2><Link to={`/detail-company/${company.id}`}>Xem trang công ty</Link></div></div>
                         <dl className="jd-company-facts"><div><dt>Quy mô:</dt><dd>{Number(company.amountEmployer) > 0 ? `${Number(company.amountEmployer).toLocaleString('vi-VN')} nhân viên` : 'Chưa cập nhật'}</dd></div><div><dt>Lĩnh vực công việc:</dt><dd>{label(detail.jobTypePostData)}</dd></div><div><dt>Địa điểm:</dt><dd>{company.address || 'Chưa cập nhật'}</dd></div></dl>
@@ -245,7 +245,7 @@ export default function JobDetail() {
             </div>
         </div>
         <SendCvModal isOpen={isOpen} onHide={() => setIsOpen(false)} onSubmitted={afterSubmit} postId={id} jobTitle={detail.name} />
-        {topupModalState.open && (
+        {showCandidateRewards && topupModalState.open && (
             <PointTopupModal
                 isOpen
                 initialTab={topupModalState.tab}

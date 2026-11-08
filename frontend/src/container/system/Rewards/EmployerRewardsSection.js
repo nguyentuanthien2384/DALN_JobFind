@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
+import { hasApprovedCompany } from '../../../auth/accessControl';
 import {
     getCachedEmployerRewardOverview,
     getEmployerRewardOverviewService,
@@ -8,6 +9,7 @@ import {
     REWARD_WALLET_UPDATED_EVENT,
     setCachedEmployerRewardOverview,
 } from '../../../service/rewardPaymentService';
+import { readJsonStorage } from '../../../util/storage';
 import './EmployerRewardsSection.css';
 
 const DEFAULT_EMPLOYER_CATALOG = [
@@ -45,16 +47,29 @@ const DEFAULT_EMPLOYER_CATALOG = [
     },
 ];
 
-const EmployerRewardsSection = ({ compact = false }) => {
+const EmployerRewardsSection = ({ compact = false, user: suppliedUser = null }) => {
+    const activeUser = suppliedUser || readJsonStorage('userData');
     const [overview, setOverview] = useState(() => getCachedEmployerRewardOverview());
     const [redeemingCode, setRedeemingCode] = useState('');
+    const [loadError, setLoadError] = useState('');
+
+    const canRedeem = overview?.canRedeem !== undefined
+        ? Boolean(overview.canRedeem)
+        : activeUser?.roleCode === 'EMPLOYER' || activeUser?.roleCode === 'ADMIN'
+            ? false
+            : activeUser?.roleCode === 'COMPANY'
+                ? hasApprovedCompany(activeUser)
+                : true;
 
     const loadEmployerRewards = useCallback(async () => {
         try {
             const res = await getEmployerRewardOverviewService();
             if (res && res.errCode === 0 && res.data) {
+                setLoadError('');
                 setCachedEmployerRewardOverview(res.data);
                 setOverview(res.data);
+            } else if (res && res.errCode !== 0 && res.errMessage) {
+                setLoadError(res.errMessage);
             }
         } catch (_err) {
             // Keep default catalog when offline or in unit test mocks
@@ -76,6 +91,10 @@ const EmployerRewardsSection = ({ compact = false }) => {
     }, [loadEmployerRewards]);
 
     const handleRedeem = async (rewardCode) => {
+        if (!canRedeem) {
+            toast.warning('Chỉ Chủ công ty (COMPANY) đã được duyệt mới có quyền đổi Top Point.');
+            return;
+        }
         setRedeemingCode(rewardCode);
         try {
             const res = await redeemEmployerPointsService(rewardCode);
@@ -118,16 +137,21 @@ const EmployerRewardsSection = ({ compact = false }) => {
             : DEFAULT_EMPLOYER_CATALOG;
     const transactions = Array.isArray(overview?.transactions) ? overview.transactions : [];
 
+    const permissionMessage = activeUser?.roleCode === 'EMPLOYER'
+        ? 'Bạn đang đăng nhập bằng tài khoản Nhân viên tuyển dụng (chế độ chỉ xem quỹ lượt & Top Point của công ty). Chỉ Chủ công ty (COMPANY) mới có quyền mua gói dịch vụ và đổi Top Point.'
+        : activeUser?.roleCode === 'COMPANY' && !hasApprovedCompany(activeUser)
+            ? 'Công ty của bạn đang chờ duyệt hoặc tạm khóa nên chưa thể mua gói dịch vụ và đổi Top Point.'
+            : 'Chức năng đổi Top Point chỉ dành cho Chủ công ty (COMPANY) đã được duyệt.';
+
     return (
         <section className="jf-emp-rewards" aria-label="JobFind Rewards - Tích điểm Nhà tuyển dụng">
             <div className="jf-emp-rewards__hero">
                 <div className="jf-emp-rewards__hero-left">
                     <div className="jf-emp-rewards__badge-row">
                         <span className="jf-emp-rewards__tier-pill">
-                            <i className="fas fa-crown" />
                             {tierLabel} (x{multiplier})
                         </span>
-                        <span style={{ fontSize: '12px', color: '#93c5fd', fontWeight: 700 }}>
+                        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
                             Chương trình ưu đãi khách hàng doanh nghiệp
                         </span>
                     </div>
@@ -136,20 +160,32 @@ const EmployerRewardsSection = ({ compact = false }) => {
                     </h2>
                     <p className="jf-emp-rewards__desc">
                         Mỗi <strong>100.000 VNĐ</strong> thanh toán gói đăng tin hoặc gói mở khóa CV tự động tích lũy{' '}
-                        <strong>+1 Top Point</strong> (nhân hệ số hạng thành viên). Dùng Top Point để đổi miễn phí lượt đăng tin VIP và lượt xem hồ sơ ứng viên!
+                        <strong>+1 Top Point</strong> (nhân hệ số hạng thành viên). Dùng Top Point để đổi lượt đăng tin và lượt xem hồ sơ ứng viên cho công ty.
                     </p>
                 </div>
 
                 <div className="jf-emp-rewards__balance-box">
                     <div className="jf-emp-rewards__balance-label">Số dư Top Point khả dụng</div>
                     <div className="jf-emp-rewards__balance-pts">
-                        {balancePoints.toLocaleString('vi-VN')} <small style={{ fontSize: '14px' }}>Top Point</small>
+                        {balancePoints.toLocaleString('vi-VN')} <small style={{ fontSize: '13px' }}>Top Point</small>
                     </div>
                     <div className="jf-emp-rewards__balance-sub">
                         Tổng điểm tích lũy: {lifetimeEarned.toLocaleString('vi-VN')} Top Point
                     </div>
                 </div>
             </div>
+
+            {loadError && (
+                <div className="jf-emp-rewards__permission-notice" role="alert">
+                    {loadError}
+                </div>
+            )}
+
+            {!canRedeem && !loadError && (
+                <div className="jf-emp-rewards__permission-notice" role="status">
+                    {permissionMessage}
+                </div>
+            )}
 
             {/* Company Allowances */}
             <div className="jf-emp-allowances-grid">
@@ -170,7 +206,6 @@ const EmployerRewardsSection = ({ compact = false }) => {
             {/* Redemption Catalog */}
             <div className="jf-emp-catalog-head">
                 <h3 className="jf-emp-catalog-title">
-                    <i className="fas fa-gift" style={{ color: '#003d9b', marginRight: '8px' }} />
                     Cửa hàng Đổi quà bằng Top Point
                 </h3>
                 <span style={{ fontSize: '12px', color: '#64748b' }}>
@@ -198,16 +233,17 @@ const EmployerRewardsSection = ({ compact = false }) => {
 
                             <div className="jf-emp-gift-card__footer">
                                 <span className="jf-emp-gift-card__cost">
-                                    <i className="fas fa-coins" style={{ marginRight: '5px' }} />
                                     {item.costPoints} Top Point
                                 </span>
                                 <button
                                     type="button"
                                     className="jf-emp-redeem-btn"
-                                    disabled={redeemingCode === item.code || !canAfford}
+                                    disabled={!canRedeem || redeemingCode === item.code || !canAfford}
                                     onClick={() => handleRedeem(item.code)}
                                 >
-                                    {redeemingCode === item.code
+                                    {!canRedeem
+                                        ? 'Chỉ Chủ công ty'
+                                        : redeemingCode === item.code
                                         ? 'Đang đổi...'
                                         : canAfford
                                         ? 'Đổi ngay'

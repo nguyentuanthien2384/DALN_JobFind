@@ -1203,13 +1203,17 @@ img, video, canvas, svg {
     background-color: #ffffff !important;
     border: 1px solid #dee2e6 !important;
     border-radius: 6px !important;
+    box-shadow: none !important;
+    outline: 0 !important;
     text-decoration: none !important;
-    transition: all 0.2s ease-in-out !important;
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out !important;
     user-select: none !important;
 }
 
 /* Nut trang dang duoc chon: mau tim dam chu dao, do bong nhe */
-.pagination .page-item.active .page-link {
+.pagination .page-item.active .page-link,
+.pagination .page-item.active .page-link:hover,
+.pagination .page-item.active .page-link:focus {
     background-color: #4B49AC !important;
     border-color: #4B49AC !important;
     color: #ffffff !important;
@@ -1218,39 +1222,54 @@ img, video, canvas, svg {
     z-index: 3 !important;
 }
 
-/* Nut trang khac khi re chuot (hover) */
-.pagination .page-item:not(.active):hover .page-link,
-.pagination .page-item:not(.active) .page-link:hover {
-    background-color: #f0f0ff !important;
-    border-color: #4B49AC !important;
-    color: #4B49AC !important;
-    z-index: 2 !important;
+/* Xoa trang thai focus dinh lai sau khi click chuot vao "Quay lai" / "Tiep" */
+.pagination .page-item:not(.active):not(.disabled) .page-link:focus,
+.pagination .page-item:not(.active):not(.disabled):focus .page-link {
+    background-color: #ffffff !important;
+    border-color: #dee2e6 !important;
+    color: #4a5568 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
 }
 
-/* Nut trang khac khi co focus (tab phim hoac vua click) */
-.pagination .page-item:not(.active) .page-link:focus,
-.pagination .page-item:not(.active):focus .page-link {
-    background-color: #f0f0ff !important;
+/* Chi hien viền focus khi nguoi dung dieu huong bang ban phim (Tab) */
+.pagination .page-item:not(.active):not(.disabled) .page-link:focus-visible {
     border-color: #4B49AC !important;
-    color: #4B49AC !important;
-    box-shadow: 0 0 0 0.2rem rgba(75, 73, 172, 0.25) !important;
+    box-shadow: 0 0 0 2px rgba(75, 73, 172, 0.22) !important;
     outline: 0 !important;
     z-index: 2 !important;
 }
 
+/* Nut trang khac chi sang len khi con tro chuot dang thuc su dat tren nut (hover) */
+@media (hover: hover) {
+    .pagination .page-item:not(.active):not(.disabled):hover .page-link,
+    .pagination .page-item:not(.active):not(.disabled) .page-link:hover {
+        background-color: #f0f0ff !important;
+        border-color: #4B49AC !important;
+        color: #4B49AC !important;
+        z-index: 2 !important;
+    }
+}
+
 /* Khi dang nhan giu chuot (active state) */
-.pagination .page-item:not(.active):active .page-link,
-.pagination .page-item:not(.active) .page-link:active {
+.pagination .page-item:not(.active):not(.disabled):active .page-link,
+.pagination .page-item:not(.active):not(.disabled) .page-link:active {
     background-color: #e5e4f7 !important;
     border-color: #4B49AC !important;
     color: #4B49AC !important;
 }
 
 /* Nut vo hieu hoa (Quay lai o trang dau tien hoac Tiep o trang cuoi) */
-.pagination .page-item.disabled .page-link {
+.pagination .page-item.disabled .page-link,
+.pagination .page-item.disabled .page-link:hover,
+.pagination .page-item.disabled .page-link:focus,
+.pagination .page-item.disabled .page-link:focus-visible,
+.pagination .page-item.disabled:focus .page-link {
     color: #a0aec0 !important;
     background-color: #f8f9fa !important;
     border-color: #e2e8f0 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
     cursor: not-allowed !important;
     pointer-events: none !important;
     opacity: 0.65 !important;
