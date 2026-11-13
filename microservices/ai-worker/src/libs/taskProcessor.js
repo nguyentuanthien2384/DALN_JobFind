@@ -18,6 +18,9 @@ const publicAiError = (error) => {
     if (error?.code === 'AI_INVALID_WRITE_REQUEST') return 'Dữ liệu gửi AI soạn thảo không hợp lệ';
     if (error?.code === 'AI_WRITE_TOO_LONG') return 'AI soạn bản nháp dài hơn giới hạn; hãy thử lại';
     const status = error?.status;
+    if (status === 401) {
+        return 'Khóa API AI (ANTHROPIC_API_KEY) không hợp lệ hoặc đã hết hạn (HTTP 401)';
+    }
     if (Number.isInteger(status) && status >= 400 && status <= 599) {
         return `Nhà cung cấp AI trả lỗi HTTP ${status}`;
     }

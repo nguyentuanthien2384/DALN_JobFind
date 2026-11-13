@@ -112,6 +112,66 @@ export const initSchema = async () => {
         )
     `);
 
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS domain_test_templates (
+            id                 BIGSERIAL PRIMARY KEY,
+            company_id         INTEGER NOT NULL,
+            domain_code        TEXT NOT NULL,
+            domain_label       TEXT NOT NULL,
+            title              TEXT NOT NULL,
+            description        TEXT,
+            difficulty         TEXT NOT NULL DEFAULT 'MID',
+            time_limit_minutes INTEGER NOT NULL DEFAULT 40,
+            questions          JSONB NOT NULL,
+            created_by         INTEGER,
+            created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_domain_templates_lookup
+            ON domain_test_templates (company_id, domain_code);
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS application_assessments (
+            id                 BIGSERIAL PRIMARY KEY,
+            application_id     BIGINT UNIQUE NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+            job_id             INTEGER NOT NULL,
+            company_id         INTEGER NOT NULL,
+            candidate_id       INTEGER NOT NULL,
+            domain_code        TEXT NOT NULL,
+            domain_label       TEXT NOT NULL,
+            template_id        TEXT,
+            title              TEXT NOT NULL,
+            description        TEXT,
+            instructions       TEXT,
+            time_limit_seconds INTEGER,
+            questions          JSONB NOT NULL,
+            status             TEXT NOT NULL DEFAULT 'ASSIGNED',
+            answers            JSONB,
+            started_at         TIMESTAMPTZ,
+            submitted_at       TIMESTAMPTZ,
+            time_spent_seconds INTEGER,
+            is_overtime        BOOLEAN NOT NULL DEFAULT FALSE,
+            mcq_score          NUMERIC(8, 2),
+            mcq_auto_results   JSONB,
+            earned_points      NUMERIC(8, 2),
+            max_score          NUMERIC(8, 2) NOT NULL DEFAULT 0,
+            total_score        NUMERIC(5, 2),
+            grading_mode       TEXT,
+            grading_feedback   JSONB,
+            ai_grade_task_id   TEXT,
+            created_by         INTEGER,
+            graded_by          INTEGER,
+            graded_at          TIMESTAMPTZ,
+            created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_assessments_company_domain
+            ON application_assessments (company_id, domain_code);
+        CREATE INDEX IF NOT EXISTS idx_assessments_candidate
+            ON application_assessments (candidate_id);
+    `);
+
     logger.info('da khoi tao lo do PostgreSQL');
 };
 

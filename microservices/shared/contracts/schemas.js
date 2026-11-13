@@ -40,6 +40,28 @@ const jobFields = {
 // Numeric query values remain strings; controllers parse them. Only the four
 // explicitly declared multi-select Search filters accept arrays of strings.
 export const queryNumber = (max) => ({ type: 'string', pattern: '^(0|[1-9][0-9]*)$', maxLength: String(max).length, format: `jobfind-uint-${max}` });
+const assessmentOption = object({ id: nonblank(16), text: nonblank(1000) }, ['id', 'text']);
+const assessmentQuestion = object({
+    id: nonblank(64),
+    order: integer(1, 50),
+    type: { type: 'string', enum: ['mcq_single', 'mcq_multi', 'text', 'code'] },
+    prompt: nonblank(4000),
+    points: { type: 'number', minimum: 0.5, maximum: 100 },
+    options: array(assessmentOption, 8),
+    correctOptionIds: array(nonblank(16), 8),
+    explanation: text(2000),
+    language: { type: 'string', enum: ['javascript', 'typescript', 'python', 'java', 'sql', 'html_css', 'other'] },
+    starterCode: text(10000),
+    placeholder: text(300),
+    maxLength: integer(50, 15000),
+    rubric: text(3000),
+    sampleAnswer: text(10000)
+}, ['type', 'prompt']);
+const candidateAnswerItem = object({
+    selectedOptionIds: array(nonblank(16), 8),
+    textAnswer: optionalText(15000),
+    codeAnswer: optionalText(30000)
+});
 export const schemas = {
     SupportTurn: object({ requestId: { type: 'string', format: 'uuid' }, text: nonblank(1400), conversationId: { type: 'string', format: 'uuid' }, version: integer(), replaceFrom: nullable({ type: 'string', format: 'uuid' }), parentId: nullable({ type: 'string', format: 'uuid' }) }, ['requestId', 'text']),
     SupportHandoff: object({ consent: { const: true } }, ['consent']),
@@ -89,6 +111,51 @@ export const schemas = {
     InterviewInvitation: object({ message: optionalText(3000), interview: interviewSchema }, ['interview']),
     Rating: object({ rating: { anyOf: [integer(1, 5), { type: 'string', pattern: '^[1-5]$' }] } }, ['rating']),
     Note: object({ body: nonblank(5000) }, ['body']),
+    AssessmentUpsert: object({
+        templateId: optionalText(64),
+        domainCode: optionalText(64),
+        title: nonblank(255),
+        description: optionalText(2000),
+        instructions: optionalText(4000),
+        timeLimitMinutes: nullable(integer(5, 240)),
+        questions: { ...array(assessmentQuestion, 25), minItems: 1 },
+        saveAsTemplate: { type: 'boolean' }
+    }, ['title', 'questions']),
+    AssessmentAiGenerate: object({
+        questionCount: integer(3, 10),
+        difficulty: { type: 'string', enum: ['JUNIOR', 'MID', 'SENIOR'] },
+        questionMix: { type: 'string', enum: ['mixed', 'mcq_focused', 'practical_focused'] },
+        focusTopics: optionalText(500),
+        language: aiLanguage
+    }),
+    AssessmentManualGrade: object({
+        questionScores: { ...array(object({
+            questionId: nonblank(64),
+            earnedPoints: { type: 'number', minimum: 0, maximum: 100 },
+            comment: optionalText(2000)
+        }, ['questionId', 'earnedPoints']), 25), minItems: 1 },
+        overallFeedback: optionalText(4000),
+        recommendation: nullable({ type: 'string', enum: ['PASS', 'CONSIDER', 'FAIL'] })
+    }, ['questionScores']),
+    AssessmentAiGradeRequest: object({ language: aiLanguage }),
+    AssessmentApplyAiGrade: object({ taskId }, ['taskId']),
+    CandidateAssessmentSubmit: object({
+        answers: { type: 'object', maxProperties: 25, additionalProperties: candidateAnswerItem }
+    }, ['answers']),
+    DomainTemplateSave: object({
+        domainCode: nonblank(64),
+        title: nonblank(255),
+        description: optionalText(2000),
+        timeLimitMinutes: nullable(integer(5, 240)),
+        difficulty: { type: 'string', enum: ['JUNIOR', 'MID', 'SENIOR'] },
+        questions: { ...array(assessmentQuestion, 25), minItems: 1 }
+    }, ['domainCode', 'title', 'questions']),
+    AssessmentInternalTaskCreate: object({
+        type: { type: 'string', enum: ['generate_assessment', 'grade_assessment'] },
+        input: { type: 'object', additionalProperties: true },
+        requestData: { type: 'object', additionalProperties: true },
+        payload: { type: 'object', additionalProperties: true }
+    }, ['type', 'input', 'requestData', 'payload']),
     TalentSave: object({ candidateId: id, candidateName: optionalText(255), tags: array(nonblank(100), 50), note: optionalText(5000) }, ['candidateId']),
     TagSave: object({ type: nonblank(64), code: nullable(nonblank(64)), name: optionalText(255), aliases: array(nonblank(255)),
         group: optionalText(255), weight: { type: 'number', minimum: -1000000, maximum: 1000000 }, isActive: { type: 'boolean' }, description: optionalText(10000)
@@ -109,7 +176,7 @@ export const schemas = {
     Error: object({ errCode: { type: 'integer' }, errMessage: text(1000), requestId: requestKey, conflict: { type: 'boolean' } }, ['errCode'], true),
     Ack: object({ errCode: { const: 0 }, errMessage: text(1000) }, ['errCode'], true),
     AcceptedTask: object({ errCode: { const: 0 }, taskId, errMessage: text(1000) }, ['errCode', 'taskId']),
-    Task: object({ id: taskId, type: { type: 'string', enum: ['parse_resume', 'generate_cv', 'match_cv', 'cover_letter', 'write_assist'] },
+    Task: object({ id: taskId, type: { type: 'string', enum: ['parse_resume', 'generate_cv', 'match_cv', 'cover_letter', 'write_assist', 'generate_assessment', 'grade_assessment'] },
         status: { type: 'string', enum: ['pending', 'done', 'failed'] }, result: {}, error: optionalText(20000), createdAt: date, updatedAt: date
     }, ['id', 'type', 'status', 'result', 'error', 'createdAt', 'updatedAt']),
     Job: object({ id, name: text(255), descriptionHTML: text(200000), statusCode: { type: 'string', enum: ['PS1', 'PS2', 'PS3', 'PS4'] },

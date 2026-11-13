@@ -14,6 +14,13 @@ import {
 } from './controllers/applicationController.js';
 import { savedCandidates, saveCandidate, removeCandidate } from './controllers/talentPoolController.js';
 import { listInterviews, myInterviews } from './controllers/interviewCalendarController.js';
+import {
+    listDomainTemplates, saveDomainTemplate, deleteDomainTemplate,
+    getApplicationAssessmentTemplates, getApplicationAssessment, upsertApplicationAssessment, deleteApplicationAssessment,
+    aiGenerateApplicationAssessment, gradeApplicationAssessmentManually, aiGradeApplicationAssessment, applyAiGradeToAssessment,
+    getMyAssessment, startMyAssessment, submitMyAssessment
+} from './controllers/assessmentController.js';
+import { closeJobCatalogPool } from './libs/jobCatalog.js';
 import { syncFromLegacy, syncEndpoint, closeLegacySource, isLegacyMysqlSyncEnabled } from './controllers/syncController.js';
 import { startSubmissionConsumer } from './consumers/submissionConsumer.js';
 import {
@@ -31,6 +38,7 @@ runtime.onClose(() => closeConnection());
 runtime.onClose(() => closeOutboxPublisher());
 runtime.onClose(() => pool.end());
 runtime.onClose(() => closeLegacySource());
+runtime.onClose(() => closeJobCatalogPool());
 registerOutboxMetrics(runtime.registry, async () => {
     const { rows } = await pool.query('SELECT COUNT(*) AS pending, MIN(created_at) AS oldest FROM outbox_events WHERE published_at IS NULL');
     return rows[0];
@@ -63,7 +71,22 @@ contractRoute(app, 'applicationStages', canManageApplications, (req, res) => {
 // --- Nha tuyen dung ---
 contractRoute(app, 'applicationBoard', canManageApplications, getBoard);
 contractRoute(app, 'applicationFunnel', canManageApplications, getFunnel);
+const canUseRecruiterAssessmentAi = requireServicePermission(
+    PERMISSIONS.AI_RECRUITER_USE,
+    { companyRequired: true }
+);
 contractRoute(app, 'applicationInterviews', privateCalendar, canManageApplications, listInterviews);
+contractRoute(app, 'assessmentTemplateList', canManageApplications, listDomainTemplates);
+contractRoute(app, 'assessmentTemplateSave', canManageApplications, saveDomainTemplate);
+contractRoute(app, 'assessmentTemplateDelete', canManageApplications, deleteDomainTemplate);
+contractRoute(app, 'applicationAssessmentTemplates', canManageApplications, getApplicationAssessmentTemplates);
+contractRoute(app, 'applicationAssessmentGet', canManageApplications, getApplicationAssessment);
+contractRoute(app, 'applicationAssessmentUpsert', canManageApplications, upsertApplicationAssessment);
+contractRoute(app, 'applicationAssessmentDelete', canManageApplications, deleteApplicationAssessment);
+contractRoute(app, 'applicationAssessmentAiGenerate', canUseRecruiterAssessmentAi, aiGenerateApplicationAssessment);
+contractRoute(app, 'applicationAssessmentGrade', canManageApplications, gradeApplicationAssessmentManually);
+contractRoute(app, 'applicationAssessmentAiGrade', canUseRecruiterAssessmentAi, aiGradeApplicationAssessment);
+contractRoute(app, 'applicationAssessmentApplyAiGrade', canManageApplications, applyAiGradeToAssessment);
 contractRoute(app, 'applicationList', canManageApplications, listApplications);
 contractRoute(app, 'applicationGet', canManageApplications, getApplication);
 contractRoute(app, 'applicationMove', canManageApplications, moveStage);
@@ -75,6 +98,9 @@ contractRoute(app, 'applicationNote', canManageApplications, addNote);
 // --- Ung vien ---
 contractRoute(app, 'myApplications', canReadOwnApplications, myApplications);
 contractRoute(app, 'myInterviews', privateCalendar, canReadOwnApplications, myInterviews);
+contractRoute(app, 'myAssessmentGet', privateCalendar, canReadOwnApplications, getMyAssessment);
+contractRoute(app, 'myAssessmentStart', privateCalendar, canReadOwnApplications, startMyAssessment);
+contractRoute(app, 'myAssessmentSubmit', privateCalendar, canReadOwnApplications, submitMyAssessment);
 
 // --- Kho ung vien ---
 contractRoute(app, 'talentList', canManageTalentPool, savedCandidates);

@@ -162,9 +162,29 @@ export const getBoard = async (req, res) => {
 
     try {
         const { rows } = await pool.query(
-            `SELECT id, legacy_cv_id, job_id, job_title, candidate_id, candidate_name,
-                    candidate_email, stage, rating, match_score, is_read, applied_at, stage_changed_at
-             FROM applications ${where}
+            `SELECT applications.id, legacy_cv_id, job_id, job_title, candidate_id, candidate_name,
+                    candidate_email, candidate_phone, left(COALESCE(cover_letter, ''), 1200) AS cover_letter,
+                    NULLIF(
+                        trim(concat_ws(' ',
+                            cv_snapshot->>'fullName',
+                            cv_snapshot->>'phone',
+                            cv_snapshot->>'phonenumber',
+                            cv_snapshot->>'email',
+                            left(COALESCE(cv_snapshot->>'description', ''), 800),
+                            left(COALESCE(cv_snapshot->>'skills', ''), 500),
+                            left(COALESCE(cv_snapshot->>'experience', ''), 500)
+                        )),
+                        ''
+                    ) AS cv_summary,
+                    stage, rating, match_score, is_read, applied_at, stage_changed_at,
+                    ast.assessment_id, ast.assessment_status, ast.assessment_score, ast.assessment_grading_mode
+             FROM applications
+             LEFT JOIN (
+                 SELECT application_id AS _ast_app_id, id AS assessment_id, status AS assessment_status,
+                        total_score AS assessment_score, grading_mode AS assessment_grading_mode
+                 FROM application_assessments
+             ) ast ON ast._ast_app_id = applications.id
+             ${where}
              ORDER BY stage_changed_at DESC`,
             params
         );
@@ -639,13 +659,40 @@ export const myApplications = async (req, res) => {
 
     try {
         const { rows } = await pool.query(
-            `SELECT id, legacy_cv_id, job_id, job_title, stage, applied_at, stage_changed_at
-             FROM applications WHERE candidate_id = $1 ORDER BY applied_at DESC`,
+            `SELECT id, legacy_cv_id, job_id, job_title, stage, applied_at, stage_changed_at,
+                    ast.assessment_id, ast.assessment_title, ast.assessment_status,
+                    ast.assessment_time_limit_seconds, ast.assessment_submitted_at,
+                    ast.assessment_total_score, ast.assessment_grading_mode
+             FROM applications
+             LEFT JOIN (
+                 SELECT application_id AS _ast_app_id,
+                        id AS assessment_id,
+                        title AS assessment_title,
+                        status AS assessment_status,
+                        time_limit_seconds AS assessment_time_limit_seconds,
+                        submitted_at AS assessment_submitted_at,
+                        total_score AS assessment_total_score,
+                        grading_mode AS assessment_grading_mode
+                 FROM application_assessments
+             ) ast ON ast._ast_app_id = applications.id
+             WHERE candidate_id = $1 ORDER BY applied_at DESC`,
             [userId]
         );
         return res.json({
             errCode: 0,
-            data: rows.map((r) => ({ ...r, stageLabel: STAGE_LABELS[r.stage] })),
+            data: rows.map((r) => ({
+                ...r,
+                stageLabel: STAGE_LABELS[r.stage],
+                assessment: r.assessment_id ? {
+                    id: Number(r.assessment_id),
+                    title: r.assessment_title,
+                    status: r.assessment_status,
+                    timeLimitSeconds: r.assessment_time_limit_seconds ?? null,
+                    submittedAt: r.assessment_submitted_at ?? null,
+                    totalScore: r.assessment_total_score !== null && r.assessment_total_score !== undefined ? Number(r.assessment_total_score) : null,
+                    gradingMode: r.assessment_grading_mode ?? null
+                } : null
+            })),
             count: rows.length
         });
     } catch (error) {

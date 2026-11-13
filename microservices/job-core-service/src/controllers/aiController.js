@@ -36,7 +36,7 @@ const validLanguage = (value) => value == null || value === '' || value === 'vi'
 export const recruiterRole = (role) => ['COMPANY', 'EMPLOYER'].includes(role);
 export const roleOf = (req) => req.user?.roleCode || req.headers['x-user-role'];
 // Task types a recruiter may read back. Every recruiter task stores its companyId.
-const RECRUITER_TASK_TYPES = new Set(['match_cv', 'write_assist']);
+const RECRUITER_TASK_TYPES = new Set(['match_cv', 'write_assist', 'generate_assessment', 'grade_assessment']);
 
 // Replays must recheck tenant access even though the immutable job snapshot is
 // reused. Read membership from the database, never from client-supplied metadata.

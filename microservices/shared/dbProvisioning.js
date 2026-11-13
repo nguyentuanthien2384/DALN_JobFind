@@ -91,6 +91,8 @@ export const POSTGRES_APPLICATION_TABLES = Object.freeze([
     'applications',
     'application_events',
     'application_notes',
+    'application_assessments',
+    'domain_test_templates',
     'talent_pool',
     'outbox_events'
 ]);

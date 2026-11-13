@@ -76,6 +76,37 @@ export const responseDefinitions = {
         createdAt: date, updatedAt: date, score: integer(0, 100), verdict: text(64), summary: text(20000),
         ...Object.fromEntries(['matchedSkills', 'missingSkills', 'strengths', 'concerns'].map((field) => [field, list(text(2000))])) },
     ['cvId', 'taskId', 'status', 'createdAt']),
+    AssessmentQuestionItem: record({
+        id: text(64), order: integer(1, 50), type: { enum: ['mcq_single', 'mcq_multi', 'text', 'code'] },
+        prompt: text(4000), points: number
+    }, ['id', 'type', 'prompt', 'points']),
+    AssessmentRecord: record({
+        id, applicationId: id, jobId: id, companyId: id, candidateId: id,
+        domainCode: text(64), domainLabel: text(120), title: text(255),
+        status: { enum: ['ASSIGNED', 'IN_PROGRESS', 'SUBMITTED', 'GRADED'] },
+        questions: list(ref('AssessmentQuestionItem')),
+        totalScore: nullable(number), maxScore: number,
+        gradingMode: nullable({ enum: ['RECRUITER', 'AI'] })
+    }, ['id', 'applicationId', 'domainCode', 'title', 'status', 'questions']),
+    AssessmentTemplate: record({
+        id: { anyOf: [id, text(64)] }, domainCode: text(64), domainLabel: text(120),
+        title: text(255), questions: list(ref('AssessmentQuestionItem')),
+        source: { enum: ['builtin', 'company'] }
+    }, ['id', 'domainCode', 'title', 'questions']),
+    AssessmentTemplatesResult: record({
+        domainCode: nullable(text(64)), domainLabel: nullable(text(120)),
+        hasPrebuiltTemplates: bool, templates: list(ref('AssessmentTemplate'))
+    }, ['domainCode', 'domainLabel', 'hasPrebuiltTemplates', 'templates']),
+    RecruiterAssessmentEnvelope: record({
+        applicationId: id, stage, canCreate: bool,
+        domainCode: nullable(text(64)), domainLabel: nullable(text(120)),
+        assessment: nullable(ref('AssessmentRecord'))
+    }, ['applicationId', 'stage', 'canCreate', 'assessment']),
+    CandidateAssessmentEnvelope: record({
+        applicationId: id, stage, jobTitle: nullable(text(255)),
+        domainCode: nullable(text(64)), domainLabel: nullable(text(120)),
+        assessment: nullable(ref('AssessmentRecord'))
+    }, ['applicationId', 'stage', 'assessment']),
     ReindexResponse: record({ errCode: { const: 0 }, indexed: integer(), reconciliation: record({ total: integer(), changed: integer(), deleted: integer() }) })
 };
 const resultNames = {

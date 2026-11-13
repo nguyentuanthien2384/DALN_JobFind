@@ -1410,6 +1410,302 @@
       ],
       "maxBytes": 8388608
     },
+    "ai.generate_assessment": {
+      "payloadVersion": 1,
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+            "maxLength": 64
+          },
+          "applicationId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "companyId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "domainCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "domainLabel": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "jobTitle": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "jobDescription": {
+            "type": "string",
+            "maxLength": 200000
+          },
+          "questionCount": {
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 10
+          },
+          "difficulty": {
+            "enum": [
+              "JUNIOR",
+              "MID",
+              "SENIOR"
+            ]
+          },
+          "questionMix": {
+            "enum": [
+              "mixed",
+              "mcq_focused",
+              "practical_focused"
+            ]
+          },
+          "focusTopics": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language": {
+            "enum": [
+              "vi",
+              "en"
+            ]
+          }
+        },
+        "required": [
+          "taskId",
+          "applicationId",
+          "domainCode",
+          "domainLabel",
+          "jobTitle",
+          "jobDescription"
+        ],
+        "additionalProperties": true
+      },
+      "aggregateField": "taskId",
+      "producers": [
+        "job-core-service"
+      ],
+      "consumers": [
+        "ai-worker.jobs",
+        "admin-service.audit"
+      ],
+      "maxBytes": 2097152
+    },
+    "ai.grade_assessment": {
+      "payloadVersion": 1,
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+            "maxLength": 64
+          },
+          "applicationId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "assessmentId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "companyId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "domainCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "domainLabel": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "jobTitle": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "type": {
+                  "enum": [
+                    "mcq_single",
+                    "mcq_multi",
+                    "text",
+                    "code"
+                  ]
+                },
+                "prompt": {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                "points": {
+                  "type": "number",
+                  "minimum": 0.5,
+                  "maximum": 100
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "prompt",
+                "points"
+              ],
+              "additionalProperties": true
+            },
+            "maxItems": 1000
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "mcqAutoEvaluation": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "language": {
+            "enum": [
+              "vi",
+              "en"
+            ]
+          }
+        },
+        "required": [
+          "taskId",
+          "applicationId",
+          "assessmentId",
+          "domainCode",
+          "domainLabel",
+          "questions",
+          "answers"
+        ],
+        "additionalProperties": true
+      },
+      "aggregateField": "taskId",
+      "producers": [
+        "job-core-service"
+      ],
+      "consumers": [
+        "ai-worker.jobs",
+        "admin-service.audit"
+      ],
+      "maxBytes": 2097152
+    },
     "ai.result": {
       "payloadVersion": 1,
       "schema": {
@@ -2348,6 +2644,313 @@
             "type": "object",
             "properties": {
               "type": {
+                "const": "generate_assessment"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "result": {
+                "type": "object",
+                "properties": {
+                  "domainCode": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "domainLabel": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "timeLimitMinutes": {
+                    "type": "integer",
+                    "minimum": 5,
+                    "maximum": 240
+                  },
+                  "questions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 50
+                        },
+                        "type": {
+                          "enum": [
+                            "mcq_single",
+                            "mcq_multi",
+                            "text",
+                            "code"
+                          ]
+                        },
+                        "prompt": {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        "points": {
+                          "type": "number",
+                          "minimum": 0.5,
+                          "maximum": 100
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type",
+                        "prompt",
+                        "points"
+                      ],
+                      "additionalProperties": true
+                    },
+                    "maxItems": 1000
+                  }
+                },
+                "required": [
+                  "domainCode",
+                  "title",
+                  "questions"
+                ],
+                "additionalProperties": true
+              },
+              "error": {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              "taskId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+                "maxLength": 64
+              },
+              "jobId": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[1-9][0-9]{0,15}$",
+                        "format": "jobfind-id"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "ok",
+              "taskId"
+            ],
+            "additionalProperties": true,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "result"
+                  ],
+                  "properties": {
+                    "result": {},
+                    "error": false
+                  }
+                },
+                "else": {
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {},
+                    "result": false
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "const": "grade_assessment"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "result": {
+                "type": "object",
+                "properties": {
+                  "perQuestion": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "questionId": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "earnedPoints": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "maxPoints": {
+                          "type": "number",
+                          "minimum": 0.5,
+                          "maximum": 100
+                        },
+                        "passed": {
+                          "type": "boolean"
+                        },
+                        "comment": {
+                          "type": "string",
+                          "maxLength": 2000
+                        }
+                      },
+                      "required": [
+                        "questionId",
+                        "earnedPoints",
+                        "maxPoints",
+                        "comment"
+                      ],
+                      "additionalProperties": true
+                    },
+                    "maxItems": 1000
+                  },
+                  "overallFeedback": {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  "strengths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 1000
+                    },
+                    "maxItems": 1000
+                  },
+                  "improvements": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 1000
+                    },
+                    "maxItems": 1000
+                  },
+                  "recommendation": {
+                    "enum": [
+                      "PASS",
+                      "CONSIDER",
+                      "FAIL"
+                    ]
+                  }
+                },
+                "required": [
+                  "perQuestion",
+                  "overallFeedback",
+                  "recommendation"
+                ],
+                "additionalProperties": true
+              },
+              "error": {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              "taskId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+                "maxLength": 64
+              },
+              "jobId": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[1-9][0-9]{0,15}$",
+                        "format": "jobfind-id"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "ok",
+              "taskId"
+            ],
+            "additionalProperties": true,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "result"
+                  ],
+                  "properties": {
+                    "result": {},
+                    "error": false
+                  }
+                },
+                "else": {
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {},
+                    "result": false
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
                 "const": "moderate_job"
               },
               "ok": {
@@ -2465,7 +3068,9 @@
         "generate_cv": "taskId",
         "match_cv": "taskId",
         "cover_letter": "taskId",
-        "write_assist": "taskId"
+        "write_assist": "taskId",
+        "generate_assessment": "taskId",
+        "grade_assessment": "taskId"
       },
       "producers": [
         "ai-worker"

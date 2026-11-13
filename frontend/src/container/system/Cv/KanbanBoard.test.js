@@ -14,6 +14,7 @@ import {
 } from "../../../service/applicationService";
 import { getAllPostByAdminService, getDetailCompanyById } from "../../../service/userService";
 import { getJobScreenings } from "../../../service/aiSearchService";
+import { getApplicationAssessment, getApplicationAssessmentTemplates } from "../../../service/assessmentService";
 import KanbanBoard from "./KanbanBoard";
 
 const mockNavigate = jest.fn();
@@ -46,6 +47,19 @@ jest.mock("../../../service/aiSearchService", () => ({
     candidateMessageAi: jest.fn(),
     getAiTask: jest.fn(),
 }));
+jest.mock("../../../service/assessmentService", () => {
+    const actual = jest.requireActual("../../../service/assessmentService");
+    return {
+        ...actual,
+        getApplicationAssessment: jest.fn(),
+        getApplicationAssessmentTemplates: jest.fn(),
+        upsertApplicationAssessment: jest.fn(),
+        deleteApplicationAssessment: jest.fn(),
+        generateAssessmentWithAi: jest.fn(),
+        gradeApplicationAssessment: jest.fn(),
+        gradeAssessmentWithAi: jest.fn(),
+    };
+});
 
 const candidate = {
     id: 1,
@@ -134,6 +148,14 @@ describe("KanbanBoard", () => {
         saveToTalentPool.mockResolvedValue({ errCode: 0 });
         sendApplicationDecision.mockResolvedValue({ errCode: 0, data: { decision: "rejected" } });
         sendInterviewInvitation.mockResolvedValue({ errCode: 0, data: { stage: "phong_van" } });
+        getApplicationAssessment.mockResolvedValue({
+            errCode: 0,
+            data: { applicationId: 1, stage: "applied", canCreate: false, domainCode: "cong-nghe-thong-tin", domainLabel: "Công nghệ thông tin", assessment: null },
+        });
+        getApplicationAssessmentTemplates.mockResolvedValue({
+            errCode: 0,
+            data: { domainCode: "cong-nghe-thong-tin", domainLabel: "Công nghệ thông tin", templates: [] },
+        });
         getDetailCompanyById.mockResolvedValue({ errCode: 0, data: { name: "Example Company", address: "12 Nguyễn Huệ, TP. Hồ Chí Minh" } });
     });
 
@@ -651,6 +673,124 @@ describe("KanbanBoard", () => {
             expect(screen.queryByText("Đang tải…")).not.toBeInTheDocument();
         });
     });
+    describe("searching candidates by name or profile", () => {
+        const searchBoard = () => ({
+            errCode: 0,
+            data: {
+                total: 3,
+                columns: [
+                    {
+                        stage: "moi_ung_tuyen",
+                        label: "Mới ứng tuyển",
+                        count: 1,
+                        items: [{
+                            id: 3022,
+                            legacy_cv_id: 701,
+                            candidate_id: 9068,
+                            candidate_name: "Trần Bảo Ngọc",
+                            candidate_email: "ngoc.tran@example.test",
+                            candidate_phone: "0928800002",
+                            job_title: "[Demo] Frontend Developer React / TypeScript",
+                            cover_letter: "3 năm kinh nghiệm React Hooks và TypeScript.",
+                            cv_summary: "React TypeScript Redux Jest",
+                            stage: "moi_ung_tuyen",
+                            is_read: true,
+                            rating: 4,
+                        }],
+                    },
+                    {
+                        stage: "dang_xem_xet",
+                        label: "Đang xem xét",
+                        count: 1,
+                        items: [{
+                            id: 3034,
+                            legacy_cv_id: 702,
+                            candidate_id: 9072,
+                            candidate_name: "Võ Khánh Linh",
+                            candidate_email: "linh.vo@example.test",
+                            candidate_phone: "0928800006",
+                            job_title: "[Demo] DevOps Engineer Cloud / CI-CD",
+                            cover_letter: "Quản trị cụm Kubernetes và pipeline GitLab CI.",
+                            cv_summary: "Docker Kubernetes Terraform AWS",
+                            stage: "dang_xem_xet",
+                            is_read: false,
+                            rating: 5,
+                        }],
+                    },
+                    {
+                        stage: "phong_van",
+                        label: "Phỏng vấn",
+                        count: 1,
+                        items: [{
+                            id: 3035,
+                            legacy_cv_id: 703,
+                            candidate_id: 9073,
+                            candidate_name: "Đặng Gia Bảo",
+                            candidate_email: "bao.dang@example.test",
+                            candidate_phone: "0928800007",
+                            job_title: "[Demo] DevOps Engineer Cloud / CI-CD",
+                            cover_letter: "Triển khai monitoring Prometheus Grafana.",
+                            cv_summary: "Linux Prometheus Grafana",
+                            stage: "phong_van",
+                            is_read: true,
+                            rating: 3,
+                        }],
+                    },
+                ],
+            },
+        });
+
+        it("filters across columns by Vietnamese accent-insensitive name and profile fields, updating counts and clearing cleanly", async () => {
+            getApplicationBoard.mockResolvedValueOnce(searchBoard());
+            render(<KanbanBoard />);
+            expect(await screen.findByText("Trần Bảo Ngọc")).toBeInTheDocument();
+            expect(screen.getByText(/Tổng cộng/)).toHaveTextContent("Tổng cộng 3 hồ sơ.");
+
+            const searchInput = screen.getByRole("searchbox", { name: "Tìm kiếm ứng viên theo tên hoặc hồ sơ" });
+
+            // Search by candidate name without diacritics
+            fireEvent.change(searchInput, { target: { value: "bao ngoc" } });
+            expect(screen.getByText("Trần Bảo Ngọc")).toBeInTheDocument();
+            expect(screen.queryByText("Võ Khánh Linh")).not.toBeInTheDocument();
+            expect(screen.queryByText("Đặng Gia Bảo")).not.toBeInTheDocument();
+            expect(screen.getByText(/Tìm thấy/)).toHaveTextContent("Tìm thấy 1 / 3 hồ sơ phù hợp.");
+            expect(within(screen.getByRole("region", { name: "Mới ứng tuyển" })).getByText("1")).toBeInTheDocument();
+            expect(within(screen.getByRole("region", { name: "Đang xem xét" })).getByText("0")).toBeInTheDocument();
+            expect(within(screen.getByRole("region", { name: "Đang xem xét" })).getByText("Không khớp tìm kiếm")).toBeInTheDocument();
+
+            // Search by application ID (#3034)
+            fireEvent.change(searchInput, { target: { value: "#3034" } });
+            expect(screen.getByText("Võ Khánh Linh")).toBeInTheDocument();
+            expect(screen.queryByText("Trần Bảo Ngọc")).not.toBeInTheDocument();
+
+            // Search by phone number and CV/profile summary
+            fireEvent.change(searchInput, { target: { value: "0928800007" } });
+            expect(screen.getByText("Đặng Gia Bảo")).toBeInTheDocument();
+            expect(screen.queryByText("Võ Khánh Linh")).not.toBeInTheDocument();
+
+            fireEvent.change(searchInput, { target: { value: "kubernetes" } });
+            expect(screen.getByText("Võ Khánh Linh")).toBeInTheDocument();
+            expect(screen.queryByText("Đặng Gia Bảo")).not.toBeInTheDocument();
+
+            // No-match empty state + clear button restores full board
+            fireEvent.change(searchInput, { target: { value: "khong-ton-tai-xyz" } });
+            expect(screen.getByRole("status")).toHaveTextContent('Không tìm thấy ứng viên hay hồ sơ nào khớp với “khong-ton-tai-xyz”.');
+            fireEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "Xóa tìm kiếm" }));
+            expect(searchInput).toHaveValue("");
+            expect(screen.getByText(/Tổng cộng/)).toHaveTextContent("Tổng cộng 3 hồ sơ.");
+            expect(screen.getByText("Trần Bảo Ngọc")).toBeInTheDocument();
+            expect(screen.getByText("Võ Khánh Linh")).toBeInTheDocument();
+            expect(screen.getByText("Đặng Gia Bảo")).toBeInTheDocument();
+
+            // Escape key also clears an active search
+            fireEvent.change(searchInput, { target: { value: "dang gia bao" } });
+            expect(screen.queryByText("Trần Bảo Ngọc")).not.toBeInTheDocument();
+            fireEvent.keyDown(searchInput, { key: "Escape" });
+            expect(searchInput).toHaveValue("");
+            expect(screen.getByText("Trần Bảo Ngọc")).toBeInTheDocument();
+        });
+    });
+
     describe("dragging into the rejected column", () => {
         const dragToRejected = async () => {
             getApplicationBoard.mockImplementation(async () => pipelineBoard());
@@ -708,6 +848,29 @@ describe("KanbanBoard", () => {
             await waitFor(() => expect(moveApplicationStage).toHaveBeenCalledWith(1, "interview"));
             expect(confirm).not.toHaveBeenCalled();
             confirm.mockRestore();
+        });
+
+        it("shows assessment badge on card and assessment manager inside detail modal", async () => {
+            getApplicationBoard.mockResolvedValueOnce({
+                errCode: 0,
+                data: {
+                    total: 1,
+                    columns: [
+                        { stage: "phong_van", label: "Phỏng vấn", count: 1, items: [{ ...candidate, stage: "phong_van", assessment_status: "GRADED", assessment_score: 8.5 }] },
+                    ],
+                },
+            });
+            getApplicationDetail.mockResolvedValueOnce({ ...detailResponse, data: { ...detailResponse.data, stage: "phong_van" } });
+            getApplicationAssessment.mockResolvedValueOnce({
+                errCode: 0,
+                data: { applicationId: 1, stage: "phong_van", canCreate: true, domainCode: "cong-nghe-thong-tin", domainLabel: "Công nghệ thông tin", assessment: null },
+            });
+
+            render(<KanbanBoard />);
+            expect(await screen.findByText("Test: 8.5/10")).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Hồ sơ Lan Nguyen" }));
+            expect(await screen.findByText("Bài test đánh giá chuyên sâu")).toBeInTheDocument();
+            expect(screen.getByText(/Ngành: Công nghệ thông tin/i)).toBeInTheDocument();
         });
     });
 });

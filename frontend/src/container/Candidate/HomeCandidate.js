@@ -10,6 +10,7 @@ import CandidateAi from './CandidateAi';
 import NotificationJobs from './NotificationJobs';
 import CandidateNotifications from './CandidateNotifications';
 import InterviewCalendar from '../../components/interviews/InterviewCalendar';
+import CandidateAssessmentRunner from '../../components/Assessment/CandidateAssessmentRunner';
 import './CandidateLayout.css';
 
 const HomeCandidate = () => {
@@ -29,6 +30,7 @@ const HomeCandidate = () => {
                     <div className="content-wrapper">
                         <Routes>
                             <Route path="/interviews" element={<InterviewCalendar candidate />} />
+                            <Route path="/assessment/:applicationId" element={<CandidateAssessmentRunner />} />
                             <Route path="/notifications" element={<CandidateNotifications />} />
                             <Route path="/ai-cv" element={<CandidateAi />} />
                             <Route path="/followed-jobs" element={<NotificationJobs source="followed" />} />

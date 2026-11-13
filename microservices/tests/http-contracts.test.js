@@ -18,6 +18,11 @@ import * as adminClient from '../../frontend/src/service/adminReportService.js';
 import * as jobClient from '../../frontend/src/service/jobPostingService.js';
 import * as workspaceClient from '../../frontend/src/service/jobWorkspaceService.js';
 import { jobToForm, buildJobCreate, buildJobUpdate } from '../../frontend/src/service/jobFormAdapter.js';
+import {
+    serializeAssessmentUpsertForApi,
+    serializeAnswersForApi,
+    serializeManualGradeForApi
+} from '../../frontend/src/service/assessmentSerializers.js';
 
 const cvId = '507f1f77bcf86cd799439011';
 const editRevision = 'jv1-' + 'a'.repeat(64);
@@ -48,6 +53,28 @@ const bodyExamples = {
     TalentSave: { candidateId: 7, candidateName: 'Lan', note: 'Từ hồ sơ ứng tuyển' },
     TagSave: { type: 'JOBTYPE', code: 'IT', aliases: ['software'], weight: 2, isActive: true },
     AuditAction: { method: 'POST', route: '/api/jobs', actorId: 7, actorRole: 'COMPANY', companyId: 3, status: 201, durationMs: 12, correlationId: 'test-1' },
+    AssessmentUpsert: {
+        domainCode: 'cong-nghe-thong-tin',
+        title: 'Đánh giá Node.js Backend',
+        timeLimitMinutes: 40,
+        questions: [
+            { id: 'q-1', order: 1, type: 'mcq_single', prompt: 'Node.js chạy mô hình nào?', points: 2, options: [{ id: 'A', text: 'Single-thread Event Loop' }, { id: 'B', text: 'Multi-process fork mỗi request' }], correctOptionIds: ['A'] },
+            { id: 'q-2', order: 2, type: 'code', prompt: 'Viết hàm sum(a, b)', points: 4, language: 'javascript', starterCode: 'function sum(a, b) {}' }
+        ]
+    },
+    AssessmentAiGenerate: { questionCount: 5, difficulty: 'MID', questionMix: 'mixed', language: 'vi' },
+    AssessmentManualGrade: { questionScores: [{ questionId: 'q-1', earnedPoints: 2, comment: 'Đúng' }], overallFeedback: 'Tốt', recommendation: 'PASS' },
+    AssessmentAiGradeRequest: { language: 'vi' },
+    AssessmentApplyAiGrade: { taskId: 'task-1' },
+    CandidateAssessmentSubmit: { answers: { 'q-1': { selectedOptionIds: ['A'] }, 'q-2': { codeAnswer: 'return a + b;' } } },
+    DomainTemplateSave: {
+        domainCode: 'luat',
+        title: 'Mẫu test Pháp chế Doanh nghiệp',
+        difficulty: 'MID',
+        timeLimitMinutes: 35,
+        questions: [{ id: 'q-1', order: 1, type: 'text', prompt: 'Phân tích điều khoản phạt vi phạm', points: 4 }]
+    },
+    AssessmentInternalTaskCreate: { type: 'generate_assessment', input: { applicationId: 1 }, requestData: { kind: 'generate_assessment' }, payload: { domainCode: 'luat' } },
     Empty: {}
 };
 const servers = [];
@@ -59,7 +86,7 @@ const listen = async (app) => {
     servers.push(server);
     return `http://127.0.0.1:${server.address().port}`;
 };
-const pathFor = (op) => op.path.replace(/:name\b/g, 'getMyProfileSummary').replace(/:cvId\b/g, cvId).replace(/:taskId\b/g, 'task-1').replace(/:type\b/g, 'job').replace(/:candidateId\b/g, '7').replace(/:messageId\b/g, '12345678-1234-4234-8234-123456789013').replace(/:id\b/g, op.service === 'support' ? '12345678-1234-4234-8234-123456789012' : op.id === 'masterDelete' ? cvId : '1');
+const pathFor = (op) => op.path.replace(/:name\b/g, 'getMyProfileSummary').replace(/:cvId\b/g, cvId).replace(/:taskId\b/g, 'task-1').replace(/:templateId\b/g, '1').replace(/:type\b/g, 'job').replace(/:candidateId\b/g, '7').replace(/:messageId\b/g, '12345678-1234-4234-8234-123456789013').replace(/:id\b/g, op.service === 'support' ? '12345678-1234-4234-8234-123456789012' : op.id === 'masterDelete' ? cvId : '1');
 const send = (id, { body, raw, query = '', path, headers = {}, omitIdentity = false, ...options } = {}) => {
     const op = operationById[id];
     const payload = raw ?? (body === undefined ? undefined : JSON.stringify(body));
@@ -195,6 +222,41 @@ describe('real HTTP request contracts', () => {
         expect(patch).toEqual({ name: 'Changed', genderPostCode: 'G1', expectedRevision: editRevision });
         expect((await send('jobUpdate', { body: patch })).status).toBe(200);
         expect(buildJobUpdate(initial, initial)).toBeNull();
+    });
+
+    it('accepts actual assessment frontend serializers across upsert, submit, and manual grade', async () => {
+        const questions = [
+            { id: 'q-1', type: 'mcq_single', prompt: 'Chọn đáp án đúng', points: 2, options: [{ id: 'A', text: '1' }, { id: 'B', text: '2' }], correctOptionIds: ['A'], explanation: null },
+            { id: 'q-2', type: 'code', prompt: 'Viết SQL', points: 4, language: 'sql', starterCode: 'SELECT 1;', rubric: 'Chuẩn', extraUiFlag: true },
+            { id: 'q-3', type: 'text', prompt: 'Phân tích', points: 4, placeholder: '', maxLength: null, sampleAnswer: 'Ý chính' }
+        ];
+        const upsertBody = serializeAssessmentUpsertForApi({
+            templateId: null,
+            domainCode: 'cong-nghe-thong-tin',
+            title: 'Test chuyên sâu Backend',
+            description: '   ',
+            timeLimitMinutes: 45,
+            questions,
+            saveAsTemplate: false
+        });
+        expect((await send('applicationAssessmentUpsert', { body: upsertBody })).status).toBe(200);
+
+        const submitBody = {
+            answers: serializeAnswersForApi(questions, {
+                'q-1': { selectedOptionIds: ['A'], textAnswer: 'ignored' },
+                'q-2': { codeAnswer: 'SELECT job_id FROM applications;' },
+                'q-3': { textAnswer: 'Tối ưu index' }
+            })
+        };
+        expect((await send('myAssessmentSubmit', { body: submitBody })).status).toBe(200);
+
+        const gradeBody = serializeManualGradeForApi({
+            questions,
+            scores: { 'q-1': { earnedPoints: 2 }, 'q-2': { earnedPoints: 3.5, comment: 'Ổn' }, 'q-3': { earnedPoints: 3 } },
+            overallFeedback: 'Khá tốt',
+            recommendation: 'PASS'
+        });
+        expect((await send('applicationAssessmentGrade', { body: gradeBody })).status).toBe(200);
     });
 
     it.each([

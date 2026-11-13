@@ -3530,6 +3530,602 @@
         ],
         "additionalProperties": false
       },
+      "AssessmentUpsert": {
+        "type": "object",
+        "properties": {
+          "templateId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domainCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instructions": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeLimitMinutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 240
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 50
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "mcq_single",
+                    "mcq_multi",
+                    "text",
+                    "code"
+                  ]
+                },
+                "prompt": {
+                  "type": "string",
+                  "maxLength": 4000,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "points": {
+                  "type": "number",
+                  "minimum": 0.5,
+                  "maximum": 100
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "maxLength": 16,
+                        "minLength": 1,
+                        "pattern": "\\S"
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 1000,
+                        "minLength": 1,
+                        "pattern": "\\S"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 8
+                },
+                "correctOptionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 16,
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "maxItems": 8
+                },
+                "explanation": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "language": {
+                  "type": "string",
+                  "enum": [
+                    "javascript",
+                    "typescript",
+                    "python",
+                    "java",
+                    "sql",
+                    "html_css",
+                    "other"
+                  ]
+                },
+                "starterCode": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "placeholder": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "maxLength": {
+                  "type": "integer",
+                  "minimum": 50,
+                  "maximum": 15000
+                },
+                "rubric": {
+                  "type": "string",
+                  "maxLength": 3000
+                },
+                "sampleAnswer": {
+                  "type": "string",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "type",
+                "prompt"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 25,
+            "minItems": 1
+          },
+          "saveAsTemplate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "title",
+          "questions"
+        ],
+        "additionalProperties": false
+      },
+      "AssessmentAiGenerate": {
+        "type": "object",
+        "properties": {
+          "questionCount": {
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 10
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "JUNIOR",
+              "MID",
+              "SENIOR"
+            ]
+          },
+          "questionMix": {
+            "type": "string",
+            "enum": [
+              "mixed",
+              "mcq_focused",
+              "practical_focused"
+            ]
+          },
+          "focusTopics": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "vi",
+              "en"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "AssessmentManualGrade": {
+        "type": "object",
+        "properties": {
+          "questionScores": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "questionId": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "earnedPoints": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "comment": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "questionId",
+                "earnedPoints"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 25,
+            "minItems": 1
+          },
+          "overallFeedback": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recommendation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "PASS",
+                  "CONSIDER",
+                  "FAIL"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "questionScores"
+        ],
+        "additionalProperties": false
+      },
+      "AssessmentAiGradeRequest": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": [
+              "vi",
+              "en"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "AssessmentApplyAiGrade": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "additionalProperties": false
+      },
+      "CandidateAssessmentSubmit": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "type": "object",
+            "maxProperties": 25,
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "selectedOptionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 16,
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "maxItems": 8
+                },
+                "textAnswer": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 15000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "codeAnswer": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 30000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "answers"
+        ],
+        "additionalProperties": false
+      },
+      "DomainTemplateSave": {
+        "type": "object",
+        "properties": {
+          "domainCode": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeLimitMinutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 240
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "JUNIOR",
+              "MID",
+              "SENIOR"
+            ]
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 50
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "mcq_single",
+                    "mcq_multi",
+                    "text",
+                    "code"
+                  ]
+                },
+                "prompt": {
+                  "type": "string",
+                  "maxLength": 4000,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "points": {
+                  "type": "number",
+                  "minimum": 0.5,
+                  "maximum": 100
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "maxLength": 16,
+                        "minLength": 1,
+                        "pattern": "\\S"
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 1000,
+                        "minLength": 1,
+                        "pattern": "\\S"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 8
+                },
+                "correctOptionIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 16,
+                    "minLength": 1,
+                    "pattern": "\\S"
+                  },
+                  "maxItems": 8
+                },
+                "explanation": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "language": {
+                  "type": "string",
+                  "enum": [
+                    "javascript",
+                    "typescript",
+                    "python",
+                    "java",
+                    "sql",
+                    "html_css",
+                    "other"
+                  ]
+                },
+                "starterCode": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "placeholder": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "maxLength": {
+                  "type": "integer",
+                  "minimum": 50,
+                  "maximum": 15000
+                },
+                "rubric": {
+                  "type": "string",
+                  "maxLength": 3000
+                },
+                "sampleAnswer": {
+                  "type": "string",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "type",
+                "prompt"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 25,
+            "minItems": 1
+          }
+        },
+        "required": [
+          "domainCode",
+          "title",
+          "questions"
+        ],
+        "additionalProperties": false
+      },
+      "AssessmentInternalTaskCreate": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "generate_assessment",
+              "grade_assessment"
+            ]
+          },
+          "input": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "requestData": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "type",
+          "input",
+          "requestData",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
       "TalentSave": {
         "type": "object",
         "properties": {
@@ -4146,7 +4742,9 @@
               "generate_cv",
               "match_cv",
               "cover_letter",
-              "write_assist"
+              "write_assist",
+              "generate_assessment",
+              "grade_assessment"
             ]
           },
           "status": {
@@ -7683,6 +8281,430 @@
           "taskId",
           "status",
           "createdAt"
+        ],
+        "additionalProperties": true
+      },
+      "AssessmentQuestionItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "type": {
+            "enum": [
+              "mcq_single",
+              "mcq_multi",
+              "text",
+              "code"
+            ]
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "points": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "prompt",
+          "points"
+        ],
+        "additionalProperties": true
+      },
+      "AssessmentRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "applicationId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "companyId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "candidateId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "domainCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "domainLabel": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "status": {
+            "enum": [
+              "ASSIGNED",
+              "IN_PROGRESS",
+              "SUBMITTED",
+              "GRADED"
+            ]
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssessmentQuestionItem"
+            }
+          },
+          "totalScore": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maxScore": {
+            "type": "number"
+          },
+          "gradingMode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "RECRUITER",
+                  "AI"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "applicationId",
+          "domainCode",
+          "title",
+          "status",
+          "questions"
+        ],
+        "additionalProperties": true
+      },
+      "AssessmentTemplate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,15}$",
+                    "format": "jobfind-id"
+                  }
+                ]
+              },
+              {
+                "type": "string",
+                "maxLength": 64
+              }
+            ]
+          },
+          "domainCode": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "domainLabel": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssessmentQuestionItem"
+            }
+          },
+          "source": {
+            "enum": [
+              "builtin",
+              "company"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "domainCode",
+          "title",
+          "questions"
+        ],
+        "additionalProperties": true
+      },
+      "AssessmentTemplatesResult": {
+        "type": "object",
+        "properties": {
+          "domainCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domainLabel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hasPrebuiltTemplates": {
+            "type": "boolean"
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssessmentTemplate"
+            }
+          }
+        },
+        "required": [
+          "domainCode",
+          "domainLabel",
+          "hasPrebuiltTemplates",
+          "templates"
+        ],
+        "additionalProperties": true
+      },
+      "RecruiterAssessmentEnvelope": {
+        "type": "object",
+        "properties": {
+          "applicationId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "moi_ung_tuyen",
+              "dang_xem_xet",
+              "phong_van",
+              "de_nghi",
+              "nhan_viec",
+              "tu_choi"
+            ]
+          },
+          "canCreate": {
+            "type": "boolean"
+          },
+          "domainCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domainLabel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assessment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "applicationId",
+          "stage",
+          "canCreate",
+          "assessment"
+        ],
+        "additionalProperties": true
+      },
+      "CandidateAssessmentEnvelope": {
+        "type": "object",
+        "properties": {
+          "applicationId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$",
+                "format": "jobfind-id"
+              }
+            ]
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "moi_ung_tuyen",
+              "dang_xem_xet",
+              "phong_van",
+              "de_nghi",
+              "nhan_viec",
+              "tu_choi"
+            ]
+          },
+          "jobTitle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domainCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domainLabel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assessment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "applicationId",
+          "stage",
+          "assessment"
         ],
         "additionalProperties": true
       },

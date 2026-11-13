@@ -109,6 +109,14 @@ describe('AI RabbitMQ task consumer', () => {
         expect(JSON.stringify(mocks.publish.mock.calls)).not.toContain('sk-ant-test-secret');
     });
 
+    it('surfaces a clear API key error message when the AI provider responds HTTP 401', async () => {
+        mocks.matchCv.mockRejectedValue(Object.assign(new Error('{"error":"Invalid API key"}'), { status: 401 }));
+        const { handleTask } = await import('../ai-worker/src/consumers/taskConsumer.js');
+        await handleTask({ taskId: 'auth-error' }, 'ai.match_cv');
+        expect(mocks.publish.mock.calls[0][1].error).toContain('ANTHROPIC_API_KEY');
+        expect(mocks.publish.mock.calls[0][1].error).toContain('401');
+    });
+
     it('ignores an unknown routing key', async () => {
         const { handleTask } = await import('../ai-worker/src/consumers/taskConsumer.js');
         await expect(handleTask({}, 'unknown')).resolves.toBeUndefined();

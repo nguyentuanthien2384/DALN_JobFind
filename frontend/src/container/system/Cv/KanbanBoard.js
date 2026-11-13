@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import OfferLetterForm, { OfferSummary } from './OfferLetterForm';
 import InterviewInvitationForm, { InterviewSummary } from './InterviewInvitationForm';
 import { toast } from "react-toastify";
@@ -16,6 +16,8 @@ import {
 } from "../../../service/applicationService";
 import { getAllPostByAdminService, getDetailCompanyById } from "../../../service/userService";
 import { useScreenings, needsScreening, ScreeningBadge, ScreeningPanel, AiMessageDraft } from "./KanbanAi";
+import RecruiterAssessmentManager from "../../../components/Assessment/RecruiterAssessmentManager";
+import { ASSESSMENT_STATUS_META } from "../../../service/assessmentService";
 import { aiErrorMessage } from "../../../service/aiAssist";
 import "./KanbanBoard.scss";
 
@@ -43,6 +45,52 @@ const recipientLabel = (email) => (isDemoRecipient(email)
 // mac dinh cam on ho da tham gia buoi phong van.
 const wasInvited = (detail) => detail.stage === "phong_van"
     || (detail.timeline || []).some((event) => event.to_stage === "phong_van");
+
+/**
+ * Chuẩn hóa chuỗi tiếng Việt để tìm kiếm không phân biệt hoa thường hay dấu.
+ */
+export const normalizeSearchText = (value) => String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .trim();
+
+/**
+ * Kiểm tra hồ sơ trên bảng Kanban có khớp từ khóa theo tên ứng viên hoặc thông tin hồ sơ không.
+ */
+export const matchesApplicationSearch = (item, normalizedQuery, screening) => {
+    if (!normalizedQuery) return true;
+    const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+    if (!tokens.length) return true;
+
+    const assessmentLabel = item.assessment_status
+        ? (ASSESSMENT_STATUS_META[item.assessment_status]?.label || item.assessment_status)
+        : "";
+    const screeningText = screening?.result
+        ? [
+            screening.result.summary,
+            screening.result.verdict,
+            ...(Array.isArray(screening.result.strengths) ? screening.result.strengths : []),
+            ...(Array.isArray(screening.result.gaps) ? screening.result.gaps : []),
+        ].join(" ")
+        : "";
+
+    const haystack = normalizeSearchText([
+        item.id !== undefined && item.id !== null ? `#${item.id} ${item.id}` : "",
+        item.legacy_cv_id !== undefined && item.legacy_cv_id !== null ? `#${item.legacy_cv_id} ${item.legacy_cv_id}` : "",
+        item.candidate_name,
+        item.candidate_email,
+        item.candidate_phone,
+        item.job_title,
+        item.cover_letter,
+        item.cv_summary,
+        assessmentLabel,
+        screeningText,
+    ].filter(Boolean).join(" "));
+
+    return tokens.every((token) => haystack.includes(token));
+};
 
 const KanbanBoard = () => {
     const navigate = useNavigate();
@@ -72,6 +120,7 @@ const KanbanBoard = () => {
     const recruiterAi = ["COMPANY", "EMPLOYER"].includes(user.roleCode);
     const { byCv: screenings, refresh: refreshScreenings, screen: screenCv, markFailed } = useScreenings();
     const [sortByAi, setSortByAi] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
     const [bulk, setBulk] = useState(null);
 
     const loadBoard = useCallback(async (selectedJobId) => {
@@ -319,6 +368,26 @@ const KanbanBoard = () => {
 
     const stageLabel = (stage) => columns.find((col) => col.stage === stage)?.label || stage;
 
+    const normalizedSearch = normalizeSearchText(searchQuery);
+    const hasSearchFilter = Boolean(normalizedSearch);
+
+    const visibleColumns = useMemo(() => {
+        if (!hasSearchFilter) return columns;
+        return columns.map((col) => {
+            const items = col.items.filter((item) =>
+                matchesApplicationSearch(item, normalizedSearch, screenings[item.legacy_cv_id])
+            );
+            return { ...col, items, count: items.length };
+        });
+    }, [columns, hasSearchFilter, normalizedSearch, screenings]);
+
+    const visibleTotal = useMemo(
+        () => (hasSearchFilter
+            ? visibleColumns.reduce((sum, col) => sum + col.items.length, 0)
+            : total),
+        [hasSearchFilter, visibleColumns, total]
+    );
+
     const renderStars = (id, current) => (
         <div className="kb-stars">
             {[1, 2, 3, 4, 5].map((s) => (
@@ -341,7 +410,11 @@ const KanbanBoard = () => {
                     <h3>Quản lý hồ sơ ứng tuyển</h3>
                     <p className="kb-sub">
                         Kéo thả hồ sơ giữa các cột để chuyển bước tuyển dụng.
-                        Tổng cộng <b>{total}</b> hồ sơ.
+                        {hasSearchFilter ? (
+                            <>Tìm thấy <b>{visibleTotal}</b> / <b>{total}</b> hồ sơ phù hợp.</>
+                        ) : (
+                            <>Tổng cộng <b>{total}</b> hồ sơ.</>
+                        )}
                     </p>
                 </div>
                 <div className="kb-head-actions">
@@ -363,6 +436,32 @@ const KanbanBoard = () => {
                         </label>
                     </div>
                 )}
+                <div className="kb-search-wrap">
+                    <input
+                        type="search"
+                        className="kb-search"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Escape" && searchQuery) {
+                                e.preventDefault();
+                                setSearchQuery("");
+                            }
+                        }}
+                        placeholder="Tìm theo tên hoặc hồ sơ (mã, SĐT, email, vị trí)…"
+                        aria-label="Tìm kiếm ứng viên theo tên hoặc hồ sơ"
+                    />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            className="kb-search-clear"
+                            aria-label="Xóa tìm kiếm"
+                            onClick={() => setSearchQuery("")}
+                        >
+                            ×
+                        </button>
+                    )}
+                </div>
                 <select
                     className="kb-filter"
                     value={jobId}
@@ -393,11 +492,20 @@ const KanbanBoard = () => {
                 </div>
             )}
 
+            {!isLoading && hasSearchFilter && visibleTotal === 0 && (
+                <div className="kb-search-empty" role="status">
+                    <span>Không tìm thấy ứng viên hay hồ sơ nào khớp với “{searchQuery.trim()}”.</span>
+                    <button type="button" className="kb-btn ghost" onClick={() => setSearchQuery("")}>
+                        Xóa tìm kiếm
+                    </button>
+                </div>
+            )}
+
             {isLoading ? (
                 <div className="kb-empty">Đang tải…</div>
             ) : (
                 <div className="kb-columns">
-                    {columns.map((col) => (
+                    {visibleColumns.map((col) => (
                         <div
                             key={col.stage}
                             role="region"
@@ -417,7 +525,7 @@ const KanbanBoard = () => {
 
                             <div className="kb-col-body">
                                 {col.items.length === 0 && (
-                                    <div className="kb-col-empty">Chưa có hồ sơ</div>
+                                    <div className="kb-col-empty">{hasSearchFilter ? "Không khớp tìm kiếm" : "Chưa có hồ sơ"}</div>
                                 )}
                                 {orderedItems(col.items).map((item) => (
                                     <div
@@ -442,12 +550,25 @@ const KanbanBoard = () => {
                                             {!item.is_read && <span className="kb-dot" title="Chưa xem" />}
                                         </div>
                                         <div className="kb-card-job">{item.job_title || "—"}</div>
+                                        <div className="kb-card-meta">
+                                            #{item.id}
+                                            {(item.candidate_phone || item.candidate_email)
+                                                ? ` · ${item.candidate_phone || item.candidate_email}`
+                                                : ""}
+                                        </div>
                                         <div className="kb-card-foot">
                                             {renderStars(item.id, item.rating)}
                                             {item.match_score !== null && item.match_score !== undefined && (
                                                 <span className="kb-match">{item.match_score}% khớp</span>
                                             )}
                                             {recruiterAi && <ScreeningBadge item={screenings[item.legacy_cv_id]} />}
+                                            {item.assessment_status && (
+                                                <span className="kb-match" title="Bài test chuyên sâu">
+                                                    {item.assessment_status === 'GRADED' && item.assessment_score !== null && item.assessment_score !== undefined
+                                                        ? `Test: ${item.assessment_score}/10`
+                                                        : (ASSESSMENT_STATUS_META[item.assessment_status]?.label || item.assessment_status)}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -514,6 +635,16 @@ const KanbanBoard = () => {
                                     </div>
                                 ))}
                             </div>
+
+                            <RecruiterAssessmentManager
+                                applicationId={detail.id}
+                                stage={detail.stage}
+                                onAssessmentUpdated={async () => {
+                                    await Promise.allSettled([loadBoard(jobId), getApplicationDetail(detail.id).then((fresh) => {
+                                        if (fresh?.errCode === 0 && currentDetail.current === detail.id) setDetail(fresh.data);
+                                    })]);
+                                }}
+                            />
 
                             <div className="kb-section kb-decision">
                                 <h5>Gửi email cho ứng viên</h5>

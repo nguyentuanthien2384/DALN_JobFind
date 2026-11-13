@@ -18,6 +18,7 @@ function History({ user, token }) {
     const [{ page }, setQuery] = useListQuery({ page: 0 });
     const [loading,setLoading] = useState(true), [error,setError] = useState(''), [refresh,setRefresh] = useState(0);
     const [progress,setProgress] = useState(new Map()), [progressError,setProgressError] = useState(''), [progressLoading,setProgressLoading] = useState(false);
+    const [assessments,setAssessments] = useState(new Map());
     const [settledRequest,setSettledRequest] = useState(''), [rowsPage,setRowsPage] = useState(page);
     const requestKey = JSON.stringify([user.id, token, page, refresh]);
     const busy = loading || settledRequest !== requestKey;
@@ -43,11 +44,24 @@ function History({ user, token }) {
     },[user.id,token,page,refresh,requestKey,setQuery]);
     useEffect(() => {
         let active=true;
-        setProgress(new Map()); setProgressError('');
+        setProgress(new Map()); setAssessments(new Map()); setProgressError('');
         if (enabled) {
             setProgressLoading(true);
             (async () => {
-                try { const data=progressByLegacyCv(await getMyApplications()); if(active && localStorage.getItem('token_user')===token) setProgress(data); }
+                try {
+                    const response = await getMyApplications();
+                    const data = progressByLegacyCv(response);
+                    if (active && localStorage.getItem('token_user') === token) {
+                        setProgress(data);
+                        const nextAssessments = new Map();
+                        for (const row of (response?.data || [])) {
+                            if (row?.assessment && row?.legacy_cv_id && row?.id) {
+                                nextAssessments.set(Number(row.legacy_cv_id), { applicationId: Number(row.id), assessment: row.assessment });
+                            }
+                        }
+                        setAssessments(nextAssessments);
+                    }
+                }
                 catch(failure) { if(active) setProgressError(failure.message || 'Không tải được tiến trình tuyển dụng.'); }
                 finally { if(active) setProgressLoading(false); }
             })();
@@ -74,7 +88,18 @@ function History({ user, token }) {
                 <td data-label="Trạng thái đọc">{Number(cv.isChecked)===0?'Chưa xem':Number(cv.isChecked)===1?'Đã xem':'Chưa xác định'}</td>
                 {enabled && <td data-label="Tiến trình tuyển dụng">{progressLoading?'Đang tải tiến trình…':progressError?'Chưa tải được tiến trình':applicationStage(cv,progress)}</td>}
                 <td data-label="Thao tác">{post?.id && <><Link style={{color:'#4B49AC'}} to={`/detail-job/${post.id}/`}>Xem công việc</Link>{' · '}</>}
-                    <Link style={{color:'#4B49AC'}} to={`/candidate/cv-detail/${cv.id}`}>Xem CV đã nộp</Link></td></tr>;
+                    <Link style={{color:'#4B49AC'}} to={`/candidate/cv-detail/${cv.id}`}>Xem CV đã nộp</Link>
+                    {enabled && assessments.get(Number(cv.id)) && (() => {
+                        const { applicationId, assessment } = assessments.get(Number(cv.id));
+                        const label = assessment.status === 'GRADED'
+                            ? `Kết quả test (${assessment.totalScore}/10)`
+                            : assessment.status === 'SUBMITTED'
+                                ? 'Xem bài test đã nộp'
+                                : assessment.status === 'IN_PROGRESS'
+                                    ? 'Tiếp tục làm bài test'
+                                    : 'Làm bài test';
+                        return <>{' · '}<Link style={{color:'#4B49AC',fontWeight:600}} to={`/candidate/assessment/${applicationId}`}>{label}</Link></>;
+                    })()}</td></tr>;
         })}</tbody></table></div>
         </StableList>
         <ReactPaginate forcePage={page} pageCount={Math.max(page+1,Math.ceil(count/PAGINATION.pagerow))} previousLabel="Quay lại" nextLabel="Tiếp" breakLabel="…"

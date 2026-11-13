@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+      "maxLength": 64
+    },
+    "applicationId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "assessmentId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companyId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "domainCode": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "domainLabel": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "jobTitle": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "type": {
+            "enum": [
+              "mcq_single",
+              "mcq_multi",
+              "text",
+              "code"
+            ]
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "points": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "prompt",
+          "points"
+        ],
+        "additionalProperties": true
+      },
+      "maxItems": 1000
+    },
+    "answers": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "mcqAutoEvaluation": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "language": {
+      "enum": [
+        "vi",
+        "en"
+      ]
+    }
+  },
+  "required": [
+    "taskId",
+    "applicationId",
+    "assessmentId",
+    "domainCode",
+    "domainLabel",
+    "questions",
+    "answers"
+  ],
+  "additionalProperties": true,
+  "title": "ai.grade_assessment payload v1",
+  "examples": [
+    {
+      "taskId": "task-1",
+      "applicationId": 31,
+      "assessmentId": 5,
+      "jobId": 7,
+      "companyId": 3,
+      "domainCode": "cong-nghe-thong-tin",
+      "domainLabel": "Công nghệ thông tin",
+      "jobTitle": "Backend Node.js Engineer",
+      "title": "Đánh giá Backend Engineering",
+      "questions": [
+        {
+          "id": "q-1",
+          "type": "text",
+          "prompt": "Nêu cách tối ưu truy vấn",
+          "points": 4
+        }
+      ],
+      "answers": {
+        "q-1": {
+          "textAnswer": "Thêm composite index"
+        }
+      },
+      "mcqAutoEvaluation": {
+        "mcqScore": 0,
+        "mcqMaxScore": 0
+      },
+      "language": "vi"
+    }
+  ]
+}

@@ -11,6 +11,8 @@ import { matchCv } from '../jobs/smartMatching.js';
 import { moderateJob } from '../jobs/moderation.js';
 import { generateCoverLetter } from '../jobs/coverLetter.js';
 import { writeAssist } from '../jobs/writeAssist.js';
+import { generateAssessment } from '../jobs/generateAssessment.js';
+import { gradeAssessment } from '../jobs/gradeAssessment.js';
 
 const logger = createLogger('ai-worker');
 
@@ -20,7 +22,9 @@ export const handlers = {
     [EVENTS.AI_GENERATE_CV]: { type: 'generate_cv', run: (payload) => generateCv(payload) },
     [EVENTS.AI_MATCH_CV]: { type: 'match_cv', run: (payload) => matchCv(payload) },
     [EVENTS.AI_COVER_LETTER]: { type: 'cover_letter', run: (payload) => generateCoverLetter(payload) },
-    [EVENTS.AI_WRITE_ASSIST]: { type: 'write_assist', run: (payload) => writeAssist(payload) }
+    [EVENTS.AI_WRITE_ASSIST]: { type: 'write_assist', run: (payload) => writeAssist(payload) },
+    [EVENTS.AI_GENERATE_ASSESSMENT]: { type: 'generate_assessment', run: (payload) => generateAssessment(payload) },
+    [EVENTS.AI_GRADE_ASSESSMENT]: { type: 'grade_assessment', run: (payload) => gradeAssessment(payload) }
 };
 
 export const publishTaskResult = (event) => publishOutboxEvent(event.eventType, event.data, {

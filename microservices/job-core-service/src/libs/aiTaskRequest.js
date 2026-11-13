@@ -10,7 +10,9 @@ const eventTypes = Object.freeze({
     generate_cv: EVENTS.AI_GENERATE_CV,
     match_cv: EVENTS.AI_MATCH_CV,
     cover_letter: EVENTS.AI_COVER_LETTER,
-    write_assist: EVENTS.AI_WRITE_ASSIST
+    write_assist: EVENTS.AI_WRITE_ASSIST,
+    generate_assessment: EVENTS.AI_GENERATE_ASSESSMENT,
+    grade_assessment: EVENTS.AI_GRADE_ASSESSMENT
 });
 
 const requestError = (code, message) => Object.assign(new Error(message), { code });

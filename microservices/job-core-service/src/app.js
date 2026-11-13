@@ -27,6 +27,7 @@ import {
 import {
     ensureAiScreeningTable, applicationIntro, candidateMessage, chatAssist, screenApplication, listJobScreenings
 } from './controllers/aiAssistController.js';
+import { createAssessmentTask, getAssessmentTask } from './controllers/aiAssessmentController.js';
 
 const logger = createLogger('job-core-service');
 const app = express();
@@ -79,6 +80,8 @@ contractRoute(app, 'aiCandidateMessage', canUseRecruiterAi, candidateMessage);
 contractRoute(app, 'aiScreenApplication', canUseRecruiterAi, screenApplication);
 contractRoute(app, 'aiJobScreenings', canUseRecruiterAi, listJobScreenings);
 contractRoute(app, 'aiTaskGet', canUseMatchingAi, getTask);
+contractRoute(app, 'internalAssessmentTaskCreate', createAssessmentTask);
+contractRoute(app, 'internalAssessmentTaskGet', getAssessmentTask);
 
 // --- Noi bo: Search Service goi de dung lai index tu dau ---
 contractRoute(app, 'jobIndexList', listJobsForReindex);

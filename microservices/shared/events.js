@@ -29,6 +29,8 @@ export const EVENTS = {
     // Ban nhap ngan cho nguoi dung sua truoc khi gui: loi gioi thieu ung tuyen,
     // loi nhan trong email ket qua, goi y/viet lai tin nhan chat.
     AI_WRITE_ASSIST: 'ai.write_assist',
+    AI_GENERATE_ASSESSMENT: 'ai.generate_assessment',
+    AI_GRADE_ASSESSMENT: 'ai.grade_assessment',
 
     // AI Worker tra ket qua ve.
     AI_RESULT: 'ai.result',

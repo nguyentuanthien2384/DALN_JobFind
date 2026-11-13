@@ -54,7 +54,7 @@ describe('application pipeline controller', () => {
 
     it('returns all Kanban columns, including empty stages, in configured order', async () => {
         const rows = [
-            { id: 1, stage: 'moi_ung_tuyen' },
+            { id: 1, stage: 'moi_ung_tuyen', candidate_name: 'Trần Bảo Ngọc', candidate_email: 'ngoc@example.test', candidate_phone: '0928800002', cover_letter: 'Kinh nghiệm React', cv_summary: 'React TypeScript' },
             { id: 2, stage: 'moi_ung_tuyen' },
             { id: 3, stage: 'phong_van' }
         ];
@@ -62,6 +62,8 @@ describe('application pipeline controller', () => {
         const { getBoard } = await import('../application-service/src/controllers/applicationController.js');
         const res = makeRes();
         await getBoard(companyReq({ query: { jobId: '12' } }), res);
+        expect(mocks.pool.query.mock.calls[0][0]).toContain('candidate_phone');
+        expect(mocks.pool.query.mock.calls[0][0]).toContain('cv_summary');
         expect(mocks.pool.query.mock.calls[0][1]).toEqual([9, 12]);
         expect(res.body.data.total).toBe(3);
         expect(res.body.data.columns).toHaveLength(6);

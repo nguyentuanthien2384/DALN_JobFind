@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+      "maxLength": 64
+    },
+    "applicationId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companyId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "domainCode": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "domainLabel": {
+      "type": "string",
+      "maxLength": 120
+    },
+    "jobTitle": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "jobDescription": {
+      "type": "string",
+      "maxLength": 200000
+    },
+    "questionCount": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 10
+    },
+    "difficulty": {
+      "enum": [
+        "JUNIOR",
+        "MID",
+        "SENIOR"
+      ]
+    },
+    "questionMix": {
+      "enum": [
+        "mixed",
+        "mcq_focused",
+        "practical_focused"
+      ]
+    },
+    "focusTopics": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 500
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "language": {
+      "enum": [
+        "vi",
+        "en"
+      ]
+    }
+  },
+  "required": [
+    "taskId",
+    "applicationId",
+    "domainCode",
+    "domainLabel",
+    "jobTitle",
+    "jobDescription"
+  ],
+  "additionalProperties": true,
+  "title": "ai.generate_assessment payload v1",
+  "examples": [
+    {
+      "taskId": "task-1",
+      "applicationId": 31,
+      "jobId": 7,
+      "companyId": 3,
+      "domainCode": "cong-nghe-thong-tin",
+      "domainLabel": "Công nghệ thông tin",
+      "jobTitle": "Backend Node.js Engineer",
+      "jobDescription": "<p>Build microservices</p>",
+      "questionCount": 4,
+      "difficulty": "MID",
+      "questionMix": "mixed",
+      "focusTopics": null,
+      "language": "vi"
+    }
+  ]
+}

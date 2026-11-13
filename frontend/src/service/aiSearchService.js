@@ -133,7 +133,7 @@ const getSystemStatus = () => axios.get(`/status`);
 
 export {
     searchJobs, suggestJobs, getSearchFacets, getRelatedJobs,
-    createAiRequestOptions, parseResumeAi, generateCvAi, matchCvAi, matchCvPdfAi, coverLetterAi, getAiTask, waitForAiTask,
+    createAiRequestOptions, postAi, parseResumeAi, generateCvAi, matchCvAi, matchCvPdfAi, coverLetterAi, getAiTask, waitForAiTask,
     applicationIntroAi, candidateMessageAi, chatAssistAi, screenApplicationAi, getJobScreenings,
     getMyProfile, updateMyProfile,
     listMyCvs, createMyCv, updateMyCv, deleteMyCv, importParsedCv,

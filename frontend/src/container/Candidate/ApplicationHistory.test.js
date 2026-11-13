@@ -65,3 +65,13 @@ test('legacy failure or wrong owner is not shown as an empty successful list',as
     await waitFor(()=>expect(screen.getByRole('alert')).toHaveTextContent('Không tải được danh sách'));
     expect(screen.queryByText('React job')).not.toBeInTheDocument();expect(screen.queryByText('Chưa có hồ sơ trên trang này.')).not.toBeInTheDocument();
 });
+test('renders assessment action link when recruiter assigned an assessment for the application', async () => {
+    getMyApplications.mockResolvedValue({
+        errCode: 0,
+        data: [{ id: 900, legacy_cv_id: 12, job_id: 91, stage: 'phong_van', assessment: { id: 1, status: 'ASSIGNED', title: 'Test chuyên sâu React' } }]
+    });
+    render(<ManageCvCandidate />);
+    const link = await screen.findByRole('link', { name: 'Làm bài test' });
+    expect(link).toHaveAttribute('href', '/candidate/assessment/900');
+    expect(screen.queryByText('900')).not.toBeInTheDocument();
+});

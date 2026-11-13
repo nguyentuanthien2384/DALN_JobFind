@@ -214,6 +214,12 @@ app.get('/api/my-applications', (req, res, next) => { res.setHeader('Cache-Contr
     createProxy('applications', () => '/my-applications'));
 app.get('/api/my-interviews', (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); }, requirePermission(PERMISSIONS.APPLICATION_SELF_READ),
     createProxy('applications', () => '/my-interviews'));
+app.get('/api/my-applications/:id/assessment', (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); }, requirePermission(PERMISSIONS.APPLICATION_SELF_READ),
+    createProxy('applications', (req) => `/my-applications/${encodeURIComponent(req.params.id)}/assessment`));
+app.post('/api/my-applications/:id/assessment/start', (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); }, requirePermission(PERMISSIONS.APPLICATION_SELF_READ),
+    createProxy('applications', (req) => `/my-applications/${encodeURIComponent(req.params.id)}/assessment/start`));
+app.post('/api/my-applications/:id/assessment/submit', (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); }, requirePermission(PERMISSIONS.APPLICATION_SELF_READ),
+    createProxy('applications', (req) => `/my-applications/${encodeURIComponent(req.params.id)}/assessment/submit`));
 app.get('/api/applications/interviews', (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); },
     requirePermission(PERMISSIONS.APPLICATION_MANAGE, { companyRequired: true }),
     createProxy('applications', () => '/applications/interviews'));
@@ -222,6 +228,16 @@ app.get('/api/applications/stages',
     requirePermission(PERMISSIONS.APPLICATION_MANAGE, { companyRequired: true }),
     createProxy('applications', () => '/applications/stages'));
 // Toan bo phan con lai chi danh cho nha tuyen dung.
+app.post('/api/applications/:id/assessment/ai-generate',
+    (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); },
+    requirePermission(PERMISSIONS.AI_RECRUITER_USE, { companyRequired: true }),
+    aiLimiter,
+    createProxy('applications', (req) => `/applications/${encodeURIComponent(req.params.id)}/assessment/ai-generate`));
+app.post('/api/applications/:id/assessment/ai-grade',
+    (req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); },
+    requirePermission(PERMISSIONS.AI_RECRUITER_USE, { companyRequired: true }),
+    aiLimiter,
+    createProxy('applications', (req) => `/applications/${encodeURIComponent(req.params.id)}/assessment/ai-grade`));
 app.use('/api/applications',
     requirePermission(PERMISSIONS.APPLICATION_MANAGE, { companyRequired: true }),
     createProxy('applications', sub('/applications')));

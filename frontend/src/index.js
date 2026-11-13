@@ -5,6 +5,7 @@ import App from "./App";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "react-datepicker/dist/react-datepicker.css";
+import "./components/Assessment/Assessment.css";
 
 const root = createRoot(document.getElementById("root"));
 

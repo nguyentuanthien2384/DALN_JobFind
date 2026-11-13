@@ -43,6 +43,24 @@ const resultSchemas = {
         matchedSkills: list(string()), missingSkills: list(string()), strengths: list(string()), concerns: list(string()), summary: string() }, ['score']),
     cover_letter: object({ letter: string(), language: string(32), wordCount: integer() }, ['letter']),
     write_assist: object({ kind: { enum: writeKinds }, suggestions: { ...list(string(4000)), minItems: 1, maxItems: 5 } }, ['suggestions']),
+    generate_assessment: object({
+        domainCode: string(64), domainLabel: string(120), title: string(255), description: string(2000),
+        timeLimitMinutes: integer(5, 240),
+        questions: list(object({
+            id: string(64), order: integer(1, 50), type: { enum: ['mcq_single', 'mcq_multi', 'text', 'code'] },
+            prompt: string(4000), points: { type: 'number', minimum: 0.5, maximum: 100 }
+        }, ['id', 'type', 'prompt', 'points']))
+    }, ['domainCode', 'title', 'questions']),
+    grade_assessment: object({
+        perQuestion: list(object({
+            questionId: string(64), earnedPoints: { type: 'number', minimum: 0, maximum: 100 },
+            maxPoints: { type: 'number', minimum: 0.5, maximum: 100 }, passed: bool, comment: string(2000)
+        }, ['questionId', 'earnedPoints', 'maxPoints', 'comment'])),
+        overallFeedback: string(4000),
+        strengths: list(string(1000)),
+        improvements: list(string(1000)),
+        recommendation: { enum: ['PASS', 'CONSIDER', 'FAIL'] }
+    }, ['perQuestion', 'overallFeedback', 'recommendation']),
     moderate_job: object({ approved: bool, reason: optionalText, riskLevel: { enum: ['an_toan', 'can_xem_lai', 'nguy_hiem'] }, violations: list(string(100)) }, ['approved'])
 };
 const aiResult = { oneOf: Object.entries(resultSchemas).map(([type, result]) => ({
@@ -90,7 +108,26 @@ export const eventCatalog = {
         emailType: { enum: ['interview', 'offer', 'rejection'] }, candidateName: nullable(string(255)), recruiterNotes: nullable(string(2000)), interviewed: bool,
         senderRole: { enum: ['candidate', 'recruiter'] }, messages: { ...list(chatMessage), maxItems: 20 }, draft: string(2000)
     }, ['taskId', 'kind']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 8 * 1024 * 1024),
-    'ai.result': metadata(aiResult, { moderate_job: 'jobId', parse_resume: 'taskId', generate_cv: 'taskId', match_cv: 'taskId', cover_letter: 'taskId', write_assist: 'taskId' }, ['ai-worker'], ['job-core-service.ai-results'], 1024 * 1024),
+    'ai.generate_assessment': metadata(object({
+        taskId, applicationId: id, jobId: nullable(id), companyId: id,
+        domainCode: string(64), domainLabel: string(120),
+        jobTitle: string(255), jobDescription: string(200000),
+        questionCount: integer(3, 10),
+        difficulty: { enum: ['JUNIOR', 'MID', 'SENIOR'] },
+        questionMix: { enum: ['mixed', 'mcq_focused', 'practical_focused'] },
+        focusTopics: nullable(string(500)),
+        language: { enum: ['vi', 'en'] }
+    }, ['taskId', 'applicationId', 'domainCode', 'domainLabel', 'jobTitle', 'jobDescription']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 2 * 1024 * 1024),
+    'ai.grade_assessment': metadata(object({
+        taskId, applicationId: id, assessmentId: id, jobId: nullable(id), companyId: id,
+        domainCode: string(64), domainLabel: string(120),
+        jobTitle: string(255), title: string(255),
+        questions: list(object({ id: string(64), type: { enum: ['mcq_single', 'mcq_multi', 'text', 'code'] }, prompt: string(4000), points: { type: 'number', minimum: 0.5, maximum: 100 } }, ['id', 'type', 'prompt', 'points'])),
+        answers: { type: 'object', additionalProperties: true },
+        mcqAutoEvaluation: { type: 'object', additionalProperties: true },
+        language: { enum: ['vi', 'en'] }
+    }, ['taskId', 'applicationId', 'assessmentId', 'domainCode', 'domainLabel', 'questions', 'answers']), 'taskId', ['job-core-service'], ['ai-worker.jobs'], 2 * 1024 * 1024),
+    'ai.result': metadata(aiResult, { moderate_job: 'jobId', parse_resume: 'taskId', generate_cv: 'taskId', match_cv: 'taskId', cover_letter: 'taskId', write_assist: 'taskId', generate_assessment: 'taskId', grade_assessment: 'taskId' }, ['ai-worker'], ['job-core-service.ai-results'], 1024 * 1024),
     'application.stage_changed': metadata(object({ ...application, interviewed: bool }, ['applicationId', 'candidateId', 'jobId', 'fromStage', 'toStage']), 'applicationId', ['application-service'], ['notification-service.events']),
     'application.decision_email_requested': metadata({ ...object({ ...application, decision: { enum: ['accepted', 'rejected'] }, message: optionalText, offer: { ...offerSchema, additionalProperties: true }, interviewed: bool, interview }, ['applicationId', 'candidateId', 'jobId', 'decision', 'toStage']),
         allOf: [{ if: { properties: { decision: { const: 'accepted' } }, required: ['decision'] }, then: { properties: { toStage: { enum: ['de_nghi', 'nhan_viec'] } } }, else: { properties: { toStage: { const: 'tu_choi' } } } }]
@@ -117,6 +154,20 @@ export const eventExamples = {
     'ai.match_cv': { taskId: 'task-1', resumeText: 'Synthetic CV', jobTitle: 'Developer', jobDescription: 'Build services' },
     'ai.cover_letter': { taskId: 'task-1', resumeText: 'Synthetic CV', jobTitle: 'Developer', jobDescription: 'Build services', companyName: 'Example', language: 'en' },
     'ai.write_assist': { taskId: 'task-1', kind: 'chat_reply', language: 'vi', senderRole: 'candidate', messages: [{ from: 'partner', text: 'Bạn có thể phỏng vấn thứ Hai không?' }] },
+    'ai.generate_assessment': {
+        taskId: 'task-1', applicationId: 31, jobId: 7, companyId: 3,
+        domainCode: 'cong-nghe-thong-tin', domainLabel: 'Công nghệ thông tin',
+        jobTitle: 'Backend Node.js Engineer', jobDescription: '<p>Build microservices</p>',
+        questionCount: 4, difficulty: 'MID', questionMix: 'mixed', focusTopics: null, language: 'vi'
+    },
+    'ai.grade_assessment': {
+        taskId: 'task-1', applicationId: 31, assessmentId: 5, jobId: 7, companyId: 3,
+        domainCode: 'cong-nghe-thong-tin', domainLabel: 'Công nghệ thông tin',
+        jobTitle: 'Backend Node.js Engineer', title: 'Đánh giá Backend Engineering',
+        questions: [{ id: 'q-1', type: 'text', prompt: 'Nêu cách tối ưu truy vấn', points: 4 }],
+        answers: { 'q-1': { textAnswer: 'Thêm composite index' } },
+        mcqAutoEvaluation: { mcqScore: 0, mcqMaxScore: 0 }, language: 'vi'
+    },
     'ai.result': { taskId: 'task-1', type: 'match_cv', ok: true, result: { score: 80, matchedSkills: ['Node'] } },
     'application.stage_changed': { ...base, applicationId: 31, fromStage: 'moi_ung_tuyen', toStage: 'phong_van', reason: null },
     'application.decision_email_requested': { ...base, applicationId: 31, companyId: 3, fromStage: null, toStage: 'nhan_viec', decision: 'accepted', message: 'Congratulations' },
