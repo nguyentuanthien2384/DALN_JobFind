@@ -680,18 +680,29 @@ export const myApplications = async (req, res) => {
         );
         return res.json({
             errCode: 0,
-            data: rows.map((r) => ({
-                ...r,
-                stageLabel: STAGE_LABELS[r.stage],
-                assessment: r.assessment_id ? {
-                    id: Number(r.assessment_id),
-                    title: r.assessment_title,
-                    status: r.assessment_status,
-                    timeLimitSeconds: r.assessment_time_limit_seconds ?? null,
-                    submittedAt: r.assessment_submitted_at ?? null,
-                    totalScore: r.assessment_total_score !== null && r.assessment_total_score !== undefined ? Number(r.assessment_total_score) : null,
-                    gradingMode: r.assessment_grading_mode ?? null
-                } : null
+            data: rows.map(({
+                assessment_id: assessmentId,
+                assessment_title: assessmentTitle,
+                assessment_status: assessmentStatus,
+                assessment_time_limit_seconds: assessmentTimeLimitSeconds,
+                assessment_submitted_at: assessmentSubmittedAt,
+                assessment_total_score: assessmentTotalScore,
+                assessment_grading_mode: assessmentGradingMode,
+                ...rest
+            }) => ({
+                ...rest,
+                stageLabel: STAGE_LABELS[rest.stage],
+                ...(assessmentId ? {
+                    assessment: {
+                        id: Number(assessmentId),
+                        title: assessmentTitle,
+                        status: assessmentStatus,
+                        timeLimitSeconds: assessmentTimeLimitSeconds ?? null,
+                        submittedAt: assessmentSubmittedAt ?? null,
+                        totalScore: assessmentTotalScore !== null && assessmentTotalScore !== undefined ? Number(assessmentTotalScore) : null,
+                        gradingMode: assessmentGradingMode ?? null
+                    }
+                } : {})
             })),
             count: rows.length
         });

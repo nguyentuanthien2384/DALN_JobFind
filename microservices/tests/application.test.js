@@ -556,7 +556,24 @@ describe('application pipeline controller', () => {
         const denied = makeRes();
         await myApplications(makeReq(), denied);
         expect(denied.statusCode).toBe(401);
-        mocks.pool.query.mockResolvedValueOnce({ rows: [{ id: 1, stage: 'phong_van' }] });
+        mocks.pool.query.mockResolvedValueOnce({
+            rows: [{
+                id: 1,
+                legacy_cv_id: 101,
+                job_id: 7,
+                job_title: 'Node.js Developer',
+                stage: 'phong_van',
+                applied_at: '2026-11-14T00:00:00Z',
+                stage_changed_at: '2026-11-14T01:00:00Z',
+                assessment_id: null,
+                assessment_title: null,
+                assessment_status: null,
+                assessment_time_limit_seconds: null,
+                assessment_submitted_at: null,
+                assessment_total_score: null,
+                assessment_grading_mode: null
+            }]
+        });
         const ok = makeRes();
         await myApplications(makeReq({ headers: { 'x-user-id': '4' } }), ok);
         expect(ok.body.data[0].stageLabel).toBe('Phỏng vấn');
@@ -564,6 +581,83 @@ describe('application pipeline controller', () => {
         expect(ok.headers['Cache-Control']).toBe('private, no-store');
         expect(mocks.pool.query.mock.calls[0][0]).toContain('legacy_cv_id');
         expect(mocks.pool.query.mock.calls[0][1]).toEqual([4]);
+        expect(Object.keys(ok.body.data[0]).sort()).toEqual([
+            'id',
+            'legacy_cv_id',
+            'job_id',
+            'job_title',
+            'stage',
+            'applied_at',
+            'stage_changed_at',
+            'stageLabel'
+        ].sort());
+        mocks.pool.query.mockResolvedValueOnce({
+            rows: [
+                {
+                    id: 2,
+                    legacy_cv_id: 102,
+                    job_id: 8,
+                    job_title: 'React Developer',
+                    stage: 'phong_van',
+                    applied_at: '2026-11-14T00:00:00Z',
+                    stage_changed_at: '2026-11-14T01:00:00Z',
+                    assessment_id: 15,
+                    assessment_title: 'React Quiz',
+                    assessment_status: 'GRADED',
+                    assessment_time_limit_seconds: 1800,
+                    assessment_submitted_at: '2026-11-14T02:00:00Z',
+                    assessment_total_score: '8.50',
+                    assessment_grading_mode: 'AI'
+                },
+                {
+                    id: 3,
+                    legacy_cv_id: 103,
+                    job_id: 9,
+                    job_title: 'QA Engineer',
+                    stage: 'phong_van',
+                    applied_at: '2026-11-14T00:00:00Z',
+                    stage_changed_at: '2026-11-14T01:00:00Z',
+                    assessment_id: 16,
+                    assessment_title: 'QA Test',
+                    assessment_status: 'ASSIGNED',
+                    assessment_time_limit_seconds: null,
+                    assessment_submitted_at: null,
+                    assessment_total_score: null,
+                    assessment_grading_mode: null
+                }
+            ]
+        });
+        const withAssessment = makeRes();
+        await myApplications(makeReq({ headers: { 'x-user-id': '4' } }), withAssessment);
+        expect(Object.keys(withAssessment.body.data[0]).sort()).toEqual([
+            'id',
+            'legacy_cv_id',
+            'job_id',
+            'job_title',
+            'stage',
+            'applied_at',
+            'stage_changed_at',
+            'stageLabel',
+            'assessment'
+        ].sort());
+        expect(withAssessment.body.data[0].assessment).toEqual({
+            id: 15,
+            title: 'React Quiz',
+            status: 'GRADED',
+            timeLimitSeconds: 1800,
+            submittedAt: '2026-11-14T02:00:00Z',
+            totalScore: 8.5,
+            gradingMode: 'AI'
+        });
+        expect(withAssessment.body.data[1].assessment).toEqual({
+            id: 16,
+            title: 'QA Test',
+            status: 'ASSIGNED',
+            timeLimitSeconds: null,
+            submittedAt: null,
+            totalScore: null,
+            gradingMode: null
+        });
         mocks.pool.query.mockRejectedValue(new Error('db'));
         const failed = makeRes();
         await myApplications(makeReq({ headers: { 'x-user-id': '4' } }), failed);
