@@ -1,0 +1,21 @@
+#!/bin/sh
+# JobFind pre-push: run the same gates as GitHub Actions before code leaves this machine.
+# Install once with: npm run hooks:install
+# Full CI-equivalent run: JOBFIND_FULL_CHECK=1 git push
+# Emergency bypass (not recommended): git push --no-verify
+
+echo "[JobFind pre-push] Dang chay cac cong CI truoc khi push..."
+
+if [ "$JOBFIND_FULL_CHECK" = "1" ]; then
+  npm run check
+else
+  npm run verify:push
+fi
+
+if [ $? -ne 0 ]; then
+  echo "[JobFind pre-push] LOI: Cong CI that bai. Sua loi roi push lai (CI tren GitHub cung se do)."
+  exit 1
+fi
+
+echo "[JobFind pre-push] Tat ca cong CI deu PASS. Dang day code len GitHub..."
+exit 0

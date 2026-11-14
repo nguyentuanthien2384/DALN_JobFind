@@ -19,10 +19,15 @@
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-4-FF6600?style=flat-square&logo=rabbitmq&logoColor=white)](https://rabbitmq.com)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101?style=flat-square&logo=socketdotio&logoColor=white)](https://socket.io)
-[![Tests](https://img.shields.io/badge/Tests-6.500%2B_passing-2EA44F?style=flat-square&logo=jest&logoColor=white)](#-chất-lượng--triển-khai)
-[![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)](.github/workflows)
+[![Tests](https://img.shields.io/badge/Tests-6.500%2B_passing-2EA44F?style=flat-square&logo=jest&logoColor=white)](#-cicd--chất-lượng)
+[![Mutation](https://img.shields.io/badge/Mutation_score-%3E91%25-8A2BE2?style=flat-square&logo=stryker&logoColor=white)](#-cicd--chất-lượng)
 
-[**⚡ Bắt đầu nhanh**](#-bắt-đầu-nhanh) · [**💳 Thẻ dùng thử**](#-thanh-toán-sandbox--thẻ-dùng-thử-miễn-phí) · [**👥 Tài khoản demo**](#-tài-khoản-demo) · [**🖼 Giao diện**](#-giao-diện-nổi-bật) · [**🎨 UI/UX**](#-thiết-kế-uiux) · [**🤖 AI**](#-trợ-lý-ai-trong-jobfind) · [**🧱 Kiến trúc**](#-kiến-trúc-hệ-thống)
+[![Microservices quality](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/microservices.yml/badge.svg?branch=main)](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/microservices.yml)
+[![Authentication and OIDC acceptance](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/authentication.yml/badge.svg?branch=main)](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/authentication.yml)
+[![Realtime integration](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/realtime.yml/badge.svg?branch=main)](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/realtime.yml)
+[![Mutation testing](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/mutation.yml/badge.svg?branch=main)](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/mutation.yml)
+
+[**⚡ Bắt đầu nhanh**](#-bắt-đầu-nhanh) · [**💳 Thẻ dùng thử**](#-thanh-toán-sandbox--thẻ-dùng-thử-miễn-phí) · [**👥 Tài khoản demo**](#-tài-khoản-demo) · [**🖼 Giao diện**](#-giao-diện-nổi-bật) · [**🤖 AI**](#-trợ-lý-ai-trong-jobfind) · [**📝 Bài test & Email**](#-bài-test-năng-lực--email-tự-động) · [**🧱 Kiến trúc**](#-kiến-trúc-hệ-thống) · [**🔁 CI/CD**](#-cicd--chất-lượng)
 
 </div>
 
@@ -34,7 +39,7 @@ JobFind kết hợp giao diện **React 18**, **Backend Express + Socket.IO** v�
 
 | 🧩 Kiến trúc dịch vụ | 🤖 Trợ lý AI | 💳 Thanh toán & Điểm thưởng | 🧪 Kiểm thử tự động |
 | :---: | :---: | :---: | :---: |
-| API Gateway + 8 Microservice + Backend | 6 tác vụ AI Worker + Chatbot đa mô hình | VNPAY · ZaloPay · MoMo · PayPal + Ví Điểm | 6.500+ test · Mutation > 91% |
+| API Gateway + 8 Microservice + Backend | 8 tác vụ AI Worker + Chatbot đa mô hình | VNPAY · ZaloPay · MoMo · PayPal + Ví Điểm | 6.500+ test · 4 workflow CI · Mutation > 91% |
 
 <table>
 <tr>
@@ -43,8 +48,9 @@ JobFind kết hợp giao diện **React 18**, **Backend Express + Socket.IO** v�
 ### 👤 Ứng viên
 - Tìm việc đa bộ lọc (34 tỉnh/thành mới), lưu việc & theo dõi công ty.
 - Tạo CV, đọc CV PDF, chấm độ hợp công việc (0–100) & viết thư ứng tuyển bằng AI.
+- Làm **bài test năng lực** có đếm giờ, nhận **email bản sao bài làm** (kiểu Google Forms) để tự kiểm tra lại.
 - Tích điểm hằng ngày, nạp Xu và mở khóa **Báo cáo phân tích cạnh tranh** từng tin tuyển dụng.
-- Xem lịch phỏng vấn, theo dõi tiến trình và chat realtime với HR.
+- Xem lịch phỏng vấn, theo dõi tiến trình, chat realtime với HR và hỏi **Chatbot AI**.
 
 </td>
 <td width="33%" valign="top">
@@ -52,8 +58,8 @@ JobFind kết hợp giao diện **React 18**, **Backend Express + Socket.IO** v�
 ### 🏢 Nhà tuyển dụng
 - Đăng tin tuyển dụng (có AI kiểm duyệt tự động), quản lý nhân sự HR trong công ty.
 - Mua gói đăng tin thường/nổi bật & gói tìm CV qua **VNPAY, ZaloPay, MoMo, PayPal**, tích lũy **Top Point** đổi quà.
-- Quản lý ứng viên trên bảng **Kanban 6 bước**, AI sàng lọc hàng loạt tới 50 hồ sơ/lần.
-- Đặt lịch phỏng vấn, AI soạn thư mời phỏng vấn / nhận việc / cảm ơn chuyên nghiệp.
+- Quản lý ứng viên trên **Kanban 6 bước**, xem CV PDF & nhờ **AI phân tích / sàng lọc** tới 50 hồ sơ/lần.
+- **AI tạo đề test** theo JD, **AI chấm bài** kèm nhận xét; gửi email mời phỏng vấn / nhận việc / cảm ơn.
 
 </td>
 <td width="33%" valign="top">
@@ -67,6 +73,9 @@ JobFind kết hợp giao diện **React 18**, **Backend Express + Socket.IO** v�
 </td>
 </tr>
 </table>
+
+> [!NOTE]
+> 🌐 **Đa ngôn ngữ**: chọn hơn 100 ngôn ngữ ngay trên thanh điều hướng (GTranslate). Nội dung động của React (bộ lọc, nút, thông báo, chatbot…) được dịch đồng bộ khi đổi ngôn ngữ và trả về đúng bản gốc khi quay lại Tiếng Việt — không tải lại trang, không dính bản dịch cũ.
 
 ---
 
@@ -107,11 +116,9 @@ JobFind kết hợp giao diện **React 18**, **Backend Express + Socket.IO** v�
 
 ---
 
-## 🎨 Thiết kế UI/UX
+## 🎨 Nguyên tắc UI/UX
 
-Giao diện của JobFind được xây dựng xoay quanh 4 trụ cột: **Thao tác ít chạm · Phản hồi trạng thái tức thì · Không làm mất ngữ cảnh · AI minh bạch, dễ kiểm soát**.
-
-### 🧭 6 Nguyên tắc trải nghiệm cốt lõi
+Giao diện xoay quanh 4 trụ cột: **Thao tác ít chạm · Phản hồi trạng thái tức thì · Không làm mất ngữ cảnh · AI minh bạch, dễ kiểm soát**.
 
 | Nguyên tắc | Cách thể hiện trên sản phẩm |
 | :--- | :--- |
@@ -121,31 +128,6 @@ Giao diện của JobFind được xây dựng xoay quanh 4 trụ cột: **Thao 
 | 💸 **Minh bạch khi thanh toán & dùng điểm** | Gợi ý sẵn **thẻ dùng thử miễn phí** kèm nút **Sao chép 1 chạm**, tính trước ưu đãi giảm giá và số Điểm / Top Point nhận thêm. |
 | 🔁 **Bền vững khi mạng chập chờn** | Tự động gửi lại với cùng `Idempotency-Key` (không trừ tiền/tạo tác vụ trùng); tin nhắn chat lỗi giữ nguyên nội dung để thử lại. |
 | ♿ **Đa thiết bị & Truy cập chuẩn (A11y)** | Tương thích Desktop / Tablet / Mobile, hỗ trợ bàn phím trên Kanban & Modal, đầy đủ `aria-label`, `role="status"`, `role="alert"`. |
-
-### 🗺 Điểm nhấn UI/UX theo từng phân hệ
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-#### 🧑 Trải nghiệm Ứng viên
-- **🏠 Trang chủ & Tìm việc**: Giữ nguyên bộ lọc, số trang và vị trí cuộn khi bấm xem chi tiết rồi quay lại.
-- **📨 Nộp CV có Trợ lý AI**: Xem trước PDF trực tiếp, gợi ý 2 phương án lời giới thiệu ngắn gọn và chấm điểm khớp JD ngay tại modal nộp đơn.
-- **🏆 Ví Điểm & Phân tích đối thủ**: Điểm danh hằng ngày (+1 điểm), hoàn thiện hồ sơ (+20 điểm), mở khóa biểu đồ kinh nghiệm & mức lương kỳ vọng của nhóm ứng viên cùng ứng tuyển.
-- **💬 Chat & Chatbot nổi**: Cửa sổ chat 2 cột kiểu Messenger (báo đã xem, đang gõ, đính kèm CV/thẻ việc làm) cùng widget Chatbot hỗ trợ Markdown ở góc phải.
-
-</td>
-<td width="50%" valign="top">
-
-#### 🏢 Trải nghiệm Nhà tuyển dụng & Quản trị
-- **📋 Bảng Kanban trực quan**: Kéo thả 6 cột có mã màu riêng, mở chi tiết hồ sơ ngay trong modal không rời bảng; nút **AI sàng lọc** và **Sắp xếp theo điểm AI**.
-- **✉️ Luồng gửi kết quả an toàn**: 3 mẫu thư tách biệt (*Mời phỏng vấn · Mời nhận việc · Cảm ơn*), xem trước giao diện thẻ email HTML (chuẩn Gmail/Outlook) trước khi bấm gửi.
-- **💳 Thanh toán & Hạng đối tác**: Nạp gói tin/CV với 4 cổng thanh toán, tự động nâng hạng Đồng → Bạc → Vàng → Kim Cương và đổi Top Point lấy lượt đăng tin miễn phí.
-- **🛡 Bảo mật phiên trực quan**: Quản lý các thiết bị đang đăng nhập, thu hồi từng phiên từ xa và liên kết tài khoản Google / GitHub / Facebook.
-
-</td>
-</tr>
-</table>
 
 ---
 
@@ -236,6 +218,8 @@ AI chạy tách biệt trong **`ai-worker`** (không mở cổng HTTP) và nhậ
 | **Content Moderation** | `ai.moderate_job` | Kiểm duyệt tin đăng mới, cảnh báo lừa đảo / thu phí / phân biệt đối xử |
 | **Cover Letter** | `ai.cover_letter` | Soạn thư ứng tuyển cá nhân hóa (Tiếng Việt / Tiếng Anh) |
 | **Writing Assistant** | `ai.write_assist` | Viết lời giới thiệu nộp đơn, soạn email kết quả & gợi ý trả lời chat |
+| **Assessment Generator** | `ai.generate_assessment` | Tạo đề test năng lực theo JD (trắc nghiệm + tự luận, thang điểm, thời gian) |
+| **Assessment Grader** | `ai.grade_assessment` | Chấm bài tự luận, chấm điểm từng câu & nhận xét điểm mạnh/điểm cần cải thiện |
 
 ```mermaid
 sequenceDiagram
@@ -262,6 +246,36 @@ sequenceDiagram
 
 > [!IMPORTANT]
 > **Nguyên tắc an toàn & công bằng của AI**: AI không tự ý gửi email/tin nhắn hay loại ứng viên; không bịa đặt kinh nghiệm/mức lương ngoài hồ sơ; **tuyệt đối bỏ qua tuổi tác, giới tính, vùng miền, tôn giáo, tình trạng hôn nhân** khi chấm độ phù hợp CV.
+
+**💬 Chatbot hỗ trợ AI** (`support-chat-service`): trả lời câu hỏi về việc làm, ví điểm, lịch phỏng vấn, bài test… bằng *tool-calling* trên dữ liệu thật của đúng người dùng (tuân thủ RBAC), hỗ trợ Claude / Gemini / OpenAI và chuyển tiếp sang nhân viên hỗ trợ khi cần.
+
+---
+
+## 📝 Bài test năng lực & Email tự động
+
+```mermaid
+flowchart LR
+    A["Ứng viên nộp CV"] --> B["Kanban: Mới ứng tuyển"]
+    B --> C["HR xem CV + AI phân tích"]
+    C --> D["AI tạo đề test theo JD"]
+    D --> E["Ứng viên làm bài (đếm giờ)"]
+    E --> F["AI chấm + HR duyệt điểm"]
+    E -.-> M1["📧 Bản sao bài làm"]
+    F --> G["Mời phỏng vấn + lịch"]
+    G -.-> M2["📧 Thư mời phỏng vấn"]
+    G --> H["Nhận việc / Từ chối"]
+    H -.-> M3["📧 Thư mời nhận việc / Cảm ơn"]
+```
+
+| Email gửi ứng viên | Sự kiện (Transactional Outbox → RabbitMQ) | Nội dung |
+| :--- | :--- | :--- |
+| 📝 **Bản sao bài test** | `application.assessment_submitted` | Toàn bộ câu hỏi, câu trả lời đã nộp, thời gian làm bài (giống bản sao Google Forms); HR có thể **gửi lại** bất cứ lúc nào |
+| 📅 **Thư mời phỏng vấn** | `application.interview_invitation_requested` | Ngày giờ, hình thức (online/offline), địa điểm hoặc link họp, người liên hệ; đổi lịch sẽ gửi lại thư mới |
+| 🎉 **Thư mời nhận việc** | `application.decision_email_requested` | Ngày giờ nhận việc, hình thức (onsite/remote/hybrid), địa điểm hoặc link, người liên hệ, hạn phản hồi — chờ ứng viên xác nhận, không tự đánh dấu đã nhận việc |
+| 🙏 **Thư cảm ơn / không trúng tuyển** | `application.decision_email_requested` | Tự cảm ơn ứng viên đã tham gia phỏng vấn nếu hồ sơ từng ở bước phỏng vấn |
+
+> [!TIP]
+> Mọi thao tác gửi email đều có chế độ **xem trước (`?dryRun=true`)** dùng đúng mẫu HTML và người nhận của luồng gửi thật nhưng không lưu thay đổi. Khi chưa cấu hình `EMAIL_APP` / `EMAIL_APP_PASSWORD`, thông báo vẫn được lưu trong ứng dụng.
 
 ---
 
@@ -322,11 +336,11 @@ flowchart LR
 | `identity-service` | `4001` | MongoDB | Hồ sơ ứng viên, trình tạo CV Builder |
 | `job-core-service` | `4002` | MySQL | Tin tuyển dụng, hạn mức gói tin, kiểm duyệt & điều phối tác vụ AI |
 | `search-service` | `4003` | Elasticsearch | Tìm kiếm toàn văn (full-text), gợi ý từ khóa, bộ lọc facet đồng bộ CQRS |
-| `application-service` | `4004` | PostgreSQL | Bảng Kanban 6 bước, ghi chú nội bộ, phễu tuyển dụng, lịch & thư phỏng vấn |
+| `application-service` | `4004` | PostgreSQL | Bảng Kanban 6 bước, ghi chú nội bộ, phễu tuyển dụng, lịch & thư phỏng vấn, bài test năng lực |
 | `notification-service` | `4005` | MySQL | Lưu thông báo, gửi email HTML qua Gmail SMTP & đẩy thông báo realtime |
 | `admin-service` | `4006` | MongoDB / SQL | Báo cáo thống kê, dữ liệu danh mục (master data), nhật ký kiểm toán |
 | `support-chat-service` | `4008` | MySQL + ES | Chatbot hỗ trợ đa nhà cung cấp (Claude/Gemini/OpenAI), chuyển tiếp nhân viên hỗ trợ |
-| `ai-worker` | — | MongoDB | Xử lý bất đồng bộ 6 tác vụ AI qua RabbitMQ |
+| `ai-worker` | — | MongoDB | Xử lý bất đồng bộ 8 tác vụ AI qua RabbitMQ (CV, matching, kiểm duyệt, bài test…) |
 
 ### 🛠 Công nghệ chủ đạo
 
@@ -364,21 +378,57 @@ npm run seed:demo-data      # Nạp bộ công ty, ứng viên, Kanban & lịch 
 npm run demo:show-jobs      # Hiển thị các tin tuyển dụng [Demo] (ẩn lại bằng demo:hide-jobs)
 npm run dev:status          # Xem trạng thái toàn bộ cổng và dịch vụ đang chạy
 npm run dev:stop            # Dừng toàn bộ ứng dụng (giữ nguyên dữ liệu)
-npm run check               # Chạy toàn bộ lint + unit test + kiểm tra hợp đồng + build
+npm run hooks:install       # Bật Git hook pre-push kiểm tra CI ngay trên máy (chạy 1 lần)
+npm run verify:push         # Chạy nhanh các cổng CI chính trước khi push
+npm run check               # Chạy toàn bộ lint + coverage + hợp đồng + audit + build như CI
 ```
 
 ---
 
-## 🧪 Chất lượng & Triển khai
+## 🔁 CI/CD & Chất lượng
 
-- **Kiểm thử tự động (`npm run check`)**: Bao phủ hơn **6.500 bài test** trên Backend (Jest), Frontend (Jest + React Testing Library), Microservices (Vitest), hành trình đầu cuối (Playwright) và kiểm thử đột biến mã bảo mật/thanh toán (Stryker Mutation > 91%) qua 4 workflow GitHub Actions.
-- **Bảo mật mặc định**: Access token ngắn hạn + Refresh token `HttpOnly` xoay vòng; API Gateway tự xóa header định danh giả mạo; phân quyền kiểm tra theo công ty ở từng request; giao dịch thanh toán đối chiếu chữ ký số HMAC-SHA256 / HMAC-SHA512 và số tiền trước khi cộng quyền lợi.
-- **Triển khai 1 VPS (Docker + Caddy HTTPS tự động)**:
-  ```powershell
-  npm run vps:env -- ten-mien-cua-ban.com   # Sinh deploy/.env kèm mật khẩu mới & chép cấu hình Sandbox/AI/SSO
-  npm run vps:export-data                   # Xuất dữ liệu hiện tại để nạp lên VPS
-  ```
-  Xem hướng dẫn vận hành chi tiết tại [deploy/README.md](deploy/README.md), [Hướng dẫn kiểm thử](docs/testing.md) và [Tài liệu kiến trúc Microservices](microservices/README.md).
+Mỗi lần `push` / `pull request`, **4 workflow GitHub Actions** chạy song song (lọc theo thư mục thay đổi) trên hạ tầng dùng-một-lần (MySQL, PostgreSQL, MongoDB, Redis, RabbitMQ, Elasticsearch) với **AI giả lập** — không gọi nhà cung cấp thật, không cần khóa bí mật.
+
+```mermaid
+flowchart LR
+    Dev["💻 git push"] --> Hook["🪝 pre-push hook<br/>lint · exports · contracts · coverage"]
+    Hook --> GH["GitHub Actions"]
+    GH --> MS["Microservices quality<br/>verify + compose-background"]
+    GH --> AU["Authentication & OIDC<br/>mysql-oidc-browser"]
+    GH --> RT["Realtime integration<br/>mysql-redis"]
+    GH --> MU["Mutation testing<br/>backend + microservices"]
+    MS & AU & RT & MU --> OK["✅ 4 / 4 xanh"]
+```
+
+| Workflow | Job | Kiểm tra chính |
+| :--- | :--- | :--- |
+| [![Microservices quality](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/microservices.yml/badge.svg?branch=main)](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/microservices.yml) | `verify` | Coverage Backend/Frontend/Microservices, ESLint, hợp đồng HTTP (OpenAPI) & Event (JSON Schema), runtime test, `npm audit`, build, Docker image, Playwright với MySQL/Redis/RabbitMQ/Elasticsearch, Prometheus rules |
+| | `compose-background` | Dựng toàn bộ 8 dịch vụ bằng Docker Compose cô lập, chạy hành trình trình duyệt thật: AI CV → tìm việc → nộp CV → Kanban → restart dịch vụ, mất broker & phục hồi |
+| [![Authentication and OIDC acceptance](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/authentication.yml/badge.svg?branch=main)](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/authentication.yml) | `mysql-oidc-browser` | Phiên đăng nhập, refresh token xoay vòng, chữ ký OIDC/SSO và hành trình trình duyệt trên MySQL riêng |
+| [![Realtime integration](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/realtime.yml/badge.svg?branch=main)](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/realtime.yml) | `mysql-redis` | Toàn bộ test backend, chat realtime Socket.IO + Redis adapter, Web Push trên Chromium/Firefox/WebKit, kiểm thử hỗn loạn (chaos) |
+| [![Mutation testing](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/mutation.yml/badge.svg?branch=main)](https://github.com/nguyentuanthien2384/DALN_JobFind/actions/workflows/mutation.yml) | `mutation` | Stryker đột biến mã bảo mật, hạn mức & thanh toán (chạy theo PR liên quan + hằng tuần) |
+
+**Ngưỡng coverage bắt buộc** (CI đỏ nếu tụt dưới):
+
+| Dự án | Statements | Branches | Functions | Lines |
+| :--- | :---: | :---: | :---: | :---: |
+| Backend (Jest) | 90% | 85% | 90% | 90% |
+| Frontend (Jest + RTL) | 85% | 70% | 80% | 85% |
+| Microservices (Vitest) | 80% | 75% | 80% | 80% |
+
+> [!IMPORTANT]
+> Chạy `npm run hooks:install` một lần sau khi clone. Từ đó mỗi lần `git push`, hook [`.githooks/pre-push`](.githooks/pre-push) tự chạy `npm run verify:push` (ESLint, kiểm tra named export, hợp đồng API/Event, runtime test và coverage của cả 3 dự án) và **chặn push nếu có lỗi**, giúp commit lên GitHub luôn xanh. Đặt `JOBFIND_FULL_CHECK=1` để chạy toàn bộ `npm run check`.
+
+**Bảo mật mặc định**: Access token ngắn hạn + Refresh token `HttpOnly` xoay vòng; API Gateway tự xóa header định danh giả mạo; phân quyền theo công ty ở từng request; thanh toán đối chiếu chữ ký HMAC-SHA256 / HMAC-SHA512 và số tiền trước khi cộng quyền lợi; file `.env` chứa khóa API luôn nằm ngoài Git.
+
+### 🚀 Triển khai 1 VPS (Docker + Caddy HTTPS tự động)
+
+```powershell
+npm run vps:env -- ten-mien-cua-ban.com   # Sinh deploy/.env kèm mật khẩu mới & chép cấu hình Sandbox/AI/SSO
+npm run vps:export-data                   # Xuất dữ liệu hiện tại để nạp lên VPS
+```
+
+Hướng dẫn chi tiết: [deploy/README.md](deploy/README.md) · [Kiểm thử](docs/testing.md) · [Microservices](microservices/README.md).
 
 ---
 
