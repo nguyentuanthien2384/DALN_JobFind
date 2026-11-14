@@ -159,6 +159,7 @@ export const STAGE_LABELS = {
 const AI_TASKS = {
     parse_resume: 'đọc CV', generate_cv: 'tạo CV', match_cv: 'chấm độ phù hợp CV',
     cover_letter: 'viết thư ứng tuyển', write_assist: 'soạn nội dung', moderate_job: 'kiểm duyệt tin',
+    generate_assessment: 'tạo bài test', grade_assessment: 'chấm bài test',
 };
 
 const EVENTS = {
@@ -172,6 +173,7 @@ const EVENTS = {
     'application.submitted': { title: 'Ứng viên nộp hồ sơ', icon: 'fas fa-file-import', tone: 'primary' },
     'application.stage_changed': { title: 'Hồ sơ chuyển bước tuyển dụng', icon: 'fas fa-exchange-alt', tone: 'neutral' },
     'application.interview_invitation_requested': { title: 'Gửi thư mời phỏng vấn', icon: 'far fa-calendar-check', tone: 'success' },
+    'application.assessment_submitted': { title: 'Gửi bản sao bài làm test cho ứng viên', icon: 'fas fa-clipboard-check', tone: 'success' },
     'application.decision_email_requested': { title: 'Gửi email kết quả tuyển dụng', icon: 'far fa-envelope', tone: 'success' },
 };
 

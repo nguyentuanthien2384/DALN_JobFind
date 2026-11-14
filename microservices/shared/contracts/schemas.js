@@ -140,7 +140,9 @@ export const schemas = {
     AssessmentAiGradeRequest: object({ language: aiLanguage }),
     AssessmentApplyAiGrade: object({ taskId }, ['taskId']),
     CandidateAssessmentSubmit: object({
-        answers: { type: 'object', maxProperties: 25, additionalProperties: candidateAnswerItem }
+        answers: { type: 'object', maxProperties: 25, additionalProperties: candidateAnswerItem },
+        sendEmailCopy: { type: 'boolean' },
+        resendEmailCopy: { type: 'boolean' }
     }, ['answers']),
     DomainTemplateSave: object({
         domainCode: nonblank(64),

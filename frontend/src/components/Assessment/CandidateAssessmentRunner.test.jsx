@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import CandidateAssessmentRunner from './CandidateAssessmentRunner';
-import { getMyAssessment, startMyAssessment, submitMyAssessment } from '../../service/assessmentService';
+import { getMyAssessment, resendMyAssessmentEmailCopy, startMyAssessment, submitMyAssessment } from '../../service/assessmentService';
 
 jest.mock('react-router-dom', () => ({
     Link: ({ to, children, ...rest }) => <a href={to} {...rest}>{children}</a>,
@@ -18,7 +18,8 @@ jest.mock('../../service/assessmentService', () => {
         ...actual,
         getMyAssessment: jest.fn(),
         startMyAssessment: jest.fn(),
-        submitMyAssessment: jest.fn()
+        submitMyAssessment: jest.fn(),
+        resendMyAssessmentEmailCopy: jest.fn()
     };
 });
 
@@ -165,6 +166,63 @@ describe('CandidateAssessmentRunner', () => {
             })
         ));
         expect(await screen.findByText(/Nhà tuyển dụng hoặc hệ thống AI đang chấm điểm/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Gửi bản sao bài làm về email/i })).toBeInTheDocument();
+
+        resendMyAssessmentEmailCopy.mockResolvedValueOnce({ errCode: 0, errMessage: 'Đã gửi bản sao bài làm test về email.' });
+        fireEvent.click(screen.getByRole('button', { name: /Gửi bản sao bài làm về email/i }));
+        await waitFor(() => expect(resendMyAssessmentEmailCopy).toHaveBeenCalledWith('50'));
+    });
+
+    it('allows opting out of the submission email copy checkbox before submitting', async () => {
+        getMyAssessment.mockResolvedValueOnce({
+            errCode: 0,
+            data: {
+                applicationId: 50,
+                stage: 'phong_van',
+                jobTitle: 'Fullstack Engineer',
+                assessment: {
+                    id: 700,
+                    status: 'IN_PROGRESS',
+                    domainLabel: 'Công nghệ thông tin',
+                    title: 'Đánh giá Fullstack Mixed',
+                    maxScore: 10,
+                    questions: [mixedCandidateQuestions[0]]
+                }
+            }
+        });
+        submitMyAssessment.mockResolvedValueOnce({
+            errCode: 0,
+            data: {
+                applicationId: 50,
+                stage: 'phong_van',
+                jobTitle: 'Fullstack Engineer',
+                assessment: {
+                    id: 700,
+                    status: 'SUBMITTED',
+                    domainLabel: 'Công nghệ thông tin',
+                    title: 'Đánh giá Fullstack Mixed',
+                    maxScore: 10,
+                    questions: [mixedCandidateQuestions[0]],
+                    answers: { 'q-mcq-s': { selectedOptionIds: ['A'] } }
+                }
+            }
+        });
+
+        render(<CandidateAssessmentRunner />);
+        expect(await screen.findByText('Đánh giá Fullstack Mixed')).toBeInTheDocument();
+        fireEvent.click(screen.getByLabelText(/Idempotent/i));
+        const emailCheckbox = screen.getByLabelText(/Gửi bản sao quá trình làm bài test/i);
+        expect(emailCheckbox).toBeChecked();
+        fireEvent.click(emailCheckbox);
+        expect(emailCheckbox).not.toBeChecked();
+
+        fireEvent.click(screen.getByRole('button', { name: /Nộp bài test/i }));
+        await waitFor(() => expect(submitMyAssessment).toHaveBeenCalledWith(
+            '50',
+            [mixedCandidateQuestions[0]],
+            { 'q-mcq-s': { selectedOptionIds: ['A'] } },
+            { sendEmailCopy: false }
+        ));
     });
 
     it('shows final score, grading mode (AI or Recruiter), feedback and solutions once GRADED', async () => {

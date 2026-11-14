@@ -21,7 +21,7 @@ export function privateIntent(text) {
     if (/lich phong van/.test(value)) return 'getMyInterviews';
     if (/diem thuong|top point|so du diem|vi diem|hang thanh vien|quy luot/.test(value)) return 'getMyRewards';
     if (/viec can duyet|tin cho duyet|hang doi ho tro|can kiem duyet/.test(value)) return 'getAdminOverview';
-    if (/don ung tuyen|da ung tuyen|trang thai ho so/.test(value)) return 'getMyApplications';
+    if (/don ung tuyen|da ung tuyen|trang thai ho so|(diem|trang thai|ket qua) bai (test|kiem tra)/.test(value)) return 'getMyApplications';
     if (/viec.*da luu|tin.*da luu/.test(value)) return 'getMySavedJobs';
     if (/han muc|goi cuoc|goi dang tin|luot xem cv/.test(value)) return 'getSubscriptionStatus';
     if (/tin.*cong ty|bai dang.*cong ty/.test(value)) return 'getMyCompanyJobs';
@@ -30,6 +30,15 @@ export function privateIntent(text) {
 }
 
 const INTERVIEW_MODES = { online: 'Trực tuyến', onsite: 'Trực tiếp', phone: 'Điện thoại' };
+const formatAssessmentStatus = (assessment) => {
+    if (!assessment?.status) return '';
+    if (assessment.status === 'GRADED' && assessment.totalScore !== null && assessment.totalScore !== undefined) {
+        return ` (Bài test: Đã chấm ${assessment.totalScore}/10)`;
+    }
+    if (assessment.status === 'SUBMITTED') return ' (Bài test: Đã nộp, chờ chấm)';
+    if (assessment.status === 'ASSIGNED' || assessment.status === 'IN_PROGRESS') return ' (Bài test: Đang mở làm bài)';
+    return '';
+};
 const formatInterviewTime = value => {
     const time = Date.parse(value || '');
     return Number.isFinite(time)
@@ -71,7 +80,12 @@ export function createTools({ pool, env = process.env, fetcher = fetch }) {
             }
             if (name === 'getMyApplications') {
                 const rows = await internal(env.APPLICATION_URL || 'http://application-service:4004', '/my-applications', user);
-                return { title: 'Đơn ứng tuyển của tôi', lines: rows.slice(0, 10).map(row => `${row.job_title || `Tin #${row.job_id}`}: ${row.stageLabel || row.stage}`), count: rows.length, href: '/candidate/cv-post' };
+                return {
+                    title: 'Đơn ứng tuyển của tôi',
+                    lines: rows.slice(0, 10).map(row => `${row.job_title || `Tin #${row.job_id}`}: ${row.stageLabel || row.stage}${formatAssessmentStatus(row.assessment)}`),
+                    count: rows.length,
+                    href: '/candidate/cv-post'
+                };
             }
             if (name === 'getMySavedJobs') {
                 const [rows] = await pool.query(`SELECT p.id,d.name,p.statusCode,p.timeEnd FROM favoriteposts f JOIN posts p ON p.id=f.postId JOIN detailposts d ON d.id=p.detailPostId WHERE f.userId=? ORDER BY f.id DESC LIMIT 10`, [user.id]);
@@ -88,7 +102,7 @@ export function createTools({ pool, env = process.env, fetcher = fetch }) {
                 const lines = active.slice(0, 10).map(row => {
                     const jobLabel = row.jobTitle || `Tin #${row.jobId}`;
                     const party = isCandidate ? (row.companyName || 'Doanh nghiệp') : (row.candidateName || `Ứng viên #${row.candidateId}`);
-                    const mode = INTERVIEW_MODES[row.interview?.mode] || 'Phỏng vấn';
+                    const mode = INTERVIEW_MODES[row.interview?.interviewMode || row.interview?.mode] || 'Phỏng vấn';
                     return `${formatInterviewTime(row.startAt || row.scheduledAt)} · ${jobLabel} (${party}) — ${mode}`;
                 });
                 return {

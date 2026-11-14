@@ -134,6 +134,30 @@ export const eventCatalog = {
     }, 'applicationId', ['application-service'], ['notification-service.events']),
     'application.interview_invitation_requested': metadata(object({ ...application, toStage: { const: 'phong_van' }, message: optionalText, interview },
         ['applicationId', 'candidateId', 'jobId', 'toStage', 'interview']), 'applicationId', ['application-service'], ['notification-service.events']),
+    'application.assessment_submitted': metadata(object({
+        applicationId: id,
+        assessmentId: id,
+        candidateId: id,
+        candidateEmail: optionalText,
+        candidateName: optionalText,
+        jobId: id,
+        jobTitle: optionalText,
+        companyId: nullable(id),
+        companyName: optionalText,
+        domainCode: nullable(string(64)),
+        domainLabel: optionalText,
+        title: string(255),
+        submittedAt: date,
+        timeSpentSeconds: nullable(integer(0)),
+        isOvertime: bool,
+        items: list(object({
+            order: integer(1, 50),
+            type: { type: 'string', enum: ['mcq_single', 'mcq_multi', 'text', 'code'] },
+            prompt: string(4000),
+            points: { type: 'number', minimum: 0.5, maximum: 100 },
+            responseSummary: string(35000)
+        }, ['order', 'type', 'prompt', 'points', 'responseSummary']))
+    }, ['applicationId', 'assessmentId', 'candidateId', 'jobId', 'title', 'submittedAt', 'items']), 'applicationId', ['application-service'], ['notification-service.events'], 2 * 1024 * 1024),
     'application.submitted': metadata(object({ cvId: id, jobId: id, candidateId: id, companyId: id, posterId: nullable(id),
         jobTitle: optionalText, candidateName: optionalText, candidateEmail: optionalText, candidatePhone: optionalText, coverLetter: optionalText, appliedAt: nullable(date)
     }, ['cvId', 'jobId', 'candidateId', 'companyId']), 'cvId', ['legacy-backend'], ['application-service.submissions', 'notification-service.events'])
@@ -174,5 +198,12 @@ export const eventExamples = {
     'application.interview_invitation_requested': { ...base, applicationId: 31, companyId: 3, companyName: 'Example', fromStage: 'dang_xem_xet', toStage: 'phong_van',
         message: 'Synthetic note', interview: { companyName: 'Example', interviewDate: '2099-10-15', interviewTime: '09:00', durationMinutes: '60',
             timeZone: 'Asia/Ho_Chi_Minh', interviewMode: 'online', meetingUrl: 'https://meet.example.invalid/room', contactName: 'HR', contactEmail: 'hr@example.invalid' } },
+    'application.assessment_submitted': { ...base, applicationId: 31, assessmentId: 5, companyId: 3, companyName: 'Example',
+        domainCode: 'cong-nghe-thong-tin', domainLabel: 'Công nghệ thông tin', title: 'Đánh giá Backend Engineering',
+        submittedAt: '2026-09-05T02:00:00.000Z', timeSpentSeconds: 920, isOvertime: false,
+        items: [
+            { order: 1, type: 'mcq_single', prompt: 'Event loop là gì?', points: 2, responseSummary: 'A. Đơn luồng bất đồng bộ' },
+            { order: 2, type: 'text', prompt: 'Nêu cách tối ưu truy vấn', points: 4, responseSummary: 'Thêm composite index' }
+        ] },
     'application.submitted': { ...base, cvId: 21, companyId: 3, posterId: 5, candidatePhone: null, coverLetter: 'Synthetic letter', appliedAt: '2026-09-05T00:00:00.000Z' }
 };

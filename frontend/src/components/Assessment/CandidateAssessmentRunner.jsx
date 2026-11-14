@@ -7,6 +7,7 @@ import {
     QUESTION_TYPE_LABELS,
     RECOMMENDATION_META,
     getMyAssessment,
+    resendMyAssessmentEmailCopy,
     startMyAssessment,
     submitMyAssessment
 } from '../../service/assessmentService';
@@ -138,6 +139,7 @@ export default function CandidateAssessmentRunner() {
     const [secondsLeft, setSecondsLeft] = useState(null);
     const [busy, setBusy] = useState(false);
     const [confirmIncomplete, setConfirmIncomplete] = useState(false);
+    const [sendEmailCopy, setSendEmailCopy] = useState(true);
 
     const loadAssessment = useCallback(async () => {
         setLoading(true);
@@ -232,7 +234,9 @@ export default function CandidateAssessmentRunner() {
         }
         setBusy(true);
         try {
-            const res = await submitMyAssessment(applicationId, questions, answers);
+            const res = sendEmailCopy
+                ? await submitMyAssessment(applicationId, questions, answers)
+                : await submitMyAssessment(applicationId, questions, answers, { sendEmailCopy: false });
             if (res?.errCode === 0 && res?.data) {
                 clearDraft(applicationId);
                 setEnvelope(res.data);
@@ -241,6 +245,22 @@ export default function CandidateAssessmentRunner() {
             } else {
                 toast.error(res?.errMessage || 'Không nộp được bài test');
             }
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleResendEmailCopy = async () => {
+        setBusy(true);
+        try {
+            const res = await resendMyAssessmentEmailCopy(applicationId);
+            if (res?.errCode === 0) {
+                toast.success(res.errMessage || 'Đã gửi bản sao bài làm test về email của bạn!');
+            } else {
+                toast.error(res?.errMessage || 'Không thể gửi bản sao bài làm về email');
+            }
+        } catch (err) {
+            toast.error(err?.message || 'Không thể gửi bản sao bài làm về email');
         } finally {
             setBusy(false);
         }
@@ -319,7 +339,10 @@ export default function CandidateAssessmentRunner() {
                 {isSubmitted && (
                     <div className="jf-test-lock" style={{ marginTop: 12 }}>
                         Bạn đã hoàn tất nộp bài test. Nhà tuyển dụng hoặc hệ thống AI đang chấm điểm và sẽ cập nhật kết quả tại đây.
-                        <div style={{ marginTop: 8 }}>
+                        <div className="jf-test-actions" style={{ marginTop: 8 }}>
+                            <button type="button" className="jf-test-btn" onClick={handleResendEmailCopy} disabled={busy}>
+                                {busy ? 'Đang gửi...' : 'Gửi bản sao bài làm về email'}
+                            </button>
                             <Link className="jf-test-btn" to="/candidate/cv-post">Quay lại lịch sử ứng tuyển</Link>
                         </div>
                     </div>
@@ -343,7 +366,10 @@ export default function CandidateAssessmentRunner() {
                         {assessment.gradingFeedback?.overallFeedback && (
                             <p style={{ margin: '8px 0 0', fontSize: 14 }}>{assessment.gradingFeedback.overallFeedback}</p>
                         )}
-                        <div style={{ marginTop: 10 }}>
+                        <div className="jf-test-actions" style={{ marginTop: 10 }}>
+                            <button type="button" className="jf-test-btn" onClick={handleResendEmailCopy} disabled={busy}>
+                                {busy ? 'Đang gửi...' : 'Gửi bản sao bài làm về email'}
+                            </button>
                             <Link className="jf-test-btn" to="/candidate/cv-post">Quay lại lịch sử ứng tuyển</Link>
                         </div>
                     </div>
@@ -455,6 +481,15 @@ export default function CandidateAssessmentRunner() {
                                     {busy ? 'Đang nộp bài...' : 'Nộp bài test'}
                                 </button>
                             </div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: '#334155', marginTop: 10, cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={sendEmailCopy}
+                                    onChange={(e) => setSendEmailCopy(e.target.checked)}
+                                    disabled={busy}
+                                />
+                                <span>Gửi bản sao quá trình làm bài test và câu trả lời về email của tôi (như biểu mẫu Google Forms)</span>
+                            </label>
                             {confirmIncomplete && (
                                 <div className="jf-confirm-box">
                                     Còn <strong>{unansweredCount}</strong> câu chưa điền hoặc chưa thay đổi code mẫu. Bạn vẫn muốn nộp bài ngay?

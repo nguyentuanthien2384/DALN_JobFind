@@ -48,6 +48,10 @@ export const EVENTS = {
     // keo tha de gui lai (doi lich) ma khong tao them mot lan chuyen buoc.
     APPLICATION_INTERVIEW_INVITATION_REQUESTED: 'application.interview_invitation_requested',
 
+    // Gui ban sao qua trinh lam bai test va cau tra loi (nhu bieu mau Google Forms)
+    // ve email cho ung vien khi nop bai hoac yeu cau gui lai.
+    APPLICATION_ASSESSMENT_SUBMITTED: 'application.assessment_submitted',
+
     // Backend cu phat ra khi ung vien nop CV. Frontend van nop qua backend cu nen
     // day la duong duy nhat de Application Service biet co ho so moi.
     APPLICATION_SUBMITTED: 'application.submitted'

@@ -298,6 +298,92 @@ export const applicationInterviewTemplate = ({ jobTitle, candidateName, companyN
     };
 };
 
+const ASSESSMENT_QUESTION_TYPE_LABELS = {
+    mcq_single: 'Trắc nghiệm 1 đáp án',
+    mcq_multi: 'Trắc nghiệm nhiều đáp án',
+    text: 'Tự luận / tình huống',
+    code: 'Thực hành viết code'
+};
+
+function formatSubmittedAtVn(value) {
+    const time = Date.parse(value || '');
+    if (!Number.isFinite(time)) return '';
+    return `${new Date(time).toLocaleString('vi-VN', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+        timeZone: 'Asia/Ho_Chi_Minh'
+    })} (giờ Việt Nam, UTC+7)`;
+}
+
+function formatDurationVn(seconds) {
+    if (seconds === null || seconds === undefined || !Number.isFinite(Number(seconds))) return '';
+    const total = Math.max(0, Math.round(Number(seconds)));
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return mins > 0 ? `${mins} phút ${secs} giây` : `${secs} giây`;
+}
+
+// Ban sao qua trinh lam bai test va cau tra loi cua ung vien (nhu bieu mau Google Forms).
+// Tuyet doi khong hien thi dap an dung hay rubric cham diem truoc khi co ket qua.
+export const applicationAssessmentSubmittedTemplate = (payload = {}) => {
+    const job = displayText(payload.jobTitle, 'vị trí đã ứng tuyển');
+    const name = displayText(payload.candidateName, 'bạn');
+    const company = displayText(payload.companyName);
+    const testTitle = displayText(payload.title, 'Bài kiểm tra chuyên sâu');
+    const domainLabel = displayText(payload.domainLabel);
+    const submittedText = formatSubmittedAtVn(payload.submittedAt);
+    const durationText = formatDurationVn(payload.timeSpentSeconds);
+    const overtimeText = payload.isOvertime ? ' (Nộp sau thời gian quy định)' : '';
+    const items = (Array.isArray(payload.items) ? payload.items : []).map((item, idx) => ({
+        order: item?.order || idx + 1,
+        type: item?.type || 'text',
+        typeLabel: ASSESSMENT_QUESTION_TYPE_LABELS[item?.type] || 'Câu hỏi',
+        prompt: displayMultilineText(item?.prompt) || `Câu hỏi ${idx + 1}`,
+        points: item?.points ?? '',
+        responseSummary: displayMultilineText(item?.responseSummary) || '(Chưa trả lời)'
+    }));
+    const appId = displayText(payload.applicationId);
+    const ctaPath = appId ? `/candidate/applications/${encodeURIComponent(appId)}/assessment` : CANDIDATE_APPLICATIONS_PATH;
+    const details = [
+        { label: 'Bài kiểm tra', value: testTitle },
+        ...(domainLabel ? [{ label: 'Lĩnh vực', value: domainLabel }] : []),
+        { label: 'Vị trí', value: job },
+        ...(company ? [{ label: 'Công ty', value: company }] : []),
+        ...(submittedText ? [{ label: 'Thời điểm nộp', value: submittedText }] : []),
+        ...(durationText ? [{ label: 'Thời gian làm', value: `${durationText}${overtimeText}` }] : []),
+        { label: 'Số câu hỏi', value: `${items.length} câu` }
+    ];
+
+    const email = renderNotificationEmail({
+        subject: sanitizeSubject(`Bản sao bài làm test: ${testTitle} — ${job}`),
+        preheader: `Đã ghi nhận bài "${testTitle}" (${items.length} câu hỏi) cho vị trí ${job}`,
+        eyebrow: 'BẢN SAO BÀI LÀM TEST · BIỂU MẪU PHẢN HỒI',
+        status: 'Đã nộp bài',
+        headline: 'Chúng tôi đã ghi nhận bài làm của bạn',
+        icon: '&#10003;',
+        accent: '#2563eb',
+        softAccent: '#eff6ff',
+        progressStep: 3,
+        body: [
+            `Chào ${name}, hệ thống Job Finder đã tiếp nhận đầy đủ quá trình làm bài và các câu trả lời bạn đã điền cho bài kiểm tra “${testTitle}” ở vị trí “${job}”${company ? ` tại ${company}` : ''}.`,
+            'Dưới đây là bản sao toàn bộ câu hỏi và phản hồi của bạn để tiện lưu trữ và rà soát lại bất cứ lúc nào.'
+        ],
+        details,
+        formItems: items,
+        nextStep: 'Nhà tuyển dụng hoặc hệ thống AI sẽ chấm điểm phần tự luận/code và gửi thông báo kết quả cho bạn. Bạn có thể mở lại trang bài làm để theo dõi trạng thái chấm điểm.',
+        ctaLabel: 'Xem lại bài làm trên Job Finder',
+        ctaPath,
+        secondaryLink: { label: 'Theo dõi hồ sơ ứng tuyển', path: CANDIDATE_APPLICATIONS_PATH }
+    });
+
+    return {
+        typeCode: 'APPLICATION_ASSESSMENT_SUBMITTED',
+        content: notificationPreview(`Đã ghi nhận bản sao bài test "${testTitle}" cho vị trí "${job}"`),
+        link: ctaPath,
+        email
+    };
+};
+
 // "Thứ Năm, 15/10/2026 lúc 09:00" - ngay trong lich Viet Nam, khong phu thuoc TZ may chu.
 function formatInterviewTime({ interviewDate, interviewTime } = {}) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(interviewDate || '') || !/^\d{2}:\d{2}$/.test(interviewTime || '')) return '';
@@ -484,7 +570,8 @@ export const newJobFromFollowedCompanyTemplate = ({ jobTitle, companyName, jobId
 export const APPLICATION_EMAIL_EVENTS = Object.freeze([
     EVENTS.APPLICATION_STAGE_CHANGED,
     EVENTS.APPLICATION_DECISION_EMAIL_REQUESTED,
-    EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED
+    EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED,
+    EVENTS.APPLICATION_ASSESSMENT_SUBMITTED
 ]);
 
 export const applicationEventTemplate = (eventType, payload) => {
@@ -510,12 +597,13 @@ export const applicationEventTemplate = (eventType, payload) => {
         });
     }
     if (eventType === EVENTS.APPLICATION_INTERVIEW_INVITATION_REQUESTED) return applicationInterviewTemplate(payload);
+    if (eventType === EVENTS.APPLICATION_ASSESSMENT_SUBMITTED) return applicationAssessmentSubmittedTemplate(payload);
     throw new Error(`Unsupported application event: ${eventType}`);
 };
 
 function renderNotificationEmail({
     subject, preheader, eyebrow, status, headline, icon, accent, softAccent,
-    body = [], details = [], nextStep, ctaLabel, ctaPath, secondaryLink,
+    body = [], details = [], formItems = null, nextStep, ctaLabel, ctaPath, secondaryLink,
     progressStep = null, customMessage, customMessageLabel = 'LỜI NHẮN TỪ NHÀ TUYỂN DỤNG', replyTo, signoff
 }) {
     const footer = replyTo ? `Thư được gửi qua Job Finder thay mặt nhà tuyển dụng. Trả lời email này để liên hệ ${replyTo}.` : 'Email tự động từ Job Finder. Vui lòng không trả lời trực tiếp email này.';
@@ -537,6 +625,30 @@ function renderNotificationEmail({
                                                 <td style="padding:${index ? '12px 0 0' : '0'};color:#0f172a;font-size:15px;font-weight:700;line-height:1.45;vertical-align:top;word-break:break-word">${href ? `<a href="${escapeHtml(href)}" style="color:${safeAccent};text-decoration:underline">${escapeHtml(value)}</a>` : escapeHtml(value).replace(/\r\n?|\n/g, '<br>')}</td>
                                             </tr>`).join('');
     const progress = progressStep ? renderProgress(progressStep, safeAccent) : '';
+    const formItemsHtml = Array.isArray(formItems) && formItems.length ? `
+                        <tr>
+                            <td class="content-pad" style="padding:0 34px 24px">
+                                <p style="margin:0 0 12px;color:#0f172a;font-size:13px;font-weight:800;line-height:1.4;letter-spacing:.04em;text-transform:uppercase">Bản sao câu trả lời đã nộp (${formItems.length} câu)</p>${formItems.map((item) => {
+                                    const safeAnswer = escapeHtml(item.responseSummary).replace(/\r\n?|\n/g, '<br>');
+                                    const answerStyle = item.type === 'code'
+                                        ? 'margin:0;color:#0f172a;font-family:Consolas,Monaco,monospace;font-size:13px;line-height:1.55;word-break:break-word'
+                                        : 'margin:0;color:#0f172a;font-size:14px;line-height:1.6;word-break:break-word';
+                                    return `
+                                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:12px;background:#ffffff;border:1px solid #cbd5e1;border-radius:10px">
+                                    <tr>
+                                        <td style="padding:14px 16px">
+                                            <p style="margin:0 0 6px;color:${safeAccent};font-size:11px;font-weight:800;line-height:1.4;letter-spacing:.05em;text-transform:uppercase">Câu ${escapeHtml(item.order)} · ${escapeHtml(item.typeLabel)}${item.points !== '' ? ` · ${escapeHtml(item.points)} điểm` : ''}</p>
+                                            <p style="margin:0 0 10px;color:#0f172a;font-size:14px;font-weight:700;line-height:1.5">${escapeHtml(item.prompt).replace(/\r\n?|\n/g, '<br>')}</p>
+                                            <div style="background:#f8fafc;border-left:3px solid ${safeAccent};padding:10px 12px;border-radius:6px">
+                                                <p style="margin:0 0 4px;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase">Câu trả lời của bạn</p>
+                                                <p style="${answerStyle}">${safeAnswer}</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>`;
+                                }).join('')}
+                            </td>
+                        </tr>` : '';
     const customMessageHtml = customMessage ? `
                         <tr>
                             <td class="content-pad" style="padding:0 34px 26px">
@@ -629,6 +741,7 @@ function renderNotificationEmail({
                             </table>
                         </td>
                     </tr>
+                    ${formItemsHtml}
                     <tr>
                         <td class="content-pad" style="padding:0 34px 25px">
                             <p style="margin:0 0 7px;color:#0f172a;font-size:13px;font-weight:800;line-height:1.4">Bước tiếp theo</p>
@@ -662,7 +775,7 @@ function renderNotificationEmail({
 </html>`;
 
     const text = renderPlainText({
-        eyebrow, status, headline, body, details, nextStep, ctaLabel, ctaUrl,
+        eyebrow, status, headline, body, details, formItems, nextStep, ctaLabel, ctaUrl,
         secondaryLink, secondaryUrl, customMessage, customMessageLabel, footer, signoff
     });
     return { subject, html, text, ...(replyTo ? { replyTo } : {}) };
@@ -695,9 +808,17 @@ function renderProgress(currentStep, accent) {
 }
 
 function renderPlainText({
-    eyebrow, status, headline, body, details, nextStep, ctaLabel, ctaUrl,
+    eyebrow, status, headline, body, details, formItems, nextStep, ctaLabel, ctaUrl,
     secondaryLink, secondaryUrl, customMessage, customMessageLabel, footer, signoff
 }) {
+    const formLines = Array.isArray(formItems) && formItems.length ? [
+        '',
+        `BẢN SAO CÂU TRẢ LỜI ĐÃ NỘP (${formItems.length} câu):`,
+        ...formItems.flatMap((item) => [
+            `- Câu ${item.order} (${item.typeLabel}${item.points !== '' ? `, ${item.points} điểm` : ''}): ${item.prompt}`,
+            `  Trả lời: ${item.responseSummary}`
+        ])
+    ] : [];
     return [
         'JOB FINDER',
         `${eyebrow} — ${status}`,
@@ -707,6 +828,7 @@ function renderPlainText({
         ...body,
         '',
         ...details.map(({ label, value }) => `${label}: ${value}`),
+        ...formLines,
         '',
         'Bước tiếp theo:',
         nextStep,

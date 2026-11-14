@@ -138,6 +138,22 @@ export const handlers = {
         });
     },
 
+    [EVENTS.APPLICATION_ASSESSMENT_SUBMITTED]: async (payload, metadata = {}) => {
+        if (!metadata.eventId) throw new Error('Assessment submission notification requires eventId');
+        assertEventPayload(EVENTS.APPLICATION_ASSESSMENT_SUBMITTED, payload, { aggregateId: metadata.aggregateId });
+        await deliver({
+            eventId: metadata.eventId,
+            userId: payload.candidateId,
+            recipientEmail: payload.candidateEmail,
+            template: applicationEventTemplate(EVENTS.APPLICATION_ASSESSMENT_SUBMITTED, payload)
+        });
+        logger.info('da xu ly yeu cau gui ban sao bai test ung vien', {
+            applicationId: payload.applicationId,
+            assessmentId: payload.assessmentId,
+            candidateId: payload.candidateId
+        });
+    },
+
     [EVENTS.APPLICATION_SUBMITTED]: async (payload, metadata = {}) => {
         if (!payload.posterId) {
             logger.debug('su kien nop ho so thieu posterId, bo qua', { cvId: payload.cvId });

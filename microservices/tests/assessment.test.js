@@ -365,15 +365,18 @@ describe('assessmentController permissions, domain guard, candidate submission, 
             submitRes
         );
         expect(submitRes.statusCode).toBe(200);
+        expect(submitRes.body.emailQueued).toBe(true);
         expect(submitRes.body.data.assessment.status).toBe('SUBMITTED');
         const submitEventSql = submitQueries.find((sql) => sql.includes('INSERT INTO application_events'));
         expect(submitEventSql).toContain('(application_id, from_stage, to_stage, actor_id, reason)');
         expect(submitEventSql).not.toMatch(/\b(event_type|note)\b/);
+        // Outbox receives Google-Forms style copy of candidate responses
+        expect(submitQueries.some((sql) => sql.includes('INSERT INTO outbox_events'))).toBe(true);
         // Secrets & score still hidden from candidate until graded
         expect(submitRes.body.data.assessment.mcqScore).toBeNull();
         expect(submitRes.body.data.assessment.answers['q-code-1'].codeAnswer).toContain('sumPositive');
 
-        // Re-submit returns 409
+        // Re-submit returns 409 unless resendEmailCopy: true
         mocks.pool.query.mockResolvedValueOnce({ rows: [appRow] });
         mocks.withTransaction.mockImplementationOnce(async (work) => work({
             query: vi.fn(async () => ({ rows: [{ ...assignedRow, status: 'SUBMITTED' }] }))
@@ -381,6 +384,39 @@ describe('assessmentController permissions, domain guard, candidate submission, 
         const reSubmitRes = makeRes();
         await submitMyAssessment(candidateReq({ params: { id: '102' }, body: { answers: {} } }), reSubmitRes);
         expect(reSubmitRes.statusCode).toBe(409);
+
+        // Resend email copy after submission succeeds with stored answers and queues outbox event
+        const resendParams = [];
+        mocks.pool.query.mockResolvedValueOnce({ rows: [{ ...appRow, candidate_email: 'lan@realmail.com', candidate_name: 'Lan' }] });
+        mocks.withTransaction.mockImplementationOnce(async (work) => work({
+            query: vi.fn(async (sql, params) => {
+                if (sql.includes('FOR UPDATE')) {
+                    return {
+                        rows: [{
+                            ...assignedRow,
+                            status: 'SUBMITTED',
+                            submitted_at: '2026-09-05T02:00:00.000Z',
+                            time_spent_seconds: 120,
+                            is_overtime: false,
+                            answers: {
+                                'q-mcq-1': { selectedOptionIds: ['A'] },
+                                'q-text-1': { textAnswer: 'Lưu bản sao đã nộp' }
+                            }
+                        }]
+                    };
+                }
+                if (sql.includes('INSERT INTO outbox_events')) resendParams.push({ sql, params });
+                return { rows: [] };
+            })
+        }));
+        const resendRes = makeRes();
+        await submitMyAssessment(candidateReq({ params: { id: '102' }, body: { answers: {}, resendEmailCopy: true } }), resendRes);
+        expect(resendRes.statusCode).toBe(200);
+        expect(resendRes.body.emailQueued).toBe(true);
+        expect(resendParams).toHaveLength(1);
+        const queuedOutboxPayload = JSON.parse(resendParams[0].params[3]);
+        expect(queuedOutboxPayload.items[0].responseSummary).toBe('A. Đơn luồng bất đồng bộ');
+        expect(queuedOutboxPayload.items[3].responseSummary).toBe('Lưu bản sao đã nộp');
     });
 
     it('supports manual recruiter grading and AI grading (preserving deterministic MCQ score)', async () => {

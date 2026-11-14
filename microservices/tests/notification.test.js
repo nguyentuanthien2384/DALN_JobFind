@@ -536,4 +536,50 @@ describe('notification templates', () => {
             progressCurrent: 3
         });
     });
+
+    it('renders Google-Forms-style assessment submission receipt with candidate answers and HTML escaping', async () => {
+        vi.stubEnv('FRONTEND_URL', 'https://jobs.example.test');
+        const { applicationAssessmentSubmittedTemplate } = await import('../notification-service/src/templates.js');
+        const result = applicationAssessmentSubmittedTemplate({
+            applicationId: 31,
+            assessmentId: 5,
+            candidateId: 9,
+            candidateName: 'Lan',
+            jobId: 7,
+            jobTitle: 'Backend Node.js Engineer',
+            companyName: 'Acme Corp',
+            domainLabel: 'Công nghệ thông tin',
+            title: 'Đánh giá Backend Engineering',
+            submittedAt: '2026-09-05T02:00:00.000Z',
+            timeSpentSeconds: 125,
+            isOvertime: false,
+            items: [
+                {
+                    order: 1,
+                    type: 'mcq_single',
+                    prompt: 'Event loop là gì?',
+                    points: 2,
+                    responseSummary: 'A. Đơn luồng bất đồng bộ'
+                },
+                {
+                    order: 2,
+                    type: 'code',
+                    prompt: 'Viết truy vấn SQL',
+                    points: 4,
+                    responseSummary: 'SELECT * FROM users WHERE name = "<script>xss()</script>";'
+                }
+            ]
+        });
+
+        expect(result.typeCode).toBe('APPLICATION_ASSESSMENT_SUBMITTED');
+        expect(result.link).toBe('/candidate/applications/31/assessment');
+        expectRichEmail(result.email, { ctaUrl: 'https://jobs.example.test/candidate/applications/31/assessment', progressCurrent: 3 });
+        expect(result.email.subject).toContain('Bản sao bài làm test: Đánh giá Backend Engineering');
+        expect(result.email.html).toContain('Event loop là gì?');
+        expect(result.email.html).toContain('A. Đơn luồng bất đồng bộ');
+        expect(result.email.html).toContain('&lt;script&gt;xss()&lt;/script&gt;');
+        expect(result.email.html).not.toContain('<script>');
+        expect(result.email.text).toContain('BẢN SAO CÂU TRẢ LỜI ĐÃ NỘP (2 câu)');
+        expect(result.email.text).toContain('2 phút 5 giây');
+    });
 });

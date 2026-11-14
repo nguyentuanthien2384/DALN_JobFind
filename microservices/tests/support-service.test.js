@@ -396,13 +396,25 @@ describe('private tools never take user selectors', () => {
             if (url.endsWith('/internal/support/private-tool')) {
                 return { ok: true, json: async () => ({ errCode: 0, data: { title: 'Điểm thưởng & hạng thành viên', lines: ['Số dư: 40 điểm'], href: '/candidate/info' } }) };
             }
+            if (url.endsWith('/my-applications')) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        errCode: 0,
+                        data: [
+                            { id: 10, job_id: 55, job_title: 'Backend NodeJS', stage: 'phong_van', stageLabel: 'Phỏng vấn', assessment: { status: 'GRADED', totalScore: 8.5 } },
+                            { id: 11, job_id: 56, job_title: 'QA Engineer', stage: 'phong_van', stageLabel: 'Phỏng vấn', assessment: { status: 'SUBMITTED', totalScore: null } }
+                        ]
+                    })
+                };
+            }
             return {
                 ok: true,
                 json: async () => ({
                     errCode: 0,
                     data: [
-                        { id: 1, jobId: 55, jobTitle: 'Backend NodeJS', companyName: 'Acme', candidateId: 7, candidateName: 'An', candidateEmail: 'secret@example.com', scheduledAt: '2026-11-10T09:00:00.000Z', startAt: '2026-11-10T09:00:00.000Z', status: 'scheduled', interview: { mode: 'online' } },
-                        { id: 2, jobId: 56, jobTitle: 'Cancelled', companyName: 'Acme', candidateId: 7, scheduledAt: '2026-11-11T09:00:00.000Z', status: 'inactive', interview: { mode: 'onsite' } }
+                        { id: 1, jobId: 55, jobTitle: 'Backend NodeJS', companyName: 'Acme', candidateId: 7, candidateName: 'An', candidateEmail: 'secret@example.com', scheduledAt: '2026-11-10T09:00:00.000Z', startAt: '2026-11-10T09:00:00.000Z', status: 'scheduled', interview: { interviewMode: 'online' } },
+                        { id: 2, jobId: 56, jobTitle: 'Cancelled', companyName: 'Acme', candidateId: 7, scheduledAt: '2026-11-11T09:00:00.000Z', status: 'inactive', interview: { interviewMode: 'onsite' } }
                     ]
                 })
             };
@@ -416,8 +428,13 @@ describe('private tools never take user selectors', () => {
         expect(rewards.title).toContain('Điểm thưởng');
         await expect(tools.privateTool('getMyRewards', admin)).rejects.toMatchObject({ status: 403 });
 
+        const applications = await tools.privateTool('getMyApplications', candidate);
+        expect(applications.lines[0]).toContain('Bài test: Đã chấm 8.5/10');
+        expect(applications.lines[1]).toContain('Bài test: Đã nộp, chờ chấm');
+
         const interviews = await tools.privateTool('getMyInterviews', candidate);
         expect(interviews).toMatchObject({ title: 'Lịch phỏng vấn của tôi', count: 1, href: '/candidate/interviews' });
+        expect(interviews.lines[0]).toContain('Trực tuyến');
         expect(JSON.stringify(interviews)).not.toContain('secret@example.com');
 
         await expect(tools.privateTool('getAdminOverview', candidate)).rejects.toMatchObject({ status: 403 });

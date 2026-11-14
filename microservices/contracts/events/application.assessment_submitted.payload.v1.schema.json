@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "applicationId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "assessmentId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "candidateId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "candidateEmail": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "candidateName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "jobId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,15}$",
+          "format": "jobfind-id"
+        }
+      ]
+    },
+    "jobTitle": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companyId": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,15}$",
+              "format": "jobfind-id"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "companyName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "domainCode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 64
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "domainLabel": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "submittedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "string",
+          "format": "date"
+        }
+      ]
+    },
+    "timeSpentSeconds": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "isOvertime": {
+      "type": "boolean"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "mcq_single",
+              "mcq_multi",
+              "text",
+              "code"
+            ]
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "points": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 100
+          },
+          "responseSummary": {
+            "type": "string",
+            "maxLength": 35000
+          }
+        },
+        "required": [
+          "order",
+          "type",
+          "prompt",
+          "points",
+          "responseSummary"
+        ],
+        "additionalProperties": true
+      },
+      "maxItems": 1000
+    }
+  },
+  "required": [
+    "applicationId",
+    "assessmentId",
+    "candidateId",
+    "jobId",
+    "title",
+    "submittedAt",
+    "items"
+  ],
+  "additionalProperties": true,
+  "title": "application.assessment_submitted payload v1",
+  "examples": [
+    {
+      "jobId": 7,
+      "candidateId": 9,
+      "candidateName": "Ứng viên mẫu",
+      "candidateEmail": "candidate@example.invalid",
+      "jobTitle": "Developer",
+      "applicationId": 31,
+      "assessmentId": 5,
+      "companyId": 3,
+      "companyName": "Example",
+      "domainCode": "cong-nghe-thong-tin",
+      "domainLabel": "Công nghệ thông tin",
+      "title": "Đánh giá Backend Engineering",
+      "submittedAt": "2026-09-05T02:00:00.000Z",
+      "timeSpentSeconds": 920,
+      "isOvertime": false,
+      "items": [
+        {
+          "order": 1,
+          "type": "mcq_single",
+          "prompt": "Event loop là gì?",
+          "points": 2,
+          "responseSummary": "A. Đơn luồng bất đồng bộ"
+        },
+        {
+          "order": 2,
+          "type": "text",
+          "prompt": "Nêu cách tối ưu truy vấn",
+          "points": 4,
+          "responseSummary": "Thêm composite index"
+        }
+      ]
+    }
+  ]
+}

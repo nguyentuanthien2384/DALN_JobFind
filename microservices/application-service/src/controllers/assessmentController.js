@@ -1,5 +1,7 @@
 import { pool, withTransaction } from '../libs/db.js';
+import { enqueueOutboxEvent } from '../libs/outbox.js';
 import { getJobDomainContext } from '../libs/jobCatalog.js';
+import { EVENTS } from '../../../shared/events.js';
 import {
     computeMcqAutoEvaluation,
     domainLabelOf,
@@ -949,6 +951,55 @@ export const startMyAssessment = async (req, res) => {
     }
 };
 
+const formatResponseSummary = (question, answer) => {
+    if (!question) return '(Chưa trả lời)';
+    if (question.type === 'mcq_single' || question.type === 'mcq_multi') {
+        const selected = Array.isArray(answer?.selectedOptionIds) ? answer.selectedOptionIds : [];
+        if (!selected.length) return '(Chưa chọn đáp án)';
+        const optionMap = new Map((question.options || []).map((opt) => [String(opt.id), opt.text]));
+        return selected
+            .map((optId) => {
+                const optText = optionMap.get(String(optId));
+                return optText ? `${optId}. ${optText}` : String(optId);
+            })
+            .join('\n')
+            .slice(0, 35000);
+    }
+    if (question.type === 'code') {
+        const code = typeof answer?.codeAnswer === 'string' ? answer.codeAnswer.trimEnd() : '';
+        return code.trim() ? code.slice(0, 35000) : '(Chưa nhập mã nguồn)';
+    }
+    const text = typeof answer?.textAnswer === 'string' ? answer.textAnswer.trim() : '';
+    return text ? text.slice(0, 35000) : '(Chưa trả lời)';
+};
+
+const buildAssessmentSubmissionEmailPayload = ({ app, assessment, questions, answers }) => ({
+    applicationId: app.id,
+    assessmentId: assessment.id,
+    candidateId: app.candidate_id,
+    candidateEmail: app.candidate_email ?? null,
+    candidateName: app.candidate_name ?? null,
+    jobId: app.job_id,
+    jobTitle: app.job_title ?? null,
+    companyId: app.company_id ?? null,
+    companyName: app.company_name ?? null,
+    domainCode: assessment.domain_code ?? null,
+    domainLabel: assessment.domain_label ?? null,
+    title: String(assessment.title || 'Bài kiểm tra chuyên sâu').slice(0, 255),
+    submittedAt: assessment.submitted_at ? new Date(assessment.submitted_at).toISOString() : new Date().toISOString(),
+    timeSpentSeconds: assessment.time_spent_seconds !== null && assessment.time_spent_seconds !== undefined
+        ? Math.max(0, Math.round(Number(assessment.time_spent_seconds)))
+        : null,
+    isOvertime: Boolean(assessment.is_overtime),
+    items: (Array.isArray(questions) ? questions : []).map((q, idx) => ({
+        order: Number.isInteger(Number(q.order)) && Number(q.order) >= 1 ? Number(q.order) : idx + 1,
+        type: ['mcq_single', 'mcq_multi', 'text', 'code'].includes(q.type) ? q.type : 'text',
+        prompt: String(q.prompt || `Câu ${idx + 1}`).slice(0, 4000),
+        points: Number.isFinite(Number(q.points)) && Number(q.points) >= 0.5 ? Number(q.points) : 1,
+        responseSummary: formatResponseSummary(q, answers?.[q.id])
+    }))
+});
+
 export const submitMyAssessment = async (req, res) => {
     res.setHeader('Cache-Control', 'private, no-store');
     const candidateId = parsePositiveId(req.headers['x-user-id']);
@@ -958,7 +1009,11 @@ export const submitMyAssessment = async (req, res) => {
         const app = await loadOwnedCandidateApplication(req.params.id, candidateId, res);
         if (!app) return;
 
-        const submitted = await withTransaction(async (client) => {
+        const correlationId = req.headers['x-correlation-id'] || req.correlationId || null;
+        const sendEmailCopy = req.body?.sendEmailCopy !== false;
+        const resendEmailCopy = req.body?.resendEmailCopy === true;
+
+        const outcome = await withTransaction(async (client) => {
             const { rows } = await client.query(
                 'SELECT * FROM application_assessments WHERE application_id = $1 AND candidate_id = $2 FOR UPDATE',
                 [app.id, candidateId]
@@ -967,12 +1022,33 @@ export const submitMyAssessment = async (req, res) => {
                 throw Object.assign(new Error('Nhà tuyển dụng chưa tạo bài test cho hồ sơ này'), { statusCode: 404 });
             }
             const assessment = rows[0];
+            const questions = Array.isArray(assessment.questions) ? assessment.questions : [];
             if (['SUBMITTED', 'GRADED'].includes(assessment.status)) {
-                throw Object.assign(new Error('Bài test đã được nộp trước đó, không thể nộp lại'), { statusCode: 409 });
+                if (!resendEmailCopy) {
+                    throw Object.assign(new Error('Bài test đã được nộp trước đó, không thể nộp lại'), { statusCode: 409 });
+                }
+                const storedAnswers = assessment.answers && typeof assessment.answers === 'object' ? assessment.answers : {};
+                await enqueueOutboxEvent(client, {
+                    aggregateId: app.id,
+                    eventType: EVENTS.APPLICATION_ASSESSMENT_SUBMITTED,
+                    correlationId,
+                    payload: buildAssessmentSubmissionEmailPayload({
+                        app,
+                        assessment,
+                        questions,
+                        answers: storedAnswers
+                    })
+                });
+                await recordAssessmentEvent(client, {
+                    applicationId: app.id,
+                    stage: app.stage,
+                    actorId: candidateId,
+                    reason: `Ứng viên yêu cầu gửi bản sao bài làm test về email: ${assessment.title}`
+                });
+                return { row: assessment, emailQueued: true, resent: true };
             }
 
             const rawAnswers = req.body?.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
-            const questions = Array.isArray(assessment.questions) ? assessment.questions : [];
             const normalizedAnswers = {};
 
             for (const q of questions) {
@@ -1034,17 +1110,34 @@ export const submitMyAssessment = async (req, res) => {
                 ]
             );
 
+            const row = updated[0];
+            if (sendEmailCopy) {
+                await enqueueOutboxEvent(client, {
+                    aggregateId: app.id,
+                    eventType: EVENTS.APPLICATION_ASSESSMENT_SUBMITTED,
+                    correlationId,
+                    payload: buildAssessmentSubmissionEmailPayload({
+                        app,
+                        assessment: row,
+                        questions,
+                        answers: normalizedAnswers
+                    })
+                });
+            }
+
             await recordAssessmentEvent(client, {
                 applicationId: app.id,
                 stage: app.stage,
                 actorId: candidateId,
                 reason: `Ứng viên đã nộp bài test: ${assessment.title}`
             });
-            return updated[0];
+            return { row, emailQueued: sendEmailCopy, resent: false };
         });
 
+        const submitted = outcome.row;
         return res.json({
             errCode: 0,
+            emailQueued: outcome.emailQueued,
             data: {
                 applicationId: Number(app.id),
                 stage: app.stage,
@@ -1053,7 +1146,11 @@ export const submitMyAssessment = async (req, res) => {
                 domainLabel: submitted.domain_label,
                 assessment: serializeAssessment(submitted, { forCandidate: true })
             },
-            errMessage: 'Đã nộp bài test thành công. Nhà tuyển dụng hoặc AI sẽ chấm điểm và phản hồi cho bạn.'
+            errMessage: outcome.resent
+                ? 'Đã gửi yêu cầu chuyển bản sao bài làm test về email của bạn.'
+                : outcome.emailQueued
+                    ? 'Đã nộp bài test thành công. Bản sao bài làm đã được gửi về email của bạn; nhà tuyển dụng hoặc AI sẽ chấm điểm và phản hồi.'
+                    : 'Đã nộp bài test thành công. Nhà tuyển dụng hoặc AI sẽ chấm điểm và phản hồi cho bạn.'
         });
     } catch (error) {
         if ([400, 404, 409].includes(error.statusCode)) {

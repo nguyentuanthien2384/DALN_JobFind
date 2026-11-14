@@ -26,6 +26,26 @@ const engineReplace = (original, translation) => {
     return clone;
 };
 
+const engineRestore = (original, outerFont, savedOriginalText) => {
+    if (!outerFont.parentNode) return;
+    const parent = outerFont.parentNode;
+    while (outerFont.firstChild) outerFont.removeChild(outerFont.firstChild);
+    outerFont.appendChild(original);
+    original.nodeValue = savedOriginalText;
+    while (outerFont.firstChild) parent.insertBefore(outerFont.firstChild, outerFont);
+    parent.removeChild(outerFont);
+};
+
+const clickLang = lang => {
+    const wrapper = element('div');
+    wrapper.className = 'gtranslate_wrapper';
+    const link = element('a');
+    link.setAttribute('data-gt-lang', lang);
+    wrapper.appendChild(link);
+    document.body.appendChild(wrapper);
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+};
+
 const sendForTranslation = (...sources) => {
     const request = new XMLHttpRequest();
     request.open('POST', translateUrl);
@@ -57,13 +77,14 @@ beforeEach(async () => {
 });
 
 describe('React text updates after translation', () => {
-    test('a number React updates replaces the stale translation (quota "0 bài" -> "7 bài")', async () => {
+    test('a number React updates replaces the stale translation (quota "0 bài" -> "7 bài") and preserves spacing across re-translation and restore', async () => {
         const count = text('0');
         const label = text(' bài bình thường');
         const paragraph = element('p', count, label);
         document.body.append(paragraph);
         engineReplace(count, '0 ');
-        engineReplace(label, 'normal posts');
+        const cloneLabel = engineReplace(label, 'normal posts');
+        const outerLabel = cloneLabel.parentNode.parentNode;
         await flush();
         expect(paragraph.textContent).toBe('0 normal posts');
 
@@ -71,8 +92,20 @@ describe('React text updates after translation', () => {
 
         expect(count.parentNode).toBe(paragraph);
         expect(paragraph.textContent).toBe('7 normal posts');
-        // Only the translation of the label is left.
         expect(paragraph.querySelectorAll(':scope > font')).toHaveLength(1);
+
+        // Even if lib.min.js re-translates "7" without trailing space, boundary spacing remains intact.
+        const cloneCount2 = engineReplace(count, '7');
+        const outerCount2 = cloneCount2.parentNode.parentNode;
+        await flush();
+        expect(paragraph.textContent).toBe('7 normal posts');
+
+        // Restoring back to Vietnamese does not introduce double spaces.
+        clickLang('vi');
+        engineRestore(count, outerCount2, '0');
+        engineRestore(label, outerLabel, ' bài bình thường');
+        expect(paragraph.textContent).toBe('7 bài bình thường');
+        clickLang('en');
     });
 
     test('a label React changes is shown instead of the old translation, also through data', async () => {
@@ -168,6 +201,20 @@ describe('translations that arrive after React changed the text', () => {
         expect(header.textContent).toBe('Ứng viên Mẫu');
     });
 
+    test('short updated strings do not falsely match substrings in longer sent sources', async () => {
+        sendForTranslation('Ngày 07/05/2026', '<a i=0>0</a><a i=1> bài bình thường</a>');
+        const count = text('0');
+        const line = element('p', count, text(' bài bình thường'));
+        document.body.append(line);
+
+        count.nodeValue = '7';
+        engineReplace(count, '0 ');
+        await flush();
+
+        expect(count.parentNode).toBe(line);
+        expect(count.nodeValue).toBe('7');
+    });
+
     test('a translation of the text that was sent is kept (inline markup and entities ignored)', async () => {
         sendForTranslation('Chế độ <a i=0>tải</a> lại &amp; chờ');
         const status = text('Chế độ tải lại & chờ');
@@ -178,6 +225,29 @@ describe('translations that arrive after React changed the text', () => {
         await flush();
 
         expect(line.textContent).toBe('Reload mode & wait');
+    });
+
+    test('undoes a stale in-flight translation ("Sending…") even when the reverted text ("Gửi") was sent earlier', async () => {
+        sendForTranslation('Gửi', 'Đang gửi…');
+        const label = text('Gửi');
+        const button = element('button', label);
+        document.body.append(button);
+        engineReplace(label, 'Send');
+        await flush();
+
+        // React enters sending state, GTranslate marks the node for er2, then React finishes before er2 returns.
+        label.nodeValue = 'Đang gửi…';
+        label._gt_mark = 1;
+        label.nodeValue = 'Gửi';
+        engineReplace(label, 'Sending…');
+        await flush();
+
+        expect(button.textContent).toBe('Gửi');
+
+        // Subsequent cache hit (er3) for "Gửi" -> "Send" is kept cleanly.
+        engineReplace(label, 'Send');
+        await flush();
+        expect(button.textContent).toBe('Send');
     });
 
     test('gives up after two corrections so a node is never retranslated forever', async () => {
@@ -221,26 +291,6 @@ describe('hiding text that waits for a translation', () => {
 });
 
 describe('in-place language switching without page reload', () => {
-    const engineRestore = (original, outerFont, savedOriginalText) => {
-        if (!outerFont.parentNode) return;
-        const parent = outerFont.parentNode;
-        while (outerFont.firstChild) outerFont.removeChild(outerFont.firstChild);
-        outerFont.appendChild(original);
-        original.nodeValue = savedOriginalText;
-        while (outerFont.firstChild) parent.insertBefore(outerFont.firstChild, outerFont);
-        parent.removeChild(outerFont);
-    };
-
-    const clickLang = lang => {
-        const wrapper = element('div');
-        wrapper.className = 'gtranslate_wrapper';
-        const link = element('a');
-        link.setAttribute('data-gt-lang', lang);
-        wrapper.appendChild(link);
-        document.body.appendChild(wrapper);
-        link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    };
-
     test('switches between languages (en -> az -> vi -> en) in place without reloading', async () => {
         reload.mockClear();
         const heading = text('Kết nối việc làm phù hợp');
@@ -284,6 +334,58 @@ describe('in-place language switching without page reload', () => {
         // Switch back vi -> en so subsequent tests start with active = true
         clickLang('en');
         expect(reload).not.toHaveBeenCalled();
+    });
+
+    test('multi-chunk restoration preserves the latest React text across er1 and er2 restores', async () => {
+        const heading = text('Trạng thái ban đầu');
+        const box = element('h2', heading);
+        document.body.append(box);
+
+        sendForTranslation('Trạng thái ban đầu', 'Trạng thái thứ hai');
+        const clone1 = engineReplace(heading, 'Initial state');
+        const outer1 = clone1.parentNode.parentNode;
+        await flush();
+
+        heading.nodeValue = 'Trạng thái thứ hai';
+        const clone2 = engineReplace(heading, 'Second state');
+        const outer2 = clone2.parentNode.parentNode;
+        await flush();
+
+        heading.nodeValue = 'Trạng thái mới nhất';
+        clickLang('vi');
+        engineRestore(heading, outer1, 'Trạng thái ban đầu');
+        engineRestore(heading, outer2, 'Trạng thái thứ hai');
+        expect(box.textContent).toBe('Trạng thái mới nhất');
+
+        clickLang('en');
+    });
+
+    test('container elements with attribute _gt_ marks stay traversable and restore React attributes on language switch', async () => {
+        const aside = document.createElement('aside');
+        aside.setAttribute('aria-label', 'Bộ lọc việc làm');
+        const child = element('span', text('Công nghệ thông tin'));
+        aside.append(child);
+        document.body.append(aside);
+        await flush();
+
+        aside._gt_mark = 1;
+        aside.setAttribute('aria-label', 'Job filters');
+
+        // First read mirrors Ur(): returns falsy so children are visited, opens zr skip window.
+        expect(Boolean(aside._gt_mark)).toBe(false);
+        expect(aside.getAttribute('aria-label')).toBe(' ');
+        // Second read mirrors _r(): returns falsy and closes zr skip window.
+        expect(Boolean(aside._gt_mark)).toBe(false);
+        expect(aside.getAttribute('aria-label')).toBe('Job filters');
+
+        // React updates aria-label while translated; switching to vi ignores stale restore text.
+        aside.setAttribute('aria-label', 'Bộ lọc cập nhật');
+        expect(aside.getAttribute('aria-label')).toBe('Bộ lọc cập nhật');
+        clickLang('vi');
+        aside.setAttribute('aria-label', 'Bộ lọc việc làm');
+        expect(aside.getAttribute('aria-label')).toBe('Bộ lọc cập nhật');
+
+        clickLang('en');
     });
 });
 

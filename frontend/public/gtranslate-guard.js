@@ -51,6 +51,19 @@
     var BROAD_RE = new RegExp('[' + VI_BROAD + ']');
 
     var SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEMPLATE: 1, TEXTAREA: 1, TITLE: 1, OPTION: 1 };
+    var LEAF_TRANSLATE_TAGS = { FONT: 1, INPUT: 1, TEXTAREA: 1, TITLE: 1, IMG: 1 };
+    var TRANSLATABLE_ATTRS = {
+        title: 1,
+        alt: 1,
+        placeholder: 1,
+        'aria-label': 1,
+        'aria-placeholder': 1,
+        'aria-roledescription': 1,
+        'aria-valuetext': 1
+    };
+    var INLINE_WRAPPER_TAGS = {
+        SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, A: 1, SMALL: 1, LABEL: 1, FONT: 1
+    };
     var SKIP_SELECTOR = '.notranslate,[translate="no"],[contenteditable=""],[contenteditable="true"],.pagination,.page-item,.page-link';
     // Vùng thông báo/hội thoại trực tiếp (tin nhắn mới, lỗi biểu mẫu, toast) phải hiện ngay:
     // chậm vài giây còn tệ hơn hiện tạm tiếng Việt trong lúc chờ dịch.
@@ -65,8 +78,14 @@
     var pending = new Map(); // Text node -> { since: thời điểm bắt đầu hiển thị trong viewport }
     var givenUp = new WeakMap(); // Text node -> nội dung lúc bỏ cuộc chờ dịch
     var updated = new WeakSet(); // Text node được đặt lại vì React đổi chữ sau khi đã dịch
+    var changedSinceMark = new WeakSet(); // Text node bị React đổi chữ sau khi engine đã đánh dấu _gt_* chờ dịch
     var lateFixes = new WeakMap(); // Text node -> số lần đã bỏ bản dịch về trễ (chặn vòng lặp)
     var reactValues = new WeakMap(); // Text node -> chữ mới nhất do React cập nhật khi đang dịch
+    var elMarkStates = new WeakMap(); // Container Element -> { key, val }
+    var reactAttrs = new WeakMap(); // Element -> { attr: chữ mới nhất do React cập nhật }
+    var translatedAttrs = new WeakMap(); // Element -> { attr: bản dịch hiện tại trên DOM }
+    var zrSkipAttrEl = null;
+    var restoringPhase = false;
     var dirty = false;
     var tickTimer = null;
 
@@ -140,6 +159,77 @@
         return true;
     }
 
+    function findGtKey(node) {
+        for (var key in node) {
+            if (key.indexOf('_gt_') === 0) {
+                return key;
+            }
+        }
+        return null;
+    }
+
+    function hasTranslatorMark(node) {
+        if (!node || node.nodeType !== 1) {
+            return false;
+        }
+        var state = elMarkStates.get(node);
+        if (state && (state.key in node)) {
+            return !!state.val;
+        }
+        var key = findGtKey(node);
+        return !!(key && node[key]);
+    }
+
+    // lib.min.js gắn _gt_* = 1 lên thẻ chứa khi dịch aria-label/title, khiến _r() bỏ qua toàn bộ
+    // phần tử con bên trong về sau. Nâng cấp thuộc tính _gt_* trên thẻ chứa thành accessor để bộ
+    // quét đi tiếp vào cây con, đồng thời bỏ qua việc dịch lại chính thuộc tính đã dịch trong lượt đó.
+    function upgradeTranslatorMark(el) {
+        if (!el || el.nodeType !== 1 || LEAF_TRANSLATE_TAGS[el.tagName]) {
+            return;
+        }
+        var key = findGtKey(el);
+        if (!key) {
+            return;
+        }
+        var desc = Object.getOwnPropertyDescriptor(el, key);
+        if (!desc || desc.get) {
+            return;
+        }
+        var state = { key: key, val: el[key] };
+        elMarkStates.set(el, state);
+        Object.defineProperty(el, key, {
+            configurable: true,
+            enumerable: true,
+            get: function () {
+                if (!state.val) {
+                    return 0;
+                }
+                if (zrSkipAttrEl === el) {
+                    zrSkipAttrEl = null;
+                } else {
+                    zrSkipAttrEl = el;
+                    Promise.resolve().then(function () {
+                        if (zrSkipAttrEl === el) {
+                            zrSkipAttrEl = null;
+                        }
+                    });
+                }
+                return 0;
+            },
+            set: function (val) {
+                state.val = val;
+            }
+        });
+    }
+
+    function upgradeAncestors(node) {
+        var cur = node && node.nodeType === 1 ? node : node && node.parentElement;
+        while (cur && cur.nodeType === 1) {
+            upgradeTranslatorMark(cur);
+            cur = cur.parentElement;
+        }
+    }
+
     function consider(node) {
         if (needsHiding(node)) {
             if (!pending.has(node)) {
@@ -153,16 +243,22 @@
 
     function scan(element) {
         if (element.nodeType === 3) {
+            upgradeAncestors(element);
             consider(element);
             return;
         }
         if (element.nodeType !== 1 && element.nodeType !== 9 && element.nodeType !== 11) {
             return;
         }
-        var walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+        upgradeAncestors(element);
+        var walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, null, false);
         var node;
         while ((node = walker.nextNode())) {
-            consider(node);
+            if (node.nodeType === 1) {
+                upgradeTranslatorMark(node);
+            } else {
+                consider(node);
+            }
         }
     }
 
@@ -246,6 +342,7 @@
         for (var i = 0; i < records.length; i++) {
             var record = records[i];
             if (record.type === 'characterData') {
+                upgradeAncestors(record.target);
                 consider(record.target);
             } else {
                 for (var j = 0; j < record.addedNodes.length; j++) {
@@ -261,6 +358,13 @@
         scheduleTick();
     });
 
+    function beginRestoringPhase() {
+        restoringPhase = true;
+        Promise.resolve().then(function () {
+            restoringPhase = false;
+        });
+    }
+
     function setActive(lang) {
         var nextLang = lang || DEFAULT_LANG;
         var langChanged = nextLang !== currentLang;
@@ -269,7 +373,13 @@
         if (langChanged) {
             givenUp = new WeakMap();
             updated = new WeakSet();
+            changedSinceMark = new WeakSet();
             lateFixes = new WeakMap();
+            translatedAttrs = new WeakMap();
+            zrSkipAttrEl = null;
+            if (sentSources) {
+                sentSources.length = 0;
+            }
             pending.forEach(function (info) {
                 info.since = null;
             });
@@ -320,6 +430,7 @@
             return;
         }
         // Chuyển đổi trực tiếp tại chỗ (không reload trang) cho mọi chiều ngôn ngữ.
+        beginRestoringPhase();
         preloadTranslator();
         writeStoredLang(lang);
         setActive(lang);
@@ -382,6 +493,8 @@
     var originalRemoveChild = Node.prototype.removeChild;
     var originalInsertBefore = Node.prototype.insertBefore;
     var originalCloneNode = Node.prototype.cloneNode;
+    var originalGetAttribute = Element.prototype.getAttribute;
+    var originalSetAttribute = Element.prototype.setAttribute;
     var setNodeValue = Object.getOwnPropertyDescriptor(Node.prototype, 'nodeValue').set;
     var replaced = new WeakMap(); // Text node gốc -> { clones: bản sao chứa bản dịch, parent: nơi bị gỡ }
     var clonedElements = new WeakSet(); // Thẻ engine nhân bản để bọc bản dịch (VD: <b> trong câu)
@@ -400,11 +513,25 @@
             .replace(/\s+/g, ' ').trim();
     }
 
+    function pushNormalizedSource(raw) {
+        var norm = normalizeText(raw);
+        if (norm) {
+            sentSources.push(norm);
+        }
+    }
+
     function rememberSources(body) {
         try {
             var texts = JSON.parse(body)[0][0];
+            var segRe = /<a\s+i=\d+>([\s\S]*?)<\/a>/g;
             for (var i = 0; i < texts.length; i++) {
-                sentSources.push(normalizeText(texts[i]));
+                var raw = String(texts[i]);
+                pushNormalizedSource(raw);
+                segRe.lastIndex = 0;
+                var match;
+                while ((match = segRe.exec(raw)) !== null) {
+                    pushNormalizedSource(match[1]);
+                }
             }
             if (sentSources.length > MAX_SOURCES) {
                 sentSources.splice(0, sentSources.length - MAX_SOURCES);
@@ -419,7 +546,7 @@
             return true;
         }
         for (var i = sentSources.length - 1; i >= 0; i--) {
-            if (sentSources[i].indexOf(text) >= 0) {
+            if (sentSources[i] === text) {
                 return true;
             }
         }
@@ -495,6 +622,11 @@
     }
 
     function clearTranslatorMark(node) {
+        var state = elMarkStates.get(node);
+        if (state) {
+            state.val = 0;
+            elMarkStates.delete(node);
+        }
         for (var key in node) {
             if (key.indexOf('_gt_') === 0) {
                 try {
@@ -506,36 +638,102 @@
         }
     }
 
+    function adjacentSiblingNode(node, backward) {
+        var cur = node;
+        while (cur) {
+            var sib = backward ? cur.previousSibling : cur.nextSibling;
+            if (sib) {
+                return sib;
+            }
+            cur = cur.parentElement;
+            if (!cur || !INLINE_WRAPPER_TAGS[cur.tagName]) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    function boundaryTextNode(rootNode, fromEnd) {
+        if (!rootNode) {
+            return null;
+        }
+        if (rootNode.nodeType === 3) {
+            return rootNode.nodeValue ? rootNode : null;
+        }
+        if (rootNode.nodeType !== 1) {
+            return null;
+        }
+        var walker = document.createTreeWalker(rootNode, NodeFilter.SHOW_TEXT, null, false);
+        var found = null;
+        var current;
+        while ((current = walker.nextNode())) {
+            if (current.nodeValue) {
+                found = current;
+                if (!fromEnd) {
+                    return found;
+                }
+            }
+        }
+        return found;
+    }
+
     // Đặt node gốc (đang mang chữ React mới nhất) trở lại chỗ bản dịch của nó.
     function restoreOriginal(node, info) {
         var parent = info.parent;
+        var shown = info.clones.length ? info.clones[0].nodeValue || '' : '';
         if (parent.isConnected) {
-            // Bản dịch giữ khoảng trắng ở ranh giới (VD: "7 " + "normal posts"): giữ lại để chữ
-            // không dính vào phần dịch bên cạnh.
-            var shown = info.clones.length ? info.clones[0].nodeValue || '' : '';
-            var text = node.nodeValue || '';
-            if (/^\s/.test(shown) && !/^\s/.test(text)) {
-                text = ' ' + text;
-            }
-            if (/\s$/.test(shown) && !/\s$/.test(text)) {
-                text += ' ';
-            }
-            if (text !== node.nodeValue) {
-                setNodeValue.call(node, text);
-            }
+            changedSinceMark.delete(node);
             clearTranslatorMark(node);
+            upgradeAncestors(parent);
             reactValues.set(node, node.nodeValue);
             originalInsertBefore.call(parent, node, anchorFor(parent, node));
             updated.add(node);
         }
         dropTranslation(node, info);
+        if (parent.isConnected && shown) {
+            // Chuyển khoảng trắng ranh giới (VD: "0 " + "normal posts" -> "7" + " normal posts")
+            // sang <font> kế bên thay vì gắn vào node gốc, tránh bị lib.min.js cắt mất khi dịch lại
+            // riêng node này hoặc bị nhân đôi khoảng trắng khi chuyển về tiếng Việt.
+            var text = node.nodeValue || '';
+            var changed = false;
+            if (/^\s/.test(shown) && !/^\s/.test(text)) {
+                var prevText = boundaryTextNode(adjacentSiblingNode(node, true), true);
+                if (prevText && prevText.parentElement && prevText.parentElement.closest('font')) {
+                    if (!/\s$/.test(prevText.nodeValue)) {
+                        setNodeValue.call(prevText, prevText.nodeValue + ' ');
+                    }
+                } else if (!prevText || !/\s$/.test(prevText.nodeValue)) {
+                    text = ' ' + text;
+                    changed = true;
+                }
+            }
+            if (/\s$/.test(shown) && !/\s$/.test(text)) {
+                var nextText = boundaryTextNode(adjacentSiblingNode(node, false), false);
+                if (nextText && nextText.parentElement && nextText.parentElement.closest('font')) {
+                    if (!/^\s/.test(nextText.nodeValue)) {
+                        setNodeValue.call(nextText, ' ' + nextText.nodeValue);
+                    }
+                } else if (!nextText || !/^\s/.test(nextText.nodeValue)) {
+                    text += ' ';
+                    changed = true;
+                }
+            }
+            if (changed) {
+                setNodeValue.call(node, text);
+                reactValues.set(node, text);
+            }
+        }
     }
 
     // Engine vừa thay node bằng bản dịch của chữ cũ: hoàn tác ngay để trang hiện chữ hiện tại,
     // GTranslate sẽ dịch lại chữ mới. Tối đa 2 lần mỗi node để không dịch đi dịch lại mãi.
     function undoLateTranslation(node, info) {
+        var staleMark = changedSinceMark.has(node);
+        if (staleMark) {
+            changedSinceMark.delete(node);
+        }
         var count = lateFixes.get(node) || 0;
-        if (count >= 2 || sentForTranslation(node.nodeValue)) {
+        if (count >= 2 || (!staleMark && sentForTranslation(node.nodeValue))) {
             return;
         }
         lateFixes.set(node, count + 1);
@@ -545,6 +743,71 @@
             }
         });
     }
+
+    Element.prototype.getAttribute = function (name) {
+        if (zrSkipAttrEl === this && TRANSLATABLE_ATTRS[name]) {
+            return ' ';
+        }
+        return originalGetAttribute.apply(this, arguments);
+    };
+
+    Element.prototype.setAttribute = function (name, value) {
+        var attrName = typeof name === 'string' ? name.toLowerCase() : String(name);
+        var args = arguments;
+        if (TRANSLATABLE_ATTRS[attrName]) {
+            var nextVal = String(value);
+            var rmap = reactAttrs.get(this);
+            if (restoringPhase) {
+                if (rmap && (attrName in rmap)) {
+                    value = rmap[attrName];
+                    nextVal = String(value);
+                    if (args.length >= 2) {
+                        args = [name, value];
+                    }
+                }
+                var restoringTmap = translatedAttrs.get(this);
+                if (restoringTmap) {
+                    delete restoringTmap[attrName];
+                }
+            } else if (active && hasTranslatorMark(this)) {
+                var tmap = translatedAttrs.get(this);
+                if (!tmap) {
+                    tmap = {};
+                    translatedAttrs.set(this, tmap);
+                }
+                if (!rmap) {
+                    rmap = {};
+                    reactAttrs.set(this, rmap);
+                }
+                if (!(attrName in rmap)) {
+                    var prevAttr = originalGetAttribute.call(this, attrName);
+                    if (prevAttr !== null) {
+                        rmap[attrName] = prevAttr;
+                    }
+                }
+                if (!(attrName in tmap)) {
+                    tmap[attrName] = nextVal;
+                } else if (tmap[attrName] !== nextVal) {
+                    rmap[attrName] = nextVal;
+                    delete tmap[attrName];
+                    clearTranslatorMark(this);
+                }
+            } else {
+                if (!rmap) {
+                    rmap = {};
+                    reactAttrs.set(this, rmap);
+                }
+                rmap[attrName] = nextVal;
+                var inactiveTmap = translatedAttrs.get(this);
+                if (inactiveTmap) {
+                    delete inactiveTmap[attrName];
+                }
+            }
+        }
+        var res = originalSetAttribute.apply(this, args);
+        upgradeTranslatorMark(this);
+        return res;
+    };
 
     Node.prototype.cloneNode = function () {
         var copy = originalCloneNode.apply(this, arguments);
@@ -595,7 +858,6 @@
             if (restored && restored.parent === this) {
                 replaced.delete(newNode);
             }
-            reactValues.delete(newNode);
         }
         if (referenceNode && referenceNode.parentNode !== this) {
             return originalInsertBefore.call(this, newNode, anchorFor(this, referenceNode));
@@ -624,7 +886,13 @@
                         if (info && info.parent) {
                             restoreOriginal(this, info);
                         }
-                    } else if (this.parentNode.tagName !== 'FONT' && reactValues.has(this)) {
+                    } else if (this.parentNode.tagName !== 'FONT') {
+                        var gtKey = findGtKey(this);
+                        if (gtKey && this[gtKey]) {
+                            changedSinceMark.add(this);
+                        }
+                        clearTranslatorMark(this);
+                        upgradeAncestors(this);
                         reactValues.set(this, this.nodeValue);
                     }
                 }
@@ -643,6 +911,7 @@
             translator: {
                 translate: function (_src, tgt) {
                     writeStoredLang(tgt);
+                    setActive(tgt);
                 }
             }
         };

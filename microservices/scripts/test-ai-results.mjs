@@ -21,7 +21,7 @@ const deferred = () => {
     return { promise, resolve };
 };
 const response = () => ({ statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
-const req = (body = {}, id) => ({ body, params: { id: String(id) }, headers: { 'x-user-id': '5', 'x-user-role': 'ADMIN' } });
+const req = (body = {}, id) => ({ body, params: { id: String(id) }, headers: { 'x-user-id': '5', 'x-user-role': 'ADMIN', 'x-company-id': '3' } });
 
 try {
     await docker('image', 'inspect', 'mysql:8.0', '--format', '{{.Id}}');
@@ -49,6 +49,7 @@ try {
     const { ensureAiTaskTable } = await import('../job-core-service/src/controllers/aiController.js');
     const { ensureOutboxTable, enqueueOutboxEvent } = await import('../job-core-service/src/libs/outbox.js');
     const { ensureAiResultTables, requestJobModeration } = await import('../job-core-service/src/libs/moderationState.js');
+    const { ensureJobRequestTable } = await import('../job-core-service/src/libs/jobRequest.js');
     const { createAiResultHandler, handleAiResult } = await import('../job-core-service/src/libs/aiResultHandler.js');
     const { createJob, updateJob, deleteJob } = await import('../job-core-service/src/controllers/jobController.js');
     // Minimal legacy business fixtures; new AI tables use the actual production DDL.
@@ -62,12 +63,14 @@ try {
         timeEnd VARCHAR(50), timePost VARCHAR(50), isHot BOOLEAN, createdAt DATETIME(3), updatedAt DATETIME(3)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
     await pool.query('CREATE TABLE users (id INT PRIMARY KEY, companyId INT) ENGINE=InnoDB');
-    await pool.query('CREATE TABLE companies (id INT PRIMARY KEY, name VARCHAR(100), thumbnail VARCHAR(100), statusCode VARCHAR(10), censorCode VARCHAR(10)) ENGINE=InnoDB');
-    await pool.query("INSERT INTO companies VALUES (3, 'Company', NULL, 'S1', 'CS1')");
+    await pool.query('CREATE TABLE companies (id INT PRIMARY KEY, name VARCHAR(100), thumbnail VARCHAR(100), statusCode VARCHAR(10), censorCode VARCHAR(10), allowPost INT, allowHotPost INT) ENGINE=InnoDB');
+    await pool.query('CREATE TABLE followcompanies (id INT AUTO_INCREMENT PRIMARY KEY, companyId INT, userId INT, createdAt DATETIME, updatedAt DATETIME) ENGINE=InnoDB');
+    await pool.query("INSERT INTO companies VALUES (3, 'Company', NULL, 'S1', 'CS1', 500, 500)");
     await pool.query('INSERT INTO users VALUES (5, 3)');
     await ensureAiTaskTable();
     await ensureOutboxTable();
     await ensureAiResultTables();
+    await ensureJobRequestTable();
 
     const state = async (id) => (await pool.query('SELECT * FROM job_moderation_state WHERE jobId = ?', [id]))[0][0];
     const post = async (id) => (await pool.query('SELECT * FROM posts WHERE id = ?', [id]))[0][0];

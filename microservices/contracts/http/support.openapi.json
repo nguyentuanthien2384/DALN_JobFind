@@ -5559,6 +5559,12 @@
               "required": [],
               "additionalProperties": false
             }
+          },
+          "sendEmailCopy": {
+            "type": "boolean"
+          },
+          "resendEmailCopy": {
+            "type": "boolean"
           }
         },
         "required": [

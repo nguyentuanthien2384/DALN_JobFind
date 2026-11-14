@@ -191,6 +191,19 @@ describe('notification event consumer', () => {
         expect(mocks.sendEmail).not.toHaveBeenCalled();
     });
 
+    it('queues assessment submission receipts durably and refuses unmarked messages', async () => {
+        const { handleNotificationEvent } = await import('../notification-service/src/consumers/notificationConsumer.js');
+        const type = 'application.assessment_submitted';
+        const decoded = decodeEventFixture(type, eventExamples[type]);
+        await handleNotificationEvent(decoded.payload, type, decoded.metadata);
+        const queued = mocks.queueNotification.mock.calls[0][0];
+        expect(queued).toMatchObject({ eventId: decoded.metadata.eventId, userId: 9, recipientEmail: eventExamples[type].candidateEmail });
+        expect(queued.template.typeCode).toBe('APPLICATION_ASSESSMENT_SUBMITTED');
+        expect(queued.template.email.text).toContain('A. Đơn luồng bất đồng bộ');
+        await expect(handleNotificationEvent(decoded.payload, type, {})).rejects.toThrow('requires eventId');
+        expect(mocks.queueNotification).toHaveBeenCalledTimes(1);
+    });
+
     it('passes interview context into rejection and dragged-stage emails', async () => {
         const { handlers } = await import('../notification-service/src/consumers/notificationConsumer.js');
         await handlers['application.decision_email_requested']({ candidateId: 2, candidateEmail: 'a@x.com', decision: 'rejected', toStage: 'tu_choi',

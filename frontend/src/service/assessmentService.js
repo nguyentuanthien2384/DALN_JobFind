@@ -95,7 +95,15 @@ export const getMyAssessment = (applicationId) =>
 export const startMyAssessment = (applicationId) =>
     axios.post(`/api/my-applications/${safeId(applicationId)}/assessment/start`, {});
 
-export const submitMyAssessment = (applicationId, questions, answers) =>
+export const submitMyAssessment = (applicationId, questions, answers, options = {}) =>
     axios.post(`/api/my-applications/${safeId(applicationId)}/assessment/submit`, {
-        answers: serializeAnswersForApi(questions, answers)
+        answers: serializeAnswersForApi(questions, answers),
+        ...(typeof options?.sendEmailCopy === 'boolean' ? { sendEmailCopy: options.sendEmailCopy } : {}),
+        ...(options?.resendEmailCopy === true ? { resendEmailCopy: true } : {})
+    });
+
+export const resendMyAssessmentEmailCopy = (applicationId) =>
+    axios.post(`/api/my-applications/${safeId(applicationId)}/assessment/submit`, {
+        answers: {},
+        resendEmailCopy: true
     });
