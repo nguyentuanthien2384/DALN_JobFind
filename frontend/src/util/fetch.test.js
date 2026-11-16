@@ -1,14 +1,19 @@
 import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { getAllCodeService } from "../service/userService";
-import { clearAllCodeCache, fetchAllCode, preloadAllCode, useFetchAllcode } from "./fetch";
+import { clearAllCodeCache, fetchAllCode, getCachedAllCode, preloadAllCode, useFetchAllcode } from "./fetch";
 
 jest.mock("../service/userService", () => ({
     getAllCodeService: jest.fn(),
 }));
 
 describe("useFetchAllcode", () => {
-    beforeEach(() => { jest.clearAllMocks(); clearAllCodeCache(); });
+    let now;
+    beforeEach(() => {
+        jest.clearAllMocks(); localStorage.clear(); clearAllCodeCache();
+        now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    });
+    afterEach(() => jest.restoreAllMocks());
 
     it('restores filter options synchronously and preserves them when refresh fails', async () => {
         const rows = [{ code: 'remote', value: 'Remote' }];
@@ -16,11 +21,71 @@ describe("useFetchAllcode", () => {
         const first = renderHook(() => useFetchAllcode('WORKTYPE', { retain: true }));
         await waitFor(() => expect(first.result.current.data).toEqual(rows));
         first.unmount();
+        now.mockReturnValue(1_060_000);
         getAllCodeService.mockRejectedValueOnce(new Error('Offline'));
         const second = renderHook(() => useFetchAllcode('WORKTYPE', { retain: true }));
         expect(second.result.current.data).toEqual(rows);
         await waitFor(() => expect(getAllCodeService).toHaveBeenCalledTimes(2));
         expect(second.result.current.data).toEqual(rows);
+    });
+
+    it('reuses fresh options by default when navigating between screens', async () => {
+        const rows = [{ code: 'HN', value: 'Hà Nội' }];
+        getAllCodeService.mockResolvedValue({ errCode: 0, data: rows });
+        const first = renderHook(() => useFetchAllcode('PROVINCE'));
+        await waitFor(() => expect(first.result.current.data).toEqual(rows));
+        first.unmount();
+        const second = renderHook(() => useFetchAllcode('PROVINCE'));
+        expect(second.result.current.data).toEqual(rows);
+        await act(async () => {});
+        expect(getAllCodeService).toHaveBeenCalledTimes(1);
+    });
+
+    it('refreshes expired options and allows callers to bypass retention', async () => {
+        const rows = [{ code: 'HN', value: 'Hà Nội' }];
+        getAllCodeService.mockResolvedValue({ errCode: 0, data: rows });
+        await fetchAllCode('PROVINCE');
+        now.mockReturnValue(1_060_000);
+        await fetchAllCode('PROVINCE');
+        await fetchAllCode('PROVINCE', { retain: false });
+        expect(getAllCodeService).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not cache errors and retries on the next visit', async () => {
+        getAllCodeService.mockResolvedValueOnce({ errCode: 1, data: [] })
+            .mockResolvedValueOnce({ errCode: 0, data: [] });
+        await fetchAllCode('PROVINCE');
+        expect(getCachedAllCode('PROVINCE')).toBeNull();
+        await fetchAllCode('PROVINCE');
+        expect(getCachedAllCode('PROVINCE')).toEqual([]);
+        expect(getAllCodeService).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not reuse another account request or save a late response after invalidation', async () => {
+        let finishOld;
+        getAllCodeService.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }))
+            .mockResolvedValue({ errCode: 0, data: [{ code: 'NEW' }] });
+        localStorage.setItem('token_user', 'account-a');
+        const oldRequest = fetchAllCode('ROLE');
+        localStorage.setItem('token_user', 'account-b');
+        await fetchAllCode('ROLE');
+        clearAllCodeCache();
+        finishOld({ errCode: 0, data: [{ code: 'OLD' }] });
+        await oldRequest;
+        expect(getCachedAllCode('ROLE')).toBeNull();
+        await fetchAllCode('ROLE');
+        expect(getCachedAllCode('ROLE')).toEqual([{ code: 'NEW' }]);
+        expect(getAllCodeService).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not restore pre-edit options from an in-flight request after a catalog edit', async () => {
+        let finish;
+        getAllCodeService.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        const request = fetchAllCode('JOBTYPE');
+        clearAllCodeCache();
+        finish({ errCode: 0, data: [{ code: 'REMOVED' }] });
+        await request;
+        expect(getCachedAllCode('JOBTYPE')).toBeNull();
     });
 
     it("loads all-code data for the requested type", async () => {

@@ -1,5 +1,6 @@
 import axios from "../axios";
 import * as service from "./userService";
+import { retainedAllCode, clearAllCodeCache } from '../util/allCodeCache';
 
 jest.mock("../axios", () => ({
     __esModule: true,
@@ -12,6 +13,18 @@ jest.mock("../axios", () => ({
 }));
 
 describe("userService", () => {
+    test.each(['createAllCodeService', 'UpdateAllcodeService', 'DeleteAllcodeService'])(
+        '%s invalidates filter options after a successful catalog edit', async name => {
+            retainedAllCode.save('JOBTYPE', [{ code: 'OLD' }]);
+            await service[name]({ code: 'NEW' });
+            expect(retainedAllCode.read('JOBTYPE')).toBeNull();
+        });
+    test('preserves options when a catalog edit fails', async () => {
+        retainedAllCode.save('JOBTYPE', [{ code: 'OLD' }]);
+        axios.put.mockResolvedValueOnce({ errCode: 1 });
+        await service.UpdateAllcodeService({ code: 'NEW' });
+        expect(retainedAllCode.read('JOBTYPE').value).toEqual([{ code: 'OLD' }]);
+    });
     test('encodes administration list filters and omits empty ones', () => {
         service.getAllUsers({ limit: 20, offset: 0, search: 'An & Bình #1', roleCode: 'EMPLOYER', statusCode: '' });
         expect(axios.get).toHaveBeenLastCalledWith('/api/get-all-user?limit=20&offset=0&search=An+%26+B%C3%ACnh+%231&roleCode=EMPLOYER');
@@ -55,6 +68,7 @@ describe("userService", () => {
     });
     beforeEach(() => {
         jest.clearAllMocks();
+        clearAllCodeCache();
         Object.values(axios).forEach((mock) => mock.mockResolvedValue({ errCode: 0 }));
     });
 

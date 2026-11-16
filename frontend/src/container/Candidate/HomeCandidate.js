@@ -1,17 +1,25 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import UserCv from "../system/Cv/UserCv";
-import ChangePassword from "../system/User/ChangePassword";
-import CandidateInfo from "./CandidateInfo";
-import ManageCvCandidate from "./ManageCvCandidate";
-import SettingUser from "./SettingUser";
-import SavedJobs from "./SavedJobs";
-import CandidateAi from './CandidateAi';
-import NotificationJobs from './NotificationJobs';
-import CandidateNotifications from './CandidateNotifications';
-import InterviewCalendar from '../../components/interviews/InterviewCalendar';
-import CandidateAssessmentRunner from '../../components/Assessment/CandidateAssessmentRunner';
 import './CandidateLayout.css';
+
+// Load only the current page; editors, charts and PDF tools stay in their own chunks.
+const UserCv = lazy(() => import("../system/Cv/UserCv"));
+const ChangePassword = lazy(() => import("../system/User/ChangePassword"));
+const CandidateInfo = lazy(() => import("./CandidateInfo"));
+const ManageCvCandidate = lazy(() => import("./ManageCvCandidate"));
+const SettingUser = lazy(() => import("./SettingUser"));
+const SavedJobs = lazy(() => import("./SavedJobs"));
+const CandidateAi = lazy(() => import("./CandidateAi"));
+const NotificationJobs = lazy(() => import("./NotificationJobs"));
+const CandidateNotifications = lazy(() => import("./CandidateNotifications"));
+const InterviewCalendar = lazy(() => import("../../components/interviews/InterviewCalendar"));
+const CandidateAssessmentRunner = lazy(() => import("../../components/Assessment/CandidateAssessmentRunner"));
+
+const PageLoader = () => (
+    <div className="route-page-loader" role="status" aria-live="polite">
+        Đang tải giao diện...
+    </div>
+);
 
 const HomeCandidate = () => {
     return (
@@ -28,6 +36,7 @@ const HomeCandidate = () => {
                 {/* partial */}
                 <div className="main-panel">
                     <div className="content-wrapper">
+                        <Suspense fallback={<PageLoader />}>
                         <Routes>
                             <Route path="/interviews" element={<InterviewCalendar candidate />} />
                             <Route path="/assessment/:applicationId" element={<CandidateAssessmentRunner />} />
@@ -55,6 +64,7 @@ const HomeCandidate = () => {
                             <Route path="/cv-detail/:id" element={<UserCv />} />
                             <Route path="*" element={<Navigate to="/candidate/info" replace />} />
                         </Routes>
+                        </Suspense>
                     </div>
                     {/* content-wrapper ends */}
                     {/* partial:partials/_footer.html */}

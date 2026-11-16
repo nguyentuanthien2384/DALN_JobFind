@@ -37,6 +37,7 @@ const ADMIN_SECTIONS = [
         key: 'commerce', title: 'Kinh doanh', items: [
             { key: 'package-post', to: '/admin/list-package-post/', label: 'Gói đăng tin', icon: 'fas fa-box-open', permission: P.MANAGE_PACKAGES, action: { to: '/admin/add-package-post/', label: 'Thêm gói đăng tin' } },
             { key: 'package-cv', to: '/admin/list-package-cv/', label: 'Gói xem ứng viên', icon: 'fas fa-id-card', permission: P.MANAGE_PACKAGES, action: { to: '/admin/add-package-cv/', label: 'Thêm gói xem ứng viên' } },
+            { key: 'promo-codes', to: '/admin/promo-codes/', label: 'Mã giảm giá', icon: 'fas fa-ticket-alt', permission: P.MANAGE_PACKAGES },
             { key: 'admin-rewards', to: '/admin/rewards/', label: 'Quản lý nạp & tích điểm', icon: 'fas fa-coins', permission: P.VIEW_PLATFORM_REPORTS },
         ],
     },

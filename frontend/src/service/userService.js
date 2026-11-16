@@ -1,4 +1,10 @@
 import axios from "../axios";
+import { clearAllCodeCache } from '../util/allCodeCache';
+
+const invalidateAllCodeOnSuccess = response => {
+    if (response?.errCode === 0) clearAllCodeCache();
+    return response;
+};
 
 
 // Query string cho cac danh sach quan tri: bo truong rong va ma hoa gia tri,
@@ -89,7 +95,7 @@ const getListJobTypeAndCountPost = (data) => {
 }
 
 const createAllCodeService = (data) => {
-    return axios.post(`/api/create-new-all-code`, data)
+    return axios.post(`/api/create-new-all-code`, data).then(invalidateAllCodeOnSuccess)
 
 }
 
@@ -98,7 +104,7 @@ const getDetailAllcodeByCode = (code) => {
 
 }
 const UpdateAllcodeService = (data) => {
-    return axios.put(`/api/update-all-code`, data)
+    return axios.put(`/api/update-all-code`, data).then(invalidateAllCodeOnSuccess)
 
 }
 const DeleteAllcodeService = (allcodeId) => {
@@ -106,7 +112,7 @@ const DeleteAllcodeService = (allcodeId) => {
         data: {
             code: allcodeId
         }
-    })
+    }).then(invalidateAllCodeOnSuccess)
 }
 
 const getListSkill = (data) => {

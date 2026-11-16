@@ -1,56 +1,9 @@
-import React, { useMemo } from "react";
-import SupportInbox from '../../components/support/SupportInbox';
+import React, { lazy, Suspense, useMemo } from "react";
 import Header from "./Header";
 import Menu from "./Menu";
 import AdminPageHeader from "./AdminPageHeader";
-import Home from "./Home";
 import Footer from "./Footer";
-import ManageUser from "./User/ManageUser";
-import ReportDashboard from "./Report/ReportDashboard";
 import { Routes, Route, Navigate, Link } from "react-router-dom";
-import AddUser from "./User/AddUser";
-import AddJobType from "./JobType/AddJobType";
-import ManageJobType from "./JobType/ManageJobType";
-import AddJobLevel from "./JobLevel/AddJobLevel";
-import ManageJobLevel from "./JobLevel/ManageJobLevel";
-import AddWorkType from "./WorkType/AddWorkType";
-import ManageWorkType from "./WorkType/ManageWorkType";
-import AddSalaryType from "./SalaryType/AddSalaryType";
-import ManageSalaryType from "./SalaryType/ManageSalaryType";
-import AddExpType from "./ExpType/AddExpType";
-import ManageExpType from "./ExpType/ManageExpType";
-import AddCompany from "./Company/AddCompany";
-import Recruitment from "./Company/Recruitment";
-import ManageEmployer from "./Company/ManageEmployer";
-import AddPost from "./Post/AddPost";
-import ManagePost from "./Post/ManagePost";
-import ManageCv from "./Cv/ManageCv";
-import FilterCv from "./Cv/FilterCv";
-import UserCv from "./Cv/UserCv";
-import KanbanBoard from "./Cv/KanbanBoard";
-import InterviewCalendar from "../../components/interviews/InterviewCalendar";
-import ChangePassword from "./User/ChangePassword";
-import UserInfo from "./User/UserInfo";
-import BuyPost from "./Post/BuyPost";
-import PaymentSuccess from "./Post/BuySucces";
-import AddpackagePost from "./PackagePost/AddPackagePost";
-import ManagePackagePost from "./PackagePost/ManagePackagePost";
-import NotePost from "./Post/NotePost";
-import ManageCompany from "./Company/ManageCompany";
-import AddJobSkill from "./JobSkill/AddJobSkill";
-import ManageJobSkill from "./JobSkill/ManageJobSkill";
-import DetailFilterUser from "./Cv/DetailFilterUser";
-import AddpackageCv from "./PackageCv/AddPackageCv";
-import ManagePackageCv from "./PackageCv/ManagePackageCv";
-import PaymentSuccessCv from "./PackageCv/BuySuccesCv";
-import BuyCv from "./PackageCv/BuyCv";
-import HistoryTradePost from "./HistoryTrade/HistoryTradePost";
-import HistoryTradeCv from "./HistoryTrade/HistoryTradeCv";
-import RewardsWorkspace from "./Rewards/RewardsWorkspace";
-import ChartPost from "./Chart/ChartPost";
-import ChartCv from "./Chart/ChartCv";
-import ChatPage from "../Chat/ChatPage";
-import PaymentCancelled from "./PaymentCancelled";
 import RouteGuard from "../../auth/RouteGuard";
 import {
     getDefaultRouteForUser,
@@ -60,6 +13,62 @@ import {
 } from "../../auth/accessControl";
 import { readJsonStorage } from "../../util/storage";
 import './AdminLayout.css';
+
+// Load only the current page; editors, charts and PDF tools stay in their own chunks.
+const SupportInbox = lazy(() => import("../../components/support/SupportInbox"));
+const Home = lazy(() => import("./Home"));
+const ManageUser = lazy(() => import("./User/ManageUser"));
+const ReportDashboard = lazy(() => import("./Report/ReportDashboard"));
+const AddUser = lazy(() => import("./User/AddUser"));
+const AddJobType = lazy(() => import("./JobType/AddJobType"));
+const ManageJobType = lazy(() => import("./JobType/ManageJobType"));
+const AddJobLevel = lazy(() => import("./JobLevel/AddJobLevel"));
+const ManageJobLevel = lazy(() => import("./JobLevel/ManageJobLevel"));
+const AddWorkType = lazy(() => import("./WorkType/AddWorkType"));
+const ManageWorkType = lazy(() => import("./WorkType/ManageWorkType"));
+const AddSalaryType = lazy(() => import("./SalaryType/AddSalaryType"));
+const ManageSalaryType = lazy(() => import("./SalaryType/ManageSalaryType"));
+const AddExpType = lazy(() => import("./ExpType/AddExpType"));
+const ManageExpType = lazy(() => import("./ExpType/ManageExpType"));
+const AddCompany = lazy(() => import("./Company/AddCompany"));
+const Recruitment = lazy(() => import("./Company/Recruitment"));
+const ManageEmployer = lazy(() => import("./Company/ManageEmployer"));
+const AddPost = lazy(() => import("./Post/AddPost"));
+const ManagePost = lazy(() => import("./Post/ManagePost"));
+const ManageCv = lazy(() => import("./Cv/ManageCv"));
+const FilterCv = lazy(() => import("./Cv/FilterCv"));
+const UserCv = lazy(() => import("./Cv/UserCv"));
+const KanbanBoard = lazy(() => import("./Cv/KanbanBoard"));
+const InterviewCalendar = lazy(() => import("../../components/interviews/InterviewCalendar"));
+const ChangePassword = lazy(() => import("./User/ChangePassword"));
+const UserInfo = lazy(() => import("./User/UserInfo"));
+const BuyPost = lazy(() => import("./Post/BuyPost"));
+const PaymentSuccess = lazy(() => import("./Post/BuySucces"));
+const AddpackagePost = lazy(() => import("./PackagePost/AddPackagePost"));
+const ManagePackagePost = lazy(() => import("./PackagePost/ManagePackagePost"));
+const NotePost = lazy(() => import("./Post/NotePost"));
+const ManageCompany = lazy(() => import("./Company/ManageCompany"));
+const AddJobSkill = lazy(() => import("./JobSkill/AddJobSkill"));
+const ManageJobSkill = lazy(() => import("./JobSkill/ManageJobSkill"));
+const DetailFilterUser = lazy(() => import("./Cv/DetailFilterUser"));
+const AddpackageCv = lazy(() => import("./PackageCv/AddPackageCv"));
+const ManagePackageCv = lazy(() => import("./PackageCv/ManagePackageCv"));
+const PaymentSuccessCv = lazy(() => import("./PackageCv/BuySuccesCv"));
+const BuyCv = lazy(() => import("./PackageCv/BuyCv"));
+const HistoryTradePost = lazy(() => import("./HistoryTrade/HistoryTradePost"));
+const HistoryTradeCv = lazy(() => import("./HistoryTrade/HistoryTradeCv"));
+const RewardsWorkspace = lazy(() => import("./Rewards/RewardsWorkspace"));
+const ManagePromoCode = lazy(() => import("./PromoCode/ManagePromoCode"));
+const ChartPost = lazy(() => import("./Chart/ChartPost"));
+const ChartCv = lazy(() => import("./Chart/ChartCv"));
+const ChatPage = lazy(() => import("../Chat/ChatPage"));
+const PaymentCancelled = lazy(() => import("./PaymentCancelled"));
+
+const PageLoader = () => (
+    <div className="route-page-loader" role="status" aria-live="polite">
+        Đang tải giao diện...
+    </div>
+);
 
 const HomeAdmin = ({ user: suppliedUser }) => {
     const user = useMemo(
@@ -154,6 +163,7 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                 <div className="main-panel">
                     <div className="content-wrapper">
                         <AdminPageHeader user={user} />
+                        <Suspense fallback={<PageLoader />}>
                         <Routes>
                             <Route
                                 path="/"
@@ -273,6 +283,14 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                             <Route
                                 path="/edit-package-cv/:id"
                                 element={guard(<AddpackageCv />, PERMISSIONS.MANAGE_PACKAGES)}
+                            />
+                            <Route
+                                path="/promo-codes"
+                                element={guard(<ManagePromoCode />, PERMISSIONS.MANAGE_PACKAGES)}
+                            />
+                            <Route
+                                path="/list-promo-code"
+                                element={guard(<ManagePromoCode />, PERMISSIONS.MANAGE_PACKAGES)}
                             />
                             <Route
                                 path="/add-company"
@@ -398,6 +416,7 @@ const HomeAdmin = ({ user: suppliedUser }) => {
                             />
                             <Route path="*" element={<Navigate to={defaultRoute} replace />} />
                         </Routes>
+                        </Suspense>
                     </div>
                     {/* content-wrapper ends */}
                     {/* partial:partials/_footer.html */}

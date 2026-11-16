@@ -179,8 +179,8 @@ describe("HomeCandidate route shell", () => {
         ["/cv-post", "candidate-cv-post-page"],
         ["/saved-jobs", "candidate-saved-jobs-page"],
         ["/cv-detail/55", "candidate-cv-detail-page"],
-    ])("maps %s to its candidate page", (path, expectedPage) => {
+    ])("maps %s to its candidate page", async (path, expectedPage) => {
         renderInRouter(<HomeCandidate />, path);
-        expect(screen.getByText(expectedPage)).toBeInTheDocument();
+        expect(await screen.findByText(expectedPage)).toBeInTheDocument();
     });
 });

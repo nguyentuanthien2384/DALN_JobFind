@@ -61,11 +61,13 @@ const renderAdmin = (route, user = ADMIN) => {
 describe("admin layout shell", () => {
     beforeEach(() => localStorage.clear());
 
-    it("composes the shared header, menu, home content and footer", () => {
+    it("composes the shared header, menu, home content and footer", async () => {
         renderAdmin("/");
         expect(screen.getByText("ADMIN HEADER")).toBeInTheDocument();
         expect(screen.getByText("ADMIN MENU")).toBeInTheDocument();
-        expect(screen.getByText("ADMIN HOME")).toBeInTheDocument();
+        expect(screen.getByRole("status")).toHaveTextContent("Đang tải giao diện");
+        expect(screen.getByText(/Bản quyền/)).toBeVisible();
+        expect(await screen.findByText("ADMIN HOME")).toBeInTheDocument();
         expect(screen.getByText(/Bản quyền/)).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Tin nhắn tuyển dụng" })).toHaveAttribute("href", "/admin/chat");
         expect(screen.getByRole("link", { name: "Quy trình ứng viên" })).toHaveAttribute("href", "/admin/pipeline");
@@ -75,7 +77,7 @@ describe("admin layout shell", () => {
         expect(document.querySelector('footer a[href="#"]')).toBeNull();
     });
 
-    it("labels each page with a breadcrumb, its primary action and the browser tab title", () => {
+    it("labels each page with a breadcrumb, its primary action and the browser tab title", async () => {
         const dashboard = renderAdmin("/");
         expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).not.toBeInTheDocument();
         expect(document.title).toBe("Tổng quan · Quản trị JobFind");
@@ -87,7 +89,7 @@ describe("admin layout shell", () => {
         expect(within(trail).getByText("Người dùng").closest("li")).toHaveAttribute("aria-current", "page");
         expect(screen.getByRole("link", { name: "Thêm người dùng" })).toHaveAttribute("href", "/admin/add-user/");
         expect(document.title).toBe("Người dùng · Quản trị JobFind");
-        expect(screen.getByText("MANAGE USER")).toBeInTheDocument();
+        expect(await screen.findByText("MANAGE USER")).toBeInTheDocument();
         list.unmount();
         expect(document.title).not.toContain("Người dùng");
 
@@ -107,9 +109,9 @@ describe("admin layout shell", () => {
         expect(within(trail).getAllByRole("link")[0]).toHaveAttribute("href", "/admin/");
     });
 
-    it("selects the requested nested administration route", () => {
+    it("selects the requested nested administration route", async () => {
         renderAdmin("/reports");
-        expect(screen.getByText("ADMIN REPORT")).toBeInTheDocument();
+        expect(await screen.findByText("ADMIN REPORT")).toBeInTheDocument();
         expect(screen.queryByText("ADMIN HOME")).not.toBeInTheDocument();
     });
 
@@ -122,33 +124,33 @@ describe("admin layout shell", () => {
         expect(screen.getByTestId("redirect")).toHaveTextContent(destination);
     });
 
-    it("allows ADMIN to open the chat route", () => {
+    it("allows ADMIN to open the chat route", async () => {
         renderAdmin("/chat", ADMIN);
-        expect(screen.getByText("ADMIN CHAT")).toBeInTheDocument();
+        expect(await screen.findByText("ADMIN CHAT")).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Tin nhắn tuyển dụng" })).toHaveAttribute("href", "/admin/chat");
     });
-    it('allows only ADMIN to open the support queue', () => {
+    it('allows only ADMIN to open the support queue', async () => {
         const view = renderAdmin('/support', ADMIN);
-        expect(screen.getByText('SUPPORT INBOX')).toBeInTheDocument();
+        expect(await screen.findByText('SUPPORT INBOX')).toBeInTheDocument();
         view.unmount();
         renderAdmin('/support', COMPANY);
         expect(screen.getByTestId('redirect')).toHaveTextContent('/forbidden');
     });
 
-    it("allows an attached employer to use recruiting and chat routes", () => {
+    it("allows an attached employer to use recruiting and chat routes", async () => {
         const { unmount } = renderAdmin("/chat", EMPLOYER);
-        expect(screen.getByText("ADMIN CHAT")).toBeInTheDocument();
+        expect(await screen.findByText("ADMIN CHAT")).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Tin nhắn tuyển dụng" })).toHaveAttribute("href", "/admin/chat");
         expect(screen.getByRole("link", { name: "Quy trình ứng viên" })).toHaveAttribute("href", "/admin/pipeline");
         unmount();
 
         renderAdmin("/list-post", EMPLOYER);
-        expect(screen.getByText("MANAGE POST")).toBeInTheDocument();
+        expect(await screen.findByText("MANAGE POST")).toBeInTheDocument();
     });
 
-    it.each([COMPANY, EMPLOYER])("opens the interview calendar for an approved recruiter", (user) => {
+    it.each([COMPANY, EMPLOYER])("opens the interview calendar for an approved recruiter", async (user) => {
         renderAdmin("/interviews", user);
-        expect(screen.getByText("INTERVIEW CALENDAR")).toBeInTheDocument();
+        expect(await screen.findByText("INTERVIEW CALENDAR")).toBeInTheDocument();
         expect(document.title).toBe("Lịch phỏng vấn · Quản trị JobFind");
         expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toHaveTextContent("Quản lý ứng viên");
     });
@@ -171,18 +173,18 @@ describe("admin layout shell", () => {
         expect(screen.queryByRole("link", { name: "Quy trình ứng viên" })).not.toBeInTheDocument();
     });
 
-    it("allows an unattached employer only company creation and self-profile routes", () => {
+    it("allows an unattached employer only company creation and self-profile routes", async () => {
         const { unmount } = renderAdmin("/add-company", UNATTACHED_EMPLOYER);
-        expect(screen.getByText("ADD COMPANY")).toBeInTheDocument();
+        expect(await screen.findByText("ADD COMPANY")).toBeInTheDocument();
         unmount();
 
         renderAdmin("/user-info", UNATTACHED_EMPLOYER);
-        expect(screen.getByText("USER INFO")).toBeInTheDocument();
+        expect(await screen.findByText("USER INFO")).toBeInTheDocument();
     });
 
-    it("allows an attached COMPANY to chat but denies company creation", () => {
+    it("allows an attached COMPANY to chat but denies company creation", async () => {
         const { unmount } = renderAdmin("/chat", COMPANY);
-        expect(screen.getByText("ADMIN CHAT")).toBeInTheDocument();
+        expect(await screen.findByText("ADMIN CHAT")).toBeInTheDocument();
         unmount();
 
         renderAdmin("/add-company", COMPANY);
@@ -192,11 +194,11 @@ describe("admin layout shell", () => {
     it.each([
         ["/payment/cancel", "orderData"],
         ["/paymentCv/cancel", "orderCvData"],
-    ])("renders the PayPal cancellation route %s", (route, storageKey) => {
+    ])("renders the PayPal cancellation route %s", async (route, storageKey) => {
         localStorage.setItem(storageKey, JSON.stringify({ amount: 1 }));
         renderAdmin(route, COMPANY);
 
-        expect(screen.getByText("Thanh toán đã được hủy")).toBeInTheDocument();
+        expect(await screen.findByText("Thanh toán đã được hủy")).toBeInTheDocument();
         expect(localStorage.getItem(storageKey)).toBeNull();
     });
 });

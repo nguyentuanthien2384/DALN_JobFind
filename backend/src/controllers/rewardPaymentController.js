@@ -151,6 +151,21 @@ const getAdminRewardsOverview = async (req, res) => {
     }
 };
 
+const getAdminPromoCodes = async (req, res) => {
+    try {
+        if (getRoleCode(req) !== ROLES.ADMIN) {
+            return res.status(403).json({
+                errCode: 3,
+                errMessage: 'Chỉ Quản trị viên mới có quyền xem danh sách quản lý mã giảm giá'
+            });
+        }
+        const result = await paymentOrderService.getAdminPromoCodes();
+        return res.status(200).json(result);
+    } catch (error) {
+        return res.status(200).json({ errCode: -1, errMessage: 'Error from server' });
+    }
+};
+
 const upsertPromoCode = async (req, res) => {
     try {
         if (getRoleCode(req) !== ROLES.ADMIN) {
@@ -394,6 +409,7 @@ module.exports = {
     unlockCompetitionReport,
     getEmployerOverview,
     getAdminRewardsOverview,
+    getAdminPromoCodes,
     upsertPromoCode,
     deletePromoCode,
     redeemEmployerPoints,

@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { SESSION_ENDED_EVENT } from './auth/sessionExpiry';
 import App from "./App";
 jest.mock('./components/support/SupportChat', () => () => <div>support-assistant</div>);
+jest.mock('./components/support/SupportHelp', () => () => <div>support-help-page</div>);
 
 const mockGetCurrentAuthorizationService = jest.fn();
 jest.mock("./service/userService", () => ({
@@ -46,6 +47,7 @@ jest.mock("./container/Candidate/HomeCandidate", () => () => <div>candidate-page
 jest.mock("./container/Company/ListCompany", () => () => <div>company-page</div>);
 jest.mock("./container/Company/DetailCompany", () => () => <div>company-detail-page</div>);
 jest.mock("./container/Chat/ChatPage", () => () => <div>chat-page</div>);
+jest.mock("./container/Payment/PaymentResultPage", () => () => <div>payment-result-page</div>);
 jest.mock("./container/NotFound/NotFound", () => () => <div>not-found-page</div>);
 jest.mock("./container/Forbidden/Forbidden", () => () => <div>forbidden-page</div>);
 
@@ -99,15 +101,22 @@ describe("application routes", () => {
         ["/detail-company/12", "company-detail-page"],
         ["/detail-job/34", "job-detail-page"],
         ["/external-job/external-123", "external-job-detail-page"],
+        ["/payment/result", "payment-result-page"],
         ["/login", "login-page"],
         ["/register", "register-page"],
         ["/forget-password", "forget-password-page"],
-    ])("renders the public route %s", (path, pageText) => {
+    ])("renders the public route %s", async (path, pageText) => {
         renderAt(path);
-        expect(screen.getByText(pageText)).toBeInTheDocument();
         expect(screen.getByText("site-header")).toBeInTheDocument();
         if (['/login', '/register'].includes(path)) expect(screen.getByRole('contentinfo')).toHaveTextContent('JobFind');
         else expect(screen.getByText("site-footer")).toBeInTheDocument();
+        expect(await screen.findByText(pageText)).toBeInTheDocument();
+    });
+
+    it('renders the support help route inside its loading boundary', async () => {
+        renderAt('/support/help');
+        expect(screen.getByRole('status')).toHaveTextContent('Đang tải giao diện');
+        expect(await screen.findByText('support-help-page')).toBeInTheDocument();
     });
 
     it.each([

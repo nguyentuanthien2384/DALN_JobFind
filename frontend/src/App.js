@@ -1,5 +1,5 @@
 import { reconcilePushSession } from './push/webPush';
-import { getAccessToken, forgetAccess } from './auth/authClient';
+import { getAccessToken, forgetAccess, endLocalSession } from './auth/authClient';
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
     BrowserRouter as Router,
@@ -12,8 +12,6 @@ import Footer from "./container/footer/Footer";
 import Home from "./container/home/home";
 import JobPage from "./container/JobPage/JobPage";
 import { JobNavigationScroll } from './container/JobPage/jobSearchHistory';
-import DetailPage from "./container/JobDetail/JobDetail";
-import ExternalJobDetail from "./container/JobDetail/ExternalJobDetail";
 import About from "./container/About/About";
 import Contact from "./container/Contact/Contact";
 import Login from "./container/login/Login";
@@ -21,8 +19,6 @@ import Register from "./container/login/Register";
 import ForgetPassword from "./container/login/ForgetPassword";
 import ListCompany from "./container/Company/ListCompany";
 import DetailCompany from "./container/Company/DetailCompany";
-import ChatPage from "./container/Chat/ChatPage";
-import PaymentResultPage from "./container/Payment/PaymentResultPage";
 import NotFound from "./container/NotFound/NotFound";
 import Forbidden from "./container/Forbidden/Forbidden";
 import { readJsonStorage } from "./util/storage";
@@ -34,6 +30,10 @@ import { SESSION_ENDED_EVENT } from "./auth/sessionExpiry";
 import { SESSION_USER_UPDATED_EVENT } from "./auth/sessionUser";
 const SupportChat = lazy(() => import('./components/support/SupportChat'));
 const SupportHelp = lazy(() => import('./components/support/SupportHelp'));
+const DetailPage = lazy(() => import('./container/JobDetail/JobDetail'));
+const ExternalJobDetail = lazy(() => import('./container/JobDetail/ExternalJobDetail'));
+const ChatPage = lazy(() => import('./container/Chat/ChatPage'));
+const PaymentResultPage = lazy(() => import('./container/Payment/PaymentResultPage'));
 
 // Khu quan tri va khu ung vien keo theo nhieu bieu do, trinh sua va form lon.
 // Chi tai cac goi nay khi nguoi dung thuc su vao dung khu vuc.
@@ -162,6 +162,16 @@ function App() {
     if (authorizationError && hasToken) return <main className="container py-5" role="alert">
         Không thể xác minh quyền truy cập lúc này. Vui lòng kiểm tra kết nối.
         <button className="btn btn-primary ml-3" onClick={() => window.location.reload()}>Thử lại</button>
+        <button
+            type="button"
+            className="btn btn-outline-secondary ml-2"
+            onClick={() => {
+                endLocalSession();
+                window.location.assign('/login');
+            }}
+        >
+            Đăng nhập lại
+        </button>
     </main>;
     return (
         <SessionContext.Provider value={userData}>
@@ -236,7 +246,7 @@ function App() {
                     element={
                         <>
                             <Header />
-                            <ExternalJobDetail />
+                            <Suspense fallback={<RoutePageLoader />}><ExternalJobDetail /></Suspense>
                             <Footer />
                         </>
                     }
@@ -246,7 +256,7 @@ function App() {
                     element={
                         <>
                             <Header />
-                            <DetailPage />
+                            <Suspense fallback={<RoutePageLoader />}><DetailPage /></Suspense>
                             <Footer />
                         </>
                     }
@@ -256,7 +266,7 @@ function App() {
                     element={
                         <>
                             <Header />
-                            <PaymentResultPage />
+                            <Suspense fallback={<RoutePageLoader />}><PaymentResultPage /></Suspense>
                             <Footer />
                         </>
                     }
@@ -272,7 +282,7 @@ function App() {
                         >
                             <>
                                 <Header />
-                                <ChatPage />
+                                <Suspense fallback={<RoutePageLoader />}><ChatPage /></Suspense>
                                 <Footer />
                             </>
                         </RouteGuard>
@@ -288,7 +298,7 @@ function App() {
                         >
                             <>
                                 <Header />
-                                <ChatPage />
+                                <Suspense fallback={<RoutePageLoader />}><ChatPage /></Suspense>
                                 <Footer />
                             </>
                         </RouteGuard>
@@ -370,9 +380,9 @@ function App() {
                         </>
                     }
                 />
-                <Route path="/support/chat" element={<RouteGuard user={userData} hasToken={hasToken} anyPermissions={[PERMISSIONS.SUPPORT_USE]}><Header /><ChatPage /><Footer /></RouteGuard>} />
-                <Route path="/support/chat/:partnerId" element={<RouteGuard user={userData} hasToken={hasToken} anyPermissions={[PERMISSIONS.SUPPORT_USE]}><Header /><ChatPage /><Footer /></RouteGuard>} />
-                <Route path="/support/help" element={<SupportHelp />} />
+                <Route path="/support/chat" element={<RouteGuard user={userData} hasToken={hasToken} anyPermissions={[PERMISSIONS.SUPPORT_USE]}><Header /><Suspense fallback={<RoutePageLoader />}><ChatPage /></Suspense><Footer /></RouteGuard>} />
+                <Route path="/support/chat/:partnerId" element={<RouteGuard user={userData} hasToken={hasToken} anyPermissions={[PERMISSIONS.SUPPORT_USE]}><Header /><Suspense fallback={<RoutePageLoader />}><ChatPage /></Suspense><Footer /></RouteGuard>} />
+                <Route path="/support/help" element={<Suspense fallback={<RoutePageLoader />}><SupportHelp /></Suspense>} />
                 <Route path="*" element={<NotFound />} />
                 </Routes>
                 <Suspense fallback={null}><SupportChat /></Suspense>

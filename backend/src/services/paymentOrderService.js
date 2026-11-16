@@ -821,9 +821,58 @@ const getUserPaymentOrders = async ({
 
 const getAdminPromoCodes = async () => {
     await syncPromoCodesFromDb();
+    const list = formatPromoList({ includeInactive: true });
+    const usageByCode = new Map();
+    let totalOrdersWithPromo = 0;
+    let totalDiscountGrantedVnd = 0;
+
+    try {
+        if (db?.PaymentOrder?.findAll) {
+            const rows = await db.PaymentOrder.findAll({
+                attributes: ['promoCode', 'discountAmount', 'status'],
+                raw: true
+            });
+            if (Array.isArray(rows)) {
+                for (const row of rows) {
+                    const code = String(row?.promoCode || '').trim().toUpperCase();
+                    if (!code) continue;
+                    const entry = usageByCode.get(code) || { usedCount: 0, paidCount: 0, totalDiscountVnd: 0 };
+                    entry.usedCount += 1;
+                    if (row.status === 'PAID') {
+                        const disc = Number(row.discountAmount) || 0;
+                        entry.paidCount += 1;
+                        entry.totalDiscountVnd += disc;
+                        totalOrdersWithPromo += 1;
+                        totalDiscountGrantedVnd += disc;
+                    }
+                    usageByCode.set(code, entry);
+                }
+            }
+        }
+    } catch (_error) {
+        // Keep zero usage counts if query is unavailable
+    }
+
+    const enriched = list.map((item) => {
+        const usage = usageByCode.get(item.code) || { usedCount: 0, paidCount: 0, totalDiscountVnd: 0 };
+        return {
+            ...item,
+            usedCount: usage.usedCount,
+            paidCount: usage.paidCount,
+            totalDiscountVnd: usage.totalDiscountVnd
+        };
+    });
+
     return {
         errCode: 0,
-        data: formatPromoList({ includeInactive: true })
+        data: enriched,
+        summary: {
+            totalCodes: enriched.length,
+            activeCodes: enriched.filter((i) => i.isActive !== false).length,
+            inactiveCodes: enriched.filter((i) => i.isActive === false).length,
+            totalOrdersWithPromo,
+            totalDiscountGrantedVnd
+        }
     };
 };
 

@@ -502,6 +502,11 @@ export const previewPromoCodeService = (payload) => {
     return axios.post('/api/payments/promo/preview', payload);
 };
 
+export const getAdminPromoCodesService = () => {
+    if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: [] });
+    return axios.get('/api/payments/promo/admin');
+};
+
 export const upsertAdminPromoCodeService = (payload) => {
     if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
     return axios.post('/api/payments/promo/admin', payload);
