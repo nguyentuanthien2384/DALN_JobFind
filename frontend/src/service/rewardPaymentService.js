@@ -3,6 +3,19 @@ import { SESSION_ENDED_EVENT } from '../auth/sessionExpiry';
 import { readJsonStorage } from '../util/storage';
 
 export const REWARD_WALLET_UPDATED_EVENT = 'jobfind:reward-wallet-updated';
+export const CANDIDATE_PROFILE_UPDATED_EVENT = 'jobfind:candidate-profile-updated';
+
+// Keep reports in other tabs in sync after a successful profile/settings save.
+export const notifyCandidateProfileUpdated = (userId) => {
+    const detail = { userId: Number(userId), updatedAt: Date.now() };
+    if (!Number.isInteger(detail.userId) || detail.userId <= 0) return;
+    try {
+        localStorage.setItem(CANDIDATE_PROFILE_UPDATED_EVENT, JSON.stringify(detail));
+    } catch (_error) {
+        // The current tab still receives the update when storage is unavailable.
+    }
+    window.dispatchEvent(new CustomEvent(CANDIDATE_PROFILE_UPDATED_EVENT, { detail }));
+};
 
 const isUnmockedUnitTest = () => process.env.NODE_ENV === 'test';
 
@@ -278,6 +291,225 @@ export const getAdminRewardsOverviewService = (params = {}) => {
 export const redeemEmployerPointsService = (rewardCode) => {
     if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
     return axios.post('/api/rewards/employer/redeem', { rewardCode });
+};
+
+export const DEFAULT_PROMO_CATALOG = {
+    VNPAY5K: {
+        code: 'VNPAY5K',
+        discountType: 'FIXED',
+        discountVnd: 5000,
+        discountPercent: 0,
+        maxDiscount: 0,
+        provider: 'VNPAY',
+        purpose: null,
+        minAmountVnd: 20000,
+        isActive: true,
+        label: 'Giảm 5.000đ qua VNPAY',
+        description: 'Giảm 5.000đ khi thanh toán VNPAY-QR',
+    },
+    ARCHITECT5K: {
+        code: 'ARCHITECT5K',
+        discountType: 'FIXED',
+        discountVnd: 5000,
+        discountPercent: 0,
+        maxDiscount: 0,
+        provider: null,
+        purpose: null,
+        minAmountVnd: 20000,
+        isActive: true,
+        label: 'Giảm 5.000đ',
+        description: 'Ưu đãi Career Architect giảm 5.000đ',
+    },
+    MOMO5K: {
+        code: 'MOMO5K',
+        discountType: 'FIXED',
+        discountVnd: 5000,
+        discountPercent: 0,
+        maxDiscount: 0,
+        provider: 'MOMO',
+        purpose: null,
+        minAmountVnd: 20000,
+        isActive: true,
+        label: 'Giảm 5.000đ qua MoMo',
+        description: 'Giảm 5.000đ khi thanh toán ví MoMo',
+    },
+    ZALOPAY5K: {
+        code: 'ZALOPAY5K',
+        discountType: 'FIXED',
+        discountVnd: 5000,
+        discountPercent: 0,
+        maxDiscount: 0,
+        provider: 'ZALOPAY',
+        purpose: null,
+        minAmountVnd: 20000,
+        isActive: true,
+        label: 'Giảm 5.000đ qua ZaloPay',
+        description: 'Giảm 5.000đ khi thanh toán ví ZaloPay',
+    },
+    JOBFIND10K: {
+        code: 'JOBFIND10K',
+        discountType: 'FIXED',
+        discountVnd: 10000,
+        discountPercent: 0,
+        maxDiscount: 0,
+        provider: null,
+        purpose: null,
+        minAmountVnd: 50000,
+        isActive: true,
+        label: 'Giảm 10.000đ',
+        description: 'Giảm 10.000đ cho đơn từ 50.000đ',
+    },
+    JOBFIND20K: {
+        code: 'JOBFIND20K',
+        discountType: 'FIXED',
+        discountVnd: 20000,
+        discountPercent: 0,
+        maxDiscount: 0,
+        provider: null,
+        purpose: null,
+        minAmountVnd: 100000,
+        isActive: true,
+        label: 'Giảm 20.000đ',
+        description: 'Giảm 20.000đ cho đơn từ 100.000đ',
+    },
+    VIP15: {
+        code: 'VIP15',
+        discountType: 'PERCENT',
+        discountVnd: 0,
+        discountPercent: 15,
+        maxDiscount: 50000,
+        provider: null,
+        purpose: null,
+        minAmountVnd: 100000,
+        isActive: true,
+        label: 'Giảm 15% (tối đa 50.000đ)',
+        description: 'Giảm 15% (tối đa 50.000đ) cho đơn từ 100.000đ',
+    },
+};
+
+export const normalizeClientPromoRule = (code, raw = {}) => {
+    const normalizedCode = String(code || raw.code || '').trim().toUpperCase();
+    const isPercent =
+        String(raw.discountType || '').toUpperCase() === 'PERCENT' || Number(raw.discountPercent) > 0;
+    const discountVnd = Number(raw.discountVnd ?? raw.discount ?? 0) || 0;
+    const discountPercent = isPercent ? Number(raw.discountPercent ?? raw.discount ?? 0) || 0 : 0;
+    const maxDiscount = Number(raw.maxDiscount ?? 0) || 0;
+    const minAmountVnd = Number(raw.minAmountVnd ?? raw.minAmount ?? 0) || 0;
+    const provider = raw.provider && raw.provider !== 'ALL' ? String(raw.provider).trim().toUpperCase() : null;
+    const purpose = raw.purpose && raw.purpose !== 'ALL' ? String(raw.purpose).trim().toUpperCase() : null;
+    const isActive = raw.isActive === undefined ? true : Boolean(Number(raw.isActive) !== 0 && raw.isActive !== false);
+    const label =
+        raw.label ||
+        raw.description ||
+        (isPercent
+            ? `Giảm ${discountPercent}%${maxDiscount > 0 ? ` (tối đa ${maxDiscount.toLocaleString('vi-VN')}đ)` : ''}`
+            : `Giảm ${discountVnd.toLocaleString('vi-VN')}đ`);
+    return {
+        code: normalizedCode,
+        discountType: isPercent ? 'PERCENT' : 'FIXED',
+        discountVnd,
+        discountPercent,
+        maxDiscount,
+        minAmountVnd,
+        provider,
+        purpose,
+        isActive,
+        expiresAt: raw.expiresAt || null,
+        label,
+        description: raw.description || label,
+    };
+};
+
+export const buildPromoCatalogMap = (promoList = null) => {
+    const map = { ...DEFAULT_PROMO_CATALOG };
+    if (Array.isArray(promoList) && promoList.length > 0) {
+        promoList.forEach((item) => {
+            if (!item || !item.code) return;
+            const normalized = normalizeClientPromoRule(item.code, item);
+            if (normalized.isActive === false) {
+                delete map[normalized.code];
+            } else {
+                map[normalized.code] = normalized;
+            }
+        });
+    }
+    return map;
+};
+
+export const evaluatePromoRuleClient = (
+    rule,
+    { amountVnd = 0, provider = null, purpose = null } = {}
+) => {
+    if (!rule || rule.isActive === false) {
+        return {
+            valid: false,
+            discountVnd: 0,
+            label: null,
+            reason: 'Mã giảm giá không tồn tại hoặc đã hết hạn.',
+        };
+    }
+    if (rule.expiresAt && new Date(rule.expiresAt).getTime() < Date.now()) {
+        return {
+            valid: false,
+            discountVnd: 0,
+            label: null,
+            reason: `Mã ${rule.code} đã hết hạn sử dụng.`,
+        };
+    }
+    if (rule.purpose && purpose && String(rule.purpose).toUpperCase() !== String(purpose).toUpperCase()) {
+        return {
+            valid: false,
+            discountVnd: 0,
+            label: null,
+            reason: `Mã ${rule.code} không áp dụng cho loại giao dịch này.`,
+        };
+    }
+    if (rule.provider && provider && String(rule.provider).toUpperCase() !== String(provider).toUpperCase()) {
+        return {
+            valid: false,
+            discountVnd: 0,
+            label: null,
+            reason: `Mã ${rule.code} chỉ áp dụng cho phương thức ${rule.provider}.`,
+        };
+    }
+    const basePrice = Number(amountVnd || 0);
+    if (rule.minAmountVnd && basePrice < rule.minAmountVnd) {
+        return {
+            valid: false,
+            discountVnd: 0,
+            label: null,
+            reason: `Mã ${rule.code} áp dụng cho gói từ ${Number(rule.minAmountVnd).toLocaleString('vi-VN')} VNĐ.`,
+        };
+    }
+    let rawDiscount = Number(rule.discountVnd || 0);
+    if (rule.discountType === 'PERCENT' || Number(rule.discountPercent) > 0) {
+        rawDiscount = Math.round((basePrice * Number(rule.discountPercent)) / 100);
+        if (Number(rule.maxDiscount) > 0) {
+            rawDiscount = Math.min(rawDiscount, Number(rule.maxDiscount));
+        }
+    }
+    const discountVnd = Math.min(rawDiscount, Math.max(0, basePrice - 5000));
+    return {
+        valid: true,
+        discountVnd,
+        label: rule.label || `Giảm ${discountVnd.toLocaleString('vi-VN')}đ`,
+        reason: null,
+    };
+};
+
+export const previewPromoCodeService = (payload) => {
+    if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
+    return axios.post('/api/payments/promo/preview', payload);
+};
+
+export const upsertAdminPromoCodeService = (payload) => {
+    if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
+    return axios.post('/api/payments/promo/admin', payload);
+};
+
+export const deleteAdminPromoCodeService = (code) => {
+    if (isUnmockedUnitTest()) return Promise.resolve({ errCode: 0, data: null });
+    return axios.delete(`/api/payments/promo/admin/${encodeURIComponent(code)}`);
 };
 
 export const createPaymentCheckoutService = (payload) => {

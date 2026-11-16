@@ -10,6 +10,7 @@ const {
     CANDIDATE_TIERS,
     EMPLOYER_REWARDS,
     USD_VND_RATE,
+    loadPromoCodes,
     tierFor
 } = require('../config/rewards');
 
@@ -295,6 +296,7 @@ const getCandidateRewardOverview = async (userId) => {
             competitionReport: COMPETITION_REPORT,
             packages: CANDIDATE_TOPUP_PACKAGES,
             topupPackages: formatCandidateTopupPackages(),
+            promoCodes: Object.values(loadPromoCodes()).filter((p) => !p.purpose || p.purpose === 'POINT_TOPUP'),
             recentTransactions,
             transactions: formattedTransactions
         }
@@ -425,6 +427,9 @@ const foldVi = (value) => String(value || '')
     .toLowerCase()
     .trim();
 
+const getJobFactLabel = (value, code) => value || (code ? 'Chưa có mô tả' : 'Chưa công bố');
+const getCandidateFactLabel = (value, code) => value || (code ? 'Đã khai báo, chưa có mô tả' : 'Chưa cập nhật');
+
 // Phan tich moc nam kinh nghiem va nhom ("under3" | "threeToFive" | "over5") tu du lieu Allcode that.
 const parseExperienceInfo = (code, label) => {
     const text = foldVi(`${label || ''} ${code || ''}`);
@@ -483,87 +488,71 @@ const parseSalaryMillion = (code, label) => {
     if (numbers.length === 1) {
         const base = numbers[0];
         if (/tren|hon|>|\+/.test(source)) {
-            const max = Math.round(base + Math.max(5, base * 0.3));
-            return { min: base, max, mid: Number(((base + max) / 2).toFixed(1)) };
+            return { min: base, max: null, mid: null, openRange: true };
         }
         if (/duoi|<|toi\s*da/.test(source)) {
-            const min = Math.max(1, Math.round(base * 0.6));
-            return { min, max: base, mid: Number(((min + base) / 2).toFixed(1)) };
+            return { min: null, max: base, mid: null, openRange: true };
         }
         return { min: base, max: base, mid: Number(base.toFixed(1)) };
     }
     return null;
 };
 
-// Tinh muc luong ky vong tu ho so ung vien da nop; neu chua ai ke khai so cu the thi hien thi khung luong tin dang.
+// Chi uoc tinh tu trung diem khung kin; khung mo va luong tin dang khong duoc thay the du lieu ung vien.
 const computeApplicantSalaryInsights = (applicantSettings, detail) => {
-    const parsedApplicants = (applicantSettings || [])
+    const distributionCounts = new Map();
+    const declared = (applicantSettings || []).filter((item) => (
+        Boolean(item?.salaryJobCode || item?.salaryTypeSettingData?.value)
+    ));
+    (applicantSettings || []).forEach((item) => {
+        const label = item?.salaryTypeSettingData?.value || item?.salaryJobCode || 'Chưa cập nhật';
+        distributionCounts.set(label, (distributionCounts.get(label) || 0) + 1);
+    });
+    const parsedApplicants = declared
         .map((item) => parseSalaryMillion(item?.salaryJobCode, item?.salaryTypeSettingData?.value))
         .filter(Boolean);
-
-    if (parsedApplicants.length > 0) {
-        const min = Math.min(...parsedApplicants.map((item) => item.min));
-        const max = Math.max(...parsedApplicants.map((item) => item.max));
-        const avg = Number(
-            (parsedApplicants.reduce((sum, item) => sum + item.mid, 0) / parsedApplicants.length).toFixed(1)
-        );
-        const rangeText = min === max ? `${min} triệu` : `${min} - ${max} triệu`;
-        return {
-            averageMillion: avg,
-            rangeLabel: `Từ ${parsedApplicants.length} hồ sơ: ${rangeText}`,
-            suggestedLabel: rangeText,
-            source: 'APPLICANTS',
-            sampleCount: parsedApplicants.length
-        };
-    }
-
-    const postSalary = parseSalaryMillion(detail?.salaryJobCode, detail?.salaryTypePostData?.value);
-    if (postSalary) {
-        const postLabel = detail?.salaryTypePostData?.value
-            || (postSalary.min === postSalary.max
-                ? `${postSalary.min} triệu`
-                : `${postSalary.min} - ${postSalary.max} triệu`);
-        return {
-            averageMillion: postSalary.mid,
-            rangeLabel: `Theo tin đăng: ${postLabel}`,
-            suggestedLabel: postLabel,
-            source: 'JOB_POST',
-            sampleCount: 0
-        };
-    }
-
+    const boundedApplicants = parsedApplicants.filter((item) => item.mid != null);
+    const averageMillion = boundedApplicants.length > 0
+        ? Number((boundedApplicants.reduce((sum, item) => sum + item.mid, 0) / boundedApplicants.length).toFixed(1))
+        : null;
+    const min = boundedApplicants.length ? Math.min(...boundedApplicants.map((item) => item.min)) : null;
+    const max = boundedApplicants.length ? Math.max(...boundedApplicants.map((item) => item.max)) : null;
+    const rangeText = min === max ? `${min} triệu` : `${min} - ${max} triệu`;
     return {
-        averageMillion: null,
-        rangeLabel: 'Thỏa thuận (chưa có ứng viên kê khai lương)',
-        suggestedLabel: 'Thỏa thuận',
-        source: 'NEGOTIABLE',
-        sampleCount: 0
+        averageMillion,
+        rangeLabel: boundedApplicants.length
+            ? `Ước tính từ ${boundedApplicants.length}/${applicantSettings.length} ứng viên có khung lương kín: ${rangeText}`
+            : 'Chưa có khung lương kín để ước tính',
+        suggestedLabel: averageMillion == null ? 'Chưa đủ dữ liệu' : `Ước tính ${averageMillion} triệu`,
+        source: declared.length ? 'APPLICANTS' : 'NO_DATA',
+        sourceLabel: 'Khung lương ứng viên chọn trong cài đặt hồ sơ hiện tại',
+        sampleCount: declared.length,
+        estimatedSampleCount: boundedApplicants.length,
+        openRangeCount: parsedApplicants.filter((item) => item.openRange).length,
+        missingCount: (applicantSettings || []).length - declared.length,
+        distribution: [...distributionCounts.entries()].map(([label, count]) => ({ label, count })),
+        jobSalaryLabel: detail?.salaryTypePostData?.value || 'Thỏa thuận',
+        methodLabel: 'Ước tính bằng trung bình trung điểm các khung lương kín hoặc mức cụ thể; không tính khung mở và không phải lương thực nhận.'
     };
 };
 
 // Cham diem ho so ung vien (0..100%) dua tren 4 tieu chi thuc te trong CSDL:
 // Ky nang JD (50d) + Kinh nghiem (25d) + Nganh nghe (15d) + Khu vuc (10d).
-const evaluateProfileAgainstPost = ({ detail, requiredSkills, allSkills, ownedSkillIds, setting }) => {
+const evaluateProfileAgainstPost = ({ detail, requiredSkills, ownedSkillIds, setting }) => {
     let skillRatio = 0;
     let matchedCount = 0;
     if (requiredSkills.length > 0) {
         matchedCount = requiredSkills.filter((skill) => ownedSkillIds.has(Number(skill.id))).length;
         skillRatio = matchedCount / requiredSkills.length;
-    } else if ((allSkills || []).length > 0) {
-        matchedCount = allSkills.filter((skill) => ownedSkillIds.has(Number(skill.id))).length;
-        const targetSkillCount = Math.min(3, Math.max(1, allSkills.length));
-        skillRatio = Math.min(1, matchedCount / targetSkillCount);
-    } else {
-        skillRatio = ownedSkillIds.size > 0 ? 1 : 0;
     }
-    const skillPoints = skillRatio * 50;
+    const skillPoints = Number((skillRatio * 50).toFixed(1));
 
     const reqExp = parseExperienceInfo(detail?.experienceJobCode, detail?.expTypePostData?.value);
     const candExp = parseExperienceInfo(setting?.experienceJobCode, setting?.expTypeSettingData?.value);
     let expPoints = 0;
     let expMet = false;
     if (!reqExp || reqExp.years === 0) {
-        expPoints = candExp ? 25 : 18;
+        expPoints = 25;
         expMet = true;
     } else if (!candExp) {
         expPoints = 0;
@@ -587,6 +576,53 @@ const evaluateProfileAgainstPost = ({ detail, requiredSkills, allSkills, ownedSk
     const categoryPoints = catMatch ? 15 : 0;
     const locationPoints = locMatch ? 10 : 0;
     const matchPercent = Math.max(0, Math.min(100, Math.round(skillPoints + expPoints + categoryPoints + locationPoints)));
+    const describeValues = (postLabel, userLabel, postCode, userCode) => (
+        `Tin đăng: ${getJobFactLabel(postLabel, postCode)} · Hồ sơ hiện tại: ${getCandidateFactLabel(userLabel, userCode)}.`
+    );
+    const criteria = [
+        {
+            key: 'skills', label: requiredSkills.length ? 'Kỹ năng theo tin đăng' : 'Chưa xác định yêu cầu kỹ năng', points: skillPoints, maxPoints: 50,
+            requiredLabel: requiredSkills.length ? `${requiredSkills.length} kỹ năng được nhắc tới` : 'Chưa xác định yêu cầu kỹ năng',
+            candidateLabel: requiredSkills.length
+                ? `Khớp ${matchedCount}/${requiredSkills.length} kỹ năng`
+                : ownedSkillIds.size ? `Đã ghi nhận ${ownedSkillIds.size} kỹ năng` : 'Chưa cập nhật kỹ năng',
+            requirementStatus: requiredSkills.length ? 'identified' : 'not_identified',
+            description: requiredSkills.length
+                ? `Tin đăng nhắc tới ${requiredSkills.length} kỹ năng; hồ sơ hiện tại ghi nhận ${matchedCount}/${requiredSkills.length}. Chưa phân loại bắt buộc hay ưu tiên.`
+                : 'Chưa nhận diện được yêu cầu kỹ năng từ nội dung tin đăng; chưa cộng điểm kỹ năng.',
+            status: requiredSkills.length === 0 ? 'not_required'
+                : ownedSkillIds.size === 0 ? 'missing'
+                    : matchedCount === requiredSkills.length ? 'met'
+                        : matchedCount > 0 ? 'partial' : 'unmatched'
+        },
+        {
+            key: 'experience', label: 'Kinh nghiệm', points: expPoints, maxPoints: 25,
+            requiredLabel: getJobFactLabel(detail?.expTypePostData?.value, detail?.experienceJobCode),
+            candidateLabel: getCandidateFactLabel(setting?.expTypeSettingData?.value, setting?.experienceJobCode),
+            requirementStatus: !reqExp ? 'not_identified' : reqExp.years === 0 ? 'not_required' : 'identified',
+            description: describeValues(detail?.expTypePostData?.value, setting?.expTypeSettingData?.value, detail?.experienceJobCode, setting?.experienceJobCode),
+            status: !reqExp || reqExp.years === 0 ? 'not_required'
+                : !candExp ? 'missing' : expMet ? 'met' : expPoints > 0 ? 'partial' : 'unmatched'
+        },
+        {
+            key: 'category', label: 'Ngành nghề', points: categoryPoints, maxPoints: 15,
+            requiredLabel: getJobFactLabel(detail?.jobTypePostData?.value, detail?.categoryJobCode),
+            candidateLabel: getCandidateFactLabel(setting?.jobTypeSettingData?.value, setting?.categoryJobCode),
+            requirementStatus: detail?.categoryJobCode ? 'identified' : 'not_identified',
+            description: describeValues(detail?.jobTypePostData?.value, setting?.jobTypeSettingData?.value, detail?.categoryJobCode, setting?.categoryJobCode),
+            status: !detail?.categoryJobCode ? 'not_required'
+                : !setting?.categoryJobCode ? 'missing' : catMatch ? 'met' : 'unmatched'
+        },
+        {
+            key: 'location', label: 'Địa điểm', points: locationPoints, maxPoints: 10,
+            requiredLabel: getJobFactLabel(detail?.provincePostData?.value, detail?.addressCode),
+            candidateLabel: getCandidateFactLabel(setting?.provinceSettingData?.value, setting?.addressCode),
+            requirementStatus: detail?.addressCode ? 'identified' : 'not_identified',
+            description: describeValues(detail?.provincePostData?.value, setting?.provinceSettingData?.value, detail?.addressCode, setting?.addressCode),
+            status: !detail?.addressCode ? 'not_required'
+                : !setting?.addressCode ? 'missing' : locMatch ? 'met' : 'unmatched'
+        }
+    ];
 
     return {
         matchPercent,
@@ -595,21 +631,76 @@ const evaluateProfileAgainstPost = ({ detail, requiredSkills, allSkills, ownedSk
         expMet,
         candExp,
         reqExp,
+        criteria,
         catMatch: Boolean(setting?.categoryJobCode && detail?.categoryJobCode && setting.categoryJobCode === detail.categoryJobCode),
         locMatch: Boolean(setting?.addressCode && detail?.addressCode && setting.addressCode === detail.addressCode)
+    };
+};
+
+// Tom tat cac thong tin da doi chieu, khong bien diem noi bo thanh kha nang trung tuyen.
+const summarizeProfileComparison = ({ evaluation, requiredSkills, matchedSkills, missingSkills }) => {
+    if (!evaluation) return null;
+    const criteria = evaluation.criteria;
+    const identified = criteria.filter((item) => item.requirementStatus === 'identified');
+    const countStatus = (status) => identified.filter((item) => item.status === status).length;
+    const recommendations = identified
+        .filter((item) => ['missing', 'partial', 'unmatched'].includes(item.status))
+        .map((item) => {
+            const isMissing = item.status === 'missing';
+            if (item.key === 'skills') {
+                return {
+                    key: 'review_skills',
+                    label: 'Kiểm tra kỹ năng đã ghi nhận',
+                    reason: `Chưa ghi nhận: ${missingSkills.map((skill) => skill.name).join(', ')}. Chỉ bổ sung các kỹ năng bạn đã có.`,
+                    target: 'skills', relatedCriteria: ['skills']
+                };
+            }
+            const labels = {
+                experience: isMissing ? 'Bổ sung kinh nghiệm' : 'Đối chiếu kinh nghiệm của bạn',
+                category: isMissing ? 'Bổ sung ngành nghề' : 'Kiểm tra ngành nghề đã chọn',
+                location: isMissing ? 'Bổ sung địa điểm mong muốn' : 'Kiểm tra địa điểm đã chọn'
+            };
+            return {
+                key: `${isMissing ? 'complete' : 'review'}_${item.key}`,
+                label: labels[item.key],
+                reason: `Tin đăng: ${item.requiredLabel}. Hồ sơ hiện tại: ${item.candidateLabel}. Kiểm tra và cập nhật thông tin đúng với bạn.`,
+                target: item.key, relatedCriteria: [item.key]
+            };
+        }).slice(0, 3);
+    const formatSkill = (skill) => ({ id: Number(skill.id), name: skill.name, requirementLevel: 'unspecified' });
+    return {
+        totalCriteriaCount: criteria.length,
+        identifiedCriteriaCount: identified.length,
+        evaluatedCriteriaCount: identified.filter((item) => ['met', 'partial', 'unmatched'].includes(item.status)).length,
+        metCriteriaCount: countStatus('met'),
+        partialCriteriaCount: countStatus('partial'),
+        unmatchedCriteriaCount: countStatus('unmatched'),
+        needsUpdateCount: countStatus('missing'),
+        notIdentifiedCount: criteria.filter((item) => item.requirementStatus === 'not_identified').length,
+        notRequiredCount: criteria.filter((item) => item.requirementStatus === 'not_required').length,
+        criteria,
+        requiredSkills: requiredSkills.map(formatSkill),
+        matchedSkills: matchedSkills.map(formatSkill),
+        unrecordedSkills: missingSkills.map(formatSkill),
+        recommendations
     };
 };
 
 // Tong hop thong ke ung tuyen & doi chieu ho so 100% tu du lieu CSDL that (Cvs, UserSettings, UserSkills, Skills, DetailPosts).
 // Chi tiet ca nhan / file CV cua ung vien khac TUYET DOI KHONG bao gio tra ra ngoai.
 const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
-    const totalApplicants = cvs.length;
+    const applicantIds = [...new Set(cvs.map((cv) => Number(cv.userId)).filter((id) => Number.isInteger(id) && id > 0))];
+    const applicantIdSet = new Set(applicantIds);
+    const totalApplicants = applicantIds.length;
+    const totalApplications = cvs.length;
     const targetAmount = Math.max(1, Number(detail?.amount) || 1);
-    const ratioRight = totalApplicants === 0 ? 0 : Math.max(1, Math.round(totalApplicants / targetAmount));
+    const applicantsPerPosition = totalApplicants / targetAmount;
+    const ratioRight = Number(applicantsPerPosition.toFixed(2));
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    const todayApplicants = cvs.filter((cv) => cv.createdAt && new Date(cv.createdAt).getTime() >= dayAgo).length;
+    const todayApplicants = new Set(cvs.filter((cv) => (
+        applicantIdSet.has(Number(cv.userId)) && cv.createdAt && new Date(cv.createdAt).getTime() >= dayAgo
+    )).map((cv) => Number(cv.userId))).size;
 
-    const applicantIds = [...new Set(cvs.map((cv) => Number(cv.userId)).filter(Boolean))];
     const settingIncludes = db.Allcode ? [
         { model: db.Allcode, as: 'expTypeSettingData', attributes: ['code', 'value'] },
         { model: db.Allcode, as: 'salaryTypeSettingData', attributes: ['code', 'value'] },
@@ -655,8 +746,8 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
     );
 
     const counts = { under3: 0, threeToFive: 0, over5: 0, unupdated: 0 };
-    cvs.forEach((cv) => {
-        const setting = settingByUserId.get(Number(cv.userId));
+    applicantIds.forEach((applicantId) => {
+        const setting = settingByUserId.get(applicantId);
         const parsed = parseExperienceInfo(setting?.experienceJobCode, setting?.expTypeSettingData?.value);
         if (parsed?.bucket) {
             counts[parsed.bucket] += 1;
@@ -706,12 +797,12 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
         .sort((a, b) => (b.count - a.count) || (Number(b.isRequired) - Number(a.isRequired)) || a.name.localeCompare(b.name))
         .slice(0, 6);
 
-    const salary = computeApplicantSalaryInsights(settings, detail);
+    const salary = computeApplicantSalaryInsights(applicantIds.map((id) => settingByUserId.get(id) || {}), detail);
     const ownedSkillIds = new Set((userSkills || []).map((item) => Number(item.SkillId ?? item.skillId)).filter(Boolean));
     const matchedSkills = requiredSkills.filter((skill) => ownedSkillIds.has(Number(skill.id)));
     const missingSkills = requiredSkills.filter((skill) => !ownedSkillIds.has(Number(skill.id)));
 
-    const requiredSkillNames = requiredSkills.slice(0, 4).map((item) => item.name).join(', ');
+    const requiredSkillNames = requiredSkills.map((item) => item.name).join(', ');
     const requiredExpLabel = detail?.expTypePostData?.value || 'Không yêu cầu cụ thể';
     const userExpLabel = userSetting?.expTypeSettingData?.value || null;
     const userBucket = parseExperienceInfo(userSetting?.experienceJobCode, userExpLabel)?.bucket || null;
@@ -743,11 +834,12 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
                 setting: settingByUserId.get(id) || null
             }).matchPercent);
             const higherCount = peerScores.filter((score) => score > matchPercent).length;
+            const isTied = peerScores.some((score) => score === matchPercent);
             const poolSize = peerIds.length + 1;
             const rank = higherCount + 1;
             rankLabel = applicantIds.includes(normalizedUid)
-                ? `Xếp hạng #${rank}/${poolSize} hồ sơ đã nộp`
-                : `Dự kiến #${rank}/${poolSize} nếu nộp hồ sơ`;
+                ? `Theo điểm hệ thống: ${isTied ? 'Đồng hạng' : 'Xếp hạng'} #${rank}/${poolSize} ứng viên đã nộp`
+                : `Theo điểm hệ thống: Dự kiến ${isTied ? 'đồng hạng ' : ''}#${rank}/${poolSize} nếu ứng tuyển`;
         }
     }
 
@@ -797,41 +889,45 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
     const userSalaryLabel = userSetting?.salaryTypeSettingData?.value || null;
     const postSalParsed = parseSalaryMillion(detail?.salaryJobCode, postSalaryLabel);
     const userSalParsed = parseSalaryMillion(userSetting?.salaryJobCode, userSalaryLabel);
-    const salaryExceedsPost = Boolean(postSalParsed && userSalParsed && userSalParsed.min > postSalParsed.max);
+    const salaryExceedsPost = Boolean(
+        postSalParsed?.max != null && userSalParsed?.min != null && userSalParsed.min > postSalParsed.max
+    );
 
     const skillRowLabel = requiredSkills.length > 0
         ? `Kỹ năng theo tin đăng (${requiredSkillNames})`
-        : `Kỹ năng chuyên môn (${detail?.jobTypePostData?.value || 'Theo ngành'})`;
+        : 'Kỹ năng theo tin đăng';
     let skillRowStatus = 'Cần đăng nhập';
     let skillRowTone = 'neutral';
     if (userId) {
         if (requiredSkills.length > 0) {
-            skillRowStatus = `Khớp ${matchedSkills.length}/${requiredSkills.length} (${Math.round(userEval.skillRatio * 100)}%)`;
+            skillRowStatus = ownedSkillIds.size === 0
+                ? `Chưa ghi nhận ${requiredSkills.length} kỹ năng trong hồ sơ`
+                : `Khớp ${matchedSkills.length}/${requiredSkills.length} (${Math.round(userEval.skillRatio * 100)}%)`;
             skillRowTone = matchedSkills.length === requiredSkills.length
                 ? 'emerald'
                 : matchedSkills.length > 0
                     ? 'amber'
-                    : 'rose';
-        } else if (ownedSkillIds.size > 0) {
-            skillRowStatus = `Đã cập nhật ${ownedSkillIds.size} kỹ năng`;
-            skillRowTone = 'emerald';
+                    : 'amber';
         } else {
-            skillRowStatus = 'Hồ sơ chưa cập nhật kỹ năng';
-            skillRowTone = 'amber';
+            skillRowStatus = 'Chưa xác định kỹ năng yêu cầu từ tin đăng';
+            skillRowTone = 'neutral';
         }
     }
 
     let expRowStatus = 'Cần đăng nhập';
     let expRowTone = 'neutral';
     if (userId) {
-        if (!userExpLabel && userEval.reqExp && userEval.reqExp.years > 0) {
-            expRowStatus = 'Hồ sơ chưa cập nhật';
+        if (userEval.criteria.find((item) => item.key === 'experience').status === 'missing') {
+            expRowStatus = 'Chưa ghi nhận kinh nghiệm trong hồ sơ';
             expRowTone = 'amber';
+        } else if (!userEval.reqExp || userEval.reqExp.years === 0) {
+            expRowStatus = 'Tin đăng không yêu cầu kinh nghiệm cụ thể';
+            expRowTone = 'neutral';
         } else if (userEval.expMet) {
-            expRowStatus = userExpLabel ? `Đạt (${userExpLabel})` : 'Đạt yêu cầu';
+            expRowStatus = `Đạt (${userExpLabel || userSetting?.experienceJobCode})`;
             expRowTone = 'emerald';
         } else {
-            expRowStatus = `Chưa đạt (Hồ sơ: ${userExpLabel})`;
+            expRowStatus = `Chưa đạt (Hồ sơ: ${userExpLabel || userSetting?.experienceJobCode})`;
             expRowTone = 'amber';
         }
     }
@@ -839,9 +935,16 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
     let fieldLocStatus = 'Cần đăng nhập';
     let fieldLocTone = 'neutral';
     if (userId) {
-        if (!userSetting?.categoryJobCode && !userSetting?.addressCode) {
-            fieldLocStatus = 'Hồ sơ chưa cập nhật';
+        const fieldCriteria = userEval.criteria.filter((item) => ['category', 'location'].includes(item.key));
+        if (fieldCriteria.some((item) => item.status === 'missing')) {
+            fieldLocStatus = `Chưa ghi nhận: ${fieldCriteria.filter((item) => item.status === 'missing').map((item) => item.label.toLowerCase()).join(', ')}`;
             fieldLocTone = 'amber';
+        } else if (fieldCriteria.every((item) => item.status === 'not_required')) {
+            fieldLocStatus = 'Tin đăng chưa có yêu cầu ngành nghề & địa điểm';
+        } else if (fieldCriteria.some((item) => item.status === 'not_required')) {
+            const requiredCriterion = fieldCriteria.find((item) => item.status !== 'not_required');
+            fieldLocStatus = `${requiredCriterion.label}: ${requiredCriterion.status === 'met' ? 'phù hợp' : 'khác yêu cầu'}; tiêu chí còn lại không yêu cầu`;
+            fieldLocTone = requiredCriterion.status === 'met' ? 'emerald' : 'amber';
         } else if (userEval.catMatch && (userEval.locMatch || !detail?.addressCode)) {
             fieldLocStatus = 'Đúng ngành & khu vực';
             fieldLocTone = 'emerald';
@@ -884,11 +987,11 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
         }
     ];
 
-    let tacticalTip = `Thống kê trực tiếp từ ${totalApplicants} hồ sơ đã nộp trên hệ thống.`;
+    let tacticalTip = `Thống kê từ ${totalApplicants} ứng viên duy nhất đã nộp trên hệ thống.`;
     if (totalApplicants === 0) {
         tacticalTip = 'Hiện chưa có ứng viên nào nộp hồ sơ vào tin tuyển dụng này.';
     } else if (userId && missingSkills.length > 0) {
-        tacticalTip = `So với tin đăng, hồ sơ của bạn chưa có kỹ năng: ${missingSkills.slice(0, 4).map((s) => s.name).join(', ')}.`;
+        tacticalTip = `Chưa ghi nhận trong kỹ năng hồ sơ hiện tại: ${missingSkills.map((s) => s.name).join(', ')}. Hãy kiểm tra và cập nhật các kỹ năng bạn đã có.`;
     } else if (userId && !userSetting) {
         tacticalTip = 'Cập nhật mục Cài đặt hồ sơ và Kỹ năng để hệ thống đối chiếu chính xác hơn.';
     }
@@ -896,11 +999,21 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
     return {
         postId: Number(post.id),
         totalApplicants,
+        totalApplications,
+        applicantsPerPosition,
         todayApplicants,
         targetAmount,
         competitionRatio: `1 : ${ratioRight}`,
+        hasApplied: userId ? applicantIdSet.has(Number(userId)) : null,
+        jobOverview: {
+            salaryLabel: getJobFactLabel(detail?.salaryTypePostData?.value, detail?.salaryJobCode),
+            experienceLabel: getJobFactLabel(detail?.expTypePostData?.value, detail?.experienceJobCode),
+            categoryLabel: getJobFactLabel(detail?.jobTypePostData?.value, detail?.categoryJobCode),
+            locationLabel: getJobFactLabel(detail?.provincePostData?.value, detail?.addressCode)
+        },
         salaryRange: salary,
         applicantTopSkills,
+        profileComparison: summarizeProfileComparison({ evaluation: userEval, requiredSkills, matchedSkills, missingSkills }),
         profileMatch: {
             matchPercent,
             rankLabel,
@@ -908,7 +1021,14 @@ const buildCompetitionInsights = async ({ post, detail, cvs, userId }) => {
             coreSkillsMatch: skillRowStatus,
             experienceRequiredLabel: `Kinh nghiệm yêu cầu (${requiredExpLabel})`,
             experienceUserLabel: expRowStatus,
-            suggestedSalaryLabel: salary.suggestedLabel
+            suggestedSalaryLabel: salary.suggestedLabel,
+            criteria: userEval?.criteria || [],
+            requiredSkills: requiredSkills.map((skill) => ({ id: Number(skill.id), name: skill.name, requirementLevel: 'unspecified' })),
+            missingSkills: missingSkills.map((skill) => ({ id: Number(skill.id), name: skill.name })),
+            requiredSkillStatus: requiredSkills.length ? 'identified' : 'not_identified',
+            requirementNote: 'Các kỹ năng được nhận diện từ nội dung tin đăng; chưa phân loại bắt buộc hay ưu tiên.',
+            sourceLabel: 'Thông tin và kỹ năng hiện tại trong tài khoản; chưa phân tích tệp CV đã nộp.',
+            scoreExplanation: 'Điểm hệ thống: kỹ năng 50, kinh nghiệm 25, ngành nghề 15, địa điểm 10. Dữ liệu chưa ghi nhận không chứng minh ứng viên thiếu năng lực. Khi chưa xác định kỹ năng từ tin đăng, chưa cộng điểm kỹ năng. Điểm và thứ hạng không phải xác suất trúng tuyển.'
         },
         experienceBreakdown,
         aiCorrelation,
@@ -983,10 +1103,15 @@ const getJobCompetitionReport = async ({ postId, userId, roleCode = null }) => {
             walletBalance,
             walletBalancePoints: walletBalance,
             totalApplicants: insights.totalApplicants,
+            totalApplications: insights.totalApplications,
+            applicantsPerPosition: insights.applicantsPerPosition,
             todayApplicants: insights.todayApplicants,
             targetAmount: insights.targetAmount,
             hiringTarget: insights.targetAmount,
             competitionRatio: insights.competitionRatio,
+            jobOverview: insights.jobOverview,
+            hasApplied: insights.hasApplied,
+            profileComparison: unlocked ? insights.profileComparison : null,
             expectedSalaryAvgMillion: unlocked ? insights.salaryRange.averageMillion : null,
             expectedSalaryRangeLabel: unlocked ? insights.salaryRange.rangeLabel : null,
             profileMatchPercent: unlocked ? insights.profileMatch.matchPercent : null,
@@ -1215,6 +1340,7 @@ const getEmployerRewardOverview = async (companyId, { canRedeem = true } = {}) =
             tiers: EMPLOYER_REWARDS.tiers,
             catalog: EMPLOYER_REWARDS.catalog,
             redemptionCatalog,
+            promoCodes: Object.values(loadPromoCodes()).filter((p) => !p.purpose || p.purpose === 'PACKAGE_POST' || p.purpose === 'PACKAGE_CV'),
             recentTransactions,
             transactions: formattedTransactions
         }
@@ -1386,7 +1512,8 @@ const getAdminRewardsOverview = async ({ limit = 20, offset = 0, purpose = '', s
             },
             orders,
             orderCount: Number(pagedOrders?.count || 0),
-            transactions
+            transactions,
+            promoCodes: Object.values(loadPromoCodes({ includeInactive: true }))
         }
     };
 };

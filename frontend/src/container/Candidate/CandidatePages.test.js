@@ -17,6 +17,7 @@ import CandidateInfo from "./CandidateInfo";
 import ManageCvCandidate from "./ManageCvCandidate";
 import SavedJobs from "./SavedJobs";
 import SettingUser from "./SettingUser";
+const mockNavigate = jest.fn();
 // Editor/session tests use a lightweight router; PublicPagination tests exercise real URLs.
 jest.mock("../../util/useListQuery", () => {
     const React = require("react");
@@ -61,6 +62,7 @@ jest.mock("react-router-dom", () => {
         Link: ({ to, children, ...props }) =>
             React.createElement("a", { href: to, ...props }, children),
         useParams: () => ({}),
+        useNavigate: () => mockNavigate,
     };
 });
 jest.mock("react-datepicker", () => (props) => (
@@ -345,6 +347,7 @@ describe("CandidateInfo", () => {
 
 describe("SettingUser", () => {
     beforeEach(() => {
+        window.history.replaceState({}, '', '/candidate/usersetting');
         localStorage.clear();
         localStorage.setItem("userData", JSON.stringify({ id: 7 }));
         jest.clearAllMocks();
@@ -358,6 +361,27 @@ describe("SettingUser", () => {
         });
         UpdateUserSettingService.mockResolvedValue({ errCode: 2, errMessage: "Không thể lưu" });
         CommonUtils.getBase64.mockResolvedValue("data:application/pdf;base64,CV");
+    });
+
+    afterEach(() => window.history.replaceState({}, '', '/'));
+
+    it("focuses the requested profile field and returns to the report after a successful save", async () => {
+        window.history.replaceState({}, '', '/candidate/usersetting?section=skills&returnTo=%2Fdetail-job%2F12');
+        UpdateUserSettingService.mockResolvedValue({ errCode: 0 });
+        render(<SettingUser />);
+        await waitFor(() => expect(screen.getByRole('region', { name: 'Kỹ năng nghề nghiệp' })).toHaveFocus());
+        expect(screen.getByRole('link', { name: 'Quay lại báo cáo ứng tuyển' })).toHaveAttribute('href', '/detail-job/12');
+        fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/detail-job/12', { replace: true }));
+        expect(toast.success).toHaveBeenCalledWith('Cập nhật người dùng thành công');
+    });
+
+    it("does not offer an external destination supplied as a report return path", async () => {
+        window.history.replaceState({}, '', '/candidate/usersetting?section=skills&returnTo=https%3A%2F%2Fexample.com');
+        render(<SettingUser />);
+        await screen.findByRole('button', { name: 'Xem trước CV' });
+        expect(screen.queryByRole('link', { name: 'Quay lại báo cáo ứng tuyển' })).not.toBeInTheDocument();
+        expect(mockNavigate).not.toHaveBeenCalled();
     });
 
     it("loads settings, selected skills and the saved CV", async () => {

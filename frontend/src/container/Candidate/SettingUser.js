@@ -1,5 +1,6 @@
 import React from 'react'
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getDetailUserById, UpdateUserSettingService, getAllSkillByJobCode } from '../../service/userService';
 import { useFetchAllcode } from '../../util/fetch';
 import { toast } from 'react-toastify';
@@ -7,7 +8,19 @@ import 'react-image-lightbox/style.css';
 import CommonUtils from '../../util/CommonUtils';
 import { Select } from 'antd'
 import PdfPreviewButton from '../../components/documents/PdfPreviewButton';
+import { notifyCandidateProfileUpdated } from '../../service/rewardPaymentService';
+import './SettingUser.css';
+
+const SETTINGS_SECTIONS = ['skills', 'experience', 'category', 'location'];
+
 const SettingUser = () => {
+    const navigate = useNavigate();
+    const query = new URLSearchParams(window.location.search);
+    const requestedReturn = query.get('returnTo') || '';
+    const returnPath = /^\/detail-job\/[1-9]\d*\/?$/.test(requestedReturn) ? requestedReturn : null;
+    const selectedSection = SETTINGS_SECTIONS.includes(query.get('section')) ? query.get('section') : null;
+    const sectionTarget = useRef(null);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
     const [listSkills,setListSkills] = useState([])
     const [fileName, setFileName] = useState('CV.pdf');
     const fileVersion = useRef(0);
@@ -101,12 +114,19 @@ const SettingUser = () => {
                 let user = await getDetailUserById(userData.id)
                 if (user && user.errCode === 0) {
                     setStateUser(user.data)
+                    setSettingsLoaded(true);
                 }
             }
             fetchUser()
         }
         return () => { fileVersion.current += 1; };
     }, [])
+
+    useEffect(() => {
+        if (!settingsLoaded || !selectedSection || !sectionTarget.current) return;
+        sectionTarget.current.focus({ preventScroll: true });
+        sectionTarget.current.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    }, [settingsLoaded, selectedSection]);
 
     let { data: dataProvince } = useFetchAllcode('PROVINCE');
     let { data: dataExp } = useFetchAllcode('EXPTYPE')
@@ -170,8 +190,10 @@ const SettingUser = () => {
             data: settingData
         })
         if (res && res.errCode === 0) {
+            notifyCandidateProfileUpdated(userData.id);
             toast.success("Cập nhật người dùng thành công")
-            window.location.reload()
+            if (returnPath) navigate(returnPath, { replace: true });
+            else window.location.reload()
         } else {
             toast.error(res.errMessage)
         }
@@ -182,11 +204,15 @@ const SettingUser = () => {
                 <div className="card">
                     <div className="card-body">
                         <h4 className="card-title">Cài đặt thông tin nâng cao</h4>
+                        {returnPath && <div className="candidate-settings-return">
+                            <p>Bổ sung thông tin và kỹ năng bạn thực sự có để đối chiếu với công việc.</p>
+                            <a href={returnPath}>Quay lại báo cáo ứng tuyển</a>
+                        </div>}
                         <form className="form-sample">
 
                             <div className="row">
                                 <div className="col-md-6">
-                                    <div className="form-group row">
+                                    <div className="form-group row candidate-settings-section" ref={selectedSection === 'category' ? sectionTarget : null} tabIndex={-1} role="region" aria-label="Lĩnh vực nghề nghiệp">
                                         <label className="col-sm-3 col-form-label">Lĩnh vực</label>
                                         <div className="col-sm-9">
                                         <Select
@@ -232,7 +258,7 @@ const SettingUser = () => {
                             </div>
                             <div className='row'>
                                 <div className='col-md-12'>
-                                    <div className="form-group row">
+                                    <div className="form-group row candidate-settings-section" ref={selectedSection === 'skills' ? sectionTarget : null} tabIndex={-1} role="region" aria-label="Kỹ năng nghề nghiệp">
                                         <label className="col-sm-3 col-form-label">Kĩ năng</label>
                                         <div className="col-sm-9">
                                             <Select
@@ -258,7 +284,7 @@ const SettingUser = () => {
                             </div>
                             <div className="row">
                                 <div className="col-md-6">
-                                    <div className="form-group row">
+                                    <div className="form-group row candidate-settings-section" ref={selectedSection === 'location' ? sectionTarget : null} tabIndex={-1} role="region" aria-label="Khu vực làm việc">
                                         <label className="col-sm-3 col-form-label">Khu vực làm việc</label>
                                         <div className="col-sm-9">
                                             <Select
@@ -280,7 +306,7 @@ const SettingUser = () => {
                                     </div>
                                 </div>
                                 <div className="col-md-6">
-                                    <div className="form-group row">
+                                    <div className="form-group row candidate-settings-section" ref={selectedSection === 'experience' ? sectionTarget : null} tabIndex={-1} role="region" aria-label="Kinh nghiệm làm việc">
                                         <label className="col-sm-3 col-form-label">Kinh nghiệm làm việc</label>
                                         <div className="col-sm-9">
                                         <Select

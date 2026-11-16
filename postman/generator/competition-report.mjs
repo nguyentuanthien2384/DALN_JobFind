@@ -1,0 +1,143 @@
+// Focused executable contract for the legacy rewards API. No writes by default.
+import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const event = (listen, source) => ({ listen, script: { type: 'text/javascript', exec: source.trim().split('\n') } });
+const reportAssertions = `
+pm.test('HTTP 200', () => pm.response.to.have.status(200));
+const body = pm.response.json();
+pm.test('Report available', () => pm.expect(body.errCode).to.eql(0));
+const data = body.data || {};
+pm.test('Counts refer to unique applicants; raw applications are separate', () => {
+    pm.expect(data.totalApplicants).to.be.a('number').and.at.least(0);
+    pm.expect(Number.isInteger(data.totalApplicants)).to.be.true;
+    pm.expect(data.totalApplications).to.be.at.least(data.totalApplicants);
+});
+pm.test('Applicants per position is the unrounded quotient, including below one', () => {
+    pm.expect(data.hiringTarget).to.be.at.least(1);
+    pm.expect(data.applicantsPerPosition).to.be.closeTo(data.totalApplicants / data.hiringTarget, 1e-10);
+});
+pm.test('Public job facts and application state are explicit', () => {
+    ['salaryLabel', 'experienceLabel', 'categoryLabel', 'locationLabel'].forEach(key => {
+        pm.expect(data.jobOverview[key], key).to.be.a('string').and.not.empty;
+    });
+    pm.expect(data.hasApplied === null || typeof data.hasApplied === 'boolean').to.eql(true);
+});
+pm.test('Unlock terms are explicit', () => {
+    pm.expect(data.unlockCostPoints).to.be.a('number').and.above(0);
+    pm.expect(data.validDays).to.be.a('number').and.above(0);
+    if (data.unlocked) pm.expect(Date.parse(data.expiresAt)).to.be.above(Date.now());
+});
+pm.test('Detailed fields are absent while locked', () => {
+    if (!data.unlocked) {
+        ['expectedSalaryAvgMillion', 'expectedSalaryRangeLabel', 'profileMatchPercent', 'profileRankLabel',
+         'salaryRange', 'profileMatch', 'profileComparison', 'experienceBreakdown', 'applicantTopSkills', 'aiCorrelation', 'tacticalTip']
+            .forEach(key => pm.expect(data[key], key).to.eql(null));
+    }
+});
+if (data.unlocked) {
+    pm.test('Profile comparison separates matched, missing and unspecified criteria', () => {
+        const comparison = data.profileComparison;
+        pm.expect(comparison.totalCriteriaCount).to.eql(4);
+        pm.expect(comparison.criteria).to.have.lengthOf(4);
+        const counts = ['metCriteriaCount', 'partialCriteriaCount', 'unmatchedCriteriaCount',
+            'needsUpdateCount', 'notIdentifiedCount', 'notRequiredCount'];
+        counts.forEach(key => pm.expect(comparison[key], key).to.be.at.least(0));
+        pm.expect(counts.reduce((sum, key) => sum + comparison[key], 0)).to.eql(4);
+        pm.expect(comparison.evaluatedCriteriaCount).to.eql(
+            comparison.metCriteriaCount + comparison.partialCriteriaCount + comparison.unmatchedCriteriaCount);
+        comparison.criteria.forEach(row => {
+            pm.expect(row.requiredLabel).to.be.a('string').and.not.empty;
+            pm.expect(row.candidateLabel).to.be.a('string').and.not.empty;
+            pm.expect(['identified', 'not_required', 'not_identified']).to.include(row.requirementStatus);
+        });
+        const requiredIds = comparison.requiredSkills.map(skill => skill.id).sort((a, b) => a - b);
+        const groupedIds = [...comparison.matchedSkills, ...comparison.unrecordedSkills]
+            .map(skill => skill.id).sort((a, b) => a - b);
+        pm.expect(groupedIds).to.eql(requiredIds);
+        pm.expect(comparison.recommendations.length).to.be.at.most(3);
+        comparison.recommendations.forEach(action => {
+            pm.expect(['profile_settings', 'skills', 'experience', 'category', 'location']).to.include(action.target);
+        });
+    });
+    pm.test('Applicant salary is not a fallback to the job salary', () => {
+        const salary = data.salaryRange;
+        pm.expect(['APPLICANTS', 'NO_DATA']).to.include(salary.source);
+        pm.expect(salary.distribution).to.be.an('array');
+        pm.expect(salary.distribution.reduce((sum, row) => sum + row.count, 0)).to.eql(data.totalApplicants);
+        pm.expect(salary.estimatedSampleCount).to.be.at.most(salary.sampleCount);
+        if (salary.estimatedSampleCount === 0) pm.expect(data.expectedSalaryAvgMillion).to.eql(null);
+    });
+    pm.test('Match points explain the score and list every recognized requirement', () => {
+        const profile = data.profileMatch;
+        const criteria = profile.criteria;
+        pm.expect(criteria.map(row => row.key)).to.eql(['skills', 'experience', 'category', 'location']);
+        pm.expect(criteria.map(row => row.maxPoints)).to.eql([50, 25, 15, 10]);
+        pm.expect(Math.round(criteria.reduce((sum, row) => sum + row.points, 0))).to.eql(data.profileMatchPercent);
+        criteria.forEach(row => {
+            pm.expect(['met', 'partial', 'unmatched', 'missing', 'not_required']).to.include(row.status);
+            pm.expect(row.points).to.be.within(0, row.maxPoints);
+        });
+        pm.expect(profile.requiredSkills).to.be.an('array');
+        pm.expect(profile.missingSkills).to.be.an('array');
+        pm.expect(profile.sourceLabel).to.be.a('string').and.not.empty;
+        pm.expect(profile.scoreExplanation).to.be.a('string').and.not.empty;
+    });
+}
+`;
+
+const request = (name, { method = 'GET', authenticated = false, unlock = false } = {}) => ({
+    name,
+    event: [
+        ...(authenticated ? [event('prerequest', unlock ? `
+if (pm.variables.get('allowUnlock') !== 'true' || !pm.variables.get('candidateAccessToken')) {
+    console.log('Skipped: unlocking spends points; explicitly set allowUnlock=true and supply a candidate token.');
+    pm.execution.skipRequest();
+}` : `
+if (!pm.variables.get('candidateAccessToken')) {
+    console.log('Skipped authenticated report: candidateAccessToken is not set.');
+    pm.execution.skipRequest();
+}`)] : []),
+        event('test', unlock ? `
+pm.test('HTTP 200', () => pm.response.to.have.status(200));
+const body = pm.response.json();
+pm.test('Unlocked or insufficient points', () => pm.expect([0, 2]).to.include(body.errCode));
+if (body.errCode === 0) {
+    pm.test('Valid unlocked report returned', () => {
+        pm.expect(body.data.unlocked).to.eql(true);
+        pm.expect(Date.parse(body.data.expiresAt)).to.be.above(Date.now());
+    });
+}` : reportAssertions + (!authenticated ? `\npm.test('Public report is locked', () => pm.expect(data.unlocked).to.eql(false));` : '')),
+    ],
+    request: {
+        method,
+        auth: authenticated
+            ? { type: 'bearer', bearer: [{ key: 'token', value: '{{candidateAccessToken}}', type: 'string' }] }
+            : { type: 'noauth' },
+        url: '{{baseUrl}}/api/rewards/jobs/{{postId}}/' + (unlock ? 'unlock-competition' : 'competition'),
+        description: unlock
+            ? 'Candidate only. Spends unlockCostPoints for validDays, with no additional charge while the grant is active. Explicitly opt in with allowUnlock=true.'
+            : 'totalApplicants counts unique candidates. applicantsPerPosition is their count divided by hiringTarget. Public jobOverview contains only advertised job facts; hasApplied is a candidate-specific boolean or null for guests. Detailed fields including profileComparison remain null until unlocked. profileComparison separates matched/missing/unspecified requirements, exposes required/candidate values and partitions recognized skills into matched/unrecorded groups; recommendation targets are semantic identifiers, never URLs. Salary distribution preserves open ranges; the optional estimated mean only uses bounded ranges or exact values, never the job salary. Comparison uses current account settings/skills, not the submitted PDF. Legacy weighted scores and rank labels remain for older clients. expiresAt is the actual grant expiry.',
+    },
+});
+
+const collection = {
+    info: {
+        name: 'JobFind - Competition report regression',
+        schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+        description: 'Focused regression contract. Generated with node postman/generator/competition-report.mjs. Defaults to local read-only checks; authenticated checks need a candidate token supplied at run time. Unlocking is opt-in and spends points. Business errors use HTTP 200 + errCode; transport/auth failures may use HTTP 401/403. No upstream providers are called by these report requests.',
+    },
+    variable: [
+        { key: 'baseUrl', value: 'http://localhost:4000' },
+        { key: 'postId', value: '4' },
+        { key: 'candidateAccessToken', value: '' },
+        { key: 'allowUnlock', value: 'false' },
+    ],
+    item: [
+        request('Public report stays locked'),
+        request('Candidate report follows current access', { authenticated: true }),
+        request('Unlock report (opt-in; spends points)', { method: 'POST', authenticated: true, unlock: true }),
+    ],
+};
+
+writeFileSync(fileURLToPath(new URL('../JobFind-Competition-Report.postman_collection.json', import.meta.url)), JSON.stringify(collection, null, 2) + '\n');

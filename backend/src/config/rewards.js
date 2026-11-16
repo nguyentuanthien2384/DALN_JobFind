@@ -85,15 +85,57 @@ const EMPLOYER_REWARDS = Object.freeze({
 // Ty gia quy doi khi goi dich vu cho nha tuyen dung dang niem yet bang USD.
 const USD_VND_RATE = toPositiveInt(process.env.PAYMENT_USD_VND_RATE, 25000);
 
-// Ma giam gia (co the ghi de bang PAYMENT_PROMO_CODES dang JSON).
+// Ma giam gia (co the ghi de bang PAYMENT_PROMO_CODES dang JSON hoac quan ly qua Admin).
 const DEFAULT_PROMO_CODES = {
-    VNPAY5K: { provider: 'VNPAY', discount: 5000, minAmount: 20000, description: 'Giảm 5.000đ khi thanh toán VNPAY-QR' },
-    ARCHITECT5K: { provider: null, discount: 5000, minAmount: 20000, description: 'Ưu đãi Career Architect giảm 5.000đ' },
-    MOMO5K: { provider: 'MOMO', discount: 5000, minAmount: 20000, description: 'Giảm 5.000đ khi thanh toán ví MoMo' },
-    ZALOPAY5K: { provider: 'ZALOPAY', discount: 5000, minAmount: 20000, description: 'Giảm 5.000đ khi thanh toán ví ZaloPay' },
-    JOBFIND10K: { provider: null, discount: 10000, minAmount: 50000, description: 'Giảm 10.000đ cho đơn từ 50.000đ' }
+    VNPAY5K: { provider: 'VNPAY', purpose: null, discountType: 'FIXED', discount: 5000, discountPercent: 0, maxDiscount: 0, minAmount: 20000, isActive: true, description: 'Giảm 5.000đ khi thanh toán VNPAY-QR' },
+    ARCHITECT5K: { provider: null, purpose: null, discountType: 'FIXED', discount: 5000, discountPercent: 0, maxDiscount: 0, minAmount: 20000, isActive: true, description: 'Ưu đãi Career Architect giảm 5.000đ' },
+    MOMO5K: { provider: 'MOMO', purpose: null, discountType: 'FIXED', discount: 5000, discountPercent: 0, maxDiscount: 0, minAmount: 20000, isActive: true, description: 'Giảm 5.000đ khi thanh toán ví MoMo' },
+    ZALOPAY5K: { provider: 'ZALOPAY', purpose: null, discountType: 'FIXED', discount: 5000, discountPercent: 0, maxDiscount: 0, minAmount: 20000, isActive: true, description: 'Giảm 5.000đ khi thanh toán ví ZaloPay' },
+    JOBFIND10K: { provider: null, purpose: null, discountType: 'FIXED', discount: 10000, discountPercent: 0, maxDiscount: 0, minAmount: 50000, isActive: true, description: 'Giảm 10.000đ cho đơn từ 50.000đ' },
+    JOBFIND20K: { provider: null, purpose: null, discountType: 'FIXED', discount: 20000, discountPercent: 0, maxDiscount: 0, minAmount: 100000, isActive: true, description: 'Giảm 20.000đ cho đơn từ 100.000đ' },
+    VIP15: { provider: null, purpose: null, discountType: 'PERCENT', discount: 0, discountPercent: 15, maxDiscount: 50000, minAmount: 100000, isActive: true, description: 'Giảm 15% (tối đa 50.000đ) cho đơn từ 100.000đ' }
 };
-const loadPromoCodes = () => {
+
+const runtimePromoOverrides = new Map();
+
+const normalizePromoRule = (code, raw = {}) => {
+    const normalizedCode = String(code || raw.code || '').trim().toUpperCase();
+    const isPercent = String(raw.discountType || '').toUpperCase() === 'PERCENT' || Number(raw.discountPercent) > 0;
+    const discountType = isPercent ? 'PERCENT' : 'FIXED';
+    const discount = Math.max(0, Math.round(Number(raw.discount ?? raw.discountVnd ?? 0) || 0));
+    const discountPercent = isPercent
+        ? Math.max(1, Math.min(90, Math.round(Number(raw.discountPercent ?? raw.discount ?? 0) || 0)))
+        : 0;
+    const maxDiscount = Math.max(0, Math.round(Number(raw.maxDiscount ?? 0) || 0));
+    const minAmount = Math.max(0, Math.round(Number(raw.minAmount ?? raw.minAmountVnd ?? 0) || 0));
+    const providerRaw = raw.provider ? String(raw.provider).trim().toUpperCase() : null;
+    const provider = providerRaw && providerRaw !== 'ALL' ? providerRaw : null;
+    const purposeRaw = raw.purpose ? String(raw.purpose).trim().toUpperCase() : null;
+    const purpose = purposeRaw && purposeRaw !== 'ALL' ? purposeRaw : null;
+    const isActive = raw.isActive === undefined ? true : Boolean(Number(raw.isActive) !== 0 && raw.isActive !== false);
+    const expiresAt = raw.expiresAt ? String(raw.expiresAt).trim() : null;
+    const description = String(raw.description || raw.label || '').trim() || (
+        discountType === 'PERCENT'
+            ? `Giảm ${discountPercent}%${maxDiscount > 0 ? ` (tối đa ${maxDiscount.toLocaleString('vi-VN')}đ)` : ''}`
+            : `Giảm ${discount.toLocaleString('vi-VN')}đ`
+    );
+    return {
+        code: normalizedCode,
+        provider,
+        purpose,
+        discountType,
+        discount,
+        discountPercent,
+        maxDiscount,
+        minAmount,
+        isActive,
+        expiresAt,
+        description,
+        isBuiltIn: Boolean(DEFAULT_PROMO_CODES[normalizedCode])
+    };
+};
+
+const readBasePromoCodes = () => {
     if (!process.env.PAYMENT_PROMO_CODES) return DEFAULT_PROMO_CODES;
     try {
         const parsed = JSON.parse(process.env.PAYMENT_PROMO_CODES);
@@ -101,6 +143,46 @@ const loadPromoCodes = () => {
     } catch (error) {
         return DEFAULT_PROMO_CODES;
     }
+};
+
+const loadPromoCodes = ({ includeInactive = false } = {}) => {
+    const base = readBasePromoCodes();
+    const merged = {};
+    for (const [code, info] of Object.entries(base)) {
+        const normalizedCode = String(code).trim().toUpperCase();
+        merged[normalizedCode] = normalizePromoRule(normalizedCode, info);
+    }
+    for (const [code, override] of runtimePromoOverrides.entries()) {
+        if (override?.deleted) {
+            delete merged[code];
+        } else if (override) {
+            merged[code] = normalizePromoRule(code, { ...(merged[code] || {}), ...override });
+        }
+    }
+    if (!includeInactive) {
+        for (const [code, rule] of Object.entries(merged)) {
+            if (rule.isActive === false) {
+                delete merged[code];
+            }
+        }
+    }
+    return merged;
+};
+
+const setRuntimePromoOverride = (code, rule) => {
+    const normalized = String(code || '').trim().toUpperCase();
+    if (!normalized) return null;
+    if (rule?.deleted) {
+        runtimePromoOverrides.set(normalized, { deleted: true });
+        return null;
+    }
+    const normalizedRule = normalizePromoRule(normalized, rule);
+    runtimePromoOverrides.set(normalized, normalizedRule);
+    return normalizedRule;
+};
+
+const clearRuntimePromoOverrides = () => {
+    runtimePromoOverrides.clear();
 };
 
 const tierFor = (tiers, points) => {
@@ -125,6 +207,10 @@ module.exports = {
     CANDIDATE_TIERS,
     EMPLOYER_REWARDS,
     USD_VND_RATE,
+    DEFAULT_PROMO_CODES,
+    normalizePromoRule,
     loadPromoCodes,
+    setRuntimePromoOverride,
+    clearRuntimePromoOverrides,
     tierFor
 };

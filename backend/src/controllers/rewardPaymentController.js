@@ -136,12 +136,46 @@ const getAdminRewardsOverview = async (req, res) => {
                 errMessage: 'Chỉ Quản trị viên mới có quyền giám sát điểm thưởng và thanh toán toàn hệ thống'
             });
         }
+        if (typeof paymentOrderService.syncPromoCodesFromDb === 'function') {
+            await paymentOrderService.syncPromoCodesFromDb();
+        }
         const result = await rewardService.getAdminRewardsOverview({
             limit: req.query?.limit,
             offset: req.query?.offset,
             purpose: req.query?.purpose,
             status: req.query?.status
         });
+        return res.status(200).json(result);
+    } catch (error) {
+        return res.status(200).json({ errCode: -1, errMessage: 'Error from server' });
+    }
+};
+
+const upsertPromoCode = async (req, res) => {
+    try {
+        if (getRoleCode(req) !== ROLES.ADMIN) {
+            return res.status(403).json({
+                errCode: 3,
+                errMessage: 'Chỉ Quản trị viên mới có quyền quản lý mã giảm giá'
+            });
+        }
+        const result = await paymentOrderService.upsertPromoCode(req.body || {});
+        return res.status(200).json(result);
+    } catch (error) {
+        return res.status(200).json({ errCode: -1, errMessage: 'Error from server' });
+    }
+};
+
+const deletePromoCode = async (req, res) => {
+    try {
+        if (getRoleCode(req) !== ROLES.ADMIN) {
+            return res.status(403).json({
+                errCode: 3,
+                errMessage: 'Chỉ Quản trị viên mới có quyền xóa mã giảm giá'
+            });
+        }
+        const code = req.params?.code || req.body?.code || req.query?.code;
+        const result = await paymentOrderService.deletePromoCode(code);
         return res.status(200).json(result);
     } catch (error) {
         return res.status(200).json({ errCode: -1, errMessage: 'Error from server' });
@@ -183,10 +217,14 @@ const previewPromoCode = async (req, res) => {
         if ((requestedPurpose === 'PACKAGE_POST' || requestedPurpose === 'PACKAGE_CV') && !requireApprovedCompanyOwner(req, res)) {
             return undefined;
         }
+        if (typeof paymentOrderService.syncPromoCodesFromDb === 'function') {
+            await paymentOrderService.syncPromoCodesFromDb();
+        }
         const result = paymentOrderService.evaluatePromo({
             promoCode: req.body?.promoCode || req.query?.promoCode,
             provider: req.body?.provider || req.query?.provider,
-            amountVnd: req.body?.amountVnd || req.query?.amountVnd
+            amountVnd: req.body?.amountVnd || req.query?.amountVnd,
+            purpose: requestedPurpose || null
         });
         return res.status(200).json({ errCode: result.valid ? 0 : 2, data: result, errMessage: result.errMessage });
     } catch (error) {
@@ -356,6 +394,8 @@ module.exports = {
     unlockCompetitionReport,
     getEmployerOverview,
     getAdminRewardsOverview,
+    upsertPromoCode,
+    deletePromoCode,
     redeemEmployerPoints,
     getPaymentCatalog,
     previewPromoCode,

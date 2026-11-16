@@ -144,7 +144,14 @@ const ManageCompany = () => {
                                                 {item.name}
                                                 <span className="jf-cell-sub">Mã #{item.id}{item.taxnumber ? ` · MST ${item.taxnumber}` : ''}</span>
                                             </td>
-                                            <td>{item.phonenumber}</td>
+                                            <td>
+                                                {item.companyUserData?.userAccountData?.phonenumber || item.phonenumber}
+                                                {item.companyUserData?.userAccountData?.phonenumber &&
+                                                    item.phonenumber &&
+                                                    item.companyUserData.userAccountData.phonenumber !== item.phonenumber && (
+                                                        <span className="jf-cell-sub">Liên hệ: {item.phonenumber}</span>
+                                                    )}
+                                            </td>
                                             <td><label className={item.statusCompanyData.code === 'S1' ? 'badge badge-success' : 'badge badge-danger'}>{item.statusCompanyData.value}</label></td>
                                             <td><label className={item.censorData.code === 'CS1' ? 'badge badge-success' : (item.censorData.code === 'CS3' ? 'badge badge-warning' : 'badge badge-danger')}>{item.censorData.value}</label></td>
                                             <td>{moment(item.createdAt).format('DD-MM-YYYY')}</td>

@@ -789,7 +789,15 @@ let getAllCompanyByAdmin = (data) => {
                     raw: true,
                     include: [
                         { model: db.Allcode, as: 'statusCompanyData', attributes: ['value', 'code'] },
-                        { model: db.Allcode, as: 'censorData', attributes: ['value', 'code'] }
+                        { model: db.Allcode, as: 'censorData', attributes: ['value', 'code'] },
+                        {
+                            model: db.User,
+                            as: 'companyUserData',
+                            attributes: ['id', 'email'],
+                            include: [
+                                { model: db.Account, as: 'userAccountData', attributes: ['phonenumber', 'roleCode'] }
+                            ]
+                        }
                     ]
                 }
                 if (data.search && String(data.search).trim()) {

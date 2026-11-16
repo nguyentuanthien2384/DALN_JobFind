@@ -386,9 +386,18 @@ describe("ManageCompany moderation", () => {
         await waitFor(() => expect(accecptCompanyService).toHaveBeenCalledWith({ companyId: 5, note: "Không đủ hồ sơ" }));
     });
 
-    it("reactivates an inactive company", async () => {
-        getAllCompany.mockResolvedValue({ errCode: 0, count: 1, data: [company({ status: "S2", censor: "CS1" })] });
+    it("reactivates an inactive company and shows owner login phone when different from contact phone", async () => {
+        getAllCompany.mockResolvedValue({
+            errCode: 0,
+            count: 1,
+            data: [{
+                ...company({ status: "S2", censor: "CS1" }),
+                companyUserData: { userAccountData: { phonenumber: "0795095098" } },
+            }],
+        });
         render(<ManageCompany />);
+        expect(await screen.findByText("0795095098")).toBeInTheDocument();
+        expect(screen.getByText("Liên hệ: 0911222333")).toBeInTheDocument();
         fireEvent.click(await screen.findByText("Kích hoạt"));
         await waitFor(() => expect(unbanCompanyService).toHaveBeenCalledWith({ id: 5 }));
     });

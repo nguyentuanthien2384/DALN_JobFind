@@ -214,6 +214,8 @@ let initWebRoutes = (app) => {
     router.get('/api/rewards/config', middlewareControllers.verifyTokenOptional, rewardPaymentController.getPaymentCatalog)
     router.get('/api/payments/catalog', middlewareControllers.verifyTokenOptional, rewardPaymentController.getPaymentCatalog)
     router.post('/api/payments/promo/preview', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.previewPromoCode)
+    router.post('/api/payments/promo/admin', ...protectedBy(PERMISSIONS.ADMINISTRATION), rewardPaymentController.upsertPromoCode)
+    router.delete('/api/payments/promo/admin/:code', ...protectedBy(PERMISSIONS.ADMINISTRATION), rewardPaymentController.deletePromoCode)
     router.post('/api/payments/checkout', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.createCheckout)
     router.get('/api/payments/verify-return', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.verifyPaymentReturn)
     router.post('/api/payments/verify-return', ...protectedBy(PERMISSIONS.ACCOUNT_SELF), rewardPaymentController.verifyPaymentReturn)

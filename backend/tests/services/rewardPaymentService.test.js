@@ -519,7 +519,8 @@ describe('rewardService & paymentOrderService', () => {
         expect(unlocked.data.experienceBreakdown).toHaveLength(3);
         expect(unlocked.data.experienceBreakdown.map((r) => r.count)).toEqual([1, 1, 1]);
         expect(unlocked.data.salaryRange.source).toBe('APPLICANTS');
-        expect(unlocked.data.expectedSalaryAvgMillion).toBe(25.7);
+        expect(unlocked.data.expectedSalaryAvgMillion).toBe(21.3);
+        expect(unlocked.data.salaryRange).toMatchObject({ sampleCount: 3, estimatedSampleCount: 2, openRangeCount: 1 });
         expect(unlocked.data.applicantTopSkills[0]).toMatchObject({ name: 'React', count: 2 });
         expect(unlocked.data.profileMatchPercent).toBe(100);
         expect(wallet.balance).toBe(35);
@@ -551,6 +552,265 @@ describe('rewardService & paymentOrderService', () => {
         expect(honestReport.data.profileMatchPercent).toBe(0);
         expect(honestReport.data.experienceBreakdown).toHaveLength(4);
         expect(honestReport.data.experienceBreakdown[3]).toMatchObject({ key: 'unupdated', count: 1 });
+    });
+
+    describe('competition report accuracy and explanations', () => {
+        const configureReport = ({ detail = {}, cvs, settings = [], skills, userSkills = [], userSetting, unlocked = true } = {}) => {
+            mockDb.Post.findOne.mockReset().mockResolvedValue({
+                id: 12,
+                postDetailData: {
+                    name: 'Data Analyst', descriptionHTML: '<p>Python SQL</p>', amount: 1,
+                    categoryJobCode: 'IT', addressCode: 'HCM',
+                    jobTypePostData: { value: 'Công nghệ thông tin' }, provincePostData: { value: 'TP. Hồ Chí Minh' },
+                    experienceJobCode: '2-nam', expTypePostData: { value: '2 năm' },
+                    salaryJobCode: '15-20', salaryTypePostData: { value: '15 - 20 triệu' },
+                    ...detail
+                }
+            });
+            mockDb.Cv.findAll.mockReset().mockResolvedValue(cvs || [{ id: 1, userId: 20, createdAt: new Date() }]);
+            mockDb.UserSetting.findAll.mockReset().mockResolvedValue(settings);
+            mockDb.Skill.findAll.mockReset().mockResolvedValue(skills || [{ id: 10, name: 'Python' }, { id: 11, name: 'SQL' }]);
+            mockDb.UserSkill.findAll.mockReset().mockImplementation(({ where }) => Promise.resolve(
+                typeof where.UserId === 'number' ? userSkills : []
+            ));
+            mockDb.UserSetting.findOne.mockReset().mockResolvedValue(userSetting === undefined ? {
+                userId: 7, categoryJobCode: 'IT', addressCode: 'HCM',
+                jobTypeSettingData: { value: 'Công nghệ thông tin' }, provinceSettingData: { value: 'TP. Hồ Chí Minh' },
+                experienceJobCode: '2-nam', expTypeSettingData: { value: '2 năm' }
+            } : userSetting);
+            mockDb.CompetitionUnlock.findOne.mockReset().mockResolvedValue(unlocked ? {
+                id: 5, expiresAt: new Date(Date.now() + 86400000)
+            } : null);
+            mockDb.RewardWallet.findOne.mockReset().mockResolvedValue(makeWallet());
+        };
+        const readReport = async () => (await rewardService.getJobCompetitionReport({ postId: 12, userId: 7, roleCode: 'CANDIDATE' })).data;
+
+        test.each([
+            [1, 10, 0.1, '1 : 0.1'],
+            [3, 2, 1.5, '1 : 1.5'],
+            [0, 2, 0, '1 : 0']
+        ])('keeps the applicants-per-position ratio for %i applicants / %i positions', async (count, amount, ratio, label) => {
+            configureReport({
+                detail: { amount },
+                cvs: Array.from({ length: count }, (_, index) => ({ id: index + 1, userId: index + 20, createdAt: new Date() }))
+            });
+            const report = await readReport();
+            expect(report.applicantsPerPosition).toBe(ratio);
+            expect(report.competitionRatio).toBe(label);
+        });
+
+        test('counts unique applicants consistently across totals, experience, salary and recent submissions', async () => {
+            configureReport({
+                cvs: [
+                    { id: 1, userId: 20, createdAt: new Date() },
+                    { id: 2, userId: 20, createdAt: new Date() },
+                    { id: 3, userId: 21, createdAt: new Date() }
+                ],
+                settings: [
+                    { userId: 20, expTypeSettingData: { value: '2 năm' }, salaryTypeSettingData: { value: '15 - 20 triệu' } },
+                    { userId: 21, expTypeSettingData: { value: 'Trên 5 năm' }, salaryTypeSettingData: { value: '20 - 30 triệu' } }
+                ]
+            });
+            const report = await readReport();
+            expect(report).toMatchObject({ totalApplicants: 2, totalApplications: 3, todayApplicants: 2, applicantsPerPosition: 2 });
+            expect(report.experienceBreakdown.map((row) => row.count)).toEqual([1, 0, 1]);
+            expect(report.salaryRange).toMatchObject({ sampleCount: 2, estimatedSampleCount: 2, averageMillion: 21.3 });
+        });
+
+        test.each([false, true])('explains tied ranks for submitted=%s', async (submitted) => {
+            configureReport({
+                cvs: [{ id: 1, userId: 20 }, ...(submitted ? [{ id: 2, userId: 7 }] : [])],
+                settings: [{ userId: 20, categoryJobCode: 'IT', addressCode: 'HCM', experienceJobCode: '2-nam', expTypeSettingData: { value: '2 năm' } }]
+            });
+            const report = await readReport();
+            expect(report.profileRankLabel).toMatch(/Theo điểm hệ thống:/);
+            expect(report.profileRankLabel.toLowerCase()).toContain('đồng hạng #1/2');
+            expect(report.profileRankLabel.includes('Dự kiến')).toBe(!submitted);
+        });
+
+        test('estimates salary only from closed ranges and preserves the actual open ranges in the distribution', async () => {
+            configureReport({
+                cvs: [20, 21, 22].map((userId) => ({ userId })),
+                settings: [
+                    { userId: 20, salaryTypeSettingData: { value: 'Dưới 5 triệu' } },
+                    { userId: 21, salaryTypeSettingData: { value: '15 - 20 triệu' } },
+                    { userId: 22, salaryTypeSettingData: { value: 'Trên 30 triệu' } }
+                ]
+            });
+            const report = await readReport();
+            expect(report.expectedSalaryAvgMillion).toBe(17.5);
+            expect(report.salaryRange).toMatchObject({
+                sampleCount: 3, estimatedSampleCount: 1, openRangeCount: 2,
+                jobSalaryLabel: '15 - 20 triệu',
+                distribution: [
+                    { label: 'Dưới 5 triệu', count: 1 },
+                    { label: '15 - 20 triệu', count: 1 },
+                    { label: 'Trên 30 triệu', count: 1 }
+                ]
+            });
+            expect(report.salaryRange.methodLabel).toContain('trung điểm');
+            expect(report.expectedSalaryRangeLabel).toContain('1/3');
+            expect(report.expectedSalaryRangeLabel).not.toContain('39');
+        });
+
+        test.each([
+            [undefined, 'NO_DATA', 0, 0],
+            ['Trên 30 triệu', 'APPLICANTS', 1, 1],
+            ['Dưới 5 triệu', 'APPLICANTS', 1, 1],
+            ['Thỏa thuận', 'APPLICANTS', 1, 0]
+        ])('does not replace unavailable applicant salary with the job salary (%s)', async (salaryLabel, source, sampleCount, openRangeCount) => {
+            configureReport({ settings: salaryLabel ? [{ userId: 20, salaryTypeSettingData: { value: salaryLabel } }] : [] });
+            const report = await readReport();
+            expect(report.expectedSalaryAvgMillion).toBeNull();
+            expect(report.salaryRange).toMatchObject({ source, sampleCount, estimatedSampleCount: 0, openRangeCount, jobSalaryLabel: '15 - 20 triệu' });
+        });
+
+        test('explains all four weighted criteria and keeps every unrecorded skill visible', async () => {
+            const skills = ['Python', 'SQL', 'Power BI', 'Excel', 'AWS'].map((name, index) => ({ id: index + 1, name }));
+            configureReport({ detail: { descriptionHTML: '<p>Python SQL Power BI Excel AWS</p>' }, skills });
+            const report = await readReport();
+            expect(report.profileMatchPercent).toBe(50);
+            expect(report.profileMatch.criteria).toMatchObject([
+                { key: 'skills', label: 'Kỹ năng theo tin đăng', points: 0, maxPoints: 50, status: 'missing', description: 'Tin đăng nhắc tới 5 kỹ năng; hồ sơ hiện tại ghi nhận 0/5. Chưa phân loại bắt buộc hay ưu tiên.' },
+                { key: 'experience', label: 'Kinh nghiệm', points: 25, maxPoints: 25, status: 'met', description: 'Tin đăng: 2 năm · Hồ sơ hiện tại: 2 năm.' },
+                { key: 'category', label: 'Ngành nghề', points: 15, maxPoints: 15, status: 'met', description: 'Tin đăng: Công nghệ thông tin · Hồ sơ hiện tại: Công nghệ thông tin.' },
+                { key: 'location', label: 'Địa điểm', points: 10, maxPoints: 10, status: 'met', description: 'Tin đăng: TP. Hồ Chí Minh · Hồ sơ hiện tại: TP. Hồ Chí Minh.' }
+            ]);
+            expect(report.profileMatch.requiredSkills).toEqual(skills.map((skill) => ({ ...skill, requirementLevel: 'unspecified' })));
+            expect(report.profileMatch.missingSkills).toEqual(skills);
+            expect(report.profileMatch.requirementNote).toContain('chưa phân loại bắt buộc hay ưu tiên');
+            expect(report.profileMatch.requiredSkillStatus).toBe('identified');
+            expect(report.aiCorrelation[0].label).toContain('AWS');
+            expect(report.aiCorrelation[0].status).toContain('Chưa ghi nhận');
+            expect(report.tacticalTip).toContain('AWS');
+            expect(report.profileMatch.sourceLabel).toContain('chưa phân tích tệp CV');
+            expect(report.profileMatch.scoreExplanation).toContain('không phải xác suất trúng tuyển');
+            expect(report.profileComparison).toMatchObject({
+                totalCriteriaCount: 4, identifiedCriteriaCount: 4, evaluatedCriteriaCount: 3,
+                metCriteriaCount: 3, needsUpdateCount: 1, partialCriteriaCount: 0,
+                unmatchedCriteriaCount: 0, notIdentifiedCount: 0, notRequiredCount: 0
+            });
+            expect(report.profileComparison.criteria).toMatchObject([
+                { key: 'skills', requiredLabel: '5 kỹ năng được nhắc tới', candidateLabel: 'Khớp 0/5 kỹ năng', requirementStatus: 'identified' },
+                { key: 'experience', requiredLabel: '2 năm', candidateLabel: '2 năm', requirementStatus: 'identified' },
+                { key: 'category', requiredLabel: 'Công nghệ thông tin', candidateLabel: 'Công nghệ thông tin', requirementStatus: 'identified' },
+                { key: 'location', requiredLabel: 'TP. Hồ Chí Minh', candidateLabel: 'TP. Hồ Chí Minh', requirementStatus: 'identified' }
+            ]);
+        });
+
+        test('keeps absent candidate information separate from confirmed mismatches', async () => {
+            configureReport({ userSetting: null });
+            const report = await readReport();
+            expect(report.profileMatchPercent).toBe(0);
+            expect(report.profileMatch.criteria.map((item) => item.status)).toEqual(['missing', 'missing', 'missing', 'missing']);
+            expect(report.profileMatch.criteria.slice(1).every((item) => item.description.includes('Hồ sơ hiện tại: Chưa cập nhật'))).toBe(true);
+            expect(report.aiCorrelation.map((item) => item.status).join(' ')).not.toMatch(/Chưa đạt|Khác ngành/);
+        });
+
+        test('does not infer required skills or award skill points from unrelated industry skills', async () => {
+            configureReport({ detail: { descriptionHTML: '', name: 'Chuyên viên' }, userSkills: [{ SkillId: 10 }] });
+            const report = await readReport();
+            expect(report.profileMatchPercent).toBe(50);
+            expect(report.profileMatch.requiredSkillStatus).toBe('not_identified');
+            expect(report.profileMatch.criteria[0]).toMatchObject({ points: 0, maxPoints: 50, status: 'not_required', label: 'Chưa xác định yêu cầu kỹ năng' });
+            expect(report.profileMatch.requiredSkills).toEqual([]);
+            expect(report.aiCorrelation[0].status).toBe('Chưa xác định kỹ năng yêu cầu từ tin đăng');
+        });
+
+        test('partitions every recognized skill into matched and unrecorded lists without dropping the fifth skill', async () => {
+            const skills = ['Python', 'SQL', 'Power BI', 'Excel', 'AWS'].map((name, index) => ({ id: index + 1, name }));
+            configureReport({
+                detail: { descriptionHTML: '<p>Python SQL Power BI Excel AWS</p>' }, skills,
+                userSkills: [{ SkillId: 1 }, { SkillId: 2 }]
+            });
+            const { profileComparison } = await readReport();
+            expect(profileComparison.requiredSkills).toHaveLength(5);
+            expect(profileComparison.matchedSkills.map((skill) => skill.name)).toEqual(['Python', 'SQL']);
+            expect(profileComparison.unrecordedSkills.map((skill) => skill.name)).toEqual(['Power BI', 'Excel', 'AWS']);
+            expect([...profileComparison.matchedSkills, ...profileComparison.unrecordedSkills]).toEqual(profileComparison.requiredSkills);
+            expect(profileComparison.criteria[0].candidateLabel).toBe('Khớp 2/5 kỹ năng');
+            expect(profileComparison).toMatchObject({ evaluatedCriteriaCount: 4, metCriteriaCount: 3, partialCriteriaCount: 1, needsUpdateCount: 0 });
+            expect(profileComparison.recommendations[0]).toMatchObject({ key: 'review_skills', target: 'skills', relatedCriteria: ['skills'] });
+            expect(profileComparison.recommendations[0].reason).toContain('Chỉ bổ sung các kỹ năng bạn đã có');
+        });
+
+        test('does not claim unknown job criteria are matched even when legacy scoring assigns points', async () => {
+            configureReport({ detail: {
+                categoryJobCode: null, addressCode: null, experienceJobCode: null,
+                jobTypePostData: null, provincePostData: null, expTypePostData: null
+            } });
+            const report = await readReport();
+            expect(report.profileComparison).toMatchObject({
+                totalCriteriaCount: 4, identifiedCriteriaCount: 0, evaluatedCriteriaCount: 0,
+                metCriteriaCount: 0, needsUpdateCount: 0, notIdentifiedCount: 4, notRequiredCount: 0
+            });
+            expect(report.profileComparison.criteria.every((item) => item.requirementStatus === 'not_identified')).toBe(true);
+            expect(report.profileComparison.recommendations).toEqual([]);
+            expect(report.jobOverview).toMatchObject({ experienceLabel: 'Chưa công bố', categoryLabel: 'Chưa công bố', locationLabel: 'Chưa công bố' });
+        });
+
+        test('excludes explicit experience exemptions from evaluated and met counts', async () => {
+            configureReport({ detail: { experienceJobCode: 'no-experience', expTypePostData: { value: 'Không yêu cầu kinh nghiệm' } } });
+            const { profileComparison } = await readReport();
+            expect(profileComparison).toMatchObject({ identifiedCriteriaCount: 3, evaluatedCriteriaCount: 2, metCriteriaCount: 2, needsUpdateCount: 1, notRequiredCount: 1 });
+            expect(profileComparison.criteria[1]).toMatchObject({ status: 'not_required', requirementStatus: 'not_required' });
+        });
+
+        test('distinguishes selected values without display labels from genuinely missing profile or job information', async () => {
+            configureReport({
+                detail: {
+                    experienceJobCode: '2Y', expTypePostData: null, salaryTypePostData: null,
+                    jobTypePostData: null, provincePostData: null
+                },
+                userSetting: {
+                    userId: 7, experienceJobCode: '2Y', categoryJobCode: 'IT', addressCode: 'HCM'
+                }
+            });
+            const report = await readReport();
+            expect(Object.values(report.jobOverview)).toEqual(Array(4).fill('Chưa có mô tả'));
+            expect(report.profileComparison.criteria.slice(1).every((item) => (
+                item.requiredLabel === 'Chưa có mô tả' && item.candidateLabel === 'Đã khai báo, chưa có mô tả'
+            ))).toBe(true);
+            expect(report.profileComparison.criteria.slice(1).every((item) => !item.candidateLabel.includes('Chưa cập nhật'))).toBe(true);
+            expect(report.profileComparison.criteria.slice(1).map((item) => item.status)).toEqual(['met', 'met', 'met']);
+        });
+
+        test('limits actionable recommendations to observed profile issues and at most three actions', async () => {
+            configureReport({ userSetting: null });
+            const { profileComparison } = await readReport();
+            expect(profileComparison.needsUpdateCount).toBe(4);
+            expect(profileComparison.recommendations).toHaveLength(3);
+            expect(profileComparison.recommendations.map((item) => item.target)).toEqual(['skills', 'experience', 'category']);
+            expect(profileComparison.recommendations.every((item) => item.relatedCriteria.length > 0)).toBe(true);
+        });
+
+        test.each([false, true])('reports the signed-in candidate application state without using rank text (hasApplied=%s)', async (hasApplied) => {
+            configureReport({ unlocked: false, cvs: [{ id: 1, userId: hasApplied ? 7 : 20 }] });
+            expect((await readReport()).hasApplied).toBe(hasApplied);
+        });
+
+        test('returns public job facts but no personal application state or comparison for a guest', async () => {
+            configureReport();
+            const { data } = await rewardService.getJobCompetitionReport({ postId: 12 });
+            expect(data.hasApplied).toBeNull();
+            expect(data.profileComparison).toBeNull();
+            expect(data.jobOverview).toEqual({
+                salaryLabel: '15 - 20 triệu', experienceLabel: '2 năm',
+                categoryLabel: 'Công nghệ thông tin', locationLabel: 'TP. Hồ Chí Minh'
+            });
+        });
+
+        test('keeps new detailed data protected while the report is locked', async () => {
+            configureReport({ unlocked: false });
+            const report = await readReport();
+            for (const key of ['expectedSalaryAvgMillion', 'expectedSalaryRangeLabel', 'profileMatchPercent', 'profileRankLabel', 'salaryRange', 'profileMatch', 'profileComparison', 'experienceBreakdown', 'applicantTopSkills', 'aiCorrelation', 'tacticalTip']) {
+                expect(report[key]).toBeNull();
+            }
+            expect(report.jobOverview).toEqual({
+                salaryLabel: '15 - 20 triệu', experienceLabel: '2 năm',
+                categoryLabel: 'Công nghệ thông tin', locationLabel: 'TP. Hồ Chí Minh'
+            });
+        });
     });
 
     test('manages employer Top Points, historical order sync, and catalog redemption', async () => {
@@ -1116,5 +1376,92 @@ describe('rewardService & paymentOrderService', () => {
         expect(overviewPayload.orders[0].companyName).toBe('VNG Corp');
         expect(overviewPayload.orders[0].actorName).toBe('Minh Trần');
         expect(overviewPayload.transactions[0].ownerLabel).toBe('An Nguyễn');
+
+        // 8. Admin Promo Code management (CRUD, percentage discounts, purpose filter, RBAC)
+        const nonAdminPromoRes = createResponse();
+        await controller.upsertPromoCode(
+            createRequest({ user: candidateUser, body: { code: 'HACK50', discount: 50000 } }),
+            nonAdminPromoRes
+        );
+        expect(nonAdminPromoRes.status).toHaveBeenCalledWith(403);
+
+        const nonAdminDeleteRes = createResponse();
+        await controller.deletePromoCode(
+            createRequest({ user: candidateUser, params: { code: 'VNPAY5K' } }),
+            nonAdminDeleteRes
+        );
+        expect(nonAdminDeleteRes.status).toHaveBeenCalledWith(403);
+
+        expect((await paymentOrderService.upsertPromoCode({ code: 'A' })).errCode).toBe(1);
+        expect((await paymentOrderService.upsertPromoCode({ code: 'BAD_FIXED', discountType: 'FIXED', discount: 500 })).errCode).toBe(2);
+        expect((await paymentOrderService.upsertPromoCode({ code: 'BAD_PCT', discountType: 'PERCENT', discountPercent: 95 })).errCode).toBe(2);
+
+        const upsertRes = createResponse();
+        await controller.upsertPromoCode(
+            createRequest({
+                user: adminUser,
+                body: {
+                    code: 'TET20PCT',
+                    discountType: 'PERCENT',
+                    discountPercent: 20,
+                    maxDiscount: 30000,
+                    minAmount: 50000,
+                    provider: 'MOMO',
+                    purpose: 'POINT_TOPUP',
+                    description: 'Ưu đãi Tết giảm 20% tối đa 30k'
+                }
+            }),
+            upsertRes
+        );
+        expect(upsertRes.status).toHaveBeenCalledWith(200);
+        expect(upsertRes.json.mock.calls[0][0].errCode).toBe(0);
+
+        const pctEvalOk = paymentOrderService.evaluatePromo({
+            promoCode: 'TET20PCT',
+            provider: 'MOMO',
+            amountVnd: 100000,
+            purpose: 'POINT_TOPUP'
+        });
+        expect(pctEvalOk.valid).toBe(true);
+        expect(pctEvalOk.discountAmount).toBe(20000);
+
+        const pctEvalCap = paymentOrderService.evaluatePromo({
+            promoCode: 'TET20PCT',
+            provider: 'MOMO',
+            amountVnd: 200000,
+            purpose: 'POINT_TOPUP'
+        });
+        expect(pctEvalCap.discountAmount).toBe(30000);
+
+        const pctEvalWrongPurpose = paymentOrderService.evaluatePromo({
+            promoCode: 'TET20PCT',
+            provider: 'MOMO',
+            amountVnd: 100000,
+            purpose: 'PACKAGE_POST'
+        });
+        expect(pctEvalWrongPurpose.valid).toBe(false);
+
+        await paymentOrderService.upsertPromoCode({
+            code: 'TET20PCT',
+            discountType: 'PERCENT',
+            discountPercent: 20,
+            isActive: false
+        });
+        expect(
+            paymentOrderService.evaluatePromo({
+                promoCode: 'TET20PCT',
+                provider: 'MOMO',
+                amountVnd: 100000,
+                purpose: 'POINT_TOPUP'
+            }).valid
+        ).toBe(false);
+
+        const delRes = createResponse();
+        await controller.deletePromoCode(
+            createRequest({ user: adminUser, params: { code: 'TET20PCT' } }),
+            delRes
+        );
+        expect(delRes.status).toHaveBeenCalledWith(200);
+        expect(delRes.json.mock.calls[0][0].errCode).toBe(0);
     });
 });

@@ -1,6 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { getPaymentLinkCv, getAllToSelect } from "../../../service/userService";
-import { createPaymentCheckoutService } from "../../../service/rewardPaymentService";
+import {
+    buildPromoCatalogMap,
+    createPaymentCheckoutService,
+    evaluatePromoRuleClient,
+    getRewardConfigService,
+    normalizeClientPromoRule,
+    previewPromoCodeService,
+} from "../../../service/rewardPaymentService";
 import { toast } from "react-toastify";
 import { Spinner, Modal } from "reactstrap";
 import { readJsonStorage } from "../../../util/storage";
@@ -28,6 +35,9 @@ const BuyCv = () => {
     });
     const [selectedGateway, setSelectedGateway] = useState("PAYPAL");
     const [promoCode, setPromoCode] = useState("");
+    const [appliedPromo, setAppliedPromo] = useState("");
+    const [customPromos, setCustomPromos] = useState({});
+    const [serverPromoList, setServerPromoList] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [dataPackage, setDataPackage] = useState(() => warmPackages || []);
@@ -38,6 +48,115 @@ const BuyCv = () => {
     const total = Number.isFinite(amountValue) && amountValue > 0 ? amountValue * price : 0;
     const totalVnd = Math.round(total * 25000);
     const estimatedTopPoints = totalVnd > 0 ? Math.max(1, Math.round(totalVnd / 100000)) : 0;
+
+    const promoCatalog = useMemo(() => {
+        const baseMap = buildPromoCatalogMap(serverPromoList);
+        return { ...baseMap, ...customPromos };
+    }, [serverPromoList, customPromos]);
+
+    const promoList = useMemo(() => Object.values(promoCatalog), [promoCatalog]);
+
+    const discountInfo = useMemo(() => {
+        const code = String(appliedPromo || "").trim().toUpperCase();
+        if (!code || totalVnd <= 0) {
+            return { discountVnd: 0, label: null, reason: null };
+        }
+        const rule = promoCatalog[code];
+        return evaluatePromoRuleClient(rule, {
+            amountVnd: totalVnd,
+            provider: selectedGateway,
+            purpose: "PACKAGE_CV",
+        });
+    }, [appliedPromo, promoCatalog, totalVnd, selectedGateway]);
+
+    const finalTotalVnd = useMemo(() => {
+        if (totalVnd <= 0) return 0;
+        return Math.max(5000, totalVnd - Number(discountInfo.discountVnd || 0));
+    }, [totalVnd, discountInfo]);
+
+    const finalTotalUsd = useMemo(() => {
+        if (discountInfo.discountVnd > 0 && totalVnd > 0) {
+            return Number((finalTotalVnd / 25000).toFixed(2));
+        }
+        return total;
+    }, [discountInfo, finalTotalVnd, total, totalVnd]);
+
+    useEffect(() => {
+        if (typeof getRewardConfigService !== "function") return undefined;
+        let cancelled = false;
+        Promise.resolve(getRewardConfigService())
+            .then((res) => {
+                if (!cancelled && res && res.errCode === 0 && Array.isArray(res.data?.promoCodes)) {
+                    setServerPromoList(res.data.promoCodes);
+                }
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const notifyWarning = (msg) => {
+        if (typeof toast.warning === "function") {
+            toast.warning(msg);
+        } else {
+            toast.error(msg);
+        }
+    };
+
+    const applyPromoCodeValue = async (rawCode) => {
+        const normalized = String(rawCode !== undefined ? rawCode : promoCode || "").trim().toUpperCase();
+        if (!normalized) {
+            setAppliedPromo("");
+            return true;
+        }
+        const localRule = promoCatalog[normalized];
+        if (localRule) {
+            const evalRes = evaluatePromoRuleClient(localRule, {
+                amountVnd: totalVnd,
+                provider: selectedGateway,
+                purpose: "PACKAGE_CV",
+            });
+            if (!evalRes.valid) {
+                notifyWarning(evalRes.reason || "Mã ưu đãi chưa đủ điều kiện áp dụng.");
+                return false;
+            }
+            setPromoCode(normalized);
+            setAppliedPromo(normalized);
+            toast.success(`Đã áp dụng mã ${normalized} (${evalRes.label}).`);
+            return true;
+        }
+        if (typeof previewPromoCodeService === "function") {
+            try {
+                const res = await previewPromoCodeService({
+                    promoCode: normalized,
+                    provider: selectedGateway,
+                    amountVnd: totalVnd,
+                    purpose: "PACKAGE_CV",
+                });
+                if (res && res.errCode === 0 && res.data?.valid) {
+                    const serverRule = normalizeClientPromoRule(normalized, {
+                        ...res.data,
+                        discountVnd: res.data.discountAmount,
+                        label: res.data.description,
+                    });
+                    setCustomPromos((prev) => ({ ...prev, [normalized]: serverRule }));
+                    setPromoCode(normalized);
+                    setAppliedPromo(normalized);
+                    toast.success(`Đã áp dụng mã ${normalized} (${serverRule.label}).`);
+                    return true;
+                }
+                if (res && res.errMessage) {
+                    notifyWarning(res.errMessage);
+                    return false;
+                }
+            } catch (_error) {
+                // ignore
+            }
+        }
+        notifyWarning("Mã giảm giá không tồn tại hoặc đã hết hạn.");
+        return false;
+    };
 
     const handleOnChangePackage = (event) => {
         const { value } = event.target;
@@ -75,9 +194,14 @@ const BuyCv = () => {
         return { amount, userData };
     };
 
-    const handleRequestBuy = () => {
+    const handleRequestBuy = async () => {
         const valid = validateOrderInputs();
         if (!valid) return;
+        const typed = String(promoCode || "").trim().toUpperCase();
+        if (typed && typed !== appliedPromo) {
+            const ok = await applyPromoCodeValue(typed);
+            if (!ok) return;
+        }
         setShowConfirmModal(true);
     };
 
@@ -88,10 +212,11 @@ const BuyCv = () => {
             return;
         }
         const { amount, userData } = valid;
+        const effectivePromo = discountInfo.discountVnd > 0 ? appliedPromo : promoCode.trim();
         setShowConfirmModal(false);
         setIsLoading(true);
         try {
-            if (selectedGateway === "PAYPAL" && !promoCode.trim()) {
+            if (selectedGateway === "PAYPAL" && !effectivePromo) {
                 const res = await getPaymentLinkCv(inputValues.packageCvId, amount);
                 if (res?.errCode === 0 && res.link) {
                     const data = {
@@ -114,7 +239,7 @@ const BuyCv = () => {
                 itemCode: inputValues.packageCvId,
                 quantity: amount,
                 provider: selectedGateway,
-                promoCode: promoCode.trim(),
+                promoCode: effectivePromo,
                 returnUrl: `${window.location.origin}/payment/result`,
             });
             const paymentUrl =
@@ -305,13 +430,162 @@ const BuyCv = () => {
                                             Mã ưu đãi
                                         </label>
                                         <div className="col-sm-9">
-                                            <input
-                                                type="text"
-                                                className="form-control"
-                                                placeholder="Nhập mã giảm giá (nếu có)"
-                                                value={promoCode}
-                                                onChange={(e) => setPromoCode(e.target.value)}
-                                            />
+                                            <div style={{ display: "flex", gap: "8px" }}>
+                                                <input
+                                                    type="text"
+                                                    className="form-control"
+                                                    placeholder="Nhập mã giảm giá (nếu có)"
+                                                    value={promoCode}
+                                                    onChange={(e) => setPromoCode(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter") {
+                                                            e.preventDefault();
+                                                            void applyPromoCodeValue(promoCode);
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void applyPromoCodeValue(promoCode)}
+                                                    style={{
+                                                        border: "1px solid #003d9b",
+                                                        background: "#eff6ff",
+                                                        color: "#003d9b",
+                                                        borderRadius: "6px",
+                                                        padding: "0 14px",
+                                                        fontWeight: 600,
+                                                        fontSize: "13px",
+                                                        whiteSpace: "nowrap",
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Áp dụng
+                                                </button>
+                                            </div>
+                                            {discountInfo.discountVnd > 0 && (
+                                                <div
+                                                    style={{
+                                                        marginTop: "6px",
+                                                        padding: "6px 10px",
+                                                        borderRadius: "6px",
+                                                        background: "#f0fdf4",
+                                                        border: "1px solid #bbf7d0",
+                                                        color: "#15803d",
+                                                        fontSize: "12.5px",
+                                                        display: "flex",
+                                                        justifyContent: "space-between",
+                                                        alignItems: "center",
+                                                    }}
+                                                >
+                                                    <span>
+                                                        Đã áp dụng mã <strong>{appliedPromo}</strong> (-
+                                                        {discountInfo.discountVnd.toLocaleString("vi-VN")} VNĐ)
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setPromoCode("");
+                                                            setAppliedPromo("");
+                                                        }}
+                                                        style={{
+                                                            border: "none",
+                                                            background: "none",
+                                                            color: "#b91c1c",
+                                                            fontSize: "12px",
+                                                            cursor: "pointer",
+                                                            padding: 0,
+                                                        }}
+                                                    >
+                                                        Bỏ mã
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {appliedPromo && discountInfo.discountVnd === 0 && discountInfo.reason && (
+                                                <div
+                                                    style={{
+                                                        marginTop: "6px",
+                                                        padding: "6px 10px",
+                                                        borderRadius: "6px",
+                                                        background: "#fffbeb",
+                                                        border: "1px solid #fde68a",
+                                                        color: "#b45309",
+                                                        fontSize: "12px",
+                                                        display: "flex",
+                                                        justifyContent: "space-between",
+                                                        alignItems: "center",
+                                                    }}
+                                                >
+                                                    <span>{discountInfo.reason}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setPromoCode("");
+                                                            setAppliedPromo("");
+                                                        }}
+                                                        style={{
+                                                            border: "none",
+                                                            background: "none",
+                                                            color: "#b91c1c",
+                                                            fontSize: "12px",
+                                                            cursor: "pointer",
+                                                            padding: 0,
+                                                        }}
+                                                    >
+                                                        Bỏ mã
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {promoList.length > 0 && (
+                                                <div style={{ marginTop: "8px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                                    {promoList.map((item) => {
+                                                        const check = evaluatePromoRuleClient(item, {
+                                                            amountVnd: totalVnd,
+                                                            provider: selectedGateway,
+                                                            purpose: "PACKAGE_CV",
+                                                        });
+                                                        const isApplied =
+                                                            appliedPromo === item.code && discountInfo.discountVnd > 0;
+                                                        const benefitTag =
+                                                            item.discountType === "PERCENT"
+                                                                ? `-${item.discountPercent}%`
+                                                                : `-${Math.round((Number(item.discountVnd) || 0) / 1000)}k`;
+                                                        return (
+                                                            <button
+                                                                key={item.code}
+                                                                type="button"
+                                                                title={item.description || item.label}
+                                                                onClick={() => {
+                                                                    if (isApplied) {
+                                                                        setPromoCode("");
+                                                                        setAppliedPromo("");
+                                                                    } else {
+                                                                        void applyPromoCodeValue(item.code);
+                                                                    }
+                                                                }}
+                                                                style={{
+                                                                    border: isApplied
+                                                                        ? "1px solid #16a34a"
+                                                                        : "1px dashed #cbd5e1",
+                                                                    background: isApplied
+                                                                        ? "#dcfce7"
+                                                                        : check.valid
+                                                                        ? "#f8fafc"
+                                                                        : "#f1f5f9",
+                                                                    color: isApplied ? "#14532d" : "#334155",
+                                                                    opacity: check.valid || isApplied ? 1 : 0.65,
+                                                                    borderRadius: "6px",
+                                                                    padding: "3px 8px",
+                                                                    fontSize: "11.5px",
+                                                                    cursor: "pointer",
+                                                                }}
+                                                            >
+                                                                <strong>{item.code}</strong> ({benefitTag}
+                                                                {item.provider ? ` · ${item.provider}` : ""})
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -323,9 +597,13 @@ const BuyCv = () => {
                                             Tổng tiền
                                         </label>
                                         <div className="col-sm-9">
-                                            <p className="mt-2">{total} USD</p>
+                                            <p className="mt-2">{finalTotalUsd} USD</p>
                                             <small style={{ color: "#003d9b", fontWeight: 700 }}>
-                                                Quy đổi: {totalVnd.toLocaleString("vi-VN")} VNĐ • Tích lũy +{estimatedTopPoints} Top Point
+                                                Quy đổi: {finalTotalVnd.toLocaleString("vi-VN")} VNĐ
+                                                {discountInfo.discountVnd > 0
+                                                    ? ` (Đã giảm ${discountInfo.discountVnd.toLocaleString("vi-VN")} VNĐ)`
+                                                    : ""}{" "}
+                                                • Tích lũy +{estimatedTopPoints} Top Point
                                             </small>
                                         </div>
                                     </div>
@@ -362,13 +640,20 @@ const BuyCv = () => {
                         label: "Phương thức thanh toán:",
                         value: GATEWAY_CHOICES.find((gw) => gw.code === selectedGateway)?.label || selectedGateway,
                     },
-                    ...(promoCode.trim()
-                        ? [{ label: "Mã giảm giá:", value: promoCode.trim().toUpperCase() }]
+                    ...((discountInfo.discountVnd > 0 ? appliedPromo : promoCode.trim())
+                        ? [
+                              {
+                                  label: "Mã giảm giá:",
+                                  value: (discountInfo.discountVnd > 0
+                                      ? `${appliedPromo} (-${discountInfo.discountVnd.toLocaleString("vi-VN")} VNĐ)`
+                                      : promoCode.trim().toUpperCase()),
+                              },
+                          ]
                         : []),
                 ]}
                 totalLabel="Tổng thanh toán:"
-                totalValue={`${total} USD`}
-                subTotalNote={`Quy đổi tương đương: ${totalVnd.toLocaleString("vi-VN")} VNĐ`}
+                totalValue={`${finalTotalUsd} USD`}
+                subTotalNote={`Quy đổi tương đương: ${finalTotalVnd.toLocaleString("vi-VN")} VNĐ`}
                 isSubmitting={isLoading}
                 onCancel={() => setShowConfirmModal(false)}
                 onConfirm={handleConfirmBuy}

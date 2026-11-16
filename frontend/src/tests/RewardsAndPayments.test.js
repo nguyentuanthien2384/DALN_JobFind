@@ -171,7 +171,7 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
         expect(onOpenTopup).toHaveBeenCalledWith('history');
     });
 
-    test('renders JobCompetitionSection locked without fake numbers and unlocks real DB metrics', async () => {
+    test('renders the locked competition report and displays the service response after unlocking', async () => {
         rewardPaymentService.getJobCompetitionReportService.mockResolvedValue({
             errCode: 0,
             data: {
@@ -183,6 +183,8 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
                 todayApplicants: 5,
                 hiringTarget: 2,
                 competitionRatio: '1 : 17',
+                jobOverview: { salaryLabel: '25 - 40 triệu', experienceLabel: '3 năm', categoryLabel: 'CNTT', locationLabel: 'TP Hồ Chí Minh' },
+                hasApplied: false,
                 expectedSalaryAvgMillion: null,
                 expectedSalaryRangeLabel: null,
                 profileMatchPercent: null,
@@ -199,6 +201,7 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
             data: {
                 report: {
                     unlocked: true,
+                    expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
                     unlockCostPoints: 10,
                     unlockTtlDays: 30,
                     walletBalancePoints: 35,
@@ -206,10 +209,24 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
                     todayApplicants: 5,
                     hiringTarget: 2,
                     competitionRatio: '1 : 17',
+                    jobOverview: { salaryLabel: '25 - 40 triệu', experienceLabel: '3 năm', categoryLabel: 'CNTT', locationLabel: 'TP Hồ Chí Minh' },
+                    hasApplied: false,
                     expectedSalaryAvgMillion: 24.5,
                     expectedSalaryRangeLabel: 'Từ 34 hồ sơ: 15 - 30 triệu',
                     profileMatchPercent: 91,
                     profileRankLabel: 'Xếp hạng #2/34 hồ sơ đã nộp',
+                    profileComparison: {
+                        totalCriteriaCount: 4, identifiedCriteriaCount: 2, evaluatedCriteriaCount: 2, metCriteriaCount: 2, needsUpdateCount: 0,
+                        criteria: [
+                            { key: 'skills', label: 'Kỹ năng', status: 'met', requirementStatus: 'identified', requiredLabel: 'React, TypeScript', candidateLabel: 'Khớp 2/2 kỹ năng' },
+                            { key: 'experience', label: 'Kinh nghiệm', status: 'met', requirementStatus: 'identified', requiredLabel: '3 năm', candidateLabel: 'Đã khai báo 3 năm' },
+                            { key: 'category', label: 'Ngành nghề', status: 'not_required', requirementStatus: 'not_identified', requiredLabel: 'Chưa công bố', candidateLabel: 'CNTT' },
+                            { key: 'location', label: 'Địa điểm', status: 'not_required', requirementStatus: 'not_identified', requiredLabel: 'Chưa công bố', candidateLabel: 'TP Hồ Chí Minh' },
+                        ],
+                        requiredSkills: [{ id: 1, name: 'React' }, { id: 2, name: 'TypeScript' }],
+                        matchedSkills: [{ id: 1, name: 'React' }, { id: 2, name: 'TypeScript' }],
+                        unrecordedSkills: [], recommendations: [],
+                    },
                     experienceBreakdown: [
                         { key: 'under3', label: 'Dưới 3 năm kinh nghiệm', percent: 21, count: 7 },
                         { key: 'threeToFive', label: '3 - 5 năm kinh nghiệm', percent: 56, count: 19, isUserGroup: true, highlight: true },
@@ -238,9 +255,9 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
             />
         );
 
-        expect(await screen.findByText('1 : 17')).toBeInTheDocument();
-        expect(screen.getAllByText('Đang khóa')).toHaveLength(2);
-        expect(screen.queryByText('Phân bổ kinh nghiệm ứng viên')).not.toBeInTheDocument();
+        expect(await screen.findByText('17 ứng viên cho mỗi vị trí')).toBeInTheDocument();
+        expect(screen.getByText('Lương tin đăng').parentElement).toHaveTextContent('25 - 40 triệu');
+        expect(screen.queryByText('Hồ sơ của bạn với công việc này')).not.toBeInTheDocument();
 
         const unlockBtn = await screen.findByRole('button', { name: /Mở khóa ngay \(-10 điểm\)/i });
         fireEvent.click(unlockBtn);
@@ -248,10 +265,10 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
         await waitFor(() => {
             expect(rewardPaymentService.unlockJobCompetitionReportService).toHaveBeenCalledWith(88);
         });
-        expect(await screen.findByText('91%')).toBeInTheDocument();
-        expect(screen.getByText('24.5 triệu')).toBeInTheDocument();
-        expect(screen.getByText('React (22)')).toBeInTheDocument();
-        expect(screen.getByText('Khớp 2/2 (100%)')).toBeInTheDocument();
+        expect(await screen.findByText('Khớp 2/2 kỹ năng')).toBeInTheDocument();
+        expect(screen.getByText('Đã khai báo 3 năm')).toBeInTheDocument();
+        expect(screen.queryByText('91%')).not.toBeInTheDocument();
+        expect(screen.queryByText('24,5 triệu/tháng')).not.toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Xem lịch sử điểm' }));
         expect(onOpenTopup).toHaveBeenCalledWith('history');
@@ -275,6 +292,7 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
                 errCode: 0,
                 data: {
                     unlocked: true,
+                    expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
                     unlockCostPoints: 10,
                     walletBalancePoints: 10,
                     totalApplicants: 0,
@@ -282,7 +300,7 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
                     hiringTarget: 1,
                     competitionRatio: '1 : 0',
                     expectedSalaryAvgMillion: null,
-                    expectedSalaryRangeLabel: 'Thỏa thuận (chưa có ứng viên kê khai lương)',
+                    expectedSalaryRangeLabel: 'Chưa có ứng viên kê khai lương kỳ vọng',
                     profileMatchPercent: 0,
                     profileRankLabel: 'Chưa có hồ sơ đối thủ',
                     experienceBreakdown: [],
@@ -312,7 +330,7 @@ describe('Rewards & Multi-Gateway Payments UI', () => {
         expect(
             await screen.findByText('Hiện chưa có ứng viên nào nộp hồ sơ vào vị trí này.')
         ).toBeInTheDocument();
-        expect(screen.getByText('Thỏa thuận')).toBeInTheDocument();
+        expect(screen.getByText('Chưa có dữ liệu lương mong muốn để hiển thị.')).toBeInTheDocument();
     });
 
     test('renders EmployerRewardsSection and redeems Top Points for recruitment allowances', async () => {

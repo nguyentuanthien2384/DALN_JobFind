@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { getAdminRewardsOverviewService } from '../../../service/rewardPaymentService';
+import { toast } from 'react-toastify';
+import {
+    DEFAULT_PROMO_CATALOG,
+    deleteAdminPromoCodeService,
+    getAdminRewardsOverviewService,
+    upsertAdminPromoCodeService,
+} from '../../../service/rewardPaymentService';
 import './EmployerRewardsSection.css';
 
 const PURPOSE_LABELS = {
@@ -21,12 +27,27 @@ const statusClassName = (status) => {
     return 'jf-admin-rewards__status jf-admin-rewards__status--failed';
 };
 
+const EMPTY_PROMO_FORM = {
+    code: '',
+    discountType: 'FIXED',
+    discount: 10000,
+    discountPercent: 10,
+    maxDiscount: 50000,
+    minAmount: 20000,
+    provider: '',
+    purpose: '',
+    description: '',
+    isActive: true,
+};
+
 const AdminRewardsOverview = () => {
     const [purpose, setPurpose] = useState('');
     const [status, setStatus] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [overview, setOverview] = useState(null);
+    const [promoForm, setPromoForm] = useState(EMPTY_PROMO_FORM);
+    const [savingPromo, setSavingPromo] = useState(false);
 
     const loadOverview = useCallback(async () => {
         setIsLoading(true);
@@ -58,6 +79,102 @@ const AdminRewardsOverview = () => {
     const companyWallets = summary.companyWallets || {};
     const orders = Array.isArray(overview?.orders) ? overview.orders : [];
     const transactions = Array.isArray(overview?.transactions) ? overview.transactions : [];
+    const promoCodes =
+        Array.isArray(overview?.promoCodes) && overview.promoCodes.length > 0
+            ? overview.promoCodes
+            : Object.values(DEFAULT_PROMO_CATALOG);
+
+    const handleSavePromo = async (e) => {
+        e.preventDefault();
+        const code = String(promoForm.code || '').trim().toUpperCase();
+        if (!code) {
+            toast.warning?.('Vui lòng nhập mã giảm giá.');
+            return;
+        }
+        setSavingPromo(true);
+        try {
+            const res = await upsertAdminPromoCodeService({
+                ...promoForm,
+                code,
+                provider: promoForm.provider || null,
+                purpose: promoForm.purpose || null,
+            });
+            if (res && res.errCode === 0) {
+                toast.success?.(res.errMessage || `Đã lưu mã ${code}`);
+                setPromoForm(EMPTY_PROMO_FORM);
+                if (Array.isArray(res.promoCodes)) {
+                    setOverview((prev) => ({ ...(prev || {}), promoCodes: res.promoCodes }));
+                } else {
+                    await loadOverview();
+                }
+            } else {
+                toast.error?.(res?.errMessage || 'Không thể lưu mã giảm giá.');
+            }
+        } catch (_err) {
+            toast.error?.('Không thể kết nối máy chủ khi lưu mã giảm giá.');
+        } finally {
+            setSavingPromo(false);
+        }
+    };
+
+    const handleTogglePromo = async (item) => {
+        try {
+            const res = await upsertAdminPromoCodeService({
+                ...item,
+                code: item.code,
+                isActive: item.isActive === false,
+            });
+            if (res && res.errCode === 0) {
+                toast.success?.(
+                    item.isActive === false
+                        ? `Đã kích hoạt lại mã ${item.code}`
+                        : `Đã tạm ngưng mã ${item.code}`
+                );
+                if (Array.isArray(res.promoCodes)) {
+                    setOverview((prev) => ({ ...(prev || {}), promoCodes: res.promoCodes }));
+                } else {
+                    await loadOverview();
+                }
+            } else {
+                toast.error?.(res?.errMessage || 'Không thể cập nhật trạng thái mã.');
+            }
+        } catch (_err) {
+            toast.error?.('Không thể cập nhật trạng thái mã.');
+        }
+    };
+
+    const handleDeletePromo = async (code) => {
+        try {
+            const res = await deleteAdminPromoCodeService(code);
+            if (res && res.errCode === 0) {
+                toast.success?.(res.errMessage || `Đã xóa mã ${code}`);
+                if (Array.isArray(res.promoCodes)) {
+                    setOverview((prev) => ({ ...(prev || {}), promoCodes: res.promoCodes }));
+                } else {
+                    await loadOverview();
+                }
+            } else {
+                toast.error?.(res?.errMessage || 'Không thể xóa mã giảm giá.');
+            }
+        } catch (_err) {
+            toast.error?.('Không thể xóa mã giảm giá.');
+        }
+    };
+
+    const handleEditPromo = (item) => {
+        setPromoForm({
+            code: item.code || '',
+            discountType: item.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED',
+            discount: Number(item.discount ?? item.discountVnd ?? 10000) || 10000,
+            discountPercent: Number(item.discountPercent ?? 10) || 10,
+            maxDiscount: Number(item.maxDiscount ?? 0) || 0,
+            minAmount: Number(item.minAmount ?? item.minAmountVnd ?? 0) || 0,
+            provider: item.provider || '',
+            purpose: item.purpose || '',
+            description: item.description || item.label || '',
+            isActive: item.isActive !== false,
+        });
+    };
 
     return (
         <section className="jf-admin-rewards" aria-label="Quản lý nạp & tích điểm toàn hệ thống">
@@ -126,6 +243,285 @@ const AdminRewardsOverview = () => {
                         {Number(companyWallets.walletCount || 0)} công ty • Đã tích:{' '}
                         {Number(companyWallets.totalEarned || 0)} / Đã đổi: {Number(companyWallets.totalSpent || 0)}
                     </div>
+                </div>
+            </div>
+
+            <div className="jf-admin-rewards__section">
+                <div className="jf-admin-rewards__toolbar">
+                    <h3 className="jf-emp-catalog-title">Quản lý Mã giảm giá (Promo Codes)</h3>
+                </div>
+
+                <form
+                    onSubmit={handleSavePromo}
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                        gap: '10px',
+                        padding: '14px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        marginBottom: '14px',
+                    }}
+                >
+                    <div>
+                        <label htmlFor="promo-code-input" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                            Mã ưu đãi *
+                        </label>
+                        <input
+                            id="promo-code-input"
+                            type="text"
+                            className="jf-admin-rewards__select"
+                            style={{ width: '100%' }}
+                            placeholder="VD: SUMMER20K"
+                            value={promoForm.code}
+                            onChange={(e) => setPromoForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="promo-type-select" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                            Hình thức giảm
+                        </label>
+                        <select
+                            id="promo-type-select"
+                            className="jf-admin-rewards__select"
+                            style={{ width: '100%' }}
+                            value={promoForm.discountType}
+                            onChange={(e) => setPromoForm((p) => ({ ...p, discountType: e.target.value }))}
+                        >
+                            <option value="FIXED">Giảm tiền mặt (VNĐ)</option>
+                            <option value="PERCENT">Giảm theo phần trăm (%)</option>
+                        </select>
+                    </div>
+                    {promoForm.discountType === 'PERCENT' ? (
+                        <>
+                            <div>
+                                <label htmlFor="promo-percent-input" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                                    Mức giảm (%)
+                                </label>
+                                <input
+                                    id="promo-percent-input"
+                                    type="number"
+                                    min="1"
+                                    max="90"
+                                    className="jf-admin-rewards__select"
+                                    style={{ width: '100%' }}
+                                    value={promoForm.discountPercent}
+                                    onChange={(e) => setPromoForm((p) => ({ ...p, discountPercent: Number(e.target.value) }))}
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="promo-max-input" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                                    Giảm tối đa (VNĐ)
+                                </label>
+                                <input
+                                    id="promo-max-input"
+                                    type="number"
+                                    min="0"
+                                    step="1000"
+                                    className="jf-admin-rewards__select"
+                                    style={{ width: '100%' }}
+                                    value={promoForm.maxDiscount}
+                                    onChange={(e) => setPromoForm((p) => ({ ...p, maxDiscount: Number(e.target.value) }))}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <div>
+                            <label htmlFor="promo-amount-input" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                                Số tiền giảm (VNĐ)
+                            </label>
+                            <input
+                                id="promo-amount-input"
+                                type="number"
+                                min="1000"
+                                step="1000"
+                                className="jf-admin-rewards__select"
+                                style={{ width: '100%' }}
+                                value={promoForm.discount}
+                                onChange={(e) => setPromoForm((p) => ({ ...p, discount: Number(e.target.value) }))}
+                            />
+                        </div>
+                    )}
+                    <div>
+                        <label htmlFor="promo-min-input" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                            Đơn tối thiểu (VNĐ)
+                        </label>
+                        <input
+                            id="promo-min-input"
+                            type="number"
+                            min="0"
+                            step="5000"
+                            className="jf-admin-rewards__select"
+                            style={{ width: '100%' }}
+                            value={promoForm.minAmount}
+                            onChange={(e) => setPromoForm((p) => ({ ...p, minAmount: Number(e.target.value) }))}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="promo-provider-select" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                            Cổng thanh toán
+                        </label>
+                        <select
+                            id="promo-provider-select"
+                            className="jf-admin-rewards__select"
+                            style={{ width: '100%' }}
+                            value={promoForm.provider}
+                            onChange={(e) => setPromoForm((p) => ({ ...p, provider: e.target.value }))}
+                        >
+                            <option value="">Tất cả các cổng</option>
+                            <option value="VNPAY">Chỉ VNPAY</option>
+                            <option value="MOMO">Chỉ MoMo</option>
+                            <option value="ZALOPAY">Chỉ ZaloPay</option>
+                            <option value="PAYPAL">Chỉ PayPal</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="promo-purpose-select" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                            Phạm vi giao dịch
+                        </label>
+                        <select
+                            id="promo-purpose-select"
+                            className="jf-admin-rewards__select"
+                            style={{ width: '100%' }}
+                            value={promoForm.purpose}
+                            onChange={(e) => setPromoForm((p) => ({ ...p, purpose: e.target.value }))}
+                        >
+                            <option value="">Mọi giao dịch</option>
+                            <option value="POINT_TOPUP">Ứng viên nạp điểm</option>
+                            <option value="PACKAGE_POST">Mua gói đăng tin</option>
+                            <option value="PACKAGE_CV">Mua gói xem CV</option>
+                        </select>
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                        <label htmlFor="promo-desc-input" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                            Mô tả hiển thị
+                        </label>
+                        <input
+                            id="promo-desc-input"
+                            type="text"
+                            className="jf-admin-rewards__select"
+                            style={{ width: '100%' }}
+                            placeholder="VD: Giảm 20.000đ cho đơn từ 100.000đ"
+                            value={promoForm.description}
+                            onChange={(e) => setPromoForm((p) => ({ ...p, description: e.target.value }))}
+                        />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+                        <button
+                            type="submit"
+                            className="jf-admin-rewards__btn"
+                            disabled={savingPromo}
+                            style={{ background: '#252b60', color: '#fff', borderColor: '#252b60' }}
+                        >
+                            {savingPromo ? 'Đang lưu...' : 'Lưu mã giảm giá'}
+                        </button>
+                        {promoForm.code && (
+                            <button
+                                type="button"
+                                className="jf-admin-rewards__btn"
+                                onClick={() => setPromoForm(EMPTY_PROMO_FORM)}
+                            >
+                                Đặt lại
+                            </button>
+                        )}
+                    </div>
+                </form>
+
+                <div className="jf-admin-rewards__table-wrap">
+                    <table className="jf-admin-rewards__table">
+                        <thead>
+                            <tr>
+                                <th>Mã ưu đãi</th>
+                                <th>Mức giảm</th>
+                                <th>Đơn tối thiểu</th>
+                                <th>Cổng / Phạm vi</th>
+                                <th>Mô tả</th>
+                                <th>Trạng thái</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {promoCodes.map((item) => {
+                                const isPercent =
+                                    item.discountType === 'PERCENT' || Number(item.discountPercent) > 0;
+                                const discountVal = Number(item.discount ?? item.discountVnd ?? 0);
+                                const minVal = Number(item.minAmount ?? item.minAmountVnd ?? 0);
+                                const active = item.isActive !== false;
+                                return (
+                                    <tr key={item.code}>
+                                        <td>
+                                            <strong>{item.code}</strong>
+                                        </td>
+                                        <td>
+                                            {isPercent ? (
+                                                <span>
+                                                    -{item.discountPercent}%
+                                                    {Number(item.maxDiscount) > 0
+                                                        ? ` (tối đa ${Number(item.maxDiscount).toLocaleString('vi-VN')}đ)`
+                                                        : ''}
+                                                </span>
+                                            ) : (
+                                                <span>-{discountVal.toLocaleString('vi-VN')} VNĐ</span>
+                                            )}
+                                        </td>
+                                        <td>{minVal.toLocaleString('vi-VN')} VNĐ</td>
+                                        <td>
+                                            <div>{item.provider ? `Cổng ${item.provider}` : 'Tất cả cổng'}</div>
+                                            <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                                                {item.purpose ? PURPOSE_LABELS[item.purpose] || item.purpose : 'Mọi giao dịch'}
+                                            </div>
+                                        </td>
+                                        <td>{item.description || item.label || '—'}</td>
+                                        <td>
+                                            <span
+                                                className={
+                                                    active
+                                                        ? 'jf-admin-rewards__status jf-admin-rewards__status--paid'
+                                                        : 'jf-admin-rewards__status jf-admin-rewards__status--failed'
+                                                }
+                                            >
+                                                {active ? 'Đang bật' : 'Tạm ngưng'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                <button
+                                                    type="button"
+                                                    className="jf-admin-rewards__btn"
+                                                    style={{ padding: '3px 8px', fontSize: '12px' }}
+                                                    onClick={() => handleEditPromo(item)}
+                                                >
+                                                    Sửa
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="jf-admin-rewards__btn"
+                                                    style={{ padding: '3px 8px', fontSize: '12px' }}
+                                                    onClick={() => handleTogglePromo(item)}
+                                                >
+                                                    {active ? 'Tạm ngưng' : 'Bật lại'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="jf-admin-rewards__btn"
+                                                    style={{
+                                                        padding: '3px 8px',
+                                                        fontSize: '12px',
+                                                        color: '#b91c1c',
+                                                        borderColor: '#fecaca',
+                                                    }}
+                                                    onClick={() => handleDeletePromo(item.code)}
+                                                >
+                                                    Xóa
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

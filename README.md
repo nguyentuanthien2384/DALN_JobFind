@@ -174,6 +174,8 @@ Dự án đã tích hợp chế độ **Merchant dùng thử (Sandbox)** cho c�
 | `ZALOPAY5K` | `-5.000đ` | `20.000đ` | Chỉ ZaloPay |
 | `ARCHITECT5K` | `-5.000đ` | `20.000đ` | Tất cả các cổng |
 | `JOBFIND10K` | `-10.000đ` | `50.000đ` | Tất cả các cổng |
+| `JOBFIND20K` | `-20.000đ` | `100.000đ` | Tất cả các cổng |
+| `VIP15` | `-15%` *(tối đa `50.000đ`)* | `100.000đ` | Tất cả các cổng |
 
 #### 3. Lưu ý cấu hình khóa Sandbox trong `backend/.env`
 - **ZaloPay (`2554`)**, **MoMo (`MOMO`)** và **PayPal (`sandbox`)**: Đã điền sẵn khóa Merchant Trial chính thức — mở trực tiếp cổng thanh toán thật của nhà cung cấp.
@@ -196,13 +198,51 @@ Dự án đã tích hợp chế độ **Merchant dùng thử (Sandbox)** cho c�
 | 👔 **Nhân viên tuyển dụng (HR)** | `0938800001` → `0938800008` | Thuộc cùng công ty tương ứng với chủ công ty bên trên |
 | 👤 **Ứng viên** | `0928800001` → `0928800072` | `0928800001` *(Nguyễn Minh An)* — có sẵn CV, lịch sử ứng tuyển & ví điểm |
 
+#### Bảng chi tiết 8 Công ty `(Demo)` — Mật khẩu: `Demo@123456`
+
+| Mã | Tên công ty | SĐT Chủ công ty (`COMPANY`) | SĐT Nhân viên HR (`EMPLOYER`) | Email chủ công ty | Mật khẩu |
+| :-: | :--- | :---: | :---: | :--- | :---: |
+| `#28` | **Sao Khuê Digital (Demo)** | `0918800001` | `0938800001` | `recruiter.saokhue@example.test` | `Demo@123456` |
+| `#29` | **Mây Xanh Creative (Demo)** | `0918800002` | `0938800002` | `recruiter.mayxanh@example.test` | `Demo@123456` |
+| `#30` | **An Phúc Commerce (Demo)** | `0918800003` | `0938800003` | `recruiter.anphuc@example.test` | `Demo@123456` |
+| `#31` | **Kết Nối People (Demo)** | `0918800004` | `0938800004` | `recruiter.ketnoi@example.test` | `Demo@123456` |
+| `#32` | **Ánh Dương Learning (Demo)** | `0918800005` | `0938800005` | `recruiter.anhduong@example.test` | `Demo@123456` |
+| `#33` | **Không Gian Việt (Demo)** | `0918800006` | `0938800006` | `recruiter.khonggianviet@example.test` | `Demo@123456` |
+| `#34` | **Minh Định Legal (Demo)** | `0918800007` | `0938800007` | `recruiter.minhdinh@example.test` | `Demo@123456` |
+| `#35` | **Hành Trình Logistics (Demo)** | `0918800008` | `0938800008` | `recruiter.hanhtrinh@example.test` | `Demo@123456` |
+
 ### 2. Tài khoản mặc định sẵn có — Mật khẩu: `123456`
 
-| Vai trò | Số điện thoại |
-| :--- | :--- |
-| 🛡 **Quản trị viên (Admin)** | `0795095049` |
-| 🏢 **Nhà tuyển dụng** | `0795095042` |
-| 👤 **Ứng viên** | `0764188123` |
+| Vai trò | Số điện thoại đăng nhập | Ghi chú |
+| :--- | :--- | :--- |
+| 🛡 **Quản trị viên (Admin)** | `0795095049` · `0795095000` · `0900000001` | Toàn quyền duyệt tin, duyệt công ty, quản lý người dùng & gói dịch vụ |
+| 🏢 **Nhà tuyển dụng (Mặc định)** | `0795095042` · `0795095098` · `0900000002` | Xem bảng chi tiết 17 công ty mặc định bên dưới |
+| 👤 **Ứng viên (Mặc định)** | `0764188123` · `0900000003` · `0795095041` · `0795095768` · `0795095789` · `0795095678` · `0764088023` · `0762216048` | Có sẵn hồ sơ ứng viên mặc định |
+
+<details>
+<summary><b>📋 Bảng chi tiết 17 Công ty mặc định sẵn có (`#6` → `#22`) — Mật khẩu: `123456`</b></summary>
+
+| Mã | Tên công ty | SĐT Chủ công ty (`COMPANY`) | SĐT Nhân viên HR (`EMPLOYER`) | Mật khẩu |
+| :-: | :--- | :---: | :---: | :---: |
+| `#6` | **Công ty TNHH CMC GLOBAL** | `0764188023` · `0795095008` · `0900000002` | — | `123456` |
+| `#7` | **Công ty Cổ phần Tập đoàn Hoa Sen** | `0785095048` | — | `123456` |
+| `#8` | **CÔNG TY CỔ PHẦN TẬP ĐOÀN ITP** | `0795095040` | — | `123456` |
+| `#9` | **Unilever** | `0764088020` | — | `123456` |
+| `#10` | **FPT Software** | `0764088022` | — | `123456` |
+| `#11` | **Ninja Van 2** | `0944043559` | `0795095047` | `123456` |
+| `#12` | **Babilala - Ứng dụng Tiếng Anh Online cho trẻ em** | `0795095042` | — | `123456` |
+| `#13` | **Đất Xanh Miền Trung** | `0795095038` | — | `123456` |
+| `#14` | **Tập đoàn ABC** | `0795095028` | `0795095002` | `123456` |
+| `#15` | **Công ty ABC** | `0795095148` | `0795095012` | `123456` |
+| `#16` | **Công ty TNHH XYZ** | `0795095248` | `0795095123` | `123456` |
+| `#17` | **Công ty TNHH Thành Công** | `0795095098` | — | `123456` |
+| `#18` | **Công ty TNHH Thế Giới** | `0795095125` | — | `123456` |
+| `#19` | **Công ty phần mềm Tấn Tài** | `0795095111` | — | `123456` |
+| `#20` | **Công ty Cổ phần Tấn Tài** | `0795095222` | — | `123456` |
+| `#21` | **Công ty TNHH Văn Minh** | `0795095333` | — | `123456` |
+| `#22` | **Cong ty TNHH tieu ban 3** | `0764188024` | — | `123456` |
+
+</details>
 
 ---
 

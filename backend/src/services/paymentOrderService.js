@@ -6,7 +6,10 @@ const {
     CANDIDATE_TOPUP_PACKAGES,
     formatCandidateTopupPackages,
     USD_VND_RATE,
-    loadPromoCodes
+    DEFAULT_PROMO_CODES,
+    normalizePromoRule,
+    loadPromoCodes,
+    setRuntimePromoOverride
 } = require('../config/rewards');
 const {
     gateways,
@@ -45,14 +48,132 @@ const ALLOWANCE_FIELDS = {
 
 const generateOrderCode = () => `JF${Date.now()}${Math.floor(100 + Math.random() * 900)}`;
 
-const evaluatePromo = ({ promoCode, provider, amountVnd }) => {
+const PROMO_ALLCODE_TYPE = 'PROMO_CODE';
+const PROMO_ALLCODE_PREFIX = 'PROMO_';
+
+const serializePromoCompact = (rule) => JSON.stringify({
+    t: rule.discountType === 'PERCENT' ? 'PERCENT' : 'FIXED',
+    d: Number(rule.discount) || 0,
+    p: Number(rule.discountPercent) || 0,
+    mx: Number(rule.maxDiscount) || 0,
+    mn: Number(rule.minAmount) || 0,
+    pv: rule.provider || null,
+    pu: rule.purpose || null,
+    a: rule.isActive === false ? 0 : 1,
+    e: rule.expiresAt || null
+});
+
+const parsePromoCompact = (code, valueText, imageJson) => {
+    try {
+        const parsed = imageJson ? JSON.parse(imageJson) : {};
+        if (parsed && parsed.del) {
+            return { deleted: true };
+        }
+        return normalizePromoRule(code, {
+            discountType: parsed.t || (Number(parsed.p) > 0 ? 'PERCENT' : 'FIXED'),
+            discount: Number(parsed.d) || 0,
+            discountPercent: Number(parsed.p) || 0,
+            maxDiscount: Number(parsed.mx) || 0,
+            minAmount: Number(parsed.mn) || 0,
+            provider: parsed.pv || null,
+            purpose: parsed.pu || null,
+            isActive: parsed.a === undefined ? true : Number(parsed.a) !== 0,
+            expiresAt: parsed.e || null,
+            description: valueText || ''
+        });
+    } catch (_error) {
+        return null;
+    }
+};
+
+const syncPromoCodesFromDb = async () => {
+    if (!db?.Allcode?.findAll) return;
+    try {
+        const rows = await db.Allcode.findAll({
+            where: { type: PROMO_ALLCODE_TYPE },
+            raw: true
+        });
+        if (!Array.isArray(rows)) return;
+        for (const row of rows) {
+            const rawCode = String(row?.code || '');
+            if (!rawCode.startsWith(PROMO_ALLCODE_PREFIX)) continue;
+            const promoCode = rawCode.slice(PROMO_ALLCODE_PREFIX.length).trim().toUpperCase();
+            if (!promoCode) continue;
+            const parsed = parsePromoCompact(promoCode, row.value, row.image);
+            if (parsed) {
+                setRuntimePromoOverride(promoCode, parsed);
+            }
+        }
+    } catch (_error) {
+        // Keep in-memory promo catalog if DB query is unavailable
+    }
+};
+
+const formatPromoEntry = (code, info) => {
+    const normalized = normalizePromoRule(code, info);
+    return {
+        code: normalized.code,
+        provider: normalized.provider || null,
+        purpose: normalized.purpose || null,
+        discountType: normalized.discountType,
+        discount: Number(normalized.discount) || 0,
+        discountVnd: Number(normalized.discount) || 0,
+        discountPercent: Number(normalized.discountPercent) || 0,
+        maxDiscount: Number(normalized.maxDiscount) || 0,
+        minAmount: Number(normalized.minAmount) || 0,
+        minAmountVnd: Number(normalized.minAmount) || 0,
+        isActive: normalized.isActive !== false,
+        expiresAt: normalized.expiresAt || null,
+        description: normalized.description || '',
+        label: normalized.description || '',
+        isBuiltIn: Boolean(DEFAULT_PROMO_CODES[normalized.code])
+    };
+};
+
+const formatPromoList = ({ includeInactive = false, purpose = null } = {}) => {
+    const promos = loadPromoCodes({ includeInactive });
+    const normalizedPurpose = purpose && String(purpose).toUpperCase() !== 'ALL'
+        ? String(purpose).trim().toUpperCase()
+        : null;
+    return Object.entries(promos)
+        .map(([code, info]) => formatPromoEntry(code, info))
+        .filter((item) => {
+            if (!includeInactive && !item.isActive) return false;
+            if (!includeInactive && item.expiresAt && new Date(item.expiresAt).getTime() < Date.now()) return false;
+            if (normalizedPurpose && item.purpose && item.purpose !== normalizedPurpose) return false;
+            return true;
+        });
+};
+
+const PURPOSE_LABELS_VI = {
+    POINT_TOPUP: 'Nạp điểm ứng viên',
+    PACKAGE_POST: 'Mua gói đăng tin',
+    PACKAGE_CV: 'Mua gói xem CV'
+};
+
+const evaluatePromo = ({ promoCode, provider, amountVnd, purpose = null }) => {
     const normalized = String(promoCode || '').trim().toUpperCase();
     if (!normalized) return { valid: true, code: null, discountAmount: 0, description: null };
 
-    const promos = loadPromoCodes();
-    const promo = promos[normalized];
+    const allPromos = loadPromoCodes({ includeInactive: true });
+    const promo = allPromos[normalized];
     if (!promo) {
         return { valid: false, code: normalized, discountAmount: 0, errMessage: 'Mã ưu đãi không tồn tại hoặc đã hết hạn' };
+    }
+    if (promo.isActive === false) {
+        return { valid: false, code: normalized, discountAmount: 0, errMessage: `Mã ${normalized} hiện đang tạm ngưng áp dụng` };
+    }
+    if (promo.expiresAt && new Date(promo.expiresAt).getTime() < Date.now()) {
+        return { valid: false, code: normalized, discountAmount: 0, errMessage: `Mã ${normalized} đã hết hạn sử dụng` };
+    }
+    if (promo.purpose && purpose && String(promo.purpose).toUpperCase() !== String(purpose).toUpperCase()) {
+        const targetLabel = PURPOSE_LABELS_VI[promo.purpose] || promo.purpose;
+        return {
+            valid: false,
+            code: normalized,
+            discountAmount: 0,
+            errMessage: `Mã ${normalized} chỉ áp dụng cho ${targetLabel}`
+        };
     }
     if (promo.provider && provider && String(promo.provider).toUpperCase() !== String(provider).toUpperCase()) {
         return {
@@ -62,7 +183,8 @@ const evaluatePromo = ({ promoCode, provider, amountVnd }) => {
             errMessage: `Mã ${normalized} chỉ áp dụng cho cổng ${promo.provider}`
         };
     }
-    if (promo.minAmount && Number(amountVnd) < Number(promo.minAmount)) {
+    const baseAmount = Number(amountVnd) || 0;
+    if (promo.minAmount && baseAmount < Number(promo.minAmount)) {
         return {
             valid: false,
             code: normalized,
@@ -70,24 +192,32 @@ const evaluatePromo = ({ promoCode, provider, amountVnd }) => {
             errMessage: `Mã ${normalized} áp dụng cho đơn tối thiểu ${Number(promo.minAmount).toLocaleString('vi-VN')}đ`
         };
     }
-    const discountAmount = Math.min(Number(promo.discount) || 0, Math.max(0, Number(amountVnd) - 5000));
+    let rawDiscount = Number(promo.discount) || 0;
+    if (promo.discountType === 'PERCENT' || Number(promo.discountPercent) > 0) {
+        rawDiscount = Math.round((baseAmount * Number(promo.discountPercent)) / 100);
+        if (Number(promo.maxDiscount) > 0) {
+            rawDiscount = Math.min(rawDiscount, Number(promo.maxDiscount));
+        }
+    }
+    const discountAmount = Math.min(rawDiscount, Math.max(0, baseAmount - 5000));
     return {
         valid: true,
         code: normalized,
         discountAmount,
+        finalAmountVnd: Math.max(5000, baseAmount - discountAmount),
+        discountType: promo.discountType || 'FIXED',
+        discountPercent: Number(promo.discountPercent) || 0,
+        maxDiscount: Number(promo.maxDiscount) || 0,
+        minAmount: Number(promo.minAmount) || 0,
+        provider: promo.provider || null,
+        purpose: promo.purpose || null,
         description: promo.description || `Giảm ${discountAmount.toLocaleString('vi-VN')}đ`
     };
 };
 
 const getPaymentCatalog = async ({ userId, companyId, roleCode = null } = {}) => {
-    const promos = loadPromoCodes();
-    const promoList = Object.entries(promos).map(([code, info]) => ({
-        code,
-        provider: info.provider || null,
-        discount: Number(info.discount) || 0,
-        minAmount: Number(info.minAmount) || 0,
-        description: info.description || ''
-    }));
+    await syncPromoCodesFromDb();
+    const promoList = formatPromoList({ includeInactive: roleCode === 'ADMIN' });
     const canLoadCandidate = Boolean(userId) && (!roleCode || roleCode === 'CANDIDATE');
     const canLoadEmployer = Boolean(companyId) && (!roleCode || roleCode === 'COMPANY' || roleCode === 'EMPLOYER');
     const candidateOverview = canLoadCandidate ? await rewardService.getCandidateRewardOverview(userId) : null;
@@ -235,7 +365,8 @@ const createCheckout = async ({
     const spec = await resolveOrderSpec({ purpose, itemCode, quantity, userId, companyId });
     if (spec.error) return { errCode: 2, errMessage: spec.error };
 
-    const promo = evaluatePromo({ promoCode, provider: providerKey, amountVnd: spec.originalAmount });
+    await syncPromoCodesFromDb();
+    const promo = evaluatePromo({ promoCode, provider: providerKey, amountVnd: spec.originalAmount, purpose: spec.purpose });
     if (!promo.valid) return { errCode: 2, errMessage: promo.errMessage };
 
     const amount = Math.max(5000, spec.originalAmount - promo.discountAmount);
@@ -688,9 +819,136 @@ const getUserPaymentOrders = async ({
     return { errCode: 0, data: result.rows, count: result.count };
 };
 
+const getAdminPromoCodes = async () => {
+    await syncPromoCodesFromDb();
+    return {
+        errCode: 0,
+        data: formatPromoList({ includeInactive: true })
+    };
+};
+
+const upsertPromoCode = async (payload = {}) => {
+    await syncPromoCodesFromDb();
+    const normalizedCode = String(payload.code || '').trim().toUpperCase();
+    if (!normalizedCode || !/^[A-Z0-9_-]{3,32}$/.test(normalizedCode)) {
+        return {
+            errCode: 1,
+            errMessage: 'Mã giảm giá chỉ gồm chữ cái in hoa, chữ số, dấu gạch ngang/dưới (từ 3 đến 32 ký tự)'
+        };
+    }
+
+    const existing = loadPromoCodes({ includeInactive: true })[normalizedCode] || {};
+    const mergedRaw = {
+        ...existing,
+        ...payload,
+        code: normalizedCode
+    };
+    const isPercentRaw = String(mergedRaw.discountType || '').toUpperCase() === 'PERCENT' || Number(mergedRaw.discountPercent) > 0;
+    if (isPercentRaw) {
+        const rawPct = Math.round(Number(mergedRaw.discountPercent ?? mergedRaw.discount ?? 0) || 0);
+        if (rawPct < 1 || rawPct > 90) {
+            return { errCode: 2, errMessage: 'Mức giảm theo phần trăm phải từ 1% đến 90%' };
+        }
+    }
+    const rule = normalizePromoRule(normalizedCode, mergedRaw);
+
+    if (rule.discountType !== 'PERCENT' && rule.discount < 1000) {
+        return { errCode: 2, errMessage: 'Số tiền giảm giá tối thiểu là 1.000 VNĐ' };
+    }
+
+    setRuntimePromoOverride(normalizedCode, rule);
+
+    const allcodeKey = `${PROMO_ALLCODE_PREFIX}${normalizedCode}`;
+    const compactJson = serializePromoCompact(rule);
+    const descValue = String(rule.description || '').slice(0, 250);
+
+    try {
+        if (db?.Allcode?.findOne) {
+            const found = await db.Allcode.findOne({ where: { code: allcodeKey, type: PROMO_ALLCODE_TYPE }, raw: false });
+            if (found && typeof found.save === 'function') {
+                found.value = descValue;
+                found.image = compactJson;
+                await found.save();
+            } else if (found && db.Allcode.update) {
+                await db.Allcode.update(
+                    { value: descValue, image: compactJson },
+                    { where: { code: allcodeKey, type: PROMO_ALLCODE_TYPE } }
+                );
+            } else if (db.Allcode.create) {
+                await db.Allcode.create({
+                    code: allcodeKey,
+                    type: PROMO_ALLCODE_TYPE,
+                    value: descValue,
+                    image: compactJson
+                });
+            }
+        }
+    } catch (_error) {
+        // Runtime override remains active even if DB persistence fails in mock environments
+    }
+
+    return {
+        errCode: 0,
+        errMessage: `Đã lưu mã giảm giá ${normalizedCode} thành công`,
+        data: formatPromoEntry(normalizedCode, rule),
+        promoCodes: formatPromoList({ includeInactive: true })
+    };
+};
+
+const deletePromoCode = async (code) => {
+    await syncPromoCodesFromDb();
+    const normalizedCode = String(code || '').trim().toUpperCase();
+    if (!normalizedCode) {
+        return { errCode: 1, errMessage: 'Thiếu mã giảm giá cần xóa' };
+    }
+
+    const existing = loadPromoCodes({ includeInactive: true })[normalizedCode];
+    if (!existing) {
+        return { errCode: 2, errMessage: 'Mã giảm giá không tồn tại' };
+    }
+
+    setRuntimePromoOverride(normalizedCode, { deleted: true });
+    const allcodeKey = `${PROMO_ALLCODE_PREFIX}${normalizedCode}`;
+
+    try {
+        if (DEFAULT_PROMO_CODES[normalizedCode]) {
+            const tombstone = JSON.stringify({ del: 1 });
+            if (db?.Allcode?.findOne) {
+                const found = await db.Allcode.findOne({ where: { code: allcodeKey, type: PROMO_ALLCODE_TYPE }, raw: false });
+                if (found && typeof found.save === 'function') {
+                    found.image = tombstone;
+                    await found.save();
+                } else if (db.Allcode.create) {
+                    await db.Allcode.create({
+                        code: allcodeKey,
+                        type: PROMO_ALLCODE_TYPE,
+                        value: existing.description || normalizedCode,
+                        image: tombstone
+                    });
+                }
+            }
+        } else if (db?.Allcode?.destroy) {
+            await db.Allcode.destroy({ where: { code: allcodeKey, type: PROMO_ALLCODE_TYPE } });
+        }
+    } catch (_error) {
+        // Runtime override remains active
+    }
+
+    return {
+        errCode: 0,
+        errMessage: `Đã xóa mã giảm giá ${normalizedCode}`,
+        promoCodes: formatPromoList({ includeInactive: true })
+    };
+};
+
 module.exports = {
+    syncPromoCodesFromDb,
+    formatPromoList,
     evaluatePromo,
     getPaymentCatalog,
+    getAdminPromoCodes,
+    upsertPromoCode,
+    deletePromoCode,
     createCheckout,
     settleOrderPaid,
     markOrderFailed,

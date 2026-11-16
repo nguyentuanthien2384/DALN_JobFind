@@ -2,22 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { toast } from 'react-toastify';
 import {
+    buildPromoCatalogMap,
     createPaymentCheckoutService,
     DEFAULT_CANDIDATE_TOPUP_PACKAGES,
+    evaluatePromoRuleClient,
     getCachedCandidateRewardOverview,
     getCandidateRewardOverviewService,
+    normalizeClientPromoRule,
+    previewPromoCodeService,
     setCachedCandidateRewardOverview,
 } from '../../service/rewardPaymentService';
 import { readJsonStorage } from '../../util/storage';
 import './PointTopupModal.css';
-
-const PROMO_CATALOG = {
-    VNPAY5K: { discountVnd: 5000, provider: 'VNPAY', minAmountVnd: 20000, label: 'Giảm 5.000đ qua VNPAY' },
-    ARCHITECT5K: { discountVnd: 5000, provider: null, minAmountVnd: 20000, label: 'Giảm 5.000đ' },
-    MOMO5K: { discountVnd: 5000, provider: 'MOMO', minAmountVnd: 20000, label: 'Giảm 5.000đ qua MoMo' },
-    ZALOPAY5K: { discountVnd: 5000, provider: 'ZALOPAY', minAmountVnd: 20000, label: 'Giảm 5.000đ qua ZaloPay' },
-    JOBFIND10K: { discountVnd: 10000, provider: null, minAmountVnd: 50000, label: 'Giảm 10.000đ' },
-};
 
 const GATEWAY_METHODS = [
     {
@@ -62,6 +58,7 @@ const PointTopupModal = ({
     const [selectedProvider, setSelectedProvider] = useState('VNPAY');
     const [promoInput, setPromoInput] = useState('');
     const [appliedPromo, setAppliedPromo] = useState('');
+    const [customPromos, setCustomPromos] = useState({});
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
@@ -146,24 +143,25 @@ const PointTopupModal = ({
         [selectedProvider]
     );
 
+    const promoCatalog = useMemo(() => {
+        const baseMap = buildPromoCatalogMap(localWallet?.promoCodes);
+        return { ...baseMap, ...customPromos };
+    }, [localWallet, customPromos]);
+
+    const promoList = useMemo(() => Object.values(promoCatalog), [promoCatalog]);
+
     const discountInfo = useMemo(() => {
         const code = String(appliedPromo || '').trim().toUpperCase();
-        if (!code || !PROMO_CATALOG[code]) {
-            return { discountVnd: 0, label: null };
+        if (!code) {
+            return { discountVnd: 0, label: null, reason: null };
         }
-        const rule = PROMO_CATALOG[code];
-        if (rule.provider && rule.provider !== selectedProvider) {
-            return { discountVnd: 0, label: null };
-        }
-        const basePrice = Number(selectedPkg?.priceVnd || 0);
-        if (rule.minAmountVnd && basePrice < rule.minAmountVnd) {
-            return { discountVnd: 0, label: null };
-        }
-        return {
-            discountVnd: Math.min(rule.discountVnd, Math.max(0, basePrice - 5000)),
-            label: rule.label,
-        };
-    }, [appliedPromo, selectedProvider, selectedPkg]);
+        const rule = promoCatalog[code];
+        return evaluatePromoRuleClient(rule, {
+            amountVnd: Number(selectedPkg?.priceVnd || 0),
+            provider: selectedProvider,
+            purpose: 'POINT_TOPUP',
+        });
+    }, [appliedPromo, promoCatalog, selectedProvider, selectedPkg]);
 
     const finalAmountVnd = useMemo(() => {
         const basePrice = Number(selectedPkg?.priceVnd || 0);
@@ -177,27 +175,84 @@ const PointTopupModal = ({
     const walletBalance = Number(localWallet?.wallet?.balancePoints ?? 0);
     const transactions = Array.isArray(localWallet?.transactions) ? localWallet.transactions : [];
 
-    const handleApplyPromo = () => {
-        const normalized = String(promoInput || '').trim().toUpperCase();
+    const applyPromoCodeValue = async (rawCode) => {
+        const normalized = String(rawCode !== undefined ? rawCode : promoInput || '').trim().toUpperCase();
         if (!normalized) {
+            setAppliedPromo('');
+            return true;
+        }
+        const basePrice = Number(selectedPkg?.priceVnd || 0);
+        const localRule = promoCatalog[normalized];
+        if (localRule) {
+            const evalRes = evaluatePromoRuleClient(localRule, {
+                amountVnd: basePrice,
+                provider: selectedProvider,
+                purpose: 'POINT_TOPUP',
+            });
+            if (!evalRes.valid) {
+                toast.warning(evalRes.reason || 'Mã giảm giá không đủ điều kiện áp dụng.');
+                return false;
+            }
+            setPromoInput(normalized);
+            setAppliedPromo(normalized);
+            toast.success(`Đã áp dụng mã ${normalized} (${evalRes.label}).`);
+            return true;
+        }
+
+        if (typeof previewPromoCodeService === 'function') {
+            try {
+                const res = await previewPromoCodeService({
+                    promoCode: normalized,
+                    provider: selectedProvider,
+                    amountVnd: basePrice,
+                    purpose: 'POINT_TOPUP',
+                });
+                if (res && res.errCode === 0 && res.data?.valid) {
+                    const serverRule = normalizeClientPromoRule(normalized, {
+                        ...res.data,
+                        discountVnd: res.data.discountAmount,
+                        label: res.data.description,
+                    });
+                    setCustomPromos((prev) => ({ ...prev, [normalized]: serverRule }));
+                    setPromoInput(normalized);
+                    setAppliedPromo(normalized);
+                    toast.success(`Đã áp dụng mã ${normalized} (${serverRule.label}).`);
+                    return true;
+                }
+                if (res && res.errMessage) {
+                    toast.warning(res.errMessage);
+                    return false;
+                }
+            } catch (_error) {
+                // Fall through to default warning
+            }
+        }
+
+        toast.warning('Mã giảm giá không tồn tại hoặc đã hết hạn.');
+        return false;
+    };
+
+    const handleApplyPromo = () => {
+        void applyPromoCodeValue(promoInput);
+    };
+
+    const handleSelectPromoChip = (item) => {
+        if (!item?.code) return;
+        if (appliedPromo === item.code && discountInfo.discountVnd > 0) {
+            setPromoInput('');
             setAppliedPromo('');
             return;
         }
-        const rule = PROMO_CATALOG[normalized];
-        if (!rule) {
-            toast.warning('Mã giảm giá không tồn tại hoặc đã hết hạn.');
-            return;
+        void applyPromoCodeValue(item.code);
+    };
+
+    const handleNextStep = async () => {
+        const typed = String(promoInput || '').trim().toUpperCase();
+        if (typed && typed !== appliedPromo) {
+            const ok = await applyPromoCodeValue(typed);
+            if (!ok) return;
         }
-        if (rule.provider && rule.provider !== selectedProvider) {
-            toast.warning(`Mã ${normalized} chỉ áp dụng cho phương thức ${rule.provider}.`);
-            return;
-        }
-        if (rule.minAmountVnd && Number(selectedPkg?.priceVnd || 0) < rule.minAmountVnd) {
-            toast.warning(`Mã ${normalized} áp dụng cho gói từ ${formatVnd(rule.minAmountVnd)}.`);
-            return;
-        }
-        setAppliedPromo(normalized);
-        toast.success(`Đã áp dụng mã ${normalized} (${rule.label}).`);
+        setStep('confirm');
     };
 
     const handleConfirmCheckout = async () => {
@@ -449,6 +504,12 @@ const PointTopupModal = ({
                                                 placeholder="Nhập mã giảm giá (nếu có)"
                                                 value={promoInput}
                                                 onChange={(e) => setPromoInput(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleApplyPromo();
+                                                    }
+                                                }}
                                             />
                                             <button
                                                 type="button"
@@ -481,6 +542,82 @@ const PointTopupModal = ({
                                                 >
                                                     Bỏ mã
                                                 </button>
+                                            </div>
+                                        )}
+                                        {appliedPromo && discountInfo.discountVnd === 0 && discountInfo.reason && (
+                                            <div className="jf-topup-promo-warning">
+                                                <span>{discountInfo.reason}</span>
+                                                <button
+                                                    type="button"
+                                                    style={{
+                                                        border: 'none',
+                                                        background: 'none',
+                                                        color: '#b91c1c',
+                                                        fontSize: '12px',
+                                                        cursor: 'pointer',
+                                                        padding: 0,
+                                                    }}
+                                                    onClick={() => {
+                                                        setPromoInput('');
+                                                        setAppliedPromo('');
+                                                    }}
+                                                >
+                                                    Bỏ mã
+                                                </button>
+                                            </div>
+                                        )}
+                                        {promoList.length > 0 && (
+                                            <div className="jf-topup-promo-catalog">
+                                                <div className="jf-topup-promo-catalog__title">
+                                                    Mã ưu đãi có sẵn (bấm để chọn nhanh):
+                                                </div>
+                                                <div className="jf-topup-promo-chips">
+                                                    {promoList.map((item) => {
+                                                        const check = evaluatePromoRuleClient(item, {
+                                                            amountVnd: Number(selectedPkg?.priceVnd || 0),
+                                                            provider: selectedProvider,
+                                                            purpose: 'POINT_TOPUP',
+                                                        });
+                                                        const isApplied =
+                                                            appliedPromo === item.code && discountInfo.discountVnd > 0;
+                                                        const benefitTag =
+                                                            item.discountType === 'PERCENT'
+                                                                ? `-${item.discountPercent}%`
+                                                                : `-${Math.round((Number(item.discountVnd) || 0) / 1000)}k`;
+                                                        const condParts = [];
+                                                        if (item.provider) condParts.push(`Cổng ${item.provider}`);
+                                                        if (item.minAmountVnd > 0) {
+                                                            condParts.push(`Đơn ≥ ${Math.round(item.minAmountVnd / 1000)}k`);
+                                                        }
+                                                        return (
+                                                            <button
+                                                                key={item.code}
+                                                                type="button"
+                                                                className={`jf-topup-promo-chip ${
+                                                                    isApplied
+                                                                        ? 'is-applied'
+                                                                        : check.valid
+                                                                        ? 'is-eligible'
+                                                                        : 'is-ineligible'
+                                                                }`}
+                                                                title={item.description || item.label}
+                                                                onClick={() => handleSelectPromoChip(item)}
+                                                            >
+                                                                <span className="jf-topup-promo-chip__code">
+                                                                    {item.code}
+                                                                </span>
+                                                                <span className="jf-topup-promo-chip__benefit">
+                                                                    {benefitTag}
+                                                                </span>
+                                                                {condParts.length > 0 && (
+                                                                    <span className="jf-topup-promo-chip__cond">
+                                                                        ({condParts.join(' · ')})
+                                                                    </span>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -565,6 +702,11 @@ const PointTopupModal = ({
                         <>
                             <div className="jf-topup-footer__summary">
                                 Tổng cộng: <strong>{formatVnd(finalAmountVnd)}</strong>
+                                {discountInfo.discountVnd > 0 && (
+                                    <span className="jf-topup-footer__discount-badge">
+                                        (-{Math.round(discountInfo.discountVnd / 1000)}k)
+                                    </span>
+                                )}
                             </div>
                             <div className="jf-topup-footer__actions">
                                 <button
@@ -577,7 +719,7 @@ const PointTopupModal = ({
                                 <button
                                     type="button"
                                     className="jf-topup-btn jf-topup-btn--primary"
-                                    onClick={() => setStep('confirm')}
+                                    onClick={handleNextStep}
                                 >
                                     Tiếp tục
                                 </button>

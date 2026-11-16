@@ -1,0 +1,27 @@
+.candidate-settings-return {
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.candidate-settings-return p {
+    margin: 0 0 4px;
+}
+
+.candidate-settings-return a {
+    color: #252b60;
+    text-decoration: underline;
+}
+
+.candidate-settings-section {
+    scroll-margin-top: 110px;
+}
+
+.candidate-settings-section:focus {
+    outline: 2px solid #252b60;
+    outline-offset: 6px;
+    border-radius: 4px;
+}

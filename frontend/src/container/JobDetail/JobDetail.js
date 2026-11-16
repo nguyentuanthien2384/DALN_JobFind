@@ -215,7 +215,7 @@ export default function JobDetail() {
                     {showCandidateRewards && (
                         <JobCompetitionSection
                             postId={id}
-                            applicationCount={applicationCount ?? 0}
+                            applicationCount={applicationCount}
                             hiringTarget={Number(detail.amount) || 1}
                             onOpenTopup={(tab = 'topup') => setTopupModalState({ open: true, tab })}
                         />

@@ -67,17 +67,21 @@
     color: #374151;
 }
 
-/* 4 Stat Boxes */
+/* Public job and applicant overview */
 .jf-competition-stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
     margin-top: 16px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
     .jf-competition-stats-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .jf-competition-stats-grid > :last-child {
+        grid-column: 1 / -1;
     }
 }
 
@@ -154,6 +158,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     margin-top: 16px;
+    align-items: start;
 }
 
 @media (max-width: 820px) {
@@ -169,7 +174,7 @@
     padding: 16px;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 14px;
 }
 
@@ -294,7 +299,104 @@
 
 .jf-comp-ai-item strong {
     text-align: right;
-    flex-shrink: 0;
+    flex: 0 1 auto;
+}
+
+.jf-comp-ai-item > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.jf-comp-request-state {
+    margin: 18px 0 0;
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.jf-comp-data-note,
+.jf-comp-source {
+    margin: 10px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #4b5563;
+    overflow-wrap: anywhere;
+}
+
+.jf-comp-source {
+    margin: 0 0 12px;
+}
+
+.jf-comp-expiry {
+    color: #166534;
+}
+
+.jf-comp-criterion-status {
+    display: block;
+    margin-top: 3px;
+    font-size: 11.5px;
+    line-height: 1.5;
+}
+
+.jf-comp-salary-panel {
+    gap: 8px;
+}
+
+.jf-comp-salary-panel .jf-comp-panel__head {
+    margin-bottom: 0;
+    flex-wrap: wrap;
+}
+
+.jf-comp-salary-distribution {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.jf-comp-salary-distribution li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f2f5;
+    color: #374151;
+    font-size: 12.5px;
+}
+
+.jf-comp-salary-distribution strong {
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .jf-competition-card {
+        padding: 16px;
+    }
+
+    .jf-comp-panel {
+        padding: 12px;
+    }
+
+    .jf-comp-lock-box__info {
+        min-width: 0;
+        flex-basis: 100%;
+    }
+
+    .jf-comp-stat-box {
+        padding: 10px;
+        overflow-wrap: anywhere;
+    }
+
+    .jf-comp-stat-box__value {
+        font-size: 17px;
+    }
+
+    .jf-comp-bar-row__top {
+        flex-wrap: wrap;
+    }
 }
 
 .jf-comp-tone--emerald {
@@ -322,6 +424,46 @@
     line-height: 1.5;
 }
 
+.jf-comp-method {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #4b5563;
+}
+
+.jf-comp-method > summary {
+    width: fit-content;
+    max-width: 100%;
+    color: #252b60;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.jf-comp-method > summary:hover {
+    text-decoration: underline;
+}
+
+.jf-comp-method > summary:focus-visible {
+    outline: 2px solid #252b60;
+    outline-offset: 4px;
+    border-radius: 2px;
+}
+
+.jf-comp-method__content {
+    margin-top: 8px;
+    padding-left: 12px;
+    border-left: 2px solid #e5e7eb;
+    overflow-wrap: anywhere;
+}
+
+.jf-comp-method__content p {
+    margin: 0;
+}
+
+.jf-comp-method__content p + p {
+    margin-top: 6px;
+}
+
 .jf-comp-footer-note {
     margin-top: 14px;
     padding-top: 12px;
@@ -344,6 +486,316 @@
     cursor: pointer;
     padding: 0;
     text-decoration: underline;
+}
+
+.jf-comp-access {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+}
+
+.jf-comp-access__expiry {
+    color: #6b7280;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.jf-comp-stat-box__value span {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.jf-comp-stat-box__value--salary {
+    font-size: 17px;
+    line-height: 1.4;
+}
+
+.jf-comp-application-state {
+    margin: 12px 0 0;
+    color: #4b5563;
+    font-size: 12px;
+}
+
+.jf-comp-application-state--submitted {
+    color: #166534;
+}
+
+.jf-comp-profile {
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.jf-comp-profile__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.jf-comp-profile__title {
+    margin: 0;
+    color: #191c21;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.5;
+}
+
+.jf-comp-profile__summary {
+    margin: 5px 0 0;
+    color: #252b60;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.jf-comp-profile__summary span {
+    color: #4b5563;
+    font-weight: 400;
+}
+
+.jf-comp-comparison-wrap {
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+.jf-comp-comparison {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    color: #374151;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.jf-comp-comparison th,
+.jf-comp-comparison td {
+    padding: 11px 12px;
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    border-bottom: 1px solid #eef0f4;
+}
+
+.jf-comp-comparison thead th {
+    background: #f7f8fb;
+    color: #4b5563;
+    font-weight: 500;
+}
+
+.jf-comp-comparison thead th:first-child {
+    width: 16%;
+}
+
+.jf-comp-comparison thead th:last-child {
+    width: 23%;
+}
+
+.jf-comp-comparison tbody th {
+    color: #252b60;
+    font-weight: 600;
+}
+
+.jf-comp-comparison tbody tr:last-child > * {
+    border-bottom: 0;
+}
+
+.jf-comp-match-status {
+    display: inline-block;
+    padding: 3px 7px;
+    border-radius: 5px;
+    background: #f3f4f6;
+    color: #4b5563;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.jf-comp-match-status--emerald {
+    background: #edf8f0;
+    color: #166534;
+}
+
+.jf-comp-match-status--amber {
+    background: #fff7e8;
+    color: #92400e;
+}
+
+.jf-comp-profile-skills {
+    margin-top: 18px;
+}
+
+.jf-comp-profile-skills__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-bottom: 10px;
+}
+
+.jf-comp-profile-skills__head h4,
+.jf-comp-section-label {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #374151;
+    line-height: 1.5;
+}
+
+.jf-comp-profile-skills__head > span {
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.jf-comp-skill-groups {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.jf-comp-skill-group {
+    padding: 12px;
+    background: #f7f8fb;
+    border-radius: 7px;
+}
+
+.jf-comp-skill-group h5 {
+    margin: 0 0 8px;
+    color: #374151;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.jf-comp-skill-group h5 span {
+    font-weight: 400;
+}
+
+.jf-comp-skill-group > p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.jf-comp-skill-group--matched .jf-comp-skill-tag {
+    background: #edf8f0;
+    border-color: #d1e8d7;
+    color: #166534;
+}
+
+.jf-comp-profile__note,
+.jf-comp-insight-caption {
+    margin: 10px 0 0;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.jf-comp-panel > .jf-comp-panel__head {
+    margin-bottom: 0;
+}
+
+.jf-comp-panel > .jf-comp-insight-caption {
+    margin: 0;
+}
+
+.jf-comp-profile-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.jf-comp-profile-actions > a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
+.jf-comp-profile-actions > a.jf-comp-btn-primary {
+    color: #ffffff;
+}
+
+.jf-comp-profile-actions > a:focus-visible,
+.jf-competition-card button:focus-visible {
+    outline: 2px solid #252b60;
+    outline-offset: 3px;
+}
+
+.jf-comp-footer-note__privacy {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+}
+
+@media (max-width: 640px) {
+    .jf-comp-access {
+        align-items: flex-start;
+    }
+
+    .jf-comp-skill-groups {
+        grid-template-columns: 1fr;
+    }
+
+    .jf-comp-comparison thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+    }
+
+    .jf-comp-comparison tbody,
+    .jf-comp-comparison tr,
+    .jf-comp-comparison th,
+    .jf-comp-comparison td {
+        display: block;
+        width: auto;
+    }
+
+    .jf-comp-comparison tbody tr {
+        padding: 12px;
+        border-bottom: 1px solid #eef0f4;
+    }
+
+    .jf-comp-comparison tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .jf-comp-comparison tbody th,
+    .jf-comp-comparison td {
+        padding: 0;
+        border: 0;
+    }
+
+    .jf-comp-comparison tbody th {
+        margin-bottom: 7px;
+    }
+
+    .jf-comp-comparison td {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+        gap: 12px;
+        margin-top: 6px;
+    }
+
+    .jf-comp-comparison td::before {
+        content: attr(data-label);
+        color: #6b7280;
+        font-size: 11.5px;
+    }
+
+    .jf-comp-match-status {
+        justify-self: start;
+    }
 }
 
 /* Shared Buttons */
