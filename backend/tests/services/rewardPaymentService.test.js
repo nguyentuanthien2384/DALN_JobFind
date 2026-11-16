@@ -4,7 +4,8 @@ const model = () => ({
     findAndCountAll: jest.fn(),
     create: jest.fn(),
     count: jest.fn(),
-    update: jest.fn()
+    update: jest.fn(),
+    destroy: jest.fn()
 });
 
 const transaction = { LOCK: { UPDATE: 'UPDATE' } };
@@ -1463,5 +1464,188 @@ describe('rewardService & paymentOrderService', () => {
         );
         expect(delRes.status).toHaveBeenCalledWith(200);
         expect(delRes.json.mock.calls[0][0].errCode).toBe(0);
+    });
+
+    test('covers promo sync, DB persistence, edge evaluations, and controller error branches', async () => {
+        const { clearRuntimePromoOverrides } = require('../../src/config/rewards');
+        const candidateUser = { id: 7, companyId: null, userAccountData: { roleCode: 'CANDIDATE' } };
+        const companyOwnerUser = {
+            id: 9,
+            companyId: 4,
+            userCompanyData: { id: 4, statusCode: 'S1', censorCode: 'CS1' },
+            userAccountData: { roleCode: 'COMPANY' }
+        };
+        const adminUser = { id: 1, companyId: null, userAccountData: { roleCode: 'ADMIN' } };
+
+        try {
+            clearRuntimePromoOverrides();
+
+            // 1. syncPromoCodesFromDb & parsePromoCompact branches
+            mockDb.Allcode.findAll.mockResolvedValueOnce([
+                { code: 'OTHER_KEY', value: 'ignored', image: '{}' },
+                { code: 'PROMO_', value: 'empty', image: '{}' },
+                { code: 'PROMO_SYNCFIXED', value: 'Giảm 15k', image: JSON.stringify({ t: 'FIXED', d: 15000, mn: 40000, a: 1 }) },
+                { code: 'PROMO_SYNCPCT', value: '', image: JSON.stringify({ p: 25, mx: 0, pv: 'MOMO', pu: 'POINT_TOPUP', a: 1 }) },
+                { code: 'PROMO_SYNCEXPIRED', value: '', image: JSON.stringify({ d: 5000, e: '2020-01-01T00:00:00.000Z' }) },
+                { code: 'PROMO_SYNCDEL', value: '', image: JSON.stringify({ del: 1 }) },
+                { code: 'PROMO_BADJSON', value: '', image: '{invalid-json' },
+                { code: 'PROMO_EMPTYIMG', value: 'Empty', image: '' }
+            ]);
+            await paymentOrderService.syncPromoCodesFromDb();
+
+            const filteredTopup = paymentOrderService.formatPromoList({ includeInactive: false, purpose: 'POINT_TOPUP' });
+            expect(filteredTopup.some((p) => p.code === 'SYNCPCT')).toBe(true);
+            expect(filteredTopup.some((p) => p.code === 'SYNCEXPIRED')).toBe(false);
+
+            const adminCatalog = await paymentOrderService.getAdminPromoCodes();
+            expect(adminCatalog.errCode).toBe(0);
+            expect(adminCatalog.data.some((p) => p.code === 'SYNCEXPIRED')).toBe(true);
+
+            mockDb.Allcode.findAll.mockRejectedValueOnce(new Error('allcode unavailable'));
+            await paymentOrderService.syncPromoCodesFromDb();
+
+            // 2. evaluatePromo branches: expired, uncapped percent, unknown purpose, provider mismatch
+            expect(paymentOrderService.evaluatePromo({ promoCode: 'SYNCEXPIRED', amountVnd: 100000 }).valid).toBe(false);
+            const uncappedPct = paymentOrderService.evaluatePromo({
+                promoCode: 'SYNCPCT',
+                provider: 'MOMO',
+                amountVnd: 100000,
+                purpose: 'POINT_TOPUP'
+            });
+            expect(uncappedPct.valid).toBe(true);
+            expect(uncappedPct.discountAmount).toBe(25000);
+
+            await paymentOrderService.upsertPromoCode({
+                code: 'CUSTOM_RULE',
+                discountType: 'FIXED',
+                discount: 5000,
+                purpose: 'CUSTOM_PURPOSE',
+                provider: 'VNPAY'
+            });
+            expect(paymentOrderService.evaluatePromo({
+                promoCode: 'CUSTOM_RULE',
+                provider: 'VNPAY',
+                amountVnd: 50000,
+                purpose: 'POINT_TOPUP'
+            }).valid).toBe(false);
+
+            // 3. upsertPromoCode DB persistence branches (save, update, create, error) + validation
+            expect((await paymentOrderService.upsertPromoCode({
+                code: 'BAD_PCT_ZERO',
+                discountType: 'PERCENT',
+                discountPercent: 0
+            })).errCode).toBe(2);
+
+            const existingRowWithSave = { value: '', image: '', save: jest.fn().mockResolvedValueOnce(true) };
+            mockDb.Allcode.findOne.mockResolvedValueOnce(existingRowWithSave);
+            const savedPromo = await paymentOrderService.upsertPromoCode({ code: 'DBSAVE10', discount: 10000 });
+            expect(savedPromo.errCode).toBe(0);
+            expect(existingRowWithSave.save).toHaveBeenCalled();
+
+            mockDb.Allcode.findOne.mockResolvedValueOnce({ value: '', image: '' });
+            const updatedPromo = await paymentOrderService.upsertPromoCode({ code: 'DBUPDATE10', discount: 10000 });
+            expect(updatedPromo.errCode).toBe(0);
+            expect(mockDb.Allcode.update).toHaveBeenCalled();
+
+            mockDb.Allcode.findOne.mockResolvedValueOnce(null);
+            const createdPromo = await paymentOrderService.upsertPromoCode({ code: 'DBCREATE10', discount: 10000 });
+            expect(createdPromo.errCode).toBe(0);
+            expect(mockDb.Allcode.create).toHaveBeenCalled();
+
+            mockDb.Allcode.findOne.mockRejectedValueOnce(new Error('db write fail'));
+            expect((await paymentOrderService.upsertPromoCode({ code: 'DBFAIL10', discount: 10000 })).errCode).toBe(0);
+
+            // 4. deletePromoCode branches (missing, unknown, built-in tombstone save/create, custom destroy, error)
+            expect((await paymentOrderService.deletePromoCode('')).errCode).toBe(1);
+            expect((await paymentOrderService.deletePromoCode('NO_SUCH_PROMO')).errCode).toBe(2);
+
+            const builtInRow = { image: '', save: jest.fn().mockResolvedValueOnce(true) };
+            mockDb.Allcode.findOne.mockResolvedValueOnce(builtInRow);
+            expect((await paymentOrderService.deletePromoCode('VNPAY5K')).errCode).toBe(0);
+            expect(builtInRow.save).toHaveBeenCalled();
+
+            mockDb.Allcode.findOne.mockResolvedValueOnce(null);
+            expect((await paymentOrderService.deletePromoCode('MOMO5K')).errCode).toBe(0);
+            expect(mockDb.Allcode.create).toHaveBeenCalled();
+
+            expect((await paymentOrderService.deletePromoCode('DBCREATE10')).errCode).toBe(0);
+            expect(mockDb.Allcode.destroy).toHaveBeenCalled();
+
+            mockDb.Allcode.destroy.mockRejectedValueOnce(new Error('destroy fail'));
+            expect((await paymentOrderService.deletePromoCode('DBUPDATE10')).errCode).toBe(0);
+
+            // 5. Controller previewPromoCode RBAC & query branches + catch branches
+            const previewCandForbidden = createResponse();
+            await controller.previewPromoCode(
+                createRequest({ user: companyOwnerUser, body: { promoCode: 'JOBFIND10K', purpose: 'POINT_TOPUP', amountVnd: 50000 } }),
+                previewCandForbidden
+            );
+            expect(previewCandForbidden.status).toHaveBeenCalledWith(403);
+
+            const previewEmpForbidden = createResponse();
+            await controller.previewPromoCode(
+                createRequest({ user: candidateUser, query: { promoCode: 'JOBFIND10K', purpose: 'PACKAGE_POST', amountVnd: 50000 } }),
+                previewEmpForbidden
+            );
+            expect(previewEmpForbidden.status).toHaveBeenCalledWith(403);
+
+            const previewCandOk = createResponse();
+            await controller.previewPromoCode(
+                createRequest({ user: candidateUser, query: { promoCode: 'JOBFIND10K', purpose: 'POINT_TOPUP', provider: 'VNPAY', amountVnd: 50000 } }),
+                previewCandOk
+            );
+            expect(previewCandOk.status).toHaveBeenCalledWith(200);
+            expect(previewCandOk.json.mock.calls[0][0].errCode).toBe(0);
+
+            const deleteViaQueryRes = createResponse();
+            await controller.deletePromoCode(
+                createRequest({ user: adminUser, query: { code: 'DBSAVE10' } }),
+                deleteViaQueryRes
+            );
+            expect(deleteViaQueryRes.status).toHaveBeenCalledWith(200);
+            expect(deleteViaQueryRes.json.mock.calls[0][0].errCode).toBe(0);
+
+            const invalidPurposeCheckout = createResponse();
+            await controller.createCheckout(
+                createRequest({ user: candidateUser, body: { purpose: 'BAD_PURPOSE', itemCode: 'BASIC', provider: 'VNPAY' } }),
+                invalidPurposeCheckout
+            );
+            expect(invalidPurposeCheckout.status).toHaveBeenCalledWith(400);
+
+            // Controller catch branches via spies
+            const upsertSpy = jest.spyOn(paymentOrderService, 'upsertPromoCode').mockRejectedValueOnce(new Error('boom'));
+            const upsertErrRes = createResponse();
+            await controller.upsertPromoCode(createRequest({ user: adminUser, body: { code: 'ERR1' } }), upsertErrRes);
+            expect(upsertErrRes.json.mock.calls[0][0].errCode).toBe(-1);
+            upsertSpy.mockRestore();
+
+            const deleteSpy = jest.spyOn(paymentOrderService, 'deletePromoCode').mockRejectedValueOnce(new Error('boom'));
+            const deleteErrRes = createResponse();
+            await controller.deletePromoCode(createRequest({ user: adminUser, body: { code: 'ERR1' } }), deleteErrRes);
+            expect(deleteErrRes.json.mock.calls[0][0].errCode).toBe(-1);
+            deleteSpy.mockRestore();
+
+            const evalSpy = jest.spyOn(paymentOrderService, 'evaluatePromo').mockImplementationOnce(() => {
+                throw new Error('boom');
+            });
+            const previewErrRes = createResponse();
+            await controller.previewPromoCode(createRequest({ user: candidateUser, body: { promoCode: 'VNPAY5K' } }), previewErrRes);
+            expect(previewErrRes.json.mock.calls[0][0].errCode).toBe(-1);
+            evalSpy.mockRestore();
+
+            const adminSpy = jest.spyOn(rewardService, 'getAdminRewardsOverview').mockRejectedValueOnce(new Error('boom'));
+            const adminErrRes = createResponse();
+            await controller.getAdminRewardsOverview(createRequest({ user: adminUser }), adminErrRes);
+            expect(adminErrRes.json.mock.calls[0][0].errCode).toBe(-1);
+            adminSpy.mockRestore();
+
+            const verifySpy = jest.spyOn(paymentOrderService, 'verifyPaymentReturn').mockResolvedValueOnce({ errCode: 3, errMessage: 'Forbidden' });
+            const verifyForbiddenRes = createResponse();
+            await controller.verifyPaymentReturn(createRequest({ user: candidateUser, query: { order: 'JF1' } }), verifyForbiddenRes);
+            expect(verifyForbiddenRes.status).toHaveBeenCalledWith(403);
+            verifySpy.mockRestore();
+        } finally {
+            clearRuntimePromoOverrides();
+        }
     });
 });
