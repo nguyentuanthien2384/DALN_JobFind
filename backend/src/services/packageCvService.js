@@ -292,35 +292,34 @@ let getStatisticalPackage = (data) => {
 let getHistoryTrade = (data) => {
     return new Promise(async (resolve, reject) => {
         try {
-            if (!data.companyId) {
+            if (!data.companyId && data.isAdmin !== true) {
                 resolve({
                     errCode: 1,
                     errMessage: 'Missing required parameters !'
                 })
             } else {
-                let company = await db.Company.findOne({
+                let company = data.companyId ? await db.Company.findOne({
                     where: { id: data.companyId }
-                })
-                if (!company) {
+                }) : null;
+                if (data.companyId && !company) {
                     resolve({
                         errCode: 2,
                         errorMessage: 'Không tồn tại công ty',
                     })
                 }
                 else {
-                    let listUserOfCompany = await db.User.findAll({
-                        where: { companyId: company.id },
-                        attributes: ['id'],
-                    })
-                    listUserOfCompany = listUserOfCompany.map(item => {
-                        return {
-                            userId: item.id
-                        }
-                    })
+                    let companyFilter = {};
+                    if (company) {
+                        const users = await db.User.findAll({
+                            where: { companyId: company.id },
+                            attributes: ['id'],
+                        });
+                        companyFilter = {
+                            [Op.and]: [{ [Op.or]: users.map(item => ({ userId: item.id })) }]
+                        };
+                    }
                     let objectFilter = {
-                        where: {
-                            [Op.and]: [{ [Op.or]: listUserOfCompany }]
-                        },
+                        where: companyFilter,
                         order: [['updatedAt', 'DESC']],
                         nest: true,
                         raw: true,

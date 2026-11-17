@@ -337,12 +337,12 @@ const getStatisticalPackageCv = (data) => {
     return axios.get(`/api/get-statistical-package-cv?limit=${data.limit}&offset=${data.offset}&fromDate=${data.fromDate}&toDate=${data.toDate}`)
 }
 
-const getHistoryTradeCv = (data) => {
-    return axios.get(`/api/get-history-trade-cv?limit=${data.limit}&offset=${data.offset}&fromDate=${data.fromDate}&toDate=${data.toDate}&companyId=${data.companyId}`)
+const getHistoryTradeCv = (data = {}) => {
+    return axios.get(`/api/get-history-trade-cv?${listQuery(data, ['limit', 'offset', 'fromDate', 'toDate', 'companyId'])}`)
 }
 
-const getHistoryTradePost = (data) => {
-    return axios.get(`/api/get-history-trade-post?limit=${data.limit}&offset=${data.offset}&fromDate=${data.fromDate}&toDate=${data.toDate}&companyId=${data.companyId}`)
+const getHistoryTradePost = (data = {}) => {
+    return axios.get(`/api/get-history-trade-post?${listQuery(data, ['limit', 'offset', 'fromDate', 'toDate', 'companyId'])}`)
 }
 
 const getSumByYearPost = (year) => {

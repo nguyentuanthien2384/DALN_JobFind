@@ -38,6 +38,10 @@ jest.mock("../../components/support/SupportInbox", () => () => <main>SUPPORT INB
 jest.mock("./Company/AddCompany", () => () => <main>ADD COMPANY</main>);
 jest.mock("./User/UserInfo", () => () => <main>USER INFO</main>);
 jest.mock("./Post/ManagePost", () => () => <main>MANAGE POST</main>);
+jest.mock("./Cv/FilterCv", () => () => <main>CANDIDATE SEARCH</main>);
+jest.mock("./HistoryTrade/HistoryTradePost", () => () => <main>POST TRANSACTIONS</main>);
+jest.mock("./HistoryTrade/HistoryTradeCv", () => () => <main>CV TRANSACTIONS</main>);
+jest.mock("./PromoCode/ManagePromoCode", () => () => <main>PROMO CODES</main>);
 jest.mock("../../components/interviews/InterviewCalendar", () => () => <main>INTERVIEW CALENDAR</main>);
 // Layout tests only check the shell; the real list page would call /api/get-all-user.
 jest.mock("./User/ManageUser", () => () => <main>MANAGE USER</main>);
@@ -107,6 +111,22 @@ describe("admin layout shell", () => {
         expect(within(trail).getByRole("link", { name: "Danh sách nhân viên" })).toHaveAttribute("href", "/admin/list-employer/");
         expect(trail).toHaveTextContent("Chỉnh sửa người dùng");
         expect(within(trail).getAllByRole("link")[0]).toHaveAttribute("href", "/admin/");
+    });
+
+    it.each([
+        ["/list-candiate", "Tìm kiếm ứng viên", "Tuyển dụng", "CANDIDATE SEARCH"],
+        ["/history-post", "Lịch sử gói bài đăng", "Lịch sử giao dịch", "POST TRANSACTIONS"],
+        ["/history-cv", "Lịch sử gói xem ứng viên", "Lịch sử giao dịch", "CV TRANSACTIONS"],
+        ["/list-promo-code", "Mã giảm giá", "Kinh doanh", "PROMO CODES"],
+        ["/list-post", "Tin tuyển dụng", "Kiểm duyệt & hỗ trợ", "MANAGE POST"],
+    ])("labels an ADMIN feature opened directly at %s", async (route, label, parent, content) => {
+        renderAdmin(route, ADMIN);
+        expect(await screen.findByText(content)).toBeInTheDocument();
+        const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+        expect(trail).toHaveTextContent(parent);
+        expect(within(trail).getByText(label, { exact: true }).closest("li"))
+            .toHaveAttribute("aria-current", "page");
+        expect(document.title).toBe(`${label} · Quản trị JobFind`);
     });
 
     it("selects the requested nested administration route", async () => {

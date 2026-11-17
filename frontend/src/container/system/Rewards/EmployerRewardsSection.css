@@ -392,11 +392,31 @@
 }
 
 .jf-admin-rewards__status {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 11.5px;
     font-weight: 600;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+.jf-admin-rewards__table--promos {
+    min-width: 1120px;
+}
+
+.jf-admin-rewards__promo-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.jf-admin-rewards__promo-actions .jf-admin-rewards__btn {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    font-size: 12px;
 }
 
 .jf-admin-rewards__status--paid {

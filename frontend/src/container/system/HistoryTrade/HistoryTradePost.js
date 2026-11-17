@@ -14,6 +14,7 @@ const validDate = value => value === '' || (/^\d{4}-\d{2}-\d{2}$/.test(value) &&
 const HistoryTradePost = () => {
     const { RangePicker } = DatePicker;
     const [user] = useState(() => JSON.parse(localStorage.getItem("userData")) || {});
+    const companyId = user.roleCode === 'ADMIN' ? undefined : user.companyId;
     const [savedQuery, setQuery] = useListQuery({ page: 0, fromDate: "", toDate: "" });
     const validRange = validDate(savedQuery.fromDate) && validDate(savedQuery.toDate)
         && (!savedQuery.fromDate || !savedQuery.toDate || savedQuery.fromDate <= savedQuery.toDate);
@@ -26,7 +27,7 @@ const HistoryTradePost = () => {
     const [error, setError] = useState("");
     const numberPage = query.page;
 
-    const [loading, setLoading] = useListLoading(JSON.stringify([query.page, query.fromDate, query.toDate, user.companyId]));
+    const [loading, setLoading] = useListLoading(JSON.stringify([query.page, query.fromDate, query.toDate, companyId]));
     useEffect(() => {
         let current = true;
         setError("");
@@ -38,7 +39,7 @@ const HistoryTradePost = () => {
                     offset: query.page * PAGINATION.pagerow,
                     fromDate: query.fromDate,
                     toDate: query.toDate,
-                    companyId: user.companyId,
+                    companyId,
                 });
                 if (!current) return;
                 if (!result || result.errCode !== 0) throw new Error('history-unavailable');
@@ -57,7 +58,7 @@ const HistoryTradePost = () => {
         };
         load();
         return () => { current = false; };
-    }, [query.page, query.fromDate, query.toDate, user.companyId, setQuery, setLoading]);
+    }, [query.page, query.fromDate, query.toDate, companyId, setQuery, setLoading]);
 
     const onDatePicker = (values) => {
         const fromDate = values?.[0]?.format("YYYY-MM-DD") || "";
@@ -69,7 +70,7 @@ const HistoryTradePost = () => {
     const handleChangePage = ({ selected }) => setQuery({ page: selected });
     let handleOnClickExport = async () => {
         let res = await getHistoryTradePost({
-            companyId: user.companyId,
+            companyId,
             limit: "",
             offset: "",
             fromDate: query.fromDate,
@@ -109,7 +110,7 @@ const HistoryTradePost = () => {
             <div className="card">
                 <div className="card-body">
                     <h4 className="card-title">
-                        Lịch sử thanh toán các gói bài đăng
+                        Lịch sử thanh toán các gói bài đăng{user.roleCode === 'ADMIN' ? ' toàn hệ thống' : ''}
                     </h4>
                     <button
                         style={{ float: "right" }}
@@ -124,7 +125,7 @@ const HistoryTradePost = () => {
                     ></RangePicker>
 
                     {error && <div role="alert">{error}</div>}
-                    <StableList busy={loading} resetKey={JSON.stringify([query.fromDate, query.toDate, user.companyId])}><div className="table-responsive pt-2">
+                    <StableList busy={loading} resetKey={JSON.stringify([query.fromDate, query.toDate, companyId])}><div className="table-responsive pt-2">
                         <table className="table table-bordered">
                             <thead>
                                 <tr>

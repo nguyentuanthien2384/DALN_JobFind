@@ -32,6 +32,10 @@ describe("userService", () => {
         expect(axios.get).toHaveBeenLastCalledWith('/api/get-all-company?limit=50&offset=100&censorCode=CS3&statusCode=S2');
         service.getAllPostByRoleAdminService({ limit: 20, offset: 0, censorCode: 'PS3', isHot: '1' });
         expect(axios.get).toHaveBeenLastCalledWith('/api/get-all-post-admin?limit=20&offset=0&censorCode=PS3&isHot=1');
+        service.getHistoryTradePost({ limit: 10, offset: 0, companyId: undefined, fromDate: '', toDate: '' });
+        expect(axios.get).toHaveBeenLastCalledWith('/api/get-history-trade-post?limit=10&offset=0');
+        service.getHistoryTradeCv({ limit: '', offset: '', companyId: undefined, fromDate: '2026-11-01', toDate: '2026-11-17' });
+        expect(axios.get).toHaveBeenLastCalledWith('/api/get-history-trade-cv?limit=&offset=&fromDate=2026-11-01&toDate=2026-11-17');
     });
     test('repost forwards the stable key with bounded transport and never retries a lost response', async () => {
         const signal = new AbortController().signal, payload = { postId: 55, timeEnd: 1924992000000 };

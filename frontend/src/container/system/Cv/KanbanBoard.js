@@ -12,6 +12,7 @@ import {
     addApplicationNote,
     getApplicationDetail,
     getFunnel,
+    invalidateApplicationSnapshots,
     saveToTalentPool,
 } from "../../../service/applicationService";
 import { getAllPostByAdminService, getDetailCompanyById } from "../../../service/userService";
@@ -113,9 +114,13 @@ const KanbanBoard = () => {
     const currentDetail = useRef(null);
     currentDetail.current = detail?.id;
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState("");
 
     const user = JSON.parse(localStorage.getItem("userData") || "{}");
     const boardRequest = useRef(0);
+    const funnelRequest = useRef(0);
+    const mountedBoard = useRef(false);
+    const isAdmin = user.roleCode === 'ADMIN';
     // AI cham CV va soan thu chi danh cho tai khoan thuoc cong ty (khong cho ADMIN).
     const recruiterAi = ["COMPANY", "EMPLOYER"].includes(user.roleCode);
     const { byCv: screenings, refresh: refreshScreenings, screen: screenCv, markFailed } = useScreenings();
@@ -123,51 +128,92 @@ const KanbanBoard = () => {
     const [searchQuery, setSearchQuery] = useState("");
     const [bulk, setBulk] = useState(null);
 
+    const loadFunnel = useCallback(async (selectedJobId, boardGeneration = boardRequest.current) => {
+        const request = ++funnelRequest.current;
+        try {
+            const response = await getFunnel(selectedJobId);
+            if (!mountedBoard.current || boardGeneration !== boardRequest.current || request !== funnelRequest.current) return;
+            if (response?.errCode === 0 && Array.isArray(response.data?.funnel)
+                && response.data.funnel.every(item => item && typeof item.stage === 'string')) {
+                setFunnel(response.data);
+            }
+        } catch {
+            // Statistics are optional; their failure must not hide application cards.
+        }
+    }, []);
+
     const loadBoard = useCallback(async (selectedJobId) => {
         // Lan tai dau (tat ca tin) co the ve sau khi nguoi dung da chon loc: chi
         // ap ket qua cua lan tai moi nhat, neu khong bang hien sai tin dang chon.
         const request = ++boardRequest.current;
+        const current = () => mountedBoard.current && request === boardRequest.current;
         setIsLoading(true);
-        const [board, funnelRes] = await Promise.all([
-            getApplicationBoard(selectedJobId),
-            getFunnel(selectedJobId),
-        ]);
-        if (request !== boardRequest.current) return;
-        if (board && board.errCode === 0) {
-            setColumns(board.data.columns);
-            setTotal(board.data.total);
+        setLoadError("");
+        setFunnel(null);
+        void loadFunnel(selectedJobId, request);
+        try {
+            const board = await getApplicationBoard(selectedJobId);
+            if (!current()) return;
+            const validColumns = Array.isArray(board?.data?.columns)
+                && board.data.columns.every(column => column && typeof column.stage === 'string'
+                    && Array.isArray(column.items) && column.items.every(item => item && typeof item === 'object'));
+            if (board?.errCode !== 0 || !validColumns || !Number.isFinite(Number(board.data.total))) {
+                throw new Error(board?.errMessage || "Không tải được danh sách ứng viên");
+            }
+            const nextColumns = board.data.columns;
+            setColumns(nextColumns);
+            setTotal(Number(board.data.total));
+            if (isAdmin && !selectedJobId) {
+                const jobs = new Map();
+                for (const column of nextColumns) {
+                    for (const item of column.items) {
+                        const id = Number(item.job_id);
+                        if (Number.isSafeInteger(id) && id > 0 && !jobs.has(id)) {
+                            jobs.set(id, { id, postDetailData: { name: item.job_title || `Tin #${id}` } });
+                        }
+                    }
+                }
+                setPosts([...jobs.values()]);
+            }
             if (recruiterAi) {
-                const jobIds = [selectedJobId, ...board.data.columns.flatMap((col) => col.items.map((item) => item.job_id))];
+                const jobIds = [selectedJobId, ...nextColumns.flatMap((col) => col.items.map((item) => item.job_id))];
                 refreshScreenings(jobIds).catch(() => {});
             }
-        } else {
-            toast.error((board && board.errMessage) || "Không tải được danh sách ứng viên");
+        } catch (error) {
+            if (!current()) return;
+            const message = error?.message || "Không tải được danh sách ứng viên";
+            setColumns([]);
+            setTotal(0);
+            setLoadError(message);
+            toast.error(message);
+        } finally {
+            if (current()) setIsLoading(false);
         }
-        if (funnelRes && funnelRes.errCode === 0) setFunnel(funnelRes.data);
-        setIsLoading(false);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [isAdmin, loadFunnel, recruiterAi, refreshScreenings]);
 
     useEffect(() => {
         let mounted = true;
-        const init = async () => {
-            // Ten va dia chi cong ty dien san vao thu moi; loi o day khong chan bang Kanban.
-            if (user.companyId) {
-                getDetailCompanyById(user.companyId).then((res) => {
-                    if (mounted && res?.errCode === 0 && res.data) setCompany({ name: res.data.name || "", address: res.data.address || "" });
-                }).catch(() => {});
-            }
-            const boardPromise = loadBoard("");
-            const res = await getAllPostByAdminService({
+        mountedBoard.current = true;
+        void loadBoard("");
+        // Company details and recruiter job options must not delay the board.
+        if (recruiterAi && user.companyId) {
+            getDetailCompanyById(user.companyId).then((res) => {
+                if (mounted && res?.errCode === 0 && res.data) setCompany({ name: res.data.name || "", address: res.data.address || "" });
+            }).catch(() => {});
+        }
+        if (!isAdmin) {
+            getAllPostByAdminService({
                 limit: 100, offset: 0, companyId: user.companyId, search: "", censorCode: "",
-            });
-            if (mounted && res && res.errCode === 0) setPosts(res.data || []);
-            await boardPromise;
+            }).then(res => {
+                if (mounted && res?.errCode === 0 && Array.isArray(res.data)) setPosts(res.data);
+            }).catch(() => {});
+        }
+        return () => {
+            mounted = false;
+            mountedBoard.current = false;
+            boardRequest.current += 1;
         };
-        init();
-        return () => { mounted = false; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [isAdmin, loadBoard, recruiterAi, user.companyId]);
 
     const handleFilterJob = async (value) => {
         setJobId(value);
@@ -205,6 +251,7 @@ const KanbanBoard = () => {
         // Cap nhat giao dien truoc, goi may chu sau. Neu cho may chu tra loi moi
         // ve lai the thi thao tac keo tha se giat, cam giac nhu bi treo.
         const previous = columns;
+        const boardGeneration = boardRequest.current;
         setColumns((cols) =>
             cols.map((c) => {
                 if (c.stage === moved.stage) {
@@ -220,10 +267,10 @@ const KanbanBoard = () => {
         );
 
         const res = await moveApplicationStage(moved.id, targetStage);
+        if (!mountedBoard.current || boardGeneration !== boardRequest.current) return;
         if (res && res.errCode === 0) {
             toast.success(`Đã chuyển ${moved.candidate_name || "ứng viên"} sang bước mới`);
-            const funnelRes = await getFunnel(jobId);
-            if (funnelRes && funnelRes.errCode === 0) setFunnel(funnelRes.data);
+            await loadFunnel(jobId, boardGeneration);
         } else {
             // May chu tu choi thi tra the ve cho cu, khong de giao dien noi doi.
             setColumns(previous);
@@ -410,7 +457,11 @@ const KanbanBoard = () => {
                     <h3>Quản lý hồ sơ ứng tuyển</h3>
                     <p className="kb-sub">
                         Kéo thả hồ sơ giữa các cột để chuyển bước tuyển dụng.
-                        {hasSearchFilter ? (
+                        {isLoading ? (
+                            <> Đang tải hồ sơ…</>
+                        ) : loadError ? (
+                            <> Chưa tải được danh sách hồ sơ.</>
+                        ) : hasSearchFilter ? (
                             <>Tìm thấy <b>{visibleTotal}</b> / <b>{total}</b> hồ sơ phù hợp.</>
                         ) : (
                             <>Tổng cộng <b>{total}</b> hồ sơ.</>
@@ -477,7 +528,7 @@ const KanbanBoard = () => {
                 </div>
             </div>
 
-            {funnel && (
+            {!loadError && funnel && (
                 <div className="kb-funnel">
                     {funnel.funnel.map((f) => (
                         <div className="kb-funnel-item" key={f.stage}>
@@ -492,7 +543,7 @@ const KanbanBoard = () => {
                 </div>
             )}
 
-            {!isLoading && hasSearchFilter && visibleTotal === 0 && (
+            {!isLoading && !loadError && hasSearchFilter && visibleTotal === 0 && (
                 <div className="kb-search-empty" role="status">
                     <span>Không tìm thấy ứng viên hay hồ sơ nào khớp với “{searchQuery.trim()}”.</span>
                     <button type="button" className="kb-btn ghost" onClick={() => setSearchQuery("")}>
@@ -502,7 +553,12 @@ const KanbanBoard = () => {
             )}
 
             {isLoading ? (
-                <div className="kb-empty">Đang tải…</div>
+                <div className="kb-empty" role="status">Đang tải…</div>
+            ) : loadError ? (
+                <div className="kb-search-empty kb-load-error" role="alert">
+                    <span>{loadError}</span>
+                    <button type="button" className="kb-btn" onClick={() => loadBoard(jobId)}>Thử lại</button>
+                </div>
             ) : (
                 <div className="kb-columns">
                     {visibleColumns.map((col) => (
@@ -640,6 +696,7 @@ const KanbanBoard = () => {
                                 applicationId={detail.id}
                                 stage={detail.stage}
                                 onAssessmentUpdated={async () => {
+                                    invalidateApplicationSnapshots();
                                     await Promise.allSettled([loadBoard(jobId), getApplicationDetail(detail.id).then((fresh) => {
                                         if (fresh?.errCode === 0 && currentDetail.current === detail.id) setDetail(fresh.data);
                                     })]);

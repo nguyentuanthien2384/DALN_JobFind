@@ -125,7 +125,7 @@ const cases = [
   [packageCvController, 'creatNewPackageCv', packageCvService, 'creatNewPackageCv', body],
   [packageCvController, 'updatePackageCv', packageCvService, 'updatePackageCv', body],
   [packageCvController, 'getStatisticalPackageCv', packageCvService, 'getStatisticalPackage', query],
-  [packageCvController, 'getHistoryTrade', packageCvService, 'getHistoryTrade', (r) => ({ ...r.query, companyId: r.user.companyId })],
+  [packageCvController, 'getHistoryTrade', packageCvService, 'getHistoryTrade', (r) => ({ ...r.query, isAdmin: false, companyId: r.user.companyId })],
   [packageCvController, 'getSumByYear', packageCvService, 'getSumByYear', query],
 
   [packagePostController, 'getAllPackage', packagePostService, 'getAllPackage', query],
@@ -137,7 +137,7 @@ const cases = [
   [packagePostController, 'creatNewPackagePost', packagePostService, 'creatNewPackagePost', body],
   [packagePostController, 'updatePackagePost', packagePostService, 'updatePackagePost', body],
   [packagePostController, 'getStatisticalPackage', packagePostService, 'getStatisticalPackage', query],
-  [packagePostController, 'getHistoryTrade', packagePostService, 'getHistoryTrade', (r) => ({ ...r.query, companyId: r.user.companyId })],
+  [packagePostController, 'getHistoryTrade', packagePostService, 'getHistoryTrade', (r) => ({ ...r.query, isAdmin: false, companyId: r.user.companyId })],
   [packagePostController, 'getSumByYear', packagePostService, 'getSumByYear', query]
 ];
 
@@ -168,6 +168,45 @@ describe('simple controller contracts', () => {
     await controller[controllerMethod](baseRequest(), response);
     expect(response.status).toHaveBeenCalledWith(200);
     expect(response.json).toHaveBeenCalledWith({ errCode: -1, errMessage: 'Error from server' });
+  });
+
+  describe.each([
+    ['post packages', packagePostController, packagePostService],
+    ['CV packages', packageCvController, packageCvService],
+  ])('%s purchase history authorization', (_label, controller, service) => {
+    test.each([undefined, '23'])('uses the authenticated admin role for systemwide or filtered history (%s)', async companyId => {
+      const request = createRequest({
+        user: { id: 7, companyId: null, userAccountData: { roleCode: 'ADMIN' } },
+        query: { limit: '10', offset: '0', isAdmin: 'false', ...(companyId ? { companyId } : {}) },
+      });
+      service.getHistoryTrade.mockResolvedValueOnce({ errCode: 0, data: [], count: 0 });
+      await controller.getHistoryTrade(request, createResponse());
+      expect(service.getHistoryTrade).toHaveBeenCalledWith({
+        ...request.query, isAdmin: true, companyId,
+      });
+    });
+
+    test('ignores forged admin flags and company IDs from a company account', async () => {
+      const request = createRequest({
+        user: { id: 7, companyId: 11, userAccountData: { roleCode: 'COMPANY' } },
+        query: { companyId: '999', isAdmin: 'true', limit: '10', offset: '0' },
+      });
+      service.getHistoryTrade.mockResolvedValueOnce({ errCode: 0, data: [], count: 0 });
+      await controller.getHistoryTrade(request, createResponse());
+      expect(service.getHistoryTrade).toHaveBeenCalledWith({
+        ...request.query, isAdmin: false, companyId: 11,
+      });
+    });
+
+    test('cannot grant systemwide access to a company account without company membership', async () => {
+      const request = createRequest({
+        user: { id: 7, companyId: null, userAccountData: { roleCode: 'COMPANY' } },
+        query: { companyId: '999', isAdmin: 'true' },
+      });
+      service.getHistoryTrade.mockResolvedValueOnce({ errCode: 1 });
+      await controller.getHistoryTrade(request, createResponse());
+      expect(service.getHistoryTrade).toHaveBeenCalledWith({ isAdmin: false, companyId: null });
+    });
   });
 
   test('successful package payments emit the matching dashboard events only on success', async () => {

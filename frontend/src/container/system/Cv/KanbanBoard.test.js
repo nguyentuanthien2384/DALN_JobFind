@@ -27,6 +27,7 @@ jest.mock("../../../service/applicationService", () => ({
     getApplicationBoard: jest.fn(),
     getApplicationDetail: jest.fn(),
     getFunnel: jest.fn(),
+    invalidateApplicationSnapshots: jest.fn(),
     moveApplicationStage: jest.fn(),
     rateApplication: jest.fn(),
     saveToTalentPool: jest.fn(),
@@ -178,6 +179,78 @@ describe("KanbanBoard", () => {
         await waitFor(() => expect(getJobScreenings).toHaveBeenCalledWith(12));
     });
 
+    it("renders the board while statistics are still pending", async () => {
+        let finishFunnel;
+        getFunnel.mockImplementationOnce(() => new Promise(resolve => { finishFunnel = resolve; }));
+        await renderLoadedBoard();
+        expect(screen.queryByText("Đang tải…")).not.toBeInTheDocument();
+        expect(screen.queryByText("Tỷ lệ tuyển thành công")).not.toBeInTheDocument();
+        await act(async () => { finishFunnel(funnelResponse); });
+        expect(screen.getByText("25%")).toBeInTheDocument();
+    });
+
+    it("recovers from a rejected board request without keeping the loading screen", async () => {
+        getApplicationBoard.mockRejectedValueOnce(new Error("Mất kết nối"));
+        render(<KanbanBoard />);
+        expect(screen.queryByText(/Tổng cộng 0 hồ sơ/)).not.toBeInTheDocument();
+        expect(await screen.findByRole('alert')).toHaveTextContent('Mất kết nối');
+        expect(screen.queryByText("Đang tải…")).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+        expect(await screen.findByText("Lan Nguyen")).toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it.each([
+        [null],
+        [{ total: 1, columns: null }],
+        [{ total: 1, columns: [{ stage: 'applied', items: null }] }],
+    ])("ends loading safely for an invalid board payload (%j)", async data => {
+        getApplicationBoard.mockResolvedValueOnce({ errCode: 0, data });
+        render(<KanbanBoard />);
+        expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được danh sách ứng viên');
+        expect(screen.queryByText("Đang tải…")).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Thử lại' })).toBeEnabled();
+    });
+
+    it("keeps the board usable when statistics or the recruiter job list reject", async () => {
+        getFunnel.mockRejectedValueOnce(new Error('Statistics unavailable'));
+        getAllPostByAdminService.mockRejectedValueOnce(new Error('Jobs unavailable'));
+        await renderLoadedBoard();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.queryByText("Đang tải…")).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Hồ sơ Lan Nguyen' })).toBeInTheDocument();
+    });
+
+    it("ignores statistics from an older job filter", async () => {
+        let finishInitial;
+        getFunnel.mockImplementation(selected => selected
+            ? Promise.resolve({ ...funnelResponse, data: { ...funnelResponse.data, conversionRate: 50 } })
+            : new Promise(resolve => { finishInitial = resolve; }));
+        await renderLoadedBoard();
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: '12' } });
+        expect(await screen.findByText('50%')).toBeInTheDocument();
+        await act(async () => { finishInitial(funnelResponse); });
+        expect(screen.getByText('50%')).toBeInTheDocument();
+        expect(screen.queryByText('25%')).not.toBeInTheDocument();
+    });
+
+    it("retains the ADMIN job choices after filtering without fetching full job records", async () => {
+        localStorage.setItem('userData', JSON.stringify({ id: 1, roleCode: 'ADMIN' }));
+        const allJobs = boardResponse();
+        allJobs.data.total = 2;
+        allJobs.data.columns[0].items[0].job_id = 12;
+        allJobs.data.columns[0].items.push({ ...candidate, id: 2, job_id: 44, job_title: 'Second job' });
+        getApplicationBoard.mockImplementation(selected => Promise.resolve(selected ? boardResponse() : allJobs));
+        const view = render(<KanbanBoard />);
+        await screen.findByRole('option', { name: 'Second job' });
+        expect(screen.getAllByRole('option')).toHaveLength(3);
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: '12' } });
+        await waitFor(() => expect(screen.getByText(/Tổng cộng/)).toHaveTextContent('Tổng cộng 1 hồ sơ.'));
+        expect(screen.getByRole('option', { name: 'Second job' })).toHaveValue('44');
+        expect(getAllPostByAdminService).not.toHaveBeenCalled();
+        view.unmount();
+    });
+
     it("keeps the selected job's board when the initial all-jobs response arrives late", async () => {
         let releaseInitial;
         const allJobs = { errCode: 0, data: { total: 2, columns: [{ stage: "applied", label: "Mới ứng tuyển", count: 2,
@@ -207,6 +280,22 @@ describe("KanbanBoard", () => {
         expect(within(target).getByText("Lan Nguyen")).toBeInTheDocument();
         expect(toast.success).toHaveBeenCalledWith("Đã chuyển Lan Nguyen sang bước mới");
         expect(getFunnel).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the selected job statistics when an earlier move finishes late", async () => {
+        let finishMove;
+        moveApplicationStage.mockImplementationOnce(() => new Promise(resolve => { finishMove = resolve; }));
+        getFunnel.mockImplementation(selected => Promise.resolve({ ...funnelResponse,
+            data: { ...funnelResponse.data, conversionRate: selected ? 50 : 25 } }));
+        await renderLoadedBoard();
+        fireEvent.dragStart(screen.getByRole('button', { name: 'Hồ sơ Lan Nguyen' }));
+        fireEvent.drop(screen.getByRole('region', { name: 'Phỏng vấn' }));
+        fireEvent.change(screen.getByRole('combobox'), { target: { value: '12' } });
+        expect(await screen.findByText('50%')).toBeInTheDocument();
+        await act(async () => { finishMove({ errCode: 0 }); });
+        expect(getFunnel).toHaveBeenCalledTimes(2);
+        expect(getFunnel).toHaveBeenLastCalledWith('12');
+        expect(screen.getByText('50%')).toBeInTheDocument();
     });
 
     it("restores the original column when a move fails", async () => {
@@ -416,7 +505,8 @@ describe("KanbanBoard", () => {
         getFunnel.mockResolvedValue({ errCode: 1 });
         const { rerender } = render(<KanbanBoard />);
         await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Board unavailable"));
-        expect(screen.getByText(/Tổng cộng/)).toHaveTextContent("Tổng cộng 0 hồ sơ.");
+        expect(screen.getByRole('alert')).toHaveTextContent('Board unavailable');
+        expect(screen.queryByText(/Tổng cộng 0 hồ sơ/)).not.toBeInTheDocument();
 
         getApplicationBoard.mockImplementation(async () => boardResponse());
         getApplicationDetail.mockResolvedValue({ errCode: 1 });
@@ -658,9 +748,12 @@ describe("KanbanBoard", () => {
 
         it("does not look up a company for an account without one, and names untitled posts", async () => {
             localStorage.setItem("userData", JSON.stringify({ id: 3, roleCode: "ADMIN" }));
-            getAllPostByAdminService.mockResolvedValue({ errCode: 0, data: [{ id: 44 }] });
+            const board = boardResponse();
+            board.data.columns[0].items[0] = { ...candidate, job_id: 44, job_title: '' };
+            getApplicationBoard.mockResolvedValue(board);
             await renderLoadedBoard();
             expect(getDetailCompanyById).not.toHaveBeenCalled();
+            expect(getAllPostByAdminService).not.toHaveBeenCalled();
             expect(screen.getByRole("option", { name: "Tin #44" })).toBeInTheDocument();
         });
 

@@ -11,6 +11,7 @@ import { supportRequest } from "../../service/supportChatService";
 import { getAllCompany, getAllPostByRoleAdminService } from "../../service/userService";
 import { resetAdminAttentionForTests } from "./adminAttention";
 import { notifyAdminAttentionChanged } from "./adminEvents";
+import { getAdminNavigation, resolveAdminPage } from "./adminNavigation";
 import Header from "./Header";
 import Menu from "./Menu";
 
@@ -74,11 +75,14 @@ describe("system Menu", () => {
         const { unmount } = render(<Menu />);
 
         const sections = screen.getAllByRole("listitem").filter(item => item.classList.contains("jf-nav-section"));
-        expect(sections.map(item => item.textContent)).toEqual(["Kiểm duyệt & hỗ trợ", "Báo cáo", "Kinh doanh", "Hệ thống"]);
+        expect(sections.map(item => item.textContent)).toEqual(["Kiểm duyệt & hỗ trợ", "Tuyển dụng", "Báo cáo", "Kinh doanh", "Hệ thống"]);
         const users = screen.getByRole("link", { name: "Người dùng" });
         expect(users).toHaveAttribute("aria-current", "page");
         expect(users.closest("li")).toHaveClass("active");
         expect(screen.getByRole("link", { name: "Gói đăng tin" })).toHaveAttribute("href", "/admin/list-package-post/");
+        expect(screen.getByRole("link", { name: "Hồ sơ ứng tuyển" })).toHaveAttribute("href", "/admin/pipeline/");
+        expect(screen.getByRole("link", { name: "Lịch phỏng vấn" })).toHaveAttribute("href", "/admin/interviews/");
+        expect(screen.getByRole("link", { name: "Tìm kiếm ứng viên" })).toHaveAttribute("href", "/admin/list-candiate/");
         expect(screen.queryByText("Thêm người dùng")).not.toBeInTheDocument();
         expect(screen.queryByText("Tạo mới công ty")).not.toBeInTheDocument();
         expect(screen.getByRole("link", { name: /Tin nhắn/ })).toHaveAttribute("href", "/admin/chat");
@@ -94,6 +98,58 @@ describe("system Menu", () => {
 
         unmount();
         expect(socket.off).toHaveBeenCalledWith("chat:new-message", chatHandler);
+    });
+
+    it.each([
+        ["/admin/list-candiate/", "Tìm kiếm ứng viên", "/admin/list-candiate/", false],
+        ["/admin/history-post/", "Lịch sử gói bài đăng", "/admin/history-post/", true],
+        ["/admin/history-cv/", "Lịch sử gói xem ứng viên", "/admin/history-cv/", true],
+        ["/admin/list-promo-code/", "Mã giảm giá", "/admin/promo-codes/", false],
+        ["/admin/list-post/", "Tin tuyển dụng", "/admin/list-post-admin/", false],
+    ])("keeps a directly opened ADMIN page discoverable at %s", async (pathname, label, destination, history) => {
+        const admin = { id: 1, roleCode: "ADMIN" };
+        localStorage.setItem("userData", JSON.stringify(admin));
+        mockPathname = pathname;
+        render(<Menu />);
+
+        const sidebar = screen.getByRole("navigation", { name: "Điều hướng quản trị" });
+        const link = within(sidebar).getByText(label, { exact: true }).closest("a");
+        expect(link).toHaveAttribute("href", destination);
+        expect(link).toHaveAttribute("aria-current", "page");
+        expect(sidebar.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+        expect(within(sidebar).getByText("Lịch sử giao dịch").closest("a"))
+            .toHaveAttribute("aria-expanded", String(history));
+
+        const destinations = getAdminNavigation(admin).flatMap(section => section.items)
+            .flatMap(item => item.children || [item]).map(item => item.to);
+        expect(new Set(destinations).size).toBe(destinations.length);
+        expect(destinations).not.toContain("/admin/list-promo-code/");
+        expect(destinations).not.toContain("/admin/list-post/");
+        expect(await screen.findByText("3")).toBeInTheDocument();
+    });
+
+    it("keeps legacy ADMIN paths on their canonical breadcrumb and preserves recruiter post navigation", () => {
+        const admin = { id: 1, roleCode: "ADMIN" };
+        expect(resolveAdminPage(admin, "/admin/list-promo-code/"))
+            .toEqual(resolveAdminPage(admin, "/admin/promo-codes/"));
+        expect(resolveAdminPage(admin, "/admin/list-post/"))
+            .toEqual(resolveAdminPage(admin, "/admin/list-post-admin/"));
+
+        const company = { id: 2, roleCode: "COMPANY", companyId: 7,
+            companyStatusCode: "S1", companyCensorCode: "CS1" };
+        expect(resolveAdminPage(company, "/admin/list-post/")).toEqual(expect.objectContaining({
+            title: "Danh sách bài đăng", navPath: "/admin/list-post",
+        }));
+        expect(resolveAdminPage({ ...company, roleCode: "EMPLOYER" }, "/admin/list-post/"))
+            .toEqual(expect.objectContaining({ title: "Danh sách bài đăng", navPath: "/admin/list-post" }));
+
+        for (const user of [{ ...company, roleCode: "EMPLOYER" }, { ...company, companyCensorCode: "CS3" }]) {
+            const destinations = getAdminNavigation(user).flatMap(section => section.items)
+                .flatMap(item => item.children || [item]).map(item => item.to);
+            expect(destinations).not.toContain("/admin/history-post/");
+            expect(destinations).not.toContain("/admin/history-cv/");
+            expect(resolveAdminPage(user, "/admin/history-cv/")).toBeNull();
+        }
     });
 
     it("highlights the parent list and opens its group on a page that is not in the menu", async () => {

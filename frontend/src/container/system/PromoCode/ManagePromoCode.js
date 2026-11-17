@@ -510,7 +510,7 @@ const ManagePromoCode = () => {
                 </div>
 
                 <div className="jf-admin-rewards__table-wrap">
-                    <table className="jf-admin-rewards__table">
+                    <table className="jf-admin-rewards__table jf-admin-rewards__table--promos">
                         <thead>
                             <tr>
                                 <th>Mã ưu đãi</th>
@@ -591,11 +591,10 @@ const ManagePromoCode = () => {
                                                 </span>
                                             </td>
                                             <td>
-                                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                <div className="jf-admin-rewards__promo-actions">
                                                     <button
                                                         type="button"
                                                         className="jf-admin-rewards__btn"
-                                                        style={{ padding: '3px 8px', fontSize: '12px' }}
                                                         onClick={() => handleEdit(item)}
                                                     >
                                                         Sửa
@@ -603,7 +602,6 @@ const ManagePromoCode = () => {
                                                     <button
                                                         type="button"
                                                         className="jf-admin-rewards__btn"
-                                                        style={{ padding: '3px 8px', fontSize: '12px' }}
                                                         onClick={() => handleToggleActive(item)}
                                                     >
                                                         {active ? 'Tạm ngưng' : 'Bật lại'}
@@ -612,8 +610,6 @@ const ManagePromoCode = () => {
                                                         type="button"
                                                         className="jf-admin-rewards__btn"
                                                         style={{
-                                                            padding: '3px 8px',
-                                                            fontSize: '12px',
                                                             color: '#b91c1c',
                                                             borderColor: '#fecaca',
                                                         }}

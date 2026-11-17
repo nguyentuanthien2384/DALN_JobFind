@@ -20,6 +20,7 @@ jest.mock('../../src/services/paymentIntegrityService', () => mockPaymentIntegri
 
 const cvService = require('../../src/services/packageCvService');
 const postService = require('../../src/services/packagePostService');
+const { Op } = require('sequelize');
 
 const configs = [
   {
@@ -191,6 +192,56 @@ describe.each(configs)('$label service', (config) => {
       companyId: 9, limit: '10', offset: '0', fromDate: '2026-01-01', toDate: '2026-01-02'
     })).toEqual({ errCode: 0, data: ['trade'], count: 1 });
     expect(orderModel.findAndCountAll).toHaveBeenCalledWith(expect.objectContaining({ limit: 10, offset: 0 }));
+    expect(orderModel.findAndCountAll.mock.calls[0][0].where[Op.and]).toEqual([
+      { [Op.or]: [{ userId: 8 }, { userId: 10 }] }
+    ]);
+  });
+
+  test('returns systemwide history for a trusted admin with date filters and pagination', async () => {
+    const rows = [{ id: 1, userId: 8 }, { id: 2, userId: 20 }];
+    orderModel.findAndCountAll.mockResolvedValue({ rows, count: 2 });
+    expect(await service.getHistoryTrade({
+      isAdmin: true, limit: '10', offset: '0', fromDate: '2026-11-01', toDate: '2026-11-17'
+    })).toEqual({ errCode: 0, data: rows, count: 2 });
+    expect(mockDb.Company.findOne).not.toHaveBeenCalled();
+    expect(mockDb.User.findAll).not.toHaveBeenCalled();
+    const options = orderModel.findAndCountAll.mock.calls[0][0];
+    expect(options).toEqual(expect.objectContaining({
+      limit: 10, offset: 0, order: [['updatedAt', 'DESC']], nest: true, raw: true,
+      where: { createdAt: { [Op.and]: [
+        { [Op.gte]: '2026-11-01 00:00:00' }, { [Op.lte]: '2026-11-17 23:59:59' }
+      ] } }
+    }));
+    expect(options.include.map(join => join.as)).toEqual(config.isPost
+      ? ['userOrderData', 'packageOrderData']
+      : ['userOrderCvData', 'packageOrderCvData']);
+  });
+
+  test('keeps an explicit admin company filter scoped to that company users', async () => {
+    mockDb.Company.findOne.mockResolvedValue({ id: 9 });
+    mockDb.User.findAll.mockResolvedValue([{ id: 8 }, { id: 10 }]);
+    orderModel.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });
+    await service.getHistoryTrade({ isAdmin: true, companyId: 9 });
+    expect(mockDb.Company.findOne).toHaveBeenCalledWith({ where: { id: 9 } });
+    expect(mockDb.User.findAll).toHaveBeenCalledWith({ where: { companyId: 9 }, attributes: ['id'] });
+    expect(orderModel.findAndCountAll.mock.calls[0][0].where).toEqual({
+      [Op.and]: [{ [Op.or]: [{ userId: 8 }, { userId: 10 }] }]
+    });
+  });
+
+  test.each([undefined, false, 'true', 1])('rejects unscoped history without a trusted boolean admin flag (%s)', async isAdmin => {
+    expect((await service.getHistoryTrade({ isAdmin })).errCode).toBe(1);
+    expect(orderModel.findAndCountAll).not.toHaveBeenCalled();
+  });
+
+  test('does not broaden a company with no users into systemwide history', async () => {
+    mockDb.Company.findOne.mockResolvedValue({ id: 9 });
+    mockDb.User.findAll.mockResolvedValue([]);
+    orderModel.findAndCountAll.mockResolvedValue({ rows: [], count: 0 });
+    await service.getHistoryTrade({ isAdmin: true, companyId: 9 });
+    expect(orderModel.findAndCountAll.mock.calls[0][0].where).toEqual({
+      [Op.and]: [{ [Op.or]: [] }]
+    });
   });
 
   test('returns monthly revenue for a requested year', async () => {

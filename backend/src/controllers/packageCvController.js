@@ -136,6 +136,7 @@ let getHistoryTrade = async (req, res) => {
         const isAdmin = req.user?.userAccountData?.roleCode === 'ADMIN';
         let data = await packageService.getHistoryTrade({
             ...req.query,
+            isAdmin,
             companyId: isAdmin ? req.query.companyId : req.user.companyId
         });
         return res.status(200).json(data);

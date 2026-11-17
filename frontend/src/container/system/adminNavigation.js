@@ -17,9 +17,16 @@ const ADMIN_SECTIONS = [
     { key: 'main', items: [DASHBOARD, CHAT] },
     {
         key: 'moderation', title: 'Kiểm duyệt & hỗ trợ', items: [
-            { key: 'admin-post', to: '/admin/list-post-admin/', label: 'Tin tuyển dụng', icon: 'fas fa-clipboard-check', permission: P.MODERATE_POSTS, badge: 'pendingPosts' },
+            { key: 'admin-post', to: '/admin/list-post-admin/', aliases: ['/admin/list-post/'], label: 'Tin tuyển dụng', icon: 'fas fa-clipboard-check', permission: P.MODERATE_POSTS, badge: 'pendingPosts' },
             { key: 'admin-company', to: '/admin/list-company-admin/', label: 'Công ty', icon: 'far fa-building', permission: P.MODERATE_COMPANIES, badge: 'pendingCompanies' },
             { key: 'support', to: '/admin/support', label: 'Yêu cầu hỗ trợ', icon: 'fas fa-headset', permission: P.SUPPORT_MANAGE, badge: 'waitingSupport' },
+        ],
+    },
+    {
+        key: 'recruiting', title: 'Tuyển dụng', items: [
+            { key: 'admin-pipeline', to: '/admin/pipeline/', label: 'Hồ sơ ứng tuyển', icon: 'fas fa-columns', permission: P.MANAGE_CANDIDATES },
+            { key: 'admin-interviews', to: '/admin/interviews/', label: 'Lịch phỏng vấn', icon: 'far fa-calendar-alt', permission: P.MANAGE_CANDIDATES },
+            { key: 'admin-candidate-search', to: '/admin/list-candiate/', label: 'Tìm kiếm ứng viên', icon: 'fas fa-search', permission: P.MANAGE_CANDIDATES },
         ],
     },
     {
@@ -37,8 +44,14 @@ const ADMIN_SECTIONS = [
         key: 'commerce', title: 'Kinh doanh', items: [
             { key: 'package-post', to: '/admin/list-package-post/', label: 'Gói đăng tin', icon: 'fas fa-box-open', permission: P.MANAGE_PACKAGES, action: { to: '/admin/add-package-post/', label: 'Thêm gói đăng tin' } },
             { key: 'package-cv', to: '/admin/list-package-cv/', label: 'Gói xem ứng viên', icon: 'fas fa-id-card', permission: P.MANAGE_PACKAGES, action: { to: '/admin/add-package-cv/', label: 'Thêm gói xem ứng viên' } },
-            { key: 'promo-codes', to: '/admin/promo-codes/', label: 'Mã giảm giá', icon: 'fas fa-ticket-alt', permission: P.MANAGE_PACKAGES },
+            { key: 'promo-codes', to: '/admin/promo-codes/', aliases: ['/admin/list-promo-code/'], label: 'Mã giảm giá', icon: 'fas fa-ticket-alt', permission: P.MANAGE_PACKAGES },
             { key: 'admin-rewards', to: '/admin/rewards/', label: 'Quản lý nạp & tích điểm', icon: 'fas fa-coins', permission: P.VIEW_PLATFORM_REPORTS },
+            {
+                key: 'admin-transactions', title: 'Lịch sử giao dịch', icon: 'fas fa-receipt', permission: P.VIEW_TRANSACTIONS, children: [
+                    { to: '/admin/history-post/', label: 'Lịch sử gói bài đăng' },
+                    { to: '/admin/history-cv/', label: 'Lịch sử gói xem ứng viên' },
+                ],
+            },
         ],
     },
     {
@@ -193,12 +206,14 @@ export const getAdminNavigation = (user) => sectionsFor(user)
 
 // Tim muc menu ung voi mot duong dan: tra ve section, nhom (neu co) va muc.
 const findInNavigation = (navigation, pathname) => {
+    const matches = (entry) => matchRoute(entry.to, pathname)
+        || (entry.aliases || []).some(alias => matchRoute(alias, pathname));
     for (const section of navigation) {
         for (const item of section.items) {
             if (item.children) {
-                const child = item.children.find(entry => matchRoute(entry.to, pathname));
+                const child = item.children.find(matches);
                 if (child) return { section, group: item, item: child };
-            } else if (matchRoute(item.to, pathname)) {
+            } else if (matches(item)) {
                 return { section, item };
             }
         }

@@ -74,6 +74,12 @@
         font-size: 14px;
     }
 
+    .kb-load-error {
+        background: #fef2f2;
+        border-color: #fecaca;
+        color: #b91c1c;
+    }
+
     // Dai so lieu tom tat: nhin mot cai la biet ho so dang un o buoc nao.
     .kb-funnel {
         display: flex;

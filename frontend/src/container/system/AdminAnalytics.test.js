@@ -163,6 +163,19 @@ describe("trade history", () => {
         localStorage.setItem("userData", JSON.stringify({ id: 3, companyId: 42 }));
     });
 
+    it.each(historyPages)("loads and exports systemwide $label history for ADMIN", async (config) => {
+        localStorage.setItem("userData", JSON.stringify({ id: 1, roleCode: 'ADMIN', companyId: 42 }));
+        config.service.mockResolvedValue({ errCode: 0, count: 1, data: [config.item] });
+        render(<config.Component />);
+        expect(await screen.findByText(config.item.id)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /toàn hệ thống/ })).toBeInTheDocument();
+        expect(config.service).toHaveBeenLastCalledWith({ limit: 5, offset: 0, fromDate: '', toDate: '', companyId: undefined });
+        fireEvent.click(screen.getByRole('button', { name: /Xuất excel/ }));
+        await waitFor(() => expect(config.service).toHaveBeenLastCalledWith(expect.objectContaining({
+            limit: '', offset: '', companyId: undefined,
+        })));
+    });
+
     it.each(historyPages)("filters, pages and exports the $label purchase history", async (config) => {
         config.service.mockResolvedValue({ errCode: 0, count: 7, data: [config.item] });
         render(<config.Component />);
