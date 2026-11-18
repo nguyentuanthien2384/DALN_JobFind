@@ -355,6 +355,7 @@ const createCheckout = async ({
     promoCode,
     ipAddr,
     bankCode,
+    returnUrl = null,
     postId = null
 }) => {
     const providerKey = normalizeProvider(provider);
@@ -395,6 +396,7 @@ const createCheckout = async ({
                 ipAddr,
                 bankCode,
                 expiresAt,
+                returnUrl,
                 postId
             });
         } catch (error) {
@@ -412,7 +414,7 @@ const createCheckout = async ({
         simulated = true;
         const postQuery = postId ? `&postId=${encodeURIComponent(postId)}` : '';
         gatewayResult = {
-            checkoutUrl: `${getPaymentReturnUrl(providerKey)}&order=${encodeURIComponent(orderCode)}&simulate=1${postQuery}`,
+            checkoutUrl: `${getPaymentReturnUrl(providerKey, returnUrl)}&order=${encodeURIComponent(orderCode)}&simulate=1${postQuery}`,
             providerRef: `SIM_${providerKey}_${orderCode}`
         };
     }
@@ -675,8 +677,30 @@ const verifyPaymentReturn = async ({ userId, roleCode = null, companyId = null, 
         return { errCode: 0, alreadyProcessed: true, data: enrichOrderPayload(order, { postId: params.postId }), errMessage: 'Giao dịch đã hoàn tất' };
     }
 
-    // Che do gia lap (local dev sandbox)
-    if (order.simulated && simulatorEnabled()) {
+    const activeProvider = providerKey || order.provider;
+    const activeGateway = gateways[activeProvider];
+    const hasExternalCallbackParams = Boolean(
+        params.vnp_SecureHash
+        || params.signature
+        || params.checksum
+        || params.PayerID
+        || params.payerId
+    );
+    const canSimulateOrder = simulatorEnabled() && (
+        Boolean(order.simulated)
+        || String(params.simulate || '') === '1'
+        || Boolean(params.simulateAction)
+        || (!hasExternalCallbackParams && activeProvider !== 'PAYPAL' && activeGateway && !activeGateway.isConfigured())
+    );
+
+    // Che do gia lap (local dev sandbox / fallback khi cong ngoai tam ngung)
+    if (canSimulateOrder) {
+        if (!order.simulated) {
+            order.simulated = true;
+            if (typeof order.save === 'function') {
+                await order.save();
+            }
+        }
         if (String(params.simulateAction || '').toLowerCase() === 'cancel' || String(params.cancel || '') === '1') {
             const cancelled = await markOrderFailed(order.orderCode, 'Người dùng hủy giao dịch thanh toán', 'CANCELLED');
             return { errCode: 2, data: enrichOrderPayload(cancelled, { postId: params.postId }), errMessage: 'Bạn đã hủy giao dịch thanh toán' };
@@ -701,7 +725,6 @@ const verifyPaymentReturn = async ({ userId, roleCode = null, companyId = null, 
         };
     }
 
-    const activeProvider = providerKey || order.provider;
     if (activeProvider === 'VNPAY' && params.vnp_SecureHash) {
         const verified = gateways.VNPAY.verifyCallback(params);
         if (!verified.valid || Number(verified.amount) !== Number(order.amount)) {

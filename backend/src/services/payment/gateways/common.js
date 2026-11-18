@@ -17,7 +17,32 @@ const safeEqual = (left, right) => {
 const getPublicBackendUrl = () => String(process.env.PAYMENT_PUBLIC_BACKEND_URL
     || process.env.REACT_APP_BACKEND_URL || 'http://localhost:4000').replace(/\/+$/, '');
 
-const getPaymentReturnUrl = (provider) => `${getFrontendUrl()}/payment/result?provider=${provider.toLowerCase()}`;
+const resolveFrontendReturnBase = (customReturnUrl) => {
+    const match = /^https?:\/\/[^/?#]+/i.exec(String(customReturnUrl || '').trim());
+    return match ? `${match[0]}/payment/result` : `${getFrontendUrl()}/payment/result`;
+};
+
+const getPaymentReturnUrl = (provider, customReturnUrl) => (
+    `${resolveFrontendReturnBase(customReturnUrl)}?provider=${String(provider).toLowerCase()}`
+);
+
+const parseBooleanEnv = (value) => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+    return null;
+};
+
+// Che do cong thanh toan thu nghiem the/OTP noi bo:
+// - Neu PAYMENT_SIMULATOR duoc chi dinh ro ('true'/'false') thi ton trong tuyet doi
+//   ke ca tren VPS (NODE_ENV === 'production') de du an demo/do an van thanh toan duoc
+//   khi sandbox ben ngoai (ZaloPay/MoMo/VNPAY) tam bao tri hoac chua cap khoa.
+// - Neu khong khai bao PAYMENT_SIMULATOR: mac dinh bat o dev/test va tat tren production.
+const simulatorEnabled = () => {
+    const explicit = parseBooleanEnv(process.env.PAYMENT_SIMULATOR);
+    if (explicit !== null) return explicit;
+    return process.env.NODE_ENV !== 'production';
+};
 
 // Gio Viet Nam (GMT+7) dang yyyyMMddHHmmss ma khong phu thuoc mui gio cua may chu.
 const vnTimestamp = (date = new Date()) => {
@@ -82,4 +107,14 @@ const postForm = async (url, form, { timeoutMs } = {}) => {
     try { return JSON.parse(text); } catch (error) { return { raw: text, httpStatus: response.status }; }
 };
 
-module.exports = { hmacHex, safeEqual, getPublicBackendUrl, getPaymentReturnUrl, vnTimestamp, postJson, postForm };
+module.exports = {
+    hmacHex,
+    safeEqual,
+    getPublicBackendUrl,
+    getPaymentReturnUrl,
+    parseBooleanEnv,
+    simulatorEnabled,
+    vnTimestamp,
+    postJson,
+    postForm
+};

@@ -1,19 +1,47 @@
 // ===== MOMO (API v2 payWithMethod / captureWallet, sandbox mac dinh) =====
 // Mac dinh dung requestType = 'payWithMethod' de cho phep nhap the ATM NAPAS / Visa dung thu
 // ngay tren trinh duyet (khong bat buoc cai app MoMo Test tren dien thoai).
-const { hmacHex, safeEqual, getPublicBackendUrl, getPaymentReturnUrl, postJson } = require('./common');
+const {
+    hmacHex,
+    safeEqual,
+    getPublicBackendUrl,
+    getPaymentReturnUrl,
+    parseBooleanEnv,
+    simulatorEnabled,
+    postJson
+} = require('./common');
 
-const config = () => ({
+// Khoa demo cong khai cu cua MoMo (test-payment.momo.vn) hien bi chan 403 Forbidden
+// tren trinh duyet khi mo payUrl. Khi bat PAYMENT_SIMULATOR, he thong tu dong dung
+// cong nhap the & OTP tich hop san (giong VNPAY) tru khi khai bao khoa merchant rieng
+// hoac bat MOMO_FORCE_EXTERNAL_SANDBOX=true.
+const RETIRED_PUBLIC_DEMO_ACCESS_KEYS = new Set(['F8BBA842ECF85']);
+const RETIRED_PUBLIC_DEMO_SECRET_KEYS = new Set(['K951B6PE1waDMi640xX08PD3vg6EkVlz']);
+
+const config = (customReturnUrl) => ({
     partnerCode: String(process.env.MOMO_PARTNER_CODE || '').trim(),
     accessKey: String(process.env.MOMO_ACCESS_KEY || '').trim(),
     secretKey: String(process.env.MOMO_SECRET_KEY || '').trim(),
     endpoint: process.env.MOMO_ENDPOINT || 'https://test-payment.momo.vn/v2/gateway/api/create',
     requestType: process.env.MOMO_REQUEST_TYPE || 'payWithMethod',
-    redirectUrl: process.env.MOMO_RETURN_URL || getPaymentReturnUrl('MOMO'),
+    redirectUrl: process.env.MOMO_RETURN_URL || getPaymentReturnUrl('MOMO', customReturnUrl),
     ipnUrl: process.env.MOMO_IPN_URL || `${getPublicBackendUrl()}/api/payments/momo/ipn`
 });
 
-const isConfigured = () => Boolean(config().partnerCode && config().accessKey && config().secretKey);
+const isPublicDemoConfig = (cfg) => (
+    RETIRED_PUBLIC_DEMO_ACCESS_KEYS.has(cfg.accessKey)
+    || RETIRED_PUBLIC_DEMO_SECRET_KEYS.has(cfg.secretKey)
+);
+
+const isConfigured = () => {
+    const cfg = config();
+    if (!cfg.partnerCode || !cfg.accessKey || !cfg.secretKey) return false;
+    return !(
+        isPublicDemoConfig(cfg)
+        && simulatorEnabled()
+        && parseBooleanEnv(process.env.MOMO_FORCE_EXTERNAL_SANDBOX) !== true
+    );
+};
 
 const createSignatureRaw = (p) => `accessKey=${p.accessKey}&amount=${p.amount}&extraData=${p.extraData}`
     + `&ipnUrl=${p.ipnUrl}&orderId=${p.orderId}&orderInfo=${p.orderInfo}&partnerCode=${p.partnerCode}`
@@ -26,8 +54,8 @@ const resultSignatureRaw = (accessKey, b) => `accessKey=${accessKey}&amount=${b.
     + `&requestId=${b.requestId ?? ''}&responseTime=${b.responseTime ?? ''}&resultCode=${b.resultCode ?? ''}`
     + `&transId=${b.transId ?? ''}`;
 
-const createPayment = async ({ orderCode, amount, orderInfo, postId }) => {
-    const cfg = config();
+const createPayment = async ({ orderCode, amount, orderInfo, postId, returnUrl }) => {
+    const cfg = config(returnUrl);
     let redirectUrl = cfg.redirectUrl;
     if (!process.env.MOMO_RETURN_URL) {
         redirectUrl += `${redirectUrl.includes('?') ? '&' : '?'}order=${encodeURIComponent(orderCode)}`;

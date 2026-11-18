@@ -107,7 +107,7 @@ describe("application routes", () => {
         ["/forget-password", "forget-password-page"],
     ])("renders the public route %s", async (path, pageText) => {
         renderAt(path);
-        expect(screen.getByText("site-header")).toBeInTheDocument();
+        expect(await screen.findByText("site-header")).toBeInTheDocument();
         if (['/login', '/register'].includes(path)) expect(screen.getByRole('contentinfo')).toHaveTextContent('JobFind');
         else expect(screen.getByText("site-footer")).toBeInTheDocument();
         expect(await screen.findByText(pageText)).toBeInTheDocument();
@@ -302,20 +302,20 @@ describe("application routes", () => {
         expect(screen.getByText("site-footer")).toBeInTheDocument();
     });
 
-    it("uses the not-found page for an unknown route", () => {
+    it("uses the not-found page for an unknown route", async () => {
         renderAt("/does-not-exist");
-        expect(screen.getByText("not-found-page")).toBeInTheDocument();
+        expect(await screen.findByText("not-found-page")).toBeInTheDocument();
         renderAt("/home");
         expect(screen.getByText("navigate-/")).toBeInTheDocument();
     });
 
-    it("recovers from malformed persisted login data instead of crashing public routes", () => {
+    it("recovers from malformed persisted login data instead of crashing public routes", async () => {
         localStorage.clear();
         localStorage.setItem("userData", "{broken-json");
         window.history.replaceState({}, "", "/");
 
         expect(() => render(<App />)).not.toThrow();
-        expect(screen.getByText("home-page")).toBeInTheDocument();
+        expect(await screen.findByText("home-page")).toBeInTheDocument();
         expect(localStorage.getItem("userData")).toBeNull();
     });
 

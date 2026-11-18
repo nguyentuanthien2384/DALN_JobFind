@@ -1,7 +1,26 @@
 // ===== ZALOPAY (API v2, sandbox mac dinh) =====
 // Tham khao Class-Payment-ZaloPay: mac tao don = HMAC-SHA256(key1, app_id|app_trans_id|app_user|amount|app_time|embed_data|item),
 // callback ky bang key2 tren chuoi `data`. redirecturl phai nam trong embed_data.
-const { hmacHex, safeEqual, getPublicBackendUrl, getPaymentReturnUrl, vnTimestamp, postJson, postForm } = require('./common');
+const {
+    hmacHex,
+    safeEqual,
+    getPublicBackendUrl,
+    getPaymentReturnUrl,
+    parseBooleanEnv,
+    simulatorEnabled,
+    vnTimestamp,
+    postJson,
+    postForm
+} = require('./common');
+
+// Khoa demo cong khai Trial Merchant V2 (2554) tren qcgateway.zalopay.vn hien tra ve
+// ma loi -79 ("He thong dang co loi, vui long thu lai sau!") ngay khi mo trang thanh toan.
+// Khi bat PAYMENT_SIMULATOR, he thong tu dong dung cong nhap the & OTP tich hop san
+// tru khi khai bao khoa merchant rieng hoac bat ZALOPAY_FORCE_EXTERNAL_SANDBOX=true.
+const RETIRED_PUBLIC_DEMO_KEYS = new Set([
+    'sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn',
+    'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf'
+]);
 
 const parsePreferredMethods = (raw) => {
     const text = String(raw ?? 'domestic_card,account').trim();
@@ -10,34 +29,47 @@ const parsePreferredMethods = (raw) => {
     return text.split(',').map((item) => item.trim()).filter(Boolean);
 };
 
-const config = () => ({
+const config = (customReturnUrl) => ({
     appId: String(process.env.ZALOPAY_APP_ID || '').trim(),
     key1: String(process.env.ZALOPAY_KEY1 || '').trim(),
     key2: String(process.env.ZALOPAY_KEY2 || '').trim(),
     createUrl: process.env.ZALOPAY_CREATE_URL || 'https://sb-openapi.zalopay.vn/v2/create',
     queryUrl: process.env.ZALOPAY_QUERY_URL || 'https://sb-openapi.zalopay.vn/v2/query',
     callbackUrl: process.env.ZALOPAY_CALLBACK_URL || `${getPublicBackendUrl()}/api/payments/zalopay/callback`,
-    redirectUrl: process.env.ZALOPAY_RETURN_URL || getPaymentReturnUrl('ZALOPAY'),
+    redirectUrl: process.env.ZALOPAY_RETURN_URL || getPaymentReturnUrl('ZALOPAY', customReturnUrl),
     bankCode: process.env.ZALOPAY_BANK_CODE ?? '',
     preferredMethods: parsePreferredMethods(process.env.ZALOPAY_PREFERRED_METHODS)
 });
 
-const isConfigured = () => Boolean(config().appId && config().key1 && config().key2);
+const isPublicDemoConfig = (cfg) => (
+    RETIRED_PUBLIC_DEMO_KEYS.has(cfg.key1)
+    || RETIRED_PUBLIC_DEMO_KEYS.has(cfg.key2)
+);
+
+const isConfigured = () => {
+    const cfg = config();
+    if (!cfg.appId || !cfg.key1 || !cfg.key2) return false;
+    return !(
+        isPublicDemoConfig(cfg)
+        && simulatorEnabled()
+        && parseBooleanEnv(process.env.ZALOPAY_FORCE_EXTERNAL_SANDBOX) !== true
+    );
+};
 
 // app_trans_id bat buoc dang yyMMdd_xxx theo gio Viet Nam.
 const buildAppTransId = (orderCode, date = new Date()) => `${vnTimestamp(date).slice(2, 8)}_${orderCode}`;
 const orderCodeFromAppTransId = (appTransId) => String(appTransId || '').split('_').slice(1).join('_');
 
-const createPayment = async ({ orderCode, amount, orderInfo, userId, bankCode, postId }) => {
-    const cfg = config();
+const createPayment = async ({ orderCode, amount, orderInfo, userId, bankCode, postId, returnUrl }) => {
+    const cfg = config(returnUrl);
     const appTime = Date.now();
     const appTransId = buildAppTransId(orderCode);
-    let returnUrl = cfg.redirectUrl;
+    let redirectTarget = cfg.redirectUrl;
     if (!process.env.ZALOPAY_RETURN_URL) {
-        returnUrl += `${returnUrl.includes('?') ? '&' : '?'}order=${encodeURIComponent(orderCode)}`;
-        if (postId) returnUrl += `&postId=${encodeURIComponent(postId)}`;
+        redirectTarget += `${redirectTarget.includes('?') ? '&' : '?'}order=${encodeURIComponent(orderCode)}`;
+        if (postId) redirectTarget += `&postId=${encodeURIComponent(postId)}`;
     }
-    const embedPayload = { redirecturl: returnUrl, orderCode };
+    const embedPayload = { redirecturl: redirectTarget, orderCode };
     if (Array.isArray(cfg.preferredMethods)) {
         embedPayload.preferred_payment_method = cfg.preferredMethods;
     }

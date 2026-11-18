@@ -7,20 +7,7 @@ import {
     Route,
     Navigate,
 } from "react-router-dom";
-import Header from "./container/header/header";
-import Footer from "./container/footer/Footer";
-import Home from "./container/home/home";
-import JobPage from "./container/JobPage/JobPage";
 import { JobNavigationScroll } from './container/JobPage/jobSearchHistory';
-import About from "./container/About/About";
-import Contact from "./container/Contact/Contact";
-import Login from "./container/login/Login";
-import Register from "./container/login/Register";
-import ForgetPassword from "./container/login/ForgetPassword";
-import ListCompany from "./container/Company/ListCompany";
-import DetailCompany from "./container/Company/DetailCompany";
-import NotFound from "./container/NotFound/NotFound";
-import Forbidden from "./container/Forbidden/Forbidden";
 import { readJsonStorage } from "./util/storage";
 import RouteGuard from "./auth/RouteGuard";
 import { PERMISSIONS } from "./auth/accessControl";
@@ -28,6 +15,21 @@ import { getCurrentAuthorizationService } from "./service/userService";
 import SessionContext from "./auth/SessionContext";
 import { SESSION_ENDED_EVENT } from "./auth/sessionExpiry";
 import { SESSION_USER_UPDATED_EVENT } from "./auth/sessionUser";
+
+// Public screens and their layout are not needed when opening the admin area.
+const Header = lazy(() => import('./container/header/header'));
+const Footer = lazy(() => import('./container/footer/Footer'));
+const Home = lazy(() => import('./container/home/home'));
+const JobPage = lazy(() => import('./container/JobPage/JobPage'));
+const About = lazy(() => import('./container/About/About'));
+const Contact = lazy(() => import('./container/Contact/Contact'));
+const Login = lazy(() => import('./container/login/Login'));
+const Register = lazy(() => import('./container/login/Register'));
+const ForgetPassword = lazy(() => import('./container/login/ForgetPassword'));
+const ListCompany = lazy(() => import('./container/Company/ListCompany'));
+const DetailCompany = lazy(() => import('./container/Company/DetailCompany'));
+const NotFound = lazy(() => import('./container/NotFound/NotFound'));
+const Forbidden = lazy(() => import('./container/Forbidden/Forbidden'));
 const SupportChat = lazy(() => import('./components/support/SupportChat'));
 const SupportHelp = lazy(() => import('./components/support/SupportHelp'));
 const DetailPage = lazy(() => import('./container/JobDetail/JobDetail'));
@@ -177,6 +179,7 @@ function App() {
         <SessionContext.Provider value={userData}>
             <Router>
                 <JobNavigationScroll />
+                <Suspense fallback={<RoutePageLoader />}>
                 <Routes>
                 <Route path="/account/security" element={<RouteGuard user={userData} hasToken={hasToken} anyPermissions={[PERMISSIONS.MANAGE_PROFILE]}><Header /><Suspense fallback={<RoutePageLoader />}><SecuritySettings /></Suspense><Footer /></RouteGuard>} />
                 {/* Public Routes */}
@@ -385,6 +388,7 @@ function App() {
                 <Route path="/support/help" element={<Suspense fallback={<RoutePageLoader />}><SupportHelp /></Suspense>} />
                 <Route path="*" element={<NotFound />} />
                 </Routes>
+                </Suspense>
                 <Suspense fallback={null}><SupportChat /></Suspense>
             </Router>
         </SessionContext.Provider>

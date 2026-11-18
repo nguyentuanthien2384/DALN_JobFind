@@ -365,6 +365,74 @@ describe('payment gateways', () => {
         });
         expect(strictFailure.errCode).toBe(-1);
         expect(strictFailure.errMessage).toContain('quá thời gian chờ');
+
+        // Retired public demo trial keys bypass broken external MoMo (403) and ZaloPay (-79) pages when simulator is enabled
+        process.env.PAYMENT_SIMULATOR = 'true';
+        process.env.MOMO_PARTNER_CODE = 'MOMO';
+        process.env.MOMO_ACCESS_KEY = 'F8BBA842ECF85';
+        process.env.MOMO_SECRET_KEY = 'K951B6PE1waDMi640xX08PD3vg6EkVlz';
+        process.env.ZALOPAY_APP_ID = '2554';
+        process.env.ZALOPAY_KEY1 = 'sdngKKJmqEMzvh5QQcdD2A9XBSKUNaYn';
+        process.env.ZALOPAY_KEY2 = 'trMrHtvjo6myautxDUiAcYsVtaeQ8nhf';
+
+        expect(momo.isConfigured()).toBe(false);
+        expect(zalopay.isConfigured()).toBe(false);
+
+        process.env.MOMO_FORCE_EXTERNAL_SANDBOX = 'true';
+        process.env.ZALOPAY_FORCE_EXTERNAL_SANDBOX = 'true';
+        expect(momo.isConfigured()).toBe(true);
+        expect(zalopay.isConfigured()).toBe(true);
+        delete process.env.MOMO_FORCE_EXTERNAL_SANDBOX;
+        delete process.env.ZALOPAY_FORCE_EXTERNAL_SANDBOX;
+
+        mockDb.PaymentOrder.create.mockResolvedValueOnce({
+            id: 902,
+            orderCode: 'JF902',
+            provider: 'MOMO',
+            purpose: 'POINT_TOPUP',
+            userId: 7,
+            amount: 20000,
+            points: 22,
+            status: 'PENDING',
+            simulated: true
+        });
+        const momoSimCheckout = await paymentOrderService.createCheckout({
+            userId: 7,
+            purpose: 'POINT_TOPUP',
+            itemCode: 'BASIC',
+            provider: 'MOMO',
+            returnUrl: 'https://thiennt.id.vn/payment/result'
+        });
+        expect(momoSimCheckout.errCode).toBe(0);
+        expect(momoSimCheckout.data.simulated).toBe(true);
+        expect(momoSimCheckout.data.checkoutUrl).toContain('https://thiennt.id.vn/payment/result?provider=momo');
+        expect(momoSimCheckout.data.checkoutUrl).toContain('simulate=1');
+
+        const upgradePendingOrder = {
+            id: 903,
+            orderCode: 'JF903',
+            provider: 'ZALOPAY',
+            purpose: 'POINT_TOPUP',
+            userId: 7,
+            itemCode: 'BASIC',
+            itemName: 'Gói Cơ Bản',
+            amount: 20000,
+            points: 22,
+            status: 'PENDING',
+            simulated: false,
+            save: jest.fn()
+        };
+        mockDb.PaymentOrder.findOne.mockResolvedValueOnce(upgradePendingOrder);
+        const upgradedPreview = await paymentOrderService.verifyPaymentReturn({
+            userId: 7,
+            provider: 'ZALOPAY',
+            params: { order: 'JF903' }
+        });
+        expect(upgradedPreview.errCode).toBe(0);
+        expect(upgradedPreview.requireSimulationAction).toBe(true);
+        expect(upgradePendingOrder.simulated).toBe(true);
+        expect(upgradePendingOrder.save).toHaveBeenCalled();
+
         global.fetch = origFetch;
     });
 });

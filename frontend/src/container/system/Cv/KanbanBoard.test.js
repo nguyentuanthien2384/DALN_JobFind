@@ -251,6 +251,52 @@ describe("KanbanBoard", () => {
         view.unmount();
     });
 
+    it("renders a small first batch, then reveals more cards when scrolling or using the button", async () => {
+        const items = Array.from({ length: 37 }, (_, index) => ({ ...candidate,
+            id: index + 1, candidate_name: `Candidate ${index + 1}` }));
+        getApplicationBoard.mockResolvedValue({ errCode: 0, data: { total: 37, columns: [
+            { stage: 'applied', label: 'Mới ứng tuyển', count: 37, items },
+        ] } });
+        render(<KanbanBoard />);
+        const stage = await screen.findByRole('region', { name: 'Mới ứng tuyển' });
+        expect(await within(stage).findByRole('button', { name: 'Hồ sơ Candidate 1' })).toBeInTheDocument();
+        expect(within(stage).getAllByRole('button', { name: /^Hồ sơ / })).toHaveLength(12);
+        expect(screen.getByText(/Tổng cộng/)).toHaveTextContent('Tổng cộng 37 hồ sơ.');
+        expect(within(stage).getByText('37')).toBeInTheDocument();
+        expect(within(stage).queryByRole('button', { name: 'Hồ sơ Candidate 37' })).not.toBeInTheDocument();
+
+        const body = stage.querySelector('.kb-col-body');
+        Object.defineProperties(body, {
+            scrollHeight: { configurable: true, value: 1800 },
+            clientHeight: { configurable: true, value: 600 },
+            scrollTop: { configurable: true, value: 1150 },
+        });
+        fireEvent.scroll(body);
+        expect(within(stage).getAllByRole('button', { name: /^Hồ sơ / })).toHaveLength(24);
+        fireEvent.click(within(stage).getByRole('button', { name: /Xem thêm hồ sơ/ }));
+        expect(within(stage).getAllByRole('button', { name: /^Hồ sơ / })).toHaveLength(36);
+        fireEvent.click(within(stage).getByRole('button', { name: /Xem thêm hồ sơ/ }));
+        expect(within(stage).getByRole('button', { name: 'Hồ sơ Candidate 37' })).toBeInTheDocument();
+        expect(within(stage).queryByRole('button', { name: /Xem thêm hồ sơ/ })).not.toBeInTheDocument();
+    });
+
+    it("searches every application, including cards outside the initial rendered batch", async () => {
+        const items = Array.from({ length: 37 }, (_, index) => ({ ...candidate,
+            id: index + 1, candidate_name: `Candidate ${index + 1}` }));
+        getApplicationBoard.mockResolvedValue({ errCode: 0, data: { total: 37, columns: [
+            { stage: 'applied', label: 'Mới ứng tuyển', count: 37, items },
+        ] } });
+        render(<KanbanBoard />);
+        await screen.findByRole('button', { name: 'Hồ sơ Candidate 1' });
+        expect(screen.queryByRole('button', { name: 'Hồ sơ Candidate 37' })).not.toBeInTheDocument();
+        fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'Candidate 37' } });
+        expect(screen.getByRole('button', { name: 'Hồ sơ Candidate 37' })).toBeInTheDocument();
+        expect(screen.getByText(/Tìm thấy/)).toHaveTextContent('Tìm thấy 1 / 37 hồ sơ phù hợp.');
+        expect(screen.queryByRole('button', { name: /Xem thêm hồ sơ/ })).not.toBeInTheDocument();
+        fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
+        expect(screen.getAllByRole('button', { name: /^Hồ sơ / })).toHaveLength(12);
+    });
+
     it("keeps the selected job's board when the initial all-jobs response arrives late", async () => {
         let releaseInitial;
         const allJobs = { errCode: 0, data: { total: 2, columns: [{ stage: "applied", label: "Mới ứng tuyển", count: 2,

@@ -33,6 +33,10 @@ main() {
             echo "   Da nang cap ${mode_var}=core trong deploy/.env"
         fi
     done
+    if ! grep -q "^PAYMENT_SIMULATOR=" .env 2>/dev/null; then
+        echo "PAYMENT_SIMULATOR=true" >> .env
+        echo "   Da bo sung PAYMENT_SIMULATOR=true trong deploy/.env"
+    fi
     if ! sh scripts/check-env.sh; then
         echo "   Canh bao: tinh nang dung cac bien tren se chua hoat dong cho den khi them bang"
         echo "   sh scripts/set-env.sh TEN_BIEN 'gia-tri'. Van tiep tuc cap nhat."

@@ -2,6 +2,7 @@ const vnpay = require('./vnpay');
 const momo = require('./momo');
 const zalopay = require('./zalopay');
 const paypal = require('./paypal');
+const { simulatorEnabled } = require('./common');
 
 const gateways = { VNPAY: vnpay, MOMO: momo, ZALOPAY: zalopay, PAYPAL: paypal };
 
@@ -65,26 +66,6 @@ const evaluateSimulatedCard = (provider, cardNumber, otp) => {
         return { ok: false, reason: 'Mã xác thực OTP không chính xác hoặc đã hết hạn.' };
     }
     return { ok: true };
-};
-
-const parseBooleanEnv = (value) => {
-    if (value === undefined || value === null) return null;
-    const normalized = String(value).trim().toLowerCase();
-    if (!normalized) return null;
-    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
-    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
-    return null;
-};
-
-// Che do cong thanh toan thu nghiem the/OTP noi bo:
-// - Neu PAYMENT_SIMULATOR duoc chi dinh ro ('true'/'false') thi ton trong tuyet doi
-//   ke ca tren VPS (NODE_ENV === 'production') de du an demo/do an van thanh toan duoc
-//   khi sandbox ben ngoai (ZaloPay/MoMo/VNPAY) tam bao tri hoac chua cap khoa.
-// - Neu khong khai bao PAYMENT_SIMULATOR: mac dinh bat o dev/test va tat tren production.
-const simulatorEnabled = () => {
-    const explicit = parseBooleanEnv(process.env.PAYMENT_SIMULATOR);
-    if (explicit !== null) return explicit;
-    return process.env.NODE_ENV !== 'production';
 };
 
 const normalizeProvider = (value) => {

@@ -171,6 +171,19 @@
         padding: 20px 0;
     }
 
+    .kb-load-more {
+        width: 100%;
+        padding: 9px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #ffffff;
+        color: #2563eb;
+        font-size: 13px;
+        cursor: pointer;
+
+        &:hover, &:focus-visible { background: #eff6ff; }
+    }
+
     .kb-card {
         background: #fff;
         border: 1px solid #e5e7eb;

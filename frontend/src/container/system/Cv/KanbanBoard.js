@@ -22,6 +22,8 @@ import { ASSESSMENT_STATUS_META } from "../../../service/assessmentService";
 import { aiErrorMessage } from "../../../service/aiAssist";
 import "./KanbanBoard.scss";
 
+const COLUMN_BATCH_SIZE = 12;
+
 // Bang Kanban quan ly ho so ung tuyen.
 //
 // Truoc day nha tuyen dung chi thay ho so "da doc / chua doc". Man hinh nay cho
@@ -96,6 +98,7 @@ export const matchesApplicationSearch = (item, normalizedQuery, screening) => {
 const KanbanBoard = () => {
     const navigate = useNavigate();
     const [columns, setColumns] = useState([]);
+    const [columnWindows, setColumnWindows] = useState({ view: '', limits: {} });
     const [total, setTotal] = useState(0);
     const [funnel, setFunnel] = useState(null);
     const [posts, setPosts] = useState([]);
@@ -417,6 +420,14 @@ const KanbanBoard = () => {
 
     const normalizedSearch = normalizeSearchText(searchQuery);
     const hasSearchFilter = Boolean(normalizedSearch);
+    const columnView = JSON.stringify([jobId, normalizedSearch, sortByAi]);
+    const columnLimits = columnWindows.view === columnView ? columnWindows.limits : {};
+    const revealMore = (stage, totalItems) => setColumnWindows(previous => {
+        const limits = previous.view === columnView ? previous.limits : {};
+        const current = limits[stage] || COLUMN_BATCH_SIZE;
+        if (current >= totalItems) return previous;
+        return { view: columnView, limits: { ...limits, [stage]: Math.min(totalItems, current + COLUMN_BATCH_SIZE) } };
+    });
 
     const visibleColumns = useMemo(() => {
         if (!hasSearchFilter) return columns;
@@ -561,7 +572,10 @@ const KanbanBoard = () => {
                 </div>
             ) : (
                 <div className="kb-columns">
-                    {visibleColumns.map((col) => (
+                    {visibleColumns.map((col) => {
+                        const items = orderedItems(col.items);
+                        const renderLimit = columnLimits[col.stage] || COLUMN_BATCH_SIZE;
+                        return (
                         <div
                             key={col.stage}
                             role="region"
@@ -579,11 +593,16 @@ const KanbanBoard = () => {
                                 <span className="kb-count">{col.count}</span>
                             </div>
 
-                            <div className="kb-col-body">
+                            <div className="kb-col-body" onScroll={event => {
+                                const body = event.currentTarget;
+                                if (body.scrollHeight - body.scrollTop - body.clientHeight <= 160) {
+                                    revealMore(col.stage, items.length);
+                                }
+                            }}>
                                 {col.items.length === 0 && (
                                     <div className="kb-col-empty">{hasSearchFilter ? "Không khớp tìm kiếm" : "Chưa có hồ sơ"}</div>
                                 )}
-                                {orderedItems(col.items).map((item) => (
+                                {items.slice(0, renderLimit).map((item) => (
                                     <div
                                         key={item.id}
                                         role="button"
@@ -628,9 +647,16 @@ const KanbanBoard = () => {
                                         </div>
                                     </div>
                                 ))}
+                                {items.length > renderLimit && (
+                                    <button type="button" className="kb-load-more"
+                                        onClick={() => revealMore(col.stage, items.length)}>
+                                        Xem thêm hồ sơ ({items.length - renderLimit})
+                                    </button>
+                                )}
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
